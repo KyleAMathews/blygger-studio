@@ -29,8 +29,10 @@ the name and version live.
 **Model routing applies here too.** This repo implements semantics; it does not set
 them. If a task touches protocol semantics, cross-client invariants, security/crypto or
 API-surface design, it is ⚠️ FABLE — stop and say so rather than improvising. Two live
-examples: the `/api` write contract (roadmap-tracks 1.8) and whether a citation's human
-half goes on the wire (1.2).
+examples, both **ruled session 27 (2026-09-28)**: the `/api` write contract (roadmap-tracks
+1.8 → decision #31: the client's own contract, never the protocol's; auth direction fixed)
+and whether a citation's human half goes on the wire (1.2 → decision #30: yes, `cited`).
+The rulings and their build consequences are in `../blygger-spec/docs/v0.3-plan.md` §8c.
 
 ## Stack conventions
 
@@ -79,9 +81,14 @@ audit, and `/api` gets no CORS.
 
 **Third-party authoring tools are already writing to it** — a native macOS studio, a
 Drafts action, an Obsidian plugin. Making this a real contract (tokens, scopes,
-versioning, idempotency) is ⚠️ FABLE-gated on **two** counts and tracked as
-roadmap-tracks 1.8 / 2.9. Do not design it here, and do not quietly harden it in a way
-that breaks the tools now depending on it without saying so.
+versioning, idempotency) **was** ⚠️ FABLE-gated on two counts and is now **unblocked**
+(decision #31, session 27): it is this client's contract, not the protocol's. Direction
+is fixed — per-client bearer tokens with coarse verb scopes, owner-minted and revoked in
+the studio, the owner password as root credential that no tool ever holds, revoke-all,
+CORS for token-bearing requests, endpoint discovery via an HTML `rel` link on the studio
+page (never a manifest key). Build within that direction; anything beyond it is still
+Fable. Do not harden it in a way that breaks the tools now depending on it without
+saying so.
 
 ## Status
 
@@ -96,6 +103,8 @@ the wire and are not here** — they are parked in
 [`../blygger-spec/docs/v0.3-plan.md`](../blygger-spec/docs/v0.3-plan.md) §8b for the Fable
 round: plain `[[id]]` links, TK sources from another blyg, partial quotation, `impyrt`
 (externally generated spans), `#`-heading-as-title, and the write-surface question (1.8).
+**All six ruled session 27** — see §8c there and the "From the session-27 Fable round"
+block below.
 **Two of the five reported "bugs" are not bugs** — see §8b; the client is doing what it
 was specified to do in both cases.
 
@@ -112,10 +121,10 @@ was specified to do in both cases.
 
 - [ ] **Switch fragment → thread in the composer before first publish.** `kind` is a wire
   field, but a pre-publish draft has no wire presence, so this is purely studio state.
-- [ ] **Bulk-update stale transcluded snapshots in a stub.** The UI half is here; *learning*
-  that a target has a newer version is the "staleness-over-DAG" v0.4 item in
-  `roadmap.md` and 1.7 in `roadmap-tracks.md`. Build the UI against whatever those settle,
-  and don't invent a freshness probe here.
+- [ ] **Bulk-update stale transcluded snapshots in a stub.** **Unblocked (decision #33):**
+  freshness is direct and needs nothing new on the wire — fetch `{origin}items/{id}.json`
+  and compare `version` to the reference's. Build the probe and the UI against that.
+  Transitive ("over the DAG") staleness is undefined and stays out.
 - [ ] **Show second-degree references within a stubbed item.** Presentation is this client's
   call (§8.4 does not constrain presentation — session 20). **Check the data exists first:**
   we hold a snapshot of the target, not the target's own reference list, so this may need a
@@ -123,20 +132,46 @@ was specified to do in both cases.
 - [ ] **Open a reader item in a new tab.** No affordance today.
 - [ ] **Offer plain linking in the reader**, alongside stub and fork. The `[anchor](url)`
   half is ordinary markdown and can ship now for both blygs and RSS. The `[[id]]` half is
-  blocked on §8b.
+  **unblocked (decision #32)** — see the session-27 block below for the grammar.
 - [ ] **Discard button for an unpublished new version.** Note the session-19 trap recorded
   above: the shared action handler ends in `location.reload()`, which is wrong for any
   action that removes the thing being viewed.
 - [ ] **Reorder the tabs** — reading first, compose second, subscriptions moved to just
   before settings.
 
+### From the session-27 Fable round (2026-09-28) — wire-adjacent, now buildable
+
+These four are what promote `protocol-v0.3.md` §16.1/§16.2 from "ruled" to normative
+(strict #21: the spec text follows the build). Shapes are fixed; do not vary them.
+
+- [ ] **Emit `cited` on every reference** (decision #30, spec §16.1): serialize the existing
+  `StubCite` — `source`, `author`, `excerpt` (cap ~200 chars), `url`, `retrieved`
+  (REQUIRED) — as `cited` inside `stub_of`, each remote `transclusions[]` entry, and
+  `forked_from`, on live and pinned documents. **Read side:** when importing a document
+  that carries `cited`, use it as the frozen citation (it is more correct than a later
+  lookup, not a fallback) and never as verification input; `verifyMention` reads the bare
+  reference only. Never render it into `content_html`. The stale-byline finding for remote
+  transclusions is the same fix.
+- [ ] **Render `[[id]]` as a plain internal link** (decision #32, spec §16.2): inline
+  anywhere in `content_md`, resolve by the `![[id]]` order (#26), render `<a href>` to the
+  target's `page` (remote: origin + page), anchor text is ours to choose. Unresolvable is a
+  publish error. **No** `transclusions[]` entry, **no** mention, **no** wire class — it is
+  invisible on the wire by ruling, not by omission.
+- [ ] **`PROTOCOL_LEVEL` → `2`.** Live nodes emit `"level": 1` while publishing 0.3
+  constructs; 0.3's §3 defines L2 as this specification. One line. (Readers may not gate
+  on it — §3.2 — so this is honesty, not compatibility.)
+- [ ] **Store the target version per outbound mention** (roadmap-tracks 1.7, decision #33):
+  `enqueueOutbound` resets every row to `pending` on republish because `mentions_out`
+  holds no target version; spec §15.2 says unchanged references are not re-sent. Same
+  missing fact as the freshness probe above — build them together.
+
 ### New features
 
-- [ ] **Reset the owner password in settings.** **Sequence this with roadmap-tracks 1.8,**
-  not before it. Auth today is one shared `OWNER_PASSWORD` behind a 30-day HMAC cookie; if
-  1.8 brings tokens, a reset flow has to invalidate those too, and a password-only reset
-  shipped first would be rebuilt immediately. Security-touching: if the design goes beyond
-  "change the secret and invalidate sessions", flag it rather than improvising.
+- [ ] **Reset the owner password in settings.** **Design is fixed (decision #31), build with
+  or after tokens:** a reset rotates the root secret and invalidates sessions; tokens are
+  independent and survive, and the reset flow MUST list them and offer revoke-all, because
+  compromise is exactly when an attacker has minted one. Auth today is one shared
+  `OWNER_PASSWORD` behind a 30-day HMAC cookie. Anything beyond that shape is Fable.
 - [ ] **Timezone localization for displayed dates.** The complaint is real — dates render in
   UTC. **The wire must not change:** feed dates stay RFC-822, item documents stay ISO-8601
   UTC, and `toIsoUtc()` keeps normalizing at the parse boundary. A `timezone` setting
