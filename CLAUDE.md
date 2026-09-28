@@ -279,6 +279,31 @@ These four are what promote `protocol-v0.3.md` §16.1/§16.2 from "ruled" to nor
 
 ### From the session-28 Fable round (2026-09-28) — the first 0.4 construct
 
+- [ ] **Partial transclusion** (decision #49, spec §16.4; a **0.3 revision** once built and
+  exercised on both nodes). Grammar: a `![[id]]` directive immediately followed — no blank
+  line — by a markdown blockquote is a partial transclusion; the blockquote's text is the
+  selection; a blank line detaches it (whole transclusion + the author's own quote stays
+  writable). Publish: the selection MUST be a substring of the target snapshot's **text
+  content** — `content_html` with tags stripped, whitespace collapsed within a block, block
+  boundaries as line breaks; write that normalizer once and use it for publish-time check and
+  any read-side re-check — else a publish error like an unresolvable directive. Wire: the
+  `transclusions[]` entry gains `selector: { exact, prefix?, suffix? }` (W3C text-quote
+  shape; keep prefix/suffix short, ~32 chars). `verifyMention` ignores it. Bake:
+  `class="blyg-transclusion blyg-partial"` with the usual `data-blyg-*`; whether the bake
+  carries inline formatting from the source HTML or plain text in `<p>`s is yours to settle
+  and record. No length cap. Relation stays `transclusion`; staleness unchanged. `{url}`
+  stubs get nothing — an ordinary blockquote. Studio: select text in the reading view →
+  "quote" prefills the directive-plus-blockquote; the stub action prefills this form for
+  long targets instead of the whole item. Record the cross-node exercise in your devlog — it
+  is what lets Fable promote §16.4 into §10.
+- [ ] **Reader-side `[[id]]` affordance** (decision #50, answering the ⚠️ FABLE flag raised
+  2026-09-28 — the "distinction worth ruling on" in the feature-refinements entry above is
+  the ruling): allowed, no collision with #27 — a link is not a response. Build it as the
+  reader end of the `[[` picker work: an action on a reading-feed entry that **copies
+  `[[id]]`** or **inserts** it into an open draft. Name it for what it does, place it beside
+  copy-permalink, never as a peer of `stub ↗` in the response slot, never
+  "respond"/"reply"/"answer". `stub ↗` stays the one affordance that means "I am responding".
+
 - [ ] **Remote generation sources** (decision #44, spec §16.3; 0.4). Widen `resolveFragment`'s
   TK-source rule to `resolveTarget`'s (#26 order: local published item → imported item with a
   current or pin-retained snapshot → error; threads allowed; more than one imported match is
