@@ -17,6 +17,7 @@ import {
   RestoreVersionError,
   restoreVersion,
   saveWorkingCopy,
+  setDraftKind,
   setStubOf,
   TkPublishError,
   TransclusionResolveError,
@@ -26,7 +27,7 @@ import { mentionFetch } from "./mentions/http.ts";
 import { drainOutbound, enqueueForVersion } from "./mentions/send.ts";
 import { checkForkTarget, resolveForkSource } from "./fork.ts";
 import { siteOrigin } from "./protocol.ts";
-import { parseForkedFrom, parseStoredFork, parseStubOf } from "./stub.ts";
+import { parseForkedFrom, parseStoredFork, parseStoredStub, parseStubOf } from "./stub.ts";
 import { runGenerateScope } from "./tk-generate.ts";
 import type { Env } from "./types.ts";
 import { newMediaId, normalizeMount, nowIso } from "./util.ts";
@@ -89,6 +90,32 @@ api.put("/items/:id", async (c) => {
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
   const body = await c.req.json<ItemBody>();
+  // `kind` on a **never-published** draft only (session 28). A draft has no
+  // wire presence — no item document, no feed entry, nothing anyone has
+  // fetched — so its kind is still studio state and switching it rewrites
+  // nothing. The moment it is published, `kind` is a field readers have and
+  // history records, and changing it would make the archive disagree with
+  // itself; a withdrawn item is *published* by this test, because its
+  // endcap and its versions are both out there.
+  //
+  // The composer's own toggle does not come through here: it deletes and
+  // recreates, which it can because the text lives in its textarea. An
+  // editor draft has attachments, TK scopes and a save history behind it, so
+  // it is changed in place instead.
+  if (body.kind !== undefined) {
+    const kind = body.kind === "thread" ? "thread" : "fragment";
+    if (item.version !== 0) {
+      return c.json({ error: "kind is fixed once an item has been published" }, 409);
+    }
+    // Only threads carry a citation (§2.2), and a stub is a deliberate act —
+    // dropping it silently on a kind switch would discard a claim the author
+    // made. "clear stub" is already in the editor, so ask for it.
+    if (kind === "fragment" && parseStoredStub(item.stub_of)) {
+      return c.json({ error: "clear the stub before switching this to a fragment" }, 409);
+    }
+    if (kind !== item.kind) await setDraftKind(c.env.DB, item.id, kind);
+    if (typeof body.content_md !== "string" && !("stub_of" in body)) return c.json({ ok: true, kind });
+  }
   // `stub_of: null` clears the citation — the body stays as written, so what
   // was a stub becomes a thread that happens to quote something (§3.1).
   if ("stub_of" in body) {

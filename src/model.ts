@@ -120,6 +120,20 @@ export async function authoredKind(db: D1Database, item: ItemRow): Promise<"frag
   return prev?.transclusions ? "thread" : "fragment";
 }
 
+/**
+ * Change a never-published draft's kind. Guarded by `version = 0` in the SQL
+ * as well as by the caller, because this is the one field that stops being
+ * editable the moment an item is published: from then on it is a wire field
+ * readers already have, and a row of history that must keep agreeing with the
+ * documents it describes.
+ */
+export async function setDraftKind(db: D1Database, id: string, kind: "fragment" | "thread"): Promise<void> {
+  await db
+    .prepare("UPDATE items SET kind = ?, dirty = 1, updated = ? WHERE id = ? AND version = 0")
+    .bind(kind, nowIso(), id)
+    .run();
+}
+
 /** Save the working copy. Does not touch `updated` for ever-published items — that field is publish-facing. */
 export async function saveWorkingCopy(db: D1Database, id: string, contentMd: string): Promise<void> {
   await db

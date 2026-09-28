@@ -94,7 +94,7 @@ saying so.
 
 Live on five nodes as of 2026-09-28, two of them Venkat's
 (`venkateshrao.com/blyg/`, `blyg.protocol-institute.org`) and three strangers'
-self-hosts. **0.7.0**, 560 tests, `tsc` clean (with `noUnusedLocals`, on since session 28).
+self-hosts. **0.7.0**, 570 tests, `tsc` clean (with `noUnusedLocals`, on since session 28).
 The deployed nodes run 0.6.1 — 0.7.0 is built and committed, not yet tagged or deployed.
 
 ## Backlog — from Venkat's issue list (session 26, 2026-09-28)
@@ -113,7 +113,13 @@ was specified to do in both cases.
 
 - [ ] **Reader view doesn't roll up entries** the way the published surface does. Reading
   feed presentation only; the published surface is the reference for what it should look
-  like.
+  like. **Needs one sentence from Venkat before it can be built (session 28, Opus):** there
+  is no roll-up logic in the tree to point at, and `imported_items` is keyed
+  `(subscription, remote_id)` so the reading feed already shows one row per item rather than
+  one per version. So "roll up" means something else — most likely how a *thread* with baked
+  transclusions renders (the published card shows its quoted blockquotes with a provenance
+  line; the reading entry shows clamped `content_html`) — but that is a guess, and building
+  the wrong reading of it is worse than asking.
 - [x] **Transclusion picker stops after a few items and has no search** — **done 0.7.0.**
   Neither half was what the report implied. There was never a missing query box: the query
   has always been the text you type in the editor. What existed was a *dead*
@@ -125,8 +131,15 @@ was specified to do in both cases.
 
 ### Feature refinements
 
-- [ ] **Switch fragment → thread in the composer before first publish.** `kind` is a wire
-  field, but a pre-publish draft has no wire presence, so this is purely studio state.
+- [x] **Switch fragment → thread in the composer before first publish** — **done 0.7.0**,
+  and the gap was in the *editor*, not the composer: the composer's toggle already worked by
+  deleting the draft and recreating it, which is safe only because the text lives in the
+  textarea it was typed into. Past the Full Editor door that stops being true (attachments,
+  TK scopes, save history), so `PUT /api/items/:id` now accepts `kind` and changes the row
+  in place. Guarded at `version === 0` in the handler *and* in `setDraftKind`'s SQL — a
+  withdrawn item counts as published, because its endcap and its versions are both out
+  there. A stub thread is refused (409) rather than silently losing its citation; "clear
+  stub" is the way through.
 - [ ] **Bulk-update stale transcluded snapshots in a stub.** **Unblocked (decision #33):**
   freshness is direct and needs nothing new on the wire — fetch `{origin}items/{id}.json`
   and compare `version` to the reference's. Build the probe and the UI against that.
@@ -140,9 +153,20 @@ was specified to do in both cases.
   origin's declared `page` wins (#29), `f/`·`t/` is a fallback, L0 points at the anchor its
   feed gave, own items point at our own public page, and a withdrawn own item gets no link.
   Always `target="_blank"` — the studio holds unsaved composer text.
-- [ ] **Offer plain linking in the reader**, alongside stub and fork. The `[anchor](url)`
-  half is ordinary markdown and can ship now for both blygs and RSS. The `[[id]]` half is
-  **unblocked (decision #32)** — see the session-27 block below for the grammar.
+- [ ] **⚠️ FABLE — Offer plain linking in the reader**, alongside stub and fork. The
+  `[anchor](url)` half is ordinary markdown and the `[[id]]` half is unblocked by #32, so
+  this looked buildable — **but it collides with decision #27**, which retired `respond ↗`
+  with the words *"one affordance, no lighter sibling"*, precisely because "two overlapping
+  'respond to this' affordances with different semantics would be the bad outcome". A
+  reader button that starts a draft linking the item you just read **is** that sibling, and
+  `[[id]]`'s silence on the wire makes it *lighter* than the retired one, not heavier.
+  Raised and not built, session 28 (Opus).
+  **The distinction worth ruling on:** a gesture that *creates feed speech about someone
+  else's item* is the stub's slot and #27 closed it. A gesture that only *hands you the
+  reference* for something you are already writing — copy `[[id]]`, the reader-side twin of
+  the `[[` palette — creates nothing, says nothing, and may not be the same act at all. If
+  that reading holds, the affordance is a clipboard helper rather than a composer door, and
+  the two never overlap. If it does not, this item should be closed rather than left open.
 - [x] **Discard button for an unpublished new version** — **done 0.7.0, and the defect was
   worse than this entry implied.** The control existed and worked; the *thread* editor just
   never rendered it. `threadEditPage` computed `discardBtn` — both branches, with the

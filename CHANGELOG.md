@@ -87,10 +87,32 @@ writing is a response to something read. Subscriptions moved down beside
 settings because it configures the reading feed rather than being a place you
 work. The order was never asserted, so it is now.
 
-**Verification:** 560 tests, `tsc --noEmit` clean, and everything above
+**A draft can change its mind about what it is.** `PUT /api/items/:id` now
+accepts `kind` on a never-published draft, and both editors offer "make this a
+thread" / "make this a fragment". The composer's toggle always worked by
+deleting the draft and recreating it — safe only because the text lives in the
+textarea it was typed into — so past the Full Editor door, where the draft has
+attachments, TK scopes and a save history, choosing the wrong kind meant
+retyping. The row changes in place instead.
+
+- **Never-published only**, guarded in the handler and again in the SQL. Once
+  an item is published its `kind` is a field readers have and history records;
+  moving it would make the archive disagree with itself. A **withdrawn** item
+  is published by this test — its endcap and its versions are both out there.
+- **A stub thread is refused (409), not silently converted.** Only threads
+  carry a citation, and a stub is a claim the author made about what they are
+  responding to; dropping it as a side effect of a kind switch would discard
+  that claim. The error names "clear the stub" as the way through, which is a
+  button already in the editor.
+- Switching a long thread to a fragment is allowed and publish still enforces
+  the 1000-char cap, so the editor's counter shows you are over rather than the
+  switch pretending the text is fine.
+
+**Verification:** 570 tests, `tsc --noEmit` clean, and everything above
 exercised by hand against a local node — each bracket form in each composer,
 arrow-key paging past the 20-item boundary (no duplicates, selection held), the
-thread editor's restored discard button, and the reader's new link.
+thread editor's restored discard button, the reader's new link, and a draft
+switched from fragment to thread in place with its text intact.
 
 ## 0.6.1 — 2026-09-28
 

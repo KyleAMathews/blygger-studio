@@ -648,6 +648,17 @@ document.addEventListener("click", async (e) => {
     const version = Number(btn.dataset.version);
     if (!confirm("Discard unpublished changes and go back to the published v" + version + "?\\n\\nThe public item is not affected — it is already v" + version + ".")) return;
     if (!(await api("POST", "/api/items/" + id + "/restore", { version }))) return;
+  } else if (action === "switch-kind") {
+    // Saves the working copy first: the editor autosaves on a 400ms debounce,
+    // so a switch typed-then-clicked inside that window would reload the other
+    // editor over text that was never written. The reload is what moves you
+    // between the two editors — /edit/:id dispatches on kind.
+    const to = btn.dataset.kind;
+    const input = document.getElementById("md-input");
+    if (input) { if (!(await api("PUT", "/api/items/" + id, { content_md: input.value }))) return; }
+    if (!(await api("PUT", "/api/items/" + id, { kind: to }))) return;
+    location.reload();
+    return;
   } else if (action === "pin") {
     const version = Number(btn.dataset.version);
     if (!confirm("Pin v" + version + "? This is irrevocable — it stays fetchable forever, even past withdrawal.")) return;
@@ -1627,7 +1638,7 @@ ${paletteMarkup()}
 </div>
 ${mediaHtml}
 <div class="edit-bar">
-<span><button type="button" id="attach-btn">attach image</button> <span class="count" id="edit-count">${item.content_md.length} / ${FRAGMENT_MAX_CHARS}</span></span>
+<span><button type="button" id="attach-btn">attach image</button> <span class="count" id="edit-count">${item.content_md.length} / ${FRAGMENT_MAX_CHARS}</span> ${kindSwitchBtn(item, "fragment")}</span>
 <span>
   <input class="note" id="note-input" type="text" placeholder="what changed? (optional edit note)">
   <button type="button" id="save-draft-btn">save draft</button>
@@ -1722,6 +1733,27 @@ document.getElementById("attach-btn").addEventListener("click", () => {
 });
 </script>`;
   return studioLayout(`editing — blyg studio`, body, true);
+}
+
+/**
+ * "Make this a thread" / "make this a fragment", for a **never-published**
+ * draft only (session 28).
+ *
+ * The composer's kind toggle has always worked by deleting the draft and
+ * recreating it — safe there, because the text lives in the textarea it was
+ * typed into. Once you take the Full Editor door that stops being true: the
+ * draft has attachments, TK scopes and a save history, so the same gesture in
+ * the editor has to change the row in place. Until this existed, picking the
+ * wrong kind before clicking through meant retyping.
+ *
+ * Absent once published, because `kind` is then a wire field readers have and
+ * the API refuses it (409). A stub thread shows it too, but the switch is
+ * refused with a reason rather than silently dropping the citation.
+ */
+function kindSwitchBtn(item: ItemRow, kind: "fragment" | "thread"): string {
+  if (item.version !== 0) return "";
+  const to = kind === "thread" ? "fragment" : "thread";
+  return `<button type="button" class="link" data-action="switch-kind" data-id="${item.id}" data-kind="${to}">make this a ${to}</button>`;
 }
 
 /**
@@ -1822,7 +1854,7 @@ ${paletteMarkup()}
 ${mediaHtml}
 <div class="note-row"><label for="note-input">What changed?</label><input id="note-input" placeholder="optional edit note, shows in changelog + feed title"></div>
 <div class="edit-bar">
-<span><button type="button" id="attach-btn">attach image</button></span>
+<span><button type="button" id="attach-btn">attach image</button> ${kindSwitchBtn(item, "thread")}</span>
 <span><button type="button" id="save-draft-btn">save draft</button> <button type="button" class="primary" id="publish-btn">${publishLabel}</button> ${discardBtn} ${withdrawBtn}</span>
 </div>
 ${historyPanel(item, versions, mount)}
