@@ -35,6 +35,7 @@ import { mentionFetch } from "./mentions/http.ts";
 import { receiveMention, verifyMention } from "./mentions/receive.ts";
 import { mentionsApi } from "./mentions/api.ts";
 import { drainOutbound } from "./mentions/send.ts";
+import { pruneFailedInbound } from "./mentions/store.ts";
 import { mentionsStudio } from "./mentions/studio.ts";
 import { studio } from "./studio.ts";
 import type { Env, Settings } from "./types.ts";
@@ -198,6 +199,10 @@ export function makeApp(mount: string) {
     // Never cacheable: the public sub-app stamps 60s on anything without a
     // Cache-Control, and a mention endpoint's answer is about one claim.
     c.header("Cache-Control", "no-store");
+    // A rate limit is a rolling hour, so an hour is the honest upper bound on
+    // when a slot frees — said in the header so a well-behaved sender waits
+    // instead of retrying into the cap.
+    if (outcome.status === 429) c.header("Retry-After", "3600");
     if (outcome.status !== 202) return c.json({ error: outcome.error }, outcome.status);
     const { mentionId, source, target } = outcome;
     const itemId = (await c.env.DB.prepare("SELECT target_item_id FROM mentions_in WHERE id = ?").bind(mentionId).first<{ target_item_id: string }>())!
@@ -300,5 +305,9 @@ export default {
     // Outbound mentions retry here (§2.3.4): the publish path tries once
     // immediately, and a receiver that was down gets it on a later tick.
     ctx.waitUntil(drainOutbound(env.DB, mentionFetch).catch(() => {}));
+    // Housekeeping (§9.1 gap 3): `failed` inbound claims are kept for 30 days
+    // and then dropped. Here rather than on the endpoint, because the request
+    // path must not do work that a flood would multiply.
+    ctx.waitUntil(pruneFailedInbound(env.DB).catch(() => {}));
   },
 };

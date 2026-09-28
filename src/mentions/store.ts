@@ -13,12 +13,101 @@ export const RETRY_SCHEDULE_MS = [15 * 60_000, 60 * 60_000, 4 * 60 * 60_000, 12 
 /** Rate limit (§2.3.5): at most this many mentions from one source host per hour, whatever their status. */
 export const INBOUND_HOURLY_LIMIT = 60;
 
+/**
+ * The same window counted against the registrable domain instead of the host
+ * (`self-host-plan.md` §9.1 gap 1). Wildcard DNS makes `a.spam.example` and
+ * `b.spam.example` different hosts, so a per-host cap alone costs a flooder
+ * one DNS label per 60 mentions and bounds nothing.
+ *
+ * Deliberately *higher* than the per-host cap rather than equal to it:
+ * `registrableDomain` groups by heuristic and can over-collect (see there), and
+ * a shared-hosting suffix we have not listed would otherwise cap every blyg
+ * behind it collectively at the single-host number. Two busy hosts under one
+ * real domain also stay inside it.
+ */
+export const INBOUND_DOMAIN_HOURLY_LIMIT = 120;
+
+/**
+ * And a cap on the endpoint as a whole (§9.1 gap 2). Per-source limiting bounds
+ * no total: fifty domains sending 119 each sits inside both caps above while
+ * spending up to 11,900 outbound fetches at URLs strangers chose — and the bill
+ * for those is the deployer's, not the sender's. This is the only limit that
+ * bounds what an accepted claim can cost in aggregate.
+ *
+ * 300/hour is ~5× the single-host cap and far above any real traffic: a blyg
+ * with a busy week of responses sees a handful a day.
+ */
+export const INBOUND_GLOBAL_HOURLY_LIMIT = 300;
+
+/**
+ * How long a `failed` inbound row is kept (§9.1 gap 3). `failed` is the status
+ * of a claim that never verified — there is no relationship to remember, unlike
+ * `gone`, which is kept forever on purpose — and no view reads these rows: the
+ * studio lists `verified` and `gone` only. Without a prune they are an
+ * unbounded write surface for anyone who can POST, which is everyone.
+ *
+ * 30 days rather than immediately, so that a spam wave is still legible in the
+ * table while anyone is still looking at it.
+ */
+export const FAILED_INBOUND_RETENTION_MS = 30 * 24 * 60 * 60_000;
+
 export function hostOf(url: string): string | null {
   try {
     return new URL(url).host;
   } catch {
     return null;
   }
+}
+
+/**
+ * Suffixes under which each subdomain is a *different* operator, so grouping by
+ * "last two labels" would collapse unrelated blygs into one rate-limit bucket.
+ * Two kinds: registry suffixes (`co.uk`), and hosting platforms where a
+ * subdomain is the unit anyone gets (`pages.dev`, and `exe.xyz`, which is where
+ * one of the live third-party nodes runs).
+ *
+ * This is a curated list, not the Public Suffix List — the PSL is ~230KB of
+ * data that would have to ship in the Worker and be kept current, to serve one
+ * rate limit. The failure direction is stated at `registrableDomain`.
+ */
+const MULTI_LABEL_SUFFIXES = new Set([
+  // Hosting platforms: a subdomain per operator.
+  "pages.dev", "workers.dev", "exe.xyz", "github.io", "gitlab.io", "netlify.app", "vercel.app",
+  "fly.dev", "deno.dev", "web.app", "firebaseapp.com", "surge.sh", "neocities.org", "bearblog.dev",
+  "micro.blog", "substack.com", "wordpress.com", "blogspot.com", "tumblr.com", "ghost.io",
+  // Registry suffixes.
+  "co.uk", "org.uk", "ac.uk", "gov.uk", "me.uk", "com.au", "net.au", "org.au", "co.nz", "co.jp",
+  "or.jp", "ne.jp", "co.in", "com.br", "com.mx", "co.za", "com.cn", "com.tr", "com.ar", "co.kr",
+  "com.sg", "com.hk", "co.il", "com.ua", "com.pl", "com.tw",
+]);
+
+/**
+ * The registrable domain of a URL — eTLD+1 — by heuristic: the last two labels
+ * of the hostname, or three when the last two are a known multi-label suffix.
+ * An IP literal is its own domain; a hostname with fewer than two labels is
+ * returned as-is.
+ *
+ * **Failure direction, stated because it is the point of the heuristic:** a
+ * multi-label suffix we have *not* listed groups its subdomains together, so
+ * independent sites under it share one bucket — which is why that bucket
+ * (`INBOUND_DOMAIN_HOURLY_LIMIT`) sits above the per-host one, and why the
+ * per-host cap is kept rather than replaced. The reverse error cannot happen:
+ * a listed suffix never merges two real domains.
+ */
+export function registrableDomain(url: string): string | null {
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  if (!hostname) return null;
+  // IPv6 arrives bracketed; IPv4 is four numeric labels. Neither has a suffix.
+  if (hostname.startsWith("[") || /^\d+(\.\d+){3}$/.test(hostname)) return hostname;
+  const labels = hostname.replace(/\.$/, "").split(".");
+  if (labels.length <= 2) return labels.join(".");
+  const lastTwo = labels.slice(-2).join(".");
+  return MULTI_LABEL_SUFFIXES.has(lastTwo) ? labels.slice(-3).join(".") : lastTwo;
 }
 
 /**
@@ -145,11 +234,27 @@ export async function getInbound(db: D1Database, id: string): Promise<MentionInR
   return db.prepare("SELECT * FROM mentions_in WHERE id = ?").bind(id).first<MentionInRow>();
 }
 
-/** Mentions seen from one source host in the last hour — the §2.3.5 rate-limit input. */
-export async function countRecentFromHost(db: D1Database, host: string, now: number = Date.now()): Promise<number> {
+/**
+ * Every inbound claim seen in the last hour — the rate-limit input, read once
+ * and counted three ways by the caller (§2.3.5 step 2, §9.1 gaps 1–2). One
+ * query rather than three: the global cap is what keeps this row set small, so
+ * the three counts can share a single read of it.
+ */
+export async function recentInboundSources(db: D1Database, now: number = Date.now()): Promise<string[]> {
   const cutoff = new Date(now - 60 * 60_000).toISOString();
   const rows = await db.prepare("SELECT source FROM mentions_in WHERE last_seen >= ?").bind(cutoff).all<{ source: string }>();
-  return rows.results.filter((r) => hostOf(r.source) === host).length;
+  return rows.results.map((r) => r.source);
+}
+
+/**
+ * Drop `failed` inbound rows past their retention (§9.1 gap 3). Runs on the
+ * cron, not on the request path: a POST should never pay for housekeeping, and
+ * a flood is exactly when it would.
+ */
+export async function pruneFailedInbound(db: D1Database, now: number = Date.now()): Promise<number> {
+  const cutoff = new Date(now - FAILED_INBOUND_RETENTION_MS).toISOString();
+  const res = await db.prepare("DELETE FROM mentions_in WHERE status = 'failed' AND last_seen < ?").bind(cutoff).run();
+  return res.meta.changes ?? 0;
 }
 
 /**

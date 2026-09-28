@@ -18,7 +18,18 @@ import { transition } from "../src/importer/transition.ts";
 import { discoverEndpoint, endpointFromHtml, endpointFromLinkHeader } from "../src/mentions/discover.ts";
 import { receiveMention, relationTo, verifyMention } from "../src/mentions/receive.ts";
 import { drainOutbound } from "../src/mentions/send.ts";
-import { getInbound, INBOUND_HOURLY_LIMIT, listOutbound, upsertInbound } from "../src/mentions/store.ts";
+import {
+  FAILED_INBOUND_RETENTION_MS,
+  getInbound,
+  INBOUND_DOMAIN_HOURLY_LIMIT,
+  INBOUND_GLOBAL_HOURLY_LIMIT,
+  INBOUND_HOURLY_LIMIT,
+  listOutbound,
+  markInboundUnverified,
+  pruneFailedInbound,
+  registrableDomain,
+  upsertInbound,
+} from "../src/mentions/store.ts";
 import { newId } from "../src/util.ts";
 import { itemDocBody } from "./importer/fixtures.ts";
 import { apiJson, BASE, createAndPublish, getPublic, login, STUDIO } from "./helpers.ts";
@@ -347,6 +358,66 @@ describe("receiving and structural verification (§2.3.5)", () => {
     expect((await receiveMention(env.DB, { source: `${THEIRS}t/x/`, target }, OURS, now)).status).toBe(202);
   });
 
+  it("rate-limits a wildcard-DNS flood at the registrable domain, which the per-host cap misses", async () => {
+    const { id, target } = await ourItem();
+    const now = Date.parse("2026-09-28T12:00:00Z");
+    // One host per claim: every one of these is inside the per-host cap of 60,
+    // which is exactly the hole §9.1 gap 1 names — a DNS wildcard costs the
+    // flooder nothing.
+    for (let i = 0; i < INBOUND_DOMAIN_HOURLY_LIMIT; i++) {
+      await upsertInbound(env.DB, `https://h${i}.spam.example/t/x/`, target, id, new Date(now).toISOString());
+    }
+    const res = await receiveMention(env.DB, { source: "https://h999.spam.example/t/x/", target }, OURS, now);
+    expect(res.status).toBe(429);
+    expect((res as { error: string }).error).toMatch(/domain/);
+    // A different registrable domain is unaffected, and so is a different
+    // operator under a hosting suffix — `spam.example` groups, `pages.dev` does not.
+    expect((await receiveMention(env.DB, { source: `${THEIRS}t/x/`, target }, OURS, now)).status).toBe(202);
+  });
+
+  it("caps the endpoint as a whole, which no per-source limit does", async () => {
+    const { id, target } = await ourItem();
+    const now = Date.parse("2026-09-28T12:00:00Z");
+    // Spread across distinct registrable domains, each well inside both
+    // per-source caps: the aggregate is the only thing that bounds this.
+    for (let i = 0; i < INBOUND_GLOBAL_HOURLY_LIMIT; i++) {
+      await upsertInbound(env.DB, `https://d${i}.example/t/x/`, target, id, new Date(now).toISOString());
+    }
+    const res = await receiveMention(env.DB, { source: "https://newcomer.example/t/x/", target }, OURS, now);
+    expect(res.status).toBe(429);
+    expect((res as { error: string }).error).toMatch(/hourly limit/);
+    // An hour later the window has rolled and the endpoint accepts again.
+    const later = now + 61 * 60_000;
+    expect((await receiveMention(env.DB, { source: "https://newcomer.example/t/x/", target }, OURS, later)).status).toBe(202);
+  });
+
+  it("prunes failed claims past retention and keeps verified, gone and pending ones", async () => {
+    const { id, target } = await ourItem();
+    const now = Date.parse("2026-09-28T12:00:00Z");
+    const old = new Date(now - FAILED_INBOUND_RETENTION_MS - 1000).toISOString();
+    const rows: Record<string, "failed" | "gone" | "verified" | "pending"> = {
+      "https://old-fail.example/t/x/": "failed",
+      "https://old-gone.example/t/x/": "gone",
+      "https://old-pending.example/t/x/": "pending",
+    };
+    for (const [source, status] of Object.entries(rows)) {
+      const row = await upsertInbound(env.DB, source, target, id, old);
+      if (status === "failed" || status === "gone") await markInboundUnverified(env.DB, row.id, status, "fixture");
+    }
+    const recent = await upsertInbound(env.DB, "https://recent-fail.example/t/x/", target, id, new Date(now - 1000).toISOString());
+    await markInboundUnverified(env.DB, recent.id, "failed", "fixture");
+
+    expect(await pruneFailedInbound(env.DB, now)).toBe(1);
+    const left = await env.DB.prepare("SELECT source FROM mentions_in WHERE target_item_id = ?").bind(id).all<{ source: string }>();
+    const sources = left.results.map((r) => r.source);
+    expect(sources).not.toContain("https://old-fail.example/t/x/");
+    // `gone` is a relationship we deliberately remember; a fresh failure is
+    // still legible to whoever is watching a spam wave.
+    expect(sources).toContain("https://old-gone.example/t/x/");
+    expect(sources).toContain("https://old-pending.example/t/x/");
+    expect(sources).toContain("https://recent-fail.example/t/x/");
+  });
+
   it("re-verification of a source that stopped referencing us marks it gone, keeping the row", async () => {
     const { id, target } = await ourItem();
     const src = sourceFixture({ stubTargetId: id });
@@ -533,5 +604,34 @@ describe("the stub stack (§4.3)", () => {
     const queued = (await listOutbound(env.DB)).filter((r) => r.item_id === s2);
     expect(queued).toHaveLength(1);
     expect(queued[0].target).toBe(`${THEIRS}t/${s1}/`);
+  });
+});
+
+describe("registrableDomain — the rate-limit grouping heuristic (§9.1 gap 1)", () => {
+  it("groups subdomains of one real domain and separates operators under a hosting suffix", () => {
+    const cases: [string, string | null][] = [
+      ["https://spam.example/x", "spam.example"],
+      ["https://a.spam.example/x", "spam.example"],
+      ["https://a.b.c.spam.example/x", "spam.example"],
+      // Registry suffix: three labels, not two.
+      ["https://blog.someone.co.uk/x", "someone.co.uk"],
+      ["https://someone.co.uk/x", "someone.co.uk"],
+      // Hosting suffixes, where a subdomain is a whole different operator —
+      // including exe.xyz, where one of the live third-party nodes runs.
+      ["https://jd-blyg.exe.xyz/blyg/", "jd-blyg.exe.xyz"],
+      ["https://someones-blyg.pages.dev/x", "someones-blyg.pages.dev"],
+      ["https://a.b.workers.dev/x", "b.workers.dev"],
+      // The suffix itself, with nothing in front of it.
+      ["https://pages.dev/x", "pages.dev"],
+      // No suffix arithmetic applies to a literal address.
+      ["http://192.168.0.9:8787/x", "192.168.0.9"],
+      ["http://[::1]:8787/x", "[::1]"],
+      // A trailing root dot is the same name.
+      ["https://a.spam.example./x", "spam.example"],
+      ["not a url", null],
+    ];
+    for (const [url, expected] of cases) {
+      expect(registrableDomain(url), url).toBe(expected);
+    }
   });
 });

@@ -13,11 +13,14 @@ import { normalizeOrigin } from "../stub.ts";
 import type { MentionRelation, Transclusion } from "../types.ts";
 import { boundedText } from "./http.ts";
 import {
-  countRecentFromHost,
   hostOf,
+  INBOUND_DOMAIN_HOURLY_LIMIT,
+  INBOUND_GLOBAL_HOURLY_LIMIT,
   INBOUND_HOURLY_LIMIT,
   markInboundUnverified,
   markInboundVerified,
+  recentInboundSources,
+  registrableDomain,
   upsertInbound,
 } from "./store.ts";
 
@@ -78,9 +81,21 @@ export async function receiveMention(
   const itemId = await targetItemId(db, target, ourOrigin);
   if (!itemId) return { status: 400, error: "target is not a published item on this blyg" };
 
+  // Three caps over one read of the last hour (§2.3.5 step 2 + §9.1 gaps 1–2),
+  // checked narrowest first so that the refusal a sender reads is the true
+  // reason: a single flooding host trips all three, and only the first is
+  // about them.
+  const recent = await recentInboundSources(db, now);
   const host = hostOf(source.toString());
-  if (host && (await countRecentFromHost(db, host, now)) >= INBOUND_HOURLY_LIMIT) {
+  if (host && recent.filter((s) => hostOf(s) === host).length >= INBOUND_HOURLY_LIMIT) {
     return { status: 429, error: "too many mentions from this host in the last hour" };
+  }
+  const domain = registrableDomain(source.toString());
+  if (domain && recent.filter((s) => registrableDomain(s) === domain).length >= INBOUND_DOMAIN_HOURLY_LIMIT) {
+    return { status: 429, error: "too many mentions from this domain in the last hour" };
+  }
+  if (recent.length >= INBOUND_GLOBAL_HOURLY_LIMIT) {
+    return { status: 429, error: "this endpoint is at its hourly limit for new claims" };
   }
 
   const row = await upsertInbound(db, source.toString(), target.toString(), itemId, new Date(now).toISOString());
