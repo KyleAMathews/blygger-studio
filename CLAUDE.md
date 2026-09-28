@@ -167,6 +167,16 @@ These four are what promote `protocol-v0.3.md` §16.1/§16.2 from "ruled" to nor
   hoppers, signals, mentions) so an agent can poll `/api` for staleness, inbound mentions
   and new imports. Poll first; no webhooks until a need is measured. The public state
   plane needs nothing — it is already the corpus.
+- [ ] **Generate a changelog note when the author leaves it blank** (decision #40,
+  roadmap-tracks 2.12, spec §5.2 + §16.6c): at publish, diff the locally held prior
+  version against the new one and draft a note through the existing generation provider.
+  **Pin-bounded depth is the one hard rule:** if the prior version is unpinned the note
+  describes and MUST NOT quote it; between two pinned versions it may be as full as it
+  likes. Editable before publish. Emit `"generated": true` on the changelog entry for such
+  notes — that emission is what promotes §16.6c into §5.2.
+- [ ] **History view on a rolled-up item** (#40): notes as a timeline; where two
+  consecutive versions are both pinned, a local diff of the two pinned files ("see the
+  change"). Needs nothing from the wire; works on any imported 0.2+ blyg with pins.
 - [ ] **Emit `generator_url`** (decision #34, spec §16.6a): one absolute URL beside
   `generator` in the manifest — `https://github.com/blygger/blygger-studio`, derived from
   `CLIENT` like `GENERATOR` is. Same commit as the level fix below; together they promote
