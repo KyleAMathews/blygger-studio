@@ -26,6 +26,7 @@ import {
   INBOUND_HOURLY_LIMIT,
   listOutbound,
   markInboundUnverified,
+  markOutbound,
   pruneFailedInbound,
   registrableDomain,
   upsertInbound,
@@ -68,6 +69,21 @@ async function importFrom(origin: string, doc: Parameters<typeof itemDocBody>[0]
   const tr = transition({ local: { status: "absent" }, doc: JSON.parse(await itemDocBody(doc)) });
   await applyEffect(env.DB, sub.id, doc.id, tr.effect, new Date().toISOString());
   return sub.id;
+}
+
+/**
+ * Wait for the publish route's own background drain to stop writing to an
+ * item's outbound rows. The route calls `drainOutbound` inside `waitUntil`
+ * against the real network; in this runtime that fetch fails, so the row ends
+ * `no_endpoint` — but *when* it lands is not ordered against the test body, and
+ * a late write will overwrite a status the test set on purpose.
+ */
+async function settleOutbound(itemId: string, tries = 40): Promise<void> {
+  for (let i = 0; i < tries; i++) {
+    const rows = (await listOutbound(env.DB)).filter((r) => r.item_id === itemId);
+    if (rows.length && rows.every((r) => r.status !== "pending")) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
 }
 
 describe("endpoint discovery (§2.3.4)", () => {
@@ -134,6 +150,95 @@ describe("sending (§2.3.3)", () => {
     expect(sent.get("source")).toBe(`${OURS}t/${stub.json.id}/`);
     expect(sent.get("target")).toBe(`${THEIRS}f/${remoteId}/`);
     expect((await listOutbound(env.DB)).find((r) => r.id === queued[0].id)?.status).toBe("sent");
+  });
+
+  it("a republish re-sends only when the target's version changed (§15.2)", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    const remoteId = newId();
+    await importFrom(THEIRS, { id: remoteId, kind: "fragment", version: 2, content_md: "their post", page: `f/${remoteId}/` });
+    const thread = (await apiJson(cookie, "POST", "/api/items", { kind: "thread", content_md: `![[${remoteId}]]\n\nMine.` })).json.id as string;
+    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+
+    const row = () => listOutbound(env.DB).then((rows) => rows.find((r) => r.item_id === thread)!);
+    expect((await row()).target_version).toBe(2);
+
+    // The publish route hands its own drain to waitUntil against the real
+    // network, which fails in this runtime and writes the row's status at an
+    // arbitrary later moment. Let that land first, then set the state this test
+    // is actually about: a delivered mention. Otherwise the background write
+    // clobbers whatever we assert.
+    await settleOutbound(thread);
+    await markOutbound(env.DB, (await row()).id, { status: "sent" });
+
+    // Republish with the reference untouched: an edit to our own prose. Until
+    // migration 0011 this reset the row to `pending` and re-notified an origin
+    // that had nothing new to hear.
+    await apiJson(cookie, "PUT", `/api/items/${thread}`, { content_md: `![[${remoteId}]]\n\nMine, with a typo fixed.` });
+    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await row()).status).toBe("sent");
+    // Our own version moved; the target's did not, and the target's is the test.
+    expect((await row()).version).toBe(2);
+    expect((await row()).target_version).toBe(2);
+
+    // Now the target moves. A poll would write this row; writing it directly is
+    // the same input to resolution with less machinery.
+    await env.DB.prepare("UPDATE imported_items SET version = 3, content_html = ? WHERE remote_id = ?")
+      .bind("<p>their post, revised</p>", remoteId)
+      .run();
+    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await row()).status).toBe("pending");
+    expect((await row()).target_version).toBe(3);
+
+    // And it really does go out again, once.
+    const net = fixtureNet({
+      [`${THEIRS}blyg.json`]: { body: JSON.stringify({ blyg: "0.3", site: THEIRS, webmention: "webmention" }) },
+      [`${THEIRS}webmention`]: { status: 202 },
+    });
+    await drainOutbound(env.DB, net.fetch, { origin: OURS });
+    expect(net.calls.filter((c) => c.init?.method === "POST")).toHaveLength(1);
+  });
+
+  it("withdrawal re-sends although nothing about the target changed (§15.7)", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    const remoteId = newId();
+    await importFrom(THEIRS, { id: remoteId, kind: "fragment", version: 2, content_md: "their post", page: `f/${remoteId}/` });
+    const stub = (await apiJson(cookie, "POST", "/api/items", {
+      kind: "thread",
+      content_md: `![[${remoteId}]]`,
+      stub_of: { origin: THEIRS, id: remoteId, version: 2 },
+    })).json.id as string;
+    await apiJson(cookie, "POST", `/api/items/${stub}/publish`, {});
+    const row = () => listOutbound(env.DB).then((rows) => rows.find((r) => r.item_id === stub)!);
+    await settleOutbound(stub);
+    await markOutbound(env.DB, (await row()).id, { status: "sent" });
+
+    // The one notification owed precisely *because* nothing changed: the
+    // receiver has to re-verify and find a withdrawn document. It is the only
+    // caller that overrides the re-send test.
+    expect((await apiJson(cookie, "POST", `/api/items/${stub}/withdraw`, {})).status).toBe(200);
+    expect((await row()).status).toBe("pending");
+  });
+
+  it("a {url} stub is sent once and never re-sent — a web page has no version", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    const url = "https://example.org/some/essay";
+    const stub = (await apiJson(cookie, "POST", "/api/items", { kind: "thread", content_md: "Answering this.", stub_of: { url } })).json.id as string;
+    await apiJson(cookie, "POST", `/api/items/${stub}/publish`, {});
+    const row = () => listOutbound(env.DB).then((rows) => rows.find((r) => r.item_id === stub)!);
+    expect((await row()).target).toBe(url);
+    expect((await row()).target_version).toBeNull();
+    await settleOutbound(stub);
+    await markOutbound(env.DB, (await row()).id, { status: "sent" });
+
+    // Two null target versions must read as unchanged, which is why the
+    // comparison is `IS NOT` and not `<>` — under `<>` this would re-send on
+    // every republish forever.
+    await apiJson(cookie, "PUT", `/api/items/${stub}`, { content_md: "Answering this, at more length." });
+    await apiJson(cookie, "POST", `/api/items/${stub}/publish`, {});
+    expect((await row()).status).toBe("sent");
   });
 
   it("never sends for an own-origin reference", async () => {

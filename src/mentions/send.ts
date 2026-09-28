@@ -13,6 +13,12 @@ import { dueOutbound, enqueueOutbound, markOutbound, RETRY_SCHEDULE_MS } from ".
 export interface RemoteRef {
   target: string;
   origin?: string;
+  /**
+   * The target's own version, which is what §15.2's re-send test compares.
+   * Null for a `{url}` stub: a plain web page has no version, so such a
+   * reference can never be "changed" and is therefore sent exactly once.
+   */
+  targetVersion?: number | null;
 }
 
 /** The permalink of a remote item — its own declared `page` when we hold it, the convention otherwise (§2.3.3). */
@@ -39,14 +45,16 @@ export async function remoteReferences(db: D1Database, itemId: string, row: Vers
   const stub = parseStoredStub(row.stub_of);
   if (stub) {
     if (isBlygStub(stub)) {
-      if (stub.origin !== ourOrigin) refs.push({ target: await remotePermalink(db, stub.origin, stub.id), origin: stub.origin });
+      if (stub.origin !== ourOrigin) {
+        refs.push({ target: await remotePermalink(db, stub.origin, stub.id), origin: stub.origin, targetVersion: stub.version });
+      }
     } else {
-      refs.push({ target: stub.url });
+      refs.push({ target: stub.url, targetVersion: null });
     }
   }
   for (const t of (JSON.parse(row.transclusions ?? "[]") as Transclusion[])) {
     if (!t.origin || t.origin === ourOrigin) continue;
-    refs.push({ target: await remotePermalink(db, t.origin, t.id), origin: t.origin });
+    refs.push({ target: await remotePermalink(db, t.origin, t.id), origin: t.origin, targetVersion: t.version });
   }
   // §2.3.3: lineage is a remote reference like any other. It lives on the
   // item rather than the version (§2.4), so it is read from there — and it
@@ -56,7 +64,7 @@ export async function remoteReferences(db: D1Database, itemId: string, row: Vers
     (await db.prepare("SELECT forked_from FROM items WHERE id = ?").bind(itemId).first<{ forked_from: string | null }>())?.forked_from ?? null,
   );
   if (fork && fork.origin !== ourOrigin) {
-    refs.push({ target: await remotePermalink(db, fork.origin, fork.id), origin: fork.origin });
+    refs.push({ target: await remotePermalink(db, fork.origin, fork.id), origin: fork.origin, targetVersion: fork.version });
   }
   const seen = new Set<string>();
   return refs.filter((r) => (seen.has(r.target) ? false : (seen.add(r.target), true)));
@@ -73,9 +81,12 @@ export async function enqueueForVersion(
   version: number,
   row: VersionRow,
   ourOrigin: string,
+  opts: { force?: boolean } = {},
 ): Promise<RemoteRef[]> {
   const refs = await remoteReferences(db, itemId, row, ourOrigin);
-  for (const ref of refs) await enqueueOutbound(db, itemId, version, ref.target);
+  for (const ref of refs) {
+    await enqueueOutbound(db, itemId, version, ref.target, ref.targetVersion ?? null, opts);
+  }
   return refs;
 }
 

@@ -18,6 +18,45 @@ not have its own repo until session 26.
 
 ---
 
+## 0.6.1 — 2026-09-28
+
+**⚠️ Migrations: one — `0011_outbound_target_version.sql`.** The first release
+that needs a database step, which is what that line in every entry is for:
+
+```bash
+npx wrangler d1 migrations apply <your-db> --remote
+```
+
+**A republish no longer re-notifies every origin it quotes.** Spec 0.3 §15.2 says
+a republish re-sends "only for references that are new or whose target version
+changed", and adds that "the reference client records the target version per
+outbound reference for this purpose" — which was not true. `mentions_out` is keyed
+`(item_id, target)` and held only *our* version, so `enqueueOutbound` reset every
+row to `pending` on every publish: fixing a typo in a thread re-notified every
+blyg it quoted. Harmless at two nodes, rude at eleven, and the spec vouched for
+behaviour that did not exist.
+
+- The queue now stores `target_version`, and delivery state resets only when the
+  row is new, when the target's version actually changed, or when the caller
+  forces it. The comparison is null-safe (`IS NOT`), because a `{url}` stub has
+  no target version and two nulls must read as *unchanged* — otherwise a stub of
+  a plain web page would re-send on every republish forever.
+- **Withdrawal forces a re-send**, and is the only caller that may. §15.7 owes
+  the receiver one notification precisely *because* nothing about the target
+  changed: it re-verifies, finds a withdrawn document, and marks the mention
+  gone. Without the override the new rule would have swallowed the one mention a
+  withdrawal exists to send.
+- Rows written before the migration have a null target version; a null-to-value
+  transition counts as a change, so each pre-existing row re-sends at most once.
+  §15.2 allows that explicitly — "a sender that re-sends everything on every
+  republish is conformant but noisy" — and one noisy round beats a silent wrong
+  answer.
+
+Decision #33's staleness probe needs the same stored fact and is still unbuilt;
+the roadmap asks for them together, and this is the half the spec freeze needed.
+
+**Verification:** 531 tests, `tsc --noEmit` clean.
+
 ## 0.6.0 — 2026-09-28
 
 **The three constructs the 0.3 freeze was waiting on.** Protocol 0.3 records

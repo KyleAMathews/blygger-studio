@@ -272,7 +272,15 @@ export interface MentionInRow {
 export interface MentionOutRow {
   id: string;
   item_id: string;
+  /** Our own version that carried the reference. */
   version: number;
+  /**
+   * The *target's* version this mention was sent about (§15.2, migration 0011).
+   * Null for a `{url}` stub, whose target has no version, and for rows written
+   * before the column existed. It is the whole re-send test: unchanged means
+   * not re-sent.
+   */
+  target_version: number | null;
   target: string;
   endpoint: string | null;
   status: "pending" | "sent" | "failed" | "no_endpoint";
@@ -352,7 +360,7 @@ export const WEBMENTION_PATH = "webmention";
  */
 export const CLIENT = {
   name: "blygger-studio",
-  version: "0.6.0",
+  version: "0.6.1",
   /** Canonical source, for the manifest's `generator_url` (§16.6a, decision #34). */
   url: "https://github.com/blygger/blygger-studio",
 } as const;

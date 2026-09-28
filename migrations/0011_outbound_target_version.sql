@@ -1,0 +1,19 @@
+-- The target version of each outbound mention — spec 0.3 §15.2, roadmap 1.7.
+--
+-- §15.2: "Republish re-sends only for references that are new or whose target
+-- version changed; unchanged references are not re-sent." The reference client
+-- could not obey its own spec, because `mentions_out` is keyed (item_id, target)
+-- and held only *our* version: `enqueueOutbound` reset every row to 'pending' on
+-- every republish, so editing a typo in a thread re-notified every origin it
+-- quoted. Harmless at two nodes; rude at eleven, and the spec text vouched for
+-- behaviour that did not exist.
+--
+-- NULL means "not recorded": a `{url}` stub, whose target has no version at all,
+-- and rows written before this migration. A NULL-to-value transition counts as a
+-- change, which re-sends each pre-existing row at most once — "a sender that
+-- re-sends everything on every republish is conformant but noisy" (§15.2), and
+-- one noisy round beats a silent wrong answer.
+--
+-- The same missing fact is what decision #33's freshness probe needs, which is
+-- why the roadmap said to build them together.
+ALTER TABLE mentions_out ADD COLUMN target_version INTEGER;

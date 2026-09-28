@@ -111,19 +111,46 @@ export function registrableDomain(url: string): string | null {
 }
 
 /**
- * Queue one outbound mention. Keyed on (item_id, target): a republish updates
- * the row back to `pending` at the new version rather than duplicating it,
- * which is how §2.3.3's "re-send when new or changed" is implemented.
+ * Queue one outbound mention. Keyed on (item_id, target), so a republish
+ * updates the existing row rather than duplicating it.
+ *
+ * **What re-sends, and what does not** (§15.2, roadmap 1.7): delivery state is
+ * reset only when the row is new, when the *target's* version changed, or when
+ * the caller forces it. An unchanged reference keeps whatever status it already
+ * reached — so editing a typo in a thread no longer re-notifies every origin it
+ * quotes. Until migration 0011 this reset every row to `pending` unconditionally
+ * and the spec's own sentence about the reference client was false.
+ *
+ * `IS NOT` rather than `<>` because the comparison has to be null-safe: a
+ * `{url}` stub has no target version, and two NULLs must read as unchanged.
+ *
+ * `force` exists for exactly one caller — withdrawal (§15.7), which re-sends a
+ * reference that has deliberately not changed, so the receiver re-verifies,
+ * finds a withdrawn document and marks the mention gone. Without it the
+ * "unchanged" rule would swallow the one notification a withdrawal owes.
  */
-export async function enqueueOutbound(db: D1Database, itemId: string, version: number, target: string): Promise<void> {
+export async function enqueueOutbound(
+  db: D1Database,
+  itemId: string,
+  version: number,
+  target: string,
+  targetVersion: number | null = null,
+  opts: { force?: boolean } = {},
+): Promise<void> {
+  const force = opts.force ? 1 : 0;
   await db
     .prepare(
-      `INSERT INTO mentions_out (id, item_id, version, target, endpoint, status, attempts, next_attempt_at, last_error, created)
-       VALUES (?, ?, ?, ?, NULL, 'pending', 0, NULL, NULL, ?)
+      `INSERT INTO mentions_out (id, item_id, version, target, target_version, endpoint, status, attempts, next_attempt_at, last_error, created)
+       VALUES (?, ?, ?, ?, ?, NULL, 'pending', 0, NULL, NULL, ?)
        ON CONFLICT (item_id, target) DO UPDATE SET
-         version = excluded.version, status = 'pending', attempts = 0, next_attempt_at = NULL, last_error = NULL`,
+         version = excluded.version,
+         target_version = excluded.target_version,
+         status = CASE WHEN ? = 1 OR mentions_out.target_version IS NOT excluded.target_version THEN 'pending' ELSE mentions_out.status END,
+         attempts = CASE WHEN ? = 1 OR mentions_out.target_version IS NOT excluded.target_version THEN 0 ELSE mentions_out.attempts END,
+         next_attempt_at = CASE WHEN ? = 1 OR mentions_out.target_version IS NOT excluded.target_version THEN NULL ELSE mentions_out.next_attempt_at END,
+         last_error = CASE WHEN ? = 1 OR mentions_out.target_version IS NOT excluded.target_version THEN NULL ELSE mentions_out.last_error END`,
     )
-    .bind(newId(), itemId, version, target, nowIso())
+    .bind(newId(), itemId, version, target, targetVersion, nowIso(), force, force, force, force)
     .run();
 }
 

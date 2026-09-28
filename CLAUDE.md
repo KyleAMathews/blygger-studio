@@ -220,7 +220,14 @@ These four are what promote `protocol-v0.3.md` §16.1/§16.2 from "ruled" to nor
 - [ ] ~~**`PROTOCOL_LEVEL` → `2`.**~~ Live nodes emit `"level": 1` while publishing 0.3
   constructs; 0.3's §3 defines L2 as this specification. One line. (Readers may not gate
   on it — §3.2 — so this is honesty, not compatibility.)
-- [ ] **Store the target version per outbound mention** (roadmap-tracks 1.7, decision #33):
+- [x] **Store the target version per outbound mention** — **done session 27 (0.6.1, migration
+  0011)**. `mentions_out.target_version`, a null-safe change test, and withdrawal as the one
+  caller allowed to force a re-send (§15.7 owes a mention precisely because nothing changed).
+  This is the half the 0.3 freeze needed: §15.2 asserted the reference client did this and it
+  did not. **The other half is still open** — decision #33's staleness probe needs the same
+  fact for *imported* items (fetch `{origin}items/{id}.json`, compare `version`), and the
+  bulk re-pin UI sits on top of it. Original entry:
+- [ ] ~~**Store the target version per outbound mention**~~ (roadmap-tracks 1.7, decision #33):
   `enqueueOutbound` resets every row to `pending` on republish because `mentions_out`
   holds no target version; spec §15.2 says unchanged references are not re-sent. Same
   missing fact as the freshness probe above — build them together.

@@ -113,12 +113,17 @@ api.put("/items/:id", async (c) => {
  * (§2.3.3): publish has already succeeded by the time this runs, nothing here
  * can fail it, and the cron retries whatever this attempt doesn't land.
  */
-async function sendMentionsFor(c: Context<{ Bindings: Env }>, itemId: string, version: number): Promise<void> {
+async function sendMentionsFor(
+  c: Context<{ Bindings: Env }>,
+  itemId: string,
+  version: number,
+  opts: { force?: boolean } = {},
+): Promise<void> {
   const row = await getVersion(c.env.DB, itemId, version);
   if (!row) return;
   const settings = await getSettings(c.env.DB);
   const origin = siteOrigin(settings, c.req.url, normalizeMount(c.env.MOUNT));
-  const refs = await enqueueForVersion(c.env.DB, itemId, version, row, origin);
+  const refs = await enqueueForVersion(c.env.DB, itemId, version, row, origin, opts);
   if (!refs.length) return;
   // Fire-and-forget in the strong sense: a delivery error is a row status,
   // never an uncaught rejection in the worker that just published.
@@ -200,7 +205,12 @@ api.post("/items/:id/withdraw", async (c) => {
   // version's references — the endcap has none — so the receiver re-verifies,
   // finds a withdrawn document, and marks the row gone. That is the
   // W3C-blessed way to say "this is no longer there".
-  await sendMentionsFor(c, item.id, item.version);
+  //
+  // `force`, because §15.2's re-send test compares the *target's* version and a
+  // withdrawal changes nothing about the target. This is the one notification
+  // that must go out precisely when the reference has not changed, so it is the
+  // one caller allowed to override the test (migration 0011).
+  await sendMentionsFor(c, item.id, item.version, { force: true });
   return c.json({ ok: true, version });
 });
 
