@@ -157,6 +157,10 @@ These four are what promote `protocol-v0.3.md` §16.1/§16.2 from "ruled" to nor
   target's `page` (remote: origin + page), anchor text is ours to choose. Unresolvable is a
   publish error. **No** `transclusions[]` entry, **no** mention, **no** wire class — it is
   invisible on the wire by ruling, not by omission.
+- [ ] **Emit `generator_url`** (decision #34, spec §16.6a): one absolute URL beside
+  `generator` in the manifest — `https://github.com/blygger/blygger-studio`, derived from
+  `CLIENT` like `GENERATOR` is. Same commit as the level fix below; together they promote
+  §16.6a into §6.1.
 - [ ] **`PROTOCOL_LEVEL` → `2`.** Live nodes emit `"level": 1` while publishing 0.3
   constructs; 0.3's §3 defines L2 as this specification. One line. (Readers may not gate
   on it — §3.2 — so this is honesty, not compatibility.)
