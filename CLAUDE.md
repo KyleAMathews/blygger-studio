@@ -189,6 +189,19 @@ was specified to do in both cases.
   `[anchor](url)` half of this backlog entry is not built and is not needed: ordinary
   markdown already does it, and #50's ruling is about the construct the reader could not
   otherwise reach.
+- [x] **Discard button for an unpublished new version** — **done 0.7.0, and the defect was
+  worse than this entry implied.** The control existed and worked; the *thread* editor just
+  never rendered it. `threadEditPage` computed `discardBtn` — both branches, with the
+  comment explaining the distinction — and dropped the variable on the floor, so neither
+  "discard draft" nor "discard changes" appeared on any thread. Every case in the discard
+  test block opened the fragment editor, which is why a whole control could be missing from
+  half the studio with the suite green. `noUnusedLocals` is now on for exactly this class.
+  The session-19 `location.reload()` trap was already handled — the `discard` branch
+  navigates to the index.
+- [x] **Reorder the tabs** — **done 0.7.0.** reading, compose, hoppers, mentions,
+  subscriptions, settings, syntax. `NAV` is the single source of order and `compose` stays
+  the bare studio path wherever it sits; the order is asserted now, since it was not before
+  and the reorder would have been invisible to the suite in either direction.
 - [ ] ~~**Emit `cited` on every reference**~~ (decision #30, spec §16.1): serialize the existing
   `StubCite` — `source`, `author`, `excerpt` (cap ~200 chars), `url`, `retrieved`
   (REQUIRED) — as `cited` inside `stub_of`, each remote `transclusions[]` entry, and
@@ -301,7 +314,11 @@ was specified to do in both cases.
   NULL = defaults). Gate: subscribe a live node to the first templated third-party blyg
   (the WordPress case from blygger-spec#2), transclude from it, and confirm the mention
   verifies on their side.
-- [ ] **Reader-side `[[id]]` affordance** (decision #50, answering the ⚠️ FABLE flag raised
+- [x] **Reader-side `[[id]]` affordance** — **built 0.7.0**: `copy [[id]]` in the reading
+  entry's byline. See "Offer plain linking in the reader" under Feature refinements for
+  what shipped and which of #50's conditions the tests pin. Opened by the Fable round in
+  parallel with the build, so it was never open in practice. Original entry:
+- [ ] ~~**Reader-side `[[id]]` affordance**~~ (decision #50, answering the ⚠️ FABLE flag raised
   2026-09-28 — the "distinction worth ruling on" in the feature-refinements entry above is
   the ruling): allowed, no collision with #27 — a link is not a response. Build it as the
   reader end of the `[[` picker work: an action on a reading-feed entry that **copies
