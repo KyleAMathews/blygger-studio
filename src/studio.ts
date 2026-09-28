@@ -14,7 +14,7 @@ import { authoredKind, getItem, getSettings, getVersion, listAll, listMediaForIt
 import { THEMES } from "./pages.ts";
 import { clampText, previewFromHtml, stripTransclusionQuotes, type HtmlPreview } from "./preview.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, previewStrip, type TkScope } from "./tk.ts";
-import { normalizeOrigin, parseStoredFork, parseStoredStub } from "./stub.ts";
+import { normalizeOrigin, parseStoredStub } from "./stub.ts";
 import { mentionFetch } from "./mentions/http.ts";
 import { siteOrigin } from "./protocol.ts";
 import { applyInternalLinks, extractDirectives, previewInternalLinks, previewTransclusions } from "./transclusion.ts";
@@ -238,6 +238,9 @@ input.note { font: inherit; font-size: 0.9rem; padding: 0.3rem 0.5rem; border-ra
 .note-row input { flex: 1; }
 .palette { position: absolute; border: 1px solid var(--rule-strong); border-radius: 6px; padding: 0.5rem; background: Canvas; max-width: 60ch; box-shadow: 0 4px 14px rgba(0,0,0,0.15); z-index: 10; }
 .palette-hint { font-size: 0.78rem; color: var(--ink-soft); margin: 0; }
+.palette-foot { margin-top: 0.4rem; border-top: 1px solid var(--rule); padding-top: 0.3rem; cursor: default; }
+.palette-foot.has-more { cursor: pointer; }
+.palette-foot.has-more:hover { color: inherit; }
 .palette-hint code { font-size: 0.95em; }
 .palette ul { list-style: none; margin: 0.5rem 0 0; padding: 0; font-size: 0.9rem; max-height: 14rem; overflow-y: auto; }
 .palette li { padding: 0.35rem 0.5rem; border-top: 1px solid var(--rule); cursor: pointer; }
@@ -280,13 +283,24 @@ ${body}
 `;
 }
 
-/** Nav sections, in order. `compose` is the studio index — the way back from every other tab. */
+/**
+ * Nav sections, in order. `compose` is the studio index — the way back from
+ * every other tab, and `studioPath(m)` with no suffix regardless of where it
+ * sits in this list.
+ *
+ * **Reading leads (session 28, Venkat.)** The order now follows the actual
+ * shape of a session rather than the order the features were built in: you
+ * arrive to read, and what you write is usually a response to something you
+ * read. `subscriptions` moved down beside `settings` for the same reason — it
+ * is configuration for the reading feed, visited occasionally, not a place you
+ * work.
+ */
 const NAV: { key: StudioSection; label: string; path: (mount: string) => string }[] = [
-  { key: "compose", label: "compose", path: (m) => studioPath(m) },
-  { key: "subs", label: "subscriptions", path: (m) => `${studioPath(m)}/subs` },
   { key: "reading", label: "reading", path: (m) => `${studioPath(m)}/reading` },
+  { key: "compose", label: "compose", path: (m) => studioPath(m) },
   { key: "hoppers", label: "hoppers", path: (m) => `${studioPath(m)}/hoppers` },
   { key: "mentions", label: "mentions", path: (m) => `${studioPath(m)}/mentions` },
+  { key: "subs", label: "subscriptions", path: (m) => `${studioPath(m)}/subs` },
   { key: "settings", label: "settings", path: (m) => `${studioPath(m)}/settings` },
   { key: "syntax", label: "syntax", path: (m) => `${studioPath(m)}/syntax` },
 ];
@@ -799,6 +813,7 @@ installPalette({
   panel: document.getElementById("palette"),
   results: document.getElementById("palette-results"),
   hint: document.getElementById("palette-hint"),
+  foot: document.getElementById("palette-foot"),
   transclude: false,
   onInsert: updateCount,
 });
@@ -881,6 +896,7 @@ function paletteMarkup(): string {
   return `<div class="palette" id="palette" style="display:none;">
 <p class="palette-hint" id="palette-hint"></p>
 <ul id="palette-results"></ul>
+<p class="palette-hint palette-foot" id="palette-foot"></p>
 </div>`;
 }
 
@@ -962,6 +978,7 @@ function paletteEscape(s) {
 /**
  * Wire a textarea to a palette panel.
  *   opts.textarea, opts.panel, opts.results — elements
+ *   opts.foot      — the count/paging line under the list
  *   opts.transclude — may this page publish \`![[id]]\`? (threads only)
  *   opts.onInsert   — called after the text changes, for save/preview
  */
@@ -970,16 +987,20 @@ function installPalette(opts) {
   var panel = opts.panel;
   var list = opts.results;
   var hint = opts.hint;
+  var foot = opts.foot;
   var allowTransclude = !!opts.transclude;
   var items = [];
   var sel = 0;
   var trigger = null;
   var timer = null;
+  var total = 0;
+  var loading = false;
 
   function close() {
     panel.style.display = "none";
     trigger = null;
     items = [];
+    total = 0;
   }
   // Named \`isOpen\`, not \`open\`: a local \`open\` would shadow \`window.open\`
   // for the whole closure.
@@ -991,30 +1012,62 @@ function installPalette(opts) {
       list.children[i].classList.toggle("sel", i === sel);
     }
   }
-  async function update() {
-    var t = paletteTrigger(input.value, input.selectionStart, allowTransclude);
-    if (!t) { close(); return; }
-    var res = await fetch("${studioPath(mount)}/fragments/search?q=" + encodeURIComponent(t.query));
-    var data = await res.json();
-    // The caret can have moved on while that was in flight; re-read it rather
-    // than inserting against a trigger the author has already typed past.
-    var now = paletteTrigger(input.value, input.selectionStart, allowTransclude);
-    if (!now || now.form !== t.form || now.start !== t.start) { close(); return; }
-    trigger = now;
-    items = data.results;
-    sel = 0;
+  function search(query, offset) {
+    return fetch("${studioPath(mount)}/fragments/search?q=" + encodeURIComponent(query) + "&offset=" + offset)
+      .then(function (r) { return r.json(); });
+  }
+  function renderList() {
     list.innerHTML = items
       .map(function (it, i) {
         return '<li data-i="' + i + '">' + paletteEscape(it.excerpt) +
           '<span class="meta">' + paletteEscape(it.badge) + ' &middot; v' + it.version + '</span></li>';
       })
       .join("");
+    // Always states the count, even when everything fits. The cap used to be
+    // applied silently, so "no more results" and "20 results and a hidden
+    // ceiling" looked identical.
+    var more = items.length < total;
+    foot.textContent = more
+      ? "showing " + items.length + " of " + total + " — ↓ or click for more"
+      : items.length + (items.length === 1 ? " match" : " matches") + ", all shown";
+    foot.classList.toggle("has-more", more);
+  }
+  async function update() {
+    var t = paletteTrigger(input.value, input.selectionStart, allowTransclude);
+    if (!t) { close(); return; }
+    var data = await search(t.query, 0);
+    // The caret can have moved on while that was in flight; re-read it rather
+    // than inserting against a trigger the author has already typed past.
+    var now = paletteTrigger(input.value, input.selectionStart, allowTransclude);
+    if (!now || now.form !== t.form || now.start !== t.start) { close(); return; }
+    trigger = now;
+    items = data.results;
+    total = data.total;
+    sel = 0;
     hint.innerHTML = trigger.form === "transclude"
       ? "<code>![[id]]</code> — transclude: bakes a copy of the target into this thread at publish."
       : "<code>[[id]]</code> — link: points at the target, bakes nothing.";
     if (!items.length) { close(); return; }
+    renderList();
     renderSelection();
     panel.style.display = "block";
+  }
+  /** Append the next page, keeping the current selection where it is. */
+  async function loadMore() {
+    if (loading || !trigger || items.length >= total) return;
+    loading = true;
+    try {
+      var data = await search(trigger.query, items.length);
+      // A page appended against a stale query would interleave two different
+      // searches in one list, so re-check before splicing.
+      if (!trigger || data.offset !== items.length) return;
+      items = items.concat(data.results);
+      total = data.total;
+      renderList();
+      renderSelection();
+    } finally {
+      loading = false;
+    }
   }
   function pick(item) {
     if (!trigger || !item) return;
@@ -1042,9 +1095,20 @@ function installPalette(opts) {
   input.addEventListener("keydown", function (e) {
     if (!isOpen()) return;
     if (e.key === "Escape") { e.preventDefault(); close(); }
-    else if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(sel + 1, items.length - 1); renderSelection(); }
+    else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      // At the bottom of a partial list, ArrowDown fetches instead of sticking:
+      // the ceiling becomes a page break rather than a dead end.
+      if (sel >= items.length - 1 && items.length < total) { loadMore(); return; }
+      sel = Math.min(sel + 1, items.length - 1);
+      renderSelection();
+    }
     else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(sel - 1, 0); renderSelection(); }
     else if (e.key === "Enter" && items[sel]) { e.preventDefault(); pick(items[sel]); }
+  });
+  foot.addEventListener("mousedown", function (e) {
+    e.preventDefault();
+    loadMore();
   });
   list.addEventListener("mousedown", function (e) {
     // mousedown, not click: the blur handler above fires first otherwise.
@@ -1339,6 +1403,8 @@ studio.get("/versions/:id/:v", async (c) => {
  * set of ids a link can name *is* the set a directive can name. A second
  * endpoint would be a second copy of that rule, free to drift from it.
  */
+const SEARCH_PAGE = 20;
+
 studio.get("/fragments/search", async (c) => {
   const q = (c.req.query("q") ?? "").toLowerCase();
   const items = await listAll(c.env.DB);
@@ -1375,7 +1441,19 @@ studio.get("/fragments/search", async (c) => {
     });
   }
   results.sort((a, b) => (a.updated < b.updated ? 1 : -1));
-  return c.json({ results: results.slice(0, 20) });
+  // Paged, and the page reports the total. The 20-cap used to be applied
+  // silently, so a blyg with more than 20 quotable items had a picker that
+  // simply stopped — indistinguishable from having nothing more to offer, and
+  // the reason the ceiling was reported as a bug rather than noticed as a
+  // limit. `total` is what lets the palette say "20 of 63" instead of lying by
+  // omission.
+  const offset = Math.max(0, Number(c.req.query("offset") ?? 0) || 0);
+  return c.json({
+    results: results.slice(offset, offset + SEARCH_PAGE),
+    total: results.length,
+    offset,
+    limit: SEARCH_PAGE,
+  });
 });
 
 /**
@@ -1594,6 +1672,7 @@ installPalette({
   panel: document.getElementById("palette"),
   results: document.getElementById("palette-results"),
   hint: document.getElementById("palette-hint"),
+  foot: document.getElementById("palette-foot"),
   transclude: false,
   onInsert: () => { syncCount(); scheduleSave(); },
 });
@@ -1744,7 +1823,7 @@ ${mediaHtml}
 <div class="note-row"><label for="note-input">What changed?</label><input id="note-input" placeholder="optional edit note, shows in changelog + feed title"></div>
 <div class="edit-bar">
 <span><button type="button" id="attach-btn">attach image</button></span>
-<span><button type="button" id="save-draft-btn">save draft</button> <button type="button" class="primary" id="publish-btn">${publishLabel}</button> ${withdrawBtn}</span>
+<span><button type="button" id="save-draft-btn">save draft</button> <button type="button" class="primary" id="publish-btn">${publishLabel}</button> ${discardBtn} ${withdrawBtn}</span>
 </div>
 ${historyPanel(item, versions, mount)}
 <script>${actionScript(mount)}</script>
@@ -1778,6 +1857,7 @@ installPalette({
   panel: document.getElementById("palette"),
   results: document.getElementById("palette-results"),
   hint: document.getElementById("palette-hint"),
+  foot: document.getElementById("palette-foot"),
   transclude: true,
   onInsert: () => { scheduleSave(); refreshPreview(); },
 });

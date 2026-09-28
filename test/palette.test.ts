@@ -168,3 +168,73 @@ describe("every composer can reach the palette", () => {
     expect(html).toContain('id="palette-hint"');
   });
 });
+
+describe("the candidate list pages, and says so", () => {
+  // Storage is shared across this file, so every case searches for its own
+  // token rather than the whole blyg — otherwise the totals drift with
+  // whatever the describes above happened to publish.
+  const search = (cookie: string, q: string, offset?: number) =>
+    apiJson(cookie, "GET", `${STUDIO}/fragments/search?q=${q}${offset === undefined ? "" : `&offset=${offset}`}`);
+
+  it("caps a page at 20 but reports the true total", async () => {
+    const cookie = await login();
+    // 23 > one page, so the old silent slice would have looked identical to
+    // "that is everything".
+    for (let i = 0; i < 23; i++) await createAndPublish(cookie, `pagingtoken fragment number ${i}`);
+
+    const first = await search(cookie, "pagingtoken");
+    expect(first.json.results).toHaveLength(20);
+    expect(first.json.total).toBe(23);
+    expect(first.json.offset).toBe(0);
+    expect(first.json.limit).toBe(20);
+
+    const second = await search(cookie, "pagingtoken", 20);
+    expect(second.json.results).toHaveLength(3);
+    expect(second.json.total).toBe(23);
+    expect(second.json.offset).toBe(20);
+
+    // The two pages partition the list — no overlap, nothing dropped.
+    const ids = [...first.json.results, ...second.json.results].map((r: { id: string }) => r.id);
+    expect(new Set(ids).size).toBe(23);
+  });
+
+  it("an offset past the end is empty, not an error", async () => {
+    const cookie = await login();
+    await createAndPublish(cookie, "pastendtoken the only one");
+    const res = await search(cookie, "pastendtoken", 500);
+    expect(res.status).toBe(200);
+    expect(res.json.results).toEqual([]);
+    expect(res.json.total).toBe(1);
+  });
+
+  it("a junk offset reads as 0 rather than producing a hole", async () => {
+    const cookie = await login();
+    await createAndPublish(cookie, "junkoffsettoken the only one");
+    for (const bad of ["abc", "-5", ""]) {
+      const res = await apiJson(cookie, "GET", `${STUDIO}/fragments/search?q=junkoffsettoken&offset=${bad}`);
+      expect(res.json.offset, bad).toBe(0);
+      expect(res.json.results, bad).toHaveLength(1);
+    }
+  });
+
+  it("the total counts matches, not the whole blyg", async () => {
+    const cookie = await login();
+    await createAndPublish(cookie, "alphatoken one");
+    await createAndPublish(cookie, "alphatoken two");
+    await createAndPublish(cookie, "betatoken three");
+    const res = await search(cookie, "alphatoken");
+    expect(res.json.total).toBe(2);
+    expect(res.json.results).toHaveLength(2);
+  });
+
+  it("every composer ships the count line", async () => {
+    const cookie = await login();
+    const thread = (await apiJson(cookie, "POST", "/api/items", { content_md: "a thread", kind: "thread" })).json
+      .id as string;
+    for (const path of [STUDIO, `${STUDIO}/edit/${thread}`]) {
+      const html = await (await SELF.fetch(`https://example.com${path}`, { headers: { cookie } })).text();
+      expect(html, path).toContain('id="palette-foot"');
+      expect(html, path).toContain('foot: document.getElementById("palette-foot")');
+    }
+  });
+});

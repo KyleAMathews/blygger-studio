@@ -7,7 +7,7 @@
 // a pinned page — otherwise a stranger's publish would mutate versioned state.
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { markInboundVerified, setMentionHidden, upsertInbound } from "../src/mentions/store.ts";
+import { markInboundVerified, upsertInbound } from "../src/mentions/store.ts";
 import { newId } from "../src/util.ts";
 import { apiJson, BASE, createAndPublish, getPublic, login, STUDIO } from "./helpers.ts";
 

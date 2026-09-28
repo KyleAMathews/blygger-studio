@@ -51,6 +51,44 @@ describe("editor discard", () => {
     expect(html).not.toContain(`data-action="discard" data-id="${id}"`);
   });
 
+  // Threads, because the fragment cases above all passed while the thread
+  // editor had no discard button at all: `threadEditPage` computed `discardBtn`
+  // and never interpolated it. Every case in this block used the fragment
+  // editor, so the whole control could go missing from half the studio with the
+  // suite green. Fixed session 28, with `noUnusedLocals` on so the dropped
+  // local is a compile error rather than a silent gap.
+  it("a never-published thread draft discards the draft itself", async () => {
+    const cookie = await login();
+    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: "unpublished thread", kind: "thread" }))
+      .json.id as string;
+    const html = await studioPage(cookie, `${STUDIO}/edit/${id}`);
+    expect(html).toContain("editing thread");
+    expect(html).toContain(`data-action="discard" data-id="${id}"`);
+    expect(html).not.toContain(`data-action="discard-changes" data-id="${id}"`);
+  });
+
+  it("a dirty published thread discards the changes, not the item", async () => {
+    const cookie = await login();
+    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: "a published thread", kind: "thread" }))
+      .json.id as string;
+    await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
+    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "edited but unpublished" });
+    const html = await studioPage(cookie, `${STUDIO}/edit/${id}`);
+    expect(html).toContain(`data-action="discard-changes" data-id="${id}" data-version="1"`);
+    expect(html).not.toContain(`data-action="discard" data-id="${id}"`);
+  });
+
+  it("a clean published thread offers no discard at all", async () => {
+    const cookie = await login();
+    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: "clean thread", kind: "thread" })).json
+      .id as string;
+    await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
+    const html = await studioPage(cookie, `${STUDIO}/edit/${id}`);
+    expect(html).not.toContain(`data-action="discard" data-id="${id}"`);
+    expect(html).not.toContain(`data-action="discard-changes" data-id="${id}"`);
+    expect(html).toContain(`data-action="withdraw" data-id="${id}"`);
+  });
+
   it("a clean published item offers no discard at all", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "clean and published");

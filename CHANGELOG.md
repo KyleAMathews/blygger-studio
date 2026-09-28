@@ -51,9 +51,46 @@ text you are typing in the editor. It is replaced by the hint line above. This
 is half of the "picker has no search" report; the other half, paging past the
 first 20 candidates, is still open.
 
-**Verification:** 544 tests, `tsc --noEmit` clean, and all three composers
-exercised by hand against a local node — each bracket form, the arrow-key
-selection, the insertion, and the preview re-render.
+**The thread editor had no discard button at all.** `threadEditPage` computed
+`discardBtn` — both branches, with the comment explaining the distinction — and
+then never interpolated it, so a thread draft could not be discarded and a
+thread's unpublished changes could not be thrown away. The fragment editor
+rendered the same control correctly, and every case in the discard test block
+used the fragment editor, so the whole control could go missing from half the
+studio with the suite green. Fixed, with thread cases added and
+`noUnusedLocals` turned on so a control that is built and then dropped is a
+compile error rather than a silent gap.
+
+**The picker pages, and says how many there are.** `/fragments/search` capped
+at 20 silently, so a blyg with more than 20 quotable items had a picker that
+just stopped — indistinguishable from having nothing more to offer. The
+response now carries `total`/`offset`/`limit`, the palette states "showing 20
+of 63" (or "26 matches, all shown"), and ArrowDown at the bottom of a partial
+list fetches the next page instead of sticking. Clicking the count line does
+the same. This closes the rest of the reported picker bug.
+
+**Reading entries link out.** Every entry rendered its body and linked to
+nothing, so the most ordinary next move — read the whole thing where it lives —
+had no affordance and meant copying an origin out of the byline. Each entry now
+carries `open ↗`, derived from `sourceTitleAndUrl`, the same rule the stub
+gesture already used: the origin's declared `page` wins (§2.3.2, decision #29),
+the `f/`·`t/` convention is only a fallback, an L0 entry points at the anchor
+its feed supplied, and an own entry points at our own public page. Always a new
+tab — the studio holds unsaved composer text. A withdrawn own item offers no
+link, because sending a reader to an endcap as "open" promises the text and
+delivers its absence.
+
+**Nav order: reading now leads.** Then compose, hoppers, mentions,
+subscriptions, settings, syntax. The order follows the shape of a session
+rather than the order the features were built in — you arrive to read, and most
+writing is a response to something read. Subscriptions moved down beside
+settings because it configures the reading feed rather than being a place you
+work. The order was never asserted, so it is now.
+
+**Verification:** 560 tests, `tsc --noEmit` clean, and everything above
+exercised by hand against a local node — each bracket form in each composer,
+arrow-key paging past the 20-item boundary (no duplicates, selection held), the
+thread editor's restored discard button, and the reader's new link.
 
 ## 0.6.1 — 2026-09-28
 

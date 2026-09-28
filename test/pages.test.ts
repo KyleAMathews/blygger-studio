@@ -167,7 +167,7 @@ describe("public pages (§3.4)", () => {
 
   it("withdrawn items are excluded from the feed page but kept in the archive", async () => {
     const cookie = await login();
-    const keep = await createAndPublish(cookie, "survivor fragment");
+    await createAndPublish(cookie, "survivor fragment");
     const pulled = await createAndPublish(cookie, "retracted fragment");
     await apiJson(cookie, "POST", `/api/items/${pulled}/withdraw`, {});
     const feed = await (await getPublic("/blyg/")).text();

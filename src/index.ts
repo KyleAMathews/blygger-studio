@@ -209,7 +209,7 @@ export function makeApp(mount: string) {
     // instead of retrying into the cap.
     if (outcome.status === 429) c.header("Retry-After", "3600");
     if (outcome.status !== 202) return c.json({ error: outcome.error }, outcome.status);
-    const { mentionId, source, target } = outcome;
+    const { mentionId, source } = outcome;
     const itemId = (await c.env.DB.prepare("SELECT target_item_id FROM mentions_in WHERE id = ?").bind(mentionId).first<{ target_item_id: string }>())!
       .target_item_id;
     // Verification runs after the response and can never fail the response:

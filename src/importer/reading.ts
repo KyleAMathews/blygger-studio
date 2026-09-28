@@ -34,6 +34,14 @@ export interface ImportedEntryInput {
   observedAt: string;
   contentHtml: string;
   pinnedVersionRetained: number | null;
+  /**
+   * Where this item lives at its own origin — the origin's declared `page`
+   * when it has one (§2.3.2 / decision #29), the anchor L0 content leads with
+   * for a legacy feed, and null when neither is knowable. Reading an entry in
+   * full previously meant leaving the studio by hand: nothing in the feed
+   * linked out, so the one thing a reader most often wants next had no door.
+   */
+  sourceUrl: string | null;
 }
 
 export interface ReadingFeedEntry {

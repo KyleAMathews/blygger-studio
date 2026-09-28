@@ -94,8 +94,8 @@ saying so.
 
 Live on five nodes as of 2026-09-28, two of them Venkat's
 (`venkateshrao.com/blyg/`, `blyg.protocol-institute.org`) and three strangers'
-self-hosts. **0.7.0**, 544 tests, `tsc` clean. The deployed nodes run 0.6.1 — 0.7.0 is
-built and committed, not yet tagged or deployed.
+self-hosts. **0.7.0**, 560 tests, `tsc` clean (with `noUnusedLocals`, on since session 28).
+The deployed nodes run 0.6.1 — 0.7.0 is built and committed, not yet tagged or deployed.
 
 ## Backlog — from Venkat's issue list (session 26, 2026-09-28)
 
@@ -114,13 +114,14 @@ was specified to do in both cases.
 - [ ] **Reader view doesn't roll up entries** the way the published surface does. Reading
   feed presentation only; the published surface is the reference for what it should look
   like.
-- [ ] **Transclusion picker stops after a few items.** `/fragments/search` caps at 20 and
-  the palette does not page, so the ceiling is still silent. **The "no search" half is
-  answered (0.7.0):** there was never a missing query box — the query has always been the
-  text you type in the editor. What existed was a *dead* `<input class="search">` in the
-  palette markup, wired to nothing, which took focus and swallowed keystrokes and so read
-  as a broken search field. It is gone, replaced by a hint line naming the active bracket
-  form. Paging is what remains.
+- [x] **Transclusion picker stops after a few items and has no search** — **done 0.7.0.**
+  Neither half was what the report implied. There was never a missing query box: the query
+  has always been the text you type in the editor. What existed was a *dead*
+  `<input class="search">` in the palette markup, wired to nothing, which took focus and
+  swallowed keystrokes and so read as a broken search field — replaced by a hint line
+  naming the active bracket form. The ceiling was a silent `.slice(0, 20)`;
+  `/fragments/search` now returns `total`/`offset`/`limit`, the palette states the count
+  either way, and ArrowDown at the bottom of a partial list pages instead of sticking.
 
 ### Feature refinements
 
@@ -134,15 +135,27 @@ was specified to do in both cases.
   call (§8.4 does not constrain presentation — session 20). **Check the data exists first:**
   we hold a snapshot of the target, not the target's own reference list, so this may need a
   fetch we don't currently make — in which case say so rather than half-rendering it.
-- [ ] **Open a reader item in a new tab.** No affordance today.
+- [x] **Open a reader item in a new tab** — **done 0.7.0.** Each reading entry carries
+  `open ↗`, derived from `sourceTitleAndUrl` rather than a second URL-shaped guess: the
+  origin's declared `page` wins (#29), `f/`·`t/` is a fallback, L0 points at the anchor its
+  feed gave, own items point at our own public page, and a withdrawn own item gets no link.
+  Always `target="_blank"` — the studio holds unsaved composer text.
 - [ ] **Offer plain linking in the reader**, alongside stub and fork. The `[anchor](url)`
   half is ordinary markdown and can ship now for both blygs and RSS. The `[[id]]` half is
   **unblocked (decision #32)** — see the session-27 block below for the grammar.
-- [ ] **Discard button for an unpublished new version.** Note the session-19 trap recorded
-  above: the shared action handler ends in `location.reload()`, which is wrong for any
-  action that removes the thing being viewed.
-- [ ] **Reorder the tabs** — reading first, compose second, subscriptions moved to just
-  before settings.
+- [x] **Discard button for an unpublished new version** — **done 0.7.0, and the defect was
+  worse than this entry implied.** The control existed and worked; the *thread* editor just
+  never rendered it. `threadEditPage` computed `discardBtn` — both branches, with the
+  comment explaining the distinction — and dropped the variable on the floor, so neither
+  "discard draft" nor "discard changes" appeared on any thread. Every case in the discard
+  test block opened the fragment editor, which is why a whole control could be missing from
+  half the studio with the suite green. `noUnusedLocals` is now on for exactly this class.
+  The session-19 `location.reload()` trap was already handled — the `discard` branch
+  navigates to the index.
+- [x] **Reorder the tabs** — **done 0.7.0.** reading, compose, hoppers, mentions,
+  subscriptions, settings, syntax. `NAV` is the single source of order and `compose` stays
+  the bare studio path wherever it sits; the order is asserted now, since it was not before
+  and the reorder would have been invisible to the suite in either direction.
 
 ### From the session-27 Fable round (2026-09-28) — wire-adjacent, now buildable
 

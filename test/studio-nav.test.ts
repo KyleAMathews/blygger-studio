@@ -37,6 +37,26 @@ describe("every studio page can get back to compose", () => {
   });
 });
 
+describe("the nav order", () => {
+  // Order was never asserted, so the reorder below would have been invisible
+  // to the suite in either direction. Reading leads as of session 28: you
+  // arrive to read, and most writing is a response to something read.
+  // Subscriptions sits with settings because it configures the reading feed
+  // rather than being a place you work.
+  it("runs reading, compose, hoppers, mentions, subscriptions, settings, syntax", async () => {
+    const html = await page(await login(), "");
+    const labels = ["reading", "compose", "hoppers", "mentions", "subscriptions", "settings", "syntax"];
+    const positions = labels.map((l) => html.indexOf(`>${l}</a>`));
+    expect(positions.every((i) => i >= 0), "every tab renders").toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
+
+  it("compose is still the bare studio path wherever it sits in the list", async () => {
+    const html = await page(await login(), "");
+    expect(html).toContain(`<a href="${STUDIO}" class="current" aria-current="page">compose</a>`);
+  });
+});
+
 describe("the nav marks where you are", () => {
   it.each([
     ["", "compose"],

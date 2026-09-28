@@ -4,7 +4,6 @@
 // ../studio.ts (no client framework, per CLAUDE.md stack conventions).
 
 import { Hono } from "hono";
-import { excerptFromHtml } from "../markdown.ts";
 import { authoredKind, listPublic, publishedVersion } from "../model.ts";
 import { formatDate, studioHeader, studioLayout } from "../studio.ts";
 import type { Env, SubscriptionRow } from "../types.ts";
@@ -23,6 +22,7 @@ import {
   listSubscriptions,
 } from "./store.ts";
 import type { HopperRow } from "../types.ts";
+import { sourceTitleAndUrl } from "./util.ts";
 
 const SUBS_STYLE = `
 .sub-row { border-top: 1px solid var(--rule); padding: 0.75rem 0; }
@@ -164,6 +164,8 @@ const READING_STYLE = `
 .reading-entry { border-top: 1px solid var(--rule); padding: 0.85rem 0; }
 .reading-entry .byline { font-size: 0.8rem; opacity: 0.7; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
 .reading-entry .byline .kind-chip { font-size: 0.68rem; padding: 0.02rem 0.3rem; }
+.reading-entry .byline .entry-open { margin-left: auto; text-decoration: none; }
+.reading-entry .byline .entry-open:hover { text-decoration: underline; }
 .reading-entry .byline .l0-chip { font-size: 0.72rem; color: var(--ink-soft); border: 1px solid var(--rule); border-radius: 3px; padding: 0.02rem 0.3rem; }
 .reading-entry .entry-title { margin: 0.25rem 0 0.15rem; font-size: 1.02rem; font-weight: 600; line-height: 1.35; }
 .reading-entry .entry-title a { text-decoration: none; }
@@ -207,11 +209,18 @@ async function ownEntries(db: D1Database): Promise<OwnEntryInput[]> {
 async function importedEntries(db: D1Database): Promise<ImportedEntryInput[]> {
   const [imports, subs] = await Promise.all([listAllImportedItems(db), listSubscriptions(db)]);
   const titleOf = new Map(subs.map((s) => [s.id, s.title || s.origin]));
+  const originOf = new Map(subs.map((s) => [s.id, s.origin]));
   const out: ImportedEntryInput[] = [];
   for (const row of imports) {
+    const origin = originOf.get(row.subscription_id);
+    // `sourceTitleAndUrl` already knows both shapes — the leading anchor for
+    // L0, the origin's own permalink for blyg-native — so the link out is
+    // derived by the same rule the stub gesture uses rather than a second one.
+    const sourceUrl = origin ? sourceTitleAndUrl(row, origin).url : null;
     out.push({
       subscriptionId: row.subscription_id,
       subscriptionTitle: titleOf.get(row.subscription_id) ?? row.subscription_id,
+      sourceUrl,
       remoteId: row.remote_id,
       kind: row.kind,
       withdrawn: row.state === "tombstone",
@@ -258,6 +267,19 @@ async function readingEntryHtml(db: D1Database, e: ReadingFeedEntry, hoppers: Ho
     }
     // Pinned-retained content still renders below, with the withdrawal noted.
   }
+  // "open ↗" — read it where it lives. Always a new tab: the studio holds
+  // unsaved composer text and a half-written draft is not worth a round trip
+  // through someone else's site. For an own entry this is our own public page,
+  // which is the same act from the reader's side.
+  const openHref =
+    e.source === "own"
+      ? e.own && !e.withdrawn
+        ? `${mount}/${e.kind === "thread" ? "t" : "f"}/${e.own.id}/`
+        : null
+      : (e.imported?.sourceUrl ?? null);
+  const openLink = openHref
+    ? ` <a class="entry-open" href="${escapeHtml(openHref)}" target="_blank" rel="noopener">open ↗</a>`
+    : "";
   const byline =
     e.source === "own"
       ? `<span class="kind-chip">${e.kind}</span> you`
@@ -289,7 +311,7 @@ async function readingEntryHtml(db: D1Database, e: ReadingFeedEntry, hoppers: Ho
       ? ""
       : "<div class=\"content\"><p><em>(empty)</em></p></div>";
   return `<div class="reading-entry">
-<p class="byline">${byline} <span>&middot; ${formatDate(e.displayAt)}</span></p>
+<p class="byline">${byline} <span>&middot; ${formatDate(e.displayAt)}</span>${openLink}</p>
 ${withdrawnNote}
 ${titleLine}
 ${body}

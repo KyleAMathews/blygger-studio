@@ -6,6 +6,12 @@
     "lib": ["ES2022"],
     "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers/types", "node"],
     "strict": true,
+    // On since session 28. `threadEditPage` computed a `discardBtn` and never
+    // rendered it, so the thread editor shipped with no way to discard a draft
+    // or its unpublished changes — invisible to a suite that asserts on the
+    // HTML that *is* emitted. An unused local is the cheapest signal that a
+    // control was built and then dropped.
+    "noUnusedLocals": true,
     "noEmit": true,
     "skipLibCheck": true,
     "isolatedModules": true,
