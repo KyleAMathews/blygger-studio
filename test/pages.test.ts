@@ -7,17 +7,17 @@ import { apiJson, BASE, createAndPublish, getPublic, login } from "./helpers.ts"
 describe("public pages (§3.4)", () => {
   it("feed page shows header, fragment, permalink, RSS link", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_title: "Venkat's blyg" });
+    await apiJson(cookie, "PUT", "/api/settings", { site_title: "A Test Blyg" });
     const id = await createAndPublish(cookie, "a *rendered* fragment");
     const html = await (await getPublic("/blyg/")).text();
     // Session 19: site identity now renders on the feed page too, not only in
     // <title>. The way back to the blyg's index is the masthead's own name
     // (it used to be a hardcoded `Home` → `/`, which is a self-link on a
     // root-mounted node and leaves a path-mounted permalink with no way back).
-    expect(html).toContain("<title>Venkat&#39;s blyg</title>");
+    expect(html).toContain("<title>A Test Blyg</title>");
     // The name is the masthead, set at display size, on every page since
     // session 25. It links the blyg's own index, which `Home` → `/` did not.
-    expect(html).toContain('<p class="site-name"><a href="/blyg/">Venkat&#39;s blyg</a></p>');
+    expect(html).toContain('<p class="site-name"><a href="/blyg/">A Test Blyg</a></p>');
     expect(html).not.toContain('<a href="/">Home</a>');
     expect(html).toContain("<em>rendered</em>");
     expect(html).toContain("Created:");

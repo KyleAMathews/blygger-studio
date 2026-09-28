@@ -21,7 +21,7 @@ describe("isLocalHost", () => {
   });
 
   it("does not catch public hosts", () => {
-    for (const h of ["example.com", "blygger.org", "venkateshrao.com", "localhost.example.com", "127x.com"]) {
+    for (const h of ["example.com", "blygger.org", "author.example", "localhost.example.com", "127x.com"]) {
       expect(isLocalHost(h), h).toBe(false);
     }
   });
@@ -29,7 +29,7 @@ describe("isLocalHost", () => {
 
 describe("checkExportOrigin", () => {
   it("passes cleanly when the instance's origin is where we fetched from", () => {
-    const r = checkExportOrigin("https://venkateshrao.com/blyg/", "https://venkateshrao.com/blyg/", false);
+    const r = checkExportOrigin("https://author.example/blyg/", "https://author.example/blyg/", false);
     expect(r.refuse).toBeUndefined();
     expect(r.warn).toBeUndefined();
   });

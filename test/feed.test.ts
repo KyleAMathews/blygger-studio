@@ -18,14 +18,14 @@ function parse(xml: string) {
 describe("feed.xml (§2.6)", () => {
   it("is valid RSS 2.0 with the blyg namespace and channel metadata", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_title: "Venkat's blyg", author_bio: "a bio" });
+    await apiJson(cookie, "PUT", "/api/settings", { site_title: "A Test Blyg", author_bio: "a bio" });
     await createAndPublish(cookie, "a fragment");
 
     const doc = parse(await fetchFeed());
     expect(doc.rss["@_version"]).toBe("2.0");
     expect(doc.rss["@_xmlns:blyg"]).toBe("https://blygger.org/ns/0.1");
     const ch = doc.rss.channel;
-    expect(ch.title).toBe("Venkat's blyg");
+    expect(ch.title).toBe("A Test Blyg");
     expect(ch.link).toBe("https://example.com/blyg/");
     expect(ch.description).toBe("a bio");
     expect(new Date(ch.lastBuildDate).toString()).not.toBe("Invalid Date");

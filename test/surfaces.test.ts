@@ -8,10 +8,10 @@ describe("manifest (§2.4)", () => {
   it("has the exact manifest shape", async () => {
     const cookie = await login();
     await apiJson(cookie, "PUT", "/api/settings", {
-      site_title: "Venkat's blyg",
-      author_name: "Venkatesh Rao",
+      site_title: "A Test Blyg",
+      author_name: "A Test Author",
       author_bio: "test bio",
-      author_links: [{ label: "Home", url: "https://venkateshrao.com" }],
+      author_links: [{ label: "Home", url: "https://author.example/" }],
     });
     const res = await getPublic("/blyg/blyg.json");
     expect(res.status).toBe(200);
@@ -31,10 +31,10 @@ describe("manifest (§2.4)", () => {
     expect(GENERATOR).toBe(`${CLIENT.name}/${CLIENT.version}`);
     expect(m.generator_url).toBe("https://github.com/blygger/blygger-studio");
     expect(m.site).toBe("https://example.com/blyg/");
-    expect(m.title).toBe("Venkat's blyg");
-    expect(m.author.name).toBe("Venkatesh Rao");
+    expect(m.title).toBe("A Test Blyg");
+    expect(m.author.name).toBe("A Test Author");
     expect(m.author.bio).toBe("test bio");
-    expect(m.author.links).toEqual([{ label: "Home", url: "https://venkateshrao.com" }]);
+    expect(m.author.links).toEqual([{ label: "Home", url: "https://author.example/" }]);
     expect(m.feed).toBe("feed.xml");
     expect(m.items).toBe("items/index.json");
     expect(m.updated).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
