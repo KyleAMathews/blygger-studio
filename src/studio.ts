@@ -10,7 +10,7 @@
 import { Hono } from "hono";
 import { checkPassword, clearSessionCookie, issueSessionCookie, verifySession } from "./auth.ts";
 import { plainTextFromHtml, renderMarkdown } from "./markdown.ts";
-import { authoredKind, getItem, getSettings, getVersion, listAll, listMediaForItem, listVersions, publishedVersion } from "./model.ts";
+import { authoredKind, getItem, getSettings, getSettingsMap, getVersion, listAll, listMediaForItem, listVersions, publishedVersion } from "./model.ts";
 import { THEMES } from "./pages.ts";
 import { clampText, previewFromHtml, stripTransclusionQuotes, type HtmlPreview } from "./preview.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, previewStrip, type TkScope } from "./tk.ts";
@@ -19,7 +19,9 @@ import { mentionFetch } from "./mentions/http.ts";
 import { siteOrigin } from "./protocol.ts";
 import { applyInternalLinks, extractDirectives, previewInternalLinks, previewTransclusions } from "./transclusion.ts";
 import type { Env, ItemRow, Transclusion, VersionRow } from "./types.ts";
-import { FRAGMENT_MAX_CHARS } from "./types.ts";
+import { CLIENT, FRAGMENT_MAX_CHARS } from "./types.ts";
+import type { Settings } from "./types.ts";
+import { maybeCheckForUpdate, readState, type UpdateState } from "./update-check.ts";
 import { escapeHtml, normalizeMount, studioPath } from "./util.ts";
 import { blygItemUrl } from "./importer/util.ts";
 
@@ -237,6 +239,10 @@ input.note { font: inherit; font-size: 0.9rem; padding: 0.3rem 0.5rem; border-ra
 .note-row { margin-top: 0.75rem; font-size: 0.85rem; display: flex; gap: 0.5rem; align-items: center; }
 .note-row input { flex: 1; }
 .palette { position: absolute; border: 1px solid var(--rule-strong); border-radius: 6px; padding: 0.5rem; background: Canvas; max-width: 60ch; box-shadow: 0 4px 14px rgba(0,0,0,0.15); z-index: 10; }
+.update-banner { border: 1px solid var(--rule); border-radius: 6px; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; font-size: 0.88rem; }
+.update-banner.behind { border-color: var(--rule-strong); }
+.update-banner.notice { color: var(--ink-soft); }
+.update-banner code { font-size: 0.95em; }
 .palette-hint { font-size: 0.78rem; color: var(--ink-soft); margin: 0; }
 .palette-foot { margin-top: 0.4rem; border-top: 1px solid var(--rule); padding-top: 0.3rem; cursor: default; }
 .palette-foot.has-more { cursor: pointer; }
@@ -648,6 +654,14 @@ document.addEventListener("click", async (e) => {
     const version = Number(btn.dataset.version);
     if (!confirm("Discard unpublished changes and go back to the published v" + version + "?\\n\\nThe public item is not affected — it is already v" + version + ".")) return;
     if (!(await api("POST", "/api/items/" + id + "/restore", { version }))) return;
+  } else if (action === "ack-update-notice") {
+    // Dismisses the "alerts are on" notice for good. Not a preference about
+    // alerts themselves — that is the Settings toggle — just an acknowledgement
+    // that the sentence has been read.
+    await api("PUT", "/api/settings", { update_notice_ack: true });
+    const banner = document.getElementById("update-notice");
+    if (banner) banner.remove();
+    return;
   } else if (action === "switch-kind") {
     // Saves the working copy first: the editor autosaves on a 400ms debounce,
     // so a switch typed-then-clicked inside that window would reload the other
@@ -887,6 +901,41 @@ composerGenerate.addEventListener("click", async () => {
   if (id) location.href = editorPath(id) + "#tk";
 });
 `;
+}
+
+/**
+ * The update banner (session 28). Two different messages, and only one of them
+ * is about a new release.
+ *
+ * The *notice* fires once, because checking is on by default: an operator is
+ * owed the sentence "this makes a network request" before it has made many of
+ * them, and owed it where they are rather than in a changelog. Dismissing it is
+ * the acknowledgement; it never returns.
+ *
+ * The *alert* fires whenever this build is behind and does not dismiss, because
+ * it describes a condition rather than an event — it goes away by upgrading,
+ * which is the point.
+ */
+function updateBanner(settings: Settings, state: UpdateState, mount: string): string {
+  const out: string[] = [];
+  if (state.behind) {
+    out.push(
+      `<div class="update-banner behind">` +
+        `<strong>Update available — ${escapeHtml(state.latest)}</strong>, and you are running ${escapeHtml(CLIENT.version)}. ` +
+        `<a href="https://github.com/blygger/blygger-studio/releases" target="_blank" rel="noopener">what changed ↗</a> ` +
+        `&middot; upgrade with <code>npm run upgrade</code>` +
+        `</div>`,
+    );
+  }
+  if (settings.update_check && !settings.update_notice_ack) {
+    out.push(
+      `<div class="update-banner notice" id="update-notice">` +
+        `Update alerts are on. You can turn them off in <a href="${studioPath(mount)}/settings">Settings</a>. ` +
+        `<button type="button" class="link" data-action="ack-update-notice">got it</button>` +
+        `</div>`,
+    );
+  }
+  return out.join("\n");
 }
 
 /**
@@ -1190,7 +1239,14 @@ studio.get("/", async (c) => {
   const mount = normalizeMount(c.env.MOUNT);
   const items = await listAll(c.env.DB);
   const rows = await Promise.all(items.map((item) => itemRow(c.env.DB, item, mount)));
+  // The banner shows what the *last* check found; the check for next time runs
+  // after the response. A version notice is never worth a slower studio, and
+  // `waitUntil` is what keeps that promise.
+  const settings = await getSettings(c.env.DB);
+  const settingsMap = await getSettingsMap(c.env.DB);
+  c.executionCtx.waitUntil(maybeCheckForUpdate(c.env.DB, settings, settingsMap, Date.now()).catch(() => {}));
   const body = `${studioHeader("blyg studio", mount, "compose")}
+${updateBanner(settings, readState(settingsMap), mount)}
 <div class="composer" style="position:relative;">
 <p class="compose-help">Markdown supported. Write <code>[[id]]</code> to link another item of yours or something you read (type <code>[[</code> for a picker), and <code>[TK]an instruction[/TK]</code> to mark a scope for AI-drafted text — a <em>generate</em> button appears, which saves and opens the editor. <a href="${studioPath(mount)}/syntax">full syntax reference</a></p>
 <textarea id="composer-text" placeholder="compose a fragment…"></textarea>
@@ -1237,6 +1293,17 @@ studio.get("/settings", async (c) => {
 <input id="ai_model" name="ai_model" value="${escapeHtml(settings.ai_model)}" placeholder="claude-opus-5">
 <label for="ai_style_prompt">TK site-level style prompt (optional, appended to every generation request)</label>
 <textarea id="ai_style_prompt" name="ai_style_prompt" rows="3">${escapeHtml(settings.ai_style_prompt)}</textarea>
+<label style="margin-top:1rem;">Updates</label>
+<p style="margin:0.2rem 0 0;"><label style="font-weight:400;"><input type="checkbox" id="update_check"${settings.update_check ? " checked" : ""}>
+  Tell me when a newer release of this client exists</label></p>
+<p style="margin:0.35rem 0 0;font-size:0.85rem;color:var(--ink-soft);">On by default. Once a day your blyg fetches the client's public release
+  feed and compares the newest version to the one you are running — currently <code>${escapeHtml(CLIENT.version)}</code>. Nothing about your blyg is
+  sent: no URL, no identifier, no query. Before 1.0 the wire format itself can change between releases, so an out-of-date client is not only missing
+  features — it can gradually stop making sense to the blygs reading it, which is why this is on rather than off.</p>
+<label for="update_feed_url">Release feed (blank = this client's own)</label>
+<input id="update_feed_url" name="update_feed_url" value="${escapeHtml(settings.update_feed_url)}" placeholder="https://github.com/blygger/blygger-studio/releases.atom">
+<p style="margin:0.35rem 0 0;font-size:0.85rem;color:var(--ink-soft);">Only worth changing if you have modified this client and track your own
+  versions — in which case point it at your own releases, or turn the check off. Comparing your fork's version against ours would be confidently wrong.</p>
 <label style="margin-top:1rem;">Responses from other blygs</label>
 <p style="margin:0.2rem 0 0;"><label style="font-weight:400;"><input type="checkbox" id="accept_mentions"${settings.accept_mentions ? " checked" : ""}>
   Accept Webmentions — let other blygs tell yours when they quote, respond to or fork an item</label></p>
@@ -1263,6 +1330,8 @@ document.getElementById("settings-form").addEventListener("submit", async (e) =>
     ai_model: document.getElementById("ai_model").value,
     ai_style_prompt: document.getElementById("ai_style_prompt").value,
     accept_mentions: document.getElementById("accept_mentions").checked,
+    update_check: document.getElementById("update_check").checked,
+    update_feed_url: document.getElementById("update_feed_url").value,
     author_links: links,
   };
   if (await api("PUT", "/api/settings", body)) alert("saved");

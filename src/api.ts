@@ -316,6 +316,7 @@ const SETTINGS_KEYS = [
   "author_bio",
   "site_url",
   "avatar_media_id",
+  "update_feed_url",
   "ai_model",
   "ai_style_prompt",
 ] as const;
@@ -336,6 +337,20 @@ api.put("/settings", async (c) => {
     patch.accept_mentions = body.accept_mentions;
   } else if (body.accept_mentions !== undefined) {
     return c.json({ error: "accept_mentions must be a boolean, or \"on\" / \"off\"" }, 400);
+  }
+  // Same two-valued validation as accept_mentions, and for a sharper reason:
+  // `getSettings` treats anything but "on" as off, so a typo here fails closed
+  // (no check) rather than open. Still validated — silently ignoring a
+  // misspelled value would leave an operator believing they had enabled it.
+  if (typeof body.update_check === "boolean") {
+    patch.update_check = body.update_check ? "on" : "off";
+  } else if (body.update_check === "on" || body.update_check === "off") {
+    patch.update_check = body.update_check;
+  } else if (body.update_check !== undefined) {
+    return c.json({ error: "update_check must be a boolean, or \"on\" / \"off\"" }, 400);
+  }
+  if (body.update_notice_ack === true || body.update_notice_ack === "on") {
+    patch.update_notice_ack = "on";
   }
   if (Array.isArray(body.author_links)) {
     const links = body.author_links.filter(

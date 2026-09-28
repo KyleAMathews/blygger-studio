@@ -319,6 +319,33 @@ export interface Settings {
    * them.
    */
   accept_mentions: boolean;
+  /**
+   * Check for a newer release of this client and show a banner in the studio
+   * when one exists. **Off by default, and that default is the design.**
+   *
+   * A client that phones home unasked is the wrong shape for a medium whose
+   * whole claim is that nothing needs a company in the middle — so this is an
+   * operator's choice, made once, rather than something every node does
+   * because we shipped it that way. Nothing is sent: it is a GET of a public
+   * release feed, with no identifier of this blyg attached, and the answer is
+   * used only to render a line in your own studio.
+   *
+   * The wire is untouched. Venkat's session-26 ruling put the version alert
+   * directory-side and off the wire, and that is unchanged: no manifest key,
+   * nothing a reader can see, nothing another client must implement. This is
+   * the same fact reaching the same operator through the one surface only they
+   * look at. (#18d governs *protocol* version, a different question.)
+   */
+  update_check: boolean;
+  /** Where to ask. Configurable so a fork checks its own releases, not ours. */
+  update_feed_url: string;
+  /**
+   * Whether the operator has been told that update checking is on. Because the
+   * default is on, they are owed that sentence once — a background network call
+   * nobody mentioned is the thing the default-off argument was right about, and
+   * saying so plainly is what buys the default.
+   */
+  update_notice_ack: boolean;
 }
 
 /**

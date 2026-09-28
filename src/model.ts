@@ -27,6 +27,12 @@ export class FragmentTooLongError extends Error {
   }
 }
 
+/** The raw settings rows. The update check needs keys that are not on `Settings` (timestamps, the last version seen). */
+export async function getSettingsMap(db: D1Database): Promise<Record<string, string>> {
+  const rows = await db.prepare("SELECT key, value FROM settings").all<{ key: string; value: string }>();
+  return Object.fromEntries(rows.results.map((r) => [r.key, r.value]));
+}
+
 export async function getSettings(db: D1Database): Promise<Settings> {
   const rows = await db.prepare("SELECT key, value FROM settings").all<{ key: string; value: string }>();
   const map = Object.fromEntries(rows.results.map((r) => [r.key, r.value]));
@@ -49,6 +55,17 @@ export async function getSettings(db: D1Database): Promise<Settings> {
     ai_style_prompt: map.ai_style_prompt ?? "",
     // Default on: an existing deployment's behaviour must not change under it.
     accept_mentions: map.accept_mentions !== "off",
+    // On by default (Venkat, session 28). The argument for off was that a
+    // client which phones home unasked is the wrong shape for this medium; the
+    // argument that won is that the operators who most need the alert are
+    // exactly the ones who will never find a setting to enable it — five live
+    // nodes sat three releases behind while the mechanism to tell them did not
+    // exist. Default-on plus a visible notice and a one-click off is informed
+    // rather than silent, which is the property that actually matters.
+    update_check: map.update_check !== "off",
+    update_feed_url: map.update_feed_url ?? "",
+    /** Cleared until the operator has seen the "alerts are on" notice once. */
+    update_notice_ack: map.update_notice_ack === "on",
   };
 }
 
