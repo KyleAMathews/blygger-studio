@@ -94,7 +94,7 @@ saying so.
 
 Live on five nodes as of 2026-09-28, two of them Venkat's
 (`venkateshrao.com/blyg/`, `blyg.protocol-institute.org`) and three strangers'
-self-hosts. **0.7.0**, 570 tests, `tsc` clean (with `noUnusedLocals`, on since session 28).
+self-hosts. **0.7.0**, 578 tests, `tsc` clean (with `noUnusedLocals`, on since session 28).
 The deployed nodes run 0.6.1 — 0.7.0 is built and committed, not yet tagged or deployed.
 
 ## Backlog — from Venkat's issue list (session 26, 2026-09-28)
@@ -153,50 +153,19 @@ was specified to do in both cases.
   origin's declared `page` wins (#29), `f/`·`t/` is a fallback, L0 points at the anchor its
   feed gave, own items point at our own public page, and a withdrawn own item gets no link.
   Always `target="_blank"` — the studio holds unsaved composer text.
-- [ ] **⚠️ FABLE — Offer plain linking in the reader**, alongside stub and fork. The
-  `[anchor](url)` half is ordinary markdown and the `[[id]]` half is unblocked by #32, so
-  this looked buildable — **but it collides with decision #27**, which retired `respond ↗`
-  with the words *"one affordance, no lighter sibling"*, precisely because "two overlapping
-  'respond to this' affordances with different semantics would be the bad outcome". A
-  reader button that starts a draft linking the item you just read **is** that sibling, and
-  `[[id]]`'s silence on the wire makes it *lighter* than the retired one, not heavier.
-  Raised and not built, session 28 (Opus).
-  **The distinction worth ruling on:** a gesture that *creates feed speech about someone
-  else's item* is the stub's slot and #27 closed it. A gesture that only *hands you the
-  reference* for something you are already writing — copy `[[id]]`, the reader-side twin of
-  the `[[` palette — creates nothing, says nothing, and may not be the same act at all. If
-  that reading holds, the affordance is a clipboard helper rather than a composer door, and
-  the two never overlap. If it does not, this item should be closed rather than left open.
-- [x] **Discard button for an unpublished new version** — **done 0.7.0, and the defect was
-  worse than this entry implied.** The control existed and worked; the *thread* editor just
-  never rendered it. `threadEditPage` computed `discardBtn` — both branches, with the
-  comment explaining the distinction — and dropped the variable on the floor, so neither
-  "discard draft" nor "discard changes" appeared on any thread. Every case in the discard
-  test block opened the fragment editor, which is why a whole control could be missing from
-  half the studio with the suite green. `noUnusedLocals` is now on for exactly this class.
-  The session-19 `location.reload()` trap was already handled — the `discard` branch
-  navigates to the index.
-- [x] **Reorder the tabs** — **done 0.7.0.** reading, compose, hoppers, mentions,
-  subscriptions, settings, syntax. `NAV` is the single source of order and `compose` stays
-  the bare studio path wherever it sits; the order is asserted now, since it was not before
-  and the reorder would have been invisible to the suite in either direction.
-
-### From the session-27 Fable round (2026-09-28) — wire-adjacent, now buildable
-
-These four are what promote `protocol-v0.3.md` §16.1/§16.2 from "ruled" to normative
-(strict #21: the spec text follows the build). Shapes are fixed; do not vary them.
-**Promoted 2026-09-28 (spec session 28):** `cited` is now spec §5.9, `[[id]]` §10.1,
-`generator_url` §6.1 — normative in the published 0.3 at `blygger.org/spec/0.3/`
-(snapshot `2026-09-28`). The §16 numbers below still resolve, as pointers.
-
-- [x] **Emit `cited` on every reference** — **done session 27 (0.6.0)**, both halves:
-  emitted inside `stub_of`, every remote `transclusions[]` entry and `forked_from` on live
-  and pinned documents, and retained verbatim on import rather than recomposed. The
-  own-origin transclusion shape is untouched, so 0.2 documents stay valid. The stale-byline
-  fix landed with it: provenance now reads the frozen citation instead of a live join
-  against the subscription. **Note for whoever builds the second-degree view:** an imported
-  document's `cited` values are stored and nothing reads them yet — that view is their only
-  consumer, so it inherits a field that is already populated. Original entry:
+- [x] **Offer plain linking in the reader** — **ruled #50 and built 0.7.0.** Raised as a
+  possible collision with #27 by the session-28 Opus run and ruled by Fable the same
+  afternoon: #27's forbidden sibling was a *response* affordance that did not declare
+  itself, and #32 ruled `[[id]]` declares nothing, so this is a different act — citing
+  without responding. Shipped as `copy [[id]]` in the reading entry's byline beside
+  `open ↗`, **never** as a peer of `stub ↗` in the actions row, which stays the one
+  affordance meaning "I am responding"; #50 makes position semantics, so the tests pin it.
+  Offered only where the link would resolve at publish (`resolveTarget`'s order, #26): our
+  own published items and imported non-L0 blyg items that are current or pin-retained. L0
+  rows get `open ↗` and nothing else — a legacy feed has no item document to link to. The
+  `[anchor](url)` half of this backlog entry is not built and is not needed: ordinary
+  markdown already does it, and #50's ruling is about the construct the reader could not
+  otherwise reach.
 - [ ] ~~**Emit `cited` on every reference**~~ (decision #30, spec §16.1): serialize the existing
   `StubCite` — `source`, `author`, `excerpt` (cap ~200 chars), `url`, `retrieved`
   (REQUIRED) — as `cited` inside `stub_of`, each remote `transclusions[]` entry, and

@@ -164,6 +164,11 @@ const READING_STYLE = `
 .reading-entry { border-top: 1px solid var(--rule); padding: 0.85rem 0; }
 .reading-entry .byline { font-size: 0.8rem; opacity: 0.7; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
 .reading-entry .byline .kind-chip { font-size: 0.68rem; padding: 0.02rem 0.3rem; }
+.reading-entry .byline .entry-copy-link { margin-left: auto; font: inherit; font-size: 0.8rem; color: var(--ink-soft); background: none; border: none; padding: 0; cursor: pointer; }
+.reading-entry .byline .entry-copy-link:hover { color: inherit; text-decoration: underline; }
+.reading-entry .byline .entry-copy-link code { font-size: 0.95em; }
+.reading-entry .byline .copy-fallback { font: inherit; font-size: 0.8rem; width: 32ch; border: 1px solid var(--rule); border-radius: 3px; padding: 0 0.3rem; background: transparent; color: inherit; margin-left: auto; }
+.reading-entry .byline .entry-copy-link + .entry-open { margin-left: 0.75rem; }
 .reading-entry .byline .entry-open { margin-left: auto; text-decoration: none; }
 .reading-entry .byline .entry-open:hover { text-decoration: underline; }
 .reading-entry .byline .l0-chip { font-size: 0.72rem; color: var(--ink-soft); border: 1px solid var(--rule); border-radius: 3px; padding: 0.02rem 0.3rem; }
@@ -280,6 +285,33 @@ async function readingEntryHtml(db: D1Database, e: ReadingFeedEntry, hoppers: Ho
   const openLink = openHref
     ? ` <a class="entry-open" href="${escapeHtml(openHref)}" target="_blank" rel="noopener">open ↗</a>`
     : "";
+  // `copy [[id]]` — decision #50. A link is not a response: #32 ruled `[[id]]`
+  // declares nothing (no relation, no mention), so this is not the lighter
+  // sibling #27 retired but a different act, citing without responding.
+  //
+  // The decision's conditions are structural here, not cosmetic. It is named
+  // for what it does, it sits in the byline beside `open ↗` where
+  // copy-permalink would, and it is deliberately **not** in `.entry-actions`
+  // alongside `stub ↗` and `fork ↗` — `stub ↗` stays the one affordance that
+  // means "I am responding", and a peer in that row would say otherwise by
+  // position alone.
+  //
+  // Offered only where `[[id]]` would actually resolve at publish
+  // (`resolveTarget`'s order, #26): a published item of ours, or an imported
+  // non-L0 blyg item that is current or pin-retained. An L0 row has no item
+  // document and no version, so a link to it could never resolve — the reader
+  // offers `open ↗` for those and nothing else.
+  const linkableId =
+    e.source === "own"
+      ? e.own && !e.withdrawn
+        ? e.own.id
+        : null
+      : e.imported && !e.l0 && (!e.withdrawn || e.imported.pinnedVersionRetained !== null)
+        ? e.imported.remoteId
+        : null;
+  const copyLink = linkableId
+    ? ` <button type="button" class="entry-copy-link" data-action="copy-link" data-id="${escapeHtml(linkableId)}">copy <code>[[id]]</code></button>`
+    : "";
   const byline =
     e.source === "own"
       ? `<span class="kind-chip">${e.kind}</span> you`
@@ -311,7 +343,7 @@ async function readingEntryHtml(db: D1Database, e: ReadingFeedEntry, hoppers: Ho
       ? ""
       : "<div class=\"content\"><p><em>(empty)</em></p></div>";
   return `<div class="reading-entry">
-<p class="byline">${byline} <span>&middot; ${formatDate(e.displayAt)}</span>${openLink}</p>
+<p class="byline">${byline} <span>&middot; ${formatDate(e.displayAt)}</span>${copyLink}${openLink}</p>
 ${withdrawnNote}
 ${titleLine}
 ${body}
@@ -360,6 +392,36 @@ document.addEventListener("click", async (e) => {
 }
 
 const READING_SCRIPT = `
+/**
+ * copy \`[[id]]\` (decision #50). Writes the construct, not the bare id, so
+ * what lands in the draft is already the thing that resolves — an id alone
+ * would make the author remember a grammar they came here to look up.
+ *
+ * navigator.clipboard is undefined in an insecure context, so the fallback
+ * puts the text on screen and selects it rather than failing silently: the
+ * author can still get it with one keystroke.
+ */
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-action='copy-link']");
+  if (!btn) return;
+  const text = "[[" + btn.dataset.id + "]]";
+  const done = (msg) => {
+    const original = btn.innerHTML;
+    btn.textContent = msg;
+    setTimeout(() => { btn.innerHTML = original; }, 1400);
+  };
+  try {
+    await navigator.clipboard.writeText(text);
+    done("copied");
+  } catch (err) {
+    const field = document.createElement("input");
+    field.value = text;
+    field.setAttribute("readonly", "readonly");
+    field.className = "copy-fallback";
+    btn.replaceWith(field);
+    field.select();
+  }
+});
 async function readingApi(method, path, body) {
   await fetch(path, { method, headers: body !== undefined ? { "content-type": "application/json" } : undefined, body: body !== undefined ? JSON.stringify(body) : undefined });
 }

@@ -108,11 +108,37 @@ retyping. The row changes in place instead.
   the 1000-char cap, so the editor's counter shows you are over rather than the
   switch pretending the text is fine.
 
-**Verification:** 570 tests, `tsc --noEmit` clean, and everything above
+**`copy [[id]]` in the reader (decision #50).** `[[id]]` has been publishable
+since 0.6.0 and pickable from inside a composer since earlier in this release,
+but it was unreachable from the one place authors actually meet other people's
+items: the reading feed. Raised as a possible collision with decision #27
+("one affordance, no lighter sibling") and ruled otherwise — #27's forbidden
+sibling was a *response* gesture that did not declare itself, and #32 ruled
+`[[id]]` declares nothing, so this is a different act: citing without
+responding.
+
+- It is named for what it does, and it sits in the byline beside `open ↗`
+  where a copy-permalink would. It is **not** in the actions row with
+  `stub ↗` and `fork ↗`: `stub ↗` remains the one affordance meaning "I am
+  responding", and a peer in that row would say otherwise by position alone.
+  #50 makes that placement semantic rather than cosmetic, so it is pinned by
+  tests.
+- Offered only where the link would resolve at publish, by `resolveTarget`'s
+  order: our own published items, and imported non-L0 blyg items that are
+  current or pin-retained. An L0 row has no item document and no version, so it
+  gets `open ↗` and nothing else — offering a link there would hand you a
+  construct that fails your whole publish later.
+- It copies the construct, `[[id]]`, not the bare id: an id alone would make
+  you remember a grammar you came to the reader to look up. Where
+  `navigator.clipboard` is unavailable (an insecure context), the text appears
+  in a selected field instead of failing silently.
+
+**Verification:** 578 tests, `tsc --noEmit` clean, and everything above
 exercised by hand against a local node — each bracket form in each composer,
 arrow-key paging past the 20-item boundary (no duplicates, selection held), the
 thread editor's restored discard button, the reader's new link, and a draft
-switched from fragment to thread in place with its text intact.
+switched from fragment to thread in place with its text intact, and a real
+click on `copy [[id]]` putting `[[<id>]]` on the clipboard.
 
 ## 0.6.1 — 2026-09-28
 
