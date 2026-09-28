@@ -67,6 +67,29 @@ own pinned Cloudflare account, with a tsc+test gate, migration preflight and pos
 live verification. Protocol and rationale: `../blygger-spec/docs/deploy-protocol.md`
 (built session 17 after incident `2026-09-12-01`, a wrong-account deploy).
 
+**Our deploy config is not committed (session 28).** The client ships as a generic
+artifact anyone can stand up, so committed `wrangler.jsonc` names no account, database,
+route or domain, and `deploy-targets.json` is gitignored. Ours live in
+`wrangler.private.jsonc` and `deploy-targets.json`, both gitignored, both at the repo
+root — wrangler resolves `main` and `migrations_dir` relative to the config file, so
+neither can move into a subdirectory. `deploy-all.ts` prefers the private config when it
+exists and falls back to the committed one when it does not, which is also what makes a
+self-hoster's own `wrangler.jsonc` work with no flag.
+
+Per-target spellings (`deploy:all` is blocked in auto mode):
+
+```bash
+npm run deploy:vgr    # wrangler deploy --config wrangler.private.jsonc --env venkateshrao
+npm run deploy:pi     # wrangler deploy --config wrangler.private.jsonc --env protocolInstitute
+```
+
+**If you lose the private files:** every value in them is readable from the Cloudflare
+dashboard, but rebuilding by hand is how incident `2026-09-12-01` happened. `test/
+deploy-manifest.test.ts` cross-checks them on every `npm test` — and note *how* it
+detects their presence: `import.meta.glob`, not `node:fs`. Inside the Workers test pool
+the filesystem is sandboxed, so `existsSync` returns false for a file that is plainly
+there, and a `runIf` on it would skip the live half silently while the suite went green.
+
 **Authenticate with `wrangler login`, not `CLOUDFLARE_API_TOKEN`.** Both registry tokens
 are single-account and the personal one has no D1 scope, so the migration preflight
 cannot run from either; an env token silently overrides the OAuth session, so **unset it**

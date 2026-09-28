@@ -14,7 +14,9 @@
     "test": "vitest run",
     "export": "node --experimental-strip-types scripts/export.ts",
     "deploy": "wrangler deploy",
-    "deploy:all": "node --experimental-strip-types scripts/deploy-all.ts"
+    "deploy:all": "node --experimental-strip-types scripts/deploy-all.ts",
+    "deploy:vgr": "wrangler deploy --config wrangler.private.jsonc --env venkateshrao",
+    "deploy:pi": "wrangler deploy --config wrangler.private.jsonc --env protocolInstitute"
   },
   "dependencies": {
     "fast-xml-parser": "^5",

@@ -3,7 +3,7 @@
 //
 //   npm run deploy:all                 # gate, deploy every target, verify
 //   npm run deploy:all -- --dry-run    # show the plan, change nothing
-//   npm run deploy:all -- --only venkateshrao
+//   npm run deploy:all -- --only production     # one target, by its env name
 //   npm run deploy:all -- --migrate    # also apply pending D1 migrations
 //   npm run deploy:all -- --skip-tests # skip the tsc+vitest gate (not advised)
 //
@@ -14,6 +14,7 @@
 // Runs under `node --experimental-strip-types` (Node 22+); no dependencies.
 
 import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import {
@@ -56,8 +57,26 @@ function die(msg: string): never {
 
 // --- Load manifest + wrangler config, and make them agree ---
 
+/**
+ * Which wrangler config to deploy from.
+ *
+ * The committed `wrangler.jsonc` is generic — it names no account, database,
+ * route or domain — so that a copy of this repo carries nothing about the
+ * deployment it was copied from (session 28). The blygs we actually run are
+ * described in `wrangler.private.jsonc`, which is gitignored.
+ *
+ * One rule serves both readers: prefer the private file when it exists, fall
+ * back to the committed one when it does not. For us that selects our real
+ * targets; for someone who stood up their own blyg, `npm run init` wrote their
+ * config into `wrangler.jsonc` and there is no private file, so it selects
+ * theirs. Neither case needs a flag, and neither can silently pick the other's.
+ */
+const PRIVATE_CONFIG = "wrangler.private.jsonc";
+const configFile = existsSync(path.join(root, PRIVATE_CONFIG)) ? PRIVATE_CONFIG : "wrangler.jsonc";
+
 const manifest = JSON.parse(await readFile(path.join(root, "deploy-targets.json"), "utf8")) as DeployManifest;
-const wranglerConfig = JSON.parse(stripJsonComments(await readFile(path.join(root, "wrangler.jsonc"), "utf8")));
+const wranglerConfig = JSON.parse(stripJsonComments(await readFile(path.join(root, configFile), "utf8")));
+console.log(`config: ${configFile}`);
 
 let targets: DeployTarget[] = manifest.targets;
 if (only) {
@@ -67,7 +86,7 @@ if (only) {
 
 const problems = targets.flatMap((t) => crossCheckTarget(t, wranglerConfig));
 if (problems.length) {
-  die(`deploy-targets.json and wrangler.jsonc disagree:\n  - ${problems.join("\n  - ")}`);
+  die(`deploy-targets.json and ${configFile} disagree:\n  - ${problems.join("\n  - ")}`);
 }
 
 const commit = run("git", ["rev-parse", "--short", "HEAD"]).stdout?.trim() || "(unknown)";
@@ -99,7 +118,7 @@ if (!skipTests && !dryRun) {
 console.log("\n— migration preflight");
 const pending = new Map<string, string>();
 for (const t of targets) {
-  const res = run("npx", ["wrangler", "d1", "migrations", "list", "DB", "--remote", "--env", t.env], {
+  const res = run("npx", ["wrangler", "d1", "migrations", "list", "DB", "--remote", "--config", configFile, "--env", t.env], {
     CLOUDFLARE_ACCOUNT_ID: t.account_id,
   });
   const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
@@ -132,7 +151,7 @@ for (const t of targets) {
     console.log(`— applying migrations (${t.account_label})`);
     const res = runInherit(
       "npx",
-      ["wrangler", "d1", "migrations", "apply", "DB", "--remote", "--env", t.env],
+      ["wrangler", "d1", "migrations", "apply", "DB", "--remote", "--config", configFile, "--env", t.env],
       { CLOUDFLARE_ACCOUNT_ID: t.account_id },
     );
     if (res.status !== 0) {
@@ -142,10 +161,10 @@ for (const t of targets) {
   }
 
   console.log(`— deploying to ${t.account_label}`);
-  // CLOUDFLARE_ACCOUNT_ID is pinned here in addition to wrangler.jsonc's
+  // CLOUDFLARE_ACCOUNT_ID is pinned here in addition to the config's own
   // account_id: belt and braces against the wrong-account deploy of
   // incident 2026-09-12-01.
-  const deployed = runInherit("npx", ["wrangler", "deploy", "--env", t.env], {
+  const deployed = runInherit("npx", ["wrangler", "deploy", "--config", configFile, "--env", t.env], {
     CLOUDFLARE_ACCOUNT_ID: t.account_id,
   });
   if (deployed.status !== 0) {

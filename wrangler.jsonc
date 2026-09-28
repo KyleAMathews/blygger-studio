@@ -1,118 +1,85 @@
 {
-  // Blygger v0.1 "Seed" reference client.
-  // This top-level (unnamed-env) block has no live deployment: it was the
-  // workers.dev rehearsal instance (task 11, session 10), decommissioned
-  // session 11 (2026-08-09) once the two named envs below covered ongoing
-  // testing — Worker, D1 database, and R2 bucket were all deleted from the
-  // personal Cloudflare account. database_id below is now stale/orphaned
-  // (the database it named no longer exists) but harmless: local dev and
-  // tests use miniflare's local D1 and never contact this ID. Don't run a
-  // bare `wrangler deploy` (no --env) expecting this to work without first
-  // re-provisioning D1/R2.
+  // ── Blygger Studio — deployment config ───────────────────────────────────
+  //
+  // This file is GENERIC on purpose. It describes a blyg, not anyone's blyg.
+  // `npm run init` fills in the four values marked FILL ME below; if you are
+  // doing it by hand, they are the only four you need.
+  //
+  // Nothing here names a Cloudflare account, a database, a domain or a route,
+  // so a copy of this repo carries no dependency on — and no detail of — the
+  // deployment it was copied from. That is deliberate, and it is a constraint
+  // on us as much as on you: see "Keep this file generic" at the bottom.
+  //
+  // Everything deployment-specific lives in exactly two files, this one and
+  // `deploy-targets.json`. Nothing under `src/` should ever need editing to
+  // configure an instance — if it does, that is a bug in the client, because
+  // it would break your upgrade path. Report it.
+
   "name": "blyg",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-01",
-  // Deployment mount for the public surface (decision #14): "" = domain root,
-  // otherwise "/path". Wire filenames (blyg.json etc.) are fixed regardless.
+
   "vars": {
-    "MOUNT": "/blyg"
+    // Where the public surface is mounted (decision #14).
+    //   ""       → domain root, e.g. https://blyg.you.com/          ← recommended
+    //   "/blyg"  → a path, e.g. https://you.com/blyg/
+    //
+    // A subdomain with MOUNT "" is the recommended shape and the only one
+    // `npm run init` provisions. A path mount works and is fully supported by
+    // the protocol, but `/studio` and `/api` are host-rooted regardless of
+    // MOUNT, so a path mount on a domain already serving `/api` will collide
+    // with it. Use a subdomain unless you know that path space is free.
+    //
+    // Wire filenames (blyg.json, feed.xml, items/…) are fixed either way.
+    "MOUNT": ""
   },
+
+  // Poll due subscriptions. The reading side is pull-based: this is what makes
+  // other people's writing show up in yours.
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
+
   "d1_databases": [
     {
       "binding": "DB",
+      // FILL ME (2 of 4) — `npx wrangler d1 create blyg-yourname` prints both.
       "database_name": "blyg",
-      "database_id": "f9fbfd23-c0b8-40bc-b0df-eb80b992b5a4",
+      // FILL ME — a deploy with this placeholder fails loudly, which is the
+      // intent: it is better than a UUID-shaped value that deploys somewhere
+      // unexpected. Local dev and the test suite use miniflare's own D1 and
+      // never read it.
+      "database_id": "FILL-ME-run-npm-run-init",
       "migrations_dir": "migrations"
     }
   ],
+
   "r2_buckets": [
     {
       "binding": "MEDIA",
+      // FILL ME (3 of 4) — `npx wrangler r2 bucket create blyg-yourname-media`.
+      // Only used for image attachments; a blyg with no images never touches it.
       "bucket_name": "blyg-media"
     }
-  ],
-  // Named environments are per-domain deploys of the same reference client
-  // (docs/deploy-stub-sites-plan.md). Non-inheritable keys (vars, d1_databases,
-  // r2_buckets, routes) must be redeclared per environment — wrangler does not
-  // merge them from the top level.
-  "env": {
-    "venkateshrao": {
-      "name": "blyg-venkateshrao",
-      "account_id": "7026b5d7c1ad16cb808987576bb07ab2",
-      "vars": {
-        "MOUNT": "/blyg"
-      },
-      // v0.2 subscribe side (§4.2): poll due subscriptions every 15 min.
-      "triggers": {
-        "crons": ["*/15 * * * *"]
-      },
-      "routes": [
-        // Cloudflare's trailing "/*" wildcard requires the literal "/" and does
-        // not match the bare prefix itself (e.g. "/blyg/*" misses "/blyg"), so
-        // each prefix needs its own exact-match entry alongside the wildcard —
-        // otherwise the bare path falls through to the static Pages site.
-        { "pattern": "venkateshrao.com/blyg", "zone_name": "venkateshrao.com" },
-        { "pattern": "venkateshrao.com/blyg/*", "zone_name": "venkateshrao.com" },
-        { "pattern": "venkateshrao.com/studio", "zone_name": "venkateshrao.com" },
-        { "pattern": "venkateshrao.com/studio/*", "zone_name": "venkateshrao.com" },
-        { "pattern": "venkateshrao.com/api", "zone_name": "venkateshrao.com" },
-        { "pattern": "venkateshrao.com/api/*", "zone_name": "venkateshrao.com" }
-      ],
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "blyg-venkateshrao",
-          "database_id": "c9342724-d1d9-4337-9737-b3850d27c15e",
-          "migrations_dir": "migrations"
-        }
-      ],
-      "r2_buckets": [
-        {
-          "binding": "MEDIA",
-          "bucket_name": "blyg-venkateshrao-media"
-        }
-      ]
-    },
-    // Second two-node-network node, session 11 (2026-08-09). Deployed to a
-    // dedicated subdomain rather than path-mounted on protocol-institute.org's
-    // root, because that zone already runs a live production API (member
-    // directory, symposium voting, admin) at /api/* via Cloudflare Pages
-    // Functions — path-mounting here would collide with it, since blyg's own
-    // /api route is host-rooted regardless of MOUNT, and /studio is
-    // mount-relative but was host-rooted (same collision risk) before
-    // session 16 (index.ts). A dedicated subdomain has its own path space,
-    // so MOUNT="" (domain root) is used instead of "/blyg" — which also
-    // means session 16's studio move is a no-op here (mount+"/studio" ===
-    // "/studio" at MOUNT=""). Provisioned under the PI org Cloudflare
-    // account (7e8c7969b2464d23795c555bc6a32af8), not Venkat's personal one —
-    // see protocol-institute/admin/keys.md.
-    "protocolInstitute": {
-      "name": "blyg-protocol-institute",
-      "account_id": "7e8c7969b2464d23795c555bc6a32af8",
-      "vars": {
-        "MOUNT": ""
-      },
-      // v0.2 subscribe side (§4.2): poll due subscriptions every 15 min.
-      "triggers": {
-        "crons": ["*/15 * * * *"]
-      },
-      "routes": [
-        { "pattern": "blyg.protocol-institute.org/*", "zone_name": "protocol-institute.org" }
-      ],
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "blyg-protocol-institute",
-          "database_id": "a6f51542-0195-46be-bac4-320fac382c65",
-          "migrations_dir": "migrations"
-        }
-      ],
-      "r2_buckets": [
-        {
-          "binding": "MEDIA",
-          "bucket_name": "blyg-protocol-institute-media"
-        }
-      ]
-    }
-  }
+  ]
+
+  // FILL ME (4 of 4) — your account and your domain, neither of which has a
+  // default worth guessing. `npm run init` writes them; by hand, add:
+  //
+  //   "account_id": "…",                         // wrangler whoami
+  //   "routes": [
+  //     { "pattern": "blyg.you.com", "custom_domain": true }
+  //   ]
+  //
+  // A Custom Domain provisions its own DNS. Plain `routes` with `zone_name` do
+  // not, and Cloudflare's trailing "/*" does not match the bare prefix, so a
+  // path mount needs both "you.com/blyg" and "you.com/blyg/*" — one reason the
+  // subdomain shape is recommended.
+  //
+  // ── Keep this file generic ───────────────────────────────────────────────
+  // If you are contributing upstream rather than running your own blyg: do not
+  // commit an account id, a database id, a bucket you own or a route here. Put
+  // them in `wrangler.private.jsonc`, which is gitignored, and deploy with
+  // `--config wrangler.private.jsonc`. This file is shipped to every person who
+  // stands up a blyg, and it should tell them nothing about yours.
 }

@@ -124,8 +124,14 @@ src/stub.ts         stubs (respond) · src/fork.ts  forks and lineage
 src/pages.ts        public pages · src/studio.ts  the authoring UI
 migrations/         D1 schema, 0001–0011
 scripts/            export, deploy-all
-deploy-targets.json every live deployment this repo knows how to deploy
+wrangler.jsonc      your deployment — generic here; `npm run init` fills it in
+deploy-targets.json your live deployments (gitignored; see the .example)
 ```
+
+Those last two are the only files that describe *an instance*. Nothing under
+`src/` should ever need editing to configure yours — if it does, that is a bug
+in this client, because it would put your changes in the way of every upgrade.
+Please report it rather than working around it.
 
 ## Versioning
 

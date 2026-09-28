@@ -1,0 +1,47 @@
+{
+  "$note": [
+    "Deploy manifest — EXAMPLE. Copy to `deploy-targets.json` (gitignored) or let",
+    "`npm run init` write it for you.",
+    "",
+    "One entry per live deployment you are responsible for. `npm run deploy:all`",
+    "reads it and, for each target: cross-checks the account against your wrangler",
+    "config, checks for unapplied D1 migrations, deploys, then fetches the URLs in",
+    "`verify` and asserts on them.",
+    "",
+    "WHY THE ACCOUNT ID IS DUPLICATED. It appears here and again in your wrangler",
+    "config, and the deploy script refuses to run if the two disagree. That",
+    "disagreement is the whole point: it is what turns 'deployed to the wrong",
+    "Cloudflare account' from a silent success into a loud failure. Editing one",
+    "file without the other should hurt.",
+    "",
+    "NO SECRET VALUES LIVE HERE, in this file or in yours. The `credentials`",
+    "block records only WHERE a secret is registered and WHAT it is called —",
+    "never a value. Worker secrets are set out-of-band with `wrangler secret put`,",
+    "which prompts for them; nothing in this repo reads, prints or transmits one.",
+    "",
+    "An account id is an identifier rather than a credential — it appears in",
+    "dashboard URLs — but this file is gitignored anyway, because a manifest of",
+    "your live deployments is nobody else's business."
+  ],
+  "targets": [
+    {
+      "env": "production",
+      "label": "My blyg",
+      "worker": "blyg-myname",
+      "account_id": "REPLACE-WITH-YOUR-ACCOUNT-ID",
+      "account_label": "Which account this is, in words — read at deploy time to confirm",
+      "base": "https://blyg.example.com/",
+      "credentials": {
+        "registry": "wherever you keep track of your own secrets",
+        "worker_secrets": ["OWNER_PASSWORD", "COOKIE_SECRET", "AI_PROVIDER_KEY"],
+        "note": "Names, not values. AI_PROVIDER_KEY is optional — it powers [TK] generation and nothing else; a blyg without one works fully."
+      },
+      "verify": [
+        { "path": "blyg.json", "status": 200, "contains": "\"blyg\"" },
+        { "path": "feed.xml", "status": 200, "contains": "<rss" },
+        { "path": "items/index.json", "status": 200 },
+        { "path": "studio/syntax", "status": 302 }
+      ]
+    }
+  ]
+}

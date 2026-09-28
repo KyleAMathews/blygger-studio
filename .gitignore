@@ -5,3 +5,12 @@
 node_modules/
 .wrangler/
 .dev.vars
+
+# Deployment config for the blygs we actually run. Split out of the committed
+# wrangler.jsonc in session 28 so the client ships as a generic artifact: a
+# copy of this repo must carry no account, database, route or domain of ours.
+# Every value in these is readable from the Cloudflare dashboard, so losing
+# them costs nothing irreplaceable — but rebuilding by hand is how incident
+# 2026-09-12-01 happened.
+wrangler.private.jsonc
+deploy-targets.json
