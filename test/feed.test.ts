@@ -29,7 +29,7 @@ describe("feed.xml (§2.6)", () => {
     expect(ch.link).toBe("https://example.com/blyg/");
     expect(ch.description).toBe("a bio");
     expect(new Date(ch.lastBuildDate).toString()).not.toBe("Invalid Date");
-    expect(ch["blyg:level"]).toBe(1);
+    expect(ch["blyg:level"]).toBe(2);
     expect(ch["blyg:manifest"]).toBe("https://example.com/blyg/blyg.json");
   });
 

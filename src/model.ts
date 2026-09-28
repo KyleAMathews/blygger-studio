@@ -2,7 +2,7 @@
 
 import { renderMarkdown } from "./markdown.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, stripToOutput, TkPublishError, unresolvedScopes } from "./tk.ts";
-import { applyVersionAgreement, composeStubCite, parseStoredStub } from "./stub.ts";
+import { applyVersionAgreement, composeStubCite, composeTransclusionCite, parseStoredStub } from "./stub.ts";
 import {
   applyInternalLinks,
   type InternalLinkDocument,
@@ -255,7 +255,20 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
     const resolved = await resolveTransclusions(db, links.text, item.id);
     if (resolved.errors.length) throw new TransclusionResolveError(resolved.errors);
     contentHtml = spliceLinks(applyGeneratedWrappers(resolved.html, annotated));
-    transclusionsJson = JSON.stringify(resolved.transclusions);
+    // §16.1 / decision #30: every **remote** entry carries its frozen human
+    // half. Stored inside the entry rather than in a column of its own, which
+    // is where a per-reference fact belongs in an array of references — and it
+    // makes the wire emission the stored object, so a published citation and
+    // the document that carries it cannot drift apart.
+    const withCites = [];
+    for (const entry of resolved.transclusions) {
+      withCites.push(
+        entry.origin
+          ? { ...entry, cited: await composeTransclusionCite(db, { ...entry, origin: entry.origin }, normalizedOrigin(origin), settings.site_title, now) }
+          : entry,
+      );
+    }
+    transclusionsJson = JSON.stringify(withCites);
   } else {
     contentHtml = spliceLinks(applyGeneratedWrappers(renderMarkdown(links.text), annotated));
   }

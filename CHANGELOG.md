@@ -18,6 +18,56 @@ not have its own repo until session 26.
 
 ---
 
+## 0.6.0 — 2026-09-28
+
+**The three constructs the 0.3 freeze was waiting on.** Protocol 0.3 records
+them in its §16 as *ruled but not built* — the project's rule is that testing
+precedes prose (#21), so the spec text follows this release rather than leading
+it. Level moves to **2**, which 0.3 §3 defines as this specification.
+
+- **`[[id]]` is a plain internal link** (§16.2). Inline anywhere in a document,
+  resolved at publish by the same order a `![[id]]` directive uses, rendered as
+  an ordinary anchor to the target's own page — absolute, because `content_html`
+  travels to subscribers. An unresolvable link fails the publish, like an
+  unresolvable directive. It is **silent on the wire**: no `transclusions[]`
+  entry, no Webmention, no class. In a medium where every other way of citing
+  notifies the other side, this is the one that does not, deliberately.
+- **`cited` carries a reference's human half** (§16.1). A frozen
+  `{source, author?, excerpt?, url, retrieved}` inside `stub_of`, each **remote**
+  `transclusions[]` entry, and `forked_from`, on live and pinned documents. It is
+  additive and optional: own-origin transclusions are byte-identical to before,
+  so every 0.2 document is still a valid 0.3 one. It is self-asserted and never
+  authoritative — never read by mention verification, never rendered into
+  `content_html`, and a reader that ignores it stays conformant. Why it exists:
+  a reference carries identity and no words, so a reader whose target has
+  disappeared was shown an id and nothing else, and seven client
+  implementations would each have had to invent a label cache.
+  - **This also fixes a stale byline.** The provenance line under a baked remote
+    quote was rendered from a live join against the subscription, so renaming or
+    deleting a subscription silently rewrote what an already-published document
+    said about its source. It now reads the frozen citation. A citation that
+    changes after publication was never a citation.
+  - An **imported** document's own `cited` values are retained verbatim rather
+    than recomposed from local guesses. Nothing renders them yet — the
+    second-degree reference view does not exist — but a citation discarded on
+    import could never be recovered.
+- **`generator_url` in the manifest** (§16.6a): one absolute URL to this
+  client's source, derived from `CLIENT` exactly as `generator` is. SHOULD, never
+  MUST, and readers may not gate on it. It exists because five of the seven
+  live client implementations have no locatable repository, and a manifest is
+  the one place every blyg is required to be public — so it is the only channel
+  through which a directory could ever point an operator at a release page.
+- **`level` 1 → 2.** Live nodes were publishing 0.3 constructs while announcing
+  level 1. Readers may not gate on the level (§3.2), so this is honesty rather
+  than compatibility — it was wrong in the only way a self-report can be, by
+  understating what is there.
+
+**Migrations: none.** `cited` rides the reference objects and the two citation
+columns migrations 0008 and 0010 already added.
+
+**Verification:** 528 tests, `tsc --noEmit` clean. Documents published before
+this release are unchanged and still conformant; nothing is rewritten in place.
+
 ## 0.5.0 — 2026-09-28
 
 **A blyg can now decline to receive Webmentions.** Protocol 0.3, unchanged —

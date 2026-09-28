@@ -592,8 +592,8 @@ describe("the stub stack (§4.3)", () => {
     expect((await apiJson(cookie, "POST", `/api/items/${s2}/publish`, {})).status).toBe(200);
 
     const doc = await (await getPublic(`/blyg/items/${s2}.json`)).json<any>();
-    expect(doc.stub_of).toEqual({ origin: THEIRS, id: s1, version: 1 });
-    expect(doc.transclusions).toEqual([{ id: s1, version: 1, origin: THEIRS }]);
+    expect(doc.stub_of).toMatchObject({ origin: THEIRS, id: s1, version: 1 });
+    expect(doc.transclusions).toMatchObject([{ id: s1, version: 1, origin: THEIRS }]);
     // Two levels of blockquote: their thread, and our fragment inside it.
     expect((doc.content_html.match(/<blockquote class="blyg-transclusion"/g) ?? []).length).toBe(2);
     expect(doc.content_html).toContain(`data-blyg-id="${s1}"`);

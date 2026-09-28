@@ -77,7 +77,7 @@ describe("forking a pinned version of our own (§2.4)", () => {
 
     expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
     const doc = await itemJson(id);
-    expect(doc.forked_from).toEqual({ origin: OURS, id: parent, version: 1 });
+    expect(doc.forked_from).toMatchObject({ origin: OURS, id: parent, version: 1 });
   });
 
   it("refuses a version that is not pinned — the whole basis of the claim", async () => {
@@ -123,7 +123,7 @@ describe("lineage on the wire and on the page", () => {
     expect((await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 })).status).toBe(200);
 
     const pinned = await (await getPublic(`/blyg/items/${id}/v1.json`)).json<any>();
-    expect(pinned.forked_from).toEqual({ origin: OURS, id: parent, version: 1 });
+    expect(pinned.forked_from).toMatchObject({ origin: OURS, id: parent, version: 1 });
   });
 
   it("survives withdrawal — the endcap empties the work, not where the work came from", async () => {
@@ -137,7 +137,7 @@ describe("lineage on the wire and on the page", () => {
     const doc = await itemJson(id);
     expect(doc.kind).toBe("withdrawn");
     expect(doc.content_md).toBe("");
-    expect(doc.forked_from).toEqual({ origin: OURS, id: parent, version: 1 });
+    expect(doc.forked_from).toMatchObject({ origin: OURS, id: parent, version: 1 });
   });
 
   it("states the lineage on the item's own page, citing the pinned version page", async () => {
@@ -186,7 +186,7 @@ describe("the publish-time check (§2.4)", () => {
     const res = await apiJson(cookie, "POST", `/api/items/${item.id}/publish`, {});
     expect(res.status).toBe(200);
     expect(res.json.warning).toContain("not re-checked");
-    expect((await itemJson(item.id)).forked_from).toEqual({ origin: THEIRS, id: "remote-item", version: 2 });
+    expect((await itemJson(item.id)).forked_from).toMatchObject({ origin: THEIRS, id: "remote-item", version: 2 });
   });
 
   it("enqueues a mention to the remote origin, like any other remote reference (§2.3.3)", async () => {

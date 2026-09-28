@@ -144,7 +144,15 @@ was specified to do in both cases.
 These four are what promote `protocol-v0.3.md` §16.1/§16.2 from "ruled" to normative
 (strict #21: the spec text follows the build). Shapes are fixed; do not vary them.
 
-- [ ] **Emit `cited` on every reference** (decision #30, spec §16.1): serialize the existing
+- [x] **Emit `cited` on every reference** — **done session 27 (0.6.0)**, both halves:
+  emitted inside `stub_of`, every remote `transclusions[]` entry and `forked_from` on live
+  and pinned documents, and retained verbatim on import rather than recomposed. The
+  own-origin transclusion shape is untouched, so 0.2 documents stay valid. The stale-byline
+  fix landed with it: provenance now reads the frozen citation instead of a live join
+  against the subscription. **Note for whoever builds the second-degree view:** an imported
+  document's `cited` values are stored and nothing reads them yet — that view is their only
+  consumer, so it inherits a field that is already populated. Original entry:
+- [ ] ~~**Emit `cited` on every reference**~~ (decision #30, spec §16.1): serialize the existing
   `StubCite` — `source`, `author`, `excerpt` (cap ~200 chars), `url`, `retrieved`
   (REQUIRED) — as `cited` inside `stub_of`, each remote `transclusions[]` entry, and
   `forked_from`, on live and pinned documents. **Read side:** when importing a document
@@ -152,7 +160,12 @@ These four are what promote `protocol-v0.3.md` §16.1/§16.2 from "ruled" to nor
   lookup, not a fallback) and never as verification input; `verifyMention` reads the bare
   reference only. Never render it into `content_html`. The stale-byline finding for remote
   transclusions is the same fix.
-- [ ] **Render `[[id]]` as a plain internal link** (decision #32, spec §16.2): inline
+- [x] **Render `[[id]]` as a plain internal link** — **done session 27 (0.6.0)**. Grammar
+  sits beside the directive regexes in `transclusion.ts` (a negative lookbehind is all that
+  separates them), resolution is literally `resolveTarget`, hrefs are absolute because
+  `content_html` travels, anchor text is a short quote of the target since items are
+  titleless, and previews resolve it too. Silent on the wire as ruled. Original entry:
+- [ ] ~~**Render `[[id]]` as a plain internal link**~~ (decision #32, spec §16.2): inline
   anywhere in `content_md`, resolve by the `![[id]]` order (#26), render `<a href>` to the
   target's `page` (remote: origin + page), anchor text is ours to choose. Unresolvable is a
   publish error. **No** `transclusions[]` entry, **no** mention, **no** wire class — it is
@@ -198,11 +211,13 @@ These four are what promote `protocol-v0.3.md` §16.1/§16.2 from "ruled" to nor
      Local ordering only — never published, never shown as a count on a public page.
   **Do not** scrape another blyg's public responses list for the forward direction; it is
   presentation, and #28 keeps verified mentions off the wire by decision (spec §16.6d).
-- [ ] **Emit `generator_url`** (decision #34, spec §16.6a): one absolute URL beside
+- [x] **Emit `generator_url`** and **`PROTOCOL_LEVEL` → 2** — **done session 27 (0.6.0)**,
+  in one commit as this entry asked. Original entries:
+- [ ] ~~**Emit `generator_url`**~~ (decision #34, spec §16.6a): one absolute URL beside
   `generator` in the manifest — `https://github.com/blygger/blygger-studio`, derived from
   `CLIENT` like `GENERATOR` is. Same commit as the level fix below; together they promote
   §16.6a into §6.1.
-- [ ] **`PROTOCOL_LEVEL` → `2`.** Live nodes emit `"level": 1` while publishing 0.3
+- [ ] ~~**`PROTOCOL_LEVEL` → `2`.**~~ Live nodes emit `"level": 1` while publishing 0.3
   constructs; 0.3's §3 defines L2 as this specification. One line. (Readers may not gate
   on it — §3.2 — so this is honesty, not compatibility.)
 - [ ] **Store the target version per outbound mention** (roadmap-tracks 1.7, decision #33):

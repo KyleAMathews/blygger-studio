@@ -4,7 +4,7 @@
 import { listBlogrollSubscriptions } from "./importer/store.ts";
 import { excerpt, excerptFromHtml } from "./markdown.ts";
 import { forkLineage, injectProvenance, stubCitation, transclusionProvenance } from "./pages.ts";
-import { parseStoredFork, parseStoredStub } from "./stub.ts";
+import { parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
 import {
   authoredKind,
   feedEvents,
@@ -16,7 +16,7 @@ import {
   publishedVersion,
 } from "./model.ts";
 import type { ItemRow, ScopeProvenance, Settings, Transclusion, VersionRow } from "./types.ts";
-import { BRAND, FEED_WINDOW, GENERATOR, PROTOCOL_LEVEL, PROTOCOL_VERSION, WEBMENTION_PATH } from "./types.ts";
+import { BRAND, FEED_WINDOW, GENERATOR, GENERATOR_URL, PROTOCOL_LEVEL, PROTOCOL_VERSION, WEBMENTION_PATH } from "./types.ts";
 import { absolutizeHtml, cdata, escapeXml, rfc822 } from "./util.ts";
 
 /**
@@ -27,6 +27,21 @@ import { absolutizeHtml, cdata, escapeXml, rfc822 } from "./util.ts";
 export function siteOrigin(settings: Settings, requestUrl: string, mount: string): string {
   if (settings.site_url) return settings.site_url.endsWith("/") ? settings.site_url : settings.site_url + "/";
   return new URL(requestUrl).origin + mount + "/";
+}
+
+/**
+ * Attach a reference's frozen human half for the wire (§16.1, decision #30).
+ *
+ * `stub_of` and `forked_from` keep their cites in the columns migrations 0008
+ * and 0010 gave them, and gain `cited` here at serialization; a remote
+ * `transclusions[]` entry carries its own, inside the entry, because that is
+ * where a per-reference fact belongs in an array. Both routes freeze at the
+ * moment the reference was made and neither is ever recomposed on read.
+ */
+function withCited<T extends object>(ref: T | null, citeJson: string | null): T | null {
+  if (!ref) return null;
+  const cite = parseStoredCite(citeJson);
+  return cite ? { ...ref, cited: cite } : ref;
 }
 
 function author(settings: Settings, origin: string) {
@@ -62,7 +77,7 @@ export async function buildItemJson(db: D1Database, settings: Settings, item: It
   // §2.2 stub citation: published on the version, so a withdrawal endcap —
   // which stores none — simply stops carrying it, and a withdrawn stub
   // stops verifying on the far side (§2.3.6). Threads only.
-  const stubOf = isWithdrawn ? null : parseStoredStub(latest?.stub_of ?? null);
+  const stubOf = isWithdrawn ? null : withCited(parseStoredStub(latest?.stub_of ?? null), latest?.stub_cite ?? null);
   // §2.4 lineage. Unlike every field above it, this one survives withdrawal:
   // the endcap empties what the item *said* (content, media, transclusions,
   // its stub citation), because those are the published work and the work is
@@ -70,7 +85,7 @@ export async function buildItemJson(db: D1Database, settings: Settings, item: It
   // about the item's origin, in the same class as `created` and `page`, which
   // the endcap also keeps. It costs nothing to keep and a withdrawn fork that
   // denied its parentage would be the protocol telling a small lie.
-  const forkedFrom = parseStoredFork(item.forked_from);
+  const forkedFrom = withCited(parseStoredFork(item.forked_from), item.fork_cite);
   return {
     blyg: PROTOCOL_VERSION,
     id: item.id,
@@ -116,11 +131,11 @@ export function buildPinnedVersionJson(settings: Settings, item: ItemRow, row: V
     ...(isThread ? { transclusions: JSON.parse(row.transclusions as string) as Transclusion[] } : {}),
     // A pin carries its own citation (§2.2): the frozen artifact says what it
     // was responding to, at the version it was responding to.
-    ...(parseStoredStub(row.stub_of) ? { stub_of: parseStoredStub(row.stub_of) } : {}),
+    ...(parseStoredStub(row.stub_of) ? { stub_of: withCited(parseStoredStub(row.stub_of), row.stub_cite) } : {}),
     // Lineage travels with the pin too, and safely: `items.forked_from` is
     // written once at fork time and has no setter, so a frozen document can
     // never come to disagree with the live item about where it came from.
-    ...(parseStoredFork(item.forked_from) ? { forked_from: parseStoredFork(item.forked_from) } : {}),
+    ...(parseStoredFork(item.forked_from) ? { forked_from: withCited(parseStoredFork(item.forked_from), item.fork_cite) } : {}),
     ...(row.generated_json ? { generated: JSON.parse(row.generated_json) as ScopeProvenance[] } : {}),
   };
 }
@@ -137,6 +152,11 @@ export async function buildManifest(db: D1Database, settings: Settings, origin: 
     blyg: PROTOCOL_VERSION,
     level: PROTOCOL_LEVEL,
     generator: GENERATOR,
+    // §16.6a (decision #34): where this client's source lives. A directory can
+    // then reach a client's release page from a manifest alone, which is the
+    // only channel that exists for telling five of seven implementations'
+    // operators anything — most have no locatable repo.
+    generator_url: GENERATOR_URL,
     site: origin,
     title: settings.site_title,
     author: {

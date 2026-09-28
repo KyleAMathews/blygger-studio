@@ -16,8 +16,11 @@ describe("manifest (§2.4)", () => {
     expect(res.status).toBe(200);
     const m = await res.json<any>();
     expect(m.blyg).toBe("0.3");
-    expect(m.level).toBe(1);
-    expect(m.generator).toBe("blygger-studio/0.5.0");
+    // L2 since session 27: the level had been announcing 1 while the wire
+    // carried 0.3 constructs (§3 defines L2 as 0.3).
+    expect(m.level).toBe(2);
+    expect(m.generator).toBe("blygger-studio/0.6.0");
+    expect(m.generator_url).toBe("https://github.com/blygger/blygger-studio");
     expect(m.site).toBe("https://example.com/blyg/");
     expect(m.title).toBe("Venkat's blyg");
     expect(m.author.name).toBe("Venkatesh Rao");

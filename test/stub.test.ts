@@ -45,8 +45,8 @@ describe("stub_of (§2.2)", () => {
 
     const doc = await itemJson(stubId);
     expect(doc.kind).toBe("thread");
-    expect(doc.stub_of).toEqual({ origin: THEIRS, id: remoteId, version: 4 });
-    expect(doc.transclusions).toEqual([{ id: remoteId, version: 4, origin: THEIRS }]);
+    expect(doc.stub_of).toMatchObject({ origin: THEIRS, id: remoteId, version: 4 });
+    expect(doc.transclusions).toMatchObject([{ id: remoteId, version: 4, origin: THEIRS }]);
   });
 
   it("the version-agreement rule moves the citation to the version actually baked", async () => {
@@ -60,7 +60,7 @@ describe("stub_of (§2.2)", () => {
     expect((await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {})).status).toBe(200);
 
     const doc = await itemJson(stubId);
-    expect(doc.stub_of).toEqual({ origin: OURS, id: target, version: 2 });
+    expect(doc.stub_of).toMatchObject({ origin: OURS, id: target, version: 2 });
     expect(doc.transclusions).toEqual([{ id: target, version: 2 }]);
   });
 
@@ -74,7 +74,7 @@ describe("stub_of (§2.2)", () => {
     expect((await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {})).status).toBe(200);
 
     const doc = await itemJson(stubId);
-    expect(doc.stub_of).toEqual({ origin: OURS, id: target, version: 1 });
+    expect(doc.stub_of).toMatchObject({ origin: OURS, id: target, version: 1 });
     expect(doc.transclusions).toEqual([]);
   });
 
@@ -83,7 +83,7 @@ describe("stub_of (§2.2)", () => {
     const url = "https://simonwillison.net/2026/Sep/10/some-post/";
     const stubId = await createStub(cookie, "Responding to a post out on the open web.", { url });
     expect((await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {})).status).toBe(200);
-    expect((await itemJson(stubId)).stub_of).toEqual({ url });
+    expect((await itemJson(stubId)).stub_of).toMatchObject({ url });
   });
 
   it("a pinned version carries its own citation; the withdrawal endcap carries none", async () => {
@@ -94,14 +94,14 @@ describe("stub_of (§2.2)", () => {
     expect((await apiJson(cookie, "POST", `/api/items/${stubId}/pin`, { version: 1 })).status).toBe(200);
 
     const pinned = await (await getPublic(`/blyg/items/${stubId}/v1.json`)).json<any>();
-    expect(pinned.stub_of).toEqual({ origin: OURS, id: target, version: 1 });
+    expect(pinned.stub_of).toMatchObject({ origin: OURS, id: target, version: 1 });
 
     expect((await apiJson(cookie, "POST", `/api/items/${stubId}/withdraw`, {})).status).toBe(200);
     const endcap = await itemJson(stubId);
     expect(endcap.kind).toBe("withdrawn");
     expect(endcap.stub_of).toBeUndefined();
     // The pin is untouched — it is the citation that survives withdrawal.
-    expect((await (await getPublic(`/blyg/items/${stubId}/v1.json`)).json<any>()).stub_of).toEqual({
+    expect((await (await getPublic(`/blyg/items/${stubId}/v1.json`)).json<any>()).stub_of).toMatchObject({
       origin: OURS,
       id: target,
       version: 1,
@@ -109,7 +109,7 @@ describe("stub_of (§2.2)", () => {
 
     // Republishing restores it: the working copy kept the citation.
     expect((await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {})).status).toBe(200);
-    expect((await itemJson(stubId)).stub_of).toEqual({ origin: OURS, id: target, version: 1 });
+    expect((await itemJson(stubId)).stub_of).toMatchObject({ origin: OURS, id: target, version: 1 });
   });
 
   it("clearing the citation leaves a thread that merely quotes", async () => {

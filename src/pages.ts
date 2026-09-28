@@ -858,7 +858,15 @@ export async function transclusionProvenance(db: D1Database, transclusions: Tran
   const out: string[] = [];
   for (const t of transclusions) {
     let link: ProvenanceLink;
-    if (t.origin) {
+    if (t.origin && t.cited) {
+      // The frozen citation, when the published entry carries one (§16.1,
+      // decision #30). This is the whole stale-byline fix: the branch below
+      // renders a *published* document's byline from a live join, so renaming
+      // or deleting a subscription silently rewrote what an already-published
+      // document said about its source. A citation that changes after
+      // publication was never a citation.
+      link = { href: t.cited.url, label: `from <em>${escapeHtml(clampForeign(t.cited.source))}</em> ↗` };
+    } else if (t.origin) {
       const row = await db
         .prepare(
           `SELECT ii.kind AS kind, ii.page AS page, s.title AS title

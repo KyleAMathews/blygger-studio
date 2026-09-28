@@ -184,6 +184,27 @@ export async function composeStubCite(
   };
 }
 
+/**
+ * The frozen human half of one **remote** transclusion entry (§16.1, decision
+ * #30) — the same composition as a stub's, from the same local knowledge, for
+ * the reference type that never had one.
+ *
+ * This is also the stale-byline fix: the provenance line under a baked remote
+ * quote used to be rendered from a live join against the subscription, so
+ * renaming or deleting a subscription silently rewrote the byline of an
+ * already-published document. A citation that changes after publication was
+ * never a citation.
+ */
+export async function composeTransclusionCite(
+  db: D1Database,
+  entry: { id: string; version: number; origin: string },
+  ourOrigin: string,
+  ourTitle: string,
+  now: string,
+): Promise<StubCite> {
+  return composeStubCite(db, { origin: entry.origin, id: entry.id, version: entry.version }, ourOrigin, ourTitle, now);
+}
+
 /** The cited item's URL: its origin's own declared `page` when we hold one, the convention otherwise. */
 async function citedUrl(db: D1Database, stub: { origin: string; id: string }, ourOrigin: string): Promise<string> {
   if (stub.origin === ourOrigin) {

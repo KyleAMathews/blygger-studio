@@ -51,7 +51,7 @@ describe("cross-client transclusion (§2.1)", () => {
     expect((await publishThread(cookie, threadId)).status).toBe(200);
 
     const item = await (await getPublic(`/blyg/items/${threadId}.json`)).json<any>();
-    expect(item.transclusions).toEqual([{ id: remoteId, version: 1, origin: ORIGIN }]);
+    expect(item.transclusions).toMatchObject([{ id: remoteId, version: 1, origin: ORIGIN }]);
     expect(item.content_html).toContain(`data-blyg-origin="${ORIGIN}"`);
     expect(item.content_html).toContain("their words");
   });
@@ -101,7 +101,7 @@ describe("cross-client transclusion (§2.1)", () => {
     const threadId = await createThread(cookie, `![[${remoteThread}]]`);
     expect((await publishThread(cookie, threadId)).status).toBe(200);
     const item = await (await getPublic(`/blyg/items/${threadId}.json`)).json<any>();
-    expect(item.transclusions).toEqual([{ id: remoteThread, version: 1, origin: ORIGIN }]);
+    expect(item.transclusions).toMatchObject([{ id: remoteThread, version: 1, origin: ORIGIN }]);
     expect(item.content_html).toContain("quoted over there");
     expect(item.content_html).toContain(`data-blyg-id="${remoteInner}"`);
   });
@@ -123,7 +123,7 @@ describe("cross-client transclusion (§2.1)", () => {
     const threadId = await createThread(cookie, `![[${remoteId}]]`);
     expect((await publishThread(cookie, threadId)).status).toBe(200);
     const item = await (await getPublic(`/blyg/items/${threadId}.json`)).json<any>();
-    expect(item.transclusions).toEqual([{ id: remoteId, version: 2, origin: ORIGIN }]);
+    expect(item.transclusions).toMatchObject([{ id: remoteId, version: 2, origin: ORIGIN }]);
     expect(item.content_html).toContain("pinned words");
   });
 });

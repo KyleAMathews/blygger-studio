@@ -65,6 +65,12 @@ export interface Transclusion {
    * is what keeps every 0.2 document a valid 0.3 document unchanged.
    */
   origin?: string;
+  /**
+   * The frozen human half of this reference (§16.1, decision #30). Emitted for
+   * **remote** entries only: for an own-origin target a reader can just fetch
+   * it, so a label would be words with nothing to add.
+   */
+  cited?: StubCite;
 }
 
 /**
@@ -72,7 +78,9 @@ export interface Transclusion {
  * which `origin` is REQUIRED even when it is our own (a citation is absolute),
  * or a plain-web URL. Exactly one shape per stub, exactly one target per stub.
  */
-export type StubOf = { origin: string; id: string; version: number } | { url: string };
+export type StubOf =
+  | { origin: string; id: string; version: number; cited?: StubCite }
+  | { url: string; cited?: StubCite };
 
 /**
  * A blyg citation: origin + item + version, the shape `stub_of` uses for a blyg
@@ -83,16 +91,28 @@ export type StubOf = { origin: string; id: string; version: number } | { url: st
  * hosting promise (#8), so it is the only version anyone can promise the
  * lineage still points at.
  */
-export type ForkedFrom = { origin: string; id: string; version: number };
+export type ForkedFrom = { origin: string; id: string; version: number; cited?: StubCite };
 
 /**
  * The human half of a citation, frozen when it is made — at publish for a
  * stub (migration 0008), at fork time for lineage (migration 0010).
  * The marker (`stub_of` / `forked_from`) is machine-readable and never
  * changes; this is what a reader needs when the link has rotted — who it was,
- * what it said, and when we saw it. **Never on the wire**: it is composed from
- * what this client happened to know locally, so another client reading our
- * document composes its own from the marker instead of inheriting our guesses.
+ * what it said, and when we saw it.
+ *
+ * **On the wire since decision #30** (spec §16.1), as `cited` inside any
+ * reference — it was client-side only through 0.3's first draft, on the
+ * argument that another client should compose its own rather than inherit our
+ * guesses. What changed: six independent implementations exist, so "compose
+ * your own" means six clients each inventing a label cache, and a reader whose
+ * target has disappeared is shown an identity with no words. A transclusion
+ * already bakes the target's *entire* content into our document self-asserted;
+ * a label is strictly weaker than what the protocol already permits.
+ *
+ * It is self-asserted and never authoritative: frozen at the moment the
+ * reference was made (which is what makes it a citation rather than a lookup),
+ * never consulted by mention verification, never rendered into `content_html`,
+ * and a reader that ignores it entirely stays conformant.
  */
 export interface StubCite {
   /** Whose blyg it was — the subscription's title, our own title for a self-citation, or the host. */
@@ -332,7 +352,9 @@ export const WEBMENTION_PATH = "webmention";
  */
 export const CLIENT = {
   name: "blygger-studio",
-  version: "0.5.0",
+  version: "0.6.0",
+  /** Canonical source, for the manifest's `generator_url` (§16.6a, decision #34). */
+  url: "https://github.com/blygger/blygger-studio",
 } as const;
 
 /**
@@ -342,6 +364,21 @@ export const CLIENT = {
  * which is the whole version-alert mechanism (roadmap-tracks.md, Track 3.1).
  */
 export const GENERATOR = `${CLIENT.name}/${CLIENT.version}`;
+
+/**
+ * Manifest `generator_url` — one absolute URL to this client's canonical source
+ * (§16.6a, decision #34; the precedent is Atom's generator `uri`). SHOULD be
+ * emitted, and readers MUST NOT gate on it (§3.2), so it is honesty for
+ * directories and strangers rather than a compatibility signal. Derived from
+ * `CLIENT` exactly as `GENERATOR` is, because a hand-written copy of an
+ * identity string is how both user agents drifted two versions stale.
+ *
+ * There is deliberately no maintained/unmaintained companion: the software that
+ * would have to say "I am unmaintained" is exactly the software nobody is
+ * updating, so maintenance is for directories to observe, never for the wire to
+ * assert.
+ */
+export const GENERATOR_URL = CLIENT.url;
 /**
  * Version key policy (v0.2-plan.md §2.3, decision #18d): the spec version this
  * deployment **implements**, and informative rather than a compatibility gate —
@@ -355,7 +392,15 @@ export const GENERATOR = `${CLIENT.name}/${CLIENT.version}`;
  * the implementation is how the protocol gets tested).
  */
 export const PROTOCOL_VERSION = "0.3";
-export const PROTOCOL_LEVEL = 1;
+/**
+ * The conformance level this deployment implements. **2 since session 27:** 0.3
+ * §3 defines L2 as this specification, and live nodes were publishing 0.3
+ * constructs — `page`, `stub_of`, `transclusions[].origin`, threads,
+ * Webmention — while still announcing `1`. Readers may not gate on the level
+ * (§3.2), so this is honesty rather than compatibility; it was wrong in the one
+ * way a self-report can be wrong, which is by understating what is there.
+ */
+export const PROTOCOL_LEVEL = 2;
 export const FRAGMENT_MAX_CHARS = 1000;
 export const FEED_WINDOW = 50;
 export const FEED_PAGE_SIZE = 100;
