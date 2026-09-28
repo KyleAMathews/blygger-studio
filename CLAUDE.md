@@ -157,6 +157,16 @@ These four are what promote `protocol-v0.3.md` §16.1/§16.2 from "ruled" to nor
   target's `page` (remote: origin + page), anchor text is ours to choose. Unresolvable is a
   publish error. **No** `transclusions[]` entry, **no** mention, **no** wire class — it is
   invisible on the wire by ruling, not by omission.
+- [ ] **`[TK]impyrt=<text>[/TK]` in the composer** (decision #37, spec §5.7 rule 7): a
+  studio-private TK form whose output is the pasted text verbatim, wrapped as an ordinary
+  `blyg-tk-gen` span, with a `generated[]` entry carrying `sources: []` and `model`/`at`
+  only if the author supplies them. No new wire member and no "external" flag. The
+  composer may offer a model picker for the entry; it must not invent one.
+- [ ] **Agent-contract hooks, direction only** (decision #39, roadmap-tracks 1.10/2.10):
+  when 2.9's tokens land, include a **read scope** for studio-private material (drafts,
+  hoppers, signals, mentions) so an agent can poll `/api` for staleness, inbound mentions
+  and new imports. Poll first; no webhooks until a need is measured. The public state
+  plane needs nothing — it is already the corpus.
 - [ ] **Emit `generator_url`** (decision #34, spec §16.6a): one absolute URL beside
   `generator` in the manifest — `https://github.com/blygger/blygger-studio`, derived from
   `CLIENT` like `GENERATOR` is. Same commit as the level fix below; together they promote
