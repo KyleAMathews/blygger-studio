@@ -11,6 +11,8 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
+    "init": "node --experimental-strip-types scripts/init.ts",
+    "upgrade": "node --experimental-strip-types scripts/upgrade.ts",
     "test": "vitest run",
     "export": "node --experimental-strip-types scripts/export.ts",
     "deploy": "wrangler deploy",
