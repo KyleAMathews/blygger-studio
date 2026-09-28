@@ -17,7 +17,7 @@ import { annotateGenerated, applyGeneratedWrappers, parseScopes, previewStrip, t
 import { normalizeOrigin, parseStoredFork, parseStoredStub } from "./stub.ts";
 import { mentionFetch } from "./mentions/http.ts";
 import { siteOrigin } from "./protocol.ts";
-import { extractDirectives, previewTransclusions } from "./transclusion.ts";
+import { applyInternalLinks, extractDirectives, previewInternalLinks, previewTransclusions } from "./transclusion.ts";
 import type { Env, ItemRow, Transclusion, VersionRow } from "./types.ts";
 import { FRAGMENT_MAX_CHARS } from "./types.ts";
 import { escapeHtml, normalizeMount, studioPath } from "./util.ts";
@@ -1008,6 +1008,15 @@ studio.get("/syntax", async (c) => {
 <li>Any unresolvable id fails the <em>whole</em> publish, with every bad reference listed. In the thread editor, type <code>![[</code> to open a picker; an unresolvable ref shows a red placeholder in preview before you publish.</li>
 </ul>
 
+<h2>Plain internal link — <code>[[id]]</code></h2>
+<ul>
+<li><strong>Inline, anywhere</strong> — mid-sentence, unlike <code>![[id]]</code>, which must own its line. One <code>!</code> apart and two different acts: the directive bakes a snapshot, the link just points.</li>
+<li>Resolves by <strong>exactly the same order</strong> as a directive: one of your published items of either kind, then an imported item from a blyg subscription. Same errors, same publish-time failure — an unresolvable link fails the whole publish.</li>
+<li>Renders as an ordinary anchor to the target's own page, absolute (your own origin, or theirs for an imported item). The link text is a short quote from the target — items have no titles, so an id would tell a reader nothing.</li>
+<li><strong>It notifies nobody.</strong> No <code>transclusions[]</code> entry, no Webmention, nothing on the wire but an anchor in your HTML. Every other way of citing in this medium tells the other side; this is the one that does not, deliberately.</li>
+<li>Inside a <code>[TK]</code> scope's output it works the same way. Inside a code span it is <em>not</em> protected — the same limitation <code>![[id]]</code> and <code>[TK]</code> have.</li>
+</ul>
+
 <h2>Instructed generation (TK) — <code>[TK]…[/TK]</code></h2>
 <ul>
 <li>Available in <strong>both</strong> the fragment composer and the thread editor.</li>
@@ -1059,10 +1068,14 @@ studio.get("/syntax", async (c) => {
 
 /** Studio-only live preview for the fragment editor — not a protocol surface. TK scopes are highlighted (task 6). */
 studio.post("/preview", async (c) => {
+  const mount = normalizeMount(c.env.MOUNT);
   const body = await c.req.json<{ content_md?: string }>().catch(() => ({}) as { content_md?: string });
   const tk = annotateTkPreview(body.content_md ?? "");
-  const html = tk.finish(renderMarkdown(tk.text));
-  return c.json({ html, scopes: scopeSummaries(tk.scopes) });
+  // `[[id]]` resolves in the preview too, so an unresolvable link is visible
+  // before publish rejects it — same contract as an unresolvable directive.
+  const links = await previewInternalLinks(c.env.DB, tk.text, siteOrigin(await getSettings(c.env.DB), c.req.url, mount));
+  const html = applyInternalLinks(tk.finish(renderMarkdown(links.text)), links);
+  return c.json({ html, scopes: scopeSummaries(tk.scopes), link_errors: links.errors });
 });
 
 /** Studio-only provisional thread preview + validation — publish still re-resolves for real. TK scopes are highlighted (task 6). */
@@ -1071,10 +1084,12 @@ studio.post("/preview-thread", async (c) => {
   const tk = annotateTkPreview(body.content_md ?? "");
   // item_id is the thread being edited — the DAG check needs it, so the
   // preview rejects a circular quote at exactly the point publish would.
-  const resolved = await previewTransclusions(c.env.DB, tk.text, body.item_id);
+  const mount = normalizeMount(c.env.MOUNT);
+  const links = await previewInternalLinks(c.env.DB, tk.text, siteOrigin(await getSettings(c.env.DB), c.req.url, mount));
+  const resolved = await previewTransclusions(c.env.DB, links.text, body.item_id);
   return c.json({
-    html: tk.finish(resolved.html),
-    errors: resolved.errors,
+    html: applyInternalLinks(tk.finish(resolved.html), links),
+    errors: [...resolved.errors, ...links.errors],
     transclusions: resolved.transclusions,
     scopes: scopeSummaries(tk.scopes),
   });
@@ -1256,15 +1271,17 @@ studio.get("/edit/:id", async (c) => {
   if (!item) return c.notFound();
   const kind = await authoredKind(c.env.DB, item);
   const mount = normalizeMount(c.env.MOUNT);
-  if (kind === "thread") return c.html(await threadEditPage(c.env.DB, item, mount));
-  return c.html(await fragmentEditPage(c.env.DB, item, mount));
+  const ourOrigin = siteOrigin(await getSettings(c.env.DB), c.req.url, mount);
+  if (kind === "thread") return c.html(await threadEditPage(c.env.DB, item, mount, ourOrigin));
+  return c.html(await fragmentEditPage(c.env.DB, item, mount, ourOrigin));
 });
 
-async function fragmentEditPage(db: D1Database, item: ItemRow, mount: string): Promise<string> {
+async function fragmentEditPage(db: D1Database, item: ItemRow, mount: string, ourOrigin: string): Promise<string> {
   const media = await listMediaForItem(db, item.id);
   const versions = await listVersions(db, item.id);
   const tk = annotateTkPreview(item.content_md);
-  const previewHtml = tk.finish(renderMarkdown(tk.text));
+  const links = await previewInternalLinks(db, tk.text, ourOrigin);
+  const previewHtml = applyInternalLinks(tk.finish(renderMarkdown(links.text)), links);
   const mediaHtml = media.length
     ? `<p style="font-size:0.85rem;opacity:0.7;">attached: ${media.map((m) => escapeHtml(m.r2_key)).join(", ")}</p>`
     : "";
@@ -1433,12 +1450,13 @@ async function stubHeader(db: D1Database, item: ItemRow, mount: string): Promise
 <button type="button" class="link" data-action="clear-stub" data-id="${item.id}">clear stub</button></p>`;
 }
 
-async function threadEditPage(db: D1Database, item: ItemRow, mount: string): Promise<string> {
+async function threadEditPage(db: D1Database, item: ItemRow, mount: string, ourOrigin: string): Promise<string> {
   const media = await listMediaForItem(db, item.id);
   const versions = await listVersions(db, item.id);
   const tk = annotateTkPreview(item.content_md);
-  const preview = await previewTransclusions(db, tk.text, item.id);
-  const previewHtml = tk.finish(preview.html);
+  const links = await previewInternalLinks(db, tk.text, ourOrigin);
+  const preview = await previewTransclusions(db, links.text, item.id);
+  const previewHtml = applyInternalLinks(tk.finish(preview.html), links);
   const mediaHtml = media.length
     ? `<p style="font-size:0.85rem;opacity:0.7;">attached: ${media.map((m) => escapeHtml(m.r2_key)).join(", ")}</p>`
     : "";

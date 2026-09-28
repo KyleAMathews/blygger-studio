@@ -3,7 +3,14 @@
 import { renderMarkdown } from "./markdown.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, stripToOutput, TkPublishError, unresolvedScopes } from "./tk.ts";
 import { applyVersionAgreement, composeStubCite, parseStoredStub } from "./stub.ts";
-import { resolveTransclusions, TransclusionResolveError } from "./transclusion.ts";
+import {
+  applyInternalLinks,
+  type InternalLinkDocument,
+  type TransclusionRefError,
+  resolveInternalLinks,
+  resolveTransclusions,
+  TransclusionResolveError,
+} from "./transclusion.ts";
 import type { ForkedFrom, ItemRow, MediaRow, ScopeProvenance, Settings, StubCite, StubOf, Transclusion, VersionRow } from "./types.ts";
 import { FRAGMENT_MAX_CHARS } from "./types.ts";
 import { contentHash, newId, nowIso } from "./util.ts";
@@ -210,15 +217,47 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   const hasProvenance = scopes.map((_, i) => provenanceCache[i] != null);
   const annotated = annotateGenerated(strippedMd, spans, hasProvenance);
 
+  // The absolute base for any `[[id]]` anchor, needed before the HTML is built:
+  // `content_html` travels to subscribers, so a relative href in it would
+  // resolve against *their* origin.
+  const settings = await getSettings(db);
+  const origin = ourOrigin ?? settings.site_url;
+
+  // `[[id]]` plain internal links (§16.2, decision #32) — substituted to
+  // sentinels here and spliced back after rendering, like TK's inline spans.
+  //
+  // Run over the body *and* over each independently-rendered generated block,
+  // because annotateGenerated has already lifted those blocks out of the body
+  // text: a link inside one would otherwise stay literal. Their raw text is
+  // gone by now, but the rendered HTML still contains the un-substituted
+  // `[[id]]` verbatim — no character of the grammar is HTML-special — so the
+  // same resolver works on either input. Token sequence is global, so the maps
+  // merge.
+  const linkErrors: TransclusionRefError[] = [];
+  const links = await resolveInternalLinks(db, annotated.text, normalizedOrigin(origin));
+  linkErrors.push(...links.errors);
+  const blockLinks: InternalLinkDocument[] = [];
+  for (const [token, blockHtml] of annotated.blockReplacements) {
+    const resolvedBlock = await resolveInternalLinks(db, blockHtml, normalizedOrigin(origin));
+    if (resolvedBlock.replacements.size || resolvedBlock.errors.length) {
+      annotated.blockReplacements.set(token, resolvedBlock.text);
+      linkErrors.push(...resolvedBlock.errors);
+      blockLinks.push(resolvedBlock);
+    }
+  }
+  if (linkErrors.length) throw new TransclusionResolveError(linkErrors);
+  const spliceLinks = (html: string): string =>
+    [links, ...blockLinks].reduce((acc, doc) => applyInternalLinks(acc, doc), html);
+
   let contentHtml: string;
   let transclusionsJson: string | null = null;
   if (kind === "thread") {
-    const resolved = await resolveTransclusions(db, annotated.text, item.id);
+    const resolved = await resolveTransclusions(db, links.text, item.id);
     if (resolved.errors.length) throw new TransclusionResolveError(resolved.errors);
-    contentHtml = applyGeneratedWrappers(resolved.html, annotated);
+    contentHtml = spliceLinks(applyGeneratedWrappers(resolved.html, annotated));
     transclusionsJson = JSON.stringify(resolved.transclusions);
   } else {
-    contentHtml = applyGeneratedWrappers(renderMarkdown(annotated.text), annotated);
+    contentHtml = spliceLinks(applyGeneratedWrappers(renderMarkdown(links.text), annotated));
   }
 
   const generated: ScopeProvenance[] = scopes.map((_, i) => provenanceCache[i]).filter((p): p is ScopeProvenance => p != null);
@@ -235,8 +274,6 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   // the subscription that supplies the source's name can be renamed or
   // deleted, and the target can withdraw, but a published citation must keep
   // reading correctly. Not on the wire — see StubCite.
-  const settings = await getSettings(db);
-  const origin = ourOrigin ?? settings.site_url;
   const citeJson = agreed ? JSON.stringify(await composeStubCite(db, agreed, normalizedOrigin(origin), settings.site_title, now)) : null;
 
   const hash = await contentHash(strippedMd);

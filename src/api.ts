@@ -153,7 +153,11 @@ api.post("/items/:id/publish", async (c) => {
     return c.json({ ok: true, version, ...(lineageNote ? { warning: lineageNote } : {}) });
   } catch (e) {
     if (e instanceof TransclusionResolveError) {
-      return c.json({ error: "one or more transclusions do not resolve", errors: e.errors }, 400);
+      // Both bracket forms report here: `![[id]]` directives and `[[id]]`
+      // links share the resolver, so they share the failure channel. The
+      // message names both rather than only the one that predates the other —
+      // each entry's `directive` shows the author which they wrote.
+      return c.json({ error: "one or more references do not resolve", errors: e.errors }, 400);
     }
     if (e instanceof TkPublishError) {
       return c.json({ error: "one or more TK scopes are not publish-ready", errors: e.issues }, 400);
