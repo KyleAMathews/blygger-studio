@@ -88,3 +88,57 @@ that breaks the tools now depending on it without saying so.
 Live on five nodes as of 2026-09-28, two of them Venkat's
 (`venkateshrao.com/blyg/`, `blyg.protocol-institute.org`) and three strangers'
 self-hosts. 508 tests, `tsc` clean.
+
+## Backlog — from Venkat's issue list (session 26, 2026-09-28)
+
+Triaged against the code, not the report. **Six items from that list turned out to touch
+the wire and are not here** — they are parked in
+[`../blygger-spec/docs/v0.3-plan.md`](../blygger-spec/docs/v0.3-plan.md) §8b for the Fable
+round: plain `[[id]]` links, TK sources from another blyg, partial quotation, `impyrt`
+(externally generated spans), `#`-heading-as-title, and the write-surface question (1.8).
+**Two of the five reported "bugs" are not bugs** — see §8b; the client is doing what it
+was specified to do in both cases.
+
+### Bugs
+
+- [ ] **Reader view doesn't roll up entries** the way the published surface does. Reading
+  feed presentation only; the published surface is the reference for what it should look
+  like.
+- [ ] **Transclusion picker stops after a few items and has no search.** `studioFragmentSearch`
+  + the `![[` palette in `studio.ts` exist but are unpaged. Needs paging and a query box.
+  Worth doing early: it is the most-used authoring affordance and the ceiling is silent.
+
+### Feature refinements
+
+- [ ] **Switch fragment → thread in the composer before first publish.** `kind` is a wire
+  field, but a pre-publish draft has no wire presence, so this is purely studio state.
+- [ ] **Bulk-update stale transcluded snapshots in a stub.** The UI half is here; *learning*
+  that a target has a newer version is the "staleness-over-DAG" v0.4 item in
+  `roadmap.md` and 1.7 in `roadmap-tracks.md`. Build the UI against whatever those settle,
+  and don't invent a freshness probe here.
+- [ ] **Show second-degree references within a stubbed item.** Presentation is this client's
+  call (§8.4 does not constrain presentation — session 20). **Check the data exists first:**
+  we hold a snapshot of the target, not the target's own reference list, so this may need a
+  fetch we don't currently make — in which case say so rather than half-rendering it.
+- [ ] **Open a reader item in a new tab.** No affordance today.
+- [ ] **Offer plain linking in the reader**, alongside stub and fork. The `[anchor](url)`
+  half is ordinary markdown and can ship now for both blygs and RSS. The `[[id]]` half is
+  blocked on §8b.
+- [ ] **Discard button for an unpublished new version.** Note the session-19 trap recorded
+  above: the shared action handler ends in `location.reload()`, which is wrong for any
+  action that removes the thing being viewed.
+- [ ] **Reorder the tabs** — reading first, compose second, subscriptions moved to just
+  before settings.
+
+### New features
+
+- [ ] **Reset the owner password in settings.** **Sequence this with roadmap-tracks 1.8,**
+  not before it. Auth today is one shared `OWNER_PASSWORD` behind a 30-day HMAC cookie; if
+  1.8 brings tokens, a reset flow has to invalidate those too, and a password-only reset
+  shipped first would be rebuilt immediately. Security-touching: if the design goes beyond
+  "change the secret and invalidate sessions", flag it rather than improvising.
+- [ ] **Timezone localization for displayed dates.** The complaint is real — dates render in
+  UTC. **The wire must not change:** feed dates stay RFC-822, item documents stay ISO-8601
+  UTC, and `toIsoUtc()` keeps normalizing at the parse boundary. A `timezone` setting
+  localizes *rendering only*, studio and public pages. Writing local time into a feed would
+  reintroduce the session-18 reading-list sort bug on every subscriber.
