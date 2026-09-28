@@ -318,7 +318,7 @@ export const WEBMENTION_PATH = "webmention";
  */
 export const CLIENT = {
   name: "blygger-studio",
-  version: "0.4.0",
+  version: "0.4.1",
 } as const;
 
 /**

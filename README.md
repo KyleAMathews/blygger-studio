@@ -4,8 +4,8 @@ The reference client for the [Blygger protocol](https://github.com/blygger/blygg
 a Cloudflare Worker that publishes a blyg, subscribes to others, and threads,
 transcludes and responds across them.
 
-**Protocol implemented:** `blyg 0.3`, level 1 · **Client version:** 0.4.0 ·
-`generator: blygger-studio/0.4.0`
+**Protocol implemented:** `blyg 0.3`, level 1 · **Client version:** 0.4.1 ·
+`generator: blygger-studio/0.4.1` · [releases + upgrading](#releases-and-upgrading)
 
 > **This is one client, not the protocol.** As of 2026-09-28 there are at least
 > **seven** client implementations publishing live blygs, six of which are not this
@@ -32,13 +32,67 @@ Two halves, on purpose:
 ```bash
 npm install --legacy-peer-deps    # see "npm" below — the flag is not optional here
 npm run dev                       # wrangler dev
-npm test                          # 508 tests
+npm test                          # 512 tests
 npx tsc --noEmit
 npm run export -- --out DIR --base https://example.com/blyg/
 ```
 
 New deployment from scratch: follow [`blygger.org/start/`](https://blygger.org/start/),
 which is the path every third-party node so far has taken.
+
+## Releases and upgrading
+
+Releases are git tags `v{version}` with a GitHub release, and every one has an
+entry in [`CHANGELOG.md`](CHANGELOG.md). **Each entry states `Migrations:`
+explicitly** — that is the line to read before upgrading, because it decides
+whether a deploy is the whole job.
+
+**What you are running now** is in your own manifest, which is public:
+`curl https://your-origin/blyg/blyg.json` → `generator` is this client's name and
+version (`blygger-studio/0.4.1`). A node reporting `blyg-ref/0.3.0` is this same
+software under its pre-2026-09-28 name.
+
+### Upgrading a node you stood up by hand
+
+Which is every third-party node so far, since the template and `npm run init` in
+`self-host-plan.md` §4 are still unbuilt.
+
+```bash
+git pull                          # only if you cloned blygger-studio — see below
+npm ci --legacy-peer-deps
+npm test                          # optional, ~20s, and worth it
+npm run deploy                    # wrangler deploy, your account, your config
+```
+
+Then re-read the changelog entry's `Migrations:` line. If it lists any:
+
+```bash
+npx wrangler d1 migrations apply DB --remote
+```
+
+**If your copy came from `blygger-spec` rather than from this repo** — i.e. you
+cloned before 2026-09-28 and worked in `worker/` — `git pull` will not bring you
+here. The client left that repo by `git subtree split`, so this history is the
+same *content* with different commit ids, and `worker/` no longer exists there at
+all. Clone this repo fresh and carry over what is yours:
+
+- **`wrangler.jsonc`** — your D1 `database_id`, your R2 bucket, your routes and
+  your `vars` (`MOUNT`, and `SITE_URL` if you set one). Nothing in the committed
+  file is yours; all of it names our deployments.
+- **Nothing else.** Your secrets (`OWNER_PASSWORD`, `COOKIE_SECRET`, any AI
+  provider key) live in Cloudflare, not in the repo, and a redeploy does not touch
+  them. Your D1 database and R2 bucket are likewise untouched — an upgrade
+  replaces the Worker's code and nothing else.
+
+Keep your fork's own `CLIENT` name if you have modified the client (see
+[If you fork this](#if-you-fork-this)); an upgrade should not quietly rename you
+back to us.
+
+**There is no notification channel yet.** Nothing tells you a release exists — the
+directory-side update feed is item 3.1 on
+[the roadmap](https://github.com/blygger/blygger-spec/blob/main/docs/roadmap-tracks.md)
+and is not built. Until it is, watching this repo's releases on GitHub is the only
+mechanism there is, and for a security release we have no way to reach you at all.
 
 ## Layout
 
@@ -59,7 +113,7 @@ deploy-targets.json every live deployment this repo knows how to deploy
 ## Versioning
 
 **Client version and protocol version are independent, deliberately.** This client
-is 0.4.0 and implements protocol 0.3. The manifest carries both — `blyg` is the
+is 0.4.1 and implements protocol 0.3. The manifest carries both — `blyg` is the
 protocol version, `generator` is this client's identity — and per the spec's
 decision #18d `generator` is *informative*: no reader may gate behaviour on it.
 
@@ -73,7 +127,7 @@ People already do, and that is fine. Two requests, both so that the upgrade path
 keeps working for you:
 
 1. **Change `CLIENT` in `src/types.ts`.** A fork that keeps reporting
-   `blygger-studio/0.4.0` makes the ecosystem census wrong for everyone, and it is
+   `blygger-studio/0.4.1` makes the ecosystem census wrong for everyone, and it is
    the census that drives update notices. Give your fork its own name and version —
    that is what `Blynger`, `blyg-publisher` and the rest do.
 2. **Tell us it exists**, so it can be listed at `blygger.org` and so a breaking
