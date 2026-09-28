@@ -240,6 +240,26 @@ These four are what promote `protocol-v0.3.md` §16.1/§16.2 from "ruled" to nor
   holds no target version; spec §15.2 says unchanged references are not re-sent. Same
   missing fact as the freshness probe above — build them together.
 
+### From the session-28 Fable round (2026-09-28) — the first 0.4 construct
+
+- [ ] **Remote generation sources** (decision #44, spec §16.3; 0.4). Widen `resolveFragment`'s
+  TK-source rule to `resolveTarget`'s (#26 order: local published item → imported item with a
+  current or pin-retained snapshot → error; threads allowed; more than one imported match is
+  an error). What is fed to the provider is the **stored local snapshot** (`content_md` as
+  held), never a fetch. `ScopeProvenance.sources[]` entries take the §5.9 reference shape:
+  add `origin` for remote sources (omit for own — every existing document stays valid), and
+  carry `cited` the way remote `transclusions[]` entries do. Disclosure is **direct only**: a
+  thread fed as a source is disclosed as that thread. **Send a Webmention** for each remote
+  source on publish with relation `source`, through the existing outbound queue (target
+  version stored per migration 0011); **receive** it: `verifyMention` step 4 gains a fourth
+  clause — a `generated[].sources[]` entry with `origin` = ours and `id` = target →
+  `source`. Relation set becomes `stub | transclusion | fork | source` everywhere it is
+  enumerated (types, D1 CHECK constraints if any, the mentions view, the responses list).
+  Nothing new in `content_html`. Exercise it across both live nodes — a TK scope on one
+  drawing on the other's item, verified `source` on the far side, provenance intact on
+  import — because that exercise is what opens the 0.4 document (#43). Bump
+  `PROTOCOL_VERSION` to "0.4" in the release that ships it (#18d: emit what you implement).
+
 ### New features
 
 - [ ] **Reset the owner password in settings.** **Design is fixed (decision #31), build with
