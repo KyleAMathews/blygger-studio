@@ -3,9 +3,11 @@
 // bounds are the security surface: an unbounded verifier is a fetch amplifier
 // pointed at whatever a stranger names.
 
+import { GENERATOR } from "../types.ts";
+
 import type { FetchLike, FetchResult } from "../importer/http.ts";
 
-export const MENTION_USER_AGENT = "blyg-ref/0.3 (+https://blygger.org)";
+export const MENTION_USER_AGENT = `${GENERATOR} (+https://blygger.org)`;
 export const MAX_REDIRECTS = 3;
 export const FETCH_TIMEOUT_MS = 5_000;
 export const MAX_BODY_BYTES = 1024 * 1024;

@@ -1,8 +1,13 @@
 {
-  "name": "blyg-ref",
-  "version": "0.3.0",
+  "name": "@blygger/studio",
+  "version": "0.4.0",
   "private": true,
-  "description": "Blygger reference client — publish, subscribe, and respond (v0.3 'Trunk')",
+  "description": "Blygger Studio \u2014 reference client for the Blygger protocol (publish, subscribe, thread, transclude, respond)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/blygger/blygger-studio.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",

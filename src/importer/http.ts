@@ -5,6 +5,8 @@
 // fixture stubs, not a real HTTP layer. platformFetch below is the
 // production implementation; tests inject their own FetchLike.
 
+import { GENERATOR } from "../types.ts";
+
 export interface FetchResult {
   ok: boolean;
   status: number;
@@ -24,7 +26,7 @@ export interface FetchInit {
 export type FetchLike = (url: string, init?: FetchInit) => Promise<FetchResult>;
 
 /** Every outbound importer request carries this (§4.2). */
-export const IMPORTER_USER_AGENT = "blyg-ref/0.2 (+https://blygger.org)";
+export const IMPORTER_USER_AGENT = `${GENERATOR} (+https://blygger.org)`;
 
 export const platformFetch: FetchLike = async (url, init) => {
   const res = await fetch(url, {

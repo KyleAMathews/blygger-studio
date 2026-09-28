@@ -1,0 +1,40 @@
+name: Feature or improvement
+description: Something this client should do and doesn't.
+labels: ["enhancement", "client"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Studio behaviour is **implementation-defined** — the protocol constrains none of
+        it, so this client is free to change. That also means a request here is a request
+        about *our* choices, not about what a blyg is.
+  - type: textarea
+    id: want
+    attributes:
+      label: What you want to do, and what stops you now
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Which surface
+      options:
+        - Studio — authoring, composing, the editor
+        - Subscribe side — subscriptions, hoppers, reading feed
+        - Public pages or the static export
+        - Webmention / responses
+        - TK generation
+        - Deployment, upgrade, or self-hosting
+        - "/api — writing to a blyg from another tool"
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: How you're working around it today
+      description: >-
+        Especially useful if the workaround is "I modified the client" — that tells us an
+        extension point is missing, which is a different fix.
+    validations:
+      required: false

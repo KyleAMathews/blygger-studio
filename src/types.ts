@@ -306,7 +306,28 @@ export const DEFAULT_MOUNT = "/blyg";
 /** Origin-relative path of the reference client's Webmention endpoint (v0.3-plan §2.3.1) — inside the origin surface, because it is a protocol surface, unlike host-rooted /studio and /api. */
 export const WEBMENTION_PATH = "webmention";
 
-export const GENERATOR = `${BRAND.slug}-ref/0.3.0`;
+/**
+ * This client's own name and version — deliberately NOT derived from BRAND.
+ * Renamed from `blyg-ref` to `blygger-studio` at session 26 (2026-09-28), when
+ * the client moved to its own repo: six independent implementations now exist,
+ * so "the reference client" stopped being a name and became a role. `blyg-ref`
+ * is left free as a generic conformance label.
+ *
+ * The client version is independent of PROTOCOL_VERSION below and always will
+ * be: this is implementation identity, which the wire is indifferent to.
+ */
+export const CLIENT = {
+  name: "blygger-studio",
+  version: "0.4.0",
+} as const;
+
+/**
+ * Manifest `generator` key — informative per decision #18d, never a
+ * compatibility gate. Nodes that never upgrade keep reporting `blyg-ref/0.3.0`
+ * truthfully; blygger.com's directory reads this key to census the ecosystem,
+ * which is the whole version-alert mechanism (roadmap-tracks.md, Track 3.1).
+ */
+export const GENERATOR = `${CLIENT.name}/${CLIENT.version}`;
 /**
  * Version key policy (v0.2-plan.md §2.3, decision #18d): the spec version this
  * deployment **implements**, and informative rather than a compatibility gate —

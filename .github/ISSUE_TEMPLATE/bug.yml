@@ -1,0 +1,72 @@
+name: Bug in Blygger Studio
+description: Something this client does wrong — the Worker, the studio UI, the export, a migration.
+labels: ["bug", "client"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Is it this client, or the protocol?** If another client would have to change
+        to fix it, it is probably the protocol — file it at
+        [blygger-spec](https://github.com/blygger/blygger-spec/issues/new/choose)
+        instead. If you're unsure, file here and we'll move it; a misfiled issue is
+        much better than an unfiled one.
+  - type: input
+    id: origin
+    attributes:
+      label: Your blyg's origin
+      description: >-
+        The URL your blyg is served from, if it is public. This lets us read your
+        manifest — which tells us your client version and protocol version — instead of
+        asking you for them.
+      placeholder: https://example.com/blyg/
+    validations:
+      required: false
+  - type: input
+    id: generator
+    attributes:
+      label: Client version
+      description: >-
+        The `generator` value in your `blyg.json`, e.g. `blygger-studio/0.4.0`. Skip it
+        if you gave an origin above.
+      placeholder: blygger-studio/0.4.0
+    validations:
+      required: false
+  - type: dropdown
+    id: modified
+    attributes:
+      label: Have you modified this client?
+      description: >-
+        Not a gotcha — local modifications are expected and supported. We ask because it
+        changes where we look first, and because we have no other way to know: our repos
+        have no GitHub forks, so every copy is invisible to us.
+      options:
+        - "No — running it as shipped"
+        - "Yes — small local changes"
+        - "Yes — substantially modified or a fork"
+        - "Not sure"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected instead
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: >-
+        Logs, a `wrangler tail` excerpt, the item id involved. **Do not paste secrets** —
+        no `OWNER_PASSWORD`, `COOKIE_SECRET`, `AI_PROVIDER_KEY` or session cookies.
+    validations:
+      required: false

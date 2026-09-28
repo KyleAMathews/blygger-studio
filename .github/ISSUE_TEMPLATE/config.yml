@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: The protocol itself — wire format, spec wording, cross-client behaviour
+    url: https://github.com/blygger/blygger-spec/issues/new/choose
+    about: >-
+      If the question is what a conformant blyg MUST do, it belongs in the spec repo,
+      not here. Rule of thumb: if another client would have to change too, it is the
+      protocol.
+  - name: Your own client, tool or mod — get it listed
+    url: https://github.com/blygger/blygger-org/issues/new/choose
+    about: Built something that speaks Blygger? Submit it for the ecosystem directory.
+  - name: Add a blyg to the directory
+    url: https://blygger.com
+    about: Submit a live blyg or feed for listing at blygger.com.
