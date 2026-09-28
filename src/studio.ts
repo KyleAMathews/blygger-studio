@@ -237,7 +237,8 @@ input.note { font: inherit; font-size: 0.9rem; padding: 0.3rem 0.5rem; border-ra
 .note-row { margin-top: 0.75rem; font-size: 0.85rem; display: flex; gap: 0.5rem; align-items: center; }
 .note-row input { flex: 1; }
 .palette { position: absolute; border: 1px solid var(--rule-strong); border-radius: 6px; padding: 0.5rem; background: Canvas; max-width: 60ch; box-shadow: 0 4px 14px rgba(0,0,0,0.15); z-index: 10; }
-.palette .search { width: 100%; font: inherit; padding: 0.3rem 0.5rem; border: 1px solid var(--rule); border-radius: 4px; background: transparent; color: inherit; }
+.palette-hint { font-size: 0.78rem; color: var(--ink-soft); margin: 0; }
+.palette-hint code { font-size: 0.95em; }
 .palette ul { list-style: none; margin: 0.5rem 0 0; padding: 0; font-size: 0.9rem; max-height: 14rem; overflow-y: auto; }
 .palette li { padding: 0.35rem 0.5rem; border-top: 1px solid var(--rule); cursor: pointer; }
 .palette li.sel { background: var(--paper-sunk); border-radius: 4px; }
@@ -788,6 +789,19 @@ function updateCount() {
 }
 composerText.addEventListener("input", updateCount);
 updateCount();
+
+// \`[[id]]\` only, for both kinds. The composer has never offered \`![[\` — the
+// kind hint says transclusions live in the full editor, and a directive wants
+// the preview that only the full editor has. A link bakes nothing, so it wants
+// nothing.
+installPalette({
+  textarea: composerText,
+  panel: document.getElementById("palette"),
+  results: document.getElementById("palette-results"),
+  hint: document.getElementById("palette-hint"),
+  transclude: false,
+  onInsert: updateCount,
+});
 if (composerText.value) {
   composerText.focus();
   composerText.setSelectionRange(composerText.value.length, composerText.value.length);
@@ -846,6 +860,199 @@ composerGenerate.addEventListener("click", async () => {
   const id = await ensureDraft();
   if (id) location.href = editorPath(id) + "#tk";
 });
+`;
+}
+
+/**
+ * The bracket palette's panel. One per page — the ids are page-unique, so the
+ * three composers can share both this markup and `paletteScript`.
+ *
+ * It must sit inside a `position: relative` box, directly after the textarea:
+ * `.palette` is absolutely positioned with no offsets, so it lands at its
+ * static position, which is immediately under the box you are typing in.
+ *
+ * The dead `<input class="search">` that used to head this panel is gone
+ * (session 28). It was never wired to anything — the query has always been the
+ * text you are typing in the textarea — so it was a focusable box that
+ * swallowed keystrokes the palette then ignored. A hint line says what the
+ * palette is doing instead.
+ */
+function paletteMarkup(): string {
+  return `<div class="palette" id="palette" style="display:none;">
+<p class="palette-hint" id="palette-hint"></p>
+<ul id="palette-results"></ul>
+</div>`;
+}
+
+/**
+ * The `[[` / `![[` palette, shared by all three composers (session 28).
+ *
+ * It used to live inside `threadEditPage` and trigger only on `![[` at the
+ * start of a line — which is the whole of the transclusion grammar, but only
+ * half of the bracket grammar. `[[id]]` (§16.2, decision #32) is legal
+ * **inline and in a fragment**, so the one construct that can be written
+ * anywhere was the one construct with no way to find an id for it.
+ *
+ * The two forms are one `!` apart on the wire and they stay one `!` apart
+ * here — `paletteTrigger` mirrors `transclusion.ts`'s pairing exactly:
+ *
+ *   - `![[` with only whitespace before it on the line → **transclude**.
+ *     A directive owns its line (`DIRECTIVE_LINE`), so the insertion replaces
+ *     from the line start.
+ *   - `[[` anywhere, **not** preceded by `!` → **link**. That `!` guard is the
+ *     client-side spelling of `LINK_INLINE`'s `(?<!!)` negative lookbehind, and
+ *     it is what stops an inline `![[` — legal inside a `[TK]` scope, where it
+ *     means a source reference — from being offered the wrong insertion. The
+ *     insertion replaces from the `[[` only, so the rest of the line survives.
+ *
+ * Which forms a page enables is the page's call, because it is a fact about
+ * what that page can publish, not about the grammar: only a thread resolves
+ * transclusions (`publishItem` runs `resolveTransclusions` for `kind === "thread"`
+ * alone), so a `![[id]]` picker in the fragment editor would insert a directive
+ * that publishes as literal text. `[[id]]` resolves for both kinds, so it is
+ * offered everywhere.
+ *
+ * Deliberately regex-free. Every character class this needs would have to be
+ * written `\\[`/`\\s` inside this template literal, which is the session-19
+ * escape hazard in its purest form; `indexOf`/`slice` cannot be broken that way.
+ *
+ * Nothing here touches the DOM at load: the page calls `installPalette` with
+ * its own elements. That also makes the two pure functions testable — a test
+ * compiles this source with `new Function` and asks for them by name, which is
+ * the behaviour half the house rule asks for.
+ */
+export function paletteScript(mount: string): string {
+  return `
+/**
+ * Which bracket form the caret is sitting inside, or null for none.
+ * Returns the query typed so far and the offset the insertion replaces from.
+ */
+function paletteTrigger(text, caret, allowTransclude) {
+  var lineStart = text.lastIndexOf("\\n", caret - 1) + 1;
+  var prefix = text.slice(lineStart, caret);
+  var i = 0;
+  while (i < prefix.length && (prefix.charAt(i) === " " || prefix.charAt(i) === "\\t")) i++;
+  // Own-line \`![[\` — the directive. Checked first: it is the narrower form,
+  // and its own \`[[\` would otherwise be rejected by the \`!\` guard below.
+  if (allowTransclude && prefix.slice(i, i + 3) === "![[" && prefix.indexOf("]", i + 3) < 0) {
+    return { form: "transclude", query: prefix.slice(i + 3), start: lineStart };
+  }
+  var open = prefix.lastIndexOf("[[");
+  if (open < 0) return null;
+  // A closed \`[[id]]\` is finished, not being typed.
+  if (prefix.indexOf("]", open + 2) >= 0) return null;
+  // The \`(?<!!)\` lookbehind of LINK_INLINE: this is the directive's brackets,
+  // or an inline \`![[\` TK source ref, neither of which takes a link insertion.
+  if (open > 0 && prefix.charAt(open - 1) === "!") return null;
+  return { form: "link", query: prefix.slice(open + 2), start: lineStart + open };
+}
+
+/** The picked id spliced in, with the caret left after the closing brackets. */
+function paletteInsert(text, caret, trigger, id) {
+  var before = text.slice(0, trigger.start);
+  var after = text.slice(caret);
+  var insertion = (trigger.form === "transclude" ? "![[" : "[[") + id + "]]";
+  return { text: before + insertion + after, caret: (before + insertion).length };
+}
+
+function paletteEscape(s) {
+  return String(s == null ? "" : s).split("&").join("&amp;").split("<").join("&lt;");
+}
+
+/**
+ * Wire a textarea to a palette panel.
+ *   opts.textarea, opts.panel, opts.results — elements
+ *   opts.transclude — may this page publish \`![[id]]\`? (threads only)
+ *   opts.onInsert   — called after the text changes, for save/preview
+ */
+function installPalette(opts) {
+  var input = opts.textarea;
+  var panel = opts.panel;
+  var list = opts.results;
+  var hint = opts.hint;
+  var allowTransclude = !!opts.transclude;
+  var items = [];
+  var sel = 0;
+  var trigger = null;
+  var timer = null;
+
+  function close() {
+    panel.style.display = "none";
+    trigger = null;
+    items = [];
+  }
+  // Named \`isOpen\`, not \`open\`: a local \`open\` would shadow \`window.open\`
+  // for the whole closure.
+  function isOpen() {
+    return panel.style.display !== "none";
+  }
+  function renderSelection() {
+    for (var i = 0; i < list.children.length; i++) {
+      list.children[i].classList.toggle("sel", i === sel);
+    }
+  }
+  async function update() {
+    var t = paletteTrigger(input.value, input.selectionStart, allowTransclude);
+    if (!t) { close(); return; }
+    var res = await fetch("${studioPath(mount)}/fragments/search?q=" + encodeURIComponent(t.query));
+    var data = await res.json();
+    // The caret can have moved on while that was in flight; re-read it rather
+    // than inserting against a trigger the author has already typed past.
+    var now = paletteTrigger(input.value, input.selectionStart, allowTransclude);
+    if (!now || now.form !== t.form || now.start !== t.start) { close(); return; }
+    trigger = now;
+    items = data.results;
+    sel = 0;
+    list.innerHTML = items
+      .map(function (it, i) {
+        return '<li data-i="' + i + '">' + paletteEscape(it.excerpt) +
+          '<span class="meta">' + paletteEscape(it.badge) + ' &middot; v' + it.version + '</span></li>';
+      })
+      .join("");
+    hint.innerHTML = trigger.form === "transclude"
+      ? "<code>![[id]]</code> — transclude: bakes a copy of the target into this thread at publish."
+      : "<code>[[id]]</code> — link: points at the target, bakes nothing.";
+    if (!items.length) { close(); return; }
+    renderSelection();
+    panel.style.display = "block";
+  }
+  function pick(item) {
+    if (!trigger || !item) return;
+    var next = paletteInsert(input.value, input.selectionStart, trigger, item.id);
+    input.value = next.text;
+    input.setSelectionRange(next.caret, next.caret);
+    close();
+    input.focus();
+    if (opts.onInsert) opts.onInsert();
+  }
+
+  input.addEventListener("input", function () {
+    clearTimeout(timer);
+    timer = setTimeout(update, 150);
+  });
+  // A bare caret move can leave or enter a pair of brackets without changing
+  // the text, so the panel has to follow the caret as well as the typing.
+  input.addEventListener("click", function () {
+    if (isOpen()) { clearTimeout(timer); timer = setTimeout(update, 150); }
+  });
+  input.addEventListener("blur", function () {
+    // After the click that picked an entry, not before it.
+    setTimeout(function () { if (document.activeElement !== input) close(); }, 150);
+  });
+  input.addEventListener("keydown", function (e) {
+    if (!isOpen()) return;
+    if (e.key === "Escape") { e.preventDefault(); close(); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(sel + 1, items.length - 1); renderSelection(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(sel - 1, 0); renderSelection(); }
+    else if (e.key === "Enter" && items[sel]) { e.preventDefault(); pick(items[sel]); }
+  });
+  list.addEventListener("mousedown", function (e) {
+    // mousedown, not click: the blur handler above fires first otherwise.
+    e.preventDefault();
+    var li = e.target.closest("li");
+    if (li) pick(items[Number(li.dataset.i)]);
+  });
+}
 `;
 }
 
@@ -909,9 +1116,10 @@ studio.get("/", async (c) => {
   const items = await listAll(c.env.DB);
   const rows = await Promise.all(items.map((item) => itemRow(c.env.DB, item, mount)));
   const body = `${studioHeader("blyg studio", mount, "compose")}
-<div class="composer">
-<p class="compose-help">Markdown supported. Write <code>[TK]an instruction[/TK]</code> to mark a scope for AI-drafted text — a <em>generate</em> button appears, which saves and opens the editor. <a href="${studioPath(mount)}/syntax">full syntax reference</a></p>
+<div class="composer" style="position:relative;">
+<p class="compose-help">Markdown supported. Write <code>[[id]]</code> to link another item of yours or something you read (type <code>[[</code> for a picker), and <code>[TK]an instruction[/TK]</code> to mark a scope for AI-drafted text — a <em>generate</em> button appears, which saves and opens the editor. <a href="${studioPath(mount)}/syntax">full syntax reference</a></p>
 <textarea id="composer-text" placeholder="compose a fragment…"></textarea>
+${paletteMarkup()}
 <div class="bar">
   <span class="kind-toggle">
     <label><input type="radio" name="composer-kind" value="fragment" checked> fragment</label>
@@ -927,6 +1135,7 @@ studio.get("/", async (c) => {
 </div>
 ${rows.join("\n") || "<p>Nothing yet — compose your first fragment above.</p>"}
 <script>${actionScript(mount)}</script>
+<script>${paletteScript(mount)}</script>
 <script>${composerScript(mount)}</script>`;
   return c.html(studioLayout("blyg studio", body));
 });
@@ -1005,7 +1214,7 @@ studio.get("/syntax", async (c) => {
 <li>What gets baked is always the <strong>local snapshot</strong>, never a live fetch — which is what makes publishing network-independent, and what makes a remote source's later edits unable to rewrite your quote.</li>
 <li>A thread can't transclude itself, or any thread whose own local quotes lead back to it. Remote chains aren't walked.</li>
 <li>Always takes the target's current version at publish time. An explicit pinned-version form, <code>![[id@v3]]</code>, is reserved syntax, not implemented — using it fails publish with an explicit error rather than resolving.</li>
-<li>Any unresolvable id fails the <em>whole</em> publish, with every bad reference listed. In the thread editor, type <code>![[</code> to open a picker; an unresolvable ref shows a red placeholder in preview before you publish.</li>
+<li>Any unresolvable id fails the <em>whole</em> publish, with every bad reference listed. In the thread editor, type <code>![[</code> at the start of a line to open a picker; an unresolvable ref shows a red placeholder in preview before you publish.</li>
 </ul>
 
 <h2>Plain internal link — <code>[[id]]</code></h2>
@@ -1015,6 +1224,7 @@ studio.get("/syntax", async (c) => {
 <li>Renders as an ordinary anchor to the target's own page, absolute (your own origin, or theirs for an imported item). The link text is a short quote from the target — items have no titles, so an id would tell a reader nothing.</li>
 <li><strong>It notifies nobody.</strong> No <code>transclusions[]</code> entry, no Webmention, nothing on the wire but an anchor in your HTML. Every other way of citing in this medium tells the other side; this is the one that does not, deliberately.</li>
 <li>Inside a <code>[TK]</code> scope's output it works the same way. Inside a code span it is <em>not</em> protected — the same limitation <code>![[id]]</code> and <code>[TK]</code> have.</li>
+<li>Type <code>[[</code> in <strong>any</strong> composer — the quick composer, the fragment editor, the thread editor — to open the same picker the directive uses. It offers the same candidates, because a link resolves by the same order; only the insertion differs.</li>
 </ul>
 
 <h2>Instructed generation (TK) — <code>[TK]…[/TK]</code></h2>
@@ -1095,7 +1305,6 @@ studio.post("/preview-thread", async (c) => {
   });
 });
 
-/** Studio-only fragment search for the thread editor's `![[` palette. */
 /**
  * Read one past version for the editor's history viewer. Studio-only: the
  * stored `content_html` of any version, pinned or not — unlike the public
@@ -1119,10 +1328,16 @@ studio.get("/versions/:id/:v", async (c) => {
 });
 
 /**
- * The `![[` palette (§3.2). Searches everything v0.3 lets a thread transclude:
- * own published items of **either** kind (nesting is legal from this version)
- * and imported blyg items (`current`, non-L0) — which is what makes quoting
- * follow reading. The route keeps its 0.1 name; only its subject widened.
+ * The bracket palette's candidate list (§3.2). Searches everything v0.3 lets a
+ * thread transclude: own published items of **either** kind (nesting is legal
+ * from this version) and imported blyg items (`current`, non-L0) — which is
+ * what makes quoting follow reading. The route keeps its 0.1 name; only its
+ * subject widened.
+ *
+ * One list serves both bracket forms, and that is not a convenience: `[[id]]`
+ * resolves through `resolveTarget` too — "by the same order", §16.2 — so the
+ * set of ids a link can name *is* the set a directive can name. A second
+ * endpoint would be a second copy of that rule, free to drift from it.
  */
 studio.get("/fragments/search", async (c) => {
   const q = (c.req.query("q") ?? "").toLowerCase();
@@ -1310,9 +1525,11 @@ async function fragmentEditPage(db: D1Database, item: ItemRow, mount: string, ou
 <nav style="margin:-0.5rem 0 1rem;font-size:0.9rem;"><a href="${studioPath(mount)}">← compose</a> <a href="${mount}/f/${item.id}/" target="_blank">permalink ↗</a></nav>
 <div id="error-banner-slot"></div>
 <div class="split">
-<div class="pane">
+<div class="pane" style="position:relative;">
 <h2>markdown</h2>
+<p class="compose-help">Markdown, plus <code>[[id]]</code> inline to link another item of yours or something you read (type <code>[[</code> for a picker) and <code>[TK]an instruction[/TK]</code> to mark a scope for AI-drafted text. <a href="${studioPath(mount)}/syntax">full syntax reference</a></p>
 <textarea id="md-input">${escapeHtml(item.content_md)}</textarea>
+${paletteMarkup()}
 </div>
 <div class="pane preview" id="preview-pane">
 <h2>preview</h2>
@@ -1343,6 +1560,7 @@ ${mediaHtml}
 </div>
 ${historyPanel(item, versions, mount)}
 <script>${actionScript(mount)}</script>
+<script>${paletteScript(mount)}</script>
 <script>
 const id = ${JSON.stringify(item.id)};
 const mdInput = document.getElementById("md-input");
@@ -1360,10 +1578,24 @@ function scheduleSave() {
     renderTkPanel(data.scopes);
   }, 400);
 }
-mdInput.addEventListener("input", () => {
+function syncCount() {
   editCount.textContent = mdInput.value.length + " / ${FRAGMENT_MAX_CHARS}";
   editCount.classList.toggle("over", mdInput.value.length > ${FRAGMENT_MAX_CHARS});
+}
+mdInput.addEventListener("input", () => {
+  syncCount();
   scheduleSave();
+});
+// \`[[id]]\` only: a fragment never resolves the \`![[\` directive at publish
+// (publishItem runs resolveTransclusions for threads alone), so offering that
+// insertion here would write a line that publishes as literal text.
+installPalette({
+  textarea: mdInput,
+  panel: document.getElementById("palette"),
+  results: document.getElementById("palette-results"),
+  hint: document.getElementById("palette-hint"),
+  transclude: false,
+  onInsert: () => { syncCount(); scheduleSave(); },
 });
 document.getElementById("save-draft-btn").addEventListener("click", async () => {
   await api("PUT", "/api/items/" + id, { content_md: mdInput.value });
@@ -1488,12 +1720,9 @@ ${await stubHeader(db, item, mount)}
 <div class="panes">
 <div class="pane" style="position:relative;">
 <h2>markdown source</h2>
-<p class="compose-help">Markdown, plus <code>![[id]]</code> on its own line to transclude a fragment, a thread, or an item from your reading feed (type <code>![[</code> for a picker) and <code>[TK]an instruction[/TK]</code> to mark a scope for AI-drafted text. <a href="${studioPath(mount)}/syntax">full syntax reference</a></p>
+<p class="compose-help">Markdown, plus <code>![[id]]</code> on its own line to transclude a fragment, a thread, or an item from your reading feed, <code>[[id]]</code> inline to link one without quoting it (type <code>![[</code> or <code>[[</code> for a picker), and <code>[TK]an instruction[/TK]</code> to mark a scope for AI-drafted text. <a href="${studioPath(mount)}/syntax">full syntax reference</a></p>
 <textarea id="md-input">${escapeHtml(item.content_md)}</textarea>
-<div class="palette" id="palette" style="display:none;">
-<input class="search" id="palette-search" placeholder="transclude a fragment, thread, or something you read…">
-<ul id="palette-results"></ul>
-</div>
+${paletteMarkup()}
 </div>
 <div class="pane preview" id="preview-pane">
 <h2>preview</h2>
@@ -1519,21 +1748,13 @@ ${mediaHtml}
 </div>
 ${historyPanel(item, versions, mount)}
 <script>${actionScript(mount)}</script>
+<script>${paletteScript(mount)}</script>
 <script>
 const id = ${JSON.stringify(item.id)};
 const mdInput = document.getElementById("md-input");
 const previewBody = document.getElementById("preview-body");
 const errorSlot = document.getElementById("error-banner-slot");
-const palette = document.getElementById("palette");
-const paletteResults = document.getElementById("palette-results");
-let debounceTimer, paletteDebounce, paletteSel = 0, paletteItems = [];
-
-function currentLinePrefix() {
-  const pos = mdInput.selectionStart;
-  const text = mdInput.value;
-  const lineStart = text.lastIndexOf("\\n", pos - 1) + 1;
-  return { lineStart, pos, prefix: text.slice(lineStart, pos) };
-}
+let debounceTimer;
 
 async function refreshPreview() {
   const res = await fetch("${studioPath(mount)}/preview-thread", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content_md: mdInput.value, item_id: id }) });
@@ -1550,38 +1771,16 @@ function scheduleSave() {
   }, 400);
 }
 
-function renderPaletteSelection() {
-  [...paletteResults.children].forEach((li, i) => li.classList.toggle("sel", i === paletteSel));
-}
-
-async function updatePalette() {
-  const { prefix } = currentLinePrefix();
-  const m = /^\\s*!\\[\\[([^\\]]*)$/.exec(prefix);
-  if (!m) { palette.style.display = "none"; return; }
-  const res = await fetch("${studioPath(mount)}/fragments/search?q=" + encodeURIComponent(m[1]));
-  const data = await res.json();
-  paletteItems = data.results;
-  paletteSel = 0;
-  paletteResults.innerHTML = paletteItems
-    .map((it, i) => '<li data-i="' + i + '">' + it.excerpt.replace(/</g, "&lt;") + '<span class="meta">' + String(it.badge || "").replace(/</g, "&lt;") + ' &middot; v' + it.version + '</span></li>')
-    .join("");
-  renderPaletteSelection();
-  palette.style.display = paletteItems.length ? "block" : "none";
-}
-
-function insertFromPalette(picked) {
-  const { lineStart, pos } = currentLinePrefix();
-  const before = mdInput.value.slice(0, lineStart);
-  const after = mdInput.value.slice(pos);
-  const insertion = "![[" + picked.id + "]]";
-  mdInput.value = before + insertion + after;
-  const newPos = (before + insertion).length;
-  mdInput.setSelectionRange(newPos, newPos);
-  palette.style.display = "none";
-  mdInput.focus();
-  scheduleSave();
-  refreshPreview();
-}
+// A thread is the only kind that resolves transclusions at publish, so it is
+// the only composer offered the \`![[\` form as well as \`[[\`.
+installPalette({
+  textarea: mdInput,
+  panel: document.getElementById("palette"),
+  results: document.getElementById("palette-results"),
+  hint: document.getElementById("palette-hint"),
+  transclude: true,
+  onInsert: () => { scheduleSave(); refreshPreview(); },
+});
 
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-action='clear-stub']");
@@ -1590,23 +1789,7 @@ document.addEventListener("click", async (e) => {
   location.reload();
 });
 
-mdInput.addEventListener("input", () => {
-  scheduleSave();
-  clearTimeout(paletteDebounce);
-  paletteDebounce = setTimeout(updatePalette, 150);
-});
-mdInput.addEventListener("keydown", (e) => {
-  if (palette.style.display === "none") return;
-  if (e.key === "Escape") { palette.style.display = "none"; }
-  else if (e.key === "ArrowDown") { e.preventDefault(); paletteSel = Math.min(paletteSel + 1, paletteItems.length - 1); renderPaletteSelection(); }
-  else if (e.key === "ArrowUp") { e.preventDefault(); paletteSel = Math.max(paletteSel - 1, 0); renderPaletteSelection(); }
-  else if (e.key === "Enter" && paletteItems[paletteSel]) { e.preventDefault(); insertFromPalette(paletteItems[paletteSel]); }
-});
-paletteResults.addEventListener("click", (e) => {
-  const li = e.target.closest("li");
-  if (li) insertFromPalette(paletteItems[Number(li.dataset.i)]);
-});
-
+mdInput.addEventListener("input", scheduleSave);
 document.getElementById("save-draft-btn").addEventListener("click", async () => {
   await api("PUT", "/api/items/" + id, { content_md: mdInput.value });
   location.reload();

@@ -94,7 +94,8 @@ saying so.
 
 Live on five nodes as of 2026-09-28, two of them Venkat's
 (`venkateshrao.com/blyg/`, `blyg.protocol-institute.org`) and three strangers'
-self-hosts. 508 tests, `tsc` clean.
+self-hosts. **0.7.0**, 544 tests, `tsc` clean. The deployed nodes run 0.6.1 — 0.7.0 is
+built and committed, not yet tagged or deployed.
 
 ## Backlog — from Venkat's issue list (session 26, 2026-09-28)
 
@@ -113,9 +114,13 @@ was specified to do in both cases.
 - [ ] **Reader view doesn't roll up entries** the way the published surface does. Reading
   feed presentation only; the published surface is the reference for what it should look
   like.
-- [ ] **Transclusion picker stops after a few items and has no search.** `studioFragmentSearch`
-  + the `![[` palette in `studio.ts` exist but are unpaged. Needs paging and a query box.
-  Worth doing early: it is the most-used authoring affordance and the ceiling is silent.
+- [ ] **Transclusion picker stops after a few items.** `/fragments/search` caps at 20 and
+  the palette does not page, so the ceiling is still silent. **The "no search" half is
+  answered (0.7.0):** there was never a missing query box — the query has always been the
+  text you type in the editor. What existed was a *dead* `<input class="search">` in the
+  palette markup, wired to nothing, which took focus and swallowed keystrokes and so read
+  as a broken search field. It is gone, replaced by a hint line naming the active bracket
+  form. Paging is what remains.
 
 ### Feature refinements
 

@@ -18,6 +18,43 @@ not have its own repo until session 26.
 
 ---
 
+## 0.7.0 — 2026-09-28
+
+**Migrations: none.** Studio UI only; nothing on the wire changes and no
+published document is affected.
+
+**The `[[` picker now exists, in all three composers.** `[[id]]` has rendered and
+resolved since 0.6.0, but the only way to find an id for one was to know it:
+the picker lived inside the thread editor and fired only on `![[` at the start of
+a line, while `[[id]]` is legal **inline and in a fragment**. The one construct
+you can write anywhere was the one construct with no way to look anything up.
+
+- The palette is now shared by the quick composer, the fragment editor and the
+  thread editor, and it distinguishes the two bracket forms: `![[` with only
+  whitespace before it on the line inserts a directive over the whole line;
+  `[[` anywhere inserts a link in place and leaves the rest of the sentence
+  alone. The `!` guard that separates them is the client-side spelling of the
+  negative lookbehind the renderer already uses, so an inline `![[` — which
+  inside a `[TK]` scope means a source reference — still opens nothing.
+- **The directive form is offered in the thread editor only**, because only a
+  thread resolves transclusions at publish. In a fragment `![[id]]` publishes as
+  literal text, so a picker there would have written a line that does nothing.
+  `[[id]]` resolves for both kinds and is offered everywhere.
+- One panel serves both forms and both use the same candidate list, because
+  `[[id]]` resolves through the same order as the directive — the same set of
+  ids, by construction rather than by coincidence.
+- A hint line in the palette names which form you are in and what it will do.
+
+**Removed: the palette's dead search box.** It looked like the query field, took
+focus and keystrokes, and was wired to nothing — the query has always been the
+text you are typing in the editor. It is replaced by the hint line above. This
+is half of the "picker has no search" report; the other half, paging past the
+first 20 candidates, is still open.
+
+**Verification:** 544 tests, `tsc --noEmit` clean, and all three composers
+exercised by hand against a local node — each bracket form, the arrow-key
+selection, the insertion, and the preview re-render.
+
 ## 0.6.1 — 2026-09-28
 
 **⚠️ Migrations: one — `0011_outbound_target_version.sql`.** The first release

@@ -2,6 +2,7 @@
 // shape-asserted against the §2.3–2.5 examples.
 import { describe, expect, it } from "vitest";
 import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
+import { CLIENT, GENERATOR } from "../src/types.ts";
 
 describe("manifest (§2.4)", () => {
   it("has the exact manifest shape", async () => {
@@ -19,7 +20,15 @@ describe("manifest (§2.4)", () => {
     // L2 since session 27: the level had been announcing 1 while the wire
     // carried 0.3 constructs (§3 defines L2 as 0.3).
     expect(m.level).toBe(2);
-    expect(m.generator).toBe("blygger-studio/0.6.1");
+    // Asserted against GENERATOR rather than a literal. A literal here has to
+    // be hand-edited on every release, which is precisely the hand-maintenance
+    // that let the user-agent strings drift to `blyg-ref/0.2` on a 0.3.0 client
+    // before session 26. What matters is that the manifest reports this
+    // client's actual identity, in the `name/semver` shape the directory
+    // census parses — both of which are checked here.
+    expect(m.generator).toBe(GENERATOR);
+    expect(m.generator).toMatch(/^blygger-studio\/\d+\.\d+\.\d+$/);
+    expect(GENERATOR).toBe(`${CLIENT.name}/${CLIENT.version}`);
     expect(m.generator_url).toBe("https://github.com/blygger/blygger-studio");
     expect(m.site).toBe("https://example.com/blyg/");
     expect(m.title).toBe("Venkat's blyg");
