@@ -266,6 +266,18 @@ was specified to do in both cases.
   "quote" prefills the directive-plus-blockquote; the stub action prefills this form for
   long targets instead of the whole item. Record the cross-node exercise in your devlog — it
   is what lets Fable promote §16.4 into §10.
+- [ ] **Read templated blygs — the manifest locates the surface** (decision #51, spec §16.6e; 0.4;
+  **implementation plan: `blygger-spec/docs/v0.4-plan.md` §7.5, tasks M1–M4**). Reader side only —
+  our own surface keeps the default paths and emits no template keys. Parse `feed`/`items`
+  (authoritative, defaults) and the new `item`/`pin` RFC 6570 level-1 templates (`{id}`, `{n}`)
+  from a fetched manifest; one expansion helper used everywhere an item or pin URL is built
+  (importer, staleness check, remote `[[id]]` pages, verification). `resolve.ts` step 4: fetch
+  the `rel="blyg"` href — a body that parses as a manifest *is* the manifest, else append
+  `blyg.json`. Identity = manifest URL minus its last path segment, not "minus `blyg.json`".
+  `page` may be absolute. One migration (subscription row gains the resolved locations,
+  NULL = defaults). Gate: subscribe a live node to the first templated third-party blyg
+  (the WordPress case from blygger-spec#2), transclude from it, and confirm the mention
+  verifies on their side.
 - [ ] **Reader-side `[[id]]` affordance** (decision #50, answering the ⚠️ FABLE flag raised
   2026-09-28 — the "distinction worth ruling on" in the feature-refinements entry above is
   the ruling): allowed, no collision with #27 — a link is not a response. Build it as the
