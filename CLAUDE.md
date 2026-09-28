@@ -143,6 +143,9 @@ was specified to do in both cases.
 
 These four are what promote `protocol-v0.3.md` §16.1/§16.2 from "ruled" to normative
 (strict #21: the spec text follows the build). Shapes are fixed; do not vary them.
+**Promoted 2026-09-28 (spec session 28):** `cited` is now spec §5.9, `[[id]]` §10.1,
+`generator_url` §6.1 — normative in the published 0.3 at `blygger.org/spec/0.3/`
+(snapshot `2026-09-28`). The §16 numbers below still resolve, as pointers.
 
 - [x] **Emit `cited` on every reference** — **done session 27 (0.6.0)**, both halves:
   emitted inside `stub_of`, every remote `transclusions[]` entry and `forked_from` on live
