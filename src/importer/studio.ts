@@ -22,7 +22,7 @@ import {
   listSubscriptions,
 } from "./store.ts";
 import type { HopperRow } from "../types.ts";
-import { sourceTitleAndUrl } from "./util.ts";
+import { displayUrl, sourceTitleAndUrl } from "./util.ts";
 
 const SUBS_STYLE = `
 .sub-row { border-top: 1px solid var(--rule); padding: 0.75rem 0; }
@@ -169,7 +169,7 @@ const READING_STYLE = `
 .reading-entry .byline .entry-copy-link code { font-size: 0.95em; }
 .reading-entry .byline .copy-fallback { font: inherit; font-size: 0.8rem; width: 32ch; border: 1px solid var(--rule); border-radius: 3px; padding: 0 0.3rem; background: transparent; color: inherit; margin-left: auto; }
 .reading-entry .byline .entry-copy-link + .entry-open { margin-left: 0.75rem; }
-.reading-entry .byline .entry-open { margin-left: auto; text-decoration: none; }
+.reading-entry .byline .entry-open { margin-left: auto; text-decoration: none; font-variant-numeric: tabular-nums; color: var(--ink-soft); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reading-entry .byline .entry-open:hover { text-decoration: underline; }
 .reading-entry .byline .l0-chip { font-size: 0.72rem; color: var(--ink-soft); border: 1px solid var(--rule); border-radius: 3px; padding: 0.02rem 0.3rem; }
 .reading-entry .entry-title { margin: 0.25rem 0 0.15rem; font-size: 1.02rem; font-weight: 600; line-height: 1.35; }
@@ -282,8 +282,12 @@ async function readingEntryHtml(db: D1Database, e: ReadingFeedEntry, hoppers: Ho
         ? `${mount}/${e.kind === "thread" ? "t" : "f"}/${e.own.id}/`
         : null
       : (e.imported?.sourceUrl ?? null);
+  // The address itself, not an "open" label. Two entries quoting the same
+  // passage — several origins stubbing one item, or a restub chain — are
+  // otherwise indistinguishable in a feed, because the body is the part they
+  // share and the origin is the part they do not.
   const openLink = openHref
-    ? ` <a class="entry-open" href="${escapeHtml(openHref)}" target="_blank" rel="noopener">open ↗</a>`
+    ? ` <a class="entry-open" href="${escapeHtml(openHref)}" target="_blank" rel="noopener" title="${escapeHtml(openHref)}">${escapeHtml(displayUrl(openHref))} ↗</a>`
     : "";
   // `copy [[id]]` — decision #50. A link is not a response: #32 ruled `[[id]]`
   // declares nothing (no relation, no mention), so this is not the lighter

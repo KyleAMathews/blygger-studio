@@ -65,3 +65,45 @@ function decodeEntities(s: string): string {
     .replace(/&#39;/g, "'")
     .replace(/&amp;/g, "&");
 }
+
+/**
+ * A URL as a reader should see it: the address itself, short enough to sit in a
+ * byline.
+ *
+ * The reading feed showed only an `open ↗` affordance, which is fine until two
+ * entries look alike — several origins stubbing the same item, or a restub
+ * chain, where every body carries the same quoted passage and the only thing
+ * that tells them apart is *where each one lives*. That was invisible, so the
+ * feed read as repetition.
+ *
+ * Elides the 26-character item id rather than truncating the whole string: the
+ * host and the shape of the path are the identifying parts, and an id is the
+ * one segment a human never reads. `https://` goes because every one of these
+ * is https and a column of identical prefixes hides the part that differs.
+ */
+export function displayUrl(url: string): string {
+  // Elide first, on the raw string, so this works for a relative href as well
+  // as an absolute one. Own items link to `/f/{id}/` — no scheme, no host —
+  // and an earlier version parsed with `new URL()` first and returned the
+  // input untouched when that threw, so every one of our own entries printed a
+  // full 26-character id. The tests asserted on the `href`, which was correct,
+  // and never looked at the label; it took looking at the page.
+  const elide = (p: string): string =>
+    p
+      .split("/")
+      .map((seg) => (/^[0-9a-z]{26}$/.test(seg) ? `${seg.slice(0, 8)}…` : seg))
+      .join("/");
+
+  let shown: string;
+  try {
+    const u = new URL(url);
+    // The scheme goes: it is https on every row, and a column of identical
+    // prefixes hides the part that differs.
+    shown = `${u.host}${elide(u.pathname)}${u.search}`;
+  } catch {
+    shown = elide(url);
+  }
+  // Anything still absurd is a pathological path, not an id; cut it rather than
+  // let one entry blow out the column.
+  return shown.length > 72 ? `${shown.slice(0, 71)}…` : shown;
+}
