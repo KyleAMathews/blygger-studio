@@ -286,6 +286,16 @@ api.put("/settings", async (c) => {
   for (const key of SETTINGS_KEYS) {
     if (typeof body[key] === "string") patch[key] = body[key] as string;
   }
+  // Two-valued, and validated rather than coerced: `getSettings` treats
+  // anything but "off" as on, so accepting a free string here would let a typo
+  // silently re-open the endpoint the operator meant to close.
+  if (typeof body.accept_mentions === "boolean") {
+    patch.accept_mentions = body.accept_mentions ? "on" : "off";
+  } else if (body.accept_mentions === "on" || body.accept_mentions === "off") {
+    patch.accept_mentions = body.accept_mentions;
+  } else if (body.accept_mentions !== undefined) {
+    return c.json({ error: "accept_mentions must be a boolean, or \"on\" / \"off\"" }, 400);
+  }
   if (Array.isArray(body.author_links)) {
     const links = body.author_links.filter(
       (l): l is { label: string; url: string } =>

@@ -277,6 +277,20 @@ export interface Settings {
   ai_model: string;
   /** TK generation: optional site-level style prompt appended to every generation request. */
   ai_style_prompt: string;
+  /**
+   * Whether this blyg receives Webmentions (0.3 §15, which is **OPTIONAL at
+   * every level**). When false the endpoint 404s, the manifest omits its
+   * `webmention` key and pages omit the `rel="webmention"` link and header —
+   * §15.1: the advertisement is "present only when mentions are accepted".
+   *
+   * A deployment setting rather than an `Env` var on purpose: it is the one
+   * thing an operator who did not want an unauthenticated public endpoint
+   * needs to reach, and a setting lives in D1, so it survives the re-clone
+   * that is how a hand-stood node upgrades (README § Releases and upgrading).
+   * Sending is unaffected — a blyg that does not receive mentions still sends
+   * them.
+   */
+  accept_mentions: boolean;
 }
 
 /**
@@ -318,7 +332,7 @@ export const WEBMENTION_PATH = "webmention";
  */
 export const CLIENT = {
   name: "blygger-studio",
-  version: "0.4.1",
+  version: "0.5.0",
 } as const;
 
 /**

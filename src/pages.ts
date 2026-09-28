@@ -1183,10 +1183,20 @@ ${blogrollSection(blogrollSubs, mount)}
     hasBlogroll,
     description,
     url: origin,
-    webmention: origin + WEBMENTION_PATH,
+    webmention: webmentionHref(settings, origin),
     image: await socialImage(db, settings, [], origin),
     siteName: settings.site_title,
   });
+}
+
+/**
+ * The endpoint a page advertises, or `undefined` when this blyg does not accept
+ * mentions — §15.1 again: the `rel="webmention"` link, like the manifest key,
+ * exists only when there is something behind it. Advertising a 404 would send
+ * every conformant sender on a wasted round trip.
+ */
+function webmentionHref(settings: Settings, origin: string): string | undefined {
+  return settings.accept_mentions ? origin + WEBMENTION_PATH : undefined;
 }
 
 /**
@@ -1218,7 +1228,7 @@ function withdrawnMeta(settings: Settings, url: string, alternateJson?: string, 
 export async function permalinkPage(db: D1Database, settings: Settings, item: ItemRow, mount: string, origin: string): Promise<string> {
   const url = `${origin}f/${item.id}/`;
   const alternateJson = `${origin}items/${item.id}.json`;
-  const webmention = origin + WEBMENTION_PATH;
+  const webmention = webmentionHref(settings, origin);
   if (item.kind === "withdrawn") {
     return layout(
       `withdrawn — ${settings.site_title}`,
@@ -1251,7 +1261,7 @@ ${await responsesSection(db, item, mount)}
 export async function threadPage(db: D1Database, settings: Settings, item: ItemRow, mount: string, origin: string): Promise<string> {
   const url = `${origin}t/${item.id}/`;
   const alternateJson = `${origin}items/${item.id}.json`;
-  const webmention = origin + WEBMENTION_PATH;
+  const webmention = webmentionHref(settings, origin);
   if (item.kind === "withdrawn") {
     return layout(
       `withdrawn — ${settings.site_title}`,

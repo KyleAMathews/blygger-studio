@@ -4,8 +4,8 @@ The reference client for the [Blygger protocol](https://github.com/blygger/blygg
 a Cloudflare Worker that publishes a blyg, subscribes to others, and threads,
 transcludes and responds across them.
 
-**Protocol implemented:** `blyg 0.3`, level 1 · **Client version:** 0.4.1 ·
-`generator: blygger-studio/0.4.1` · [releases + upgrading](#releases-and-upgrading)
+**Protocol implemented:** `blyg 0.3`, level 1 · **Client version:** 0.5.0 ·
+`generator: blygger-studio/0.5.0` · [releases + upgrading](#releases-and-upgrading)
 
 > **This is one client, not the protocol.** As of 2026-09-28 there are at least
 > **seven** client implementations publishing live blygs, six of which are not this
@@ -32,13 +32,30 @@ Two halves, on purpose:
 ```bash
 npm install --legacy-peer-deps    # see "npm" below — the flag is not optional here
 npm run dev                       # wrangler dev
-npm test                          # 512 tests
+npm test                          # 515 tests
 npx tsc --noEmit
 npm run export -- --out DIR --base https://example.com/blyg/
 ```
 
 New deployment from scratch: follow [`blygger.org/start/`](https://blygger.org/start/),
 which is the path every third-party node so far has taken.
+
+## The one public endpoint, and how to turn it off
+
+Everything this Worker serves is either static output or password-gated —
+**except `{mount}/webmention`**, which accepts an unauthenticated POST from
+anyone, because that is how another blyg tells yours that it has quoted or
+responded to you. Claims are structurally verified (the source's own item
+document must name your item) and no content of theirs is ever stored, but the
+endpoint is still open by necessity.
+
+It is also **optional**: protocol 0.3 §15 is OPTIONAL at every level. In
+**Settings → Accept Webmentions** you can switch it off, and off means gone —
+no manifest key, no `rel="webmention"` on your pages, 404 on the endpoint. You
+still *send* mentions when you quote other people. Rate limits, if you leave it
+on, are per source host, per registrable domain, and per endpoint per hour; the
+numbers are in [`src/mentions/store.ts`](src/mentions/store.ts) with the
+reasoning for each.
 
 ## Releases and upgrading
 
@@ -49,7 +66,7 @@ whether a deploy is the whole job.
 
 **What you are running now** is in your own manifest, which is public:
 `curl https://your-origin/blyg/blyg.json` → `generator` is this client's name and
-version (`blygger-studio/0.4.1`). A node reporting `blyg-ref/0.3.0` is this same
+version (`blygger-studio/0.5.0`). A node reporting `blyg-ref/0.3.0` is this same
 software under its pre-2026-09-28 name.
 
 ### Upgrading a node you stood up by hand
@@ -113,7 +130,7 @@ deploy-targets.json every live deployment this repo knows how to deploy
 ## Versioning
 
 **Client version and protocol version are independent, deliberately.** This client
-is 0.4.1 and implements protocol 0.3. The manifest carries both — `blyg` is the
+is 0.5.0 and implements protocol 0.3. The manifest carries both — `blyg` is the
 protocol version, `generator` is this client's identity — and per the spec's
 decision #18d `generator` is *informative*: no reader may gate behaviour on it.
 
@@ -127,7 +144,7 @@ People already do, and that is fine. Two requests, both so that the upgrade path
 keeps working for you:
 
 1. **Change `CLIENT` in `src/types.ts`.** A fork that keeps reporting
-   `blygger-studio/0.4.1` makes the ecosystem census wrong for everyone, and it is
+   `blygger-studio/0.5.0` makes the ecosystem census wrong for everyone, and it is
    the census that drives update notices. Give your fork its own name and version —
    that is what `Blynger`, `blyg-publisher` and the rest do.
 2. **Tell us it exists**, so it can be listed at `blygger.org` and so a breaking

@@ -635,3 +635,88 @@ describe("registrableDomain — the rate-limit grouping heuristic (§9.1 gap 1)"
     }
   });
 });
+
+// An operator who never chose to run an unauthenticated public endpoint can
+// switch it off — 0.3 §15 is OPTIONAL at every level, and §15.1 says the
+// advertisement exists only when mentions are accepted. Until session 27 the
+// client had no way to express that: `buildManifest` took a `webmention: false`
+// option no caller ever passed.
+describe("declining to receive mentions (§15 is optional)", () => {
+  async function setAccept(cookie: string, accept: boolean) {
+    const res = await apiJson(cookie, "PUT", "/api/settings", { accept_mentions: accept });
+    expect(res.status).toBe(200);
+  }
+
+  it("withdraws the endpoint from the manifest, the pages and the network", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    const id = await createAndPublish(cookie, "an item someone might respond to");
+    const target = `${OURS}f/${id}/`;
+
+    // On by default — an existing deployment's behaviour does not change.
+    let manifest = await (await getPublic("/blyg/blyg.json")).json<{ webmention?: string }>();
+    expect(manifest.webmention).toBe("webmention");
+    let page = await getPublic(`/blyg/f/${id}/`);
+    expect(await page.text()).toContain('rel="webmention"');
+    expect(page.headers.get("link")).toContain('rel="webmention"');
+
+    await setAccept(cookie, false);
+
+    // Not advertised: no manifest key, no link element, no Link header.
+    manifest = await (await getPublic("/blyg/blyg.json")).json<{ webmention?: string }>();
+    expect(manifest.webmention).toBeUndefined();
+    page = await getPublic(`/blyg/f/${id}/`);
+    expect(await page.text()).not.toContain('rel="webmention"');
+    expect(page.headers.get("link")).toBeNull();
+
+    // And not there: 404, the same answer a static export gives, rather than a
+    // 403 that would imply an endpoint with a policy.
+    const res = await SELF.fetch(`${BASE}/blyg/webmention`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: `source=${encodeURIComponent(`${THEIRS}t/x/`)}&target=${encodeURIComponent(target)}`,
+    });
+    expect(res.status).toBe(404);
+
+    // The control the operator actually uses reflects it — asserted on the
+    // control, not on prose, since the page inlines its own stylesheet.
+    const settingsHtml = await (await SELF.fetch(`${BASE}${STUDIO}/settings`, { headers: { cookie } })).text();
+    expect(settingsHtml).toContain('id="accept_mentions"');
+    expect(settingsHtml).not.toMatch(/id="accept_mentions" checked/);
+
+    // Reversible, and the item is untouched by any of it.
+    await setAccept(cookie, true);
+    manifest = await (await getPublic("/blyg/blyg.json")).json<{ webmention?: string }>();
+    expect(manifest.webmention).toBe("webmention");
+  });
+
+  it("still sends mentions — the two halves are independent", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await setAccept(cookie, false);
+
+    const remoteId = newId();
+    await importFrom(THEIRS, { id: remoteId, kind: "fragment", version: 2, content_md: "their post", page: `f/${remoteId}/` });
+    const stub = await apiJson(cookie, "POST", "/api/items", {
+      kind: "thread",
+      content_md: `![[${remoteId}]]\n\nMy response.`,
+      stub_of: { origin: THEIRS, id: remoteId, version: 2 },
+    });
+    expect((await apiJson(cookie, "POST", `/api/items/${stub.json.id}/publish`, {})).status).toBe(200);
+
+    const queued = (await listOutbound(env.DB)).filter((r) => r.item_id === stub.json.id);
+    expect(queued).toHaveLength(1);
+    expect(queued[0].target).toBe(`${THEIRS}f/${remoteId}/`);
+  });
+
+  it("refuses a value that is neither true nor false, rather than reading it as on", async () => {
+    const cookie = await login();
+    const res = await apiJson(cookie, "PUT", "/api/settings", { accept_mentions: "no" });
+    expect(res.status).toBe(400);
+    // `getSettings` treats anything but "off" as on, so a typo that was stored
+    // would silently re-open the endpoint the operator meant to close.
+    expect((await apiJson(cookie, "PUT", "/api/settings", { accept_mentions: "off" })).status).toBe(200);
+    const manifest = await (await getPublic("/blyg/blyg.json")).json<{ webmention?: string }>();
+    expect(manifest.webmention).toBeUndefined();
+  });
+});

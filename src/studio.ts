@@ -953,6 +953,13 @@ studio.get("/settings", async (c) => {
 <input id="ai_model" name="ai_model" value="${escapeHtml(settings.ai_model)}" placeholder="claude-opus-5">
 <label for="ai_style_prompt">TK site-level style prompt (optional, appended to every generation request)</label>
 <textarea id="ai_style_prompt" name="ai_style_prompt" rows="3">${escapeHtml(settings.ai_style_prompt)}</textarea>
+<label style="margin-top:1rem;">Responses from other blygs</label>
+<p style="margin:0.2rem 0 0;"><label style="font-weight:400;"><input type="checkbox" id="accept_mentions"${settings.accept_mentions ? " checked" : ""}>
+  Accept Webmentions — let other blygs tell yours when they quote, respond to or fork an item</label></p>
+<p style="margin:0.35rem 0 0;font-size:0.85rem;color:var(--ink-soft);">This is the one public endpoint your blyg serves that needs no password,
+  so it is also the only one a stranger can send anything to. Unchecking it removes the endpoint entirely: it stops being advertised in your manifest
+  and on your pages, and POSTs to it return 404. You still <em>send</em> mentions when you quote other people — that half is not affected, and
+  responses you have already collected stay in your studio.</p>
 <p style="margin-top:1rem;"><button type="submit" class="primary">save settings</button></p>
 </form>
 <script>${actionScript(mount)}</script>
@@ -971,6 +978,7 @@ document.getElementById("settings-form").addEventListener("submit", async (e) =>
     site_url: document.getElementById("site_url").value,
     ai_model: document.getElementById("ai_model").value,
     ai_style_prompt: document.getElementById("ai_style_prompt").value,
+    accept_mentions: document.getElementById("accept_mentions").checked,
     author_links: links,
   };
   if (await api("PUT", "/api/settings", body)) alert("saved");

@@ -18,6 +18,36 @@ not have its own repo until session 26.
 
 ---
 
+## 0.5.0 — 2026-09-28
+
+**A blyg can now decline to receive Webmentions.** Protocol 0.3, unchanged —
+§15 is OPTIONAL at every level, and this release is the client catching up to
+that. Until now `blygger-studio` had no way to express it: `buildManifest` took
+a `webmention: false` option that no caller ever passed, so every deployment
+served the endpoint whether its operator wanted one or not. That is the wrong
+default to impose on somebody who stood a node up by following a start page.
+
+- **Settings → "Accept Webmentions"**, on by default, so nothing changes for an
+  existing node until its operator changes it. Unchecked, the endpoint is
+  *withdrawn rather than guarded*: the manifest omits its `webmention` key,
+  pages omit both the `<link rel="webmention">` element and the `Link` header,
+  and a POST gets **404** — the same answer a static export gives, rather than a
+  403 that would imply an endpoint with a policy.
+- **A setting, not an `Env` var**, because it has to survive the way these nodes
+  actually upgrade: a re-clone carries `wrangler.jsonc` across by hand, and a D1
+  setting is never in that path.
+- **Sending is unaffected.** A blyg that does not receive mentions still sends
+  them when it quotes, stubs or forks someone — the two halves were always
+  independent and stay so. Responses already collected stay in the studio.
+- `accept_mentions` accepts a boolean, or the strings `"on"`/`"off"`, and
+  **rejects anything else with 400** instead of storing it. Any stored value but
+  `"off"` reads as on, so a silently-accepted typo would re-open the endpoint an
+  operator meant to close.
+
+**Migrations: none** — settings are key/value rows in an existing table.
+
+**Verification:** 515 tests, `tsc --noEmit` clean.
+
 ## 0.4.1 — 2026-09-28
 
 **Security hardening of the Webmention endpoint. Recommended for every live node,

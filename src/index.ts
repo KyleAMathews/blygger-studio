@@ -189,6 +189,11 @@ export function makeApp(mount: string) {
    */
   pub.post("/webmention", async (c) => {
     const settings = await getSettings(c.env.DB);
+    // §15 is OPTIONAL at every level, so a blyg may decline to receive. 404
+    // rather than 403: when mentions are off nothing here is advertised, so the
+    // honest answer to a sender is that this blyg has no endpoint — the same
+    // answer a static export gives.
+    if (!settings.accept_mentions) return c.notFound();
     const origin = siteOrigin(settings, c.req.url, mount);
     const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
     const outcome = await receiveMention(
@@ -215,6 +220,7 @@ export function makeApp(mount: string) {
 
   /** W3C discovery also allows the endpoint in a Link header, so item pages carry both. */
   const webmentionLink = (c: Context<{ Bindings: Env }>, settings: Settings) => {
+    if (!settings.accept_mentions) return;
     c.header("Link", `<${siteOrigin(settings, c.req.url, mount)}${WEBMENTION_PATH}>; rel="webmention"`);
   };
 

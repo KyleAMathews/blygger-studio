@@ -153,7 +153,10 @@ export async function buildManifest(db: D1Database, settings: Settings, origin: 
     // v0.3 §2.3.1: present only when this deployment can actually receive.
     // A static export omits it — the exported tree has no endpoint behind it,
     // and advertising one would promise delivery nothing could keep.
-    ...(opts.webmention === false ? {} : { webmention: WEBMENTION_PATH }),
+    // §15.1: advertised "only when mentions are accepted". `opts.webmention`
+    // is the caller's override (a static tree accepts none); the setting is the
+    // operator's, and either one is enough to withhold the key.
+    ...(opts.webmention === false || !settings.accept_mentions ? {} : { webmention: WEBMENTION_PATH }),
   };
 }
 

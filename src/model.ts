@@ -40,6 +40,8 @@ export async function getSettings(db: D1Database): Promise<Settings> {
     avatar_media_id: map.avatar_media_id ?? "",
     ai_model: map.ai_model ?? "",
     ai_style_prompt: map.ai_style_prompt ?? "",
+    // Default on: an existing deployment's behaviour must not change under it.
+    accept_mentions: map.accept_mentions !== "off",
   };
 }
 
