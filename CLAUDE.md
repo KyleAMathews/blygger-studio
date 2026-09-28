@@ -177,6 +177,27 @@ These four are what promote `protocol-v0.3.md` §16.1/§16.2 from "ruled" to nor
 - [ ] **History view on a rolled-up item** (#40): notes as a timeline; where two
   consecutive versions are both pinned, a local diff of the two pinned files ("see the
   change"). Needs nothing from the wire; works on any imported 0.2+ blyg with pins.
+- [ ] **Discovery surfaces from references** (decision #41, roadmap-tracks 2.13). Four,
+  none touching the wire, in this order of payoff:
+  1. **Chain view.** Parse the stored `content_html` of an imported thread for nested
+     `blockquote.blyg-transclusion` and read `data-blyg-id/version/origin` at every depth;
+     render the chain with a provenance line per layer (today only the direct layer gets
+     one) and a subscribe affordance per origin not in `subscriptions`. **Absent
+     `data-blyg-origin` on a nested layer means the origin of the layer that baked it**,
+     not ours — carry origin context down the tree. One cached manifest fetch per unknown
+     origin for its title. `importer/sanitize.ts` is allowlist-by-removal and keeps
+     `data-blyg-*` (verified session 27), and stored HTML is verbatim anyway.
+  2. **"Responds to" walk.** From an imported item's `stub_of`, fetch
+     `{origin}items/{id}.json`, show the target and follow *its* `stub_of`; bounded
+     (~6), cached, each origin subscribable. Works for chains you are not in.
+  3. **The conversation around you.** Verified inbound mentions ∪ your outbound
+     references, grouped by origin; "responded to you, not subscribed" at the top.
+  4. **Second-degree blogrolls + cited origins.** Fetch each subscription's
+     `blogroll.opml` (§11) and aggregate every `origin` in imported provenance; list
+     origins minus subscriptions, ordered by how many of your reads list/cite them.
+     Local ordering only — never published, never shown as a count on a public page.
+  **Do not** scrape another blyg's public responses list for the forward direction; it is
+  presentation, and #28 keeps verified mentions off the wire by decision (spec §16.6d).
 - [ ] **Emit `generator_url`** (decision #34, spec §16.6a): one absolute URL beside
   `generator` in the manifest — `https://github.com/blygger/blygger-studio`, derived from
   `CLIENT` like `GENERATOR` is. Same commit as the level fix below; together they promote
