@@ -249,7 +249,8 @@ was specified to do in both cases.
 ### From the session-28 Fable round (2026-09-28) — the first 0.4 construct
 
 - [ ] **Partial transclusion** (decision #49, spec §16.4; a **0.3 revision** once built and
-  exercised on both nodes). Grammar: a `![[id]]` directive immediately followed — no blank
+  exercised on both nodes). **Implementation plan: `blygger-spec/docs/v0.4-plan.md` §7.3, tasks
+  P1–P9; do this before remote sources, per §7.4.** Grammar: a `![[id]]` directive immediately followed — no blank
   line — by a markdown blockquote is a partial transclusion; the blockquote's text is the
   selection; a blank line detaches it (whole transclusion + the author's own quote stays
   writable). Publish: the selection MUST be a substring of the target snapshot's **text
@@ -273,7 +274,9 @@ was specified to do in both cases.
   copy-permalink, never as a peer of `stub ↗` in the response slot, never
   "respond"/"reply"/"answer". `stub ↗` stays the one affordance that means "I am responding".
 
-- [ ] **Remote generation sources** (decision #44, spec §16.3; 0.4). Widen `resolveFragment`'s
+- [ ] **Remote generation sources** (decision #44, spec §16.3; 0.4). **Implementation plan:
+  `blygger-spec/docs/v0.4-plan.md` §7.2, tasks R1–R8 with acceptance checks — build from that;
+  this entry is the shape.** Widen `resolveFragment`'s
   TK-source rule to `resolveTarget`'s (#26 order: local published item → imported item with a
   current or pin-retained snapshot → error; threads allowed; more than one imported match is
   an error). What is fed to the provider is the **stored local snapshot** (`content_md` as
