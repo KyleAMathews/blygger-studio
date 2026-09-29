@@ -117,12 +117,15 @@ saying so.
 
 Live on five nodes as of 2026-09-28, two of them Venkat's
 (`venkateshrao.com/blyg/`, `blyg.protocol-institute.org`) and three strangers'
-self-hosts. **0.8.0 is released and deployed to both our nodes** (session 29, 2026-09-29) — the
-two-pane reader, `link post`, thread and reader titles, the responses default, the
-timezone setting, update alerts, the `init`/`upgrade` scripts and the generic packaging,
-plus session 29's top menu, mobile pass and finished social cards. **It carried migration
-0012**, applied to both databases before the deploy; a node upgrading from 0.7.0 must do
-the same. 677 tests, `tsc` clean (with `noUnusedLocals`, on since session 28).
+self-hosts. **0.8.1 is released and deployed to both our nodes** (session 29, 2026-09-29).
+
+0.8.0 carried the two-pane reader, `link post`, thread and reader titles, the responses
+default, the timezone setting, update alerts, the `init`/`upgrade` scripts and the generic
+packaging, plus the top menu, mobile pass and finished social cards. **It carried migration
+0012**, applied to both databases before the deploy; a node upgrading from 0.7.0 must do the
+same. 0.8.1 adds **partial transclusion** (§16.4, decision #49) — no migration, and
+`PROTOCOL_VERSION` stays `"0.3"` because it implements 0.3 additively; its cross-node
+exercise opened gate G7. 733 tests, `tsc` clean (with `noUnusedLocals`, on since session 28).
 
 ## Backlog — from Venkat's issue list (session 26, 2026-09-28)
 
@@ -288,10 +291,17 @@ was specified to do in both cases.
 
 ### From the session-28 Fable round (2026-09-28) — the first 0.4 construct
 
-- [~] **Partial transclusion** (decision #49, spec §16.4) — **P1–P7 built session 29**
-  (`91c03e7`, `0f65be4`); **P9, the cross-node exercise, is the only thing left**, and it is
-  what lets Fable promote §16.4 into §10 (gate G7). P8 — the `css-contract.md` line and the
-  promotion itself — is the Fable session's.
+- [x] **Partial transclusion** (decision #49, spec §16.4) — **built, released as 0.8.1, and
+  exercised across both nodes (session 29)**. P1–P7 and P9 done; **gate G7 is open**. P8 —
+  promoting §16.4 into §10.1–§10.3 and the `css-contract.md` line for `blyg-partial` — is the
+  Fable session's, with the P4 call below as the rule to record.
+
+  **The exercise (P9), all four parts passing:** PI item `0180khm1xmrgpsqqe65v51bp4w` stubs
+  venkateshrao `54pwr12zqvvaj37zqx0f8vdbhk` v1, quoting one paragraph. (a) `selector` with
+  `exact`/`prefix`/`suffix` on the wire beside `cited`, `blyg-partial` in the bake;
+  (b) verified as `stub` on venkateshrao; (c) both classes and all three `data-blyg-*`
+  intact through import; (d) a wrong passage refused at selection time. The public page
+  reads *from Venkatesh Rao's Blyg ↗ · excerpt of v1*.
 
   **What the build settled and found:**
   - **P4 stands as written.** The bake is the selection's plain text in `<p>`s, not a carved
