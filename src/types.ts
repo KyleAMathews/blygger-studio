@@ -82,6 +82,26 @@ export interface Transclusion {
    * it, so a label would be words with nothing to add.
    */
   cited?: StubCite;
+  /**
+   * Present only on a **partial** transclusion (§16.4, decision #49) — the
+   * passage quoted, in the W3C Web Annotation text-quote shape. `exact` is the
+   * selection as normalized by `selectionText`; `prefix`/`suffix` are up to 32
+   * characters either side of where it was found, for a reader that wants to
+   * relocate it in a moved document.
+   *
+   * A reader may ignore this entirely and stay conformant: the passage is baked
+   * into `content_html` like any other transclusion, the relation is still
+   * `transclusion`, and staleness is §5.9 unchanged. Mention verification
+   * (§15.4) ignores it, as it ignores `cited`.
+   */
+  selector?: TextQuoteSelector;
+}
+
+/** §16.4's `selector` — the W3C text-quote shape, kept minimal. */
+export interface TextQuoteSelector {
+  exact: string;
+  prefix?: string;
+  suffix?: string;
 }
 
 /**

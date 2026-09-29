@@ -35,3 +35,33 @@ describe("sanitizeHtml()", () => {
     expect(out).toContain('<a href="https://example.com">link</a>');
   });
 });
+
+// Partial transclusion (spec §16.4, plan §7.3 P6). The plan says "assert, not
+// assume": the whole construct is invisible to a reader if the sanitizer eats
+// either class or the data attributes, and allowlist-by-removal keeping them is
+// a property of what is on the DISALLOWED list today, not a promise.
+describe("a partial transclusion survives import intact", () => {
+  it("keeps both classes and every data-blyg attribute", async () => {
+    const baked =
+      '<blockquote class="blyg-transclusion blyg-partial" data-blyg-id="7c9wk2mhq0v3xj8tn5rzfd41bg"' +
+      ' data-blyg-version="3" data-blyg-origin="https://example.com/blyg/">\n' +
+      "<p>Stigmergy is what a protocol looks like from inside.</p>\n</blockquote>";
+    const out = await sanitizeHtml(baked);
+    // blyg-partial is what tells a reader this is a part rather than the whole.
+    // Losing it would render a passage as if it were the entire item.
+    expect(out).toContain("blyg-transclusion");
+    expect(out).toContain("blyg-partial");
+    expect(out).toContain('data-blyg-id="7c9wk2mhq0v3xj8tn5rzfd41bg"');
+    expect(out).toContain('data-blyg-version="3"');
+    expect(out).toContain('data-blyg-origin="https://example.com/blyg/"');
+    expect(out).toContain("Stigmergy is what a protocol looks like from inside.");
+  });
+
+  it("still strips a handler smuggled onto the same blockquote", async () => {
+    const out = await sanitizeHtml(
+      '<blockquote class="blyg-transclusion blyg-partial" onclick="alert(1)" data-blyg-id="x"><p>q</p></blockquote>',
+    );
+    expect(out).not.toContain("onclick");
+    expect(out).toContain("blyg-partial");
+  });
+});

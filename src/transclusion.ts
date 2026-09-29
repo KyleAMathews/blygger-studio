@@ -2,8 +2,8 @@
 // locked protocol surface: do not modify without Fable + Venkat.
 
 import { blygItemUrl } from "./importer/util.ts";
-import { excerptFromHtml, renderMarkdown } from "./markdown.ts";
-import type { ImportedItemRow, ItemRow, Transclusion, VersionRow } from "./types.ts";
+import { excerptFromHtml, renderMarkdown, selectionText } from "./markdown.ts";
+import type { ImportedItemRow, ItemRow, TextQuoteSelector, Transclusion, VersionRow } from "./types.ts";
 import { escapeHtml, ID_ALPHABET } from "./util.ts";
 
 const DIRECTIVE_LINE = new RegExp(`^\\s*!\\[\\[([${ID_ALPHABET}]{26})\\]\\]\\s*$`);
@@ -23,6 +23,70 @@ const RESERVED_LINE = new RegExp(`^\\s*!\\[\\[([${ID_ALPHABET}]{26})@v\\d+\\]\\]
  * clever here.
  */
 const LINK_INLINE = new RegExp(`(?<!!)\\[\\[([${ID_ALPHABET}]{26})\\]\\]`, "g");
+
+/**
+ * A markdown blockquote line. A directive immediately followed — **no blank
+ * line** — by a run of these is a *partial* transclusion, and the run's text is
+ * the selection (spec §16.4, decision #49).
+ *
+ * A blank line detaches, which is the whole reason the grammar is adjacency
+ * rather than a new sigil: a whole transclusion followed by the author's own
+ * block quotation has always been writable, and must stay writable. The run
+ * ends at the first line that is not a quote line; a line that is empty after
+ * its marker is a paragraph break *inside* the selection.
+ */
+const QUOTE_LINE = /^\s*>/;
+
+/** How much context either side of the match to record — §16.4 says short. */
+const SELECTOR_CONTEXT = 32;
+
+/**
+ * The run of `>` lines attached to the directive at `i`, and where the caller
+ * should resume. `lines[i]` is the directive itself.
+ */
+function attachedQuote(lines: string[], i: number): { quoteMd: string | null; next: number } {
+  let j = i + 1;
+  const run: string[] = [];
+  while (j < lines.length && QUOTE_LINE.test(lines[j])) {
+    // Strip the marker and at most one following space — the usual markdown
+    // convention, and the one that leaves "> > nested" nested.
+    run.push(lines[j].replace(/^\s*>\s?/, ""));
+    j++;
+  }
+  return { quoteMd: run.length ? run.join("\n") : null, next: j };
+}
+
+/**
+ * The selection a quote run denotes: its markdown rendered, then normalized by
+ * the one normalizer (§7.3 P2). Rendering first is what makes the two sides
+ * comparable — the target is stored as HTML, so the quote has to become HTML
+ * by the same route before either is flattened.
+ */
+export function selectionFromQuote(quoteMd: string): string {
+  return selectionText(renderMarkdown(quoteMd));
+}
+
+/**
+ * Locate the selection in the target's text and describe where it was found.
+ * `null` when it is not there, which is a publish error exactly as an
+ * unresolvable directive is (§16.4 Faithfulness).
+ *
+ * Context comes from the **first** match. A passage that occurs twice gets the
+ * first one's neighbours, which is arbitrary but deterministic — and `prefix`/
+ * `suffix` are a relocation hint for readers, never part of the check.
+ */
+export function locateSelection(targetHtml: string, selection: string): TextQuoteSelector | null {
+  const hay = selectionText(targetHtml);
+  const at = hay.indexOf(selection);
+  if (at < 0) return null;
+  const prefix = hay.slice(Math.max(0, at - SELECTOR_CONTEXT), at);
+  const suffix = hay.slice(at + selection.length, at + selection.length + SELECTOR_CONTEXT);
+  return {
+    exact: selection,
+    ...(prefix ? { prefix } : {}),
+    ...(suffix ? { suffix } : {}),
+  };
+}
 
 /**
  * U+E003 — the next Private Use Area sentinel after tk.ts's E000–E002, and used
@@ -52,11 +116,22 @@ export interface TransclusionRefError {
  * drift that bit resolve.ts vs feed.ts in session 16.
  */
 export function extractDirectives(contentMd: string): { count: number; withoutDirectives: string } {
+  const lines = contentMd.split("\n");
   const kept: string[] = [];
   let count = 0;
-  for (const line of contentMd.split("\n")) {
-    if (DIRECTIVE_LINE.test(line) || RESERVED_LINE.test(line)) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (RESERVED_LINE.test(line)) {
       count++;
+      continue;
+    }
+    if (DIRECTIVE_LINE.test(line)) {
+      count++;
+      // The attached blockquote belongs to the directive, not to the prose:
+      // leaving it behind would show the author their own quote twice in a
+      // draft preview — once inside the baked snapshot and once as a stray
+      // quotation under it.
+      i = attachedQuote(lines, i).next - 1;
       continue;
     }
     kept.push(line);
@@ -234,7 +309,9 @@ async function walk(
     if (placeholder) htmlParts.push(placeholder);
   };
 
-  for (const line of contentMd.split("\n")) {
+  const lines = contentMd.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const reserved = RESERVED_LINE.exec(line);
     if (reserved) {
       flushProse();
@@ -248,19 +325,64 @@ async function walk(
     }
     flushProse();
     const id = m[1];
+    // Look ahead before resolving: the quote is part of the directive whether
+    // or not the target turns out to exist, so a failed resolve must still
+    // consume it rather than leave it to render as the author's own quotation.
+    const { quoteMd, next } = attachedQuote(lines, i);
+    i = next - 1;
     const resolved = await resolveTarget(db, id, selfId);
     if (!resolved.ok) {
       fail({ directive: line.trim(), reason: resolved.reason });
       continue;
     }
     const { target } = resolved;
-    transclusions.push({ id: target.id, version: target.version, ...(target.origin ? { origin: target.origin } : {}) });
+
+    // ── Partial (§16.4): the quote must actually be in the target ──────────
+    let selector: TextQuoteSelector | null = null;
+    if (quoteMd !== null) {
+      const selection = selectionFromQuote(quoteMd);
+      if (!selection) {
+        fail({ directive: line.trim(), reason: "the attached blockquote is empty" });
+        continue;
+      }
+      selector = locateSelection(target.contentHtml, selection);
+      if (!selector) {
+        fail({
+          directive: line.trim(),
+          reason: `quoted passage not found in the target's version ${target.version}`,
+        });
+        continue;
+      }
+    }
+
+    transclusions.push({
+      id: target.id,
+      version: target.version,
+      ...(target.origin ? { origin: target.origin } : {}),
+      ...(selector ? { selector } : {}),
+    });
     // data-blyg-origin appears only for remote sources, so a baked own-origin
     // blockquote is byte-identical to the 0.2 shape (decision #26).
     const originAttr = target.origin ? ` data-blyg-origin="${escapeHtml(target.origin)}"` : "";
-    htmlParts.push(
-      `<blockquote class="blyg-transclusion" data-blyg-id="${target.id}" data-blyg-version="${target.version}"${originAttr}>\n${target.contentHtml}\n</blockquote>`,
-    );
+    if (selector) {
+      // P4, a build call recorded in v0.4-plan §7.3 in advance: the bake is the
+      // selection's **plain text** in paragraphs, not a carved sub-range of the
+      // source's inline HTML. The selection is defined on text, and cutting an
+      // HTML range faithfully — reopening the tags a cut crosses — is a second
+      // project with its own failure modes. The class pair is what discloses
+      // that this is a part rather than the whole.
+      const body = selector.exact
+        .split("\n")
+        .map((para) => `<p>${escapeHtml(para)}</p>`)
+        .join("\n");
+      htmlParts.push(
+        `<blockquote class="blyg-transclusion blyg-partial" data-blyg-id="${target.id}" data-blyg-version="${target.version}"${originAttr}>\n${body}\n</blockquote>`,
+      );
+    } else {
+      htmlParts.push(
+        `<blockquote class="blyg-transclusion" data-blyg-id="${target.id}" data-blyg-version="${target.version}"${originAttr}>\n${target.contentHtml}\n</blockquote>`,
+      );
+    }
   }
   flushProse();
   return { html: htmlParts.join("\n"), transclusions, errors };

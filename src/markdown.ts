@@ -66,6 +66,43 @@ export function plainTextFromHtml(html: string): string {
     .trim();
 }
 
+/**
+ * The **selection normalizer** for partial transclusion (spec §16.4, decision
+ * #49, plan §7.3 P2). Written once and exported, because the publish-time check
+ * and any read-side re-check MUST agree exactly: two normalizers that differ by
+ * one space are a construct that verifies on one node and fails on another.
+ *
+ * Same tag-stripping as `plainTextFromHtml`, one difference: a block boundary
+ * becomes a **line break** rather than a space, so the shape of the target's
+ * blocks survives into the string being searched. That is what lets a quote
+ * spanning two paragraphs match — it is a line break on both sides — while a
+ * quote that welds the end of one paragraph to the start of the next does not.
+ *
+ * Whitespace *within* a block collapses to single spaces, including the raw
+ * newlines a markdown renderer leaves inside a `<p>` when the author soft-wrapped
+ * their source. That is the subtle half: splitting the HTML on literal newlines
+ * would make the match depend on where the *author* happened to press return,
+ * which is not a property of the text at all. Hence the sentinel — boundaries
+ * are marked before any whitespace collapsing, so only they survive as breaks.
+ *
+ * Empty segments are dropped, so `<p>a</p><p></p><p>b</p>` normalizes the same
+ * as `<p>a</p><p>b</p>`.
+ */
+const BLOCK_SEP = "\u0000";
+
+export function selectionText(html: string): string {
+  return decodeEntities(
+    html
+      .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+      .replace(BLOCK_BOUNDARY, BLOCK_SEP)
+      .replace(/<[^>]+>/g, ""),
+  )
+    .split(BLOCK_SEP)
+    .map((seg) => seg.replace(/\s+/g, " ").trim())
+    .filter((seg) => seg !== "")
+    .join("\n");
+}
+
 /** First ~n chars of already-rendered HTML's plain text, ellipsized. */
 export function excerptFromHtml(html: string, n = 60): string {
   const text = plainTextFromHtml(html);

@@ -311,6 +311,8 @@ describe("receiving and structural verification (§2.3.5)", () => {
     id?: string;
     stubTargetId?: string | null;
     transcludeId?: string | null;
+    /** §16.4: make the transclusion a partial one, carrying a `selector`. */
+    partial?: boolean;
     withdrawn?: boolean;
     pageHtml?: string;
   }) {
@@ -330,7 +332,18 @@ describe("receiving and structural verification (§2.3.5)", () => {
       content_html: "<p>their response</p>",
       content_hash: "sha256:x",
       media: [],
-      transclusions: opts.transcludeId ? [{ id: opts.transcludeId, version: 1, origin: OURS }] : [],
+      transclusions: opts.transcludeId
+        ? [
+            {
+              id: opts.transcludeId,
+              version: 1,
+              origin: OURS,
+              ...(opts.partial
+                ? { selector: { exact: "a fragment worth", prefix: "", suffix: " responding to" } }
+                : {}),
+            },
+          ]
+        : [],
       ...(opts.stubTargetId ? { stub_of: { origin: OURS, id: opts.stubTargetId, version: 1 } } : {}),
     };
     return {
@@ -375,6 +388,40 @@ describe("receiving and structural verification (§2.3.5)", () => {
     const net = fixtureNet(src.map);
     const outcome = await receiveMention(env.DB, { source: src.page, target }, OURS);
     const result = await verifyMention(env.DB, (outcome as { mentionId: string }).mentionId, src.page, id, OURS, net.fetch);
+    expect(result.relation).toBe("transclusion");
+  });
+
+  // §16.4 / plan §7.3 P5: a partial transclusion is the same construct with a
+  // selector, so verification must reach the same verdict — and must reach it
+  // *without* looking at the selector, which is why this is asserted rather
+  // than assumed. A receiver that started treating `selector` as verification
+  // input would be checking a claim about our text against their copy of it.
+  it("verifies a PARTIAL transclusion as `transclusion` too, ignoring the selector", async () => {
+    const { id, target } = await ourItem();
+    const src = sourceFixture({ transcludeId: id, partial: true });
+    const net = fixtureNet(src.map);
+    const outcome = await receiveMention(env.DB, { source: src.page, target }, OURS);
+    const result = await verifyMention(env.DB, (outcome as { mentionId: string }).mentionId, src.page, id, OURS, net.fetch);
+    expect(result.status).toBe("verified");
+    expect(result.relation).toBe("transclusion");
+  });
+
+  it("verifies a partial whose selector quotes text we never wrote", async () => {
+    // The selector is self-asserted and is NOT a claim verification tests. It
+    // describes what they took from us, checked at *their* publish time
+    // against the snapshot they held; re-checking it here would make delivery
+    // depend on our current text, and §16.4 keeps it out of §15.4 for exactly
+    // that reason. A reader MAY re-check, separately, and display the result.
+    const { id, target } = await ourItem();
+    const src = sourceFixture({ transcludeId: id, partial: true });
+    const doc = JSON.parse(src.map[`${THEIRS}items/${src.id}.json`].body);
+    doc.transclusions[0].selector = { exact: "words we never published anywhere" };
+    src.map[`${THEIRS}items/${src.id}.json`] = { body: JSON.stringify(doc) };
+
+    const net = fixtureNet(src.map);
+    const outcome = await receiveMention(env.DB, { source: src.page, target }, OURS);
+    const result = await verifyMention(env.DB, (outcome as { mentionId: string }).mentionId, src.page, id, OURS, net.fetch);
+    expect(result.status).toBe("verified");
     expect(result.relation).toBe("transclusion");
   });
 
