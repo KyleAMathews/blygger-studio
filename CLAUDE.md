@@ -117,8 +117,11 @@ saying so.
 
 Live on five nodes as of 2026-09-28, two of them Venkat's
 (`venkateshrao.com/blyg/`, `blyg.protocol-institute.org`) and three strangers'
-self-hosts. **0.7.0**, 578 tests, `tsc` clean (with `noUnusedLocals`, on since session 28).
-The deployed nodes run 0.6.1 — 0.7.0 is built and committed, not yet tagged or deployed.
+self-hosts. **0.7.0 is released and deployed to both our nodes** (session 28). Everything
+since is committed and **unreleased**: the two-pane reader, `link post`, thread and reader
+titles, the responses default, and the timezone setting — all of which land in the next
+version, to be cut after the queue below. 652 tests, `tsc` clean (with `noUnusedLocals`,
+on since session 28).
 
 ## Backlog — from Venkat's issue list (session 26, 2026-09-28)
 
@@ -346,6 +349,27 @@ was specified to do in both cases.
   import — because that exercise is what opens the 0.4 document (#43). Bump
   `PROTOCOL_VERSION` to "0.4" in the release that ships it (#18d: emit what you implement).
 
+### Queued for the next version (session 28, Venkat — asked for before release)
+
+Deferred when the session wrapped, not blocked on anything.
+
+- [ ] **SEO metadata and social cards** for a blyg's root URL and for individual items, so
+  a shared link previews properly: Open Graph and Twitter card tags, a description, an
+  image. **Cosmetic, no protocol effect** — the same standing as the linked title under
+  #46: what a client puts in its own `<head>` is its own business, and none of it may
+  become a wire field or a reader obligation. Two things to watch. Items are titleless
+  (§5.3), so `og:title` must be *derived* the way `<title>` already is rather than
+  inventing a title field. And a per-item card image needs a source that exists today —
+  the item's first attached image, or a generated one — because there is no cover-image
+  concept and adding one to the wire is exactly what #46 refused.
+- [ ] **Style the nav as a proper top menu.** Currently a row of plain links. Do this
+  before the mobile pass: a hamburger needs something structured to collapse.
+- [ ] **Mobile pass**, every studio and public page at phone width. Two known problems:
+  the reader's new `.reading-sidebar` stacks above the feed below 720px, which is correct
+  but pushes the stream off the first screen and should collapse behind a control; and the
+  nav should become a hamburger. The public pages have not been looked at on a phone since
+  this session's feed-card and byline changes.
+
 ### New features
 
 - [ ] **Reset the owner password in settings.** **Design is fixed (decision #31), build with
@@ -353,8 +377,10 @@ was specified to do in both cases.
   independent and survive, and the reset flow MUST list them and offer revoke-all, because
   compromise is exactly when an attacker has minted one. Auth today is one shared
   `OWNER_PASSWORD` behind a 30-day HMAC cookie. Anything beyond that shape is Fable.
-- [ ] **Timezone localization for displayed dates.** The complaint is real — dates render in
-  UTC. **The wire must not change:** feed dates stay RFC-822, item documents stay ISO-8601
-  UTC, and `toIsoUtc()` keeps normalizing at the parse boundary. A `timezone` setting
-  localizes *rendering only*, studio and public pages. Writing local time into a feed would
-  reintroduce the session-18 reading-list sort bug on every subscriber.
+- [x] **Timezone localization for displayed dates** — **done session 28.** A `timezone`
+  setting, filled from a list the *browser* supplies (`Intl.supportedValuesOf`) and
+  preselected to the device's zone when unset. `formatDateIn(iso, timeZone)` takes the zone
+  as a **required** parameter on purpose: that turned "find every date" into a compiler
+  task, and it found 28 call sites across six files. Wire unchanged and tested — feed dates
+  RFC-822 in GMT, item documents ISO-8601 UTC. An invalid zone is rejected on save *and*
+  falls back to UTC on render; the second half matters because a bad row is not a typo.
