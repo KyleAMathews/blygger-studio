@@ -62,6 +62,7 @@ export async function getSettings(db: D1Database): Promise<Settings> {
     // nodes sat three releases behind while the mechanism to tell them did not
     // exist. Default-on plus a visible notice and a one-click off is informed
     // rather than silent, which is the property that actually matters.
+    timezone: map.timezone ?? "",
     show_responses_default: map.show_responses_default === "on",
     update_check: map.update_check !== "off",
     update_feed_url: map.update_feed_url ?? "",

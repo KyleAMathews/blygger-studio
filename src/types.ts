@@ -311,6 +311,20 @@ export interface Settings {
   author_links: AuthorLink[];
   /** Canonical origin (full base URL incl. any mount path, e.g. https://example.com/blyg/); empty = derive from request origin + MOUNT. */
   site_url: string;
+  /**
+   * IANA timezone for **rendering dates only** (session 28). Empty = UTC.
+   *
+   * A Worker runs with its clock in UTC, so `toLocaleDateString` rendered every
+   * date in UTC regardless of where the author lives — which is why an evening
+   * post could show tomorrow's date on its own page.
+   *
+   * **The wire does not move.** Feed dates stay RFC-822, item documents stay
+   * ISO-8601 UTC, and `toIsoUtc()` keeps normalizing at the parse boundary.
+   * Writing local time into a feed would reintroduce the session-18
+   * reading-list sort bug on every subscriber that reads us — their sort
+   * compares instants, and a local-time string is not one.
+   */
+  timezone: string;
   avatar_media_id: string;
   /** TK generation (tk-core-plan.md §4/§5): provider model id. Empty = provider default. */
   ai_model: string;

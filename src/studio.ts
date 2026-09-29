@@ -22,7 +22,7 @@ import type { Env, ItemRow, Transclusion, VersionRow } from "./types.ts";
 import { CLIENT, FRAGMENT_MAX_CHARS } from "./types.ts";
 import type { Settings } from "./types.ts";
 import { maybeCheckForUpdate, readState, type UpdateState } from "./update-check.ts";
-import { escapeHtml, normalizeMount, studioPath } from "./util.ts";
+import { escapeHtml, formatDateIn, normalizeMount, studioPath } from "./util.ts";
 import { blygItemUrl } from "./importer/util.ts";
 
 /**
@@ -356,8 +356,9 @@ ${error ? `<p style="color:var(--alert)">${escapeHtml(error)}</p>` : ""}
   );
 }
 
-export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+/** Re-exported for the studio's sub-apps. `timeZone` is required — see formatDateIn. */
+export function formatDate(iso: string, timeZone: string): string {
+  return formatDateIn(iso, timeZone);
 }
 
 /**
@@ -431,7 +432,7 @@ function excerptBlock(
  * with the version it would publish as — the forward-only semantics of
  * model.restoreVersion() made visible rather than implied.
  */
-function historyPanel(item: ItemRow, versions: VersionRow[], mount: string): string {
+function historyPanel(item: ItemRow, versions: VersionRow[], mount: string, tz: string): string {
   if (!versions.length) return `<div class="history" id="history"><h2>history</h2><p>Not yet published.</p></div>`;
   const rows = versions
     .slice()
@@ -462,7 +463,7 @@ function historyPanel(item: ItemRow, versions: VersionRow[], mount: string): str
 <button type="button" data-action="restore" data-id="${item.id}" data-version="${v.version}" data-next="${item.version + 1}">restore&hellip;</button>`;
       return `<li class="h-row" data-version="${v.version}">
 <button type="button" class="h-select" data-action="view-version" data-id="${item.id}" data-version="${v.version}"${isEndcap ? " disabled" : ""}>v${v.version}</button>
-<span class="h-when">${formatDate(v.published_at)}</span>
+<span class="h-when">${formatDate(v.published_at, tz)}</span>
 ${badges}
 ${note}
 <span class="h-actions">${actions}</span>
@@ -517,7 +518,7 @@ function quickEditBtn(item: ItemRow): string {
     : `<button type="button" data-action="quick-edit" data-id="${item.id}">quick edit</button>`;
 }
 
-async function itemRow(db: D1Database, item: ItemRow, mount: string): Promise<string> {
+async function itemRow(db: D1Database, item: ItemRow, mount: string, tz: string): Promise<string> {
   const id = item.id;
   if (item.status === "withdrawn") {
     const versions = await listVersions(db, id);
@@ -527,8 +528,8 @@ async function itemRow(db: D1Database, item: ItemRow, mount: string): Promise<st
     return `<div class="item-row withdrawn-row">
 <p class="excerpt">${chip}withdrawn item — permanent public endcap; working copy retained, republishable</p>
 <p class="timestamps">
-<span>Created: ${formatDate(item.created)}</span>
-<span>Withdrawn: ${formatDate(item.updated)}, v${item.version}${pinnedNote}</span>
+<span>Created: ${formatDate(item.created, tz)}</span>
+<span>Withdrawn: ${formatDate(item.updated, tz)}, v${item.version}${pinnedNote}</span>
 </p>
 <div class="actions"><a href="${studioPath(mount)}/edit/${id}"><button type="button">edit</button></a><button type="button" data-action="republish" data-id="${id}">republish</button></div>
 </div>`;
@@ -540,7 +541,7 @@ async function itemRow(db: D1Database, item: ItemRow, mount: string): Promise<st
     return `<div class="item-row">
 ${excerptBlock('<span class="state draft">○</span>', kind, rowPreview(item, null))}
 <p class="timestamps">
-<span>Created: ${formatDate(item.created)} — draft, never published</span>
+<span>Created: ${formatDate(item.created, tz)} — draft, never published</span>
 <span>Saved: just now</span>
 </p>
 ${item.kind === "thread" ? "" : quickEditBox(item, mount)}
@@ -557,8 +558,8 @@ ${item.kind === "thread" ? "" : quickEditBox(item, mount)}
     return `<div class="item-row dirty">
 ${excerptBlock('<span class="state pub">●</span>', chip, preview, '<span class="unpublished-flag">unpublished changes</span>')}
 <p class="timestamps">
-<span>Created: ${formatDate(item.created)}</span>
-<span>Most recent published: ${formatDate(item.updated)}, v${item.version}</span>
+<span>Created: ${formatDate(item.created, tz)}</span>
+<span>Most recent published: ${formatDate(item.updated, tz)}, v${item.version}</span>
 <span class="draft-line">Draft saved — not yet published</span>
 </p>
 ${isThread ? "" : quickEditBox(item, mount)}
@@ -570,14 +571,14 @@ ${isThread ? "" : quickEditBox(item, mount)}
   const noteHtml = item.version > 1 && note ? `<p class="version-note">&ldquo;${escapeHtml(note)}&rdquo;</p>` : "";
   const nav = versionSummary(item, await listVersions(db, id), mount, isThread);
   const mostRecentLine = isThread
-    ? `<span>Most recent: ${formatDate(item.updated)}, v${item.version} &mdash; transcludes ${preview.transclusions} fragment${preview.transclusions === 1 ? "" : "s"}</span>`
-    : `<span>Most recent: ${formatDate(item.updated)}, v${item.version}</span>`;
+    ? `<span>Most recent: ${formatDate(item.updated, tz)}, v${item.version} &mdash; transcludes ${preview.transclusions} fragment${preview.transclusions === 1 ? "" : "s"}</span>`
+    : `<span>Most recent: ${formatDate(item.updated, tz)}, v${item.version}</span>`;
   return `<div class="item-row">
 ${excerptBlock('<span class="state pub">●</span>', chip, preview)}
 ${nav}
 ${noteHtml}
 <p class="timestamps">
-<span>Created: ${formatDate(item.created)}</span>
+<span>Created: ${formatDate(item.created, tz)}</span>
 ${mostRecentLine}
 </p>
 ${isThread ? "" : quickEditBox(item, mount)}
@@ -1243,12 +1244,12 @@ studio.post("/logout", (c) => {
 studio.get("/", async (c) => {
   const mount = normalizeMount(c.env.MOUNT);
   const items = await listAll(c.env.DB);
-  const rows = await Promise.all(items.map((item) => itemRow(c.env.DB, item, mount)));
+  const settings = await getSettings(c.env.DB);
+  const settingsMap = await getSettingsMap(c.env.DB);
+  const rows = await Promise.all(items.map((item) => itemRow(c.env.DB, item, mount, settings.timezone)));
   // The banner shows what the *last* check found; the check for next time runs
   // after the response. A version notice is never worth a slower studio, and
   // `waitUntil` is what keeps that promise.
-  const settings = await getSettings(c.env.DB);
-  const settingsMap = await getSettingsMap(c.env.DB);
   c.executionCtx.waitUntil(maybeCheckForUpdate(c.env.DB, settings, settingsMap, Date.now()).catch(() => {}));
   const body = `${studioHeader("blyg studio", mount, "compose")}
 ${updateBanner(settings, readState(settingsMap), mount)}
@@ -1298,6 +1299,14 @@ studio.get("/settings", async (c) => {
 <input id="ai_model" name="ai_model" value="${escapeHtml(settings.ai_model)}" placeholder="claude-opus-5">
 <label for="ai_style_prompt">TK site-level style prompt (optional, appended to every generation request)</label>
 <textarea id="ai_style_prompt" name="ai_style_prompt" rows="3">${escapeHtml(settings.ai_style_prompt)}</textarea>
+<label for="timezone">Timezone for displayed dates</label>
+<select id="timezone" name="timezone" data-current="${escapeHtml(settings.timezone)}">
+<option value="">UTC</option>
+${settings.timezone ? `<option value="${escapeHtml(settings.timezone)}" selected>${escapeHtml(settings.timezone)}</option>` : ""}
+</select>
+<p style="margin:0.35rem 0 0;font-size:0.85rem;color:var(--ink-soft);">Your blyg runs on a server whose clock is UTC, so without this an evening
+  post can show tomorrow&rsquo;s date. This changes <em>display only</em>, on your pages and in the studio. What you publish does not move: feed
+  dates stay RFC-822 and item documents stay ISO-8601 UTC, because a subscriber sorts your items by instant and a local-time string is not one.</p>
 <label style="margin-top:1rem;">Updates</label>
 <p style="margin:0.2rem 0 0;"><label style="font-weight:400;"><input type="checkbox" id="update_check"${settings.update_check ? " checked" : ""}>
   Tell me when a newer release of this client exists</label></p>
@@ -1325,6 +1334,41 @@ studio.get("/settings", async (c) => {
 </form>
 <script>${actionScript(mount)}</script>
 <script>
+/**
+ * Fill the timezone picker from the browser: the server has no list worth
+ * shipping and no idea where the author is. Intl.supportedValuesOf gives
+ * every zone this runtime knows, which is the same set the dates will be
+ * formatted against.
+ *
+ * With nothing saved, the device's zone is preselected rather than UTC — the
+ * right answer for almost everyone, and visible and changeable rather than
+ * assumed. It is only a selection: nothing is stored until Save, so the field
+ * states an intention rather than quietly acting on one.
+ */
+(function fillTimezones() {
+  const sel = document.getElementById("timezone");
+  if (!sel) return;
+  const saved = sel.dataset.current || "";
+  let zones = [];
+  try { zones = Intl.supportedValuesOf("timeZone"); } catch (e) { zones = []; }
+  let device = "";
+  try { device = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) { device = ""; }
+  // An older runtime with no zone list: offer what we know rather than nothing,
+  // so the field stays usable instead of collapsing to UTC-only.
+  if (!zones.length) zones = [device, saved].filter(Boolean);
+  const chosen = saved || device;
+  sel.innerHTML =
+    '<option value="">UTC</option>' +
+    zones.map(function (z) {
+      return '<option value="' + z + '"' + (z === chosen ? " selected" : "") + ">" + z + "</option>";
+    }).join("");
+  if (!saved && device) {
+    const hint = document.createElement("span");
+    hint.style.cssText = "font-size:0.8rem;color:var(--ink-soft);margin-left:0.5rem;";
+    hint.textContent = "detected from this device — save to keep it";
+    sel.insertAdjacentElement("afterend", hint);
+  }
+})();
 document.getElementById("settings-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const links = document.getElementById("author_links").value
@@ -1337,6 +1381,7 @@ document.getElementById("settings-form").addEventListener("submit", async (e) =>
     author_name: document.getElementById("author_name").value,
     author_bio: document.getElementById("author_bio").value,
     site_url: document.getElementById("site_url").value,
+    timezone: document.getElementById("timezone").value,
     ai_model: document.getElementById("ai_model").value,
     ai_style_prompt: document.getElementById("ai_style_prompt").value,
     accept_mentions: document.getElementById("accept_mentions").checked,
@@ -1473,9 +1518,10 @@ studio.get("/versions/:id/:v", async (c) => {
   if (!Number.isInteger(version)) return c.json({ error: "bad version" }, 400);
   const row = await getVersion(c.env.DB, item.id, version);
   if (!row) return c.json({ error: "version not found" }, 404);
+  const tz = (await getSettings(c.env.DB)).timezone;
   return c.json({
     version: row.version,
-    published_at: formatDate(row.published_at),
+    published_at: formatDate(row.published_at, tz),
     note: row.note,
     pinned: row.pinned === 1,
     content_html: row.content_html ?? "",
@@ -1570,7 +1616,7 @@ studio.get("/fork", async (c) => {
   const origin = normalizeOrigin(fromSub ?? c.req.query("origin")) ?? ourOrigin;
   const id = c.req.query("id") ?? "";
   const pins = await forkablePins(c.env.DB, origin, id, ourOrigin);
-  return c.html(forkPickerPage(origin, id, ourOrigin, pins, mount));
+  return c.html(forkPickerPage(origin, id, ourOrigin, pins, mount, settings.timezone));
 });
 
 /** Pinned versions of one item, from our own database when it is ours and from the origin's item document when it is not. */
@@ -1611,12 +1657,13 @@ function forkPickerPage(
   ourOrigin: string,
   pins: { versions: { version: number; at: string; note: string | null }[]; error?: string },
   mount: string,
+  tz: string,
 ): string {
   const who = origin === ourOrigin ? "your own item" : escapeHtml(new URL(origin).host);
   const rows = pins.versions
     .map(
       (v) => `<li class="h-row">
-<strong>v${v.version}</strong> <span class="h-when">${formatDate(v.at)}</span>
+<strong>v${v.version}</strong> <span class="h-when">${formatDate(v.at, tz)}</span>
 ${v.note ? `<span class="h-note">&ldquo;${escapeHtml(v.note)}&rdquo;</span>` : ""}
 <span class="h-actions"><button type="button" data-action="fork" data-origin="${escapeHtml(origin)}" data-fork-id="${escapeHtml(id)}" data-version="${v.version}">fork v${v.version}</button></span>
 </li>`,
@@ -1655,12 +1702,13 @@ studio.get("/edit/:id", async (c) => {
   if (!item) return c.notFound();
   const kind = await authoredKind(c.env.DB, item);
   const mount = normalizeMount(c.env.MOUNT);
-  const ourOrigin = siteOrigin(await getSettings(c.env.DB), c.req.url, mount);
-  if (kind === "thread") return c.html(await threadEditPage(c.env.DB, item, mount, ourOrigin));
-  return c.html(await fragmentEditPage(c.env.DB, item, mount, ourOrigin));
+  const settings = await getSettings(c.env.DB);
+  const ourOrigin = siteOrigin(settings, c.req.url, mount);
+  if (kind === "thread") return c.html(await threadEditPage(c.env.DB, item, mount, ourOrigin, settings.timezone));
+  return c.html(await fragmentEditPage(c.env.DB, item, mount, ourOrigin, settings.timezone));
 });
 
-async function fragmentEditPage(db: D1Database, item: ItemRow, mount: string, ourOrigin: string): Promise<string> {
+async function fragmentEditPage(db: D1Database, item: ItemRow, mount: string, ourOrigin: string, tz: string): Promise<string> {
   const media = await listMediaForItem(db, item.id);
   const versions = await listVersions(db, item.id);
   const tk = annotateTkPreview(item.content_md);
@@ -1727,7 +1775,7 @@ ${mediaHtml}
   ${withdrawBtn}
 </span>
 </div>
-${historyPanel(item, versions, mount)}
+${historyPanel(item, versions, mount, tz)}
 <script>${actionScript(mount)}</script>
 <script>${paletteScript(mount)}</script>
 <script>
@@ -1873,7 +1921,7 @@ async function stubHeader(db: D1Database, item: ItemRow, mount: string): Promise
 <button type="button" class="link" data-action="clear-stub" data-id="${item.id}">clear stub</button></p>`;
 }
 
-async function threadEditPage(db: D1Database, item: ItemRow, mount: string, ourOrigin: string): Promise<string> {
+async function threadEditPage(db: D1Database, item: ItemRow, mount: string, ourOrigin: string, tz: string): Promise<string> {
   const media = await listMediaForItem(db, item.id);
   const versions = await listVersions(db, item.id);
   const tk = annotateTkPreview(item.content_md);
@@ -1937,7 +1985,7 @@ ${mediaHtml}
 <span><button type="button" id="attach-btn">attach image</button> ${kindSwitchBtn(item, "thread")}</span>
 <span><button type="button" id="save-draft-btn">save draft</button> <button type="button" class="primary" id="publish-btn">${publishLabel}</button> ${discardBtn} ${withdrawBtn}</span>
 </div>
-${historyPanel(item, versions, mount)}
+${historyPanel(item, versions, mount, tz)}
 <script>${actionScript(mount)}</script>
 <script>${paletteScript(mount)}</script>
 <script>

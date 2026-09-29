@@ -148,9 +148,20 @@ describe("the banner, end to end", () => {
   it("shows an upgrade banner when a newer release has been seen", async () => {
     const cookie = await login();
     // Whatever this client's version is, 99.0.0 is newer.
-    await env.DB.prepare(
-      "INSERT INTO settings (key, value) VALUES ('update_latest_seen', '99.0.0') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-    ).run();
+    //
+    // `update_checked_at` is stamped to now as well, and that is not tidiness:
+    // rendering the studio index schedules a real check under `waitUntil`, so
+    // without it the suite reaches out to GitHub and the answer overwrites the
+    // version this test just seeded. Marking the check as already done today
+    // keeps the test offline and deterministic.
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO settings (key, value) VALUES ('update_latest_seen', '99.0.0') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      ),
+      env.DB.prepare(
+        "INSERT INTO settings (key, value) VALUES ('update_checked_at', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      ).bind(new Date().toISOString()),
+    ]);
     const html = await studioIndex(cookie);
     expect(html).toContain("Update available — 99.0.0");
     expect(html).toContain("npm run upgrade");
@@ -158,9 +169,14 @@ describe("the banner, end to end", () => {
 
   it("shows no upgrade banner when level with the newest release", async () => {
     const cookie = await login();
-    await env.DB.prepare(
-      "INSERT INTO settings (key, value) VALUES ('update_latest_seen', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-    ).bind(CLIENT.version).run();
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO settings (key, value) VALUES ('update_latest_seen', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      ).bind(CLIENT.version),
+      env.DB.prepare(
+        "INSERT INTO settings (key, value) VALUES ('update_checked_at', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      ).bind(new Date().toISOString()),
+    ]);
     expect(await studioIndex(cookie)).not.toContain("Update available");
   });
 

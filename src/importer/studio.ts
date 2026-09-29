@@ -43,7 +43,7 @@ const SUBS_STYLE = `
 .add-sub .mismatch { color: var(--warn); }
 `;
 
-function subRow(sub: SubscriptionRow): string {
+function subRow(sub: SubscriptionRow, tz: string): string {
   const flags: { type: string; at: string; detail?: string }[] = (() => {
     try {
       const parsed = JSON.parse(sub.flags);
@@ -58,7 +58,7 @@ function subRow(sub: SubscriptionRow): string {
         .map((f) => escapeHtml(f.type + (f.detail ? `: ${f.detail}` : "")))
         .join(" · ")}</p>`
     : "";
-  const pollLine = sub.last_poll_at ? `last polled ${formatDate(sub.last_poll_at)}` : "never polled";
+  const pollLine = sub.last_poll_at ? `last polled ${formatDate(sub.last_poll_at, tz)}` : "never polled";
   const pauseResume =
     sub.status === "paused"
       ? `<button type="button" data-action="resume" data-id="${sub.id}">resume</button>`
@@ -143,6 +143,7 @@ export const importerStudio = new Hono<{ Bindings: Env }>({ strict: false });
 
 importerStudio.get("/subs", async (c) => {
   const subs = await listSubscriptions(c.env.DB);
+  const settings = await getSettings(c.env.DB);
   const mount = normalizeMount(c.env.MOUNT);
   const body = `${studioHeader("blyg studio — subscriptions", mount, "subs")}
 <style>${SUBS_STYLE}</style>
@@ -154,7 +155,7 @@ importerStudio.get("/subs", async (c) => {
 </form>
 <div id="add-sub-confirm"></div>
 </div>
-${subs.length ? subs.map(subRow).join("\n") : "<p>No subscriptions yet.</p>"}
+${subs.length ? subs.map((sub) => subRow(sub, settings.timezone)).join("\n") : "<p>No subscriptions yet.</p>"}
 <script>${SUBS_SCRIPT}</script>`;
   return c.html(studioLayout("subscriptions — blyg studio", body));
 });
@@ -294,6 +295,7 @@ async function readingEntryHtml(
   hoppers: HopperRow[],
   mount: string,
   ourOrigin: string,
+  tz: string,
 ): Promise<string> {
   if (e.withdrawn) {
     const retained = e.imported?.pinnedVersionRetained;
@@ -457,7 +459,7 @@ async function readingEntryHtml(
       ? ""
       : "<div class=\"content\"><p><em>(empty)</em></p></div>";
   return `<div class="reading-entry">
-<p class="byline">${byline} <span>&middot; ${formatDate(e.displayAt)}</span>${copyActions ? ` ${copyActions}` : ""}${copyUrl ? ` ${copyUrl}` : ""}${openLink}</p>
+<p class="byline">${byline} <span>&middot; ${formatDate(e.displayAt, tz)}</span>${copyActions ? ` ${copyActions}` : ""}${copyUrl ? ` ${copyUrl}` : ""}${openLink}</p>
 ${withdrawnNote}
 ${titleLine}
 ${body}
@@ -697,7 +699,7 @@ importerStudio.get("/reading", async (c) => {
   // Paged: the merged feed grows without bound as subscriptions accumulate,
   // and every entry renders its full (clamped) content.
   const { page, pages, start } = readingPage(c.req.query("page"), feed.length);
-  const rows = await Promise.all(feed.slice(start, start + READING_PAGE_SIZE).map((e) => readingEntryHtml(c.env.DB, e, hoppers, mount, ourOrigin)));
+  const rows = await Promise.all(feed.slice(start, start + READING_PAGE_SIZE).map((e) => readingEntryHtml(c.env.DB, e, hoppers, mount, ourOrigin, settings.timezone)));
   // The filter has to survive paging, or page 2 of one feed silently becomes
   // page 2 of everything.
   const suffix = selected === "all" ? "" : `&sub=${encodeURIComponent(selected)}`;
@@ -875,7 +877,11 @@ importerStudio.get("/hoppers/:id", async (c) => {
   const hopper = await getHopper(c.env.DB, c.req.param("id"));
   if (!hopper) return c.notFound();
   const mount = normalizeMount(c.env.MOUNT);
-  const [memberships, subs] = await Promise.all([listHopperItems(c.env.DB, hopper.id), listSubscriptions(c.env.DB)]);
+  const [memberships, subs, settings] = await Promise.all([
+    listHopperItems(c.env.DB, hopper.id),
+    listSubscriptions(c.env.DB),
+    getSettings(c.env.DB),
+  ]);
   const titleOf = new Map(subs.map((sub) => [sub.id, sub.title || sub.origin]));
   const originOf = new Map(subs.map((sub) => [sub.id, sub.origin]));
   const rows: string[] = [];
@@ -896,7 +902,7 @@ importerStudio.get("/hoppers/:id", async (c) => {
     const srcOrigin = originOf.get(m.subscription_id);
     const srcLabel = srcOrigin ? `<a href="${escapeHtml(srcOrigin)}">${srcName}</a>` : srcName;
     rows.push(`<div class="reading-entry">
-<p class="byline"><span class="kind-chip">${row.kind}</span>${row.l0 ? ' <span class="l0-chip">legacy rss</span>' : ""} ${srcLabel} &middot; added ${formatDate(m.added_at)}</p>
+<p class="byline"><span class="kind-chip">${row.kind}</span>${row.l0 ? ' <span class="l0-chip">legacy rss</span>' : ""} ${srcLabel} &middot; added ${formatDate(m.added_at, settings.timezone)}</p>
 <div class="content">${content}</div>
 <div class="entry-actions"><button type="button" data-action="remove-hopper-item" data-hopper="${hopper.id}" data-sub="${m.subscription_id}" data-remote="${m.remote_id}">remove from hopper</button> ${stubButton(m.subscription_id, m.remote_id)}</div>
 </div>`);

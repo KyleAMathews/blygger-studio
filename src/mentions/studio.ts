@@ -80,9 +80,9 @@ async function stubBackControl(db: D1Database, row: MentionInRow, mount: string)
   return `<span class="subscribe-first">— not imported yet; <a href="${studioPath(mount)}/subs">resync ${escapeHtml(sub.title || sub.origin)}</a> to stub back</span>`;
 }
 
-function outboundRow(row: MentionOutRow, mount: string): string {
+function outboundRow(row: MentionOutRow, mount: string, tz: string): string {
   const detail = row.last_error ? ` <span class="when">${escapeHtml(row.last_error)}</span>` : "";
-  const when = row.next_attempt_at && row.status === "pending" ? ` <span class="when">retrying after ${formatDate(row.next_attempt_at)}</span>` : "";
+  const when = row.next_attempt_at && row.status === "pending" ? ` <span class="when">retrying after ${formatDate(row.next_attempt_at, tz)}</span>` : "";
   return `<div class="out-row">
 <span class="status ${row.status}">${row.status.replace("_", " ")}</span>
 <a href="${mount}/t/${escapeHtml(row.item_id)}/">v${row.version} of ${escapeHtml(row.item_id.slice(0, 8))}…</a>
@@ -162,8 +162,8 @@ mentionsStudio.get("/mentions", async (c) => {
       lines.push(`<div class="mention-row${row.status === "gone" ? " gone" : ""}${row.hidden ? " hidden-row" : ""}">
 <span class="rel">${escapeHtml(row.relation ?? "mention")}</span>
 <span class="who"><a href="${escapeHtml(row.source_page ?? row.source)}">${escapeHtml(authorName(row))}</a></span>
-<span class="when">v${row.source_version ?? "?"} &middot; first seen ${formatDate(row.first_seen)}${
-        row.last_seen !== row.first_seen ? `, last ${formatDate(row.last_seen)}` : ""
+<span class="when">v${row.source_version ?? "?"} &middot; first seen ${formatDate(row.first_seen, settings.timezone)}${
+        row.last_seen !== row.first_seen ? `, last ${formatDate(row.last_seen, settings.timezone)}` : ""
       }${row.status === "gone" ? " &middot; no longer verifies" : ""}</span>
 ${row.status === "gone" ? "" : await stubBackControl(c.env.DB, row, mount)}
 ${vis}
@@ -205,7 +205,7 @@ ${originWarning}
 <h2>Responses to you</h2>
 ${groups.join("\n") || '<p class="mentions-empty">No verified mentions yet.</p>'}
 <h2>Sent by you</h2>
-${outbound.length ? outbound.map((row) => outboundRow(row, mount)).join("\n") : '<p class="mentions-empty">Nothing sent yet — mentions go out when you publish something that cites another origin.</p>'}
+${outbound.length ? outbound.map((row) => outboundRow(row, mount, settings.timezone)).join("\n") : '<p class="mentions-empty">Nothing sent yet — mentions go out when you publish something that cites another origin.</p>'}
 <script>${stubScript(mount)}</script>
 <script>${RESPONSE_CONTROLS_SCRIPT}</script>`;
   return c.html(studioLayout("mentions — blyg studio", body, true));

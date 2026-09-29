@@ -15,7 +15,7 @@ import { leadingHeading } from "./preview.ts";
 import { authoredKind, getMedia, itemShowsResponses, listMediaForItem, listVersions, publishedVersion } from "./model.ts";
 import type { ItemRow, MediaRow, Settings, SubscriptionRow, Transclusion, VersionRow } from "./types.ts";
 import { WEBMENTION_PATH } from "./types.ts";
-import { escapeHtml } from "./util.ts";
+import { escapeHtml, formatDateIn } from "./util.ts";
 
 
 /**
@@ -731,9 +731,8 @@ async function masthead(db: D1Database, settings: Settings, mount: string): Prom
   return `<div class="masthead">${bits.join("\n")}</div>`;
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-}
+/** Local alias; `timeZone` is required so no call site can silently mean UTC. */
+const formatDate = (iso: string, timeZone: string): string => formatDateIn(iso, timeZone);
 
 /**
  * Version line + note + Created/Most-recent lines.
@@ -752,8 +751,8 @@ function formatDate(iso: string): string {
  * survives withdrawal of the live stream (§2.8), so the endcap page is
  * exactly where a reader needs to be told what remains citable.
  */
-function itemMeta(item: ItemRow, note: string | null, pins: number[], mount: string, isThread: boolean): string {
-  const created = formatDate(item.created);
+function itemMeta(item: ItemRow, note: string | null, pins: number[], mount: string, isThread: boolean, tz: string): string {
+  const created = formatDate(item.created, tz);
   // Citations link the HTML pages (session-18 route); each page links its
   // JSON twin, so the machine-citable file is one hop away, never hidden.
   // isThread comes from the caller, not item.kind — a withdrawn item's kind
@@ -779,7 +778,7 @@ function itemMeta(item: ItemRow, note: string | null, pins: number[], mount: str
     `<span class="vlabel">v${item.version}</span>${pinPart}</p>`;
   const noteHtml = note ? `<p class="version-note">&ldquo;${escapeHtml(note)}&rdquo;</p>` : "";
   const recent =
-    item.version > 1 ? `\n<span>Most recent: ${formatDate(item.updated)}, v${item.version}</span>` : "";
+    item.version > 1 ? `\n<span>Most recent: ${formatDate(item.updated, tz)}, v${item.version}</span>` : "";
   return `${versionLine}
 ${noteHtml}
 <p class="timestamps">
@@ -813,14 +812,15 @@ export function renderFragment(
   // threadBlock already make: a feed card is a pointer to an item, and three
   // lines of apparatus over a one-line fragment inverts that.
   compactCitations = false,
+  tz: string,
 ): string {
   return `<article class="fragment">
-${forkLineage(item, { compact: compactCitations })}
+${forkLineage(item, tz, { compact: compactCitations })}
 <div class="item-content">
 ${contentHtml}
 </div>
 ${mediaHtml(media, mount)}
-${itemMeta(item, note, pins, mount, false)}
+${itemMeta(item, note, pins, mount, false, tz)}
 ${permalinkLink(item.id, false, mount)}
 </article>`;
 }
@@ -829,7 +829,7 @@ ${permalinkLink(item.id, false, mount)}
  * `titleLink` is set on the feed page and unset on the permalink page: on the
  * item's own page the title would link to the page you are already reading.
  */
-async function fragmentBlock(db: D1Database, item: ItemRow, mount: string, titleLink = false): Promise<string> {
+async function fragmentBlock(db: D1Database, item: ItemRow, mount: string, tz: string, titleLink = false): Promise<string> {
   const latest = await publishedVersion(db, item);
   const media = await listMediaForItem(db, item.id);
   const html = latest?.content_html ?? "";
@@ -841,6 +841,7 @@ async function fragmentBlock(db: D1Database, item: ItemRow, mount: string, title
     mount,
     await pinnedVersions(db, item.id),
     titleLink,
+    tz,
   );
 }
 
@@ -963,7 +964,7 @@ function parseTransclusions(json: string | null | undefined): Transclusion[] {
  * `content_html`, the item JSON, the feed or the static export; all of them
  * keep the bare heading.
  */
-async function threadCard(db: D1Database, item: ItemRow, mount: string): Promise<string> {
+async function threadCard(db: D1Database, item: ItemRow, mount: string, tz: string): Promise<string> {
   const latest = await publishedVersion(db, item);
   const html = latest?.content_html ?? "";
   const href = `${mount}/t/${item.id}/`;
@@ -972,28 +973,28 @@ async function threadCard(db: D1Database, item: ItemRow, mount: string): Promise
     ? `<h1 class="thread-card-title"><a class="item-title" href="${href}">${escapeHtml(title)}</a></h1>`
     : "";
   return `<article class="fragment thread-card">
-${stubCitation(latest, { compact: true })}
-${forkLineage(item, { compact: true })}
+${stubCitation(latest, tz, { compact: true })}
+${forkLineage(item, tz, { compact: true })}
 ${titleLine}
 <p><span class="kind-chip">thread</span> ${escapeHtml(excerptFromHtml(rest, 300))}</p>
 <p><a href="${href}">read the thread →</a></p>
-${itemMeta(item, latest?.note ?? null, await pinnedVersions(db, item.id), mount, true)}
+${itemMeta(item, latest?.note ?? null, await pinnedVersions(db, item.id), mount, true, tz)}
 </article>`;
 }
 
-async function threadBlock(db: D1Database, item: ItemRow, mount: string): Promise<string> {
+async function threadBlock(db: D1Database, item: ItemRow, mount: string, tz: string): Promise<string> {
   const latest = await publishedVersion(db, item);
   const transclusions = parseTransclusions(latest?.transclusions);
   const html = injectProvenance(latest?.content_html ?? "", await transclusionProvenance(db, transclusions, mount));
   const media = await listMediaForItem(db, item.id);
   return `<article class="thread">
-${stubCitation(latest)}
-${forkLineage(item)}
+${stubCitation(latest, tz)}
+${forkLineage(item, tz)}
 <div class="item-content">
 ${html}
 </div>
 ${mediaHtml(media, mount)}
-${itemMeta(item, latest?.note ?? null, await pinnedVersions(db, item.id), mount, true)}
+${itemMeta(item, latest?.note ?? null, await pinnedVersions(db, item.id), mount, true, tz)}
 ${permalinkLink(item.id, true, mount)}
 </article>`;
 }
@@ -1009,7 +1010,7 @@ ${permalinkLink(item.id, true, mount)}
  * Versions published before migration 0008 have no frozen half and fall back
  * to the wire marker alone, which is always enough for identity.
  */
-export function stubCitation(row: VersionRow | null, opts: { compact?: boolean } = {}): string {
+export function stubCitation(row: VersionRow | null, tz: string, opts: { compact?: boolean } = {}): string {
   const stub = parseStoredStub(row?.stub_of ?? null);
   if (!stub) return "";
   const cite = parseStoredCite(row?.stub_cite ?? null);
@@ -1026,7 +1027,7 @@ export function stubCitation(row: VersionRow | null, opts: { compact?: boolean }
   if (cite?.excerpt) parts.push(`&ldquo;${escapeHtml(cite.excerpt)}&rdquo;`);
   if ("id" in stub) parts.push(`item <code>${escapeHtml(stub.id)}</code>, v${stub.version}`);
   parts.push(`&lt;<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>&gt;`);
-  if (cite?.retrieved) parts.push(`retrieved ${formatDate(cite.retrieved)}`);
+  if (cite?.retrieved) parts.push(`retrieved ${formatDate(cite.retrieved, tz)}`);
   return `<p class="stub-cite"><span class="label">In response to</span><br>${parts.join(" &middot; ")}</p>`;
 }
 
@@ -1044,7 +1045,7 @@ export function stubCitation(row: VersionRow | null, opts: { compact?: boolean }
  * which is the only kind of URL a lineage pointer is allowed to name, because
  * it is the only one somebody promised to keep serving.
  */
-export function forkLineage(item: ItemRow, opts: { compact?: boolean } = {}): string {
+export function forkLineage(item: ItemRow, tz: string, opts: { compact?: boolean } = {}): string {
   const fork = parseStoredFork(item.forked_from);
   if (!fork) return "";
   const cite = parseStoredCite(item.fork_cite);
@@ -1059,7 +1060,7 @@ export function forkLineage(item: ItemRow, opts: { compact?: boolean } = {}): st
   if (cite?.excerpt) parts.push(`&ldquo;${escapeHtml(cite.excerpt)}&rdquo;`);
   parts.push(`item <code>${escapeHtml(fork.id)}</code>, pinned v${fork.version}`);
   parts.push(`&lt;<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>&gt;`);
-  if (cite?.retrieved) parts.push(`retrieved ${formatDate(cite.retrieved)}`);
+  if (cite?.retrieved) parts.push(`retrieved ${formatDate(cite.retrieved, tz)}`);
   return `<p class="stub-cite"><span class="label">Forked from</span><br>${parts.join(" &middot; ")}</p>`;
 }
 
@@ -1087,6 +1088,7 @@ function clampForeign(raw: string, max = 60): string {
  * load-bearing half, because it is the only part the protocol vouches for.
  */
 export async function responsesSection(db: D1Database, item: ItemRow, settings: Settings, mount: string): Promise<string> {
+  const tz = settings.timezone;
   // The item decides, or defers to the global default — one rule, in model.ts,
   // shared with the studio control that reports what is published.
   if (!itemShowsResponses(item, settings)) return "";
@@ -1105,7 +1107,7 @@ export async function responsesSection(db: D1Database, item: ItemRow, settings: 
     }
     const label = who ? `<span class="who">${escapeHtml(who)}</span> <span class="at-origin">at ${escapeHtml(host)}</span>` : `<span class="who">${escapeHtml(host)}</span>`;
     const rel = row.relation === "transclusion" ? "quoted this" : row.relation === "fork" ? "forked this" : "stubbed this";
-    const when = row.verified_at ? ` <span class="when">&middot; ${formatDate(row.verified_at)}</span>` : "";
+    const when = row.verified_at ? ` <span class="when">&middot; ${formatDate(row.verified_at, tz)}</span>` : "";
     return `<li><a href="${escapeHtml(row.source_page ?? row.source)}">${label}</a> <span class="rel">&middot; ${rel}</span>${when}</li>`;
   });
   return `<section class="responses">
@@ -1116,11 +1118,11 @@ ${lines.join("\n")}
 </section>`;
 }
 
-async function withdrawnBlock(db: D1Database, item: ItemRow, mount: string): Promise<string> {
+async function withdrawnBlock(db: D1Database, item: ItemRow, mount: string, tz: string): Promise<string> {
   const isThread = (await authoredKind(db, item)) === "thread";
   return `<article class="fragment withdrawn"><p>This item was withdrawn.</p>
-${forkLineage(item)}
-${itemMeta(item, null, await pinnedVersions(db, item.id), mount, isThread)}
+${forkLineage(item, tz)}
+${itemMeta(item, null, await pinnedVersions(db, item.id), mount, isThread, tz)}
 </article>`;
 }
 
@@ -1203,8 +1205,8 @@ export async function feedPage(db: D1Database, settings: Settings, items: ItemRo
   for (const item of items) {
     // Withdrawn items don't appear on the feed page (rev-3 wireframe note) —
     // they still live in the archive listing and their permanent endcap URLs.
-    if (item.kind === "fragment") blocks.push(await fragmentBlock(db, item, mount, true));
-    else if (item.kind === "thread") blocks.push(await threadCard(db, item, mount));
+    if (item.kind === "fragment") blocks.push(await fragmentBlock(db, item, mount, settings.timezone, true));
+    else if (item.kind === "thread") blocks.push(await threadCard(db, item, mount, settings.timezone));
   }
   const blogrollSubs = await listBlogrollSubscriptions(db);
   const body = `<div class="blyg">
@@ -1276,7 +1278,7 @@ export async function permalinkPage(db: D1Database, settings: Settings, item: It
   if (item.kind === "withdrawn") {
     return layout(
       `withdrawn — ${settings.site_title}`,
-      `<div class="blyg">\n${await pageTop(db, settings, mount)}\n${await withdrawnBlock(db, item, mount)}\n</div>`,
+      `<div class="blyg">\n${await pageTop(db, settings, mount)}\n${await withdrawnBlock(db, item, mount, settings.timezone)}\n</div>`,
       mount,
       withdrawnMeta(settings, url, alternateJson, webmention),
     );
@@ -1286,7 +1288,7 @@ export async function permalinkPage(db: D1Database, settings: Settings, item: It
   const text = excerptFromHtml(latest?.content_html ?? "", 200);
   const body = `<div class="blyg">
 ${await pageTop(db, settings, mount)}
-${await fragmentBlock(db, item, mount)}
+${await fragmentBlock(db, item, mount, settings.timezone)}
 ${await responsesSection(db, item, settings, mount)}
 </div>
 <script>${VERSION_NAV_SCRIPT}</script>`;
@@ -1309,7 +1311,7 @@ export async function threadPage(db: D1Database, settings: Settings, item: ItemR
   if (item.kind === "withdrawn") {
     return layout(
       `withdrawn — ${settings.site_title}`,
-      `<div class="blyg">\n${await pageTop(db, settings, mount)}\n${await withdrawnBlock(db, item, mount)}\n</div>`,
+      `<div class="blyg">\n${await pageTop(db, settings, mount)}\n${await withdrawnBlock(db, item, mount, settings.timezone)}\n</div>`,
       mount,
       withdrawnMeta(settings, url, alternateJson, webmention),
     );
@@ -1318,7 +1320,7 @@ export async function threadPage(db: D1Database, settings: Settings, item: ItemR
   const media = await listMediaForItem(db, item.id);
   const body = `<div class="blyg">
 ${await pageTop(db, settings, mount)}
-${await threadBlock(db, item, mount)}
+${await threadBlock(db, item, mount, settings.timezone)}
 ${await responsesSection(db, item, settings, mount)}
 </div>
 <script>${VERSION_NAV_SCRIPT}</script>`;
@@ -1359,6 +1361,7 @@ export async function pinnedVersionPage(
   mount: string,
   origin: string,
 ): Promise<string> {
+  const tz = settings.timezone;
   const live = `${mount}/${isThread ? "t" : "f"}/${item.id}/`;
   const html = isThread
     ? injectProvenance(row.content_html, await transclusionProvenance(db, parseTransclusions(row.transclusions), mount))
@@ -1366,17 +1369,17 @@ export async function pinnedVersionPage(
   const noteHtml = row.note ? `<p class="version-note">&ldquo;${escapeHtml(row.note)}&rdquo;</p>` : "";
   // A pin is a frozen artifact of a response, so it carries the citation that
   // was true when it froze — not whatever the live item cites now.
-  const cite = isThread ? stubCitation(row) : "";
+  const cite = isThread ? stubCitation(row, tz) : "";
   const body = `<div class="blyg">
 ${await pageTop(db, settings, mount)}
-<p class="pinned-banner">📌 Pinned v${row.version} — a frozen snapshot from ${formatDate(row.published_at)}.
+<p class="pinned-banner">📌 Pinned v${row.version} — a frozen snapshot from ${formatDate(row.published_at, tz)}.
 <a href="${live}">latest version</a> &middot; <a href="${mount}/items/${item.id}/v${row.version}.json">citable JSON</a></p>
 <article class="${isThread ? "thread" : "fragment"}">
 ${cite}
-${forkLineage(item)}
+${forkLineage(item, tz)}
 ${html}
 ${noteHtml}
-<p class="timestamps"><span>Published: ${formatDate(row.published_at)}</span></p>
+<p class="timestamps"><span>Published: ${formatDate(row.published_at, tz)}</span></p>
 </article>
 </div>`;
   // Canonical points at the live permalink (absolute — origin is the blyg
@@ -1401,6 +1404,7 @@ ${noteHtml}
 }
 
 export async function archivePage(db: D1Database, settings: Settings, items: ItemRow[], mount: string, origin: string): Promise<string> {
+  const tz = settings.timezone;
   const rows: string[] = [];
   for (const item of items) {
     // A withdrawn row is a link like any other: the endcap page is a real,
@@ -1410,7 +1414,7 @@ export async function archivePage(db: D1Database, settings: Settings, items: Ite
     if (item.kind === "withdrawn") {
       const href = `${mount}/${(await authoredKind(db, item)) === "thread" ? "t" : "f"}/${item.id}/`;
       rows.push(
-        `<li class="withdrawn"><span class="row-main"><a href="${href}">withdrawn</a></span><span class="meta">${formatDate(item.updated)}</span></li>`,
+        `<li class="withdrawn"><span class="row-main"><a href="${href}">withdrawn</a></span><span class="meta">${formatDate(item.updated, tz)}</span></li>`,
       );
       continue;
     }
@@ -1419,7 +1423,7 @@ export async function archivePage(db: D1Database, settings: Settings, items: Ite
     const text = excerptFromHtml(latest?.content_html ?? "", 80);
     const href = `${mount}/${isThread ? "t" : "f"}/${item.id}/`;
     rows.push(
-      `<li><span class="row-main">${isThread ? '<span class="kind-chip">thread</span> ' : ""}<a href="${href}">${escapeHtml(text)}</a></span><span class="meta">${formatDate(item.updated)} · v${item.version}</span></li>`,
+      `<li><span class="row-main">${isThread ? '<span class="kind-chip">thread</span> ' : ""}<a href="${href}">${escapeHtml(text)}</a></span><span class="meta">${formatDate(item.updated, tz)} · v${item.version}</span></li>`,
     );
   }
   const body = `<div class="blyg">

@@ -238,12 +238,12 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
     // show what it answers, in the same injected-presentation layer as
     // transclusion provenance (which has been in the description since 0.1).
     if (!isWithdrawn && isThread && latest?.stub_of) {
-      html = absolutizeHtml(stubCitation(latest, { compact: true }), origin) + html;
+      html = absolutizeHtml(stubCitation(latest, settings.timezone, { compact: true }), origin) + html;
     }
     // Lineage rides along for the same reason, and for both kinds — a fork is
     // a fragment as often as a thread.
     if (!isWithdrawn && item.forked_from) {
-      html = absolutizeHtml(forkLineage(item, { compact: true }), origin) + html;
+      html = absolutizeHtml(forkLineage(item, settings.timezone, { compact: true }), origin) + html;
     }
     const excerptText = isWithdrawn ? "" : isThread ? excerptFromHtml(rawHtml, 60) : excerpt(latestMd, 60);
     itemsXml.push(

@@ -30,7 +30,7 @@ import { siteOrigin } from "./protocol.ts";
 import { parseForkedFrom, parseStoredFork, parseStoredStub, parseStubOf } from "./stub.ts";
 import { runGenerateScope } from "./tk-generate.ts";
 import type { Env } from "./types.ts";
-import { newMediaId, normalizeMount, nowIso } from "./util.ts";
+import { isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
 
 const MEDIA_TYPES: Record<string, string> = {
   "image/png": "png",
@@ -317,6 +317,7 @@ const SETTINGS_KEYS = [
   "site_url",
   "avatar_media_id",
   "update_feed_url",
+  "timezone",
   "ai_model",
   "ai_style_prompt",
 ] as const;
@@ -348,6 +349,12 @@ api.put("/settings", async (c) => {
     patch.update_check = body.update_check;
   } else if (body.update_check !== undefined) {
     return c.json({ error: "update_check must be a boolean, or \"on\" / \"off\"" }, 400);
+  }
+  // Validated rather than trusted: a bad zone would otherwise be written once
+  // and then silently swallowed by formatDateIn's UTC fallback on every page,
+  // leaving the author with a setting that looks saved and does nothing.
+  if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) {
+    return c.json({ error: `unknown timezone: ${patch.timezone}` }, 400);
   }
   if (typeof body.show_responses_default === "boolean") {
     patch.show_responses_default = body.show_responses_default ? "on" : "off";

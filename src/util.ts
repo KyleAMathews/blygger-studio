@@ -138,3 +138,39 @@ export function relativeTime(iso: string, now = Date.now()): string {
   if (d < 365) return `${d}d ago`;
   return `${Math.floor(d / 365)}y ago`;
 }
+
+/**
+ * A date as the author's readers should see it (session 28).
+ *
+ * `timeZone` is **required**, not defaulted, and that is the point: every call
+ * site has to say which zone it means, so a new one cannot quietly inherit UTC
+ * the way all 28 of them did before. An empty string means UTC explicitly.
+ *
+ * Rendering only. Nothing on the wire is formatted through here — feed dates
+ * are RFC-822 and item documents are ISO-8601 UTC, both produced elsewhere and
+ * both unaffected by this setting.
+ *
+ * An invalid zone falls back to UTC rather than throwing: the setting is
+ * validated when it is saved, but a database row is not a type, and a blyg
+ * whose every page 500s because of a bad string in settings would be a worse
+ * failure than a date in the wrong zone.
+ */
+export function formatDateIn(iso: string, timeZone: string): string {
+  const opts: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };
+  try {
+    return new Date(iso).toLocaleDateString("en-US", { ...opts, timeZone: timeZone || "UTC" });
+  } catch {
+    return new Date(iso).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
+  }
+}
+
+/** Is this a timezone the runtime actually knows? Used to validate the setting on save. */
+export function isValidTimeZone(tz: string): boolean {
+  if (!tz) return true; // empty means UTC
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
