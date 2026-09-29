@@ -117,11 +117,12 @@ saying so.
 
 Live on five nodes as of 2026-09-28, two of them Venkat's
 (`venkateshrao.com/blyg/`, `blyg.protocol-institute.org`) and three strangers'
-self-hosts. **0.8.0 is cut (session 29, 2026-09-29)** — the two-pane reader, `link post`,
-thread and reader titles, the responses default (migration 0012), the timezone setting,
-update alerts, the `init`/`upgrade` scripts and the generic packaging, plus session 29's
-top menu, mobile pass and finished social cards. **It carries a migration**, so an upgrade
-is not a bare deploy. 677 tests, `tsc` clean (with `noUnusedLocals`, on since session 28).
+self-hosts. **0.8.0 is released and deployed to both our nodes** (session 29, 2026-09-29) — the
+two-pane reader, `link post`, thread and reader titles, the responses default, the
+timezone setting, update alerts, the `init`/`upgrade` scripts and the generic packaging,
+plus session 29's top menu, mobile pass and finished social cards. **It carried migration
+0012**, applied to both databases before the deploy; a node upgrading from 0.7.0 must do
+the same. 677 tests, `tsc` clean (with `noUnusedLocals`, on since session 28).
 
 ## Backlog — from Venkat's issue list (session 26, 2026-09-28)
 
