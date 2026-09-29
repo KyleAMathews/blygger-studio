@@ -12,7 +12,7 @@ import { escapeHtml, normalizeMount, studioPath } from "../util.ts";
 import type { ImportedEntryInput, OwnEntryInput, ReadingFeedEntry } from "./reading.ts";
 import { buildReadingFeed } from "./reading.ts";
 import { sanitizeHtml } from "./sanitize.ts";
-import { previewFromHtml, splitL0Content } from "../preview.ts";
+import { leadingHeading, previewFromHtml, splitL0Content } from "../preview.ts";
 import {
   getHopper,
   getImportedItem,
@@ -415,10 +415,38 @@ async function readingEntryHtml(
     // your own earlier item in a new post is ordinary.
     actions = `<div class="entry-actions">${linkPost}</div>`;
   }
-  // L0 entries lead with a title link (l0.ts renders "[title](link)" as the
-  // first paragraph); promote it out of the body so the list is scannable
-  // instead of title and summary reading as one undifferentiated block.
-  const { titleHtml, bodyHtml } = e.l0 ? splitL0Content(e.contentHtml) : { titleHtml: null, bodyHtml: e.contentHtml };
+  // Promote a title out of the body so the list is scannable, instead of title
+  // and summary reading as one undifferentiated block.
+  //
+  // Two sources, because the two kinds of entry carry a title differently:
+  //
+  //   L0  — l0.ts renders the feed's "[title](link)" as the first paragraph,
+  //         so the title is already an anchor and `splitL0Content` lifts it.
+  //   blyg — the author's own leading heading, lifted by `leadingHeading` and
+  //         linked to the item at its origin.
+  //
+  // The blyg half is new in session 28. Until now only L0 entries got a
+  // promoted title, so a titled thread from a real blyg rendered its heading
+  // inline in the clamped body at 1rem — the same asymmetry the public feed
+  // page had, arrived at by a different route. Three surfaces now agree.
+  //
+  // Presentation only. Decision #46: no title field at any version, items stay
+  // titleless (§5.3), and a *reader* MUST NOT extract a title from a leading
+  // heading. That rule is about what a reader may assert on the wire or treat
+  // as structure — here nothing is asserted, stored or re-published; a heading
+  // is drawn larger in our own list and the stored HTML is untouched. #46 calls
+  // the linked title "a studio task" in as many words.
+  const nativeHeading = e.l0 ? { title: null, rest: e.contentHtml } : leadingHeading(e.contentHtml);
+  const { titleHtml, bodyHtml } = e.l0
+    ? splitL0Content(e.contentHtml)
+    : {
+        titleHtml: nativeHeading.title
+          ? openHref
+            ? `<a href="${escapeHtml(openHref)}" target="_blank" rel="noopener">${escapeHtml(nativeHeading.title)}</a>`
+            : escapeHtml(nativeHeading.title)
+          : null,
+        bodyHtml: nativeHeading.rest,
+      };
   const titleLine = titleHtml ? `<p class="entry-title">${titleHtml}</p>` : "";
   // Entries are clamped rather than truncated: nothing is lost, and no
   // markup is cut (which would break tags). "more" lifts the clamp.
