@@ -349,6 +349,13 @@ api.put("/settings", async (c) => {
   } else if (body.update_check !== undefined) {
     return c.json({ error: "update_check must be a boolean, or \"on\" / \"off\"" }, 400);
   }
+  if (typeof body.show_responses_default === "boolean") {
+    patch.show_responses_default = body.show_responses_default ? "on" : "off";
+  } else if (body.show_responses_default === "on" || body.show_responses_default === "off") {
+    patch.show_responses_default = body.show_responses_default;
+  } else if (body.show_responses_default !== undefined) {
+    return c.json({ error: 'show_responses_default must be a boolean, or "on" / "off"' }, 400);
+  }
   if (body.update_notice_ack === true || body.update_notice_ack === "on") {
     patch.update_notice_ack = "on";
   }

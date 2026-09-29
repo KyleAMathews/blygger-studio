@@ -1310,6 +1310,11 @@ studio.get("/settings", async (c) => {
 <p style="margin:0.35rem 0 0;font-size:0.85rem;color:var(--ink-soft);">Only worth changing if you have modified this client and track your own
   versions — in which case point it at your own releases, or turn the check off. Comparing your fork's version against ours would be confidently wrong.</p>
 <label style="margin-top:1rem;">Responses from other blygs</label>
+<p style="margin:0.2rem 0 0;"><label style="font-weight:400;"><input type="checkbox" id="show_responses_default"${settings.show_responses_default ? " checked" : ""}>
+  Show verified responses on my items&rsquo; public pages, by default</label></p>
+<p style="margin:0.35rem 0 0;font-size:0.85rem;color:var(--ink-soft);">Applies to every item that has not decided for itself. Any item can override
+  this in the <a href="${studioPath(mount)}/mentions">mentions</a> tab, and an override keeps winning if you change this later; individual responses
+  can be hidden there too. A response list is a citation trail with no count &mdash; who responded and from where, never how many people like you.</p>
 <p style="margin:0.2rem 0 0;"><label style="font-weight:400;"><input type="checkbox" id="accept_mentions"${settings.accept_mentions ? " checked" : ""}>
   Accept Webmentions — let other blygs tell yours when they quote, respond to or fork an item</label></p>
 <p style="margin:0.35rem 0 0;font-size:0.85rem;color:var(--ink-soft);">This is the one public endpoint your blyg serves that needs no password,
@@ -1336,6 +1341,7 @@ document.getElementById("settings-form").addEventListener("submit", async (e) =>
     ai_style_prompt: document.getElementById("ai_style_prompt").value,
     accept_mentions: document.getElementById("accept_mentions").checked,
     update_check: document.getElementById("update_check").checked,
+    show_responses_default: document.getElementById("show_responses_default").checked,
     update_feed_url: document.getElementById("update_feed_url").value,
     author_links: links,
   };

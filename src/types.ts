@@ -36,7 +36,18 @@ export interface ItemRow {
    * §3.4). Off by default: other people's names appearing on your page is an
    * editorial act, so it is one you take deliberately, per item.
    */
+  /** Legacy two-valued flag, superseded by `responses_override` (migration 0012). Retained, not read. */
   show_responses: number;
+  /**
+   * Whether this item shows its verified responses, or `null` to follow the
+   * global default (migration 0012).
+   *
+   * Three states rather than two, because "off" and "no opinion" stop being
+   * the same thing the moment a global default exists: an item that has never
+   * been touched should follow the setting, and an item the author decided
+   * about should not.
+   */
+  responses_override: number | null;
   /**
    * Working-copy stub citation (migration 0007, v0.3-plan §2.2) — JSON `StubOf`
    * or null. Threads only. Carried onto the published version by publish(),
@@ -337,6 +348,16 @@ export interface Settings {
    * look at. (#18d governs *protocol* version, a different question.)
    */
   update_check: boolean;
+  /**
+   * Whether items show their verified responses when they express no
+   * preference of their own (session 28).
+   *
+   * Off by default, which preserves the session-23 ruling's shape: a response
+   * list is opt-in, because it is a page built out of *other people's* items
+   * and publishing one is an editorial act. The setting moves that decision
+   * from per-item to once — it does not reverse it.
+   */
+  show_responses_default: boolean;
   /** Where to ask. Configurable so a fork checks its own releases, not ours. */
   update_feed_url: string;
   /**

@@ -10,7 +10,7 @@ import { Hono } from "hono";
 import { stubScript } from "../importer/studio.ts";
 import { listSubscriptions } from "../importer/store.ts";
 import { excerptFromHtml } from "../markdown.ts";
-import { getItem, publishedVersion } from "../model.ts";
+import { getItem, getSettings, itemShowsResponses, publishedVersion } from "../model.ts";
 import { formatDate, studioHeader, studioLayout } from "../studio.ts";
 import type { Env, MentionInRow, MentionOutRow } from "../types.ts";
 import { escapeHtml, normalizeMount, studioPath } from "../util.ts";
@@ -92,15 +92,23 @@ function outboundRow(row: MentionOutRow, mount: string): string {
 
 const RESPONSE_CONTROLS_SCRIPT = `
 document.addEventListener("change", async (e) => {
-  const box = e.target.closest("[data-action='toggle-responses']");
-  if (!box) return;
-  const res = await fetch("/api/items/" + box.dataset.id + "/responses", {
+  const sel = e.target.closest("[data-action='set-responses']");
+  if (!sel) return;
+  const previous = sel.dataset.was || "default";
+  const res = await fetch("/api/items/" + sel.dataset.id + "/responses", {
     method: "PUT",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ show: box.checked }),
+    body: JSON.stringify({ mode: sel.value }),
   });
-  if (!res.ok) { box.checked = !box.checked; alert("Could not change that setting."); return; }
+  if (!res.ok) { sel.value = previous; alert("Could not change that setting."); return; }
+  // Reload rather than patching in place: the "N on the page now" line next to
+  // this control is a fact about what readers see, and it has just changed.
   location.reload();
+});
+// Remember what each select was, so a failed request can put it back.
+document.addEventListener("focusin", (e) => {
+  const sel = e.target.closest("[data-action='set-responses']");
+  if (sel) sel.dataset.was = sel.value;
 });
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-action='toggle-hidden']");
@@ -120,6 +128,8 @@ mentionsStudio.get("/mentions", async (c) => {
   const mount = normalizeMount(c.env.MOUNT);
   const inbound = await listVerifiedInbound(c.env.DB);
   const outbound = await listOutbound(c.env.DB);
+  // Needed to say which way each item's "use my default" currently resolves.
+  const settings = await getSettings(c.env.DB);
 
   // Grouped by *our* item: the question an author asks is "who responded to
   // this", not "what arrived most recently".
@@ -159,13 +169,23 @@ ${row.status === "gone" ? "" : await stubBackControl(c.env.DB, row, mount)}
 ${vis}
 </div>`);
     }
-    const showing = item?.show_responses === 1;
+    // Three states, and the control says which one is doing the work — a
+    // checkbox could not distinguish "off because I said so" from "off because
+    // the default is off", and those behave differently the moment the default
+    // changes.
+    const override = item ? item.responses_override : null;
+    const showing = item ? itemShowsResponses(item, settings) : false;
+    const mode = override === null || override === undefined ? "default" : override === 1 ? "show" : "hide";
+    const defaultWord = settings.show_responses_default ? "showing" : "hidden";
     const shown = rows.filter((r) => r.status === "verified" && !r.hidden).length;
     groups.push(`<div class="mention-group">
 <h3><a href="${mount}/${kind}/${escapeHtml(itemId)}/">${escapeHtml(label)}</a> &middot; ${rows.length} response${rows.length === 1 ? "" : "s"}</h3>
-<p class="group-controls"><label><input type="checkbox" data-action="toggle-responses" data-id="${escapeHtml(itemId)}" ${showing ? "checked" : ""}> show responses on this item's public page</label>${
-      showing ? ` <span class="on-page">— ${shown} on the page now</span>` : ""
-    }</p>
+<p class="group-controls"><label>Responses on this item's public page:
+<select data-action="set-responses" data-id="${escapeHtml(itemId)}">
+<option value="default"${mode === "default" ? " selected" : ""}>use my default (${defaultWord})</option>
+<option value="show"${mode === "show" ? " selected" : ""}>always show</option>
+<option value="hide"${mode === "hide" ? " selected" : ""}>never show</option>
+</select></label>${showing ? ` <span class="on-page">— ${shown} on the page now</span>` : ""}</p>
 ${lines.join("\n")}
 </div>`);
   }

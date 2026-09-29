@@ -12,7 +12,7 @@ import { blygItemUrl } from "./importer/util.ts";
 import { parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
 import { excerptFromHtml } from "./markdown.ts";
 import { leadingHeading } from "./preview.ts";
-import { authoredKind, getMedia, listMediaForItem, listVersions, publishedVersion } from "./model.ts";
+import { authoredKind, getMedia, itemShowsResponses, listMediaForItem, listVersions, publishedVersion } from "./model.ts";
 import type { ItemRow, MediaRow, Settings, SubscriptionRow, Transclusion, VersionRow } from "./types.ts";
 import { WEBMENTION_PATH } from "./types.ts";
 import { escapeHtml } from "./util.ts";
@@ -1086,8 +1086,10 @@ function clampForeign(raw: string, max = 60): string {
  * authenticated, the relation, and the date. The origin is rendered as the
  * load-bearing half, because it is the only part the protocol vouches for.
  */
-export async function responsesSection(db: D1Database, item: ItemRow, mount: string): Promise<string> {
-  if (item.show_responses !== 1) return "";
+export async function responsesSection(db: D1Database, item: ItemRow, settings: Settings, mount: string): Promise<string> {
+  // The item decides, or defers to the global default — one rule, in model.ts,
+  // shared with the studio control that reports what is published.
+  if (!itemShowsResponses(item, settings)) return "";
   const rows = await listPublicResponses(db, item.id);
   if (!rows.length) return "";
   const lines = rows.map((row) => {
@@ -1285,7 +1287,7 @@ export async function permalinkPage(db: D1Database, settings: Settings, item: It
   const body = `<div class="blyg">
 ${await pageTop(db, settings, mount)}
 ${await fragmentBlock(db, item, mount)}
-${await responsesSection(db, item, mount)}
+${await responsesSection(db, item, settings, mount)}
 </div>
 <script>${VERSION_NAV_SCRIPT}</script>`;
   return layout(itemTitle(excerptFromHtml(latest?.content_html ?? "", 70), settings), body, mount, {
@@ -1317,7 +1319,7 @@ export async function threadPage(db: D1Database, settings: Settings, item: ItemR
   const body = `<div class="blyg">
 ${await pageTop(db, settings, mount)}
 ${await threadBlock(db, item, mount)}
-${await responsesSection(db, item, mount)}
+${await responsesSection(db, item, settings, mount)}
 </div>
 <script>${VERSION_NAV_SCRIPT}</script>`;
   return layout(itemTitle(excerptFromHtml(latest?.content_html ?? "", 70), settings), body, mount, {

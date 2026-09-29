@@ -62,6 +62,7 @@ export async function getSettings(db: D1Database): Promise<Settings> {
     // nodes sat three releases behind while the mechanism to tell them did not
     // exist. Default-on plus a visible notice and a one-click off is informed
     // rather than silent, which is the property that actually matters.
+    show_responses_default: map.show_responses_default === "on",
     update_check: map.update_check !== "off",
     update_feed_url: map.update_feed_url ?? "",
     /** Cleared until the operator has seen the "alerts are on" notice once. */
@@ -149,6 +150,23 @@ export async function setDraftKind(db: D1Database, id: string, kind: "fragment" 
     .prepare("UPDATE items SET kind = ?, dirty = 1, updated = ? WHERE id = ? AND version = 0")
     .bind(kind, nowIso(), id)
     .run();
+}
+
+/**
+ * Does this item show its verified responses?
+ *
+ * One function, because the rule is a fallback chain and a second copy of a
+ * fallback chain is how the public page and the studio's own control end up
+ * disagreeing about what is published — the worst possible place for a
+ * disagreement, since only one of them is what readers actually see.
+ *
+ * `responses_override` is the item's own decision; `null` means it has none
+ * and the global default applies (migration 0012).
+ */
+export function itemShowsResponses(item: ItemRow, settings: Settings): boolean {
+  return item.responses_override === null || item.responses_override === undefined
+    ? settings.show_responses_default
+    : item.responses_override === 1;
 }
 
 /** Save the working copy. Does not touch `updated` for ever-published items — that field is publish-facing. */
