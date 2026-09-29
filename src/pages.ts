@@ -11,6 +11,7 @@ import { listPublicResponses } from "./mentions/store.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
 import { excerptFromHtml } from "./markdown.ts";
+import { leadingHeading } from "./preview.ts";
 import { authoredKind, getMedia, listMediaForItem, listVersions, publishedVersion } from "./model.ts";
 import type { ItemRow, MediaRow, Settings, SubscriptionRow, Transclusion, VersionRow } from "./types.ts";
 import { WEBMENTION_PATH } from "./types.ts";
@@ -370,6 +371,9 @@ article.showing-pin .item-content[aria-busy="true"] { opacity: 0.5; }
  * left-aligned: the controls and the citations never move. */
 .version-line .vlabel { display: inline-block; min-width: 6.5em; }
 
+/* A thread card's title. Sized to the card, not to the page: a thread-card h1
+   at document scale would shout over the fragments beside it in the feed. */
+.thread-card-title { font-size: 1.15rem; line-height: 1.25; margin: 0 0 0.35rem; }
 /* A titled item's heading is its link; it should read as the heading, with the
  * link only showing on hover, rather than as a blue headline. */
 .blyg a.item-title { color: inherit; text-decoration: none; }
@@ -935,14 +939,44 @@ function parseTransclusions(json: string | null | undefined): Transclusion[] {
   return JSON.parse(json) as Transclusion[];
 }
 
+/**
+ * A thread on the feed page is a teaser, not the thread: long-form items would
+ * otherwise crowd out everything else in a mixed stream. That is why this
+ * renders a plain-text excerpt rather than the item's HTML.
+ *
+ * Which is also why a titled thread used to lose its title (session 28,
+ * reported by Venkat). A fragment card renders real HTML and gets
+ * `linkLeadingTitle`; a thread card renders escaped text, so a leading `<h1>`
+ * arrived as the first words of the excerpt — unstyled, unlinked, and
+ * duplicated by the "read the thread" line beneath it. The asymmetry was an
+ * accident of the two renderers, not a decision.
+ *
+ * Split the heading off instead: it becomes the link, and the excerpt starts
+ * from the text after it, so the title is no longer also the first sentence.
+ *
+ * **Presentation only, and it has to be.** Decision #46 rules there is no
+ * title field at any version, items stay titleless (§5.3), and a *reader*
+ * MUST NOT extract a title from a leading heading — inventing structure the
+ * publisher did not assert is exactly what that rule prevents. What a client
+ * does with its own pages is its own business, and #46 says so in as many
+ * words: "the 'linked title' wish is a studio task". Nothing here touches
+ * `content_html`, the item JSON, the feed or the static export; all of them
+ * keep the bare heading.
+ */
 async function threadCard(db: D1Database, item: ItemRow, mount: string): Promise<string> {
   const latest = await publishedVersion(db, item);
   const html = latest?.content_html ?? "";
+  const href = `${mount}/t/${item.id}/`;
+  const { title, rest } = leadingHeading(html);
+  const titleLine = title
+    ? `<h1 class="thread-card-title"><a class="item-title" href="${href}">${escapeHtml(title)}</a></h1>`
+    : "";
   return `<article class="fragment thread-card">
 ${stubCitation(latest, { compact: true })}
 ${forkLineage(item, { compact: true })}
-<p><span class="kind-chip">thread</span> ${escapeHtml(excerptFromHtml(html, 300))}</p>
-<p><a href="${mount}/t/${item.id}/">read the thread →</a></p>
+${titleLine}
+<p><span class="kind-chip">thread</span> ${escapeHtml(excerptFromHtml(rest, 300))}</p>
+<p><a href="${href}">read the thread →</a></p>
 ${itemMeta(item, latest?.note ?? null, await pinnedVersions(db, item.id), mount, true)}
 </article>`;
 }
