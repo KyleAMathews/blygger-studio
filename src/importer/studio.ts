@@ -4,7 +4,8 @@
 // ../studio.ts (no client framework, per CLAUDE.md stack conventions).
 
 import { Hono } from "hono";
-import { authoredKind, listPublic, publishedVersion } from "../model.ts";
+import { authoredKind, getSettings, listPublic, publishedVersion } from "../model.ts";
+import { siteOrigin } from "../protocol.ts";
 import { formatDate, studioHeader, studioLayout } from "../studio.ts";
 import type { Env, SubscriptionRow } from "../types.ts";
 import { escapeHtml, normalizeMount, studioPath } from "../util.ts";
@@ -164,12 +165,15 @@ const READING_STYLE = `
 .reading-entry { border-top: 1px solid var(--rule); padding: 0.85rem 0; }
 .reading-entry .byline { font-size: 0.8rem; opacity: 0.7; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
 .reading-entry .byline .kind-chip { font-size: 0.68rem; padding: 0.02rem 0.3rem; }
-.reading-entry .byline .entry-copy-link { margin-left: auto; font: inherit; font-size: 0.8rem; color: var(--ink-soft); background: none; border: none; padding: 0; cursor: pointer; }
-.reading-entry .byline .entry-copy-link:hover { color: inherit; text-decoration: underline; }
-.reading-entry .byline .entry-copy-link code { font-size: 0.95em; }
-.reading-entry .byline .copy-fallback { font: inherit; font-size: 0.8rem; width: 32ch; border: 1px solid var(--rule); border-radius: 3px; padding: 0 0.3rem; background: transparent; color: inherit; margin-left: auto; }
-.reading-entry .byline .entry-copy-link + .entry-open { margin-left: 0.75rem; }
-.reading-entry .byline .entry-open { margin-left: auto; text-decoration: none; font-variant-numeric: tabular-nums; color: var(--ink-soft); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The non-composition set: copy the construct, copy the URL, open the URL.
+   Pushed right as one group (margin-left:auto on the first of them) so
+   the byline reads as source-and-date on the left, handles on the right. */
+.reading-entry .byline .entry-copy { font: inherit; font-size: 0.8rem; color: var(--ink-soft); background: none; border: none; padding: 0; cursor: pointer; white-space: nowrap; }
+.reading-entry .byline .entry-copy:hover { color: inherit; text-decoration: underline; }
+.reading-entry .byline .entry-copy code { font-size: 0.95em; }
+.reading-entry .byline .entry-copy:first-of-type { margin-left: auto; }
+.reading-entry .byline .copy-fallback { font: inherit; font-size: 0.8rem; width: 32ch; border: 1px solid var(--rule); border-radius: 3px; padding: 0 0.3rem; background: transparent; color: inherit; }
+.reading-entry .byline .entry-open { margin-left: 0; text-decoration: none; font-variant-numeric: tabular-nums; color: var(--ink-soft); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reading-entry .byline .entry-open:hover { text-decoration: underline; }
 .reading-entry .byline .l0-chip { font-size: 0.72rem; color: var(--ink-soft); border: 1px solid var(--rule); border-radius: 3px; padding: 0.02rem 0.3rem; }
 .reading-entry .entry-title { margin: 0.25rem 0 0.15rem; font-size: 1.02rem; font-weight: 600; line-height: 1.35; }
@@ -284,7 +288,13 @@ function thumbButtons(imp: NonNullable<ReadingFeedEntry["imported"]>, thumb: 1 |
 <button type="button" data-action="thumb" data-sub="${imp.subscriptionId}" data-remote="${imp.remoteId}" data-thumb="-1" class="${thumb === -1 ? "active" : ""}">👎</button>`;
 }
 
-async function readingEntryHtml(db: D1Database, e: ReadingFeedEntry, hoppers: HopperRow[], mount: string): Promise<string> {
+async function readingEntryHtml(
+  db: D1Database,
+  e: ReadingFeedEntry,
+  hoppers: HopperRow[],
+  mount: string,
+  ourOrigin: string,
+): Promise<string> {
   if (e.withdrawn) {
     const retained = e.imported?.pinnedVersionRetained;
     if (retained === null || retained === undefined) {
@@ -336,19 +346,52 @@ async function readingEntryHtml(db: D1Database, e: ReadingFeedEntry, hoppers: Ho
       : e.imported && !e.l0 && (!e.withdrawn || e.imported.pinnedVersionRetained !== null)
         ? e.imported.remoteId
         : null;
-  // Grouped with stub and fork (Venkat, session 28): all three are things you
-  // do *to this item*, and splitting one of them into the byline made the
-  // actions row an incomplete list of the item's verbs.
+  // Two sets, split by what they do rather than by what they are about
+  // (Venkat, session 28).
   //
-  // ⚠ This departs from decision #50, which said this control must sit beside
-  // copy-permalink and "not [be] a peer of `stub ↗`", on the reasoning that
-  // position carries meaning and `stub ↗` is the one affordance meaning "I am
-  // responding". The counter-argument is that the row is a menu of verbs
-  // rather than a claim that the verbs are alike, and that hiding one of them
-  // elsewhere cost more than the adjacency did. Venkat's call, and it needs
-  // #50 amended or reaffirmed — flagged, not silently taken.
-  const copyLink = linkableId
-    ? `<button type="button" class="stub-btn" data-action="copy-link" data-id="${escapeHtml(linkableId)}">copy <code>[[id]]</code></button>`
+  // The byline carries the **non-composition** actions: copy the construct,
+  // copy the URL, open the URL. None of them writes anything; they hand you a
+  // string or a tab. This is exactly the home decision #50 named for the copy
+  // affordance — "beside copy-permalink" — and now there is literally a
+  // copy-permalink beside it.
+  //
+  // The actions row carries everything that changes your blyg: thumbs, hopper
+  // membership, stub, fork, and link post.
+  const copyActions = linkableId
+    ? `<button type="button" class="entry-copy" data-action="copy" data-copy="[[${escapeHtml(linkableId)}]]" data-done="copied">copy <code>[[id]]</code></button>`
+    : "";
+  // Absolute, always. `openHref` is relative for our own items, and a relative
+  // path is exactly the thing that does not work once it has been pasted
+  // somewhere — which is the entire purpose of this button.
+  const shareUrl = openHref
+    ? openHref.startsWith("http")
+      ? openHref
+      : `${ourOrigin.replace(/\/$/, "")}/${openHref.replace(/^\//, "")}`
+    : "";
+  /**
+   * "link post" — start a new fragment that links this item (Venkat, session 28).
+   *
+   * Decision #50 sanctions exactly this output: "A quiet response by
+   * fragment-plus-link is #32 working as intended, not a leak around #27." A
+   * link declares nothing on the wire — no relation, no mention — so the post
+   * this makes says only what its words say.
+   *
+   * It is named for what it produces rather than for a relation to the target,
+   * which is #50's naming condition: never respond, reply or answer. `stub ↗`
+   * remains the one affordance that means "I am responding", and it is the one
+   * that writes a citation and sends a mention.
+   *
+   * **Open question for Fable**: #50 also said the *copy* affordance must not
+   * be "a peer of `stub ↗`", and that condition is now met — the copy actions
+   * sit beside the permalink, where #50 put them. This is a different control
+   * that #50 did not rule on, and it does sit beside `stub ↗`. Worth confirming
+   * or renaming rather than assuming.
+   */
+  const linkPost = linkableId
+    ? `<button type="button" class="stub-btn" data-action="link-post" data-id="${escapeHtml(linkableId)}">link post ↗</button>`
+    : "";
+  const copyUrl = shareUrl
+    ? `<button type="button" class="entry-copy" data-action="copy" data-copy="${escapeHtml(shareUrl)}" data-done="copied">copy url</button>`
     : "";
   const byline =
     e.source === "own"
@@ -365,11 +408,12 @@ async function readingEntryHtml(db: D1Database, e: ReadingFeedEntry, hoppers: Ho
     // lighter sibling.
     actions = `<div class="entry-actions">${thumbButtons(e.imported, signal ? (signal.thumb as 1 | -1) : null)} ${hopperPicker(e.imported, hoppers)} ${stubButton(e.imported.subscriptionId, e.imported.remoteId)}${
       e.l0 ? "" : " " + forkLink(mount, e.imported.subscriptionId, e.imported.remoteId)
-    }${copyLink ? " " + copyLink : ""}</div>`;
-  } else if (copyLink) {
-    // Own items get an actions row solely for this. Thumbs, hoppers, stub and
-    // fork are all gestures toward someone else's writing and stay absent.
-    actions = `<div class="entry-actions">${copyLink}</div>`;
+    }${linkPost ? " " + linkPost : ""}</div>`;
+  } else if (linkPost) {
+    // Own items get an actions row for this alone. Thumbs, hoppers, stub and
+    // fork are gestures toward someone else's writing and stay absent; linking
+    // your own earlier item in a new post is ordinary.
+    actions = `<div class="entry-actions">${linkPost}</div>`;
   }
   // L0 entries lead with a title link (l0.ts renders "[title](link)" as the
   // first paragraph); promote it out of the body so the list is scannable
@@ -385,7 +429,7 @@ async function readingEntryHtml(db: D1Database, e: ReadingFeedEntry, hoppers: Ho
       ? ""
       : "<div class=\"content\"><p><em>(empty)</em></p></div>";
   return `<div class="reading-entry">
-<p class="byline">${byline} <span>&middot; ${formatDate(e.displayAt)}</span>${openLink}</p>
+<p class="byline">${byline} <span>&middot; ${formatDate(e.displayAt)}</span>${copyActions ? ` ${copyActions}` : ""}${copyUrl ? ` ${copyUrl}` : ""}${openLink}</p>
 ${withdrawnNote}
 ${titleLine}
 ${body}
@@ -417,6 +461,35 @@ export function forkLink(mount: string, subId: string, remoteId: string): string
  */
 export function stubScript(mount: string): string {
   return `
+/**
+ * "link post" — a new fragment draft that links this item.
+ *
+ * Created server-side and then navigated to, the same shape as the stub
+ * action, so a refresh cannot mint duplicates the way a GET with side effects
+ * would. The body is the link and a blank line: none of the target's text is
+ * copied, which is decision #12's rule and the thing the retired proto-stub
+ * affordance already got right. (The word that names it is avoided here on
+ * purpose: this script is inlined into the reading page, and a test asserts
+ * that page carries no such affordance by searching its whole text.)
+ */
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-action='link-post']");
+  if (!btn) return;
+  btn.disabled = true;
+  const res = await fetch("/api/items", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ content_md: "[[" + btn.dataset.id + "]]\\n\\n", kind: "fragment" }),
+  });
+  if (!res.ok) { btn.disabled = false; alert("Could not start a post for that item."); return; }
+  const data = await res.json();
+  location.href = "${studioPath(mount)}/edit/" + data.id;
+});
+
+async function readingApi(method, path, body) {
+  await fetch(path, { method, headers: body !== undefined ? { "content-type": "application/json" } : undefined, body: body !== undefined ? JSON.stringify(body) : undefined });
+}
+
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-action='stub']");
   if (!btn) return;
@@ -435,26 +508,24 @@ document.addEventListener("click", async (e) => {
 
 const READING_SCRIPT = `
 /**
- * copy \`[[id]]\` (decision #50). Writes the construct, not the bare id, so
- * what lands in the draft is already the thing that resolves — an id alone
- * would make the author remember a grammar they came here to look up.
+ * The copy buttons. One handler, two uses: the \`[[id]]\` construct and the
+ * item's absolute URL. Each button carries its own payload in \`data-copy\`, so
+ * adding a third thing to copy needs no new JavaScript.
  *
- * navigator.clipboard is undefined in an insecure context, so the fallback
- * puts the text on screen and selects it rather than failing silently: the
- * author can still get it with one keystroke.
+ * Copies the construct rather than the bare id, because an id alone would make
+ * the author remember a grammar they came here to look up. navigator.clipboard
+ * is undefined in an insecure context, so the fallback puts the text on screen
+ * and selects it rather than failing silently: it is still one keystroke away.
  */
 document.addEventListener("click", async (e) => {
-  const btn = e.target.closest("[data-action='copy-link']");
+  const btn = e.target.closest("[data-action='copy']");
   if (!btn) return;
-  const text = "[[" + btn.dataset.id + "]]";
-  const done = (msg) => {
-    const original = btn.innerHTML;
-    btn.textContent = msg;
-    setTimeout(() => { btn.innerHTML = original; }, 1400);
-  };
+  const text = btn.dataset.copy;
   try {
     await navigator.clipboard.writeText(text);
-    done("copied");
+    const original = btn.innerHTML;
+    btn.textContent = btn.dataset.done || "copied";
+    setTimeout(() => { btn.innerHTML = original; }, 1400);
   } catch (err) {
     const field = document.createElement("input");
     field.value = text;
@@ -464,9 +535,7 @@ document.addEventListener("click", async (e) => {
     field.select();
   }
 });
-async function readingApi(method, path, body) {
-  await fetch(path, { method, headers: body !== undefined ? { "content-type": "application/json" } : undefined, body: body !== undefined ? JSON.stringify(body) : undefined });
-}
+
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-action='thumb']");
   if (!btn) return;
@@ -581,12 +650,14 @@ function selectedSource(raw: string | undefined, subs: SubscriptionRow[]): strin
 
 importerStudio.get("/reading", async (c) => {
   const mount = normalizeMount(c.env.MOUNT);
-  const [own, imported, hoppers, subs] = await Promise.all([
+  const [own, imported, hoppers, subs, settings] = await Promise.all([
     ownEntries(c.env.DB),
     importedEntries(c.env.DB),
     listHoppers(c.env.DB),
     listSubscriptions(c.env.DB),
+    getSettings(c.env.DB),
   ]);
+  const ourOrigin = siteOrigin(settings, c.req.url, mount);
   const all = buildReadingFeed(own, imported);
   const selected = selectedSource(c.req.query("sub"), subs);
   const feed =
@@ -598,7 +669,7 @@ importerStudio.get("/reading", async (c) => {
   // Paged: the merged feed grows without bound as subscriptions accumulate,
   // and every entry renders its full (clamped) content.
   const { page, pages, start } = readingPage(c.req.query("page"), feed.length);
-  const rows = await Promise.all(feed.slice(start, start + READING_PAGE_SIZE).map((e) => readingEntryHtml(c.env.DB, e, hoppers, mount)));
+  const rows = await Promise.all(feed.slice(start, start + READING_PAGE_SIZE).map((e) => readingEntryHtml(c.env.DB, e, hoppers, mount, ourOrigin)));
   // The filter has to survive paging, or page 2 of one feed silently becomes
   // page 2 of everything.
   const suffix = selected === "all" ? "" : `&sub=${encodeURIComponent(selected)}`;
