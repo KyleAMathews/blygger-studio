@@ -306,7 +306,12 @@ const NAV: { key: StudioSection; label: string; path: (mount: string) => string 
   { key: "compose", label: "compose", path: (m) => studioPath(m) },
   { key: "hoppers", label: "hoppers", path: (m) => `${studioPath(m)}/hoppers` },
   { key: "mentions", label: "mentions", path: (m) => `${studioPath(m)}/mentions` },
-  { key: "subs", label: "subscriptions", path: (m) => `${studioPath(m)}/subs` },
+  // `subs` left the nav in session 28: the reading tab grew a source sidebar,
+  // so the list of subscriptions is now where you read them rather than a tab
+  // of its own. The PAGE stays — it owns pause, resume, resync, delete,
+  // blogroll membership and poll diagnostics, none of which belong in a
+  // sidebar — and the sidebar links to it as "manage feeds". Removing the
+  // route as well would have thrown that away to tidy a nav bar.
   { key: "settings", label: "settings", path: (m) => `${studioPath(m)}/settings` },
   { key: "syntax", label: "syntax", path: (m) => `${studioPath(m)}/syntax` },
 ];

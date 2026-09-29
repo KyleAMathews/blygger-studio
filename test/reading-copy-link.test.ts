@@ -103,22 +103,48 @@ describe("decision #50's conditions hold structurally", () => {
     expect(control![1]).toContain("copy");
   });
 
-  it("sits in the byline beside open ↗, not in the actions row with stub ↗", async () => {
+  // ⚠ REVERSED, session 28, by Venkat, and left visible rather than deleted.
+  //
+  // #50's condition was that this control "not [be] a peer of `stub ↗`" and sit
+  // beside copy-permalink instead, because position carries meaning and
+  // `stub ↗` is the one affordance meaning "I am responding". The build
+  // followed that and put it in the byline.
+  //
+  // Using it, Venkat's call was the opposite: all three are verbs applied to
+  // this item, and splitting one into the byline made the actions row an
+  // incomplete list of what you can do. The row reads as a menu, not as a
+  // claim that its entries mean the same thing.
+  //
+  // This needs #50 amended or reaffirmed. Until it is, the test asserts what
+  // ships and names the decision it departs from, so the conflict is visible
+  // to whoever reads either one.
+  it("sits with stub and fork in the actions row (departs from #50's condition)", async () => {
     const cookie = await login();
     const remoteId = newId();
     await importItem(ORIGIN, { id: remoteId, content_md: "their words", content_html: "<p>their words</p>" });
     const html = await readingHtml(cookie);
 
-    const byline = /<p class="byline">([\s\S]*?)<\/p>/.exec(html);
-    expect(byline, "no byline").not.toBeNull();
-    expect(byline![1]).toContain('data-action="copy-link"');
+    // Every actions row on the page, not just the first: own items now get a
+    // row of their own carrying only this control, so matching the first one
+    // would test the wrong entry.
+    const rows = [...html.matchAll(/<div class="entry-actions">([\s\S]*?)<\/div>/g)].map((m) => m[1]);
+    const imported = rows.find((r) => r.includes('data-action="stub"'));
+    expect(imported, "no imported entry's actions row").toBeDefined();
+    expect(imported!).toContain('data-action="copy-link"');
 
-    // `stub ↗` stays the one affordance meaning "I am responding"; a peer in
-    // that row would say otherwise by position alone.
-    const actions = /<div class="entry-actions">([\s\S]*?)<\/div>/.exec(html);
-    expect(actions, "no actions row").not.toBeNull();
-    expect(actions![1]).toContain('data-action="stub"');
-    expect(actions![1]).not.toContain('data-action="copy-link"');
+    // And it is no longer in the byline.
+    for (const byline of html.matchAll(/<p class="byline">([\s\S]*?)<\/p>/g)) {
+      expect(byline[1]).not.toContain('data-action="copy-link"');
+    }
+  });
+
+  it("still never reads as respond, reply or answer — #50's other condition holds", async () => {
+    const cookie = await login();
+    await createAndPublish(cookie, "something of mine");
+    const html = await readingHtml(cookie);
+    const control = /<button[^>]*data-action="copy-link"[^>]*>([\s\S]*?)<\/button>/.exec(html);
+    expect(control, "no copy-link control").not.toBeNull();
+    expect(control![1].toLowerCase()).not.toMatch(/respond|reply|answer/);
   });
 
   it("leaves stub ↗ and fork ↗ exactly as they were", async () => {

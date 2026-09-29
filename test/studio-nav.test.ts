@@ -6,7 +6,10 @@ import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { apiJson, BASE, createAndPublish, login, STUDIO } from "./helpers.ts";
 
+// `/subs` is still a page — it owns pause/resume/resync/delete/blogroll — but
+// it left the nav in session 28 when the reading tab grew a source sidebar.
 const SECTIONS = ["", "/subs", "/reading", "/hoppers", "/settings", "/syntax"];
+const NAV_LABELS = ["reading", "compose", "hoppers", "mentions", "settings", "syntax"];
 
 async function page(cookie: string, path: string): Promise<string> {
   const res = await SELF.fetch(`${BASE}${STUDIO}${path}`, { headers: { cookie } });
@@ -23,9 +26,11 @@ describe("every studio page can get back to compose", () => {
 
   it.each(SECTIONS)("%s carries the full nav", async (path) => {
     const html = await page(await login(), path);
-    for (const label of ["compose", "subscriptions", "reading", "hoppers", "settings", "syntax"]) {
+    for (const label of NAV_LABELS) {
       expect(html).toContain(`>${label}</a>`);
     }
+    // Subscriptions is reachable from the reading sidebar, not the nav.
+    expect(html).not.toContain(">subscriptions</a>");
   });
 
   it("editor pages carry the nav too, plus a breadcrumb back to compose", async () => {
@@ -43,9 +48,9 @@ describe("the nav order", () => {
   // arrive to read, and most writing is a response to something read.
   // Subscriptions sits with settings because it configures the reading feed
   // rather than being a place you work.
-  it("runs reading, compose, hoppers, mentions, subscriptions, settings, syntax", async () => {
+  it("runs reading, compose, hoppers, mentions, settings, syntax", async () => {
     const html = await page(await login(), "");
-    const labels = ["reading", "compose", "hoppers", "mentions", "subscriptions", "settings", "syntax"];
+    const labels = ["reading", "compose", "hoppers", "mentions", "settings", "syntax"];
     const positions = labels.map((l) => html.indexOf(`>${l}</a>`));
     expect(positions.every((i) => i >= 0), "every tab renders").toBe(true);
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
@@ -60,7 +65,6 @@ describe("the nav order", () => {
 describe("the nav marks where you are", () => {
   it.each([
     ["", "compose"],
-    ["/subs", "subscriptions"],
     ["/reading", "reading"],
     ["/hoppers", "hoppers"],
     ["/settings", "settings"],

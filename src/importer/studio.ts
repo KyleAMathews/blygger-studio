@@ -188,6 +188,29 @@ const READING_STYLE = `
 .reading-entry .content.clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .reading-entry .expand-btn { font-size: 0.78rem; opacity: 0.7; margin-top: 0.2rem; }
 .reading-entry .content:not(.clamped) + .expand-btn { display: none; }
+/* Two-pane reader (session 28, after Aneesh's desktop client): sources on the
+   left, the stream on the right. The preview pane that client has is
+   deliberately not copied: a browser already has tabs, and the open link uses
+   one. */
+.reading-layout { display: flex; gap: 1.5rem; align-items: flex-start; }
+.reading-sidebar { flex: 0 0 15rem; position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; font-size: 0.88rem; }
+.reading-main { flex: 1; min-width: 0; }
+.reading-sidebar .add-feed { margin-bottom: 0.9rem; }
+.reading-sidebar .add-feed input { width: 100%; font: inherit; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--rule); border-radius: 4px; background: transparent; color: inherit; }
+.reading-sidebar .add-feed button { font: inherit; font-size: 0.82rem; margin-top: 0.35rem; }
+.reading-sidebar h2 { font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); margin: 1rem 0 0.35rem; font-weight: 600; }
+.reading-sidebar ul { list-style: none; margin: 0; padding: 0; }
+.reading-sidebar li a { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.22rem 0.4rem; border-radius: 4px; text-decoration: none; color: inherit; }
+.reading-sidebar li a:hover { background: var(--paper-sunk); }
+.reading-sidebar li a.current { background: var(--paper-sunk); font-weight: 600; }
+.reading-sidebar li a .feed-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reading-sidebar li a .feed-count { color: var(--ink-soft); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.reading-sidebar li a.paused .feed-name { opacity: 0.55; font-style: italic; }
+.reading-sidebar .manage { margin-top: 0.9rem; font-size: 0.82rem; }
+@media (max-width: 720px) {
+  .reading-layout { flex-direction: column; }
+  .reading-sidebar { position: static; flex: 1 1 auto; max-height: none; width: 100%; }
+}
 .reading-pager { display: flex; justify-content: space-between; align-items: center; margin: 1.25rem 0 0; font-size: 0.9rem; border-top: 1px solid var(--rule); padding-top: 0.75rem; }
 .reading-pager .pager-info { opacity: 0.7; }
 .reading-entry.withdrawn-entry { opacity: 0.6; font-style: italic; }
@@ -313,8 +336,19 @@ async function readingEntryHtml(db: D1Database, e: ReadingFeedEntry, hoppers: Ho
       : e.imported && !e.l0 && (!e.withdrawn || e.imported.pinnedVersionRetained !== null)
         ? e.imported.remoteId
         : null;
+  // Grouped with stub and fork (Venkat, session 28): all three are things you
+  // do *to this item*, and splitting one of them into the byline made the
+  // actions row an incomplete list of the item's verbs.
+  //
+  // ⚠ This departs from decision #50, which said this control must sit beside
+  // copy-permalink and "not [be] a peer of `stub ↗`", on the reasoning that
+  // position carries meaning and `stub ↗` is the one affordance meaning "I am
+  // responding". The counter-argument is that the row is a menu of verbs
+  // rather than a claim that the verbs are alike, and that hiding one of them
+  // elsewhere cost more than the adjacency did. Venkat's call, and it needs
+  // #50 amended or reaffirmed — flagged, not silently taken.
   const copyLink = linkableId
-    ? ` <button type="button" class="entry-copy-link" data-action="copy-link" data-id="${escapeHtml(linkableId)}">copy <code>[[id]]</code></button>`
+    ? `<button type="button" class="stub-btn" data-action="copy-link" data-id="${escapeHtml(linkableId)}">copy <code>[[id]]</code></button>`
     : "";
   const byline =
     e.source === "own"
@@ -331,7 +365,11 @@ async function readingEntryHtml(db: D1Database, e: ReadingFeedEntry, hoppers: Ho
     // lighter sibling.
     actions = `<div class="entry-actions">${thumbButtons(e.imported, signal ? (signal.thumb as 1 | -1) : null)} ${hopperPicker(e.imported, hoppers)} ${stubButton(e.imported.subscriptionId, e.imported.remoteId)}${
       e.l0 ? "" : " " + forkLink(mount, e.imported.subscriptionId, e.imported.remoteId)
-    }</div>`;
+    }${copyLink ? " " + copyLink : ""}</div>`;
+  } else if (copyLink) {
+    // Own items get an actions row solely for this. Thumbs, hoppers, stub and
+    // fork are all gestures toward someone else's writing and stay absent.
+    actions = `<div class="entry-actions">${copyLink}</div>`;
   }
   // L0 entries lead with a title link (l0.ts renders "[title](link)" as the
   // first paragraph); promote it out of the body so the list is scannable
@@ -347,7 +385,7 @@ async function readingEntryHtml(db: D1Database, e: ReadingFeedEntry, hoppers: Ho
       ? ""
       : "<div class=\"content\"><p><em>(empty)</em></p></div>";
   return `<div class="reading-entry">
-<p class="byline">${byline} <span>&middot; ${formatDate(e.displayAt)}</span>${copyLink}${openLink}</p>
+<p class="byline">${byline} <span>&middot; ${formatDate(e.displayAt)}</span>${openLink}</p>
 ${withdrawnNote}
 ${titleLine}
 ${body}
@@ -483,15 +521,88 @@ export function readingPage(raw: string | undefined, total: number, pageSize = R
   return { page, pages, start: (page - 1) * pageSize };
 }
 
+/**
+ * The source sidebar (session 28). One entry per thing that can appear in the
+ * feed, plus "All" — which is the default, because the merged stream is the
+ * point of the reading tab and a per-source view is the exception.
+ *
+ * Counts come from the feed already in memory rather than a second query, and
+ * they are counts of what is *here* — a paused subscription keeps the items it
+ * already delivered, which is why pausing is not deleting.
+ */
+function readingSidebar(
+  feed: ReadingFeedEntry[],
+  subs: SubscriptionRow[],
+  selected: string,
+  mount: string,
+): string {
+  const base = `${studioPath(mount)}/reading`;
+  const countFor = (pred: (e: ReadingFeedEntry) => boolean) => feed.filter(pred).length;
+  const link = (key: string, label: string, count: number, extra = "") => {
+    const href = key === "all" ? base : `${base}?sub=${encodeURIComponent(key)}`;
+    const cls = `${key === selected ? "current" : ""} ${extra}`.trim();
+    return `<li><a href="${href}"${cls ? ` class="${cls}"` : ""}><span class="feed-name">${escapeHtml(label)}</span><span class="feed-count">${count}</span></a></li>`;
+  };
+
+  const ownCount = countFor((e) => e.source === "own");
+  const rows = subs.map((sub) =>
+    link(
+      sub.id,
+      sub.title || new URL(sub.origin).host,
+      countFor((e) => e.imported?.subscriptionId === sub.id),
+      sub.status === "paused" ? "paused" : "",
+    ),
+  );
+
+  return `<aside class="reading-sidebar">
+<form class="add-feed" id="add-sub-form">
+<input type="url" id="add-sub-url" placeholder="Add feed — any URL" required>
+<button type="submit">resolve</button>
+</form>
+<div id="add-sub-confirm"></div>
+<h2>Reading</h2>
+<ul>
+${link("all", "All", feed.length)}
+${ownCount ? link("own", "You", ownCount) : ""}
+</ul>
+${rows.length ? `<h2>Subscriptions</h2>\n<ul>\n${rows.join("\n")}\n</ul>` : ""}
+<p class="manage"><a href="${studioPath(mount)}/subs">manage feeds &rarr;</a></p>
+</aside>`;
+}
+
+/** Which source is being shown: a subscription id, "own", or "all". */
+function selectedSource(raw: string | undefined, subs: SubscriptionRow[]): string {
+  if (raw === "own") return "own";
+  if (raw && subs.some((s) => s.id === raw)) return raw;
+  // An unknown or deleted subscription id falls back to All rather than to an
+  // empty page that looks like a broken feed.
+  return "all";
+}
+
 importerStudio.get("/reading", async (c) => {
   const mount = normalizeMount(c.env.MOUNT);
-  const [own, imported, hoppers] = await Promise.all([ownEntries(c.env.DB), importedEntries(c.env.DB), listHoppers(c.env.DB)]);
-  const feed = buildReadingFeed(own, imported);
+  const [own, imported, hoppers, subs] = await Promise.all([
+    ownEntries(c.env.DB),
+    importedEntries(c.env.DB),
+    listHoppers(c.env.DB),
+    listSubscriptions(c.env.DB),
+  ]);
+  const all = buildReadingFeed(own, imported);
+  const selected = selectedSource(c.req.query("sub"), subs);
+  const feed =
+    selected === "all"
+      ? all
+      : selected === "own"
+        ? all.filter((e) => e.source === "own")
+        : all.filter((e) => e.imported?.subscriptionId === selected);
   // Paged: the merged feed grows without bound as subscriptions accumulate,
   // and every entry renders its full (clamped) content.
   const { page, pages, start } = readingPage(c.req.query("page"), feed.length);
   const rows = await Promise.all(feed.slice(start, start + READING_PAGE_SIZE).map((e) => readingEntryHtml(c.env.DB, e, hoppers, mount)));
-  const href = (p: number) => `${studioPath(mount)}/reading?page=${p}`;
+  // The filter has to survive paging, or page 2 of one feed silently becomes
+  // page 2 of everything.
+  const suffix = selected === "all" ? "" : `&sub=${encodeURIComponent(selected)}`;
+  const href = (p: number) => `${studioPath(mount)}/reading?page=${p}${suffix}`;
   const pager =
     pages > 1
       ? `<nav class="reading-pager">
@@ -500,12 +611,23 @@ importerStudio.get("/reading", async (c) => {
 <span>${page < pages ? `<a href="${href(page + 1)}">older &rarr;</a>` : ""}</span>
 </nav>`
       : "";
+  const empty =
+    selected === "all"
+      ? "<p>Nothing to read yet — publish something, or add a feed on the left.</p>"
+      : "<p>Nothing from this source yet. It may not have published since you subscribed.</p>";
   const body = `${studioHeader("blyg studio — reading", mount, "reading")}
 <style>${READING_STYLE}</style>
-${rows.length ? rows.join("\n") : "<p>Nothing to read yet — publish something, or subscribe to a blyg or feed.</p>"}
+<style>${SUBS_STYLE}</style>
+<div class="reading-layout">
+${readingSidebar(all, subs, selected, mount)}
+<div class="reading-main">
+${rows.length ? rows.join("\n") : empty}
 ${pager}
+</div>
+</div>
 <script>${READING_SCRIPT}</script>
-<script>${stubScript(mount)}</script>`;
+<script>${stubScript(mount)}</script>
+<script>${SUBS_SCRIPT}</script>`;
   return c.html(studioLayout("reading — blyg studio", body, true));
 });
 
