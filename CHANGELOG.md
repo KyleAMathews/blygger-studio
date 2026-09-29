@@ -18,6 +18,71 @@ not have its own repo until session 26.
 
 ---
 
+## 0.8.1 — 2026-09-29
+
+**Migrations: none.** `versions.transclusions` is JSON text, so the new member
+below needs no schema change and every document published before this release
+stays valid and unchanged.
+
+**Partial transclusion — quote a passage instead of the whole item.**
+Spec §16.4, decision #49. The medium had three registers of borrowing and only
+two of them were writable: transclude the whole item for commentary (the stub),
+or fork from a pin for a derivative. Quoting a passage as the thing you are
+responding to — the common blogging norm — was the missing rung.
+
+**The grammar is adjacency.** A `![[id]]` directive immediately followed, with
+no blank line, by a markdown blockquote is a partial transclusion, and the
+blockquote is the passage:
+
+```
+![[7c9wk2mhq0v3xj8tn5rzfd41bg]]
+> Stigmergy is what a protocol looks like from inside, and the
+> reason it looks like nothing at all is the point.
+
+Commentary begins after a blank line.
+```
+
+A blank line detaches it. That is deliberate and it is why there is no new
+sigil: transcluding an item whole and then quoting a bit of it yourself has
+been writable since 0.1, and nothing anyone has already written changes meaning.
+
+**The passage must really be in the target.** At publish, the selection must be
+a substring of the target snapshot's text content at the version being baked —
+tags stripped, whitespace collapsed within a block, block boundaries kept as
+line breaks — else a publish error, exactly like an unresolvable directive. A
+quote that welds two of the source's paragraphs into one sentence is refused,
+because the source has a break there and the quote does not.
+
+**In the studio.** Highlight a passage in the reading view and press
+`quote ↗`: you land in the editor with the directive and the passage already
+attached, and the passage is checked while you are still choosing it rather
+than at publish. Stubbing a long item now prefills an empty quote line instead
+of the whole-item form — a suggestion, not a rule; delete the line and the
+whole form publishes as before.
+
+**On the page**, a partial quote says *"excerpt of v2"* where a whole
+transclusion says *"snapshot of v2"*. Without that a reader cannot tell a part
+from the whole: a short quote and a short item look the same.
+
+**On the wire**, the `transclusions[]` entry gains an OPTIONAL `selector` in
+the W3C text-quote shape (`exact`, with short `prefix`/`suffix`). **A reader
+that ignores it entirely stays conformant** — the passage is baked into
+`content_html` like any other transclusion, the relation is still
+`transclusion`, staleness is unchanged, and mention verification ignores it as
+it ignores `cited`. The bake carries `class="blyg-transclusion blyg-partial"`,
+and the second class is how a reader knows this is a part.
+
+This is a 0.3 revision, not a new protocol version: nothing a reader or a
+receiver does changes. `PROTOCOL_VERSION` stays `"0.3"`.
+
+**Also fixed:** a thread mixing whole and partial transclusions mis-paired its
+provenance lines, because the injector matched the class attribute as a literal
+string. Only reachable with a partial in the thread, so no published document
+is affected — but the failure mode was attributing one origin's words to
+another's, which is worth naming.
+
+---
+
 ## 0.8.0 — 2026-09-29
 
 **Migrations: one — `0012_responses_default.sql`.** It adds a nullable
