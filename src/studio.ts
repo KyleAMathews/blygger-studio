@@ -121,19 +121,46 @@ a:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visib
 }
 /* Readable measure for text-heavy sections, without shrinking the page frame. */
 .prose { max-width: 68ch; }
+/* The top menu (session 29). It was a row of plain links, which read as body
+   text that happened to sit above the page; a working tool wants a bar you can
+   aim at. The tabs are real targets now — padded, with a hover wash, and the
+   current one filled — and below 640px they collapse behind a button. The menu
+   had to be structured before it could collapse, which is why this came before
+   the mobile pass rather than with it.
+
+   The collapse is gated on html.js. The marker is set in the head by
+   studioLayout, so a narrow screen never flashes an expanded menu, and a
+   browser with JS off keeps the whole row rather than a button that does
+   nothing. */
 header.studio { margin-bottom: 1.25rem; border-bottom: 1px solid var(--rule); }
-header.studio .studio-title { display: flex; align-items: baseline; min-height: 1.9rem; }
-header.studio h1 { font-size: 1.2rem; margin: 0; }
+header.studio .studio-title { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; min-height: 1.9rem; }
+header.studio h1 { font-size: 1.2rem; margin: 0; min-width: 0; overflow-wrap: anywhere; }
 header.studio nav {
   display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap;
   /* Fixed row height so a wrapping or longer title never shifts the links. */
   min-height: 2.4rem; font-size: 0.9rem;
 }
-header.studio nav .nav-spacer { flex: 1; }
+header.studio nav .menu-main { display: flex; align-items: center; gap: 0.15rem; flex-wrap: wrap; flex: 1; list-style: none; margin: 0; padding: 0; }
+header.studio nav .menu-utility { display: flex; align-items: center; gap: 0.9rem; }
 header.studio nav form { display: inline; margin: 0; }
-header.studio nav a { color: var(--ink-soft); text-decoration: none; padding-bottom: 0.15rem; border-bottom: 2px solid transparent; }
-header.studio nav a:hover { color: var(--ink); border-bottom-color: var(--rule-strong); }
-header.studio nav a.current { color: var(--ink); font-weight: 600; border-bottom-color: var(--pencil); }
+header.studio nav a { color: var(--ink-soft); text-decoration: none; }
+header.studio nav .menu-main a { display: block; padding: 0.3rem 0.55rem 0.2rem; border-radius: 4px 4px 0 0; border-bottom: 2px solid transparent; }
+header.studio nav .menu-main a:hover { color: var(--ink); background: var(--paper-sunk); border-bottom-color: var(--rule-strong); }
+header.studio nav .menu-main a.current { color: var(--ink); font-weight: 600; background: var(--paper-sunk); border-bottom-color: var(--pencil); }
+header.studio nav .menu-utility a:hover { color: var(--ink); text-decoration: underline; }
+/* The hamburger exists only below the breakpoint; at full width the bar is the menu. */
+header.studio .menu-button { display: none; font: inherit; font-size: 1.1rem; line-height: 1; padding: 0.25rem 0.55rem; border: 1px solid var(--rule-strong); border-radius: 4px; background: transparent; color: inherit; cursor: pointer; flex-shrink: 0; }
+@media (max-width: 640px) {
+  header.studio .menu-button { display: inline-block; }
+  html.js header.studio nav { display: none; }
+  html.js header.studio nav.open { display: flex; }
+  header.studio nav { flex-direction: column; align-items: stretch; gap: 0.25rem; padding-bottom: 0.6rem; }
+  header.studio nav .menu-main { flex-direction: column; align-items: stretch; gap: 0.1rem; }
+  header.studio nav .menu-main a { padding: 0.5rem 0.6rem; border-radius: 4px; border-bottom: none; border-left: 3px solid transparent; }
+  header.studio nav .menu-main a:hover, header.studio nav .menu-main a.current { border-bottom-color: transparent; }
+  header.studio nav .menu-main a.current { border-left-color: var(--pencil); }
+  header.studio nav .menu-utility { justify-content: space-between; border-top: 1px solid var(--rule); padding-top: 0.5rem; }
+}
 button.link { background: none; border: none; padding: 0; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
 .stub-head { margin: 0 0 0.75rem; font-size: 0.9rem; color: var(--ink-soft); }
 .stub-head a { color: inherit; }
@@ -195,6 +222,42 @@ button.danger { color: var(--alert); border-color: var(--alert); }
 .preview blockquote.blyg-transclusion p { margin: 0 0 0.25rem; }
 .preview .provenance { font-size: 0.75rem; opacity: 0.65; }
 .preview .unresolved { border-left-color: var(--alert); background: var(--alert-wash); color: var(--alert); font-style: italic; }
+/* --- Phone width (session 29) ---------------------------------------------
+ *
+ * The studio had one breakpoint (the 800px editor split) and was otherwise
+ * built at desktop width. Three things actually broke on a phone, and they are
+ * the only three this block fixes:
+ *
+ * 1. Horizontal overflow. A pasted URL, a monospace preview or an id is one
+ *    unbroken token; one of them anywhere on the page sets the page's minimum
+ *    width and every page scrolls sideways, which on a phone also breaks
+ *    vertical scrolling at the edges.
+ * 2. Tap targets. The action rows are 0.85rem buttons at 0.25rem padding —
+ *    about 26px tall, well under the ~44px a thumb needs, and they sit in a
+ *    row where "publish" is beside "discard".
+ * 3. Page gutters. 1rem of body padding on a 100ch measure is right on a
+ *    laptop and wasteful on a 390px screen.
+ *
+ * What is deliberately NOT here: a separate mobile layout. Every studio page
+ * is a single column already, so the desktop structure survives the squeeze —
+ * the exceptions (the editor split, the reading sidebar) have their own
+ * breakpoints where they are defined. */
+@media (max-width: 640px) {
+  body { padding: 1rem 0.75rem 3rem; }
+  /* An id, an origin or a pasted URL, anywhere it is shown raw. */
+  .item-row, .reading-entry, .mention-row, .out-row, .hopper-row, .preview, .stub-head { overflow-wrap: anywhere; }
+  /* ~44px. A bare button selector would also catch .link (log out), which is
+     a text link wearing a button element and should stay text-sized. */
+  button:not(.link), .item-row button, .bar button, .entry-actions button { min-height: 2.6rem; padding: 0.4rem 0.8rem; }
+  .item-row .actions, .qe-bar, .entry-actions, .edit-bar { gap: 0.5rem; }
+  /* A flex row with a right-hand action block stacks rather than crushing the
+     text it is describing to a two-character column. */
+  .hopper-row, .hopper-head { flex-direction: column; gap: 0.5rem; }
+  .hopper-row .actions, .hopper-head .actions { flex-wrap: wrap; }
+  .composer { padding: 0.6rem; }
+  .tk-scope-row { flex-wrap: wrap; }
+  .tk-instruction { white-space: normal; overflow: visible; flex-basis: 100%; }
+}
 .edit-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem; flex-wrap: wrap; gap: 0.5rem; }
 input.note { font: inherit; font-size: 0.9rem; padding: 0.3rem 0.5rem; border-radius: 4px; border: 1px solid var(--rule-strong); background: transparent; color: inherit; width: 22rem; max-width: 100%; }
 /* Theme picker — each option is a swatch of the pair it actually produces
@@ -269,6 +332,32 @@ input.note { font: inherit; font-size: 0.9rem; padding: 0.3rem 0.5rem; border-ra
 `;
 
 /**
+ * Marks the document as scripted, in the head, so CSS can hide something the
+ * user would otherwise have no way to bring back. Only the collapsed menu and
+ * the reading sidebar's toggle depend on it; without it both stay open, which
+ * is the correct no-JS fallback for navigation.
+ */
+const JS_MARKER = `document.documentElement.classList.add("js")`;
+
+/**
+ * The narrow-width menu toggle. Deliberately not delegated or shared with
+ * `actionScript`: this runs on every studio page including the ones with no
+ * other behaviour, and a menu that depends on a page's own handlers loading is
+ * a menu that breaks when they do.
+ */
+const MENU_SCRIPT = `
+(function () {
+  var btn = document.querySelector(".menu-button");
+  var menu = document.getElementById("studio-menu");
+  if (!btn || !menu) return;
+  btn.addEventListener("click", function () {
+    var open = menu.classList.toggle("open");
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+})();
+`;
+
+/**
  * `wide` is retained as a no-op parameter: every studio page now renders at
  * one width so the chrome never moves between tabs. Text-heavy sections keep
  * a readable measure via `.prose` instead of by shrinking the whole page.
@@ -280,6 +369,7 @@ export function studioLayout(title: string, body: string, _wide = false): string
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
+<script>${JS_MARKER}</script>
 <style>${STUDIO_STYLE}</style>
 </head>
 <body>
@@ -331,17 +421,23 @@ export type StudioSection = "compose" | "subs" | "reading" | "hoppers" | "mentio
 export function studioHeader(title: string, mount: string, current: StudioSection = null): string {
   const links = NAV.map(
     (n) =>
-      `<a href="${n.path(mount)}"${n.key === current ? ' class="current" aria-current="page"' : ""}>${n.label}</a>`,
+      `<li><a href="${n.path(mount)}"${n.key === current ? ' class="current" aria-current="page"' : ""}>${n.label}</a></li>`,
   ).join("\n");
   return `<header class="studio">
-<div class="studio-title"><h1>${escapeHtml(title)}</h1></div>
-<nav>
+<div class="studio-title"><h1>${escapeHtml(title)}</h1>
+<button type="button" class="menu-button" aria-expanded="false" aria-controls="studio-menu" aria-label="Menu">&#9776;</button>
+</div>
+<nav id="studio-menu">
+<ul class="menu-main">
 ${links}
-<span class="nav-spacer"></span>
+</ul>
+<div class="menu-utility">
 <a href="${mount}/" target="_blank">public page ↗</a>
 <form method="post" action="${studioPath(mount)}/logout"><button type="submit" class="link">log out</button></form>
+</div>
 </nav>
-</header>`;
+</header>
+<script>${MENU_SCRIPT}</script>`;
 }
 
 function loginPage(mount: string, error?: string): string {

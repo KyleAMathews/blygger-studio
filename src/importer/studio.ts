@@ -212,9 +212,20 @@ const READING_STYLE = `
 .reading-sidebar li a .feed-count { color: var(--ink-soft); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .reading-sidebar li a.paused .feed-name { opacity: 0.55; font-style: italic; }
 .reading-sidebar .manage { margin-top: 0.9rem; font-size: 0.82rem; }
+/* Below 720px the sidebar stacks *above* the stream, which is correct order
+   and wrong result: a list of every subscription pushed the thing you came to
+   read off the first screen entirely. It collapses behind a control instead,
+   and the control names the source you are filtered to, so the collapsed state
+   still answers "what am I looking at". Gated on html.js — see JS_MARKER; with
+   scripting off the sidebar stays where it was. */
+.sources-toggle { display: none; font: inherit; font-size: 0.85rem; padding: 0.45rem 0.7rem; border: 1px solid var(--rule-strong); border-radius: 4px; background: transparent; color: inherit; cursor: pointer; text-align: left; width: 100%; }
+.sources-toggle .current-source { font-weight: 600; }
 @media (max-width: 720px) {
   .reading-layout { flex-direction: column; }
   .reading-sidebar { position: static; flex: 1 1 auto; max-height: none; width: 100%; }
+  .sources-toggle { display: block; }
+  html.js .reading-sidebar { display: none; }
+  html.js .reading-sidebar.open { display: block; }
 }
 .reading-pager { display: flex; justify-content: space-between; align-items: center; margin: 1.25rem 0 0; font-size: 0.9rem; border-top: 1px solid var(--rule); padding-top: 0.75rem; }
 .reading-pager .pager-info { opacity: 0.7; }
@@ -225,6 +236,23 @@ const READING_STYLE = `
 .entry-actions .stub-btn { font-size: 0.85rem; background: none; border: 0; padding: 0; cursor: pointer; color: inherit; border-bottom: 1px dotted currentColor; opacity: 0.8; }
 .entry-actions .stub-btn:hover { opacity: 1; }
 .entry-actions select { font: inherit; font-size: 0.85rem; padding: 0.15rem 0.3rem; border-radius: 4px; border: 1px solid var(--rule); background: transparent; color: inherit; }
+`;
+
+/**
+ * Collapses the source sidebar at phone width. Separate from READING_SCRIPT
+ * because it is chrome: it has to work on a reading page with no entries on
+ * it, which is exactly the page where you most want to change source.
+ */
+const SIDEBAR_SCRIPT = `
+(function () {
+  var btn = document.querySelector(".sources-toggle");
+  var side = document.getElementById("reading-sidebar");
+  if (!btn || !side) return;
+  btn.addEventListener("click", function () {
+    var open = side.classList.toggle("open");
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+})();
 `;
 
 async function ownEntries(db: D1Database): Promise<OwnEntryInput[]> {
@@ -653,7 +681,20 @@ function readingSidebar(
     ),
   );
 
-  return `<aside class="reading-sidebar">
+  // The toggle is rendered here rather than by the page because this function
+  // is the only place that knows what the selected source is called.
+  const selectedLabel =
+    selected === "all"
+      ? "All"
+      : selected === "own"
+        ? "You"
+        : (() => {
+            const sub = subs.find((s) => s.id === selected);
+            return sub ? sub.title || new URL(sub.origin).host : "All";
+          })();
+
+  return `<button type="button" class="sources-toggle" aria-expanded="false" aria-controls="reading-sidebar">Sources &middot; <span class="current-source">${escapeHtml(selectedLabel)}</span></button>
+<aside class="reading-sidebar" id="reading-sidebar">
 <form class="add-feed" id="add-sub-form">
 <input type="url" id="add-sub-url" placeholder="Add feed — any URL" required>
 <button type="submit">resolve</button>
@@ -726,6 +767,7 @@ ${rows.length ? rows.join("\n") : empty}
 ${pager}
 </div>
 </div>
+<script>${SIDEBAR_SCRIPT}</script>
 <script>${READING_SCRIPT}</script>
 <script>${stubScript(mount)}</script>
 <script>${SUBS_SCRIPT}</script>`;

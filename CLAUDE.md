@@ -353,22 +353,38 @@ was specified to do in both cases.
 
 Deferred when the session wrapped, not blocked on anything.
 
-- [ ] **SEO metadata and social cards** for a blyg's root URL and for individual items, so
-  a shared link previews properly: Open Graph and Twitter card tags, a description, an
-  image. **Cosmetic, no protocol effect** — the same standing as the linked title under
-  #46: what a client puts in its own `<head>` is its own business, and none of it may
-  become a wire field or a reader obligation. Two things to watch. Items are titleless
-  (§5.3), so `og:title` must be *derived* the way `<title>` already is rather than
-  inventing a title field. And a per-item card image needs a source that exists today —
-  the item's first attached image, or a generated one — because there is no cover-image
-  concept and adding one to the wire is exactly what #46 refused.
-- [ ] **Style the nav as a proper top menu.** Currently a row of plain links. Do this
-  before the mobile pass: a hamburger needs something structured to collapse.
-- [ ] **Mobile pass**, every studio and public page at phone width. Two known problems:
-  the reader's new `.reading-sidebar` stacks above the feed below 720px, which is correct
-  but pushes the stream off the first screen and should collapse behind a control; and the
-  nav should become a hamburger. The public pages have not been looked at on a phone since
-  this session's feed-card and byline changes.
+- [x] **SEO metadata and social cards** — **most of it already existed** (`f4ac2c9`,
+  session 18): `PageMeta` has driven `description`, `og:*` and `twitter:card` on the feed,
+  permalink, thread, pinned and archive pages since 2026-09-13, with `og:image` as the
+  item's first attached image falling back to the avatar. Session 29 closed the three real
+  gaps rather than rebuilding it. **The one that mattered was the `og:title` derivation
+  this entry called out in advance:** items are titleless (§5.3), so the title was a
+  70-character excerpt of the rendered item — and once #46 made a leading heading the
+  item's title, a titled item unfurled as "On Protocols Protocols are the thin layer…",
+  the heading followed by the heading again as the first words of the body. `itemHead()`
+  now reads the declared heading where there is one and takes the description from what
+  *follows* it, which is the same derivation the feed page, the permalink and the studio
+  reader already do. `og:title` also dropped the site suffix (`og:site_name` is the tag
+  that says where). The other two: a pinned page and the archive had no `og:image` (both
+  now carry the blyg's avatar — never the item's *current* attachments on a pinned page,
+  whose whole promise is the bytes from then), and the archive turned out to have the same
+  title-into-body defect in its **visible rows**, not just its head. No wire effect
+  anywhere; a client's own `<head>` stays its own business.
+- [x] **Style the nav as a proper top menu** — **done session 29.** Sections are a `<ul>`
+  of real targets (padded, hover wash, the current one filled and underlined), utilities
+  are their own right-hand group, and below 640px the whole bar collapses behind a
+  hamburger. The collapse is gated on an `html.js` marker set in the head: a stylesheet
+  that hides navigation is only safe when something can bring it back, and putting the
+  marker in the head rather than beside the menu is what stops a phone painting an
+  expanded menu and then snapping it shut.
+- [x] **Mobile pass** — **done session 29**, and checked by opening every studio and public
+  page at 390px rather than by asserting on CSS. Three real problems, all fixed: horizontal
+  overflow (one pasted URL sets the page's minimum width and *every* page scrolls sideways),
+  tap targets (the action rows were ~26px, the public pages' version arrows ~18px), and
+  page gutters. The reading sidebar now collapses behind a control that names the source
+  you are filtered to, so a collapsed sidebar still answers "what am I looking at". Opening
+  the pages found one defect the suite could not: the archive listing ran a titled item's
+  heading into its body, which is the fourth naming surface #46 did not reach.
 
 ### New features
 

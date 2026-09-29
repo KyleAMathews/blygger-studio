@@ -11,7 +11,7 @@ import { listPublicResponses } from "./mentions/store.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
 import { excerptFromHtml } from "./markdown.ts";
-import { leadingHeading } from "./preview.ts";
+import { clampText, leadingHeading } from "./preview.ts";
 import { authoredKind, getMedia, itemShowsResponses, listMediaForItem, listVersions, publishedVersion } from "./model.ts";
 import type { ItemRow, MediaRow, Settings, SubscriptionRow, Transclusion, VersionRow } from "./types.ts";
 import { WEBMENTION_PATH } from "./types.ts";
@@ -392,11 +392,22 @@ article.showing-pin .item-content[aria-busy="true"] { opacity: 0.5; }
 ul.archive { list-style: none; padding: 0; margin: 0; }
 ul.archive li { padding: 0.55rem 0; border-top: 1px solid var(--rule); display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
 ul.archive .row-main a { text-decoration: none; }
+/* The body tail after a title. Apparatus type, so the row reads as a title
+   with a note under it rather than as one long sentence. */
+ul.archive .row-sub { font: var(--apparatus); color: var(--ink-soft); }
 ul.archive .row-main a:hover { text-decoration: underline; }
 ul.archive .meta { flex: none; white-space: nowrap; }
 footer.older { padding: 2rem 0 0; border-top: 1px solid var(--rule); margin-top: 2rem; }
 footer.older a { font: var(--apparatus); color: var(--pencil); text-decoration: none; }
 footer.older a:hover { text-decoration: underline; }
+
+/* A pasted URL is one unbroken token, and a 65ch measure on a 390px screen is
+   narrower than plenty of them. Without this, one link in one item sets the
+   page's minimum width and every page on the blyg scrolls sideways. Prose gets
+   break-word (breaks only where a word cannot fit); the apparatus, which is
+   where bare URLs and origins actually appear, gets anywhere. */
+article.fragment, article.thread, .thread-card { overflow-wrap: break-word; }
+.provenance, .responses li, .blogroll li, .pinned-banner { overflow-wrap: anywhere; }
 
 @media (max-width: 30rem) {
   body { padding: 1.5rem 1rem 3rem; }
@@ -404,6 +415,14 @@ footer.older a:hover { text-decoration: underline; }
      sheet with half of it. */
   .blyg { padding: calc(var(--block-pad) / 2); max-width: calc(65ch + var(--block-pad)); }
   ul.archive li { flex-direction: column; gap: 0.15rem; }
+  /* The masthead is the one row on a public page that pairs a fixed-size
+     image with text that has to wrap. */
+  .masthead { gap: 0.75rem; }
+  /* The version arrows are an apparatus-sized control — about 18px tall,
+     which is a fine mouse target and not a thumb target. They are also the
+     only buttons on a public page, so this is the whole tap-target problem. */
+  .version-line .vnav { gap: 0.3rem; }
+  .version-line .vstep { padding: 0.45rem 0.6rem; }
 }
 `;
 
@@ -1148,6 +1167,33 @@ function itemTitle(excerptText: string, settings: Settings): string {
 }
 
 /**
+ * The three derived strings an item's head needs: `<title>`, `og:title`, and
+ * the description both the meta tag and the unfurled card use.
+ *
+ * Items stay titleless on the wire (§5.3) and nothing here changes that. But
+ * an item that opens with a heading has declared a title in the only way the
+ * protocol allows one to be declared, and #46 already makes that heading the
+ * item's title on three other surfaces — the feed page, the permalink, the
+ * studio reader. Reading it here is the same derivation a fourth time, not a
+ * new field: before this, a titled item's `og:title` was an excerpt that had
+ * swallowed its own heading ("On Protocols Protocols are the thin…"), which is
+ * the one thing an unfurled card must not look like.
+ *
+ * The description is taken from what follows the heading, so a card does not
+ * print the title twice. `og:title` carries no site suffix — `og:site_name`
+ * is the tag that says where this is, and repeating it makes a narrower card.
+ */
+function itemHead(html: string, settings: Settings): { title: string; ogTitle: string; description: string } {
+  const { title, rest } = leadingHeading(html);
+  const derived = title ? clampText(title, 70) : excerptFromHtml(html, 70);
+  return {
+    title: itemTitle(derived, settings),
+    ogTitle: derived || settings.site_title,
+    description: excerptFromHtml(title ? rest : html, 200),
+  };
+}
+
+/**
  * A leading `<h1>` is the item's title, so on the feed page it becomes the
  * link to that item's own page — the affordance a reader expects from a
  * titled post, and one the feed previously lacked entirely (the only way in
@@ -1285,15 +1331,16 @@ export async function permalinkPage(db: D1Database, settings: Settings, item: It
   }
   const latest = await publishedVersion(db, item);
   const media = await listMediaForItem(db, item.id);
-  const text = excerptFromHtml(latest?.content_html ?? "", 200);
+  const head = itemHead(latest?.content_html ?? "", settings);
   const body = `<div class="blyg">
 ${await pageTop(db, settings, mount)}
 ${await fragmentBlock(db, item, mount, settings.timezone)}
 ${await responsesSection(db, item, settings, mount)}
 </div>
 <script>${VERSION_NAV_SCRIPT}</script>`;
-  return layout(itemTitle(excerptFromHtml(latest?.content_html ?? "", 70), settings), body, mount, {
-    description: text,
+  return layout(head.title, body, mount, {
+    description: head.description,
+    ogTitle: head.ogTitle,
     url,
     alternateJson,
     webmention,
@@ -1318,14 +1365,16 @@ export async function threadPage(db: D1Database, settings: Settings, item: ItemR
   }
   const latest = await publishedVersion(db, item);
   const media = await listMediaForItem(db, item.id);
+  const head = itemHead(latest?.content_html ?? "", settings);
   const body = `<div class="blyg">
 ${await pageTop(db, settings, mount)}
 ${await threadBlock(db, item, mount, settings.timezone)}
 ${await responsesSection(db, item, settings, mount)}
 </div>
 <script>${VERSION_NAV_SCRIPT}</script>`;
-  return layout(itemTitle(excerptFromHtml(latest?.content_html ?? "", 70), settings), body, mount, {
-    description: excerptFromHtml(latest?.content_html ?? "", 200),
+  return layout(head.title, body, mount, {
+    description: head.description,
+    ogTitle: head.ogTitle,
     url,
     alternateJson,
     webmention,
@@ -1388,17 +1437,25 @@ ${noteHtml}
   const canonical = `${origin}${isThread ? "t" : "f"}/${item.id}/`;
   // `{excerpt} (v1) — {site}`, not `v1 — {excerpt} — {site}`: the version is a
   // qualifier on the item, and three em-dash-separated segments is one too many.
-  const pinnedExcerpt = excerptFromHtml(row.content_html, 70);
-  const pinnedTitle = pinnedExcerpt
-    ? `${pinnedExcerpt} (v${row.version}) — ${settings.site_title}`
+  // The name is derived from the pinned bytes by the same rule as a live item's
+  // (a declared heading, else an excerpt) — a title is part of what froze.
+  const pinnedHead = itemHead(row.content_html, settings);
+  const pinnedName = pinnedHead.ogTitle === settings.site_title ? "" : pinnedHead.ogTitle;
+  const pinnedTitle = pinnedName
+    ? `${pinnedName} (v${row.version}) — ${settings.site_title}`
     : `v${row.version} — ${settings.site_title}`;
   return layout(pinnedTitle, body, mount, {
     canonical,
     // The excerpt comes from the *pinned* version's own bytes, so a citation
     // unfurls as the text that was actually frozen, not the live text.
-    description: excerptFromHtml(row.content_html, 200),
+    description: pinnedHead.description,
+    ogTitle: pinnedName ? `${pinnedName} (v${row.version})` : `v${row.version}`,
     url: `${origin}${isThread ? "t" : "f"}/${item.id}/v${row.version}/`,
     type: "article",
+    // The blyg's avatar, never the item's attachments: a live lookup of the
+    // item's media would put today's image on a page whose whole promise is
+    // that it shows the bytes from then. Site identity is true either way.
+    image: await socialImage(db, settings, [], origin),
     siteName: settings.site_title,
   });
 }
@@ -1420,10 +1477,19 @@ export async function archivePage(db: D1Database, settings: Settings, items: Ite
     }
     const isThread = item.kind === "thread";
     const latest = await publishedVersion(db, item);
-    const text = excerptFromHtml(latest?.content_html ?? "", 80);
+    // The archive was the fourth surface that names an item and the one #46
+    // did not reach, so a titled item listed as "On Protocols Protocols are
+    // the thin layer where…" — the heading, then the heading again as the
+    // first words of the body, because an 80-character excerpt of the whole
+    // rendered HTML cannot see that the first block was a title. Split it the
+    // way every other surface does: the link is the title, the dimmed tail is
+    // what follows it. An untitled item is unchanged.
+    const { title, rest } = leadingHeading(latest?.content_html ?? "");
+    const linkText = title ? clampText(title, 80) : excerptFromHtml(latest?.content_html ?? "", 80);
+    const tail = title ? excerptFromHtml(rest, 60) : "";
     const href = `${mount}/${isThread ? "t" : "f"}/${item.id}/`;
     rows.push(
-      `<li><span class="row-main">${isThread ? '<span class="kind-chip">thread</span> ' : ""}<a href="${href}">${escapeHtml(text)}</a></span><span class="meta">${formatDate(item.updated, tz)} · v${item.version}</span></li>`,
+      `<li><span class="row-main">${isThread ? '<span class="kind-chip">thread</span> ' : ""}<a href="${href}">${escapeHtml(linkText)}</a>${tail ? ` <span class="row-sub">${escapeHtml(tail)}</span>` : ""}</span><span class="meta">${formatDate(item.updated, tz)} · v${item.version}</span></li>`,
     );
   }
   const body = `<div class="blyg">
@@ -1435,7 +1501,9 @@ ${rows.join("\n")}
 </div>`;
   return layout(`archive — ${settings.site_title}`, body, mount, {
     description: `Every item published on ${settings.site_title}.`,
+    ogTitle: `Archive — ${settings.site_title}`,
     url: `${origin}archive/`,
+    image: await socialImage(db, settings, [], origin),
     siteName: settings.site_title,
   });
 }
