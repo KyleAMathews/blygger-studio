@@ -18,6 +18,112 @@ not have its own repo until session 26.
 
 ---
 
+## 0.8.0 — 2026-09-29
+
+**Migrations: one — `0012_responses_default.sql`.** It adds a nullable
+per-item override for the responses list; the backfill is written so that an
+upgrade changes nothing that is currently visible on your pages (see below).
+Run `npm run upgrade`, or apply migrations and deploy as usual.
+
+**No wire changes.** Everything in this release is presentation, studio
+behaviour or packaging. `PROTOCOL_VERSION` is unchanged and no published
+document is affected.
+
+### Reading
+
+**A two-pane reader.** Sources on the left, one stream on the right, with
+per-source filtering and "Add feed" at the top. Subscriptions left the nav
+because the list of them is now where you read them — the page stays, and owns
+pause, resume, resync, delete, blogroll membership and poll diagnostics, all of
+which the sidebar deliberately does not try to hold.
+
+**Reading entries show the item's address, not an "open" label.** Several
+origins stubbing one item were indistinguishable from each other: the body is
+what they share and the origin is what they do not.
+
+**The entry's controls are split by what they do.** Composition (`stub`,
+`fork`, and the new `link post`, which starts a fragment containing `[[id]]`)
+sits apart from the rest (`copy [[id]]`, `copy url`, the address). `stub ↗`
+remains the one control that means "I am responding".
+
+### Titles
+
+A titled item is now named the same way on every surface that names it. A
+leading heading becomes the linked title on the feed page, in the studio
+reader, on the permalink, **and** — new here — in the archive listing and in
+the page's own `<head>`. Before this, the archive ran the heading into the body
+("On Protocols Protocols are the thin layer…") and so did every social card.
+Items remain titleless on the wire (§5.3): all of this is derivation from the
+item's own first block, never a new field.
+
+### Social cards
+
+The head has carried `description`, `og:*` and `twitter:card` since 0.4.1. This
+release fixes what they *said*: `og:title` is the declared heading where there
+is one (and carries no site suffix — `og:site_name` is the tag that says
+where), and the description is taken from what follows the heading rather than
+repeating it. The pinned-version page and the archive gained an `og:image`;
+a pinned page uses the blyg's avatar rather than the item's current
+attachments, because its whole promise is the bytes from when it froze.
+
+### Studio chrome
+
+**The nav is a top menu.** Sections are real targets with a hover state and a
+filled current tab; `public page` and `log out` are a separate group. Below
+640px the bar collapses behind a hamburger.
+
+**A mobile pass over every studio and public page at phone width.** Horizontal
+overflow is gone (a single pasted URL used to set the page's minimum width, so
+every page scrolled sideways), tap targets are ~44px where they were 18–26px,
+and the reading sidebar collapses behind a control that names the source you
+are filtered to.
+
+Both collapses are gated on a marker that only a scripted browser sets, so a
+browser with JavaScript off gets the full navigation rather than a button that
+does nothing.
+
+### Settings
+
+**A timezone for displayed dates.** A Worker's clock is UTC, so an evening post
+could show tomorrow's date. The picker is filled by your *browser's* list of
+zones and preselects your device's. The wire is unchanged and tested — feed
+dates stay RFC-822 in GMT and item documents ISO-8601 UTC; this is what a human
+reads on the page.
+
+**A global default for whether items show their responses, overridable per
+item.** The old column was two-valued, so "off" and "no opinion" were the same
+row and a default could never take effect. Migration 0012 adds the override.
+**The backfill is conservative on purpose:** existing explicit opt-ins become
+hard overrides and everything else inherits a default that is off, which
+reproduces exactly what your pages show today. An upgrade that newly exposed
+other people's responses on someone's pages would be a bad day.
+
+**Update alerts, on by default.** The studio compares its own `CLIENT.version`
+against the public releases feed and says when you are behind. Nothing about
+your deployment is sent — it is a version comparison against a feed, not a
+check-in. Dismissable, and switchable off in settings.
+
+### Packaging
+
+**`npm run init` and `npm run upgrade`.** `init` provisions a new deployment
+idempotently, picks the Cloudflare account explicitly even when there is only
+one, and never sees your owner password (`COOKIE_SECRET` is generated and piped
+on stdin). `upgrade` shows what is coming, calls out changed migrations, keeps
+your `wrangler.jsonc` on conflict, and gates on typecheck and tests before
+offering to deploy.
+
+**The shipped client names no deployment.** The committed `wrangler.jsonc`
+carried two Cloudflare accounts, three D1 databases, bucket and worker names,
+zones with route patterns, and a comment describing a live production API
+surface — a copy of this repo inherited all of it. None of it was a credential
+and all of it was already public, so this removes nothing from the world; what
+it does is make the artifact honest. Configure your instance in
+`wrangler.jsonc` and nothing under `src/`; if you ever have to edit `src/` to
+configure an instance, that is a bug in this client, because it breaks your
+upgrade path. Please report it.
+
+---
+
 ## 0.7.0 — 2026-09-28
 
 **Migrations: none.** Studio UI only; nothing on the wire changes and no
