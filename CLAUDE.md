@@ -288,8 +288,33 @@ was specified to do in both cases.
 
 ### From the session-28 Fable round (2026-09-28) — the first 0.4 construct
 
-- [ ] **Partial transclusion** (decision #49, spec §16.4; a **0.3 revision** once built and
-  exercised on both nodes). **Implementation plan: `blygger-spec/docs/v0.4-plan.md` §7.3, tasks
+- [~] **Partial transclusion** (decision #49, spec §16.4) — **P1–P7 built session 29**
+  (`91c03e7`, `0f65be4`); **P9, the cross-node exercise, is the only thing left**, and it is
+  what lets Fable promote §16.4 into §10 (gate G7). P8 — the `css-contract.md` line and the
+  promotion itself — is the Fable session's.
+
+  **What the build settled and found:**
+  - **P4 stands as written.** The bake is the selection's plain text in `<p>`s, not a carved
+    sub-range of the source's inline HTML. No reason emerged to reverse it: the selection is
+    defined on text, and cutting an HTML range faithfully (reopening the tags a cut crosses)
+    is a second project. Emphasis in the source does not survive into the quote, which is
+    the visible cost and is the right one to pay.
+  - **The normalizer is the whole construct** and is one function, `selectionText` in
+    `markdown.ts`, with a second entry point `normalizeSelection` for text that is already
+    text (a browser selection). Its subtle rule: whitespace *within* a block collapses,
+    including the raw newlines markdown-it leaves inside a `<p>`. Splitting on literal
+    newlines would make a match depend on where the author pressed return.
+  - **`injectProvenance` was matching the class attribute as a literal string**, so a
+    partial got no provenance line — and, worse, did not advance the provenance index, so a
+    thread mixing both forms mis-paired every line after the first partial. Found by opening
+    the page; the suite was green. Fixed and pinned by a mixed-thread test.
+  - **A partial says "excerpt of v2"** where a whole one says "snapshot of v2". §16.4 puts
+    the disclosure on the second class; this is its human half, without which an excerpt and
+    a whole transclusion are the same blockquote, differing only in being shorter.
+  - **Select-to-quote checks at selection time**, not at publish: a passage that cannot be
+    published is refused while the author is still choosing it.
+
+  Original entry: **Implementation plan: `blygger-spec/docs/v0.4-plan.md` §7.3, tasks
   P1–P9; do this before remote sources, per §7.4.** Grammar: a `![[id]]` directive immediately followed — no blank
   line — by a markdown blockquote is a partial transclusion; the blockquote's text is the
   selection; a blank line detaches it (whole transclusion + the author's own quote stays
