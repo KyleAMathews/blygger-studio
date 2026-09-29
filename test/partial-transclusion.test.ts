@@ -15,7 +15,8 @@
 //      a substring of the target snapshot's normalized text at the version
 //      being baked, else a publish error like an unresolvable directive.
 import { describe, expect, it } from "vitest";
-import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
+import { SELF } from "cloudflare:test";
+import { apiJson, BASE, createAndPublish, getPublic, login, STUDIO } from "./helpers.ts";
 
 async function createThread(cookie: string, contentMd: string): Promise<string> {
   const created = await apiJson(cookie, "POST", "/api/items", { content_md: contentMd, kind: "thread" });
@@ -277,5 +278,95 @@ describe("staleness and the rest are unchanged", () => {
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
     expect(doc.transclusions[0].version).toBe(2);
     expect(doc.transclusions[0].selector.exact).toBe(PARA_ONE);
+  });
+});
+
+// P7's last clause: "The preview shows the partial bake and the not-found error
+// before publish." The preview shares `walk()` with the resolver, so this is
+// really a test that the sharing holds — a preview that silently diverged from
+// publish would show the author a passage that publish then refuses.
+describe("the editor preview matches what publish will do", () => {
+  const preview = async (cookie: string, contentMd: string) => {
+    const res = await SELF.fetch(`${BASE}${STUDIO}/preview-thread`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ content_md: contentMd }),
+    });
+    expect(res.status).toBe(200);
+    return (await res.json()) as any;
+  };
+
+  it("renders the partial bake before publish", async () => {
+    const cookie = await login();
+    const target = await createAndPublish(cookie, TARGET);
+    const out = await preview(cookie, `![[${target}]]\n> ${PARA_ONE}`);
+    expect(JSON.stringify(out)).toContain("blyg-partial");
+    // The unquoted half of the target is not shown either — the preview is a
+    // preview of the bake, not of the item.
+    expect(JSON.stringify(out)).not.toContain("A second paragraph that is not quoted");
+  });
+
+  it("shows the not-found reason, naming the version, without publishing", async () => {
+    const cookie = await login();
+    const target = await createAndPublish(cookie, TARGET);
+    const out = await preview(cookie, `![[${target}]]\n> nothing like this is in there`);
+    expect(JSON.stringify(out)).toContain("quoted passage not found in the target's version 1");
+  });
+});
+
+// Found by opening the page, not by the suite: a partial quote rendered with
+// no provenance line at all, because `injectProvenance` tested the class
+// attribute as a literal string (`class="blyg-transclusion"`) and a partial's
+// is `class="blyg-transclusion blyg-partial"`. The dropped line was the
+// visible half; the mis-paired index in a mixed thread was the dangerous half.
+describe("a partial quote discloses itself on the page", () => {
+  it("carries a provenance line, and names itself an excerpt", async () => {
+    const cookie = await login();
+    const target = await createAndPublish(cookie, TARGET);
+    const thread = await createThread(cookie, `![[${target}]]\n> ${PARA_ONE}\n\nAnd my answer.`);
+    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+
+    const html = await (await getPublic(`/blyg/t/${thread}/`)).text();
+    expect(html).toContain('class="provenance"');
+    // "excerpt of v1", not "snapshot of v1": a reader must be able to tell a
+    // part from the whole, and length alone cannot say it — a short quote and
+    // a short item look identical.
+    expect(html).toContain("excerpt of v1");
+    expect(html).not.toContain("snapshot of v1");
+  });
+
+  it("a whole transclusion still says snapshot", async () => {
+    const cookie = await login();
+    const target = await createAndPublish(cookie, TARGET);
+    const thread = await createThread(cookie, `![[${target}]]\n\nAnd my answer.`);
+    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    const html = await (await getPublic(`/blyg/t/${thread}/`)).text();
+    expect(html).toContain("snapshot of v1");
+    expect(html).not.toContain("excerpt of");
+  });
+
+  it("pairs each line with its own quote when a thread mixes both forms", async () => {
+    const cookie = await login();
+    const whole = await createAndPublish(cookie, "The whole of the first item.");
+    const partial = await createAndPublish(cookie, TARGET);
+    const third = await createAndPublish(cookie, "The whole of the third item.");
+    // partial in the middle: if the partial is not recognised, the index stops
+    // advancing and the third quote gets the second's line.
+    const thread = await createThread(
+      cookie,
+      `![[${whole}]]\n\nOne.\n\n![[${partial}]]\n> ${PARA_ONE}\n\nTwo.\n\n![[${third}]]\n\nThree.`,
+    );
+    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+
+    const html = await (await getPublic(`/blyg/t/${thread}/`)).text();
+    const lines = [...html.matchAll(/<p class="provenance">.*?<\/p>/g)].map((m) => m[0]);
+    expect(lines).toHaveLength(3);
+    // In document order: whole, excerpt, whole — and each naming its own target.
+    expect(lines[0]).toContain(`/blyg/f/${whole}/`);
+    expect(lines[0]).toContain("snapshot of v1");
+    expect(lines[1]).toContain(`/blyg/f/${partial}/`);
+    expect(lines[1]).toContain("excerpt of v1");
+    expect(lines[2]).toContain(`/blyg/f/${third}/`);
+    expect(lines[2]).toContain("snapshot of v1");
   });
 });

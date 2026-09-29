@@ -90,17 +90,38 @@ export function plainTextFromHtml(html: string): string {
  */
 const BLOCK_SEP = "\u0000";
 
-export function selectionText(html: string): string {
-  return decodeEntities(
-    html
-      .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
-      .replace(BLOCK_BOUNDARY, BLOCK_SEP)
-      .replace(/<[^>]+>/g, ""),
-  )
-    .split(BLOCK_SEP)
+/** The line rule, shared by both entry points so they cannot drift apart. */
+function normalizeBlocks(segments: string[]): string {
+  return segments
     .map((seg) => seg.replace(/\s+/g, " ").trim())
     .filter((seg) => seg !== "")
     .join("\n");
+}
+
+export function selectionText(html: string): string {
+  return normalizeBlocks(
+    decodeEntities(
+      html
+        .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+        .replace(BLOCK_BOUNDARY, BLOCK_SEP)
+        .replace(/<[^>]+>/g, ""),
+    ).split(BLOCK_SEP),
+  );
+}
+
+/**
+ * The same rule applied to text that is already text — a browser selection,
+ * where `Selection.toString()` has already put a newline at each block
+ * boundary. Studio-side only: it is how select-to-quote turns what the author
+ * highlighted into the string `selectionText` will later have to match.
+ *
+ * Separate entry point rather than a second implementation, because the two
+ * *must* agree: this produces the quote, that checks it at publish, and a
+ * disagreement between them would be an affordance that reliably produces
+ * unpublishable drafts.
+ */
+export function normalizeSelection(text: string): string {
+  return normalizeBlocks(text.split("\n"));
 }
 
 /** First ~n chars of already-rendered HTML's plain text, ellipsized. */

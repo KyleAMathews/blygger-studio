@@ -912,7 +912,12 @@ export async function transclusionProvenance(db: D1Database, transclusions: Tran
       const kind = row ? await authoredKind(db, row) : "fragment";
       link = { href: `${mount}/${kind === "thread" ? "t" : "f"}/${t.id}/`, label: `${kind} ↗` };
     }
-    out.push(`<p class="provenance"><a href="${link.href}">${link.label}</a> · snapshot of v${t.version}</p>`);
+    // A partial quote says so. §16.4 puts the disclosure on the second class,
+    // and this is the human half of it: without it an excerpt and a whole
+    // transclusion are the same blockquote to a reader, differing only in
+    // being shorter — which is indistinguishable from the source being short.
+    const what = t.selector ? "excerpt of" : "snapshot of";
+    out.push(`<p class="provenance"><a href="${link.href}">${link.label}</a> · ${what} v${t.version}</p>`);
   }
   return out;
 }
@@ -947,7 +952,14 @@ export function injectProvenance(html: string, provenance: string[]): string {
         inTransclusion = false;
       }
     } else {
-      if (depth === 0) inTransclusion = m[0].includes('class="blyg-transclusion"');
+      // Match the class **token**, not the literal attribute. A partial
+      // transclusion's class is `blyg-transclusion blyg-partial` (§16.4), so a
+      // substring test on the whole attribute misses it — and missing it does
+      // not merely drop one provenance line, it stops the index advancing and
+      // mis-pairs every following line in a thread that mixes the two forms,
+      // which is exactly the failure the depth-awareness above exists to
+      // prevent, arrived at from the other direction.
+      if (depth === 0) inTransclusion = /\bclass="[^"]*\bblyg-transclusion\b/.test(m[0]);
       depth++;
     }
   }

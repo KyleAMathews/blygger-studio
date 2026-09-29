@@ -4,6 +4,8 @@
 import { Hono } from "hono";
 import { createDraft, setStubOf } from "../model.ts";
 import { parseStubOf } from "../stub.ts";
+import { normalizeSelection, selectionText } from "../markdown.ts";
+import { locateSelection } from "../transclusion.ts";
 import type { Env } from "../types.ts";
 import { pollSubscription, reconcileIndex } from "./poll.ts";
 import { resolve } from "./resolve.ts";
@@ -231,9 +233,41 @@ importerApi.delete("/signals/:sub/:remoteId", async (c) => {
  *
  * `stub_of` is set regardless of whether the body ends up quoting the target:
  * readers rely on the marker, never on body inspection (§2.2).
+ *
+ * **Partial quotation (§16.4, plan §7.3 P7)** changes only the prefill:
+ *
+ *   - with a `selection` — the author highlighted a passage and asked to quote
+ *     it — the body is the directive plus that passage as an attached
+ *     blockquote, which is the partial grammar. The selection is checked here
+ *     against the snapshot we hold, so a selection that cannot publish is
+ *     refused at the moment it is made rather than at publish, when the author
+ *     has written a response around it.
+ *   - without one, a **long** target prefills the directive plus an empty
+ *     quote line, because quoting two thousand words to say one is the shape
+ *     partial quotation exists to fix, and an empty `>` invites the passage
+ *     while still letting the author delete the line for the whole form.
+ *
+ * Both are prefill only. The body remains entirely the author's to change, and
+ * `stub_of` is set the same way in every case.
  */
+/**
+ * Past this much text, stubbing the whole item is usually not what the author
+ * means — so the prefill offers the partial grammar instead of the whole-item
+ * one. A suggestion in the plan (§7.3 P7) and a number with no protocol force:
+ * it changes which of two legal bodies is typed for you.
+ */
+const LONG_TARGET_CHARS = 600;
+
+/** A normalized selection as an attached markdown blockquote: one `>` block per line. */
+function quoteLines(selection: string): string {
+  return selection
+    .split("\n")
+    .map((line) => `> ${line}`)
+    .join("\n>\n");
+}
+
 importerApi.post("/stubs", async (c) => {
-  type StubReq = { subscription_id?: string; remote_id?: string };
+  type StubReq = { subscription_id?: string; remote_id?: string; selection?: string };
   const body = await c.req.json<StubReq>().catch(() => ({}) as StubReq);
   const subId = body.subscription_id;
   const remoteId = body.remote_id;
@@ -257,7 +291,24 @@ importerApi.post("/stubs", async (c) => {
     // withdrawal is legitimate (§2.3.6), it just cannot include the text.
     const quotable = row.state === "current" || row.pinned_version_retained !== null;
     const version = row.state === "tombstone" && row.pinned_version_retained !== null ? row.pinned_version_retained : row.version;
-    contentMd = quotable ? `![[${remoteId}]]\n\n` : "";
+    if (!quotable) {
+      contentMd = "";
+    } else if (typeof body.selection === "string" && body.selection.trim()) {
+      const selection = normalizeSelection(body.selection);
+      // Checked now, against the same bytes publish will check against. The
+      // alternative — prefill it and find out later — hands the author a draft
+      // that cannot be published and no hint as to which part is wrong.
+      if (!selection || !locateSelection(row.content_html, selection)) {
+        return c.json({ error: "that passage is not in the version we hold of this item" }, 400);
+      }
+      contentMd = `![[${remoteId}]]\n${quoteLines(selection)}\n\n`;
+    } else if (selectionText(row.content_html).length > LONG_TARGET_CHARS) {
+      // An empty quote line, focused by the caller: the grammar is already
+      // there, and the author types or pastes the passage into it.
+      contentMd = `![[${remoteId}]]\n> \n\n`;
+    } else {
+      contentMd = `![[${remoteId}]]\n\n`;
+    }
     stubInput = { origin: sub.origin, id: remoteId, version };
   }
 

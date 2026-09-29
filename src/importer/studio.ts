@@ -437,8 +437,8 @@ async function readingEntryHtml(
     // unmarked fragment with a bare link, is retired rather than kept as a
     // lighter sibling.
     actions = `<div class="entry-actions">${thumbButtons(e.imported, signal ? (signal.thumb as 1 | -1) : null)} ${hopperPicker(e.imported, hoppers)} ${stubButton(e.imported.subscriptionId, e.imported.remoteId)}${
-      e.l0 ? "" : " " + forkLink(mount, e.imported.subscriptionId, e.imported.remoteId)
-    }${linkPost ? " " + linkPost : ""}</div>`;
+      e.l0 ? "" : " " + quoteButton(e.imported.subscriptionId, e.imported.remoteId)
+    }${e.l0 ? "" : " " + forkLink(mount, e.imported.subscriptionId, e.imported.remoteId)}${linkPost ? " " + linkPost : ""}</div>`;
   } else if (linkPost) {
     // Own items get an actions row for this alone. Thumbs, hoppers, stub and
     // fork are gestures toward someone else's writing and stay absent; linking
@@ -501,6 +501,25 @@ export function stubButton(subId: string, remoteId: string): string {
 }
 
 /**
+ * Select-to-quote (§16.4, plan §7.3 P7a) — highlight a passage in the entry and
+ * respond to *that* rather than to the whole item.
+ *
+ * It sits beside `stub ↗` deliberately, and raises none of the #50 placement
+ * question that `link post` does: this **is** a stub. It writes the same
+ * citation, sends the same mention and produces the same relation — the only
+ * difference is that the body quotes one passage instead of the whole item. An
+ * affordance that means "I am responding" belongs in the response slot, and
+ * this one means exactly that.
+ *
+ * Absent for L0 rows: a legacy feed entry has no versioned document, so there
+ * is nothing a selection could be checked against (§16.4, "plain-web targets
+ * get nothing").
+ */
+export function quoteButton(subId: string, remoteId: string): string {
+  return `<button type="button" class="stub-btn" data-action="quote" data-sub="${escapeHtml(subId)}" data-remote="${escapeHtml(remoteId)}">quote ↗</button>`;
+}
+
+/**
  * The fork affordance (§2.4). A plain link, not a button: forking needs a
  * *pinned* version and which ones exist is the origin's to say, so this opens
  * the picker rather than pretending the choice has already been made.
@@ -558,6 +577,50 @@ document.addEventListener("click", async (e) => {
     body: JSON.stringify({ subscription_id: btn.dataset.sub, remote_id: btn.dataset.remote }),
   });
   if (!res.ok) { btn.disabled = false; alert("Could not start a stub for that item."); return; }
+  const data = await res.json();
+  location.href = "${studioPath(mount)}/edit/" + data.id;
+});
+
+/**
+ * "quote" — select-to-quote, the partial half of the stub action.
+ *
+ * The selection has to come from *this* entry: a highlight that starts in one
+ * entry and ends in another would be checked against one item's bytes while
+ * showing the author text from two, so it is refused rather than silently
+ * truncated. Selecting inside the clamped body works, because the clamp is
+ * visual and the whole text is in the DOM either way.
+ *
+ * Reports back on the button itself rather than through a dialog: a modal here
+ * would interrupt the reading pass this affordance exists to keep you in.
+ */
+function quoteHint(btn, message) {
+  const previous = btn.textContent;
+  btn.textContent = message;
+  setTimeout(function () { btn.textContent = previous; }, 2200);
+}
+
+function selectionWithin(entry) {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return "";
+  const range = sel.getRangeAt(0);
+  if (!entry.contains(range.commonAncestorContainer)) return "";
+  return sel.toString().trim();
+}
+
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-action='quote']");
+  if (!btn) return;
+  const entry = btn.closest(".reading-entry");
+  const selection = entry ? selectionWithin(entry) : "";
+  if (!selection) { quoteHint(btn, "select a passage first"); return; }
+  btn.disabled = true;
+  const res = await fetch("/api/stubs", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ subscription_id: btn.dataset.sub, remote_id: btn.dataset.remote, selection: selection }),
+  });
+  btn.disabled = false;
+  if (!res.ok) { quoteHint(btn, "passage not found"); return; }
   const data = await res.json();
   location.href = "${studioPath(mount)}/edit/" + data.id;
 });
