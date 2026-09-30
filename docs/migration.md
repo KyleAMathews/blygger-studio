@@ -6,7 +6,7 @@ Land the API/SDK and SPA changes as complete chunks, then tackle ecosystem compa
 
 Keep the existing Studio UI. Put its data access behind authenticated OpenAPI Hono routes, generate a JavaScript/TypeScript SDK with Cloudflare Forge, and use that SDK for both server-rendered reads and browser writes. Keep existing write URLs and legacy preview/search/version URLs working. The latter delegate to the SDK rather than duplicate API logic.
 
-The contract lives in `src/contract/`; `npm run openapi` writes `openapi.json`. The owner can also fetch `/api/openapi.json`. Generation is pinned and CI checks contract and SDK drift. Tests check API response shapes, SDK uploads/errors, and browser flows. Build output is ignored and rebuilt before development, tests, and deployment. Each tagged release publishes the OpenAPI spec, an installable SDK archive, and a bundled Worker with migrations and generic config. A manifest and checksums record the versions and source commit; CI verifies the extracted downloads before publication.
+The contract lives in `src/contract/`; `npm run openapi` writes `openapi.json`. The owner can also fetch `/api/openapi.json`. Generation is pinned and CI checks contract and SDK drift. Tests check API response shapes, SDK uploads/errors, and browser flows. Build output is ignored and rebuilt before development, tests, and deployment. Each merge to main automatically tags a new, CI-checked version and publishes the OpenAPI spec, an installable SDK archive, and a bundled Worker with migrations and generic config. A manifest and checksums record the versions and source commit; CI verifies the extracted downloads before publication.
 
 ## 2. SPA
 

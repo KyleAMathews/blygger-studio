@@ -76,15 +76,22 @@ Tracking `main` is a legitimate choice — it is just not what this script does,
 and if you make it, the studio's update alert will disagree with you, because
 that alert also compares against releases.
 
-Each new `v*` tag builds and publishes three downloads: the OpenAPI JSON spec, a
+Each merge to `main` builds and publishes a GitHub release with three downloads: the OpenAPI JSON spec, a
 Worker archive (bundle, migrations, and generic deployment config), and an
 installable SDK `.tgz`. `release.json` records the Studio, SDK, and API versions,
 source commit, and generator pin; `SHA256SUMS` covers every download. Release CI
 runs types, contract drift, Worker tests, and browser tests before publishing.
+GitHub Actions must be enabled and the release job’s `contents: write` permission
+must be allowed. No Cloudflare or npm publishing credentials are needed.
 
 Build the same downloads locally with `npm run release:build` (output:
-`build/release/`). The tag must match the root package version. The SDK keeps its
-own version in `sdk/package.json`; bump it when its public API changes. Install a
+`build/release/`). Before merging, bump `package.json`, the root versions in `package-lock.json`,
+and `CLIENT.version` in `src/types.ts` to a new version. Add a matching
+`CHANGELOG.md` entry with an explicit `Migrations:` line. PR CI checks that the
+version is newer than existing release tags. After merge, the release job runs
+the checks, creates `v{version}` at the merge commit, and publishes downloads.
+No manual tag push or release creation is needed. The SDK keeps its own version
+in `sdk/package.json`; bump it when its public API changes. Install a
 downloaded SDK with `npm install ./blygger-sdk-VERSION.tgz`. See the Worker
 archive’s README for deployment. This workflow publishes GitHub downloads; it
 does not publish to the npm registry or deploy anyone’s Worker.

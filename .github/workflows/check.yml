@@ -8,6 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -15,6 +17,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run typecheck
+      - run: npm run release:check
+        if: github.event_name == 'pull_request'
       - run: npm run release:build
       - run: npm run release:verify
       - run: npm run openapi && git diff --exit-code -- openapi.json

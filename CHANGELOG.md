@@ -18,6 +18,21 @@ not have its own repo until session 26.
 
 ---
 
+## 0.9.0 — 2026-09-30
+
+**Migrations: none.**
+
+Studio reads and writes through an authenticated OpenAPI Hono API and a
+Forge-generated JavaScript/TypeScript SDK. The existing UI and public Blygger
+protocol output keep their behavior. Reading batches page bodies, and item
+reads keep D1 query counts bounded.
+
+Merges to main now publish GitHub releases automatically. Downloads include the
+OpenAPI spec, a Worker bundle with migrations and generic deployment config,
+and an installable SDK package. A manifest and SHA-256 checksums accompany them.
+CI checks versions, contracts, SDK generation, Worker behavior, browser flows,
+and extracted release artifacts before publication.
+
 ## 0.8.3 — 2026-09-29
 
 **Migrations: none.**
