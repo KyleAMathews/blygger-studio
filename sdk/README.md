@@ -2,7 +2,9 @@
 
 JavaScript and TypeScript SDK for the private Studio API. The source in `generated/` comes from Cloudflare Forge; edit the schemas in `src/contract/`, then run `npm run sdk:generate` at the repository root. Generation needs Node 22+, Docker, and network access. The Forge revision and Fern generator version are pinned in `generation.json`.
 
-`npm run build` builds this package for Node, browsers, and Workers. `npm pack ./sdk` creates a distributable package; this repository does not publish it automatically.
+Download `blygger-sdk-SDK_VERSION.tgz` from a [Studio release](https://github.com/blygger/blygger-studio/releases), check its digest against `SHA256SUMS`, and install it with `npm install ./blygger-sdk-SDK_VERSION.tgz`. Choose the SDK shipped with your Worker release; `release.json` records both versions. The SDK is distributed through GitHub release assets, not the npm registry.
+
+For source builds, `npm run build` builds this package for Node, browsers, and Workers, and `npm pack ./sdk` creates a distributable package.
 
 ```ts
 import { BlyggerClient, BlyggerApiError } from "@blygger/sdk";
@@ -13,7 +15,7 @@ await client.studio.publishItem({ id: draft.id });
 const page = await client.studio.listReading({ page: 1 });
 ```
 
-Browsers send same-origin session cookies. For Node, supply a cookie in `headers` or a custom `fetch` transport. OAuth is planned after the SPA migration. Calls do not retry by default, so a lost write response cannot silently create a second item. Applications can opt into retries explicitly.
+Sign into `/studio` first; the SDK does not create a login session. Browsers send same-origin session cookies. Cross-origin apps are not supported yet. For Node, supply a cookie in `headers` or a custom `fetch` transport. OAuth is planned after the SPA migration. Calls do not retry by default, so a lost write response cannot silently create a second item. Applications can opt into retries explicitly.
 
 Methods throw `BlyggerApiError` with `statusCode` and `body` for API errors. Pass `{ abortSignal }` as the second argument to cancel a request. File uploads accept browser `File`/`Blob`; the Node bundle also supports filesystem streams. Use `.withRawResponse()` when the HTTP status is needed.
 
