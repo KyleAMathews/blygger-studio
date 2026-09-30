@@ -1,6 +1,6 @@
 # Studio migration
 
-Land two complete changes. Keep the public protocol files, public SSR pages, static export, D1 data, R2 objects, and subscription cron behavior intact.
+Land the API/SDK and SPA changes as complete chunks, then tackle ecosystem compatibility, OAuth, and MCP. Keep the public protocol files, public SSR pages, static export, D1 data, R2 objects, and subscription cron behavior intact.
 
 ## 1. API and SDK
 
@@ -16,7 +16,20 @@ TanStack DB collections read and write through the SDK. Reading polls the API ba
 
 Delete the old SSR Studio, inline scripts, compatibility adapter, and unused read wrappers in that same PR. Keep public SSR pages. Add browser coverage and visual baselines for desktop/mobile parity and test navigation, polling, mutation failures, and draft retention.
 
-## 3. Desktop compatibility, OAuth, and MCP
+## 3. Ecosystem compatibility, OAuth, and MCP
+
+Get each separate ecosystem client running against the canonical OpenAPI API, including Burrow and Blygger Desktop. Use the [ecosystem directory](https://blygger.org/ecosystem/) as the discovery list and refresh it when this phase starts. The initial inventory below was checked on 2026-09-30; a listing is not proof of API compatibility.
+
+- Authoring clients: Burrow (locate its canonical repository), [Blygger Desktop](https://github.com/aneeshsathe/blygger-desktop), and [drafts-blyg](https://github.com/miguelito4/drafts-blyg).
+- Independent publishers: Blynger, caseyjr-blyg, sachin-blyg, and thinking.drwip.com's client. The directory has no source links for these; locate their code before claiming they run against the API.
+- Publishing integrations: [blyg-publisher](https://github.com/brndnpink/blyg-publisher), [hugo-blyg](https://github.com/chrisbodhi/hugo-blyg), and goddinpotty-blyg. The directory links [goddinpotty](https://github.com/mtravers/goddinpotty), but its Blygger fork still needs locating.
+- Unclassified: [pioneering-spirit-blyg](https://github.com/patwater/pioneering-spirit-blyg); inspect it to establish its client/API needs.
+
+Track every project in a compatibility matrix: repository and pinned revision, runtime/language, existing backend, operations needed, auth, request/response shapes, errors, pagination, polling, sync/conflicts, and test status. Keep missing source or runtime access explicit as blockers. Refresh the inventory to include new clients rather than treating this snapshot as exhaustive.
+
+For each runnable client, add an API-backed connection or adapter using the generated SDK where supported, or a contract-checked HTTP client for other languages. Publishing tools need an API-backed publishing path while retaining their static output support. Reconcile shared gaps in the OpenAPI Hono routes and regenerate the SDK; avoid separate Worker forks and undocumented endpoints. Land complete, tested integrations in as many PRs as needed.
+
+Acceptance per client: run it against a local Worker with disposable D1/R2 data and record a reproducible command or integration suite. Exercise its supported connect, read/poll, create/edit, publish/withdraw, attachment, and error flows, plus conflicts and AI provenance where applicable. Validate actual requests and responses against the spec, and record unsupported operations explicitly. A source-unavailable client stays blocked, not marked compatible. Keep public protocol interoperability distinct from these authenticated API checks.
 
 Audit [Blygger Desktop](https://github.com/aneeshsathe/blygger-desktop) against our OpenAPI contract before adding OAuth and MCP. Compare its actual Rust API calls and [server extension contracts](https://github.com/aneeshsathe/blygger-desktop/blob/main/docs/SERVER.md), including endpoint paths, request and response shapes, errors, pagination, sync/conflict behavior, and authentication.
 
@@ -24,7 +37,7 @@ Its current requirements include bearer-token owner auth, JSON reads for items a
 
 Acceptance: run the desktop repository's local Worker integration suite against this Worker checkout and test connect, reads, edits, publish, uploads, conflict handling, and AI provenance. The desktop app must work against our documented API without a separate server fork or undocumented endpoints.
 
-Then add MCP using the same API contract and domain operations; keep authentication in middleware. Do not add desktop-specific extensions, OAuth placeholders, or an MCP server during the first two changes.
+Roll out OAuth for these clients through shared auth middleware and document the token/refresh flow, scopes, and migration from existing credentials. Complete client connection tests against that auth flow. Then add MCP using the same API contract and domain operations. Do not add client-specific extensions, OAuth placeholders, or an MCP server during the first two changes.
 
 ## Initial state
 
