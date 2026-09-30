@@ -1,3 +1,4 @@
+import { BlyggerApi, unwrap } from "../../sdk/dist/browser.js";
 // Detect stubs — v0.3-plan §3.3. The studio view of verified inbound
 // mentions, and of what we have told other people.
 //
@@ -63,7 +64,7 @@ async function stubBackControl(db: StudioData, row: MentionInRow, mount: string)
   // Ask for the subscription that actually *holds* this item, rather than the
   // first one matching the origin: nothing stops two subscriptions pointing at
   // one origin, and only one of them may have imported the item yet.
-  const source = await db.client.studio.getMentionSource({ id: row.id });
+  const source = await unwrap(BlyggerApi.getMentionSource({ client: db.client, path: { id: row.id } }));
   const holder = source.holder;
   if (holder) {
     return `<button type="button" class="stub-btn" data-action="stub" data-sub="${escapeHtml(holder)}" data-remote="${escapeHtml(row.source_id)}">stub back ↗</button>`;

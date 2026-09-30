@@ -1,6 +1,6 @@
 import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { BlyggerClient, BlyggerApiError } from "../sdk/dist/browser.js";
+import { BlyggerApi, unwrap, BlyggerApiError, createBlyggerClient } from "../sdk/dist/browser.js";
 import { sdkRequest } from "../src/sdk-request.ts";
 import { itemDetail } from "../src/item-data.ts";
 import { readingData } from "../src/reading-data.ts";
@@ -9,34 +9,34 @@ import { login, BASE, apiJson } from "./helpers.ts";
 import { createSubscription, upsertL0Item } from "../src/importer/store.ts";
 import { ReadingEntrySchema } from "../src/contract/routes.ts";
 
-const clientFor = (cookie = "") => new BlyggerClient({ baseUrl: BASE, headers: { cookie }, fetch: (input, init) => SELF.fetch(typeof input === "string" ? input : input.toString(), init) });
+const clientFor = (cookie = "") => createBlyggerClient({ baseUrl: BASE, headers: { cookie }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
 
 describe("generated SDK against the real Worker", () => {
   it("creates, reads, edits, publishes, pins, restores and withdraws through named methods", async () => {
     const client = clientFor(await login());
-    const created = await client.studio.createItem({ content_md: "SDK draft" }).withRawResponse();
-    expect(created.rawResponse.status).toBe(201);
+    const created = await BlyggerApi.createItem({ client, body: { content_md: "SDK draft" }, throwOnError: true });
+    expect(created.response.status).toBe(201);
     const id = created.data.id;
-    await client.studio.updateItem({ id, content_md: "SDK saved" });
-    expect((await client.studio.getItem({ id })).item.content_md).toBe("SDK saved");
-    await client.studio.publishItem({ id });
-    await client.studio.pinItem({ id, version: 1 });
-    await client.studio.updateItem({ id, content_md: "changed" });
-    await client.studio.restoreItem({ id, version: 1 });
-    expect((await client.studio.getItem({ id })).item.content_md).toBe("SDK saved");
-    await client.studio.withdrawItem({ id });
-    expect((await client.studio.getItem({ id })).item.status).toBe("withdrawn");
+    await unwrap(BlyggerApi.updateItem({ client: client, path: { id }, body: { content_md: "SDK saved" } }));
+    expect((await unwrap(BlyggerApi.getItem({ client: client, path: { id } }))).item.content_md).toBe("SDK saved");
+    await unwrap(BlyggerApi.publishItem({ client: client, path: { id } }));
+    await unwrap(BlyggerApi.pinItem({ client: client, path: { id }, body: { version: 1 } }));
+    await unwrap(BlyggerApi.updateItem({ client: client, path: { id }, body: { content_md: "changed" } }));
+    await unwrap(BlyggerApi.restoreItem({ client: client, path: { id }, body: { version: 1 } }));
+    expect((await unwrap(BlyggerApi.getItem({ client: client, path: { id } }))).item.content_md).toBe("SDK saved");
+    await unwrap(BlyggerApi.withdrawItem({ client: client, path: { id } }));
+    expect((await unwrap(BlyggerApi.getItem({ client: client, path: { id } }))).item.status).toBe("withdrawn");
   });
   it("preserves structured validation and authorization failures", async () => {
-    await expect(clientFor().studio.getSettings()).rejects.toMatchObject({ statusCode: 401, body: { error: "unauthorized" } });
-    await expect(clientFor(await login()).studio.generateItem({ id: "unknown", scope: -1 })).rejects.toBeInstanceOf(BlyggerApiError);
+    await expect(unwrap(BlyggerApi.getSettings({ client: clientFor() }))).rejects.toMatchObject({ statusCode: 401, body: { error: "unauthorized" } });
+    await expect(unwrap(BlyggerApi.generateItem({ client: clientFor(await login()), path: { id: "unknown" }, body: { scope: -1 } }))).rejects.toBeInstanceOf(BlyggerApiError);
     const response = await SELF.fetch(`${BASE}/api/items`, { method: "POST", headers: { cookie: await login(), "content-type": "application/json" }, body: '{"content_md":42}' });
     expect(response.status).toBe(400);
     expect((await response.json<{ error: string }>()).error).toContain("content_md");
   });
   it("uploads a File and retains its MIME type through the SDK", async () => {
     const client = clientFor(await login());
-    const media = await client.studio.uploadMedia({ file: new File([new Uint8Array([1, 2, 3])], "image.png", { type: "image/png" }), alt: "sdk image" });
+    const media = await unwrap(BlyggerApi.uploadMedia({ client: client, body: { file: new File([new Uint8Array([1, 2, 3])], "image.png", { type: "image/png" }), alt: "sdk image" } }));
     expect(media.mime).toBe("image/png");
     const response = await SELF.fetch(`${BASE}/blyg/${media.url}`);
     expect(response.status).toBe(200);
@@ -55,14 +55,14 @@ describe("generated SDK against the real Worker", () => {
   });
   it("never retries a write after a lost or failed response", async () => {
     let calls = 0;
-    const client = new BlyggerClient({ baseUrl: BASE, fetch: async () => { calls++; return Response.json({ error: "unavailable" }, { status: 502 }); } });
-    await expect(client.studio.createItem()).rejects.toMatchObject({ statusCode: 502 });
+    const client = createBlyggerClient({ baseUrl: BASE, fetch: async () => { calls++; return Response.json({ error: "unavailable" }, { status: 502 }); } });
+    await expect(unwrap(BlyggerApi.createItem({ client: client }))).rejects.toMatchObject({ statusCode: 502 });
     expect(calls).toBe(1);
   });
   it("matches declared response schemas for private reads and write commands", async () => {
     const cookie = await login();
-    const client = clientFor(cookie), draft = await client.studio.createItem();
-    const hopper = await client.studio.createHopper({ name: "SDK contract" });
+    const client = clientFor(cookie), draft = await unwrap(BlyggerApi.createItem({ client: client }));
+    const hopper = await unwrap(BlyggerApi.createHopper({ client: client, body: { name: "SDK contract" } }));
     const cases: [keyof typeof routes, string, string, unknown?][] = [
       ["listItems", "GET", "/api/items"], ["getItem", "GET", `/api/items/${draft.id}`],
       ["getSettings", "GET", "/api/settings"], ["listSubscriptions", "GET", "/api/subscriptions"],
@@ -82,14 +82,14 @@ describe("generated SDK against the real Worker", () => {
   });
   it("polling reads see new imports with distinct keys and sanitized HTML", async () => {
     const client = clientFor(await login());
-    const initial = await client.studio.listReading();
+    const initial = await unwrap(BlyggerApi.listReading({ client: client }));
     const subIds: string[] = [];
     for (const origin of ["https://a.example/feed", "https://b.example/feed"]) {
       const sub = await createSubscription(env.DB, { kind: "rss", origin, feedUrl: origin, title: origin });
       subIds.push(sub.id);
       await upsertL0Item(env.DB, sub.id, "same-id", { version: 1, contentMd: "safe", contentHash: "hash", observedAt: "2026-09-30T01:00:00Z", contentHtml: '<p onclick="bad()">safe</p><script>bad()</script>', created: "2026-09-30T00:00:00Z", updated: "2026-09-30T00:00:00Z" });
     }
-    const response = await client.studio.listReading();
+    const response = await unwrap(BlyggerApi.listReading({ client: client }));
     const imported = response.entries.filter((e) => e.imported && subIds.includes(e.imported.subscriptionId));
     expect(imported).toHaveLength(2);
     expect(new Set(imported.map((e) => e.key)).size).toBe(2);
@@ -114,7 +114,7 @@ describe("generated SDK against the real Worker", () => {
     const created = await command("/api/items", "");
     expect(created.status).toBe(201);
     const { id } = await created.json<{ id: string }>();
-    await clientFor(cookie).studio.updateItem({ id, content_md: "empty-body commands" });
+    await unwrap(BlyggerApi.updateItem({ client: clientFor(cookie), path: { id }, body: { content_md: "empty-body commands" } }));
     expect((await command(`/api/items/${id}/publish`)).status).toBe(200);
     expect((await command(`/api/items/${id}/withdraw`, "")).status).toBe(200);
     expect((await command("/api/items", "{")).status).toBe(400);
@@ -135,8 +135,8 @@ describe("generated SDK against the real Worker", () => {
     const client = clientFor(await login());
     const ids: string[] = [];
     for (let i = 0; i < 26; i++) {
-      const item = await client.studio.createItem({ content_md: `budget ${i}` });
-      await client.studio.publishItem({ id: item.id });
+      const item = await unwrap(BlyggerApi.createItem({ client: client, body: { content_md: `budget ${i}` } }));
+      await unwrap(BlyggerApi.publishItem({ client: client, path: { id: item.id } }));
       ids.push(item.id);
     }
     let queries = 0;

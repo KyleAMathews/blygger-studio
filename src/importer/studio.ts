@@ -1,3 +1,4 @@
+import { BlyggerApi, unwrap } from "../../sdk/dist/browser.js";
 // Subscribe-side studio pages — v0.2-plan.md §4.2 task 7 (subs list +
 // add-by-URL), task 9 (reading feed), task 10 (hoppers). Server-rendered
 // HTML + vanilla JS against the /api/* endpoints, same conventions as
@@ -726,7 +727,7 @@ importerStudio.get("/reading", async (c) => {
   const data = studioData(c);
   const mount = normalizeMount(c.env.MOUNT);
   const [reading, hoppers, subs, settings] = await Promise.all([
-    data.client.studio.listReading({ page: Math.max(1, Math.floor(Number(c.req.query("page")) || 1)), sub: c.req.query("sub") }),
+    unwrap(BlyggerApi.listReading({ client: data.client, query: { page: Math.max(1, Math.floor(Number(c.req.query("page")) || 1)), sub: c.req.query("sub") } })),
     listHoppers(data), listSubscriptions(data), getSettings(data),
   ]);
   const ourOrigin = siteOrigin(settings, c.req.url, mount);

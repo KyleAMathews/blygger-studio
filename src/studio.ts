@@ -1,4 +1,4 @@
-import { BlyggerApiError } from "../sdk/dist/browser.js";
+import { BlyggerApi, unwrap, BlyggerApiError } from "../sdk/dist/browser.js";
 import type { Context } from "hono";
 import { studioData, type StudioData, authoredKind, getItem, getSettings, getSettingsMap, listAll, listMediaForItem, listVersions, publishedVersion } from "./studio-data.ts";
 import { annotateTkPreview, scopeSummaries } from "./authoring.ts";
@@ -1554,19 +1554,19 @@ studio.get("/syntax", async (c) => {
 
 /** Studio-only live preview for the fragment editor — not a protocol surface. TK scopes are highlighted (task 6). */
 studio.post("/preview", async (c) => {
-  try { return c.json(await studioData(c).client.studio.preview(await c.req.json().catch(() => ({})))); }
+  try { return c.json(await unwrap(BlyggerApi.preview({ client: studioData(c).client, body: await c.req.json().catch(() => ({})) }))); }
   catch (e) { return legacyError(c, e); }
 });
 studio.post("/preview-thread", async (c) => {
-  try { return c.json(await studioData(c).client.studio.preview({ ...await c.req.json().catch(() => ({})), kind: "thread" })); }
+  try { return c.json(await unwrap(BlyggerApi.preview({ client: studioData(c).client, body: { ...await c.req.json().catch(() => ({})), kind: "thread" } }))); }
   catch (e) { return legacyError(c, e); }
 });
 studio.get("/versions/:id/:v", async (c) => {
-  try { return c.json(await studioData(c).client.studio.getVersion({ id: c.req.param("id"), v: c.req.param("v") })); }
+  try { return c.json(await unwrap(BlyggerApi.getVersion({ client: studioData(c).client, path: { id: c.req.param("id"), v: c.req.param("v") } }))); }
   catch (e) { return legacyError(c, e); }
 });
 studio.get("/fragments/search", async (c) => {
-  try { return c.json(await studioData(c).client.studio.search({ q: c.req.query("q"), offset: Math.max(0, Math.floor(Number(c.req.query("offset")) || 0)) })); }
+  try { return c.json(await unwrap(BlyggerApi.search({ client: studioData(c).client, query: { q: c.req.query("q"), offset: Math.max(0, Math.floor(Number(c.req.query("offset")) || 0)) } }))); }
   catch (e) { return legacyError(c, e); }
 });
 
@@ -1584,7 +1584,7 @@ studio.get("/fork", async (c) => {
   const data = studioData(c);
   const mount = normalizeMount(c.env.MOUNT);
   const settings = await getSettings(data);
-  const pins = await data.client.studio.getForkOptions({ id: c.req.query("id") ?? "", sub: c.req.query("sub"), origin: c.req.query("origin") });
+  const pins = await unwrap(BlyggerApi.getForkOptions({ client: data.client, query: { id: c.req.query("id") ?? "", sub: c.req.query("sub"), origin: c.req.query("origin") } }));
   return c.html(forkPickerPage(pins.origin, c.req.query("id") ?? "", pins.ourOrigin, pins, mount, settings.timezone));
 });
 
@@ -1650,7 +1650,7 @@ async function fragmentEditPage(db: StudioData, item: ItemRow, mount: string, _o
   const media = await listMediaForItem(db, item.id);
   const versions = await listVersions(db, item.id);
   const tk = annotateTkPreview(item.content_md);
-  const previewHtml = (await db.client.studio.preview({ content_md: item.content_md, kind: "fragment", item_id: item.id })).html;
+  const previewHtml = (await unwrap(BlyggerApi.preview({ client: db.client, body: { content_md: item.content_md, kind: "fragment", item_id: item.id } }))).html;
   const mediaHtml = media.length
     ? `<p style="font-size:0.85rem;opacity:0.7;">attached: ${media.map((m) => escapeHtml(m.r2_key)).join(", ")}</p>`
     : "";
@@ -1841,10 +1841,10 @@ async function stubHeader(db: StudioData, item: ItemRow, mount: string): Promise
       href = `${mount}/${kind === "thread" ? "t" : "f"}/${stub.id}/`;
       label = "your own item";
     } else {
-      const subs = (await db.client.studio.listSubscriptions()).filter((sub) => sub.origin === stub.origin);
+      const subs = (await unwrap(BlyggerApi.listSubscriptions({ client: db.client }))).filter((sub) => sub.origin === stub.origin);
       let row: { kind: string; page: string | null; title: string } | null = null;
       for (const sub of subs) {
-        try { const imported = await db.client.studio.getImportedItem({ sub: sub.id, id: stub.id }); row = { ...imported, title: sub.title }; break; }
+        try { const imported = await unwrap(BlyggerApi.getImportedItem({ client: db.client, path: { sub: sub.id, id: stub.id } })); row = { ...imported, title: sub.title }; break; }
         catch (e) { if (!(e instanceof BlyggerApiError && e.statusCode === 404)) throw e; }
       }
       href = blygItemUrl(stub.origin, row?.kind ?? "fragment", stub.id, row?.page ?? null);
@@ -1860,7 +1860,7 @@ async function threadEditPage(db: StudioData, item: ItemRow, mount: string, _our
   const media = await listMediaForItem(db, item.id);
   const versions = await listVersions(db, item.id);
   const tk = annotateTkPreview(item.content_md);
-  const previewHtml = (await db.client.studio.preview({ content_md: item.content_md, kind: "thread", item_id: item.id })).html;
+  const previewHtml = (await unwrap(BlyggerApi.preview({ client: db.client, body: { content_md: item.content_md, kind: "thread", item_id: item.id } }))).html;
   const mediaHtml = media.length
     ? `<p style="font-size:0.85rem;opacity:0.7;">attached: ${media.map((m) => escapeHtml(m.r2_key)).join(", ")}</p>`
     : "";

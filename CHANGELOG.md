@@ -23,7 +23,7 @@ not have its own repo until session 26.
 **Migrations: none.**
 
 Studio reads and writes through an authenticated OpenAPI Hono API and a
-Forge-generated JavaScript/TypeScript SDK. The existing UI and public Blygger
+Hey API-generated JavaScript/TypeScript SDK. The existing UI and public Blygger
 protocol output keep their behavior. Reading batches page bodies, and item
 reads keep D1 query counts bounded.
 

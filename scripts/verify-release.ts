@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { Miniflare } from "miniflare";
+import { readD1Migrations } from "@cloudflare/vitest-pool-workers";
 
 const output = "build/release";
 const manifest = JSON.parse(readFileSync(join(output, "release.json"), "utf8"));
@@ -31,10 +32,28 @@ try {
   assert.equal(browser.status, 200);
   assert.match(await browser.text(), /blygger/);
   const sdk = await import(pathToFileURL(join(temp, "package/dist/index.js")).href);
-  assert.equal(typeof sdk.BlyggerClient, "function");
+  assert.equal(typeof sdk.createBlyggerClient, "function");
+  const db = await mf.getD1Database("DB");
+  for (const migration of await readD1Migrations(join(worker, "migrations"))) {
+    await db.batch(migration.queries.map((query) => db.prepare(query)));
+  }
+  const baseUrl = (await mf.ready).origin;
+  const login = await fetch(`${baseUrl}/studio/login`, { method: "POST", body: new URLSearchParams({ password: "test" }), redirect: "manual" });
+  assert.equal(login.status, 302);
+  const token = login.headers.get("set-cookie")?.match(/blyg_session=([^;]+)/)?.[1];
+  assert.ok(token);
+  const client = sdk.createBlyggerClient({ baseUrl, auth: token });
+  const draft = await sdk.unwrap(sdk.BlyggerApi.createItem({ client, body: { content_md: "Packaged Node SDK" } }));
+  const detail = await sdk.unwrap(sdk.BlyggerApi.getItem({ client, path: { id: draft.id } }));
+  assert.equal(detail.item.content_md, "Packaged Node SDK");
+  const media = await sdk.unwrap(sdk.BlyggerApi.uploadMedia({ client, body: { file: new File([new Uint8Array([1, 2, 3])], "image.png", { type: "image/png" }) } }));
+  assert.equal(media.mime, "image/png");
+  const unauthorized = await sdk.BlyggerApi.getSettings({ client: sdk.createBlyggerClient({ baseUrl }) });
+  assert.equal(unauthorized.response.status, 401);
+  assert.equal(unauthorized.error.error, "unauthorized");
   assert.ok(readFileSync(join(temp, "package/LICENSE"), "utf8").includes("MIT"));
   assert.equal(JSON.parse(readFileSync(join(temp, "package/package.json"), "utf8")).version, manifest.sdkVersion);
-  console.log("Release checksums, extracted Worker, and packaged SDK verified");
+  console.log("Release checksums, extracted Worker, and packaged Node SDK auth/read/write/upload verified");
 } finally {
   await mf?.dispose();
   rmSync(temp, { recursive: true, force: true });

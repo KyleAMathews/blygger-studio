@@ -7,7 +7,6 @@
   "files": [
     "dist",
     "generation.json",
-    "FORGE-LICENSE",
     "README.md",
     "LICENSE"
   ],
@@ -20,9 +19,6 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
-  },
-  "dependencies": {
-    "@types/node": "^22.0.0"
   },
   "engines": {
     "node": ">=22"

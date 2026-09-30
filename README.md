@@ -31,9 +31,9 @@ Two halves, on purpose:
 
 Use the [latest GitHub release](https://github.com/blygger/blygger-studio/releases/latest)
 for a live deployment. Release downloads start with Studio 0.9.0; older releases
-only have GitHub's source archives. You need Node.js 22.13 or newer, a Cloudflare
+only have GitHub's source archives. You need Node.js 22.18 or newer, a Cloudflare
 account with D1 and R2 enabled, and a domain on that account for a custom domain.
-Docker is only needed to regenerate the SDK, not to install or deploy Studio.
+SDK generation runs locally through a pinned Hey API npm package; Docker is not needed.
 
 ### Install the Worker download
 
@@ -175,10 +175,10 @@ npm install ./blygger-sdk-0.1.0.tgz
 ```
 
 ```js
-import { BlyggerClient } from "@blygger/sdk";
+import { BlyggerApi, createBlyggerClient, unwrap } from "@blygger/sdk";
 
-const client = new BlyggerClient({ baseUrl: window.location.origin });
-const reading = await client.studio.listReading({ page: 1 });
+const client = createBlyggerClient({ baseUrl: window.location.origin });
+const reading = await unwrap(BlyggerApi.listReading({ client, query: { page: 1 } }));
 ```
 
 Sign into `/studio` first: API calls use its owner session cookie. The SDK does
@@ -306,7 +306,7 @@ contract at `/api/openapi.json`. It uses the existing session cookie; this does
 not define a public publishing protocol.
 
 `npm run openapi` updates the contract. `npm run sdk:generate` rebuilds the SDK
-with a pinned Cloudflare Forge generator and needs Docker. Normal development
+with a pinned Hey API generator on Node 22.18+, using the unchanged spec. Normal development
 and deployment only need `npm run build`, which the npm scripts run for you.
 CI checks types, contract and SDK drift, Worker tests, and Chromium browser tests.
 See [the migration plan](docs/migration.md) for the complete SPA cutover and the

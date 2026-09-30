@@ -44,15 +44,18 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.18.6",
     "@cloudflare/workers-types": "^5",
+    "@hey-api/openapi-ts": "0.99.0",
     "@playwright/test": "^1.63.0",
     "@types/markdown-it": "^14",
     "@types/node": "^26.1.1",
     "esbuild": "^0.28.2",
     "miniflare": "^4.20260714.0",
-    "pnpm": "^10.27.0",
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^4.1.0",
     "wrangler": "^4"
+  },
+  "engines": {
+    "node": ">=22.18.0"
   }
 }

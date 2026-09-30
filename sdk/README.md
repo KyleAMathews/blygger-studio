@@ -1,22 +1,72 @@
 # Blygger SDK
 
-JavaScript and TypeScript SDK for the private Studio API. The source in `generated/` comes from Cloudflare Forge; edit the schemas in `src/contract/`, then run `npm run sdk:generate` at the repository root. Generation needs Node 22+, Docker, and network access. The Forge revision and Fern generator version are pinned in `generation.json`.
+JavaScript and TypeScript client for the private Studio API, generated with
+Hey API. It runs in browsers, Node.js 22+, and Cloudflare Workers using native
+Fetch, File, and Blob APIs. No Node stream shim or framework is required.
 
-Download `blygger-sdk-SDK_VERSION.tgz` from a [Studio release](https://github.com/blygger/blygger-studio/releases), check its digest against `SHA256SUMS`, and install it with `npm install ./blygger-sdk-SDK_VERSION.tgz`. Choose the SDK shipped with your Worker release; `release.json` records both versions. The SDK is distributed through GitHub release assets, not the npm registry.
+Download `blygger-sdk-SDK_VERSION.tgz` from a
+[Studio release](https://github.com/blygger/blygger-studio/releases), check its
+digest against `SHA256SUMS`, and install it with
+`npm install ./blygger-sdk-SDK_VERSION.tgz`. Choose the SDK shipped with your
+Worker release; `release.json` records both versions. Downloads are on GitHub,
+not the npm registry.
 
-For source builds, `npm run build` builds this package for Node, browsers, and Workers, and `npm pack ./sdk` creates a distributable package.
+## Browser use
 
-```ts
-import { BlyggerClient, BlyggerApiError } from "@blygger/sdk";
+Sign into `/studio` first. Create a client for the same origin; the browser sends
+its HttpOnly session cookie automatically. The SDK does not create a login
+session. Cross-origin apps and OAuth are planned for a later migration.
 
-const client = new BlyggerClient({ baseUrl: location.origin });
-const draft = await client.studio.createItem({ content_md: "Hello", kind: "fragment" });
-await client.studio.publishItem({ id: draft.id });
-const page = await client.studio.listReading({ page: 1 });
+```js
+import { BlyggerApi, createBlyggerClient, unwrap } from "@blygger/sdk";
+
+const client = createBlyggerClient({ baseUrl: window.location.origin });
+const draft = await unwrap(BlyggerApi.createItem({
+  client, body: { content_md: "Hello", kind: "fragment" },
+}));
+await unwrap(BlyggerApi.publishItem({ client, path: { id: draft.id } }));
+const reading = await unwrap(BlyggerApi.listReading({ client, query: { page: 1 } }));
 ```
 
-Sign into `/studio` first; the SDK does not create a login session. Browsers send same-origin session cookies. Cross-origin apps are not supported yet. For Node, supply a cookie in `headers` or a custom `fetch` transport. OAuth is planned after the SPA migration. Calls do not retry by default, so a lost write response cannot silently create a second item. Applications can opt into retries explicitly.
+## Node and Worker use
 
-Methods throw `BlyggerApiError` with `statusCode` and `body` for API errors. Pass `{ abortSignal }` as the second argument to cancel a request. File uploads accept browser `File`/`Blob`; the Node bundle also supports filesystem streams. Use `.withRawResponse()` when the HTTP status is needed.
+Create a separate client for each server request or owner so credentials stay
+isolated. Node Fetch does not manage browser sessions: supply an existing owner
+session cookie in `headers`, or its raw token through `auth` (the generated
+cookie scheme adds `blyg_session=`). A custom `fetch` transport is also supported.
+Never embed server credentials in browser code.
 
-Forge's current Fern transformer cannot express cookie authentication. Generation omits cookie security only from its temporary input; the checked-in OpenAPI contract documents it, and the wrapper supplies it. The generated implementation retains Cloudflare's internal class names; the public entry point exports `BlyggerClient`.
+```js
+import { BlyggerApi, createBlyggerClient } from "@blygger/sdk";
+
+const client = createBlyggerClient({
+  baseUrl: "https://blyg.example.com",
+  headers: { Cookie: ownerSessionCookie }, // received through your login/session flow
+});
+const { data, error, response } = await BlyggerApi.listReading({ client });
+if (error) throw new Error(`Reading failed: ${response?.status}`);
+```
+
+Upload with `body: { file: new File([...], "image.png", { type: "image/png" }) }`.
+Node callers can use a Blob from `node:fs`'s `openAsBlob()` with native FormData
+handling. Filesystem streams are not accepted. Requests take a standard `signal`
+for cancellation. Ordinary API calls do not retry automatically.
+
+## Results and errors
+
+Generated methods return typed `{ data, error, request, response }` fields.
+`response.status` exposes HTTP status when a response exists; network failures
+can have no response. `unwrap()` is an optional throwing interface: it returns
+successful data, throws `BlyggerApiError` with `statusCode` and `body` for HTTP
+failures, and preserves network/abort errors.
+
+## Generation
+
+Edit `src/contract/` at the repository root, then run `npm run sdk:generate` with
+Node 22.18+. The exact generator version is pinned in the root package and
+lockfile and recorded in `generation.json`. Generation reads the checked-in
+`openapi.json` without overlays, auth removal, or generated-file patches. CI
+checks drift. Docker and hosted generator services are not needed.
+
+`npm run build` bundles the package and declarations for browser and server
+JavaScript. `npm pack ./sdk` creates the installable archive.

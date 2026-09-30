@@ -21,7 +21,6 @@ const config = execFileSync("git", ["show", "HEAD:wrangler.jsonc"], { encoding: 
 writeFileSync(join(worker, "wrangler.jsonc"), config.replace('"main": "src/index.ts"', '"main": "worker.js",\n  "no_bundle": true'));
 cpSync("migrations", join(worker, "migrations"), { recursive: true });
 cpSync("LICENSE", join(worker, "LICENSE"));
-cpSync("sdk/FORGE-LICENSE", join(worker, "FORGE-LICENSE"));
 cpSync("docs/release-worker.md", join(worker, "README.md"));
 execFileSync("tar", ["-czf", join(output, `${workerName}.tar.gz`), "-C", output, workerName]);
 const packed = JSON.parse(execFileSync("npm", ["pack", "./sdk", "--json", "--pack-destination", output], { encoding: "utf8" }));
