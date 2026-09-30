@@ -99,7 +99,8 @@ api.openapi(routes.updateItem, async (c) => {
   const kind = body.kind ?? await authoredKind(c.env.DB, item);
   if (body.kind !== undefined && item.version !== 0) return c.json({ error: "kind is fixed once an item has been published" }, 409);
   const existingStub = parseStoredStub(item.stub_of);
-  if (kind === "fragment" && (("stub_of" in body ? body.stub_of : existingStub) !== null && ("stub_of" in body ? body.stub_of : existingStub) !== undefined)) {
+  if (kind === "fragment" && body.stub_of != null) return c.json({ error: "only threads can be stubs" }, 400);
+  if (body.kind === "fragment" && existingStub !== null && !("stub_of" in body && body.stub_of === null)) {
     return c.json({ error: "clear the stub before switching this to a fragment" }, 409);
   }
   let stubJson = item.stub_of;
@@ -157,8 +158,8 @@ api.openapi(routes.publishItem, async (c) => {
   // TK-stripped (published) length, not the raw working copy — see FragmentTooLongError.
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await readJson<{ note?: string }>(c).catch(() => ({}) as { note?: string });
-  const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
+  const body = await readJson<{ note?: string }>(c);
+  const note = body.note?.trim() || null;
   const origin = siteOrigin(await getSettings(c.env.DB), c.req.url, normalizeMount(c.env.MOUNT));
   // §2.4's publish-time check. It lives here rather than inside publish()
   // deliberately: publish() is network-free by design (#26 — quoting follows
@@ -206,8 +207,7 @@ api.openapi(routes.publishItem, async (c) => {
 api.openapi(routes.generateItem, async (c) => {
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await readJson<{ scope?: number }>(c).catch(() => ({}) as { scope?: number });
-  if (typeof body.scope !== "number") return c.json({ error: "scope index required" }, 400);
+  const body = await readJson<{ scope: number }>(c);
 
   const result = await runGenerateScope(c.env, item, body.scope);
   if (!result.ok) return c.json(result.body, result.status as 400 | 404 | 502);
@@ -219,8 +219,8 @@ api.openapi(routes.withdrawItem, async (c) => {
   if (!item) return c.json({ error: "not found" }, 404);
   if (item.status === "withdrawn") return c.json({ error: "already withdrawn" }, 409);
   if (item.status !== "public") return c.json({ error: "not published" }, 409);
-  const body = await readJson<{ note?: string }>(c).catch(() => ({}) as { note?: string });
-  const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
+  const body = await readJson<{ note?: string }>(c);
+  const note = body.note?.trim() || null;
   const version = await withdraw(c.env.DB, item, note);
   // §2.3.6: a withdrawn stub re-sends its mention once, from the last real
   // version's references — the endcap has none — so the receiver re-verifies,
@@ -257,8 +257,7 @@ api.openapi(routes.pinItem, async (c) => {
 api.openapi(routes.restoreItem, async (c) => {
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await readJson<{ version?: number }>(c).catch(() => ({}) as { version?: number });
-  if (typeof body.version !== "number") return c.json({ error: "version required" }, 400);
+  const body = await readJson<{ version: number }>(c);
   try {
     await restoreVersion(c.env.DB, item, body.version);
   } catch (err) {
@@ -317,8 +316,7 @@ const SETTINGS_KEYS = [
 ] as const;
 
 api.openapi(routes.updateSettings, async (c) => {
-  const body = await readJson<Record<string, unknown>>(c).catch(() => null);
-  if (!body) return c.json({ error: "JSON body required" }, 400);
+  const body = await readJson<Record<string, unknown>>(c);
   const patch: Record<string, string> = {};
   for (const key of SETTINGS_KEYS) {
     if (typeof body[key] === "string") patch[key] = body[key] as string;

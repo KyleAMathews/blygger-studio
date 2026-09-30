@@ -29,6 +29,10 @@ reads keep D1 query counts bounded. The owner API uses resource routes, strict
 Zod request validation, boolean preferences, structured item references, and
 offset pagination. Partial edits validate before an atomic write. Replaced
 private routes are removed, and Studio uses the new routes throughout.
+Empty threads retain correct pinned links. Long version histories no longer
+share one D1 result row. Reads tolerate malformed stored JSON without changing
+it. Mentions page beyond their old caps, and hopper previews load three bodies.
+Dependency installation builds the SDK for upgrades from 0.8.3.
 
 Merges to main now publish GitHub releases automatically. Downloads include the
 OpenAPI spec, a Worker bundle with migrations and generic deployment config,

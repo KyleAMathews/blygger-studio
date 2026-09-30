@@ -11,7 +11,7 @@ import type { Env, SubscriptionRow } from "../types.ts";
 import { escapeHtml, normalizeMount, studioPath } from "../util.ts";
 import type { ReadingFeedEntry } from "./reading.ts";
 import { leadingHeading, previewFromHtml, splitL0Content } from "../preview.ts";
-import { studioData, type StudioData, getSettings, getHopper, hopperItemBodies, getSignal, listHoppers, listHopperItems, listSubscriptions } from "../studio-data.ts";
+import { studioData, type StudioData, getSettings, getHopper, hopperSummary, hopperItemBodies, getSignal, listHoppers, listHopperItems, listSubscriptions } from "../studio-data.ts";
 import type { HopperRow } from "../types.ts";
 import { displayUrl } from "./util.ts";
 
@@ -726,15 +726,15 @@ ${rows.length ? `<h2>Subscriptions</h2>\n<ul>\n${rows.join("\n")}\n</ul>` : ""}
 importerStudio.get("/reading", async (c) => {
   const data = studioData(c);
   const mount = normalizeMount(c.env.MOUNT);
+  const requested = readingPage(c.req.query("page"), Number.MAX_SAFE_INTEGER);
   let [reading, hoppers, subs, settings] = await Promise.all([
-    unwrap(BlyggerApi.listReading({ client: data.client, query: { offset: (Math.max(1, Math.floor(Number(c.req.query("page")) || 1)) - 1) * 25, limit: 25, sub: c.req.query("sub") } })),
+    unwrap(BlyggerApi.listReading({ client: data.client, query: { offset: requested.start, limit: READING_PAGE_SIZE, sub: c.req.query("sub") } })),
     listHoppers(data), listSubscriptions(data), getSettings(data),
   ]);
   const ourOrigin = siteOrigin(settings, c.req.url, mount);
-  const pages = Math.max(1, Math.ceil(reading.total / reading.limit));
-  if (reading.offset >= Math.max(1, reading.total)) reading = await unwrap(BlyggerApi.listReading({ client: data.client, query: { offset: (pages - 1) * 25, limit: 25, sub: c.req.query("sub") } }));
+  const { page, pages, start } = readingPage(c.req.query("page"), reading.total);
+  if (reading.offset !== start) reading = await unwrap(BlyggerApi.listReading({ client: data.client, query: { offset: start, limit: READING_PAGE_SIZE, sub: c.req.query("sub") } }));
   const { selected, total } = reading;
-  const page = Math.floor(reading.offset / reading.limit) + 1;
   const rows = await Promise.all(reading.items.map((e) => readingEntryHtml(data, e, hoppers, mount, ourOrigin, settings.timezone)));
   // The filter has to survive paging, or page 2 of one feed silently becomes
   // page 2 of everything.
@@ -799,10 +799,11 @@ const HOPPERS_STYLE = `
 const HOPPER_PEEK_ROWS = 3;
 
 async function hopperPeek(db: StudioData, hopperId: string, titleOf: Map<string, string>): Promise<string> {
-  const memberships = await listHopperItems(db, hopperId);
+  const summary = await hopperSummary(db, hopperId);
+  const memberships = summary.memberships;
   if (!memberships.length) return "";
   const lines: string[] = [];
-  const bodies = await hopperItemBodies(db, hopperId);
+  const bodies = new Map(summary.items.map((row) => [JSON.stringify([row.subscription_id, row.remote_id]), row]));
   for (const m of memberships.slice(0, HOPPER_PEEK_ROWS)) {
     const row = bodies.get(JSON.stringify([m.subscription_id, m.remote_id]));
     if (!row) continue;
@@ -815,7 +816,7 @@ async function hopperPeek(db: StudioData, hopperId: string, titleOf: Map<string,
     const label = title ? `<span class="peek-title">${escapeHtml(title)}</span>` : escapeHtml(body);
     lines.push(`<li><span class="peek-src">${src}</span> &middot; ${label}</li>`);
   }
-  const extra = memberships.length - lines.length;
+  const extra = summary.total - lines.length;
   if (extra > 0) lines.push(`<li class="peek-more">+${extra} more</li>`);
   return `<ul class="peek">${lines.join("")}</ul>`;
 }
@@ -884,9 +885,8 @@ importerStudio.get("/hoppers", async (c) => {
   const titleOf = new Map(subs.map((sub) => [sub.id, sub.title || sub.origin]));
   const rows = await Promise.all(
     hoppers.map(async (h) => {
-      const items = await listHopperItems(data, h.id);
-      const sources = new Set(items.map((m) => m.subscription_id)).size;
-      const counts = `${items.length} item${items.length === 1 ? "" : "s"}${sources ? ` &middot; ${sources} source${sources === 1 ? "" : "s"}` : ""}`;
+      const { total, source_count: sources } = await hopperSummary(data, h.id);
+      const counts = `${total} item${total === 1 ? "" : "s"}${sources ? ` &middot; ${sources} source${sources === 1 ? "" : "s"}` : ""}`;
       return `<div class="hopper-row">
 <div class="hopper-main">
 <a href="${studioPath(mount)}/hoppers/${h.id}"><strong>${escapeHtml(h.name)}</strong></a>

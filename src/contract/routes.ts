@@ -1,5 +1,5 @@
 import { ItemSchema, VersionSchema, MediaSchema, SubscriptionSchema, HopperSchema, ImportedItemSchema, MentionSchema, VersionReferenceSchema, StubSchema, TransclusionSchema } from "./resources.ts";
-import { optionalJsonBody, jsonBody } from "./app.ts";
+import { optionalJsonBody } from "./app.ts";
 import { createRoute, z, type RouteConfig } from "@hono/zod-openapi";
 import { SettingsSchema, HopperItemRowSchema, SignalRowSchema, MentionOutRowSchema } from "./schemas.ts";
 
@@ -35,7 +35,7 @@ function route<P extends string>(id: string, method: RouteConfig["method"], path
   if (body instanceof z.ZodObject) body = body.strict();
   const params = Object.fromEntries([...path.matchAll(/\{(\w+)\}/g)].map((m) => [m[1], ["v", "version"].includes(m[1]) ? z.coerce.number().int().positive() : z.string().min(1)]));
   return createRoute({
-    operationId: id, method, path, ...(body ? { middleware: optionalBody ? [jsonBody, optionalJsonBody] : jsonBody } : {}), tags: ["studio"], security: [{ ownerSession: [] }],
+    operationId: id, method, path, ...(body ? { middleware: optionalBody ? optionalJsonBody : undefined } : {}), tags: ["studio"], security: [{ ownerSession: [] }],
     request: { ...(Object.keys(params).length ? { params: z.object(params) } : {}), ...(query ? { query } : {}), ...(body ? { body: { required: !optionalBody, content: json(body) } } : {}) },
     responses: { [status]: { description: "Success", content: json(response) }, ...Object.fromEntries([400, 401, 404, 405, 409, 413, 415, 422, 500, 502].map((s) => [s, { description: "Request failed", content: json(ErrorSchema) }])) },
   });
@@ -70,7 +70,7 @@ export const routes = {
   listSubscriptions: route("listSubscriptions", "get", "/subscriptions", collection(SubscriptionSchema), undefined, 200, page),
   getSubscription: route("getSubscription", "get", "/subscriptions/{id}", SubscriptionSchema),
   listHoppers: route("listHoppers", "get", "/hoppers", collection(HopperSchema), undefined, 200, page),
-  getHopper: route("getHopper", "get", "/hoppers/{id}", z.object({ hopper: HopperSchema, memberships: z.array(HopperItemRowSchema), items: z.array(ImportedItemSchema) })),
+  getHopper: route("getHopper", "get", "/hoppers/{id}", z.object({ hopper: HopperSchema, memberships: z.array(HopperItemRowSchema), items: z.array(ImportedItemSchema), total: z.number().int().nonnegative(), source_count: z.number().int().nonnegative() }), undefined, 200, z.object({ preview: z.literal("true").optional() })),
   listSignals: route("listSignals", "get", "/signals", collection(SignalRowSchema), undefined, 200, page),
   listMentions: route("listMentions", "get", "/mentions", collection(z.union([MentionSchema, MentionOutRowSchema])).extend({ direction: z.enum(["inbound", "outbound"]) }), undefined, 200, page.extend({ direction: z.enum(["inbound", "outbound"]).optional() })),
   preview: route("preview", "post", "/preview", preview, z.object({ content_md: z.string().optional(), item_id: z.string().optional(), kind: z.enum(["fragment", "thread"]).optional() })),

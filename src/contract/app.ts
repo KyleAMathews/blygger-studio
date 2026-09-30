@@ -21,11 +21,6 @@ export function contractApp() {
   return app;
 }
 
-export const jsonBody: MiddlewareHandler = async (c, next) => {
-  if (c.req.raw.body !== null && !/^application\/(?:[\w.-]+\+)?json(?:;|$)/i.test(c.req.header("content-type") ?? "")) throw new HTTPException(415, { message: "JSON request body required" });
-  return next();
-};
-
 /** Optional JSON requests accept an empty body even with a client's default JSON header. */
 export const optionalJsonBody: MiddlewareHandler = async (c, next) => {
   if (/^application\/(?:[\w.-]+\+)?json(?:;|$)/i.test(c.req.header("content-type") ?? "") && await c.req.raw.clone().text() === "") {

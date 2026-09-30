@@ -30,6 +30,7 @@ export type GenerationProvenance = {
     }>;
     model?: string;
     at?: string;
+    [key: string]: unknown;
 };
 
 export type VersionReference = {
@@ -131,6 +132,7 @@ export type Version = {
     published_at: string;
     note: string | null;
     pinned_at: string | null;
+    kind: 'fragment' | 'thread' | 'withdrawn';
     pinned: boolean;
     transclusions: Array<Transclusion>;
     generated: Array<GenerationProvenance>;
@@ -1784,7 +1786,9 @@ export type GetHopperData = {
     path: {
         id: string;
     };
-    query?: never;
+    query?: {
+        preview?: 'true';
+    };
     url: '/api/hoppers/{id}';
 };
 
@@ -1841,6 +1845,8 @@ export type GetHopperResponses = {
         hopper: Hopper;
         memberships: Array<HopperItemRow>;
         items: Array<ImportedItem>;
+        total: number;
+        source_count: number;
     };
 };
 

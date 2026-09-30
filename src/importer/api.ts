@@ -40,8 +40,8 @@ function titleFromUrl(url: string): string {
  * runs an initial backfill so the first read isn't empty.
  */
 importerApi.openapi(routes.createSubscription, async (c) => {
-  const body = await readJson<{ url?: string; confirm?: boolean; title?: string }>(c).catch(() => ({}) as { url?: string; confirm?: boolean; title?: string });
-  if (typeof body.url !== "string" || !body.url.trim()) return c.json({ error: "url required" }, 400);
+  const body = await readJson<{ url: string; confirm?: boolean; title?: string }>(c);
+  if (!body.url.trim()) return c.json({ error: "url required" }, 400);
 
   const result = await resolve(body.url.trim());
   if (result.kind === "failure") {
@@ -61,7 +61,7 @@ importerApi.openapi(routes.createSubscription, async (c) => {
     return c.json({ needsConfirm: true, kind: "rss", feedUrl: result.feedUrl, title: titleFromUrl(result.feedUrl) });
   }
 
-  const title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : undefined;
+  const title = body.title?.trim() || undefined;
   const sub =
     result.kind === "blyg"
       ? await createSubscription(c.env.DB, {
@@ -140,8 +140,8 @@ async function uniqueSlug(db: D1Database, name: string, exceptId?: string): Prom
 }
 
 importerApi.openapi(routes.createHopper, async (c) => {
-  const body = await readJson<{ name?: string }>(c).catch(() => ({}) as { name?: string });
-  if (typeof body.name !== "string" || !body.name.trim()) return c.json({ error: "name required" }, 400);
+  const body = await readJson<{ name: string }>(c);
+  if (!body.name.trim()) return c.json({ error: "name required" }, 400);
   const hopper = await createHopper(c.env.DB, body.name.trim(), await uniqueSlug(c.env.DB, body.name.trim()));
   c.header("Location", `/api/hoppers/${hopper.id}`);
   return c.json(hopperResource(hopper), 201);
@@ -150,8 +150,7 @@ importerApi.openapi(routes.createHopper, async (c) => {
 importerApi.openapi(routes.updateHopper, async (c) => {
   const hopper = await getHopper(c.env.DB, c.req.param("id"));
   if (!hopper) return c.json({ error: "not found" }, 404);
-  const body = await readJson<{ public?: boolean; name?: string }>(c)
-    .catch(() => ({}) as { public?: boolean; name?: string });
+  const body = await readJson<{ public?: boolean; name?: string }>(c);
 
   // Compute the rename before freezing the public URL. Apply both in one SQL update.
   const slug = body.name === undefined || hopper.slug_frozen ? hopper.slug : await uniqueSlug(c.env.DB, body.name, hopper.id);
@@ -186,8 +185,7 @@ importerApi.openapi(routes.removeHopperItem, async (c) => {
 importerApi.openapi(routes.setSignal, async (c) => {
   const sub = await getSubscription(c.env.DB, c.req.param("sub"));
   if (!sub) return c.json({ error: "subscription not found" }, 404);
-  const body = await readJson<{ thumb?: number }>(c).catch(() => ({}) as { thumb?: number });
-  if (body.thumb !== 1 && body.thumb !== -1) return c.json({ error: "thumb must be 1 or -1" }, 400);
+  const body = await readJson<{ thumb: 1 | -1 }>(c);
   await setSignal(c.env.DB, sub.id, c.req.param("remoteId"), body.thumb);
   return c.json({ ok: true });
 });

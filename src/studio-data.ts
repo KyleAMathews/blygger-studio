@@ -56,6 +56,10 @@ async function allPages<T>(load: (offset: number) => Promise<{ items: T[]; total
 export const listSubscriptions = (data: StudioData) => data.read("subscriptions", async () => (await allPages((offset) => unwrap(BlyggerApi.listSubscriptions({ client: data.client, query: { offset, limit: 100 } })))).map(studioSubscription));
 export const listHoppers = (data: StudioData) => data.read("hoppers", async () => (await allPages((offset) => unwrap(BlyggerApi.listHoppers({ client: data.client, query: { offset, limit: 100 } })))).map(studioHopper));
 const hopperDetail = (data: StudioData, id: string) => data.read(`hopper:${id}`, () => unwrap(BlyggerApi.getHopper({ client: data.client, path: { id } })));
+export const hopperSummary = (data: StudioData, id: string) => data.read(`hopper-summary:${id}`, async () => {
+  const summary = await unwrap(BlyggerApi.getHopper({ client: data.client, path: { id }, query: { preview: "true" } }));
+  return { ...summary, items: summary.items.map(studioImported) };
+});
 export async function getHopper(data: StudioData, id: string) {
   try { return studioHopper((await hopperDetail(data, id)).hopper); } catch (e) { if (e instanceof BlyggerApiError && e.statusCode === 404) return null; throw e; }
 }

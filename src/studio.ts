@@ -1,14 +1,8 @@
 import { BlyggerApi, unwrap, BlyggerApiError } from "../sdk/dist/browser.js";
 import { studioData, type StudioData, authoredKind, getItem, getSettings, getSettingsMap, listAll, listSubscriptions, listMediaForItem, listVersions, publishedVersion } from "./studio-data.ts";
 import { annotateTkPreview, scopeSummaries } from "./authoring.ts";
-// Studio: owner-only composer, item list, fragment/thread editors, settings
-// — v0.1-plan task 9 (fragments) + task 15 (threads), built against the
-// rev-3 wireframes reviewed with Venkat (docs/wireframes/studio.html,
-// edit.html, thread-edit.html). Server-rendered HTML + vanilla JS calling the
-// existing /api/* JSON endpoints; no client-side framework (CLAUDE.md stack
-// conventions). Studio-only routes here (preview, fragment search) are
-// authoring-tool internals, not protocol surfaces — the studio/page split
-// means this side is unconstrained.
+// Owner-only server-rendered Studio. Server reads and browser writes use the
+// generated SDK and the canonical /api contract. Public pages are separate.
 
 import { Hono } from "hono";
 import { checkPassword, clearSessionCookie, issueSessionCookie, verifySession } from "./auth.ts";
@@ -26,10 +20,6 @@ import { readState, type UpdateState } from "./update-check.ts";
 import { escapeHtml, formatDateIn, normalizeMount, studioPath } from "./util.ts";
 import { blygItemUrl } from "./importer/util.ts";
 
-/**
- * Studio-only scope summary for the Generate/Regenerate panel (task 6) — not
- * a protocol surface. `output` is truncated for display only.
- */
 export const STUDIO_STYLE = `
 /* Design tokens — the same palette the public pages use (see STYLE_CSS in
  * pages.ts), so the studio and the thing it publishes read as one product.
@@ -658,11 +648,6 @@ ${mostRecentLine}
 ${isThread ? "" : quickEditBox(item, mount)}
 <div class="actions">${quickEditBtn(item)}<a href="${studioPath(mount)}/edit/${id}"><button type="button">edit</button></a><button type="button" data-action="pin" data-id="${id}" data-version="${item.version}">pin v${item.version}&hellip;</button><button type="button" data-action="withdraw" data-id="${id}">withdraw</button></div>
 </div>`;
-}
-
-export function excerptOf(text: string, n = 80): string {
-  const t = text.trim().replace(/\s+/g, " ");
-  return t.length <= n ? t || "(empty)" : t.slice(0, n).trimEnd() + "…";
 }
 
 function actionScript(mount: string): string {

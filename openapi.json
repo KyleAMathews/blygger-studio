@@ -171,7 +171,8 @@
         },
         "required": [
           "sources"
-        ]
+        ],
+        "additionalProperties": {}
       },
       "VersionReference": {
         "type": "object",
@@ -565,6 +566,14 @@
               "null"
             ]
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "fragment",
+              "thread",
+              "withdrawn"
+            ]
+          },
           "pinned": {
             "type": "boolean"
           },
@@ -626,6 +635,7 @@
           "published_at",
           "note",
           "pinned_at",
+          "kind",
           "pinned",
           "transclusions",
           "generated",
@@ -1170,10 +1180,6 @@
     "/api/items": {
       "post": {
         "operationId": "createItem",
-        "middleware": [
-          null,
-          null
-        ],
         "tags": [
           "studio"
         ],
@@ -2211,10 +2217,6 @@
     "/api/items/{id}/publish": {
       "post": {
         "operationId": "publishItem",
-        "middleware": [
-          null,
-          null
-        ],
         "tags": [
           "studio"
         ],
@@ -2550,10 +2552,6 @@
     "/api/items/{id}/withdraw": {
       "post": {
         "operationId": "withdrawItem",
-        "middleware": [
-          null,
-          null
-        ],
         "tags": [
           "studio"
         ],
@@ -5128,6 +5126,17 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "required": false,
+            "name": "preview",
+            "in": "query"
           }
         ],
         "responses": {
@@ -5152,12 +5161,22 @@
                       "items": {
                         "$ref": "#/components/schemas/ImportedItem"
                       }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "source_count": {
+                      "type": "integer",
+                      "minimum": 0
                     }
                   },
                   "required": [
                     "hopper",
                     "memberships",
-                    "items"
+                    "items",
+                    "total",
+                    "source_count"
                   ]
                 }
               }

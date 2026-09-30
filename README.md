@@ -312,6 +312,10 @@ keeps working for you:
 A stable publishing API — so that tools can write to a blyg without changing its
 client — is the open design question tracked as item 1.8 in
 [`roadmap-tracks.md`](https://github.com/blygger/blygger-spec/blob/main/docs/roadmap-tracks.md).
+Studio 0.9.0 replaces older private write routes and request forms.
+Third-party authoring tools must adopt the new contract.
+See [the owner API guide](docs/api.md) for the replacement routes.
+
 The private Studio API now has a checked-in [OpenAPI contract](openapi.json) and a
 [generated JavaScript/TypeScript SDK](sdk/README.md). The owner can download the same
 contract at `/api/openapi.json`. It uses the existing session cookie. This API does
@@ -319,7 +323,8 @@ not define a public publishing protocol.
 
 `npm run openapi` updates the contract. `npm run sdk:generate` rebuilds the SDK
 with a pinned Hey API generator on Node 22.18+, using the unchanged spec.
-The npm dev, test, and deploy scripts run `npm run build` for you.
+Dependency installation builds the SDK, including during upgrades from 0.8.3.
+The npm dev, test, and deploy scripts also run `npm run build` for you.
 Build first when you run TypeScript, Vitest, or Wrangler directly.
 CI checks types, contract and SDK drift, Worker tests, and Chromium browser tests.
 See [the migration plan](docs/migration.md) for the complete SPA cutover and the

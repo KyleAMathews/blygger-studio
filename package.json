@@ -32,7 +32,8 @@
     "predeploy:pi": "npm run build",
     "release:build": "npm run build && node --import tsx scripts/release.ts",
     "release:verify": "node --import tsx scripts/verify-release.ts",
-    "release:check": "node --import tsx scripts/check-release.ts"
+    "release:check": "node --import tsx scripts/check-release.ts",
+    "postinstall": "npm run build"
   },
   "dependencies": {
     "@hono/zod-openapi": "^1.6.3",

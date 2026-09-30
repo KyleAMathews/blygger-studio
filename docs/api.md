@@ -127,6 +127,8 @@ for (const item of reading.items) console.log(item.key);
 Reading defaults to 25 entries and accepts at most 50 per request.
 Other paginated reads accept at most 100.
 Search defaults to 20 results.
+Collection queries limit the rows they return before resource conversion.
+Totals, sorting, and large offsets can still scan rows in D1.
 An offset past the end returns an empty array.
 Invalid pagination returns 400.
 
@@ -136,9 +138,13 @@ The planned SPA polls visible reading data every 15 seconds and pauses in hidden
 The API sanitizes imported HTML before it returns reading bodies.
 
 Item detail includes the item fields, `authored_kind`, media, versions, and the published version.
+Version resources include their kind, including threads with no transclusions.
 Item and version references use objects, and flags use booleans.
 Imported protocol metadata retains its existing serialized JSON fields.
 Subscription resources omit internal HTTP cache fields.
+Hopper detail includes `total` and `source_count`.
+Use `?preview=true` for an index preview of three memberships and bodies.
+The default hopper detail still includes all memberships and bodies.
 
 ## Errors and generation
 

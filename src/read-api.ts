@@ -4,15 +4,14 @@ import { contractApp, readJson } from "./contract/app.ts";
 import { routes } from "./contract/routes.ts";
 import { annotateTkPreview, scopeSummaries } from "./authoring.ts";
 import { getItem, getSettings, getSettingsMap, getVersion, listAll, listVersions, publishedVersion } from "./model.ts";
-import { listHoppers, listHopperItems, getHopper, getImportedItem, listSubscriptions, getSubscription } from "./importer/store.ts";
-import { listVerifiedInbound, listOutbound } from "./mentions/store.ts";
+import { getHopper, getImportedItem, listSubscriptions, getSubscription } from "./importer/store.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
 import { renderMarkdown, plainTextFromHtml } from "./markdown.ts";
 import { clampText } from "./preview.ts";
 import { applyInternalLinks, previewInternalLinks, previewTransclusions } from "./transclusion.ts";
 import { siteOrigin } from "./protocol.ts";
 import { normalizeMount } from "./util.ts";
-import type { Env, SignalRow, ImportedItemRow, ItemRow } from "./types.ts";
+import type { Env, SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, MentionInRow, MentionOutRow } from "./types.ts";
 import { itemDetail } from "./item-data.ts";
 import { readingData } from "./reading-data.ts";
 import { getInbound } from "./mentions/store.ts";
@@ -21,9 +20,13 @@ import { normalizeOrigin } from "./stub.ts";
 import { mentionFetch } from "./mentions/http.ts";
 
 export const readApi = contractApp();
-function collection<T>(rows: T[], query: Record<string, string>) {
+async function collection<T>(db: D1Database, query: Record<string, string>, sql: string, countSql: string) {
   const offset = Number(query.offset ?? 0), limit = Number(query.limit ?? 100);
-  return { items: rows.slice(offset, offset + limit), total: rows.length, offset, limit };
+  const [rows, count] = await Promise.all([
+    db.prepare(`${sql} LIMIT ? OFFSET ?`).bind(limit, offset).all<T>(),
+    db.prepare(countSql).first<{ total: number }>(),
+  ]);
+  return { items: rows.results, total: count?.total ?? 0, offset, limit };
 }
 const excerptOf = (s: string, n: number) => clampText(plainTextFromHtml(renderMarkdown(s)), n);
 
@@ -40,27 +43,38 @@ readApi.openapi(routes.getItem, async (c) => {
   return detail ? c.json({ ...itemResource(detail.item), authored_kind: detail.kind, media: detail.media.map(mediaResource), versions: detail.versions.map(versionResource), published: detail.published ? versionResource(detail.published) : null }) : c.json({ error: "not found" }, 404);
 });
 readApi.openapi(routes.getSettings, async (c) => c.json(await getSettings(c.env.DB)));
-readApi.openapi(routes.listSubscriptions, async (c) => c.json(collection((await listSubscriptions(c.env.DB)).map(subscriptionResource), c.req.query())));
+readApi.openapi(routes.listSubscriptions, async (c) => {
+  const page = await collection<SubscriptionRow>(c.env.DB, c.req.query(), "SELECT * FROM subscriptions ORDER BY created ASC, id ASC", "SELECT COUNT(*) AS total FROM subscriptions");
+  return c.json({ ...page, items: page.items.map(subscriptionResource) });
+});
 readApi.openapi(routes.getSubscription, async (c) => {
   const sub = await getSubscription(c.env.DB, c.req.param("id"));
   return sub ? c.json(subscriptionResource(sub)) : c.json({ error: "not found" }, 404);
 });
-readApi.openapi(routes.listHoppers, async (c) => c.json(collection((await listHoppers(c.env.DB)).map(hopperResource), c.req.query())));
+readApi.openapi(routes.listHoppers, async (c) => {
+  const page = await collection<HopperRow>(c.env.DB, c.req.query(), "SELECT * FROM hoppers ORDER BY created ASC, id ASC", "SELECT COUNT(*) AS total FROM hoppers");
+  return c.json({ ...page, items: page.items.map(hopperResource) });
+});
 readApi.openapi(routes.getHopper, async (c) => {
   const hopper = await getHopper(c.env.DB, c.req.param("id"));
   if (!hopper) return c.json({ error: "not found" }, 404);
-  const memberships = await listHopperItems(c.env.DB, hopper.id);
+  const preview = c.req.query("preview") === "true";
+  const limit = preview ? " LIMIT 3" : "";
+  const memberships = (await c.env.DB.prepare(`SELECT * FROM hopper_items WHERE hopper_id = ? ORDER BY added_at DESC, subscription_id, remote_id${limit}`).bind(hopper.id).all<import("./types.ts").HopperItemRow>()).results;
+  const counts = await c.env.DB.prepare("SELECT COUNT(*) AS total, COUNT(DISTINCT subscription_id) AS source_count FROM hopper_items WHERE hopper_id = ?").bind(hopper.id).first<{ total: number; source_count: number }>();
   const rows = await c.env.DB.prepare(`SELECT ii.* FROM hopper_items hi JOIN imported_items ii
     ON ii.subscription_id = hi.subscription_id AND ii.remote_id = hi.remote_id
-    WHERE hi.hopper_id = ? ORDER BY hi.added_at DESC`).bind(hopper.id).all<ImportedItemRow>();
+    WHERE hi.hopper_id = ? ORDER BY hi.added_at DESC, hi.subscription_id, hi.remote_id${limit}`).bind(hopper.id).all<ImportedItemRow>();
   const items = await Promise.all(rows.results.map(async (r) => importedResource({ ...r, content_html: await sanitizeHtml(r.content_html) })));
-  return c.json({ hopper: hopperResource(hopper), memberships, items });
+  return c.json({ hopper: hopperResource(hopper), memberships, items, total: counts?.total ?? 0, source_count: counts?.source_count ?? 0 });
 });
-readApi.openapi(routes.listSignals, async (c) => c.json(collection((await c.env.DB.prepare("SELECT * FROM signals ORDER BY at DESC, subscription_id, remote_id").all<SignalRow>()).results, c.req.query())));
+readApi.openapi(routes.listSignals, async (c) => c.json(await collection<SignalRow>(c.env.DB, c.req.query(), "SELECT * FROM signals ORDER BY at DESC, subscription_id, remote_id", "SELECT COUNT(*) AS total FROM signals")));
 readApi.openapi(routes.listMentions, async (c) => {
   const direction = c.req.query("direction") ?? "inbound";
-  const rows = direction === "outbound" ? await listOutbound(c.env.DB) : (await listVerifiedInbound(c.env.DB)).map(mentionResource);
-  return c.json({ ...collection<typeof rows[number]>(rows, c.req.query()), direction });
+  const where = "WHERE status IN ('verified','gone')";
+  if (direction === "outbound") return c.json({ ...await collection<MentionOutRow>(c.env.DB, c.req.query(), "SELECT * FROM mentions_out ORDER BY created DESC, id ASC", "SELECT COUNT(*) AS total FROM mentions_out"), direction });
+  const page = await collection<MentionInRow>(c.env.DB, c.req.query(), `SELECT * FROM mentions_in ${where} ORDER BY verified_at DESC, last_seen DESC, id ASC`, `SELECT COUNT(*) AS total FROM mentions_in ${where}`);
+  return c.json({ ...page, items: page.items.map(mentionResource), direction });
 });
 readApi.openapi(routes.listReading, async (c) => c.json(await readingData(c.env.DB, Number(c.req.query("offset") ?? 0), Number(c.req.query("limit") ?? 25), c.req.query("sub"))));
 readApi.openapi(routes.getImportedItem, async (c) => {
@@ -90,7 +104,7 @@ readApi.openapi(routes.getForkOptions, async (c) => {
 });
 readApi.openapi(routes.preview, async (c) => {
   const mount = normalizeMount(c.env.MOUNT);
-  const body = await readJson<{ content_md?: string }>(c).catch(() => ({}) as { content_md?: string });
+  const body = await readJson<{ content_md?: string }>(c);
   if ((body as { kind?: string }).kind === "thread") return threadPreview(c);
   const tk = annotateTkPreview(body.content_md ?? "");
   // `[[id]]` resolves in the preview too, so an unresolvable link is visible
@@ -99,8 +113,6 @@ readApi.openapi(routes.preview, async (c) => {
   const html = applyInternalLinks(tk.finish(renderMarkdown(links.text)), links);
   return c.json({ html, scopes: scopeSummaries(tk.scopes), link_errors: links.errors });
 });
-
-/** Studio-only provisional thread preview + validation — publish still re-resolves for real. TK scopes are highlighted (task 6). */
 
 /**
  * Read one past version for the editor's history viewer. Studio-only: the
@@ -112,7 +124,6 @@ readApi.openapi(routes.getVersion, async (c) => {
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
   const version = Number(c.req.param("v"));
-  if (!Number.isInteger(version)) return c.json({ error: "bad version" }, 400);
   const row = await getVersion(c.env.DB, item.id, version);
   if (!row) return c.json({ error: "version not found" }, 404);
   return c.json(versionResource(row));
@@ -181,7 +192,7 @@ readApi.openapi(routes.search, async (c) => {
 
 
 async function threadPreview(c: Context<{ Bindings: Env }>) {
-  const body = await readJson<{ content_md?: string; item_id?: string }>(c).catch(() => ({}) as { content_md?: string; item_id?: string });
+  const body = await readJson<{ content_md?: string; item_id?: string }>(c);
   const tk = annotateTkPreview(body.content_md ?? "");
   // item_id is the thread being edited — the DAG check needs it, so the
   // preview rejects a circular quote at exactly the point publish would.

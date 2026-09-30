@@ -17,7 +17,7 @@ export async function sdkRequest(client: BlyggerClient, input: string, init: Req
     const pattern = operation.path.replace(/\{(\w+)\}/g, (_, name: string) => { names.push(name); return "([^/]+)"; });
     const match = path.match(new RegExp(`^${pattern}$`));
     if (!match) continue;
-    const params: Record<string, string> = {}, query: Record<string, unknown> = {};
+    const params: Record<string, string> = {}, query: Record<string, unknown> = Object.fromEntries(url.searchParams);
     names.forEach((name, i) => { params[name] = decodeURIComponent(match[i + 1]); });
     for (const parameter of operation.parameters) {
       const value = url.searchParams.get(parameter.name);
@@ -26,7 +26,10 @@ export async function sdkRequest(client: BlyggerClient, input: string, init: Req
     const call = (BlyggerApi as unknown as Record<string, Call>)[operation.name];
     const result = await call({ client, path: params, query, ...(operation.body ? { body } : {}), signal: init.signal ?? undefined });
     if (!result.response) throw result.error;
-    return Response.json(result.response.ok ? result.data : result.error, { status: result.response.status });
+    const headers = new Headers(result.response.headers);
+    // The SDK consumed the body. Re-encode it without stale wire-size headers.
+    for (const name of ["content-length", "content-encoding", "transfer-encoding"]) headers.delete(name);
+    return Response.json(result.response.ok ? result.data : result.error, { status: result.response.status, headers });
   }
   throw new Error(`No SDK operation for ${method} ${path}`);
 }

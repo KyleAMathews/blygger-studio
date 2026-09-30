@@ -12,7 +12,9 @@ The contract lives in `src/contract/`; `npm run openapi` writes `openapi.json`. 
 
 Replace all three legacy Studio modules and their inline scripts in one PR with React, TanStack Router, TanStack DB, and Base UI. Keep the present typography, spacing, colors, themes, and features. Preserve mounted Studio URLs, login/logout, previews, bracket search, editor history, attachments, TK generation, subscriptions, hoppers, signals, mentions, and settings.
 
-TanStack DB collections read and write through the SDK. Reading polls the API backed by D1; the existing cron still fetches remote subscriptions. Poll visible reading data every 15 seconds, pause in hidden tabs, refresh on focus, and refresh affected collections after writes. Keep stable item keys across subscriptions, handle deletions and withdrawal, and show errors without discarding cached data or edits. Do not let polling overwrite editor drafts. The API sanitizes imported HTML before the browser sees it.
+TanStack DB collections read and write through the SDK. Reading polls the API backed by D1; the existing cron still fetches remote subscriptions. Poll visible reading data every 15 seconds, pause in hidden tabs, refresh on focus, and refresh affected collections after writes. Keep stable item keys across subscriptions, handle deletions and withdrawal, and show errors without discarding cached data or edits. Do not let polling overwrite editor drafts.
+Measure D1 rows read for large collections. SQL pagination bounds returned rows, but counts, sorting, and offsets can still repeat scans.
+Use measured indexes or cursor pagination where those scans dominate. The API sanitizes imported HTML before the browser sees it.
 
 Delete the old SSR Studio, inline scripts, compatibility adapter, and unused read wrappers in that same PR. Keep public SSR pages. Add browser coverage and visual baselines for desktop/mobile parity and test navigation, polling, mutation failures, and draft retention.
 
