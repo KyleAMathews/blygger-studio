@@ -18,6 +18,48 @@ not have its own repo until session 26.
 
 ---
 
+## 0.8.3 — 2026-09-29
+
+**Migrations: none.**
+
+**A blyg no longer titles itself "blyg".** The default value of a blyg's title
+was the literal string `blyg`, which meant every operator who skipped that
+settings field published under the same name. Two unrelated live nodes were
+doing exactly that, and the directory at blygger.com listed both as "blyg" —
+then briefly held a third submission as a suspected impersonation, queueing a
+stranger because of our default.
+
+The default is now derived from the deployment's own address, which is unique
+because domains are: a blyg at `blyg.example.com` titles itself `example.com`
+until its operator says otherwise. A leading `blyg.` or `www.` is dropped —
+neither says whose blyg it is. Your own title, once set, always wins; emptying
+it returns to the derivation rather than to a blank.
+
+Deliberately not a made-up human name. "Example's Blyg" would be the client
+asserting something its operator never said.
+
+`npm run init` now also writes `site_url` while it has the domain in hand, so a
+freshly provisioned blyg has correct absolute URLs and a distinctive title from
+its first publish. Re-running init never overwrites a title you have set.
+
+There is an advisory for other client authors at
+[blygger.org/start/](https://blygger.org/start/#advisory-do-not-ship-a-generic-default-title):
+a default identical across installations destroys information, and the
+deployment usually already knows a truer answer.
+
+**`npm run upgrade` now moves between releases, not to the tip of `main`.** The
+two halves of the version story disagreed: the studio's update alert compares
+against the GitHub releases feed, while the upgrade script merged `main`. An
+operator could upgrade, land on unreleased commits, and still be told they were
+current — and `CLIENT.version` on `main` between releases is the *previous*
+release's number, so "what am I running?" had no meaningful answer. It merges
+the newest `v*` tag now, which is the only thing that carries a changelog entry
+and therefore the only thing that can tell you whether there are migrations.
+Tracking `main` remains a legitimate choice; it is just not what the script
+does, and the README says so.
+
+---
+
 ## 0.8.2 — 2026-09-29
 
 **Migrations: none.** Presentation only; no published document changes.

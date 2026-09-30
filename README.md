@@ -66,8 +66,15 @@ whether a deploy is the whole job.
 
 **What you are running now** is in your own manifest, which is public:
 `curl https://your-origin/blyg/blyg.json` → `generator` is this client's name and
-version (`blygger-studio/0.6.1`). A node reporting `blyg-ref/0.3.0` is this same
+version (`blygger-studio/0.8.2`). A node reporting `blyg-ref/0.3.0` is this same
 software under its pre-2026-09-28 name.
+
+**`npm run upgrade` moves you between releases**, not to the tip of `main`. It
+merges the newest `v*` tag, which is the only thing that has a changelog entry
+and therefore the only thing that can tell you whether there are migrations.
+Tracking `main` is a legitimate choice — it is just not what this script does,
+and if you make it, the studio's update alert will disagree with you, because
+that alert also compares against releases.
 
 ### Upgrading a node you stood up by hand
 

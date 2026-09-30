@@ -70,12 +70,51 @@ if (!remotes.includes("upstream")) {
 console.log("— fetching upstream");
 if (git(["fetch", "upstream", "--tags"]).status !== 0) die("could not fetch upstream.");
 
+// ── 2b. Upgrade to the latest RELEASE, not to the tip of main ────────────────
+//
+// This merged `upstream/main` until session 29, which put the two halves of the
+// version story in disagreement with each other:
+//
+//   * the studio's update alert compares `CLIENT.version` against the GitHub
+//     **releases** feed, so it is talking about tags;
+//   * this script moved you to whatever was on **main**, which is usually ahead
+//     of the last tag and is sometimes half of something.
+//
+// An operator could therefore upgrade, land on unreleased commits, and still be
+// told they were current — or be told they were behind while running code newer
+// than the release they were being pointed at. Worse, `CLIENT.version` on main
+// between releases is the *previous* release's number, so "what am I running?"
+// had no answer that meant anything.
+//
+// Tags are the contract now: `v*` sorted by version, newest wins. A release is
+// a thing with a changelog entry stating `Migrations:`, which is exactly what
+// an operator needs before deciding how careful to be.
+//
+// `--no-tags` is deliberately absent above; the fetch already pulls tags.
+function latestReleaseTag(): string | null {
+  const out = git(["tag", "--list", "v*", "--sort=-v:refname"]).stdout ?? "";
+  const tags = `${out}`.split("\n").map((t) => t.trim()).filter(Boolean);
+  return tags[0] ?? null;
+}
+
+const target = latestReleaseTag();
+if (!target) {
+  die(
+    "no release tags found on upstream. This script upgrades between releases;\n" +
+      "  if you are deliberately tracking main, merge `upstream/main` yourself.",
+  );
+}
+console.log(`— latest release: ${target}`);
+
 // ── 3. Say what is about to change, before changing it ───────────────────────
 
-const range = "HEAD..upstream/main";
+const range = `HEAD..${target}`;
 const log = `${git(["log", "--oneline", range]).stdout}`.trim();
 if (!log) {
-  console.log("\n✓ already up to date.");
+  // Ahead of the tag is a normal state for anyone tracking main, and it is not
+  // an error — say which, rather than claiming they are up to date.
+  const ahead = `${git(["log", "--oneline", `${target}..HEAD`]).stdout}`.trim();
+  console.log(ahead ? `\n✓ already on ${target} or newer.` : `\n✓ already up to date (${target}).`);
   rl.close();
   process.exit(0);
 }
@@ -108,7 +147,7 @@ if (!yes(await ask("\nMerge these?"))) {
 
 // ── 4. Merge, keeping your config ────────────────────────────────────────────
 
-const merged = git(["merge", "upstream/main", "--no-edit"]);
+const merged = git(["merge", target!, "--no-edit"]);
 if (merged.status !== 0) {
   const conflicts = `${git(["diff", "--name-only", "--diff-filter=U"]).stdout}`.split("\n").filter(Boolean);
   const ours = conflicts.filter((f) => YOURS.includes(f));

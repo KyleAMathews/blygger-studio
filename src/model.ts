@@ -33,6 +33,41 @@ export async function getSettingsMap(db: D1Database): Promise<Record<string, str
   return Object.fromEntries(rows.results.map((r) => [r.key, r.value]));
 }
 
+/**
+ * The title a blyg publishes when its operator has not set one.
+ *
+ * This used to be the literal string `"blyg"`, and that default leaked into the
+ * world: by session 29, two independent live nodes were publishing
+ * `"title": "blyg"` in their manifests, and blygger.com listed both under that
+ * name because neither operator had opened Settings. A generic default is a
+ * collision generator — every deployment that skips the step lands on the same
+ * name, and a directory then has to tell them apart by something else.
+ *
+ * Derived from the deployment's own `site_url` instead, which makes it unique
+ * wherever the domain is: `blyg.thoughtfolio.xyz` publishes as
+ * `thoughtfolio.xyz`, not as `blyg`. A leading `blyg.` or `www.` is dropped
+ * because neither says anything about whose blyg it is.
+ *
+ * Deliberately **not** a made-up human name. The honest default is the address,
+ * which is true on day one and obviously a placeholder to its owner; inventing
+ * "Thoughtfolio's Blyg" would be the client asserting something the operator
+ * never said. Venkat's session-29 framing: two people may legitimately both
+ * call their blyg the same thing, so the fix is not to forbid collisions but to
+ * stop manufacturing them.
+ *
+ * Falls back to `"blyg"` only when there is no `site_url` at all — a deployment
+ * that has published nothing and been configured with nothing.
+ */
+export function defaultSiteTitle(siteUrl: string | undefined): string {
+  if (!siteUrl) return "blyg";
+  try {
+    const host = new URL(siteUrl).hostname.replace(/^blyg\./i, "").replace(/^www\./i, "");
+    return host || "blyg";
+  } catch {
+    return "blyg";
+  }
+}
+
 export async function getSettings(db: D1Database): Promise<Settings> {
   const rows = await db.prepare("SELECT key, value FROM settings").all<{ key: string; value: string }>();
   const map = Object.fromEntries(rows.results.map((r) => [r.key, r.value]));
@@ -44,7 +79,8 @@ export async function getSettings(db: D1Database): Promise<Settings> {
     // ignore malformed settings JSON; treat as no links
   }
   return {
-    site_title: map.site_title ?? "blyg",
+    // `||` not `??`: an empty string is an unset title, not a chosen one.
+    site_title: map.site_title || defaultSiteTitle(map.site_url),
     theme: map.theme ?? "auto",
     author_name: map.author_name ?? "",
     author_bio: map.author_bio ?? "",

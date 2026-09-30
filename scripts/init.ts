@@ -66,6 +66,7 @@ type Marker = {
   accountLabel?: string;
   zone?: string;
   host?: string;
+  siteUrlSet?: boolean;
   slug?: string;
   databaseId?: string;
   databaseName?: string;
@@ -312,6 +313,43 @@ if (!marker.migrationsApplied) {
   save();
 }
 console.log(`→ schema applied`);
+
+// ── 7b. The one setting worth writing for you ────────────────────────────────
+//
+// `site_url` is the deployment's own address, and this script is the only place
+// that knows it without being told twice. Writing it here buys two things:
+// absolute URLs are right from the first publish, and the blyg's **title**
+// defaults to the host rather than to the word "blyg".
+//
+// That second one is not cosmetic. The client shipped `"blyg"` as its default
+// title, so every operator who never opened Settings published under the same
+// name — by session 29 two independent live nodes were doing exactly that, and
+// the directory listed both as "blyg". A generic default manufactures
+// collisions; the address does not, because it is already unique.
+//
+// Idempotent, and never overwrites a choice: re-running init on an existing
+// blyg leaves a title the operator has since set alone.
+if (!marker.siteUrlSet) {
+  const siteUrl = `https://${marker.host}/`;
+  const sql =
+    `INSERT INTO settings (key, value) VALUES ('site_url', '${siteUrl}') ` +
+    `ON CONFLICT(key) DO UPDATE SET value = excluded.value WHERE settings.value = '';`;
+  const set = spawnSync("npx", ["wrangler", "d1", "execute", "DB", "--remote", "--command", sql], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, ...ACCOUNT },
+  });
+  // Not fatal. The blyg works without it — every URL still resolves from the
+  // request — and failing a provisioning run over a convenience would be the
+  // wrong trade.
+  if (set.status === 0) {
+    marker.siteUrlSet = true;
+    save();
+    console.log(`→ site_url set to ${siteUrl} (your blyg will title itself "${marker.host!.replace(/^blyg\./i, "")}" until you change it)`);
+  } else {
+    console.log(`  (could not write site_url — set it in Settings once you are in; not a problem)`);
+  }
+}
 
 // ── 8. Secrets ───────────────────────────────────────────────────────────────
 
