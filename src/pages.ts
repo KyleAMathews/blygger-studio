@@ -11,7 +11,7 @@ import { listPublicResponses } from "./mentions/store.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
 import { excerptFromHtml } from "./markdown.ts";
-import { clampText, leadingHeading } from "./preview.ts";
+import { clampText, leadingHeading, stripTransclusionQuotes } from "./preview.ts";
 import { authoredKind, getMedia, itemShowsResponses, listMediaForItem, listVersions, publishedVersion } from "./model.ts";
 import type { ItemRow, MediaRow, Settings, SubscriptionRow, Transclusion, VersionRow } from "./types.ts";
 import { WEBMENTION_PATH } from "./types.ts";
@@ -374,6 +374,10 @@ article.showing-pin .item-content[aria-busy="true"] { opacity: 0.5; }
 /* A thread card's title. Sized to the card, not to the page: a thread-card h1
    at document scale would shout over the fragments beside it in the feed. */
 .thread-card-title { font-size: 1.15rem; line-height: 1.25; margin: 0 0 0.35rem; }
+/* How many items this thread quotes. The card shows the author's prose only,
+   so this is what says the item is longer than the teaser. */
+.thread-card .quote-count { font: var(--apparatus); color: var(--pencil); margin-right: 0.15rem; }
+.thread-card .card-responds { color: var(--ink-soft); font-style: italic; }
 /* A titled item's heading is its link; it should read as the heading, with the
  * link only showing on hover, rather than as a blue headline. */
 .blyg a.item-title { color: inherit; text-decoration: none; }
@@ -999,15 +1003,32 @@ async function threadCard(db: D1Database, item: ItemRow, mount: string, tz: stri
   const latest = await publishedVersion(db, item);
   const html = latest?.content_html ?? "";
   const href = `${mount}/t/${item.id}/`;
-  const { title, rest } = leadingHeading(html);
+  // The teaser is the author's prose. Before this it was a flat excerpt of the
+  // whole item, so a thread that opened with a quote — the shape the stub
+  // action prefills — advertised the quoted person's sentence as its own, and
+  // one that quoted mid-way ran the two together with no boundary at all.
+  const own = authorOwnHtml(html);
+  const quoted = parseTransclusions(latest?.transclusions).length;
+  const { title, rest } = leadingHeading(own);
   const titleLine = title
     ? `<h1 class="thread-card-title"><a class="item-title" href="${href}">${escapeHtml(title)}</a></h1>`
     : "";
+  const ownText = excerptFromHtml(rest, 300);
+  // A quote count, the same disclosure the studio's index rows have always
+  // made: the card is shorter than the item, and this says why.
+  const quoteChip = quoted
+    ? `<span class="quote-count" title="${quoted} quoted ${quoted === 1 ? "item" : "items"}">⧉${quoted}</span> `
+    : "";
+  // Said nothing of its own (rare, but legal). Naming what it answers is true;
+  // borrowing the quoted sentence to fill the space is the bug, not the fix.
+  const teaser = ownText
+    ? escapeHtml(ownText)
+    : `<span class="card-responds">${escapeHtml(respondsToLabel(latest) || "A quoted item.")}</span>`;
   return `<article class="fragment thread-card">
 ${stubCitation(latest, tz, { compact: true })}
 ${forkLineage(item, tz, { compact: true })}
 ${titleLine}
-<p><span class="kind-chip">thread</span> ${escapeHtml(excerptFromHtml(rest, 300))}</p>
+<p><span class="kind-chip">thread</span> ${quoteChip}${teaser}</p>
 <p><a href="${href}">read the thread →</a></p>
 ${itemMeta(item, latest?.note ?? null, await pinnedVersions(db, item.id), mount, true, tz)}
 </article>`;
@@ -1179,6 +1200,51 @@ function itemTitle(excerptText: string, settings: Settings): string {
 }
 
 /**
+ * **The author's own text**, for every surface that has to *name* an item in
+ * one line — the page `<title>`, `og:title`, the meta description, the feed
+ * card's excerpt, the RSS headline, the archive row.
+ *
+ * A thread's `content_html` contains other people's writing, baked in verbatim
+ * as `blockquote.blyg-transclusion` (§10). That is correct for the thread's own
+ * page, where the quote is displayed as a quote with a provenance line under it
+ * and nobody can mistake whose words they are. It is **wrong for every derived
+ * one-liner**, because flattening the HTML to text drops exactly the structure
+ * that made the attribution legible.
+ *
+ * Measured on the live node before this was written: of 19 published threads,
+ * 5 *opened* with a transclusion — so their browser tab, their search-result
+ * heading, their social card, their RSS headline and their feed-page excerpt
+ * were all someone else's sentence presented as the author's. A sixth ran the
+ * author's prose straight into a quote mid-excerpt, with no boundary at all.
+ *
+ * The studio's index rows have always done this correctly (`rowPreview` in
+ * `studio.ts` strips first and shows a count chip instead). The public surfaces
+ * did not. Same shape as the two title bugs before it: one derivation that
+ * several surfaces run, fixed in some of them.
+ *
+ * Returns HTML, not text, so callers can still split a leading heading off it.
+ * A no-op on anything with no baked quotes, so fragments are unaffected.
+ */
+export function authorOwnHtml(html: string): string {
+  return stripTransclusionQuotes(html);
+}
+
+/**
+ * What to call a thread that quoted someone and said nothing of its own.
+ *
+ * Rare but real (1 of 19 live). The honest answer is not the quoted sentence —
+ * that is the misattribution this whole helper exists to prevent — and not an
+ * empty string either. A stub knows what it answers, so it says that.
+ */
+export function respondsToLabel(latest: VersionRow | null): string {
+  const stub = parseStoredStub(latest?.stub_of ?? null);
+  if (!stub) return "";
+  const cite = parseStoredCite(latest?.stub_cite ?? null);
+  const who = cite?.source ?? ("url" in stub ? new URL(stub.url).host : new URL(stub.origin).host);
+  return `In response to ${who}`;
+}
+
+/**
  * The three derived strings an item's head needs: `<title>`, `og:title`, and
  * the description both the meta tag and the unfurled card use.
  *
@@ -1195,13 +1261,20 @@ function itemTitle(excerptText: string, settings: Settings): string {
  * print the title twice. `og:title` carries no site suffix — `og:site_name`
  * is the tag that says where this is, and repeating it makes a narrower card.
  */
-function itemHead(html: string, settings: Settings): { title: string; ogTitle: string; description: string } {
-  const { title, rest } = leadingHeading(html);
-  const derived = title ? clampText(title, 70) : excerptFromHtml(html, 70);
+function itemHead(
+  html: string,
+  settings: Settings,
+  fallback = "",
+): { title: string; ogTitle: string; description: string } {
+  // The author's own words, never a quoted one — see authorOwnHtml. A fragment
+  // has no baked quotes, so this changes nothing for one.
+  const own = authorOwnHtml(html);
+  const { title, rest } = leadingHeading(own);
+  const derived = title ? clampText(title, 70) : excerptFromHtml(own, 70) || clampText(fallback, 70);
   return {
     title: itemTitle(derived, settings),
     ogTitle: derived || settings.site_title,
-    description: excerptFromHtml(title ? rest : html, 200),
+    description: excerptFromHtml(title ? rest : own, 200) || fallback,
   };
 }
 
@@ -1377,7 +1450,7 @@ export async function threadPage(db: D1Database, settings: Settings, item: ItemR
   }
   const latest = await publishedVersion(db, item);
   const media = await listMediaForItem(db, item.id);
-  const head = itemHead(latest?.content_html ?? "", settings);
+  const head = itemHead(latest?.content_html ?? "", settings, respondsToLabel(latest));
   const body = `<div class="blyg">
 ${await pageTop(db, settings, mount)}
 ${await threadBlock(db, item, mount, settings.timezone)}
@@ -1451,7 +1524,7 @@ ${noteHtml}
   // qualifier on the item, and three em-dash-separated segments is one too many.
   // The name is derived from the pinned bytes by the same rule as a live item's
   // (a declared heading, else an excerpt) — a title is part of what froze.
-  const pinnedHead = itemHead(row.content_html, settings);
+  const pinnedHead = itemHead(row.content_html, settings, respondsToLabel(row));
   const pinnedName = pinnedHead.ogTitle === settings.site_title ? "" : pinnedHead.ogTitle;
   const pinnedTitle = pinnedName
     ? `${pinnedName} (v${row.version}) — ${settings.site_title}`
@@ -1496,8 +1569,12 @@ export async function archivePage(db: D1Database, settings: Settings, items: Ite
     // rendered HTML cannot see that the first block was a title. Split it the
     // way every other surface does: the link is the title, the dimmed tail is
     // what follows it. An untitled item is unchanged.
-    const { title, rest } = leadingHeading(latest?.content_html ?? "");
-    const linkText = title ? clampText(title, 80) : excerptFromHtml(latest?.content_html ?? "", 80);
+    // Same rule as the card and the head: an archive row names the item, so it
+    // names it in the author's own words.
+    const own = authorOwnHtml(latest?.content_html ?? "");
+    const { title, rest } = leadingHeading(own);
+    const linkText =
+      (title ? clampText(title, 80) : excerptFromHtml(own, 80)) || clampText(respondsToLabel(latest), 80);
     const tail = title ? excerptFromHtml(rest, 60) : "";
     const href = `${mount}/${isThread ? "t" : "f"}/${item.id}/`;
     rows.push(

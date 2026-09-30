@@ -3,7 +3,7 @@
 
 import { listBlogrollSubscriptions } from "./importer/store.ts";
 import { excerpt, excerptFromHtml } from "./markdown.ts";
-import { forkLineage, injectProvenance, stubCitation, transclusionProvenance } from "./pages.ts";
+import { authorOwnHtml, forkLineage, injectProvenance, respondsToLabel, stubCitation, transclusionProvenance } from "./pages.ts";
 import { parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
 import {
   authoredKind,
@@ -245,7 +245,17 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
     if (!isWithdrawn && item.forked_from) {
       html = absolutizeHtml(forkLineage(item, settings.timezone, { compact: true }), origin) + html;
     }
-    const excerptText = isWithdrawn ? "" : isThread ? excerptFromHtml(rawHtml, 60) : excerpt(latestMd, 60);
+    // A feed headline names the item, so it names it in the author's own words.
+    // `rawHtml` for a thread contains other people's text baked in as quotes
+    // (§10); flattening that to 60 characters is how a stub that opened with a
+    // quote got an RSS headline that was the quoted person's sentence. Same
+    // derivation as the page title and the feed card — see pages.ts
+    // authorOwnHtml for the measurement that prompted it.
+    const excerptText = isWithdrawn
+      ? ""
+      : isThread
+        ? excerptFromHtml(authorOwnHtml(rawHtml), 60) || respondsToLabel(latest)
+        : excerpt(latestMd, 60);
     itemsXml.push(
       `    <item>
       <guid isPermaLink="false">blyg:${item.id}:v${version.version}</guid>
