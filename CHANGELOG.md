@@ -18,6 +18,43 @@ not have its own repo until session 26.
 
 ---
 
+## 0.8.2 — 2026-09-29
+
+**Migrations: none.** Presentation only; no published document changes.
+
+**A thread is named in its author's own words.** A thread's `content_html`
+contains other people's writing, baked in as transclusion blockquotes. That is
+right on the thread's own page, where a quote is shown as a quote with a
+provenance line under it. It was wrong everywhere the client had to *name* the
+thread in one line, because flattening that HTML to text drops the structure
+that made the attribution legible.
+
+Measured on a live node before the fix: of 19 published threads, **5 opened
+with a transclusion** — which is the shape the stub action prefills, so it is
+the common case. For those five, the browser tab, the search-result heading,
+the social card, the RSS headline and the feed-page excerpt were all someone
+else's sentence presented as the author's. Others ran the author's prose
+straight into a quote mid-excerpt with no boundary, so a card read as one
+continuous paragraph by one person when it was two people.
+
+Fixed in one place and used by all four surfaces: the feed card, the page
+`<title>`/`og:title`/description, the RSS headline and the archive row. A
+thread's card also gained a **quote count** (`⧉2`), which is what now says the
+item is longer than the teaser; and a thread that quotes without adding
+anything of its own names what it answers instead of borrowing the quoted
+sentence.
+
+Nothing here changes the wire. `content_html`, the item document, the feed
+description and the static export all keep the quotes, and the thread's own
+page still renders them in full with their provenance.
+
+**Also fixed:** a thread mixing whole and partial transclusions mis-paired its
+provenance lines, because the injector matched the class attribute as a literal
+string — so a partial quote got no line and every following line shifted onto
+the wrong quote.
+
+---
+
 ## 0.8.1 — 2026-09-29
 
 **Migrations: none.** `versions.transclusions` is JSON text, so the new member
