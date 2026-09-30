@@ -1,12 +1,14 @@
+import { contractApp, readJson } from "../contract/app.ts";
+import { routes } from "../contract/routes.ts";
 // Subscribe-side owner API (cookie auth, JSON) — v0.2-plan.md §4.2. Mounted
 // alongside ../api.ts under /api.
 
-import { Hono } from "hono";
+
 import { createDraft, setStubOf } from "../model.ts";
 import { parseStubOf } from "../stub.ts";
 import { normalizeSelection, selectionText } from "../markdown.ts";
 import { locateSelection } from "../transclusion.ts";
-import type { Env } from "../types.ts";
+
 import { pollSubscription, reconcileIndex } from "./poll.ts";
 import { resolve } from "./resolve.ts";
 import { sourceTitleAndUrl } from "./util.ts";
@@ -30,7 +32,7 @@ import {
   setSubscriptionTitle,
 } from "./store.ts";
 
-export const importerApi = new Hono<{ Bindings: Env }>({ strict: false });
+export const importerApi = contractApp();
 
 function titleFromUrl(url: string): string {
   try {
@@ -46,8 +48,8 @@ function titleFromUrl(url: string): string {
  * mismatch); with `confirm: true`, actually creates the subscription and
  * runs an initial backfill so the first read isn't empty.
  */
-importerApi.post("/subscriptions", async (c) => {
-  const body = await c.req.json<{ url?: string; confirm?: boolean; title?: string }>().catch(() => ({}) as { url?: string; confirm?: boolean; title?: string });
+importerApi.openapi(routes.createSubscription, async (c) => {
+  const body = await readJson<{ url?: string; confirm?: boolean; title?: string }>(c).catch(() => ({}) as { url?: string; confirm?: boolean; title?: string });
   if (typeof body.url !== "string" || !body.url.trim()) return c.json({ error: "url required" }, 400);
 
   const result = await resolve(body.url.trim());
@@ -92,23 +94,23 @@ importerApi.post("/subscriptions", async (c) => {
   return c.json({ id: sub.id, kind: sub.kind, origin: sub.origin }, 201);
 });
 
-importerApi.put("/subscriptions/:id", async (c) => {
+importerApi.openapi(routes.updateSubscription, async (c) => {
   const sub = await getSubscription(c.env.DB, c.req.param("id"));
   if (!sub) return c.json({ error: "not found" }, 404);
-  const body = await c.req.json<{ in_blogroll?: boolean; title?: string }>().catch(() => ({}) as Record<string, never>);
+  const body = await readJson<{ in_blogroll?: boolean; title?: string }>(c).catch(() => ({}) as Record<string, never>);
   if (typeof body.in_blogroll === "boolean") await setBlogrollFlag(c.env.DB, sub.id, body.in_blogroll);
   if (typeof body.title === "string" && body.title.trim()) await setSubscriptionTitle(c.env.DB, sub.id, body.title.trim());
   return c.json({ ok: true });
 });
 
-importerApi.post("/subscriptions/:id/pause", async (c) => {
+importerApi.openapi(routes.pauseSubscription, async (c) => {
   const sub = await getSubscription(c.env.DB, c.req.param("id"));
   if (!sub) return c.json({ error: "not found" }, 404);
   await setSubscriptionStatus(c.env.DB, sub.id, "paused");
   return c.json({ ok: true });
 });
 
-importerApi.post("/subscriptions/:id/resume", async (c) => {
+importerApi.openapi(routes.resumeSubscription, async (c) => {
   const sub = await getSubscription(c.env.DB, c.req.param("id"));
   if (!sub) return c.json({ error: "not found" }, 404);
   await setSubscriptionStatus(c.env.DB, sub.id, "active");
@@ -116,7 +118,7 @@ importerApi.post("/subscriptions/:id/resume", async (c) => {
 });
 
 /** Force an index reconciliation right now, regardless of the periodic schedule. */
-importerApi.post("/subscriptions/:id/resync", async (c) => {
+importerApi.openapi(routes.resyncSubscription, async (c) => {
   const sub = await getSubscription(c.env.DB, c.req.param("id"));
   if (!sub) return c.json({ error: "not found" }, 404);
   if (sub.kind !== "blyg") return c.json({ error: "resync only applies to blyg subscriptions" }, 409);
@@ -124,7 +126,7 @@ importerApi.post("/subscriptions/:id/resync", async (c) => {
   return c.json({ ok: result.ok, changed: result.changed });
 });
 
-importerApi.delete("/subscriptions/:id", async (c) => {
+importerApi.openapi(routes.deleteSubscription, async (c) => {
   const sub = await getSubscription(c.env.DB, c.req.param("id"));
   if (!sub) return c.json({ error: "not found" }, 404);
   await deleteSubscription(c.env.DB, sub.id);
@@ -155,18 +157,17 @@ async function uniqueSlug(db: D1Database, name: string, exceptId?: string): Prom
   }
 }
 
-importerApi.post("/hoppers", async (c) => {
-  const body = await c.req.json<{ name?: string }>().catch(() => ({}) as { name?: string });
+importerApi.openapi(routes.createHopper, async (c) => {
+  const body = await readJson<{ name?: string }>(c).catch(() => ({}) as { name?: string });
   if (typeof body.name !== "string" || !body.name.trim()) return c.json({ error: "name required" }, 400);
   const hopper = await createHopper(c.env.DB, body.name.trim(), await uniqueSlug(c.env.DB, body.name.trim()));
   return c.json({ id: hopper.id, name: hopper.name, slug: hopper.slug }, 201);
 });
 
-importerApi.put("/hoppers/:id", async (c) => {
+importerApi.openapi(routes.updateHopper, async (c) => {
   const hopper = await getHopper(c.env.DB, c.req.param("id"));
   if (!hopper) return c.json({ error: "not found" }, 404);
-  const body = await c.req
-    .json<{ public?: boolean; name?: string }>()
+  const body = await readJson<{ public?: boolean; name?: string }>(c)
     .catch(() => ({}) as { public?: boolean; name?: string });
 
   // Rename first: if this request both renames and publishes, the slug should
@@ -184,14 +185,14 @@ importerApi.put("/hoppers/:id", async (c) => {
   return c.json({ ok: true, slug, slug_frozen: hopper.slug_frozen === 1 || body.public === true });
 });
 
-importerApi.delete("/hoppers/:id", async (c) => {
+importerApi.openapi(routes.deleteHopper, async (c) => {
   const hopper = await getHopper(c.env.DB, c.req.param("id"));
   if (!hopper) return c.json({ error: "not found" }, 404);
   await deleteHopper(c.env.DB, hopper.id);
   return c.json({ ok: true });
 });
 
-importerApi.put("/hoppers/:id/items/:sub/:remoteId", async (c) => {
+importerApi.openapi(routes.addHopperItem, async (c) => {
   const hopper = await getHopper(c.env.DB, c.req.param("id"));
   if (!hopper) return c.json({ error: "hopper not found" }, 404);
   const sub = await getSubscription(c.env.DB, c.req.param("sub"));
@@ -200,23 +201,23 @@ importerApi.put("/hoppers/:id/items/:sub/:remoteId", async (c) => {
   return c.json({ ok: true });
 });
 
-importerApi.delete("/hoppers/:id/items/:sub/:remoteId", async (c) => {
+importerApi.openapi(routes.removeHopperItem, async (c) => {
   const hopper = await getHopper(c.env.DB, c.req.param("id"));
   if (!hopper) return c.json({ error: "hopper not found" }, 404);
   await removeHopperItem(c.env.DB, hopper.id, c.req.param("sub"), c.req.param("remoteId"));
   return c.json({ ok: true });
 });
 
-importerApi.put("/signals/:sub/:remoteId", async (c) => {
+importerApi.openapi(routes.setSignal, async (c) => {
   const sub = await getSubscription(c.env.DB, c.req.param("sub"));
   if (!sub) return c.json({ error: "subscription not found" }, 404);
-  const body = await c.req.json<{ thumb?: number }>().catch(() => ({}) as { thumb?: number });
+  const body = await readJson<{ thumb?: number }>(c).catch(() => ({}) as { thumb?: number });
   if (body.thumb !== 1 && body.thumb !== -1) return c.json({ error: "thumb must be 1 or -1" }, 400);
   await setSignal(c.env.DB, sub.id, c.req.param("remoteId"), body.thumb);
   return c.json({ ok: true });
 });
 
-importerApi.delete("/signals/:sub/:remoteId", async (c) => {
+importerApi.openapi(routes.deleteSignal, async (c) => {
   await deleteSignal(c.env.DB, c.req.param("sub"), c.req.param("remoteId"));
   return c.json({ ok: true });
 });
@@ -266,9 +267,9 @@ function quoteLines(selection: string): string {
     .join("\n>\n");
 }
 
-importerApi.post("/stubs", async (c) => {
+importerApi.openapi(routes.createStub, async (c) => {
   type StubReq = { subscription_id?: string; remote_id?: string; selection?: string };
-  const body = await c.req.json<StubReq>().catch(() => ({}) as StubReq);
+  const body = await readJson<StubReq>(c).catch(() => ({}) as StubReq);
   const subId = body.subscription_id;
   const remoteId = body.remote_id;
   if (!subId || !remoteId) return c.json({ error: "subscription_id and remote_id required" }, 400);

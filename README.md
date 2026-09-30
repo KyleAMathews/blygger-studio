@@ -30,10 +30,10 @@ Two halves, on purpose:
 ## Quick start
 
 ```bash
-npm install --legacy-peer-deps    # see "npm" below — the flag is not optional here
+npm ci
 npm run dev                       # wrangler dev
-npm test                          # 531 tests
-npx tsc --noEmit
+npm test                          # Worker and protocol tests
+npm run typecheck
 npm run export -- --out DIR --base https://example.com/blyg/
 ```
 
@@ -167,17 +167,28 @@ keeps working for you:
 A stable publishing API — so that tools can write to a blyg without modifying its
 client — is the open design question tracked as item 1.8 in
 [`roadmap-tracks.md`](https://github.com/blygger/blygger-spec/blob/main/docs/roadmap-tracks.md).
-Until it lands, `/api` is **private and unversioned**: 30 endpoints behind a single
-owner cookie. Build against it and expect it to move.
+The private Studio API now has a checked-in [OpenAPI contract](openapi.json) and a
+[generated JavaScript/TypeScript SDK](sdk/README.md). The owner can fetch the same
+contract at `/api/openapi.json`. It uses the existing session cookie; this does
+not define a public publishing protocol.
 
-## npm
+`npm run openapi` updates the contract. `npm run sdk:generate` rebuilds the SDK
+with a pinned Cloudflare Forge generator and needs Docker. Normal development
+and deployment only need `npm run build`, which the npm scripts run for you.
+CI checks types, contract and SDK drift, Worker tests, and Chromium browser tests.
+See [the migration plan](docs/migration.md) for the complete SPA cutover and the
+queued OAuth and MCP work.
 
-`npm install` **needs `--legacy-peer-deps`** on this project. npm 10.9.0's peer
-resolver crashes on vitest's optional peer graph
-(`TypeError: Cannot read properties of null (reading 'edgesOut')`), reproducible with
-a bare `npm install vitest` in an empty directory — the environment, not this repo.
-An existing lockfile masks it, so a fresh clone hits it and an incremental install
-does not.
+## Browser tests
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+The browser suite runs an in-memory Worker, D1 database, and R2 bucket. Outbound
+requests use a local fixture response; no deployment config or host credentials
+are needed.
 
 ## History
 

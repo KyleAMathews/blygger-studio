@@ -1,0 +1,6 @@
+{
+  "forgeRevision": "056b13e10e35672480de15955aefd8ade03a9732",
+  "transformer": "@cloudflare/forge-transformer-sdk-ts",
+  "fernTypeScriptVersion": "3.80.1",
+  "overlay": "cookie authentication is supplied by the SDK transport"
+}

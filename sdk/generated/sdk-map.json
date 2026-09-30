@@ -1,0 +1,547 @@
+{
+  "addHopperItem": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "addHopperItem",
+    "httpMethod": "PUT",
+    "path": "/api/hoppers/{id}/items/{sub}/{remoteId}",
+    "requestType": "AddHopperItemRequest",
+    "responseType": "AddHopperItemResponse",
+    "requiredRequestProperties": [
+      "id",
+      "remoteId",
+      "sub"
+    ]
+  },
+  "createHopper": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "createHopper",
+    "httpMethod": "POST",
+    "path": "/api/hoppers",
+    "requestType": "CreateHopperRequest",
+    "responseType": "CreateHopperResponse",
+    "requiredRequestProperties": [
+      "name"
+    ]
+  },
+  "createItem": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "createItem",
+    "httpMethod": "POST",
+    "path": "/api/items",
+    "requestType": "CreateItemRequest",
+    "responseType": "CreateItemResponse"
+  },
+  "createStub": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "createStub",
+    "httpMethod": "POST",
+    "path": "/api/stubs",
+    "requestType": "CreateStubRequest",
+    "responseType": "CreateStubResponse",
+    "requiredRequestProperties": [
+      "remote_id",
+      "subscription_id"
+    ]
+  },
+  "createSubscription": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "createSubscription",
+    "httpMethod": "POST",
+    "path": "/api/subscriptions",
+    "requestType": "CreateSubscriptionRequest",
+    "responseType": "CreateSubscriptionResponse",
+    "requiredRequestProperties": [
+      "url"
+    ]
+  },
+  "deleteHopper": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "deleteHopper",
+    "httpMethod": "DELETE",
+    "path": "/api/hoppers/{id}",
+    "requestType": "DeleteHopperRequest",
+    "responseType": "DeleteHopperResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  },
+  "deleteItem": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "deleteItem",
+    "httpMethod": "DELETE",
+    "path": "/api/items/{id}",
+    "requestType": "DeleteItemRequest",
+    "responseType": "DeleteItemResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  },
+  "deleteSignal": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "deleteSignal",
+    "httpMethod": "DELETE",
+    "path": "/api/signals/{sub}/{remoteId}",
+    "requestType": "DeleteSignalRequest",
+    "responseType": "DeleteSignalResponse",
+    "requiredRequestProperties": [
+      "remoteId",
+      "sub"
+    ]
+  },
+  "deleteSubscription": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "deleteSubscription",
+    "httpMethod": "DELETE",
+    "path": "/api/subscriptions/{id}",
+    "requestType": "DeleteSubscriptionRequest",
+    "responseType": "DeleteSubscriptionResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  },
+  "forkItem": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "forkItem",
+    "httpMethod": "POST",
+    "path": "/api/fork",
+    "requestType": "ForkItemRequest",
+    "responseType": "ForkItemResponse",
+    "requiredRequestProperties": [
+      "id",
+      "origin",
+      "version"
+    ],
+    "numericRequestProperties": [
+      "version"
+    ]
+  },
+  "generateItem": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "generateItem",
+    "httpMethod": "POST",
+    "path": "/api/items/{id}/generate",
+    "requestType": "GenerateItemRequest",
+    "responseType": "GenerateItemResponse",
+    "requiredRequestProperties": [
+      "id",
+      "scope"
+    ],
+    "numericRequestProperties": [
+      "scope"
+    ]
+  },
+  "getForkOptions": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "getForkOptions",
+    "httpMethod": "GET",
+    "path": "/api/fork-options",
+    "requestType": "GetForkOptionsRequest",
+    "responseType": "GetForkOptionsResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  },
+  "getHopper": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "getHopper",
+    "httpMethod": "GET",
+    "path": "/api/hoppers/{id}",
+    "requestType": "GetHopperRequest",
+    "responseType": "GetHopperResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  },
+  "getImportedItem": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "getImportedItem",
+    "httpMethod": "GET",
+    "path": "/api/imports/{sub}/{id}",
+    "requestType": "GetImportedItemRequest",
+    "responseType": "ImportedItemRow",
+    "requiredRequestProperties": [
+      "id",
+      "sub"
+    ]
+  },
+  "getItem": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "getItem",
+    "httpMethod": "GET",
+    "path": "/api/items/{id}",
+    "requestType": "GetItemRequest",
+    "responseType": "GetItemResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  },
+  "getMentionSource": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "getMentionSource",
+    "httpMethod": "GET",
+    "path": "/api/mentions/{id}/source",
+    "requestType": "GetMentionSourceRequest",
+    "responseType": "GetMentionSourceResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  },
+  "getSettings": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "getSettings",
+    "httpMethod": "GET",
+    "path": "/api/settings",
+    "responseType": "Settings"
+  },
+  "getUpdateState": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "getUpdateState",
+    "httpMethod": "GET",
+    "path": "/api/update-state",
+    "responseType": "Record"
+  },
+  "getVersion": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "getVersion",
+    "httpMethod": "GET",
+    "path": "/api/items/{id}/versions/{v}",
+    "requestType": "GetVersionRequest",
+    "responseType": "GetVersionResponse",
+    "requiredRequestProperties": [
+      "id",
+      "v"
+    ]
+  },
+  "listHoppers": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "listHoppers",
+    "httpMethod": "GET",
+    "path": "/api/hoppers"
+  },
+  "listItems": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "listItems",
+    "httpMethod": "GET",
+    "path": "/api/items",
+    "requestType": "ListItemsRequest",
+    "responseType": "ListItemsResponse"
+  },
+  "listMentions": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "listMentions",
+    "httpMethod": "GET",
+    "path": "/api/mentions",
+    "responseType": "ListMentionsResponse"
+  },
+  "listReading": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "listReading",
+    "httpMethod": "GET",
+    "path": "/api/reading",
+    "requestType": "ListReadingRequest",
+    "responseType": "ListReadingResponse"
+  },
+  "listSignals": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "listSignals",
+    "httpMethod": "GET",
+    "path": "/api/signals"
+  },
+  "listSubscriptions": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "listSubscriptions",
+    "httpMethod": "GET",
+    "path": "/api/subscriptions"
+  },
+  "pauseSubscription": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "pauseSubscription",
+    "httpMethod": "POST",
+    "path": "/api/subscriptions/{id}/pause",
+    "requestType": "PauseSubscriptionRequest",
+    "responseType": "PauseSubscriptionResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  },
+  "pinItem": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "pinItem",
+    "httpMethod": "POST",
+    "path": "/api/items/{id}/pin",
+    "requestType": "PinItemRequest",
+    "responseType": "PinItemResponse",
+    "requiredRequestProperties": [
+      "id",
+      "version"
+    ],
+    "numericRequestProperties": [
+      "version"
+    ]
+  },
+  "preview": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "preview",
+    "httpMethod": "POST",
+    "path": "/api/preview",
+    "requestType": "PreviewRequest",
+    "responseType": "PreviewResponse"
+  },
+  "publishItem": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "publishItem",
+    "httpMethod": "POST",
+    "path": "/api/items/{id}/publish",
+    "requestType": "PublishItemRequest",
+    "responseType": "PublishItemResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  },
+  "removeHopperItem": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "removeHopperItem",
+    "httpMethod": "DELETE",
+    "path": "/api/hoppers/{id}/items/{sub}/{remoteId}",
+    "requestType": "RemoveHopperItemRequest",
+    "responseType": "RemoveHopperItemResponse",
+    "requiredRequestProperties": [
+      "id",
+      "remoteId",
+      "sub"
+    ]
+  },
+  "restoreItem": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "restoreItem",
+    "httpMethod": "POST",
+    "path": "/api/items/{id}/restore",
+    "requestType": "RestoreItemRequest",
+    "responseType": "RestoreItemResponse",
+    "requiredRequestProperties": [
+      "id",
+      "version"
+    ],
+    "numericRequestProperties": [
+      "version"
+    ]
+  },
+  "resumeSubscription": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "resumeSubscription",
+    "httpMethod": "POST",
+    "path": "/api/subscriptions/{id}/resume",
+    "requestType": "ResumeSubscriptionRequest",
+    "responseType": "ResumeSubscriptionResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  },
+  "resyncSubscription": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "resyncSubscription",
+    "httpMethod": "POST",
+    "path": "/api/subscriptions/{id}/resync",
+    "requestType": "ResyncSubscriptionRequest",
+    "responseType": "ResyncSubscriptionResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  },
+  "search": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "search",
+    "httpMethod": "GET",
+    "path": "/api/search",
+    "requestType": "SearchRequest",
+    "responseType": "SearchResponse"
+  },
+  "setMentionHidden": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "setMentionHidden",
+    "httpMethod": "PUT",
+    "path": "/api/mentions/{id}/hidden",
+    "requestType": "SetMentionHiddenRequest",
+    "responseType": "SetMentionHiddenResponse",
+    "requiredRequestProperties": [
+      "hidden",
+      "id"
+    ]
+  },
+  "setResponses": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "setResponses",
+    "httpMethod": "PUT",
+    "path": "/api/items/{id}/responses",
+    "requestType": "SetResponsesRequest",
+    "responseType": "SetResponsesResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  },
+  "setSignal": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "setSignal",
+    "httpMethod": "PUT",
+    "path": "/api/signals/{sub}/{remoteId}",
+    "requestType": "SetSignalRequest",
+    "responseType": "SetSignalResponse",
+    "requiredRequestProperties": [
+      "remoteId",
+      "sub",
+      "thumb"
+    ],
+    "numericRequestProperties": [
+      "thumb"
+    ]
+  },
+  "updateHopper": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "updateHopper",
+    "httpMethod": "PUT",
+    "path": "/api/hoppers/{id}",
+    "requestType": "UpdateHopperRequest",
+    "responseType": "UpdateHopperResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  },
+  "updateItem": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "updateItem",
+    "httpMethod": "PUT",
+    "path": "/api/items/{id}",
+    "requestType": "UpdateItemRequest",
+    "responseType": "UpdateItemResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  },
+  "updateSettings": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "updateSettings",
+    "httpMethod": "PUT",
+    "path": "/api/settings",
+    "requestType": "UpdateSettingsRequest",
+    "responseType": "UpdateSettingsResponse"
+  },
+  "updateSubscription": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "updateSubscription",
+    "httpMethod": "PUT",
+    "path": "/api/subscriptions/{id}",
+    "requestType": "UpdateSubscriptionRequest",
+    "responseType": "UpdateSubscriptionResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  },
+  "uploadMedia": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "uploadMedia",
+    "httpMethod": "POST",
+    "path": "/api/media",
+    "requestType": "UploadMediaRequest",
+    "responseType": "UploadMediaResponse",
+    "requiredRequestProperties": [
+      "file"
+    ]
+  },
+  "withdrawItem": {
+    "accessor": [
+      "studio"
+    ],
+    "method": "withdrawItem",
+    "httpMethod": "POST",
+    "path": "/api/items/{id}/withdraw",
+    "requestType": "WithdrawItemRequest",
+    "responseType": "WithdrawItemResponse",
+    "requiredRequestProperties": [
+      "id"
+    ]
+  }
+}

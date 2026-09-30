@@ -1,3 +1,5 @@
+import studioSdkScript from "../build/studio-sdk.txt";
+import { ownerApi } from "./owner-api.ts";
 // Blygger v0.1 "Seed" — route wiring. Public surface per v0.1-plan §3.3.
 //
 // Session 8 (locked decision #14): the public surface's mount path is
@@ -20,9 +22,9 @@
 // attached).
 
 import { type Context, Hono } from "hono";
-import { api } from "./api.ts";
+
 import { verifySession } from "./auth.ts";
-import { importerApi } from "./importer/api.ts";
+
 import { buildBlogrollOpml } from "./importer/opml.ts";
 import { publicHopperPage } from "./importer/pages.ts";
 import { runScheduledPoll } from "./importer/schedule.ts";
@@ -33,7 +35,7 @@ import { archivePage, feedPage, permalinkPage, pinnedVersionPage, STYLE_CSS, the
 import { buildArchiveIndex, buildFeedXml, buildItemJson, buildManifest, buildPinnedVersionJson, siteOrigin } from "./protocol.ts";
 import { mentionFetch } from "./mentions/http.ts";
 import { receiveMention, verifyMention } from "./mentions/receive.ts";
-import { mentionsApi } from "./mentions/api.ts";
+
 import { drainOutbound } from "./mentions/send.ts";
 import { pruneFailedInbound } from "./mentions/store.ts";
 import { mentionsStudio } from "./mentions/studio.ts";
@@ -68,15 +70,8 @@ export function makeApp(mount: string) {
   app.route(studioBase, importerStudio);
   app.route(studioBase, mentionsStudio);
 
-  app.use("/api/*", async (c, next) => {
-    if (!(await verifySession(c.env, c.req.header("cookie")))) {
-      return c.json({ error: "unauthorized" }, 401);
-    }
-    return next();
-  });
-  app.route("/api", api);
-  app.route("/api", importerApi);
-  app.route("/api", mentionsApi);
+  app.route("/api", ownerApi);
+  app.get("/studio-sdk.js", (c) => c.body(studioSdkScript, 200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" }));
 
   // --- Public surface: mount-relative — cache 60s; JSON/XML get permissive CORS. ---
 

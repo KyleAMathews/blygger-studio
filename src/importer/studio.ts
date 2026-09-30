@@ -4,26 +4,15 @@
 // ../studio.ts (no client framework, per CLAUDE.md stack conventions).
 
 import { Hono } from "hono";
-import { authoredKind, getSettings, listPublic, publishedVersion } from "../model.ts";
 import { siteOrigin } from "../protocol.ts";
 import { formatDate, studioHeader, studioLayout } from "../studio.ts";
 import type { Env, SubscriptionRow } from "../types.ts";
 import { escapeHtml, normalizeMount, studioPath } from "../util.ts";
-import type { ImportedEntryInput, OwnEntryInput, ReadingFeedEntry } from "./reading.ts";
-import { buildReadingFeed } from "./reading.ts";
-import { sanitizeHtml } from "./sanitize.ts";
+import type { ReadingFeedEntry } from "./reading.ts";
 import { leadingHeading, previewFromHtml, splitL0Content } from "../preview.ts";
-import {
-  getHopper,
-  getImportedItem,
-  getSignal,
-  listAllImportedItems,
-  listHoppers,
-  listHopperItems,
-  listSubscriptions,
-} from "./store.ts";
+import { studioData, type StudioData, getSettings, getHopper, hopperItemBodies, getSignal, listHoppers, listHopperItems, listSubscriptions } from "../studio-data.ts";
 import type { HopperRow } from "../types.ts";
-import { displayUrl, sourceTitleAndUrl } from "./util.ts";
+import { displayUrl } from "./util.ts";
 
 const SUBS_STYLE = `
 .sub-row { border-top: 1px solid var(--rule); padding: 0.75rem 0; }
@@ -84,7 +73,7 @@ ${resyncBtn}
 
 const SUBS_SCRIPT = `
 async function subsApi(method, path, body) {
-  const res = await fetch(path, {
+  const res = await studioRequest(path, {
     method,
     headers: body !== undefined ? { "content-type": "application/json" } : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -142,8 +131,9 @@ addForm.addEventListener("submit", async (e) => {
 export const importerStudio = new Hono<{ Bindings: Env }>({ strict: false });
 
 importerStudio.get("/subs", async (c) => {
-  const subs = await listSubscriptions(c.env.DB);
-  const settings = await getSettings(c.env.DB);
+  const data = studioData(c);
+  const subs = await listSubscriptions(data);
+  const settings = await getSettings(data);
   const mount = normalizeMount(c.env.MOUNT);
   const body = `${studioHeader("blyg studio — subscriptions", mount, "subs")}
 <style>${SUBS_STYLE}</style>
@@ -255,46 +245,6 @@ const SIDEBAR_SCRIPT = `
 })();
 `;
 
-async function ownEntries(db: D1Database): Promise<OwnEntryInput[]> {
-  const items = await listPublic(db);
-  const out: OwnEntryInput[] = [];
-  for (const item of items) {
-    const withdrawn = item.kind === "withdrawn";
-    const kind = await authoredKind(db, item);
-    const latest = withdrawn ? null : await publishedVersion(db, item);
-    out.push({ id: item.id, kind, withdrawn, updated: item.updated, contentHtml: latest?.content_html ?? "" });
-  }
-  return out;
-}
-
-async function importedEntries(db: D1Database): Promise<ImportedEntryInput[]> {
-  const [imports, subs] = await Promise.all([listAllImportedItems(db), listSubscriptions(db)]);
-  const titleOf = new Map(subs.map((s) => [s.id, s.title || s.origin]));
-  const originOf = new Map(subs.map((s) => [s.id, s.origin]));
-  const out: ImportedEntryInput[] = [];
-  for (const row of imports) {
-    const origin = originOf.get(row.subscription_id);
-    // `sourceTitleAndUrl` already knows both shapes — the leading anchor for
-    // L0, the origin's own permalink for blyg-native — so the link out is
-    // derived by the same rule the stub gesture uses rather than a second one.
-    const sourceUrl = origin ? sourceTitleAndUrl(row, origin).url : null;
-    out.push({
-      subscriptionId: row.subscription_id,
-      subscriptionTitle: titleOf.get(row.subscription_id) ?? row.subscription_id,
-      sourceUrl,
-      remoteId: row.remote_id,
-      kind: row.kind,
-      withdrawn: row.state === "tombstone",
-      l0: row.l0 === 1,
-      updated: row.updated,
-      observedAt: row.observed_at,
-      contentHtml: row.l0 ? row.content_html : await sanitizeHtml(row.content_html),
-      pinnedVersionRetained: row.pinned_version_retained,
-    });
-  }
-  return out;
-}
-
 /**
  * Hoppers are the unit of curation (decision #12: make-public is a *list* you
  * keep, not a thing you said), so this picker is the entry point to the whole
@@ -318,7 +268,7 @@ function thumbButtons(imp: NonNullable<ReadingFeedEntry["imported"]>, thumb: 1 |
 }
 
 async function readingEntryHtml(
-  db: D1Database,
+  db: StudioData,
   e: ReadingFeedEntry,
   hoppers: HopperRow[],
   mount: string,
@@ -553,7 +503,7 @@ document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-action='link-post']");
   if (!btn) return;
   btn.disabled = true;
-  const res = await fetch("/api/items", {
+  const res = await studioRequest("/api/items", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ content_md: "[[" + btn.dataset.id + "]]\\n\\n", kind: "fragment" }),
@@ -564,14 +514,14 @@ document.addEventListener("click", async (e) => {
 });
 
 async function readingApi(method, path, body) {
-  await fetch(path, { method, headers: body !== undefined ? { "content-type": "application/json" } : undefined, body: body !== undefined ? JSON.stringify(body) : undefined });
+  await studioRequest(path, { method, headers: body !== undefined ? { "content-type": "application/json" } : undefined, body: body !== undefined ? JSON.stringify(body) : undefined });
 }
 
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-action='stub']");
   if (!btn) return;
   btn.disabled = true;
-  const res = await fetch("/api/stubs", {
+  const res = await studioRequest("/api/stubs", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ subscription_id: btn.dataset.sub, remote_id: btn.dataset.remote }),
@@ -614,7 +564,7 @@ document.addEventListener("click", async (e) => {
   const selection = entry ? selectionWithin(entry) : "";
   if (!selection) { quoteHint(btn, "select a passage first"); return; }
   btn.disabled = true;
-  const res = await fetch("/api/stubs", {
+  const res = await studioRequest("/api/stubs", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ subscription_id: btn.dataset.sub, remote_id: btn.dataset.remote, selection: selection }),
@@ -672,7 +622,7 @@ document.addEventListener("change", async (e) => {
     const name = prompt("Name the new hopper (a curated list — you make the whole list public, not single items):");
     sel.value = "";
     if (!name || !name.trim()) return;
-    const res = await fetch("/api/hoppers", {
+    const res = await studioRequest("/api/hoppers", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: name.trim() }),
@@ -721,25 +671,24 @@ export function readingPage(raw: string | undefined, total: number, pageSize = R
  * already delivered, which is why pausing is not deleting.
  */
 function readingSidebar(
-  feed: ReadingFeedEntry[],
+  counts: { all: number; own: number; subscriptions: Record<string, number> },
   subs: SubscriptionRow[],
   selected: string,
   mount: string,
 ): string {
   const base = `${studioPath(mount)}/reading`;
-  const countFor = (pred: (e: ReadingFeedEntry) => boolean) => feed.filter(pred).length;
   const link = (key: string, label: string, count: number, extra = "") => {
     const href = key === "all" ? base : `${base}?sub=${encodeURIComponent(key)}`;
     const cls = `${key === selected ? "current" : ""} ${extra}`.trim();
     return `<li><a href="${href}"${cls ? ` class="${cls}"` : ""}><span class="feed-name">${escapeHtml(label)}</span><span class="feed-count">${count}</span></a></li>`;
   };
 
-  const ownCount = countFor((e) => e.source === "own");
+  const ownCount = counts.own;
   const rows = subs.map((sub) =>
     link(
       sub.id,
       sub.title || new URL(sub.origin).host,
-      countFor((e) => e.imported?.subscriptionId === sub.id),
+      counts.subscriptions[sub.id] ?? 0,
       sub.status === "paused" ? "paused" : "",
     ),
   );
@@ -765,7 +714,7 @@ function readingSidebar(
 <div id="add-sub-confirm"></div>
 <h2>Reading</h2>
 <ul>
-${link("all", "All", feed.length)}
+${link("all", "All", counts.all)}
 ${ownCount ? link("own", "You", ownCount) : ""}
 </ul>
 ${rows.length ? `<h2>Subscriptions</h2>\n<ul>\n${rows.join("\n")}\n</ul>` : ""}
@@ -773,37 +722,16 @@ ${rows.length ? `<h2>Subscriptions</h2>\n<ul>\n${rows.join("\n")}\n</ul>` : ""}
 </aside>`;
 }
 
-/** Which source is being shown: a subscription id, "own", or "all". */
-function selectedSource(raw: string | undefined, subs: SubscriptionRow[]): string {
-  if (raw === "own") return "own";
-  if (raw && subs.some((s) => s.id === raw)) return raw;
-  // An unknown or deleted subscription id falls back to All rather than to an
-  // empty page that looks like a broken feed.
-  return "all";
-}
-
 importerStudio.get("/reading", async (c) => {
+  const data = studioData(c);
   const mount = normalizeMount(c.env.MOUNT);
-  const [own, imported, hoppers, subs, settings] = await Promise.all([
-    ownEntries(c.env.DB),
-    importedEntries(c.env.DB),
-    listHoppers(c.env.DB),
-    listSubscriptions(c.env.DB),
-    getSettings(c.env.DB),
+  const [reading, hoppers, subs, settings] = await Promise.all([
+    data.client.studio.listReading({ page: Math.max(1, Math.floor(Number(c.req.query("page")) || 1)), sub: c.req.query("sub") }),
+    listHoppers(data), listSubscriptions(data), getSettings(data),
   ]);
   const ourOrigin = siteOrigin(settings, c.req.url, mount);
-  const all = buildReadingFeed(own, imported);
-  const selected = selectedSource(c.req.query("sub"), subs);
-  const feed =
-    selected === "all"
-      ? all
-      : selected === "own"
-        ? all.filter((e) => e.source === "own")
-        : all.filter((e) => e.imported?.subscriptionId === selected);
-  // Paged: the merged feed grows without bound as subscriptions accumulate,
-  // and every entry renders its full (clamped) content.
-  const { page, pages, start } = readingPage(c.req.query("page"), feed.length);
-  const rows = await Promise.all(feed.slice(start, start + READING_PAGE_SIZE).map((e) => readingEntryHtml(c.env.DB, e, hoppers, mount, ourOrigin, settings.timezone)));
+  const { selected, page, pages, total } = reading;
+  const rows = await Promise.all(reading.entries.map((e) => readingEntryHtml(data, e, hoppers, mount, ourOrigin, settings.timezone)));
   // The filter has to survive paging, or page 2 of one feed silently becomes
   // page 2 of everything.
   const suffix = selected === "all" ? "" : `&sub=${encodeURIComponent(selected)}`;
@@ -812,7 +740,7 @@ importerStudio.get("/reading", async (c) => {
     pages > 1
       ? `<nav class="reading-pager">
 <span>${page > 1 ? `<a href="${href(page - 1)}">&larr; newer</a>` : ""}</span>
-<span class="pager-info">page ${page} of ${pages} &middot; ${feed.length} entries</span>
+<span class="pager-info">page ${page} of ${pages} &middot; ${total} entries</span>
 <span>${page < pages ? `<a href="${href(page + 1)}">older &rarr;</a>` : ""}</span>
 </nav>`
       : "";
@@ -824,7 +752,7 @@ importerStudio.get("/reading", async (c) => {
 <style>${READING_STYLE}</style>
 <style>${SUBS_STYLE}</style>
 <div class="reading-layout">
-${readingSidebar(all, subs, selected, mount)}
+${readingSidebar(reading.counts, subs, selected, mount)}
 <div class="reading-main">
 ${rows.length ? rows.join("\n") : empty}
 ${pager}
@@ -866,12 +794,13 @@ const HOPPERS_STYLE = `
  */
 const HOPPER_PEEK_ROWS = 3;
 
-async function hopperPeek(db: D1Database, hopperId: string, titleOf: Map<string, string>): Promise<string> {
+async function hopperPeek(db: StudioData, hopperId: string, titleOf: Map<string, string>): Promise<string> {
   const memberships = await listHopperItems(db, hopperId);
   if (!memberships.length) return "";
   const lines: string[] = [];
+  const bodies = await hopperItemBodies(db, hopperId);
   for (const m of memberships.slice(0, HOPPER_PEEK_ROWS)) {
-    const row = await getImportedItem(db, m.subscription_id, m.remote_id);
+    const row = bodies.get(JSON.stringify([m.subscription_id, m.remote_id]));
     if (!row) continue;
     const src = escapeHtml(titleOf.get(m.subscription_id) ?? m.subscription_id);
     if (row.state === "tombstone") {
@@ -902,7 +831,7 @@ document.addEventListener("submit", async (e) => {
   e.preventDefault();
   const name = document.getElementById("new-hopper-name").value.trim();
   if (!name) return;
-  const res = await fetch("/api/hoppers", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+  const res = await studioRequest("/api/hoppers", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
   if (res.ok) location.reload();
 });
 document.addEventListener("click", async (e) => {
@@ -910,16 +839,16 @@ document.addEventListener("click", async (e) => {
   if (!btn) return;
   if (btn.dataset.action === "delete-hopper") {
     if (!confirm("Delete this hopper? Membership is removed locally; nothing public is affected.")) return;
-    await fetch("/api/hoppers/" + btn.dataset.id, { method: "DELETE" });
+    await studioRequest("/api/hoppers/" + btn.dataset.id, { method: "DELETE" });
     location.href = "${studioPath(mount)}/hoppers";
   } else if (btn.dataset.action === "remove-hopper-item") {
-    await fetch("/api/hoppers/" + btn.dataset.hopper + "/items/" + btn.dataset.sub + "/" + btn.dataset.remote, { method: "DELETE" });
+    await studioRequest("/api/hoppers/" + btn.dataset.hopper + "/items/" + btn.dataset.sub + "/" + btn.dataset.remote, { method: "DELETE" });
     location.reload();
   }
 });
 document.addEventListener("change", async (e) => {
   if (e.target.dataset.action !== "toggle-public") return;
-  await fetch("/api/hoppers/" + e.target.dataset.id, {
+  await studioRequest("/api/hoppers/" + e.target.dataset.id, {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ public: e.target.checked }),
@@ -933,7 +862,7 @@ document.addEventListener("submit", async (e) => {
   e.preventDefault();
   const name = e.target.elements.name.value.trim();
   if (!name) return;
-  const res = await fetch("/api/hoppers/" + e.target.dataset.id, {
+  const res = await studioRequest("/api/hoppers/" + e.target.dataset.id, {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: name }),
@@ -945,12 +874,13 @@ document.addEventListener("submit", async (e) => {
 }
 
 importerStudio.get("/hoppers", async (c) => {
+  const data = studioData(c);
   const mount = normalizeMount(c.env.MOUNT);
-  const [hoppers, subs] = await Promise.all([listHoppers(c.env.DB), listSubscriptions(c.env.DB)]);
+  const [hoppers, subs] = await Promise.all([listHoppers(data), listSubscriptions(data)]);
   const titleOf = new Map(subs.map((sub) => [sub.id, sub.title || sub.origin]));
   const rows = await Promise.all(
     hoppers.map(async (h) => {
-      const items = await listHopperItems(c.env.DB, h.id);
+      const items = await listHopperItems(data, h.id);
       const sources = new Set(items.map((m) => m.subscription_id)).size;
       const counts = `${items.length} item${items.length === 1 ? "" : "s"}${sources ? ` &middot; ${sources} source${sources === 1 ? "" : "s"}` : ""}`;
       return `<div class="hopper-row">
@@ -958,7 +888,7 @@ importerStudio.get("/hoppers", async (c) => {
 <a href="${studioPath(mount)}/hoppers/${h.id}"><strong>${escapeHtml(h.name)}</strong></a>
 <p class="hopper-meta">${counts} &middot; slug: <code>${escapeHtml(h.slug ?? "")}</code></p>
 ${hopperUrlLine(h, mount)}
-${await hopperPeek(c.env.DB, h.id, titleOf)}
+${await hopperPeek(data, h.id, titleOf)}
 </div>
 <div class="actions">
 <label><input type="checkbox" data-action="toggle-public" data-id="${h.id}" ${h.public ? "checked" : ""}> public</label>
@@ -979,28 +909,28 @@ ${rows.length ? rows.join("\n") : "<p>No hoppers yet — add items to a hopper f
 });
 
 importerStudio.get("/hoppers/:id", async (c) => {
-  const hopper = await getHopper(c.env.DB, c.req.param("id"));
+  const data = studioData(c);
+  const hopper = await getHopper(data, c.req.param("id"));
   if (!hopper) return c.notFound();
   const mount = normalizeMount(c.env.MOUNT);
   const [memberships, subs, settings] = await Promise.all([
-    listHopperItems(c.env.DB, hopper.id),
-    listSubscriptions(c.env.DB),
-    getSettings(c.env.DB),
+    listHopperItems(data, hopper.id),
+    listSubscriptions(data),
+    getSettings(data),
   ]);
   const titleOf = new Map(subs.map((sub) => [sub.id, sub.title || sub.origin]));
   const originOf = new Map(subs.map((sub) => [sub.id, sub.origin]));
   const rows: string[] = [];
+  const bodies = await hopperItemBodies(data, hopper.id);
   for (const m of memberships) {
-    const row = await getImportedItem(c.env.DB, m.subscription_id, m.remote_id);
+    const row = bodies.get(JSON.stringify([m.subscription_id, m.remote_id]));
     if (!row) continue;
     const withdrawn = row.state === "tombstone";
     const content = withdrawn
       ? row.pinned_version_retained !== null
-        ? `<p style="opacity:0.7;font-style:italic;">withdrawn by origin — retained via a pin (v${row.pinned_version_retained})</p>${row.l0 ? row.content_html : await sanitizeHtml(row.content_html)}`
+        ? `<p style="opacity:0.7;font-style:italic;">withdrawn by origin — retained via a pin (v${row.pinned_version_retained})</p>${row.content_html}`
         : `<p>withdrawn by origin</p>`
-      : row.l0
-        ? row.content_html
-        : await sanitizeHtml(row.content_html);
+      : row.content_html;
     // A hopper item is always someone else's — name the source and link its
     // origin, the same attribution the public hopper page carries (§4.2).
     const srcName = escapeHtml(titleOf.get(m.subscription_id) ?? m.subscription_id);

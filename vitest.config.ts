@@ -9,6 +9,8 @@ export default defineConfig({
       return {
         wrangler: { configPath: "./wrangler.jsonc" },
         miniflare: {
+          // Background delivery and update checks cannot reach the real network.
+          outboundService: () => new Response(null, { status: 503 }),
           bindings: {
             TEST_MIGRATIONS: migrations,
             OWNER_PASSWORD: "test-password",
@@ -22,6 +24,7 @@ export default defineConfig({
     }),
   ],
   test: {
+    include: ["test/**/*.test.ts"],
     setupFiles: ["./test/apply-migrations.ts"],
   },
 });

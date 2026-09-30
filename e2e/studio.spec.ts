@@ -1,0 +1,55 @@
+import { test, expect } from "@playwright/test";
+
+test("owner can compose, publish and change settings through the SDK", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/studio");
+  await page.locator('[name="password"]').fill("test-password");
+  await page.getByRole('button', { name: 'log in', exact: true }).click();
+  await expect(page.locator("#composer-text")).toBeVisible();
+  await page.locator("#composer-text").fill("Browser SDK **round trip**");
+  await page.locator("#save-draft-btn").click();
+  await expect(page.locator("#composer-state")).toHaveText("saved");
+  await page.locator("#publish-btn").click();
+  await expect(page.locator("#composer-text")).toHaveValue("");
+  await expect(page.locator("body")).toContainText("Browser SDK round trip");
+  await page.goto("/studio/reading");
+  await expect(page.locator("body")).toContainText("Browser SDK round trip");
+  await page.goto("/studio/settings");
+  await page.locator("#site_title").fill("Browser SDK site");
+  page.once("dialog", (dialog) => dialog.accept());
+  const saved = page.waitForResponse((response) => response.url().endsWith("/api/settings") && response.request().method() === "PUT");
+  await page.locator('#settings-form button[type="submit"]').focus();
+  await page.locator('#settings-form button[type="submit"]').press('Enter');
+  expect((await saved).status()).toBe(200);
+  await page.reload();
+  await expect(page.locator("#site_title")).toHaveValue("Browser SDK site");
+  expect(errors).toEqual([]);
+});
+
+test("editor autosave, preview, image upload and history use the SDK", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/studio/login");
+  await page.locator('[name="password"]').fill("test-password");
+  await page.getByRole("button", { name: "log in", exact: true }).click();
+  await expect(page.locator("#composer-text")).toBeVisible();
+  await page.locator("#composer-text").fill("Editor fixture");
+  await page.locator("#composer-full").click();
+  await expect(page.locator("#md-input")).toHaveValue("Editor fixture");
+  await page.locator("#md-input").fill("Autosaved **preview**");
+  await expect(page.locator("#preview-body strong")).toHaveText("preview");
+  await page.reload();
+  await expect(page.locator("#md-input")).toHaveValue("Autosaved **preview**");
+  const chooser = page.waitForEvent("filechooser");
+  await page.locator("#attach-btn").click();
+  const uploaded = page.waitForResponse((response) => response.url().endsWith("/api/media"));
+  await (await chooser).setFiles({ name: "fixture.svg", mimeType: "image/svg+xml", buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>') });
+  expect((await uploaded).status()).toBe(201);
+  await expect(page.locator("body")).toContainText("attached:");
+  await page.locator("#publish-btn").click();
+  await expect(page.locator('[data-action="view-version"]')).toBeVisible();
+  await page.locator('[data-action="view-version"]').click();
+  await expect(page.locator("#h-viewer-body")).toContainText("Autosaved preview");
+  expect(errors).toEqual([]);
+});

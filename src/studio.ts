@@ -1,3 +1,7 @@
+import { BlyggerApiError } from "../sdk/dist/browser.js";
+import type { Context } from "hono";
+import { studioData, type StudioData, authoredKind, getItem, getSettings, getSettingsMap, listAll, listMediaForItem, listVersions, publishedVersion } from "./studio-data.ts";
+import { annotateTkPreview, scopeSummaries } from "./authoring.ts";
 // Studio: owner-only composer, item list, fragment/thread editors, settings
 // — v0.1-plan task 9 (fragments) + task 15 (threads), built against the
 // rev-3 wireframes reviewed with Venkat (docs/wireframes/studio.html,
@@ -9,19 +13,17 @@
 
 import { Hono } from "hono";
 import { checkPassword, clearSessionCookie, issueSessionCookie, verifySession } from "./auth.ts";
-import { plainTextFromHtml, renderMarkdown } from "./markdown.ts";
-import { authoredKind, getItem, getSettings, getSettingsMap, getVersion, listAll, listMediaForItem, listVersions, publishedVersion } from "./model.ts";
+import { renderMarkdown } from "./markdown.ts";
 import { THEMES } from "./pages.ts";
-import { clampText, previewFromHtml, stripTransclusionQuotes, type HtmlPreview } from "./preview.ts";
-import { annotateGenerated, applyGeneratedWrappers, parseScopes, previewStrip, type TkScope } from "./tk.ts";
-import { normalizeOrigin, parseStoredStub } from "./stub.ts";
-import { mentionFetch } from "./mentions/http.ts";
+import { previewFromHtml, stripTransclusionQuotes, type HtmlPreview } from "./preview.ts";
+import { parseScopes, previewStrip } from "./tk.ts";
+import { parseStoredStub } from "./stub.ts";
 import { siteOrigin } from "./protocol.ts";
-import { applyInternalLinks, extractDirectives, previewInternalLinks, previewTransclusions } from "./transclusion.ts";
+import { extractDirectives } from "./transclusion.ts";
 import type { Env, ItemRow, Transclusion, VersionRow } from "./types.ts";
 import { CLIENT, FRAGMENT_MAX_CHARS } from "./types.ts";
 import type { Settings } from "./types.ts";
-import { maybeCheckForUpdate, readState, type UpdateState } from "./update-check.ts";
+import { readState, type UpdateState } from "./update-check.ts";
 import { escapeHtml, formatDateIn, normalizeMount, studioPath } from "./util.ts";
 import { blygItemUrl } from "./importer/util.ts";
 
@@ -29,31 +31,6 @@ import { blygItemUrl } from "./importer/util.ts";
  * Studio-only scope summary for the Generate/Regenerate panel (task 6) — not
  * a protocol surface. `output` is truncated for display only.
  */
-function scopeSummaries(scopes: TkScope[]): { index: number; instruction: string; output: string | null; hasOutput: boolean; block: boolean }[] {
-  return scopes.map((s, index) => ({
-    index,
-    instruction: s.instruction,
-    output: s.output === null ? null : excerptOf(s.output, 60),
-    hasOutput: s.output !== null,
-    block: s.block,
-  }));
-}
-
-/**
- * Studio preview rendering shared by /preview and /preview-thread: strips TK
- * scopes (tolerantly — previewStrip never throws), highlights every resolved
- * scope regardless of real provenance (an authoring aid, not the wire's
- * disclosure rule — see model.ts publish() for the provenance-gated version),
- * and lets the caller render the remaining markdown (plain, or via
- * previewTransclusions for threads).
- */
-function annotateTkPreview(contentMd: string): { scopes: TkScope[]; text: string; finish: (renderedHtml: string) => string } {
-  const { scopes } = parseScopes(contentMd);
-  const { text, spans } = previewStrip(contentMd, scopes);
-  const annotated = annotateGenerated(text, spans, spans.map(() => true));
-  return { scopes, text: annotated.text, finish: (renderedHtml) => applyGeneratedWrappers(renderedHtml, annotated) };
-}
-
 export const STUDIO_STYLE = `
 /* Design tokens — the same palette the public pages use (see STYLE_CSS in
  * pages.ts), so the studio and the thing it publishes read as one product.
@@ -370,6 +347,7 @@ export function studioLayout(title: string, body: string, _wide = false): string
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
 <script>${JS_MARKER}</script>
+<script src="/studio-sdk.js"></script>
 <style>${STUDIO_STYLE}</style>
 </head>
 <body>
@@ -614,7 +592,7 @@ function quickEditBtn(item: ItemRow): string {
     : `<button type="button" data-action="quick-edit" data-id="${item.id}">quick edit</button>`;
 }
 
-async function itemRow(db: D1Database, item: ItemRow, mount: string, tz: string): Promise<string> {
+async function itemRow(db: StudioData, item: ItemRow, mount: string, tz: string): Promise<string> {
   const id = item.id;
   if (item.status === "withdrawn") {
     const versions = await listVersions(db, id);
@@ -690,7 +668,7 @@ export function excerptOf(text: string, n = 80): string {
 function actionScript(mount: string): string {
   return `
 async function api(method, path, body) {
-  const res = await fetch(path, {
+  const res = await studioRequest(path, {
     method,
     headers: body !== undefined ? { "content-type": "application/json" } : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -782,7 +760,7 @@ document.addEventListener("click", async (e) => {
   } else if (action === "view-version") {
     // Read-only: loads a past version's stored HTML into the history viewer.
     const version = Number(btn.dataset.version);
-    const res = await fetch("${studioPath(mount)}/versions/" + id + "/" + version);
+    const res = await studioRequest("${studioPath(mount)}/versions/" + id + "/" + version);
     const data = await res.json().catch(() => null);
     if (!data) { alert("could not load v" + version); return; }
     const viewer = document.getElementById("h-viewer");
@@ -1175,7 +1153,7 @@ function installPalette(opts) {
     }
   }
   function search(query, offset) {
-    return fetch("${studioPath(mount)}/fragments/search?q=" + encodeURIComponent(query) + "&offset=" + offset)
+    return studioRequest("${studioPath(mount)}/fragments/search?q=" + encodeURIComponent(query) + "&offset=" + offset)
       .then(function (r) { return r.json(); });
   }
   function renderList() {
@@ -1338,15 +1316,16 @@ studio.post("/logout", (c) => {
 });
 
 studio.get("/", async (c) => {
+  const data = studioData(c);
   const mount = normalizeMount(c.env.MOUNT);
-  const items = await listAll(c.env.DB);
-  const settings = await getSettings(c.env.DB);
-  const settingsMap = await getSettingsMap(c.env.DB);
-  const rows = await Promise.all(items.map((item) => itemRow(c.env.DB, item, mount, settings.timezone)));
+  const items = await listAll(data);
+  const settings = await getSettings(data);
+  const settingsMap = await getSettingsMap(data);
+  const rows = await Promise.all(items.map((item) => itemRow(data, item, mount, settings.timezone)));
   // The banner shows what the *last* check found; the check for next time runs
   // after the response. A version notice is never worth a slower studio, and
   // `waitUntil` is what keeps that promise.
-  c.executionCtx.waitUntil(maybeCheckForUpdate(c.env.DB, settings, settingsMap, Date.now()).catch(() => {}));
+
   const body = `${studioHeader("blyg studio", mount, "compose")}
 ${updateBanner(settings, readState(settingsMap), mount)}
 <div class="composer" style="position:relative;">
@@ -1374,8 +1353,9 @@ ${rows.join("\n") || "<p>Nothing yet — compose your first fragment above.</p>"
 });
 
 studio.get("/settings", async (c) => {
+  const data = studioData(c);
   const mount = normalizeMount(c.env.MOUNT);
-  const settings = await getSettings(c.env.DB);
+  const settings = await getSettings(data);
   const linksText = settings.author_links.map((l) => `${l.label} | ${l.url}`).join("\n");
   const body = `${studioHeader("blyg studio — settings", mount, "settings")}
 <form class="settings-form prose" id="settings-form">
@@ -1574,119 +1554,20 @@ studio.get("/syntax", async (c) => {
 
 /** Studio-only live preview for the fragment editor — not a protocol surface. TK scopes are highlighted (task 6). */
 studio.post("/preview", async (c) => {
-  const mount = normalizeMount(c.env.MOUNT);
-  const body = await c.req.json<{ content_md?: string }>().catch(() => ({}) as { content_md?: string });
-  const tk = annotateTkPreview(body.content_md ?? "");
-  // `[[id]]` resolves in the preview too, so an unresolvable link is visible
-  // before publish rejects it — same contract as an unresolvable directive.
-  const links = await previewInternalLinks(c.env.DB, tk.text, siteOrigin(await getSettings(c.env.DB), c.req.url, mount));
-  const html = applyInternalLinks(tk.finish(renderMarkdown(links.text)), links);
-  return c.json({ html, scopes: scopeSummaries(tk.scopes), link_errors: links.errors });
+  try { return c.json(await studioData(c).client.studio.preview(await c.req.json().catch(() => ({})))); }
+  catch (e) { return legacyError(c, e); }
 });
-
-/** Studio-only provisional thread preview + validation — publish still re-resolves for real. TK scopes are highlighted (task 6). */
 studio.post("/preview-thread", async (c) => {
-  const body = await c.req.json<{ content_md?: string; item_id?: string }>().catch(() => ({}) as { content_md?: string; item_id?: string });
-  const tk = annotateTkPreview(body.content_md ?? "");
-  // item_id is the thread being edited — the DAG check needs it, so the
-  // preview rejects a circular quote at exactly the point publish would.
-  const mount = normalizeMount(c.env.MOUNT);
-  const links = await previewInternalLinks(c.env.DB, tk.text, siteOrigin(await getSettings(c.env.DB), c.req.url, mount));
-  const resolved = await previewTransclusions(c.env.DB, links.text, body.item_id);
-  return c.json({
-    html: applyInternalLinks(tk.finish(resolved.html), links),
-    errors: [...resolved.errors, ...links.errors],
-    transclusions: resolved.transclusions,
-    scopes: scopeSummaries(tk.scopes),
-  });
+  try { return c.json(await studioData(c).client.studio.preview({ ...await c.req.json().catch(() => ({})), kind: "thread" })); }
+  catch (e) { return legacyError(c, e); }
 });
-
-/**
- * Read one past version for the editor's history viewer. Studio-only: the
- * stored `content_html` of any version, pinned or not — unlike the public
- * `items/{id}/vN.json` surface, which serves pinned versions only (§2.8).
- * Reading history locally is not the same act as promising it publicly.
- */
 studio.get("/versions/:id/:v", async (c) => {
-  const item = await getItem(c.env.DB, c.req.param("id"));
-  if (!item) return c.json({ error: "not found" }, 404);
-  const version = Number(c.req.param("v"));
-  if (!Number.isInteger(version)) return c.json({ error: "bad version" }, 400);
-  const row = await getVersion(c.env.DB, item.id, version);
-  if (!row) return c.json({ error: "version not found" }, 404);
-  const tz = (await getSettings(c.env.DB)).timezone;
-  return c.json({
-    version: row.version,
-    published_at: formatDate(row.published_at, tz),
-    note: row.note,
-    pinned: row.pinned === 1,
-    content_html: row.content_html ?? "",
-  });
+  try { return c.json(await studioData(c).client.studio.getVersion({ id: c.req.param("id"), v: c.req.param("v") })); }
+  catch (e) { return legacyError(c, e); }
 });
-
-/**
- * The bracket palette's candidate list (§3.2). Searches everything v0.3 lets a
- * thread transclude: own published items of **either** kind (nesting is legal
- * from this version) and imported blyg items (`current`, non-L0) — which is
- * what makes quoting follow reading. The route keeps its 0.1 name; only its
- * subject widened.
- *
- * One list serves both bracket forms, and that is not a convenience: `[[id]]`
- * resolves through `resolveTarget` too — "by the same order", §16.2 — so the
- * set of ids a link can name *is* the set a directive can name. A second
- * endpoint would be a second copy of that rule, free to drift from it.
- */
-const SEARCH_PAGE = 20;
-
 studio.get("/fragments/search", async (c) => {
-  const q = (c.req.query("q") ?? "").toLowerCase();
-  const items = await listAll(c.env.DB);
-  const results: { id: string; excerpt: string; version: number; updated: string; badge: string }[] = [];
-  const matches = (excerpt: string, id: string) => !q || excerpt.toLowerCase().includes(q) || id.includes(q);
-  for (const item of items) {
-    if (item.status !== "public" || (item.kind !== "fragment" && item.kind !== "thread")) continue;
-    const latest = await publishedVersion(c.env.DB, item);
-    if (!latest) continue;
-    // From rendered HTML, not markdown source — the picker showed literal
-    // "#"/"*" markers otherwise, same bug class as the index rows.
-    const excerpt = clampText(plainTextFromHtml(latest.content_html ?? ""), 70) || excerptOf(latest.content_md, 70);
-    if (!matches(excerpt, item.id)) continue;
-    results.push({ id: item.id, excerpt, version: item.version, updated: item.updated, badge: item.kind });
-  }
-  const imported = await c.env.DB.prepare(
-    `SELECT ii.remote_id AS id, ii.content_html AS html, ii.version AS version, ii.observed_at AS updated,
-            ii.state AS state, ii.pinned_version_retained AS retained, s.title AS title, s.origin AS origin
-     FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id
-     WHERE ii.l0 = 0`,
-  ).all<{ id: string; html: string; version: number; updated: string; state: string; retained: number | null; title: string; origin: string }>();
-  for (const row of imported.results) {
-    // Exactly what resolveTarget will accept at publish, so the picker never
-    // offers something the author then can't publish.
-    if (row.state !== "current" && row.retained === null) continue;
-    const excerpt = clampText(plainTextFromHtml(row.html ?? ""), 70);
-    if (!matches(excerpt, row.id)) continue;
-    results.push({
-      id: row.id,
-      excerpt,
-      version: row.state === "current" ? row.version : (row.retained as number),
-      updated: row.updated,
-      badge: row.title || new URL(row.origin).host,
-    });
-  }
-  results.sort((a, b) => (a.updated < b.updated ? 1 : -1));
-  // Paged, and the page reports the total. The 20-cap used to be applied
-  // silently, so a blyg with more than 20 quotable items had a picker that
-  // simply stopped — indistinguishable from having nothing more to offer, and
-  // the reason the ceiling was reported as a bug rather than noticed as a
-  // limit. `total` is what lets the palette say "20 of 63" instead of lying by
-  // omission.
-  const offset = Math.max(0, Number(c.req.query("offset") ?? 0) || 0);
-  return c.json({
-    results: results.slice(offset, offset + SEARCH_PAGE),
-    total: results.length,
-    offset,
-    limit: SEARCH_PAGE,
-  });
+  try { return c.json(await studioData(c).client.studio.search({ q: c.req.query("q"), offset: Math.max(0, Math.floor(Number(c.req.query("offset")) || 0)) })); }
+  catch (e) { return legacyError(c, e); }
 });
 
 /**
@@ -1700,52 +1581,12 @@ studio.get("/fragments/search", async (c) => {
  * is served forever to anyone, which is the whole basis of the lineage claim.
  */
 studio.get("/fork", async (c) => {
+  const data = studioData(c);
   const mount = normalizeMount(c.env.MOUNT);
-  const settings = await getSettings(c.env.DB);
-  const ourOrigin = siteOrigin(settings, c.req.url, mount);
-  // `sub` is the reading feed's spelling (it holds a subscription id, not an
-  // origin); `origin` is the general one. Both land on the same page.
-  const sub = c.req.query("sub");
-  const fromSub = sub
-    ? (await c.env.DB.prepare("SELECT origin FROM subscriptions WHERE id = ?").bind(sub).first<{ origin: string }>())?.origin
-    : undefined;
-  const origin = normalizeOrigin(fromSub ?? c.req.query("origin")) ?? ourOrigin;
-  const id = c.req.query("id") ?? "";
-  const pins = await forkablePins(c.env.DB, origin, id, ourOrigin);
-  return c.html(forkPickerPage(origin, id, ourOrigin, pins, mount, settings.timezone));
+  const settings = await getSettings(data);
+  const pins = await data.client.studio.getForkOptions({ id: c.req.query("id") ?? "", sub: c.req.query("sub"), origin: c.req.query("origin") });
+  return c.html(forkPickerPage(pins.origin, c.req.query("id") ?? "", pins.ourOrigin, pins, mount, settings.timezone));
 });
-
-/** Pinned versions of one item, from our own database when it is ours and from the origin's item document when it is not. */
-async function forkablePins(
-  db: D1Database,
-  origin: string,
-  id: string,
-  ourOrigin: string,
-): Promise<{ versions: { version: number; at: string; note: string | null }[]; error?: string }> {
-  if (!id) return { versions: [], error: "no item named" };
-  if (origin === ourOrigin) {
-    const rows = await listVersions(db, id);
-    return {
-      versions: rows
-        .filter((v) => v.pinned === 1 && v.content_md)
-        .map((v) => ({ version: v.version, at: v.published_at, note: v.note })),
-    };
-  }
-  let res;
-  try {
-    res = await mentionFetch(`${origin}items/${id}.json`);
-  } catch (e) {
-    return { versions: [], error: `could not reach ${origin}: ${(e as Error).message}` };
-  }
-  if (!res.ok) return { versions: [], error: `${origin}items/${id}.json returned ${res.status}` };
-  try {
-    const doc = JSON.parse(await res.text()) as { changelog?: { version: number; at: string; note: string | null; pinned?: boolean }[] };
-    const log = Array.isArray(doc.changelog) ? doc.changelog : [];
-    return { versions: log.filter((v) => v.pinned === true).map((v) => ({ version: v.version, at: v.at, note: v.note ?? null })) };
-  } catch {
-    return { versions: [], error: "that origin's item document could not be parsed" };
-  }
-}
 
 function forkPickerPage(
   origin: string,
@@ -1786,7 +1627,7 @@ document.addEventListener("click", async (e) => {
   if (!btn) return;
   const body = { origin: btn.dataset.origin, id: btn.dataset.forkId, version: Number(btn.dataset.version) };
   btn.disabled = true;
-  const res = await fetch("/api/fork", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const res = await studioRequest("/api/fork", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const data = await res.json().catch(() => null);
   if (!res.ok || !data) { btn.disabled = false; alert((data && data.error) || "fork failed"); return; }
   location.href = "${studioPath(mount)}/edit/" + data.id;
@@ -1794,22 +1635,22 @@ document.addEventListener("click", async (e) => {
 }
 
 studio.get("/edit/:id", async (c) => {
-  const item = await getItem(c.env.DB, c.req.param("id"));
+  const data = studioData(c);
+  const item = await getItem(data, c.req.param("id"));
   if (!item) return c.notFound();
-  const kind = await authoredKind(c.env.DB, item);
+  const kind = await authoredKind(data, item);
   const mount = normalizeMount(c.env.MOUNT);
-  const settings = await getSettings(c.env.DB);
+  const settings = await getSettings(data);
   const ourOrigin = siteOrigin(settings, c.req.url, mount);
-  if (kind === "thread") return c.html(await threadEditPage(c.env.DB, item, mount, ourOrigin, settings.timezone));
-  return c.html(await fragmentEditPage(c.env.DB, item, mount, ourOrigin, settings.timezone));
+  if (kind === "thread") return c.html(await threadEditPage(data, item, mount, ourOrigin, settings.timezone));
+  return c.html(await fragmentEditPage(data, item, mount, ourOrigin, settings.timezone));
 });
 
-async function fragmentEditPage(db: D1Database, item: ItemRow, mount: string, ourOrigin: string, tz: string): Promise<string> {
+async function fragmentEditPage(db: StudioData, item: ItemRow, mount: string, _ourOrigin: string, tz: string): Promise<string> {
   const media = await listMediaForItem(db, item.id);
   const versions = await listVersions(db, item.id);
   const tk = annotateTkPreview(item.content_md);
-  const links = await previewInternalLinks(db, tk.text, ourOrigin);
-  const previewHtml = applyInternalLinks(tk.finish(renderMarkdown(links.text)), links);
+  const previewHtml = (await db.client.studio.preview({ content_md: item.content_md, kind: "fragment", item_id: item.id })).html;
   const mediaHtml = media.length
     ? `<p style="font-size:0.85rem;opacity:0.7;">attached: ${media.map((m) => escapeHtml(m.r2_key)).join(", ")}</p>`
     : "";
@@ -1885,7 +1726,7 @@ function scheduleSave() {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(async () => {
     await api("PUT", "/api/items/" + id, { content_md: mdInput.value });
-    const res = await fetch("${studioPath(mount)}/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content_md: mdInput.value }) });
+    const res = await studioRequest("${studioPath(mount)}/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content_md: mdInput.value }) });
     const data = await res.json();
     previewBody.innerHTML = data.html;
     renderTkPanel(data.scopes);
@@ -1918,7 +1759,7 @@ document.getElementById("save-draft-btn").addEventListener("click", async () => 
 document.getElementById("publish-btn").addEventListener("click", async () => {
   await api("PUT", "/api/items/" + id, { content_md: mdInput.value });
   const note = document.getElementById("note-input").value.trim();
-  const res = await fetch("/api/items/" + id + "/publish", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(note ? { note } : {}) });
+  const res = await studioRequest("/api/items/" + id + "/publish", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(note ? { note } : {}) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) { renderPublishErrorBanner(errorSlot, data); return; }
   location.reload();
@@ -1949,7 +1790,7 @@ document.getElementById("attach-btn").addEventListener("click", () => {
     const form = new FormData();
     form.append("file", file);
     form.append("item_id", id);
-    const res = await fetch("/api/media", { method: "POST", body: form });
+    const res = await studioRequest("/api/media", { method: "POST", body: form });
     if (!res.ok) { alert("upload failed"); return; }
     location.reload();
   };
@@ -1985,7 +1826,7 @@ function kindSwitchBtn(item: ItemRow, kind: "fragment" | "thread"): string {
  * response to, linked, plus a way out. "Clear stub" drops the citation and
  * leaves the body alone — what is left is a thread that merely quotes.
  */
-async function stubHeader(db: D1Database, item: ItemRow, mount: string): Promise<string> {
+async function stubHeader(db: StudioData, item: ItemRow, mount: string): Promise<string> {
   const stub = parseStoredStub(item.stub_of);
   if (!stub) return "";
   let href: string;
@@ -2000,14 +1841,12 @@ async function stubHeader(db: D1Database, item: ItemRow, mount: string): Promise
       href = `${mount}/${kind === "thread" ? "t" : "f"}/${stub.id}/`;
       label = "your own item";
     } else {
-      const row = await db
-        .prepare(
-          `SELECT ii.kind AS kind, ii.page AS page, s.title AS title
-           FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id
-           WHERE ii.remote_id = ? AND s.origin = ?`,
-        )
-        .bind(stub.id, stub.origin)
-        .first<{ kind: string; page: string | null; title: string }>();
+      const subs = (await db.client.studio.listSubscriptions()).filter((sub) => sub.origin === stub.origin);
+      let row: { kind: string; page: string | null; title: string } | null = null;
+      for (const sub of subs) {
+        try { const imported = await db.client.studio.getImportedItem({ sub: sub.id, id: stub.id }); row = { ...imported, title: sub.title }; break; }
+        catch (e) { if (!(e instanceof BlyggerApiError && e.statusCode === 404)) throw e; }
+      }
       href = blygItemUrl(stub.origin, row?.kind ?? "fragment", stub.id, row?.page ?? null);
       label = escapeHtml(row?.title || new URL(stub.origin).host);
     }
@@ -2017,13 +1856,11 @@ async function stubHeader(db: D1Database, item: ItemRow, mount: string): Promise
 <button type="button" class="link" data-action="clear-stub" data-id="${item.id}">clear stub</button></p>`;
 }
 
-async function threadEditPage(db: D1Database, item: ItemRow, mount: string, ourOrigin: string, tz: string): Promise<string> {
+async function threadEditPage(db: StudioData, item: ItemRow, mount: string, _ourOrigin: string, tz: string): Promise<string> {
   const media = await listMediaForItem(db, item.id);
   const versions = await listVersions(db, item.id);
   const tk = annotateTkPreview(item.content_md);
-  const links = await previewInternalLinks(db, tk.text, ourOrigin);
-  const preview = await previewTransclusions(db, links.text, item.id);
-  const previewHtml = applyInternalLinks(tk.finish(preview.html), links);
+  const previewHtml = (await db.client.studio.preview({ content_md: item.content_md, kind: "thread", item_id: item.id })).html;
   const mediaHtml = media.length
     ? `<p style="font-size:0.85rem;opacity:0.7;">attached: ${media.map((m) => escapeHtml(m.r2_key)).join(", ")}</p>`
     : "";
@@ -2092,7 +1929,7 @@ const errorSlot = document.getElementById("error-banner-slot");
 let debounceTimer;
 
 async function refreshPreview() {
-  const res = await fetch("${studioPath(mount)}/preview-thread", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content_md: mdInput.value, item_id: id }) });
+  const res = await studioRequest("${studioPath(mount)}/preview-thread", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content_md: mdInput.value, item_id: id }) });
   const data = await res.json();
   previewBody.innerHTML = data.html;
   renderTkPanel(data.scopes);
@@ -2133,7 +1970,7 @@ document.getElementById("save-draft-btn").addEventListener("click", async () => 
 document.getElementById("publish-btn").addEventListener("click", async () => {
   await api("PUT", "/api/items/" + id, { content_md: mdInput.value });
   const note = document.getElementById("note-input").value.trim();
-  const res = await fetch("/api/items/" + id + "/publish", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(note ? { note } : {}) });
+  const res = await studioRequest("/api/items/" + id + "/publish", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(note ? { note } : {}) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) { renderPublishErrorBanner(errorSlot, data); return; }
   location.reload();
@@ -2157,7 +1994,7 @@ document.getElementById("attach-btn").addEventListener("click", () => {
     const form = new FormData();
     form.append("file", file);
     form.append("item_id", id);
-    const res = await fetch("/api/media", { method: "POST", body: form });
+    const res = await studioRequest("/api/media", { method: "POST", body: form });
     if (!res.ok) { alert("upload failed"); return; }
     location.reload();
   };
@@ -2165,4 +2002,9 @@ document.getElementById("attach-btn").addEventListener("click", () => {
 });
 </script>`;
   return studioLayout("editing thread — blyg studio", body, true);
+}
+
+function legacyError(c: Context, e: unknown) {
+  if (e instanceof BlyggerApiError && e.statusCode) return c.json(e.body, e.statusCode as 400 | 404);
+  throw e;
 }

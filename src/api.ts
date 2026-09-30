@@ -1,6 +1,8 @@
+import { contractApp, readJson, readForm } from "./contract/app.ts";
+import { routes } from "./contract/routes.ts";
 // Owner API (cookie auth, JSON) — v0.1-plan §3.3.
 
-import { type Context, Hono } from "hono";
+import { type Context } from "hono";
 import {
   authoredKind,
   createDraft,
@@ -41,12 +43,12 @@ const MEDIA_TYPES: Record<string, string> = {
 };
 const MEDIA_MAX_BYTES = 5 * 1024 * 1024;
 
-export const api = new Hono<{ Bindings: Env }>({ strict: false });
+export const api = contractApp();
 
 type ItemBody = { content_md?: string; kind?: string; stub_of?: unknown };
 
-api.post("/items", async (c) => {
-  const body = await c.req.json<ItemBody>().catch(() => ({}) as ItemBody);
+api.openapi(routes.createItem, async (c) => {
+  const body = await readJson<ItemBody>(c).catch(() => ({}) as ItemBody);
   const kind = body.kind === "thread" ? "thread" : "fragment";
   // A stub is a thread declaring one target (§2.2) — the stub action creates
   // the draft and its citation in one call.
@@ -72,8 +74,8 @@ api.post("/items", async (c) => {
  * fork.ts): a fork descends from bytes that are promised forever, so those are
  * the bytes it starts from.
  */
-api.post("/fork", async (c) => {
-  const body = await c.req.json<{ origin?: unknown; id?: unknown; version?: unknown }>().catch(() => ({}));
+api.openapi(routes.forkItem, async (c) => {
+  const body = await readJson<{ origin?: unknown; id?: unknown; version?: unknown }>(c).catch(() => ({}));
   const parsed = parseForkedFrom(body);
   if (!parsed.ok) return c.json({ error: parsed.reason }, 400);
   const settings = await getSettings(c.env.DB);
@@ -84,12 +86,12 @@ api.post("/fork", async (c) => {
   return c.json({ id: item.id, kind: item.kind, status: item.status }, 201);
 });
 
-api.put("/items/:id", async (c) => {
+api.openapi(routes.updateItem, async (c) => {
   // Withdrawn items stay editable — the working copy survives withdrawal
   // and can be republished (§3.1).
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await c.req.json<ItemBody>();
+  const body = await readJson<ItemBody>(c);
   // `kind` on a **never-published** draft only (session 28). A draft has no
   // wire presence — no item document, no feed entry, nothing anyone has
   // fetched — so its kind is still studio state and switching it rewrites
@@ -157,13 +159,13 @@ async function sendMentionsFor(
   c.executionCtx.waitUntil(drainOutbound(c.env.DB, mentionFetch, { origin }).catch(() => {}));
 }
 
-api.post("/items/:id/publish", async (c) => {
+api.openapi(routes.publishItem, async (c) => {
   // Also the republish path for withdrawn items: vN+1 restores 'public'/authored kind.
   // Studio-side fragment cap (§2.7) is enforced inside publish() against the
   // TK-stripped (published) length, not the raw working copy — see FragmentTooLongError.
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await c.req.json<{ note?: string }>().catch(() => ({}) as { note?: string });
+  const body = await readJson<{ note?: string }>(c).catch(() => ({}) as { note?: string });
   const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
   const origin = siteOrigin(await getSettings(c.env.DB), c.req.url, normalizeMount(c.env.MOUNT));
   // §2.4's publish-time check. It lives here rather than inside publish()
@@ -209,10 +211,10 @@ api.post("/items/:id/publish", async (c) => {
  * lives in tk-generate.ts's runGenerateScope so tests can inject a fixture
  * provider fetch (same DI pattern as importer/schedule.ts's runScheduledPoll).
  */
-api.post("/items/:id/generate", async (c) => {
+api.openapi(routes.generateItem, async (c) => {
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await c.req.json<{ scope?: number }>().catch(() => ({}) as { scope?: number });
+  const body = await readJson<{ scope?: number }>(c).catch(() => ({}) as { scope?: number });
   if (typeof body.scope !== "number") return c.json({ error: "scope index required" }, 400);
 
   const result = await runGenerateScope(c.env, item, body.scope);
@@ -220,12 +222,12 @@ api.post("/items/:id/generate", async (c) => {
   return c.json({ text: result.text, model: result.model });
 });
 
-api.post("/items/:id/withdraw", async (c) => {
+api.openapi(routes.withdrawItem, async (c) => {
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
   if (item.status === "withdrawn") return c.json({ error: "already withdrawn" }, 409);
   if (item.status !== "public") return c.json({ error: "not published" }, 409);
-  const body = await c.req.json<{ note?: string }>().catch(() => ({}) as { note?: string });
+  const body = await readJson<{ note?: string }>(c).catch(() => ({}) as { note?: string });
   const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
   const version = await withdraw(c.env.DB, item, note);
   // §2.3.6: a withdrawn stub re-sends its mention once, from the last real
@@ -241,10 +243,10 @@ api.post("/items/:id/withdraw", async (c) => {
   return c.json({ ok: true, version });
 });
 
-api.post("/items/:id/pin", async (c) => {
+api.openapi(routes.pinItem, async (c) => {
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await c.req.json<{ version?: number }>().catch(() => ({}) as { version?: number });
+  const body = await readJson<{ version?: number }>(c).catch(() => ({}) as { version?: number });
   if (typeof body.version !== "number") return c.json({ error: "version required" }, 400);
   const row = await getVersion(c.env.DB, item.id, body.version);
   if (!row) return c.json({ error: "version not found" }, 404);
@@ -261,10 +263,10 @@ api.post("/items/:id/pin", async (c) => {
  * draft and publishes it as the next version, forward-only. See
  * model.restoreVersion().
  */
-api.post("/items/:id/restore", async (c) => {
+api.openapi(routes.restoreItem, async (c) => {
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await c.req.json<{ version?: number }>().catch(() => ({}) as { version?: number });
+  const body = await readJson<{ version?: number }>(c).catch(() => ({}) as { version?: number });
   if (typeof body.version !== "number") return c.json({ error: "version required" }, 400);
   try {
     await restoreVersion(c.env.DB, item, body.version);
@@ -275,7 +277,7 @@ api.post("/items/:id/restore", async (c) => {
   return c.json({ ok: true, restored: body.version, publishesAs: item.version + 1 });
 });
 
-api.delete("/items/:id", async (c) => {
+api.openapi(routes.deleteItem, async (c) => {
   // Drafts only. Published items leave the public stream via withdraw — no delete exists.
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
@@ -284,8 +286,8 @@ api.delete("/items/:id", async (c) => {
   return c.json({ ok: true, outcome: "discarded" });
 });
 
-api.post("/media", async (c) => {
-  const form = await c.req.formData().catch(() => null);
+api.openapi(routes.uploadMedia, async (c) => {
+  const form = await readForm(c).catch(() => null);
   const file = form?.get("file");
   if (!(file instanceof File)) return c.json({ error: "file field required (multipart)" }, 400);
   const ext = MEDIA_TYPES[file.type];
@@ -322,8 +324,8 @@ const SETTINGS_KEYS = [
   "ai_style_prompt",
 ] as const;
 
-api.put("/settings", async (c) => {
-  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+api.openapi(routes.updateSettings, async (c) => {
+  const body = await readJson<Record<string, unknown>>(c).catch(() => null);
   if (!body) return c.json({ error: "JSON body required" }, 400);
   const patch: Record<string, string> = {};
   for (const key of SETTINGS_KEYS) {

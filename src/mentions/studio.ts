@@ -8,13 +8,13 @@
 
 import { Hono } from "hono";
 import { stubScript } from "../importer/studio.ts";
-import { listSubscriptions } from "../importer/store.ts";
+import { studioData, type StudioData, getItem, getSettings, publishedVersion, listOutbound, listVerifiedInbound } from "../studio-data.ts";
 import { excerptFromHtml } from "../markdown.ts";
-import { getItem, getSettings, itemShowsResponses, publishedVersion } from "../model.ts";
+import { itemShowsResponses } from "../model.ts";
 import { formatDate, studioHeader, studioLayout } from "../studio.ts";
 import type { Env, MentionInRow, MentionOutRow } from "../types.ts";
 import { escapeHtml, normalizeMount, studioPath } from "../util.ts";
-import { listOutbound, listVerifiedInbound } from "./store.ts";
+
 
 export const mentionsStudio = new Hono<{ Bindings: Env }>({ strict: false });
 
@@ -58,22 +58,17 @@ function authorName(row: MentionInRow): string {
  * offered when we hold their item and points at "subscribe first" when we
  * don't, rather than failing at publish time with a resolution error.
  */
-async function stubBackControl(db: D1Database, row: MentionInRow, mount: string): Promise<string> {
+async function stubBackControl(db: StudioData, row: MentionInRow, mount: string): Promise<string> {
   if (!row.source_origin || !row.source_id) return "";
   // Ask for the subscription that actually *holds* this item, rather than the
   // first one matching the origin: nothing stops two subscriptions pointing at
   // one origin, and only one of them may have imported the item yet.
-  const holder = await db
-    .prepare(
-      `SELECT s.id AS id FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id
-       WHERE ii.remote_id = ? AND s.origin = ? LIMIT 1`,
-    )
-    .bind(row.source_id, row.source_origin)
-    .first<{ id: string }>();
+  const source = await db.client.studio.getMentionSource({ id: row.id });
+  const holder = source.holder;
   if (holder) {
-    return `<button type="button" class="stub-btn" data-action="stub" data-sub="${escapeHtml(holder.id)}" data-remote="${escapeHtml(row.source_id)}">stub back ↗</button>`;
+    return `<button type="button" class="stub-btn" data-action="stub" data-sub="${escapeHtml(holder)}" data-remote="${escapeHtml(row.source_id)}">stub back ↗</button>`;
   }
-  const sub = (await listSubscriptions(db)).find((s) => s.origin === row.source_origin);
+  const sub = source.subscription;
   if (!sub) {
     return `<span class="subscribe-first">— <a href="${studioPath(mount)}/subs">subscribe to ${escapeHtml(row.source_origin)}</a> to stub back</span>`;
   }
@@ -95,7 +90,7 @@ document.addEventListener("change", async (e) => {
   const sel = e.target.closest("[data-action='set-responses']");
   if (!sel) return;
   const previous = sel.dataset.was || "default";
-  const res = await fetch("/api/items/" + sel.dataset.id + "/responses", {
+  const res = await studioRequest("/api/items/" + sel.dataset.id + "/responses", {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ mode: sel.value }),
@@ -114,7 +109,7 @@ document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-action='toggle-hidden']");
   if (!btn) return;
   const hidden = btn.dataset.hidden === "1";
-  const res = await fetch("/api/mentions/" + btn.dataset.id + "/hidden", {
+  const res = await studioRequest("/api/mentions/" + btn.dataset.id + "/hidden", {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ hidden: !hidden }),
@@ -125,11 +120,12 @@ document.addEventListener("click", async (e) => {
 `;
 
 mentionsStudio.get("/mentions", async (c) => {
+  const data = studioData(c);
   const mount = normalizeMount(c.env.MOUNT);
-  const inbound = await listVerifiedInbound(c.env.DB);
-  const outbound = await listOutbound(c.env.DB);
+  const inbound = await listVerifiedInbound(data);
+  const outbound = await listOutbound(data);
   // Needed to say which way each item's "use my default" currently resolves.
-  const settings = await getSettings(c.env.DB);
+  const settings = await getSettings(data);
 
   // Grouped by *our* item: the question an author asks is "who responded to
   // this", not "what arrived most recently".
@@ -142,11 +138,11 @@ mentionsStudio.get("/mentions", async (c) => {
 
   const groups: string[] = [];
   for (const [itemId, rows] of byTarget) {
-    const item = await getItem(c.env.DB, itemId);
+    const item = await getItem(data, itemId);
     const kind = item?.kind === "thread" ? "t" : "f";
     // Name the item by its opening words, not by its id: the author is being
     // asked "who responded to this", and an id answers that for nobody.
-    const latest = item ? await publishedVersion(c.env.DB, item) : null;
+    const latest = item ? await publishedVersion(data, item) : null;
     const label = excerptFromHtml(latest?.content_html ?? "", 60) || `${itemId.slice(0, 8)}…`;
     const lines: string[] = [];
     for (const row of rows) {
@@ -165,7 +161,7 @@ mentionsStudio.get("/mentions", async (c) => {
 <span class="when">v${row.source_version ?? "?"} &middot; first seen ${formatDate(row.first_seen, settings.timezone)}${
         row.last_seen !== row.first_seen ? `, last ${formatDate(row.last_seen, settings.timezone)}` : ""
       }${row.status === "gone" ? " &middot; no longer verifies" : ""}</span>
-${row.status === "gone" ? "" : await stubBackControl(c.env.DB, row, mount)}
+${row.status === "gone" ? "" : await stubBackControl(data, row, mount)}
 ${vis}
 </div>`);
     }
@@ -193,8 +189,7 @@ ${lines.join("\n")}
   // A deployment with no canonical origin cannot name itself as a source, so
   // it cannot send — say so here rather than leaving a queue of silent
   // failures for someone to find later.
-  const siteUrl = await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'site_url'").first<{ value: string }>();
-  const originWarning = siteUrl?.value
+  const originWarning = settings.site_url
     ? ""
     : `<p class="mentions-note">⚠ No <strong>site URL</strong> is set in settings, so outbound mentions sent from the cron have no source URL to name. Set it before relying on delivery.</p>`;
 
