@@ -76,6 +76,19 @@ Tracking `main` is a legitimate choice — it is just not what this script does,
 and if you make it, the studio's update alert will disagree with you, because
 that alert also compares against releases.
 
+Each new `v*` tag builds and publishes three downloads: the OpenAPI JSON spec, a
+Worker archive (bundle, migrations, and generic deployment config), and an
+installable SDK `.tgz`. `release.json` records the Studio, SDK, and API versions,
+source commit, and generator pin; `SHA256SUMS` covers every download. Release CI
+runs types, contract drift, Worker tests, and browser tests before publishing.
+
+Build the same downloads locally with `npm run release:build` (output:
+`build/release/`). The tag must match the root package version. The SDK keeps its
+own version in `sdk/package.json`; bump it when its public API changes. Install a
+downloaded SDK with `npm install ./blygger-sdk-VERSION.tgz`. See the Worker
+archive’s README for deployment. This workflow publishes GitHub downloads; it
+does not publish to the npm registry or deploy anyone’s Worker.
+
 ### Upgrading a node you stood up by hand
 
 Which is every third-party node so far, since the template and `npm run init` in

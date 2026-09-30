@@ -8,7 +8,8 @@
     "dist",
     "generation.json",
     "FORGE-LICENSE",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {

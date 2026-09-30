@@ -29,7 +29,9 @@
     "pretest": "npm run build",
     "predeploy:all": "npm run build",
     "predeploy:vgr": "npm run build",
-    "predeploy:pi": "npm run build"
+    "predeploy:pi": "npm run build",
+    "release:build": "npm run build && node --import tsx scripts/release.ts",
+    "release:verify": "node --import tsx scripts/verify-release.ts"
   },
   "dependencies": {
     "@hono/zod-openapi": "^1.6.3",

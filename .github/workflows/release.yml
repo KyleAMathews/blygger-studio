@@ -1,0 +1,37 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run openapi && git diff --exit-code -- openapi.json
+      - run: npm test -- --maxWorkers=2
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: npm run release:build
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+      - run: npm run release:verify
+      - name: Publish downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --verify-tag --generate-notes --draft
+          fi
+          gh release upload "$RELEASE_TAG" build/release/*.json build/release/*.tgz build/release/*.tar.gz build/release/SHA256SUMS --clobber
+          gh release edit "$RELEASE_TAG" --draft=false

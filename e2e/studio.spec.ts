@@ -17,11 +17,12 @@ test("owner can compose, publish and change settings through the SDK", async ({ 
   await expect(page.locator("body")).toContainText("Browser SDK round trip");
   await page.goto("/studio/settings");
   await page.locator("#site_title").fill("Browser SDK site");
-  page.once("dialog", (dialog) => dialog.accept());
+  const dialogAccepted = page.waitForEvent("dialog").then(dialog => dialog.accept());
   const saved = page.waitForResponse((response) => response.url().endsWith("/api/settings") && response.request().method() === "PUT");
   await page.locator('#settings-form button[type="submit"]').focus();
   await page.locator('#settings-form button[type="submit"]').press('Enter');
   expect((await saved).status()).toBe(200);
+  await dialogAccepted;
   await page.reload();
   await expect(page.locator("#site_title")).toHaveValue("Browser SDK site");
   expect(errors).toEqual([]);

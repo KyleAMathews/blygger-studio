@@ -1,6 +1,7 @@
 import { build } from "esbuild";
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
+copyFileSync("LICENSE", "sdk/LICENSE");
 execFileSync("./node_modules/.bin/tsc", ["-p", "sdk/tsconfig.json"], { stdio: "inherit" });
 await build({ entryPoints: ["sdk/index.ts"], outfile: "sdk/dist/index.js", bundle: true, format: "esm", platform: "neutral", target: "es2022", external: ["fs", "stream"] });
 await build({ entryPoints: ["sdk/index.ts"], outfile: "sdk/dist/browser.js", bundle: true, format: "esm", platform: "browser", target: "es2022", plugins: [{ name: "native-files", setup(build) {

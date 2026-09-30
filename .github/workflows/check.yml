@@ -15,6 +15,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run typecheck
+      - run: npm run release:build
+      - run: npm run release:verify
       - run: npm run openapi && git diff --exit-code -- openapi.json
       - run: npm test -- --maxWorkers=2
       - run: npx playwright install --with-deps chromium
