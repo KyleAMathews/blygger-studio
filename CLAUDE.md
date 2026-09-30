@@ -117,7 +117,7 @@ saying so.
 
 Live on five nodes as of 2026-09-28, two of them Venkat's
 (`venkateshrao.com/blyg/`, `blyg.protocol-institute.org`) and three strangers'
-self-hosts. **0.8.1 is released and deployed to both our nodes** (session 29, 2026-09-29).
+self-hosts. **0.8.3 is released and deployed to both our nodes** (session 29, 2026-09-29 — four releases that day, 0.8.0 through 0.8.3).
 
 0.8.0 carried the two-pane reader, `link post`, thread and reader titles, the responses
 default, the timezone setting, update alerts, the `init`/`upgrade` scripts and the generic
@@ -125,7 +125,11 @@ packaging, plus the top menu, mobile pass and finished social cards. **It carrie
 0012**, applied to both databases before the deploy; a node upgrading from 0.7.0 must do the
 same. 0.8.1 adds **partial transclusion** (§16.4, decision #49) — no migration, and
 `PROTOCOL_VERSION` stays `"0.3"` because it implements 0.3 additively; its cross-node
-exercise opened gate G7. 733 tests, `tsc` clean (with `noUnusedLocals`, on since session 28).
+exercise opened gate G7. **0.8.2** made a thread name itself in its author's own words on
+all four surfaces that name one. **0.8.3** stopped the default title being the literal
+`"blyg"` — derived from the deployment's own host now — and pointed `npm run upgrade` at
+release tags rather than the tip of `main`, so it and the update alert agree about what
+"current" means. 755 tests, `tsc` clean (with `noUnusedLocals`, on since session 28).
 
 ## Backlog — from Venkat's issue list (session 26, 2026-09-28)
 
