@@ -45,7 +45,7 @@ describe("a thread that opens with a quote", () => {
   // edge one.
   async function setup() {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_title: "Field Notes" });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_title: "Field Notes" });
     const target = await createAndPublish(cookie, THEIRS);
     const thread = await publishThread(cookie, `![[${target}]]\n\n${MINE}`);
     return { cookie, target, thread };
@@ -145,7 +145,7 @@ describe("a thread with nothing of its own to say", () => {
   // change exists to prevent — and not a blank card either.
   async function quoteOnlyStub() {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_title: "Field Notes", site_url: "https://ours.example/blyg/" });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_title: "Field Notes", site_url: "https://ours.example/blyg/" });
     const target = await createAndPublish(cookie, THEIRS);
     const created = await apiJson(cookie, "POST", "/api/items", {
       content_md: `![[${target}]]`,
@@ -176,7 +176,7 @@ describe("a thread with nothing of its own to say", () => {
 describe("fragments are unaffected", () => {
   it("a fragment's card and title are what they always were", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_title: "Field Notes" });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_title: "Field Notes" });
     const id = await createAndPublish(cookie, "an ordinary fragment with no quotes in it");
     const html = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(tag(html, /<title>([^<]*)<\/title>/)).toBe("an ordinary fragment with no quotes in it — Field Notes");

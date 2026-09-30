@@ -6,7 +6,12 @@ import type { Env } from "../types.ts";
 
 export function contractApp() {
   const app = new OpenAPIHono<{ Bindings: Env }>({ strict: false, defaultHook: (result, c) => {
-    if (!result.success) return c.json({ error: result.error.issues.map(({ path, message }) => `${path.join(".") || "request"}: ${message}`).join("; "), issues: result.error.issues.map(({ path, message }) => ({ path, message })) }, 400);
+    if (!result.success) {
+      const error = result.error;
+      const flatten = (issues: typeof error.issues): typeof error.issues => issues.flatMap((issue) => issue.code === "invalid_union" ? flatten([...issue.errors].sort((a, b) => a.length - b.length)[0] ?? []) : [issue]);
+      const issues = flatten(error.issues).map(({ path, message }) => ({ path: path.map((key) => typeof key === "symbol" ? String(key) : key), message }));
+      return c.json({ error: issues.map(({ path, message }) => `${path.join(".") || "request"}: ${message}`).join("; "), issues }, 400);
+    }
   } });
   app.onError((error, c) => {
     if (error instanceof HTTPException) return c.json({ error: error.message }, error.status);
@@ -16,7 +21,12 @@ export function contractApp() {
   return app;
 }
 
-/** Optional JSON commands accept an empty body even with a client's default JSON header. */
+export const jsonBody: MiddlewareHandler = async (c, next) => {
+  if (c.req.raw.body !== null && !/^application\/(?:[\w.-]+\+)?json(?:;|$)/i.test(c.req.header("content-type") ?? "")) throw new HTTPException(415, { message: "JSON request body required" });
+  return next();
+};
+
+/** Optional JSON requests accept an empty body even with a client's default JSON header. */
 export const optionalJsonBody: MiddlewareHandler = async (c, next) => {
   if (/^application\/(?:[\w.-]+\+)?json(?:;|$)/i.test(c.req.header("content-type") ?? "") && await c.req.raw.clone().text() === "") {
     const headers = new Headers(c.req.raw.headers);
@@ -26,5 +36,5 @@ export const optionalJsonBody: MiddlewareHandler = async (c, next) => {
   return next();
 }
 
-export async function readJson<T = Record<string, unknown>>(c: Context) { return await c.req.json<T>(); }
+export async function readJson<T = Record<string, unknown>>(c: Context) { return (c.req.valid("json" as never) ?? {}) as T; }
 export async function readForm(c: Context) { return await c.req.formData(); }

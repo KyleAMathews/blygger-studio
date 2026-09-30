@@ -189,7 +189,7 @@ npm install ./blygger-sdk-0.1.0.tgz
 import { BlyggerApi, createBlyggerClient, unwrap } from "@blygger/sdk";
 
 const client = createBlyggerClient({ baseUrl: window.location.origin });
-const reading = await unwrap(BlyggerApi.listReading({ client, query: { page: 1 } }));
+const reading = await unwrap(BlyggerApi.listReading({ client, query: { offset: 0, limit: 25 } }));
 ```
 
 Sign into `/studio` first: API calls use its owner session cookie. The SDK does
@@ -202,6 +202,7 @@ The downloaded OpenAPI file describes `/api` paths. Its default server is
 `http://localhost:8787`. Select your deployed origin in the API tool or generator.
 The deployed contract is also available to a signed-in owner at
 `/api/openapi.json`. Downloading the spec does not grant access to the API.
+See [the owner API guide](docs/api.md) for resource routes, partial edits, creation, and pagination.
 
 ### Upgrade a Worker archive installation
 

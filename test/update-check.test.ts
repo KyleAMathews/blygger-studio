@@ -141,7 +141,7 @@ describe("the banner, end to end", () => {
   it("the notice goes for good once acknowledged", async () => {
     const cookie = await login();
     expect(await studioIndex(cookie)).toContain("Update alerts are on.");
-    await apiJson(cookie, "PUT", "/api/settings", { update_notice_ack: true });
+    await apiJson(cookie, "PATCH", "/api/settings", { update_notice_ack: true });
     expect(await studioIndex(cookie)).not.toContain("Update alerts are on.");
   });
 
@@ -182,7 +182,7 @@ describe("the banner, end to end", () => {
 
   it("turning the check off hides the notice too", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { update_check: false });
+    await apiJson(cookie, "PATCH", "/api/settings", { update_check: false });
     const html = await studioIndex(cookie);
     expect(html).not.toContain("Update alerts are on.");
   });
@@ -190,7 +190,7 @@ describe("the banner, end to end", () => {
   it("rejects a junk update_check rather than silently ignoring it", async () => {
     const cookie = await login();
     // Silently ignoring would leave an operator believing they had changed it.
-    const res = await apiJson(cookie, "PUT", "/api/settings", { update_check: "maybe" });
+    const res = await apiJson(cookie, "PATCH", "/api/settings", { update_check: "maybe" });
     expect(res.status).toBe(400);
   });
 });

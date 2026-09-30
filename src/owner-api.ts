@@ -1,3 +1,4 @@
+import { routes } from "./contract/routes.ts";
 import { contractApp } from "./contract/app.ts";
 import { verifySession } from "./auth.ts";
 import { api } from "./api.ts";
@@ -18,3 +19,13 @@ ownerApi.route("/", mentionsApi);
 ownerApi.route("/", readApi);
 
 ownerApi.get("/openapi.json", (c) => c.json(spec));
+
+ownerApi.all("*", (c) => {
+  const path = c.req.path.replace(/^\/api(?=\/|$)/, "");
+  const methods = Object.values(routes).filter((route) => new RegExp(`^${route.path.replace(/\{\w+\}/g, "[^/]+")}/?$`).test(path)).map((route) => route.method.toUpperCase());
+  if (methods.length) {
+    c.header("Allow", [...new Set(methods.flatMap((method) => method === "GET" ? ["GET", "HEAD"] : [method]))].join(", "));
+    return c.json({ error: "method not allowed" }, 405);
+  }
+  return c.json({ error: "not found" }, 404);
+});

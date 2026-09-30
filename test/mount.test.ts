@@ -69,7 +69,7 @@ describe("root mount", () => {
     }, appEnv());
     const { id } = (await created.json()) as { id: string };
     await app.request(`${HOST}/api/items/${id}/publish`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body: "{}" }, appEnv());
-    await app.request(`${HOST}/api/items/${id}/pin`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ version: 1 }) }, appEnv());
+    await app.request(`${HOST}/api/items/${id}/versions/1/pin`, { method: "PUT", headers: { cookie } }, appEnv());
 
     const page = await app.request(`${HOST}/f/${id}/v1/`, {}, appEnv());
     expect(page.status).toBe(200);

@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddHopperItemData, AddHopperItemErrors, AddHopperItemResponses, CreateHopperData, CreateHopperErrors, CreateHopperResponses, CreateItemData, CreateItemErrors, CreateItemResponses, CreateStubData, CreateStubErrors, CreateStubResponses, CreateSubscriptionData, CreateSubscriptionErrors, CreateSubscriptionResponses, DeleteHopperData, DeleteHopperErrors, DeleteHopperResponses, DeleteItemData, DeleteItemErrors, DeleteItemResponses, DeleteSignalData, DeleteSignalErrors, DeleteSignalResponses, DeleteSubscriptionData, DeleteSubscriptionErrors, DeleteSubscriptionResponses, ForkItemData, ForkItemErrors, ForkItemResponses, GenerateItemData, GenerateItemErrors, GenerateItemResponses, GetForkOptionsData, GetForkOptionsErrors, GetForkOptionsResponses, GetHopperData, GetHopperErrors, GetHopperResponses, GetImportedItemData, GetImportedItemErrors, GetImportedItemResponses, GetItemData, GetItemErrors, GetItemResponses, GetMentionSourceData, GetMentionSourceErrors, GetMentionSourceResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetUpdateStateData, GetUpdateStateErrors, GetUpdateStateResponses, GetVersionData, GetVersionErrors, GetVersionResponses, ListHoppersData, ListHoppersErrors, ListHoppersResponses, ListItemsData, ListItemsErrors, ListItemsResponses, ListMentionsData, ListMentionsErrors, ListMentionsResponses, ListReadingData, ListReadingErrors, ListReadingResponses, ListSignalsData, ListSignalsErrors, ListSignalsResponses, ListSubscriptionsData, ListSubscriptionsErrors, ListSubscriptionsResponses, PauseSubscriptionData, PauseSubscriptionErrors, PauseSubscriptionResponses, PinItemData, PinItemErrors, PinItemResponses, PreviewData, PreviewErrors, PreviewResponses, PublishItemData, PublishItemErrors, PublishItemResponses, RemoveHopperItemData, RemoveHopperItemErrors, RemoveHopperItemResponses, RestoreItemData, RestoreItemErrors, RestoreItemResponses, ResumeSubscriptionData, ResumeSubscriptionErrors, ResumeSubscriptionResponses, ResyncSubscriptionData, ResyncSubscriptionErrors, ResyncSubscriptionResponses, SearchData, SearchErrors, SearchResponses, SetMentionHiddenData, SetMentionHiddenErrors, SetMentionHiddenResponses, SetResponsesData, SetResponsesErrors, SetResponsesResponses, SetSignalData, SetSignalErrors, SetSignalResponses, UpdateHopperData, UpdateHopperErrors, UpdateHopperResponses, UpdateItemData, UpdateItemErrors, UpdateItemResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UpdateSubscriptionData, UpdateSubscriptionErrors, UpdateSubscriptionResponses, UploadMediaData, UploadMediaErrors, UploadMediaResponses, WithdrawItemData, WithdrawItemErrors, WithdrawItemResponses } from './types.gen';
+import type { AddHopperItemData, AddHopperItemErrors, AddHopperItemResponses, CreateHopperData, CreateHopperErrors, CreateHopperResponses, CreateItemData, CreateItemErrors, CreateItemResponses, CreateSubscriptionData, CreateSubscriptionErrors, CreateSubscriptionResponses, DeleteHopperData, DeleteHopperErrors, DeleteHopperResponses, DeleteItemData, DeleteItemErrors, DeleteItemResponses, DeleteSignalData, DeleteSignalErrors, DeleteSignalResponses, DeleteSubscriptionData, DeleteSubscriptionErrors, DeleteSubscriptionResponses, GenerateItemData, GenerateItemErrors, GenerateItemResponses, GetForkOptionsData, GetForkOptionsErrors, GetForkOptionsResponses, GetHopperData, GetHopperErrors, GetHopperResponses, GetImportedItemData, GetImportedItemErrors, GetImportedItemResponses, GetItemData, GetItemErrors, GetItemResponses, GetMentionSourceData, GetMentionSourceErrors, GetMentionSourceResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetSubscriptionData, GetSubscriptionErrors, GetSubscriptionResponses, GetUpdateStateData, GetUpdateStateErrors, GetUpdateStateResponses, GetVersionData, GetVersionErrors, GetVersionResponses, ListHoppersData, ListHoppersErrors, ListHoppersResponses, ListItemsData, ListItemsErrors, ListItemsResponses, ListMentionsData, ListMentionsErrors, ListMentionsResponses, ListReadingData, ListReadingErrors, ListReadingResponses, ListSignalsData, ListSignalsErrors, ListSignalsResponses, ListSubscriptionsData, ListSubscriptionsErrors, ListSubscriptionsResponses, PinItemData, PinItemErrors, PinItemResponses, PreviewData, PreviewErrors, PreviewResponses, PublishItemData, PublishItemErrors, PublishItemResponses, RemoveHopperItemData, RemoveHopperItemErrors, RemoveHopperItemResponses, RestoreItemData, RestoreItemErrors, RestoreItemResponses, ResyncSubscriptionData, ResyncSubscriptionErrors, ResyncSubscriptionResponses, SearchData, SearchErrors, SearchResponses, SetSignalData, SetSignalErrors, SetSignalResponses, UpdateHopperData, UpdateHopperErrors, UpdateHopperResponses, UpdateItemData, UpdateItemErrors, UpdateItemResponses, UpdateMentionData, UpdateMentionErrors, UpdateMentionResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UpdateSubscriptionData, UpdateSubscriptionErrors, UpdateSubscriptionResponses, UploadMediaData, UploadMediaErrors, UploadMediaResponses, WithdrawItemData, WithdrawItemErrors, WithdrawItemResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -42,20 +42,6 @@ export const createItem = <ThrowOnError extends boolean = false>(options?: Optio
     }
 });
 
-export const forkItem = <ThrowOnError extends boolean = false>(options: Options<ForkItemData, ThrowOnError>): RequestResult<ForkItemResponses, ForkItemErrors, ThrowOnError> => (options.client ?? client).post<ForkItemResponses, ForkItemErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'blyg_session',
-            type: 'apiKey'
-        }],
-    url: '/api/fork',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
 export const deleteItem = <ThrowOnError extends boolean = false>(options: Options<DeleteItemData, ThrowOnError>): RequestResult<DeleteItemResponses, DeleteItemErrors, ThrowOnError> => (options.client ?? client).delete<DeleteItemResponses, DeleteItemErrors, ThrowOnError>({
     security: [{
             in: 'cookie',
@@ -76,7 +62,7 @@ export const getItem = <ThrowOnError extends boolean = false>(options: Options<G
     ...options
 });
 
-export const updateItem = <ThrowOnError extends boolean = false>(options: Options<UpdateItemData, ThrowOnError>): RequestResult<UpdateItemResponses, UpdateItemErrors, ThrowOnError> => (options.client ?? client).put<UpdateItemResponses, UpdateItemErrors, ThrowOnError>({
+export const updateItem = <ThrowOnError extends boolean = false>(options: Options<UpdateItemData, ThrowOnError>): RequestResult<UpdateItemResponses, UpdateItemErrors, ThrowOnError> => (options.client ?? client).patch<UpdateItemResponses, UpdateItemErrors, ThrowOnError>({
     security: [{
             in: 'cookie',
             name: 'blyg_session',
@@ -132,18 +118,14 @@ export const withdrawItem = <ThrowOnError extends boolean = false>(options: Opti
     }
 });
 
-export const pinItem = <ThrowOnError extends boolean = false>(options: Options<PinItemData, ThrowOnError>): RequestResult<PinItemResponses, PinItemErrors, ThrowOnError> => (options.client ?? client).post<PinItemResponses, PinItemErrors, ThrowOnError>({
+export const pinItem = <ThrowOnError extends boolean = false>(options: Options<PinItemData, ThrowOnError>): RequestResult<PinItemResponses, PinItemErrors, ThrowOnError> => (options.client ?? client).put<PinItemResponses, PinItemErrors, ThrowOnError>({
     security: [{
             in: 'cookie',
             name: 'blyg_session',
             type: 'apiKey'
         }],
-    url: '/api/items/{id}/pin',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
+    url: '/api/items/{id}/versions/{version}/pin',
+    ...options
 });
 
 export const restoreItem = <ThrowOnError extends boolean = false>(options: Options<RestoreItemData, ThrowOnError>): RequestResult<RestoreItemResponses, RestoreItemErrors, ThrowOnError> => (options.client ?? client).post<RestoreItemResponses, RestoreItemErrors, ThrowOnError>({
@@ -185,7 +167,7 @@ export const getSettings = <ThrowOnError extends boolean = false>(options?: Opti
     ...options
 });
 
-export const updateSettings = <ThrowOnError extends boolean = false>(options: Options<UpdateSettingsData, ThrowOnError>): RequestResult<UpdateSettingsResponses, UpdateSettingsErrors, ThrowOnError> => (options.client ?? client).put<UpdateSettingsResponses, UpdateSettingsErrors, ThrowOnError>({
+export const updateSettings = <ThrowOnError extends boolean = false>(options: Options<UpdateSettingsData, ThrowOnError>): RequestResult<UpdateSettingsResponses, UpdateSettingsErrors, ThrowOnError> => (options.client ?? client).patch<UpdateSettingsResponses, UpdateSettingsErrors, ThrowOnError>({
     security: [{
             in: 'cookie',
             name: 'blyg_session',
@@ -233,7 +215,17 @@ export const deleteSubscription = <ThrowOnError extends boolean = false>(options
     ...options
 });
 
-export const updateSubscription = <ThrowOnError extends boolean = false>(options: Options<UpdateSubscriptionData, ThrowOnError>): RequestResult<UpdateSubscriptionResponses, UpdateSubscriptionErrors, ThrowOnError> => (options.client ?? client).put<UpdateSubscriptionResponses, UpdateSubscriptionErrors, ThrowOnError>({
+export const getSubscription = <ThrowOnError extends boolean = false>(options: Options<GetSubscriptionData, ThrowOnError>): RequestResult<GetSubscriptionResponses, GetSubscriptionErrors, ThrowOnError> => (options.client ?? client).get<GetSubscriptionResponses, GetSubscriptionErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }],
+    url: '/api/subscriptions/{id}',
+    ...options
+});
+
+export const updateSubscription = <ThrowOnError extends boolean = false>(options: Options<UpdateSubscriptionData, ThrowOnError>): RequestResult<UpdateSubscriptionResponses, UpdateSubscriptionErrors, ThrowOnError> => (options.client ?? client).patch<UpdateSubscriptionResponses, UpdateSubscriptionErrors, ThrowOnError>({
     security: [{
             in: 'cookie',
             name: 'blyg_session',
@@ -245,26 +237,6 @@ export const updateSubscription = <ThrowOnError extends boolean = false>(options
         'Content-Type': 'application/json',
         ...options.headers
     }
-});
-
-export const pauseSubscription = <ThrowOnError extends boolean = false>(options: Options<PauseSubscriptionData, ThrowOnError>): RequestResult<PauseSubscriptionResponses, PauseSubscriptionErrors, ThrowOnError> => (options.client ?? client).post<PauseSubscriptionResponses, PauseSubscriptionErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'blyg_session',
-            type: 'apiKey'
-        }],
-    url: '/api/subscriptions/{id}/pause',
-    ...options
-});
-
-export const resumeSubscription = <ThrowOnError extends boolean = false>(options: Options<ResumeSubscriptionData, ThrowOnError>): RequestResult<ResumeSubscriptionResponses, ResumeSubscriptionErrors, ThrowOnError> => (options.client ?? client).post<ResumeSubscriptionResponses, ResumeSubscriptionErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'blyg_session',
-            type: 'apiKey'
-        }],
-    url: '/api/subscriptions/{id}/resume',
-    ...options
 });
 
 export const resyncSubscription = <ThrowOnError extends boolean = false>(options: Options<ResyncSubscriptionData, ThrowOnError>): RequestResult<ResyncSubscriptionResponses, ResyncSubscriptionErrors, ThrowOnError> => (options.client ?? client).post<ResyncSubscriptionResponses, ResyncSubscriptionErrors, ThrowOnError>({
@@ -321,7 +293,7 @@ export const getHopper = <ThrowOnError extends boolean = false>(options: Options
     ...options
 });
 
-export const updateHopper = <ThrowOnError extends boolean = false>(options: Options<UpdateHopperData, ThrowOnError>): RequestResult<UpdateHopperResponses, UpdateHopperErrors, ThrowOnError> => (options.client ?? client).put<UpdateHopperResponses, UpdateHopperErrors, ThrowOnError>({
+export const updateHopper = <ThrowOnError extends boolean = false>(options: Options<UpdateHopperData, ThrowOnError>): RequestResult<UpdateHopperResponses, UpdateHopperErrors, ThrowOnError> => (options.client ?? client).patch<UpdateHopperResponses, UpdateHopperErrors, ThrowOnError>({
     security: [{
             in: 'cookie',
             name: 'blyg_session',
@@ -379,41 +351,13 @@ export const setSignal = <ThrowOnError extends boolean = false>(options: Options
     }
 });
 
-export const createStub = <ThrowOnError extends boolean = false>(options: Options<CreateStubData, ThrowOnError>): RequestResult<CreateStubResponses, CreateStubErrors, ThrowOnError> => (options.client ?? client).post<CreateStubResponses, CreateStubErrors, ThrowOnError>({
+export const updateMention = <ThrowOnError extends boolean = false>(options: Options<UpdateMentionData, ThrowOnError>): RequestResult<UpdateMentionResponses, UpdateMentionErrors, ThrowOnError> => (options.client ?? client).patch<UpdateMentionResponses, UpdateMentionErrors, ThrowOnError>({
     security: [{
             in: 'cookie',
             name: 'blyg_session',
             type: 'apiKey'
         }],
-    url: '/api/stubs',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-export const setResponses = <ThrowOnError extends boolean = false>(options: Options<SetResponsesData, ThrowOnError>): RequestResult<SetResponsesResponses, SetResponsesErrors, ThrowOnError> => (options.client ?? client).put<SetResponsesResponses, SetResponsesErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'blyg_session',
-            type: 'apiKey'
-        }],
-    url: '/api/items/{id}/responses',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-export const setMentionHidden = <ThrowOnError extends boolean = false>(options: Options<SetMentionHiddenData, ThrowOnError>): RequestResult<SetMentionHiddenResponses, SetMentionHiddenErrors, ThrowOnError> => (options.client ?? client).put<SetMentionHiddenResponses, SetMentionHiddenErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'blyg_session',
-            type: 'apiKey'
-        }],
-    url: '/api/mentions/{id}/hidden',
+    url: '/api/mentions/{id}',
     ...options,
     headers: {
         'Content-Type': 'application/json',

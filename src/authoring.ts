@@ -12,7 +12,7 @@ export function scopeSummaries(scopes: TkScope[]): { index: number; instruction:
 }
 
 /**
- * Studio preview rendering shared by /preview and /preview-thread: strips TK
+ * Studio preview rendering for fragment and thread requests: strips TK
  * scopes (tolerantly — previewStrip never throws), highlights every resolved
  * scope regardless of real provenance (an authoring aid, not the wire's
  * disclosure rule — see model.ts publish() for the provenance-gated version),

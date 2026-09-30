@@ -38,7 +38,7 @@ describe("item lifecycle (§3.1)", () => {
   it("edit → publish bumps to v2 with note in changelog", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "first take");
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "second take" });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "second take" });
 
     // Working copy is not public until published.
     let item = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
@@ -56,7 +56,7 @@ describe("item lifecycle (§3.1)", () => {
   it("feed carries per-version GUIDs for both publish events", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "v1 content");
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "v2 content" });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "v2 content" });
     await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
     const xml = await (await getPublic("/blyg/feed.xml")).text();
     expect(xml).toContain(`blyg:${id}:v1`);
@@ -104,7 +104,7 @@ describe("item lifecycle (§3.1)", () => {
     await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, {});
 
     // Working copy retained and editable after withdrawal.
-    expect((await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "phoenix v3" })).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "phoenix v3" })).status).toBe(200);
     const pub = await apiJson(cookie, "POST", `/api/items/${id}/publish`, { note: "returned" });
     expect(pub.json.version).toBe(3);
 
@@ -119,16 +119,16 @@ describe("item lifecycle (§3.1)", () => {
   it("pinned versions are served at items/{id}/v{n}.json and survive withdrawal (§2.8)", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "citable *claim*");
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "revised claim" });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "revised claim" });
     await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
 
     // Unpinned versions are withheld.
     expect((await getPublic(`/blyg/items/${id}/v1.json`)).status).toBe(404);
 
-    const pin = await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 });
+    const pin = await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
     expect(pin.status).toBe(200);
     // Idempotent re-pin.
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 })).json.already).toBe(true);
+    expect((await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`)).json.already).toBe(true);
 
     const res = await getPublic(`/blyg/items/${id}/v1.json`);
     expect(res.status).toBe(200);
@@ -150,7 +150,7 @@ describe("item lifecycle (§3.1)", () => {
     expect((await getPublic(`/blyg/items/${id}/v1.json`)).status).toBe(200);
 
     // Endcap versions cannot be pinned.
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 3 })).status).toBe(409);
+    expect((await apiJson(cookie, "PUT", `/api/items/${id}/versions/${3}/pin`)).status).toBe(409);
   });
 
   it("discarding a never-published draft hard-removes it; published delete is rejected", async () => {
@@ -158,7 +158,7 @@ describe("item lifecycle (§3.1)", () => {
     const { json } = await apiJson(cookie, "POST", "/api/items", { content_md: "scratch" });
     const del = await apiJson(cookie, "DELETE", `/api/items/${json.id}`);
     expect(del.json.outcome).toBe("discarded");
-    expect((await apiJson(cookie, "PUT", `/api/items/${json.id}`, { content_md: "x" })).status).toBe(404);
+    expect((await apiJson(cookie, "PATCH", `/api/items/${json.id}`, { content_md: "x" })).status).toBe(404);
 
     const id = await createAndPublish(cookie, "not deletable");
     expect((await apiJson(cookie, "DELETE", `/api/items/${id}`)).status).toBe(409);
@@ -170,7 +170,7 @@ describe("item lifecycle (§3.1)", () => {
     const pub = await apiJson(cookie, "POST", `/api/items/${json.id}/publish`, {});
     expect(pub.status).toBe(400);
     // Exactly at the cap is fine.
-    await apiJson(cookie, "PUT", `/api/items/${json.id}`, { content_md: "x".repeat(1000) });
+    await apiJson(cookie, "PATCH", `/api/items/${json.id}`, { content_md: "x".repeat(1000) });
     expect((await apiJson(cookie, "POST", `/api/items/${json.id}/publish`, {})).status).toBe(200);
   });
 });

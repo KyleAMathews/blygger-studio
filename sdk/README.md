@@ -25,7 +25,7 @@ const draft = await unwrap(BlyggerApi.createItem({
   client, body: { content_md: "Hello", kind: "fragment" },
 }));
 await unwrap(BlyggerApi.publishItem({ client, path: { id: draft.id } }));
-const reading = await unwrap(BlyggerApi.listReading({ client, query: { page: 1 } }));
+const reading = await unwrap(BlyggerApi.listReading({ client, query: { offset: 0, limit: 25 } }));
 ```
 
 ## Node and Worker use
@@ -66,7 +66,7 @@ Edit `src/contract/` at the repository root, then run `npm run sdk:generate` wit
 Node 22.18+. The exact generator version is pinned in the root package and
 lockfile and recorded in `generation.json`. Generation reads the checked-in
 `openapi.json` without overlays, auth removal, or generated-file patches. CI
-checks drift. Docker and hosted generator services are not needed.
+checks drift.
 
 `npm run build` bundles the package and declarations for browser and server
 JavaScript. `npm pack ./sdk` creates the installable archive.

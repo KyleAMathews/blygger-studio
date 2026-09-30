@@ -16,7 +16,7 @@
 //      being baked, else a publish error like an unresolvable directive.
 import { describe, expect, it } from "vitest";
 import { SELF } from "cloudflare:test";
-import { apiJson, BASE, createAndPublish, getPublic, login, STUDIO } from "./helpers.ts";
+import { apiJson, BASE, createAndPublish, getPublic, login } from "./helpers.ts";
 
 async function createThread(cookie: string, contentMd: string): Promise<string> {
   const created = await apiJson(cookie, "POST", "/api/items", { content_md: contentMd, kind: "thread" });
@@ -120,7 +120,7 @@ describe("the check: the passage must be in the target", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, TARGET);
     // The target moves on, dropping the sentence.
-    await apiJson(cookie, "PUT", `/api/items/${target}`, { content_md: "Rewritten entirely." });
+    await apiJson(cookie, "PATCH", `/api/items/${target}`, { content_md: "Rewritten entirely." });
     expect((await apiJson(cookie, "POST", `/api/items/${target}/publish`, {})).status).toBe(200);
 
     const thread = await createThread(cookie, `![[${target}]]\n> ${PARA_ONE}`);
@@ -252,7 +252,7 @@ describe("staleness and the rest are unchanged", () => {
     expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
 
     // Target moves; our snapshot and our selector both still name version 1.
-    await apiJson(cookie, "PUT", `/api/items/${target}`, { content_md: `${TARGET}\n\nAnd more.` });
+    await apiJson(cookie, "PATCH", `/api/items/${target}`, { content_md: `${TARGET}\n\nAnd more.` });
     expect((await apiJson(cookie, "POST", `/api/items/${target}/publish`, {})).status).toBe(200);
 
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
@@ -268,9 +268,9 @@ describe("staleness and the rest are unchanged", () => {
 
     // The target keeps the quoted sentence, so a republish must succeed and
     // move the snapshot to v2 — the passage is still faithfully there.
-    await apiJson(cookie, "PUT", `/api/items/${target}`, { content_md: `${TARGET}\n\nA third paragraph.` });
+    await apiJson(cookie, "PATCH", `/api/items/${target}`, { content_md: `${TARGET}\n\nA third paragraph.` });
     expect((await apiJson(cookie, "POST", `/api/items/${target}/publish`, {})).status).toBe(200);
-    await apiJson(cookie, "PUT", `/api/items/${thread}`, {
+    await apiJson(cookie, "PATCH", `/api/items/${thread}`, {
       content_md: `![[${target}]]\n> ${PARA_ONE}\n\nRevisited.`,
     });
     expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
@@ -287,10 +287,10 @@ describe("staleness and the rest are unchanged", () => {
 // publish would show the author a passage that publish then refuses.
 describe("the editor preview matches what publish will do", () => {
   const preview = async (cookie: string, contentMd: string) => {
-    const res = await SELF.fetch(`${BASE}${STUDIO}/preview-thread`, {
+    const res = await SELF.fetch(`${BASE}/api/preview`, {
       method: "POST",
       headers: { cookie, "content-type": "application/json" },
-      body: JSON.stringify({ content_md: contentMd }),
+      body: JSON.stringify({ kind: "thread", content_md: contentMd }),
     });
     expect(res.status).toBe(200);
     return (await res.json()) as any;

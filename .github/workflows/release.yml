@@ -29,8 +29,8 @@ jobs:
         run: |
           version=$(node -p "require('./package.json').version")
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
-      - run: npm run typecheck
       - run: npm run sdk:generate
+      - run: npm run typecheck
       - run: git diff --exit-code -- openapi.json sdk/generated sdk/generation.json
       - run: npm test -- --maxWorkers=2
       - run: npx playwright install --with-deps chromium

@@ -172,7 +172,7 @@ describe("cross-client resolution failures (§2.1)", () => {
     const cookie = await login();
     const threadId = await createThread(cookie, "seed");
     expect((await publishThread(cookie, threadId)).status).toBe(200);
-    await apiJson(cookie, "PUT", `/api/items/${threadId}`, { content_md: `me again\n\n![[${threadId}]]` });
+    await apiJson(cookie, "PATCH", `/api/items/${threadId}`, { content_md: `me again\n\n![[${threadId}]]` });
     const pub = await publishThread(cookie, threadId);
     expect(pub.status).toBe(400);
     expect(pub.json.errors[0].reason).toMatch(/cannot transclude itself/);
@@ -187,7 +187,7 @@ describe("cross-client resolution failures (§2.1)", () => {
     const c = await createThread(cookie, `thread C\n\n![[${b}]]`);
     expect((await publishThread(cookie, c)).status).toBe(200);
     // A now tries to quote C, which transitively already quotes A.
-    await apiJson(cookie, "PUT", `/api/items/${a}`, { content_md: `thread A\n\n![[${c}]]` });
+    await apiJson(cookie, "PATCH", `/api/items/${a}`, { content_md: `thread A\n\n![[${c}]]` });
     const pub = await publishThread(cookie, a);
     expect(pub.status).toBe(400);
     expect(pub.json.errors[0].reason).toMatch(/circular/);
@@ -204,7 +204,7 @@ describe("cross-client resolution failures (§2.1)", () => {
       content_md: "their stub of me",
       content_html: `<blockquote class="blyg-transclusion" data-blyg-id="${mine}" data-blyg-version="1"><p>my thread</p></blockquote>`,
     });
-    await apiJson(cookie, "PUT", `/api/items/${mine}`, { content_md: `my thread\n\n![[${theirs}]]` });
+    await apiJson(cookie, "PATCH", `/api/items/${mine}`, { content_md: `my thread\n\n![[${theirs}]]` });
     expect((await publishThread(cookie, mine)).status).toBe(200);
   });
 });
@@ -218,8 +218,8 @@ describe("the `![[` palette (§3.2)", () => {
     const remoteId = newId();
     await importItem(ORIGIN, { id: remoteId, content_md: "a borrowed thought" }, { title: "Friend Blyg" });
 
-    const res = await apiJson(cookie, "GET", "/blyg/studio/fragments/search?q=");
-    const byId = new Map<string, any>(res.json.results.map((r: any) => [r.id, r]));
+    const res = await apiJson(cookie, "GET", "/api/search?q=");
+    const byId = new Map<string, any>(res.json.items.map((r: any) => [r.id, r]));
     expect(byId.get(f)?.badge).toBe("fragment");
     expect(byId.get(t)?.badge).toBe("thread");
     expect(byId.get(remoteId)?.badge).toBe("Friend Blyg");
@@ -239,8 +239,8 @@ describe("the `![[` palette (§3.2)", () => {
       new Date().toISOString(),
     );
 
-    const res = await apiJson(cookie, "GET", "/blyg/studio/fragments/search?q=");
-    const ids = res.json.results.map((r: any) => r.id);
+    const res = await apiJson(cookie, "GET", "/api/search?q=");
+    const ids = res.json.items.map((r: any) => r.id);
     expect(ids).not.toContain(l0Id);
     expect(ids).not.toContain(goneId);
   });

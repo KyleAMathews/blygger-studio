@@ -191,6 +191,7 @@ if (newMigrations.length) {
 }
 
 console.log("\n— checking the merge result before it goes anywhere near your blyg");
+if (run("npm", ["run", "build"]).status !== 0) die("SDK build failed after merge. Nothing deployed.");
 if (run("npx", ["tsc", "--noEmit"]).status !== 0) die("typecheck failed after merge. Nothing deployed.");
 if (run("npm", ["test"]).status !== 0) die("tests failed after merge. Nothing deployed.");
 console.log("→ green");

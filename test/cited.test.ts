@@ -43,7 +43,7 @@ async function itemDoc(id: string): Promise<any> {
 describe("cited rides all three references", () => {
   it("a remote stub carries the source, the author as they asserted it, an excerpt and a date", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const remoteId = await remoteFragment({ id: newId(), content_md: "Stigmergy is what a protocol looks like from inside.", author: { name: "Their Author" } });
 
     const stub = await apiJson(cookie, "POST", "/api/items", {
@@ -74,7 +74,7 @@ describe("cited rides all three references", () => {
 
   it("an own-origin transclusion carries none — a label adds nothing a fetch cannot", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const mine = await createAndPublish(cookie, "My own fragment.");
     const thread = (await apiJson(cookie, "POST", "/api/items", { kind: "thread", content_md: `![[${mine}]]` })).json.id as string;
     expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
@@ -86,7 +86,7 @@ describe("cited rides all three references", () => {
 
   it("rides a pinned document, which is the copy that has to outlive the link", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const remoteId = await remoteFragment({ id: newId() });
     const stub = await apiJson(cookie, "POST", "/api/items", {
       kind: "thread",
@@ -95,7 +95,7 @@ describe("cited rides all three references", () => {
     });
     const id = stub.json.id as string;
     await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 })).status).toBe(200);
+    expect((await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`)).status).toBe(200);
 
     const pinned = await (await getPublic(`/blyg/items/${id}/v1.json`)).json<any>();
     expect(pinned.stub_of.cited.source).toBe("Friend's Blyg");
@@ -104,10 +104,10 @@ describe("cited rides all three references", () => {
 
   it("rides lineage, and keeps riding it after the fork is withdrawn", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS, site_title: "My Blyg" });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS, site_title: "My Blyg" });
     const parent = await createAndPublish(cookie, "The parent item.");
-    await apiJson(cookie, "POST", `/api/items/${parent}/pin`, { version: 1 });
-    const forked = await apiJson(cookie, "POST", "/api/fork", { origin: OURS, id: parent, version: 1 });
+    await apiJson(cookie, "PUT", `/api/items/${parent}/versions/${1}/pin`);
+    const forked = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
     const id = forked.json.id as string;
     await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
 
@@ -165,7 +165,7 @@ describe("cited is never authority", () => {
 
   it("a published byline stops depending on a live join — the stale-byline fix", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const remoteId = await remoteFragment({ id: newId() }, "The Name At Publish Time");
     const thread = (await apiJson(cookie, "POST", "/api/items", { kind: "thread", content_md: `![[${remoteId}]]` })).json.id as string;
     await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {});

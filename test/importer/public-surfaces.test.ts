@@ -35,7 +35,7 @@ describe("blogroll.opml (§2.2)", () => {
     const sub = await createSubscription(env.DB, { kind: "blyg", origin: "https://paused.example/", feedUrl: "https://paused.example/feed.xml", title: "Paused" });
     await setBlogrollFlag(env.DB, sub.id, true);
     const cookie = await login();
-    await apiJson(cookie, "POST", `/api/subscriptions/${sub.id}/pause`);
+    await apiJson(cookie, "PATCH", `/api/subscriptions/${sub.id}`, { paused: true });
     const xml = await (await getPublic("/blyg/blogroll.opml")).text().catch(() => "");
     expect(xml).not.toContain("paused.example");
   });

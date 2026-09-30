@@ -1,6 +1,5 @@
 import { BlyggerApi, unwrap, BlyggerApiError } from "../sdk/dist/browser.js";
-import type { Context } from "hono";
-import { studioData, type StudioData, authoredKind, getItem, getSettings, getSettingsMap, listAll, listMediaForItem, listVersions, publishedVersion } from "./studio-data.ts";
+import { studioData, type StudioData, authoredKind, getItem, getSettings, getSettingsMap, listAll, listSubscriptions, listMediaForItem, listVersions, publishedVersion } from "./studio-data.ts";
 import { annotateTkPreview, scopeSummaries } from "./authoring.ts";
 // Studio: owner-only composer, item list, fragment/thread editors, settings
 // — v0.1-plan task 9 (fragments) + task 15 (threads), built against the
@@ -536,7 +535,7 @@ function historyPanel(item: ItemRow, versions: VersionRow[], mount: string, tz: 
               : `<button type="button" data-action="pin" data-id="${item.id}" data-version="${v.version}">pin&hellip;</button>`
           }
 <button type="button" data-action="restore" data-id="${item.id}" data-version="${v.version}" data-next="${item.version + 1}">restore&hellip;</button>`;
-      return `<li class="h-row" data-version="${v.version}">
+      return `<li class="h-row" data-version="${v.version}" data-published-at="${escapeHtml(formatDate(v.published_at, tz))}">
 <button type="button" class="h-select" data-action="view-version" data-id="${item.id}" data-version="${v.version}"${isEndcap ? " disabled" : ""}>v${v.version}</button>
 <span class="h-when">${formatDate(v.published_at, tz)}</span>
 ${badges}
@@ -739,7 +738,7 @@ document.addEventListener("click", async (e) => {
     // Dismisses the "alerts are on" notice for good. Not a preference about
     // alerts themselves — that is the Settings toggle — just an acknowledgement
     // that the sentence has been read.
-    await api("PUT", "/api/settings", { update_notice_ack: true });
+    await api("PATCH", "/api/settings", { update_notice_ack: true });
     const banner = document.getElementById("update-notice");
     if (banner) banner.remove();
     return;
@@ -750,23 +749,23 @@ document.addEventListener("click", async (e) => {
     // between the two editors — /edit/:id dispatches on kind.
     const to = btn.dataset.kind;
     const input = document.getElementById("md-input");
-    if (input) { if (!(await api("PUT", "/api/items/" + id, { content_md: input.value }))) return; }
-    if (!(await api("PUT", "/api/items/" + id, { kind: to }))) return;
+    if (input) { if (!(await api("PATCH", "/api/items/" + id, { content_md: input.value }))) return; }
+    if (!(await api("PATCH", "/api/items/" + id, { kind: to }))) return;
     location.reload();
     return;
   } else if (action === "pin") {
     const version = Number(btn.dataset.version);
     if (!confirm("Pin v" + version + "? This is irrevocable — it stays fetchable forever, even past withdrawal.")) return;
-    if (!(await api("POST", "/api/items/" + id + "/pin", { version }))) return;
+    if (!(await api("PUT", "/api/items/" + id + "/versions/" + version + "/pin"))) return;
   } else if (action === "view-version") {
     // Read-only: loads a past version's stored HTML into the history viewer.
     const version = Number(btn.dataset.version);
-    const res = await studioRequest("${studioPath(mount)}/versions/" + id + "/" + version);
+    const res = await studioRequest("/api/items/" + id + "/versions/" + version);
     const data = await res.json().catch(() => null);
     if (!data) { alert("could not load v" + version); return; }
     const viewer = document.getElementById("h-viewer");
     document.getElementById("h-viewer-label").textContent =
-      "v" + data.version + " · " + data.published_at + (data.pinned ? " · pinned" : "") + (data.note ? " · “" + data.note + "”" : "");
+      "v" + data.version + " · " + btn.closest(".h-row").dataset.publishedAt + (data.pinned ? " · pinned" : "") + (data.note ? " · “" + data.note + "”" : "");
     document.getElementById("h-viewer-body").innerHTML = data.content_html || "<em>(empty)</em>";
     viewer.hidden = false;
     document.querySelectorAll(".h-row").forEach((r) => r.classList.toggle("selected", Number(r.dataset.version) === version));
@@ -804,7 +803,7 @@ document.addEventListener("click", async (e) => {
     // Stays open, same as the composer: saving a draft should not end the
     // edit you are in the middle of.
     const ta = document.querySelector('.qe-text[data-id="' + id + '"]');
-    if (!(await api("PUT", "/api/items/" + id, { content_md: ta.value }))) return;
+    if (!(await api("PATCH", "/api/items/" + id, { content_md: ta.value }))) return;
     const state = document.querySelector('.qe-state[data-id="' + id + '"]');
     if (state) {
       state.textContent = "saved";
@@ -814,7 +813,7 @@ document.addEventListener("click", async (e) => {
     return;
   } else if (action === "qe-publish") {
     const ta = document.querySelector('.qe-text[data-id="' + id + '"]');
-    if (!(await api("PUT", "/api/items/" + id, { content_md: ta.value }))) return;
+    if (!(await api("PATCH", "/api/items/" + id, { content_md: ta.value }))) return;
     if (!(await api("POST", "/api/items/" + id + "/publish", {}))) return;
     // Publishing DID change the row's state (version, dirty flag, actions), so
     // unlike a save this one is worth a reload.
@@ -885,7 +884,7 @@ async function ensureDraft() {
     draftId = null;
   }
   if (draftId) {
-    if (!(await api("PUT", "/api/items/" + draftId, { content_md: composerText.value }))) return null;
+    if (!(await api("PATCH", "/api/items/" + draftId, { content_md: composerText.value }))) return null;
     return draftId;
   }
   const created = await api("POST", "/api/items", { content_md: composerText.value, kind: kind });
@@ -1154,7 +1153,7 @@ function installPalette(opts) {
     }
   }
   function search(query, offset) {
-    return studioRequest("${studioPath(mount)}/fragments/search?q=" + encodeURIComponent(query) + "&offset=" + offset)
+    return studioRequest("/api/search?q=" + encodeURIComponent(query) + "&offset=" + offset)
       .then(function (r) { return r.json(); });
   }
   function renderList() {
@@ -1182,7 +1181,7 @@ function installPalette(opts) {
     var now = paletteTrigger(input.value, input.selectionStart, allowTransclude);
     if (!now || now.form !== t.form || now.start !== t.start) { close(); return; }
     trigger = now;
-    items = data.results;
+    items = data.items;
     total = data.total;
     sel = 0;
     hint.innerHTML = trigger.form === "transclude"
@@ -1202,7 +1201,7 @@ function installPalette(opts) {
       // A page appended against a stale query would interleave two different
       // searches in one list, so re-check before splicing.
       if (!trigger || data.offset !== items.length) return;
-      items = items.concat(data.results);
+      items = items.concat(data.items);
       total = data.total;
       renderList();
       renderSelection();
@@ -1467,7 +1466,7 @@ document.getElementById("settings-form").addEventListener("submit", async (e) =>
     update_feed_url: document.getElementById("update_feed_url").value,
     author_links: links,
   };
-  if (await api("PUT", "/api/settings", body)) alert("saved");
+  if (await api("PATCH", "/api/settings", body)) alert("saved");
 });
 </script>`;
   return c.html(studioLayout("settings — blyg studio", body, mount));
@@ -1553,24 +1552,6 @@ studio.get("/syntax", async (c) => {
   return c.html(studioLayout("syntax — blyg studio", body, mount));
 });
 
-/** Studio-only live preview for the fragment editor — not a protocol surface. TK scopes are highlighted (task 6). */
-studio.post("/preview", async (c) => {
-  try { return c.json(await unwrap(BlyggerApi.preview({ client: studioData(c).client, body: await c.req.json().catch(() => ({})) }))); }
-  catch (e) { return legacyError(c, e); }
-});
-studio.post("/preview-thread", async (c) => {
-  try { return c.json(await unwrap(BlyggerApi.preview({ client: studioData(c).client, body: { ...await c.req.json().catch(() => ({})), kind: "thread" } }))); }
-  catch (e) { return legacyError(c, e); }
-});
-studio.get("/versions/:id/:v", async (c) => {
-  try { return c.json(await unwrap(BlyggerApi.getVersion({ client: studioData(c).client, path: { id: c.req.param("id"), v: c.req.param("v") } }))); }
-  catch (e) { return legacyError(c, e); }
-});
-studio.get("/fragments/search", async (c) => {
-  try { return c.json(await unwrap(BlyggerApi.search({ client: studioData(c).client, query: { q: c.req.query("q"), offset: Math.max(0, Math.floor(Number(c.req.query("offset")) || 0)) } }))); }
-  catch (e) { return legacyError(c, e); }
-});
-
 /**
  * The fork picker (§2.4). Forking needs a **pinned** version, and which
  * versions an origin has pinned is something only that origin can say, so
@@ -1628,7 +1609,7 @@ document.addEventListener("click", async (e) => {
   if (!btn) return;
   const body = { origin: btn.dataset.origin, id: btn.dataset.forkId, version: Number(btn.dataset.version) };
   btn.disabled = true;
-  const res = await studioRequest("/api/fork", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const res = await studioRequest("/api/items", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "fork", source: body }) });
   const data = await res.json().catch(() => null);
   if (!res.ok || !data) { btn.disabled = false; alert((data && data.error) || "fork failed"); return; }
   location.href = "${studioPath(mount)}/edit/" + data.id;
@@ -1726,8 +1707,8 @@ let debounceTimer;
 function scheduleSave() {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(async () => {
-    await api("PUT", "/api/items/" + id, { content_md: mdInput.value });
-    const res = await studioRequest("${studioPath(mount)}/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content_md: mdInput.value }) });
+    await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
+    const res = await studioRequest("/api/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content_md: mdInput.value }) });
     const data = await res.json();
     previewBody.innerHTML = data.html;
     renderTkPanel(data.scopes);
@@ -1754,11 +1735,11 @@ installPalette({
   onInsert: () => { syncCount(); scheduleSave(); },
 });
 document.getElementById("save-draft-btn").addEventListener("click", async () => {
-  await api("PUT", "/api/items/" + id, { content_md: mdInput.value });
+  await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
   location.reload();
 });
 document.getElementById("publish-btn").addEventListener("click", async () => {
-  await api("PUT", "/api/items/" + id, { content_md: mdInput.value });
+  await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
   const note = document.getElementById("note-input").value.trim();
   const res = await studioRequest("/api/items/" + id + "/publish", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(note ? { note } : {}) });
   const data = await res.json().catch(() => ({}));
@@ -1778,7 +1759,7 @@ document.getElementById("tk-scope-list").addEventListener("click", async (e) => 
   const scope = Number(btn.dataset.scope);
   btn.disabled = true;
   btn.textContent = "generating…";
-  await api("PUT", "/api/items/" + id, { content_md: mdInput.value });
+  await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
   if (!(await api("POST", "/api/items/" + id + "/generate", { scope }))) { btn.disabled = false; return; }
   location.reload();
 });
@@ -1842,7 +1823,7 @@ async function stubHeader(db: StudioData, item: ItemRow, mount: string): Promise
       href = `${mount}/${kind === "thread" ? "t" : "f"}/${stub.id}/`;
       label = "your own item";
     } else {
-      const subs = (await unwrap(BlyggerApi.listSubscriptions({ client: db.client }))).filter((sub) => sub.origin === stub.origin);
+      const subs = (await listSubscriptions(db)).filter((sub) => sub.origin === stub.origin);
       let row: { kind: string; page: string | null; title: string } | null = null;
       for (const sub of subs) {
         try { const imported = await unwrap(BlyggerApi.getImportedItem({ client: db.client, path: { sub: sub.id, id: stub.id } })); row = { ...imported, title: sub.title }; break; }
@@ -1930,7 +1911,7 @@ const errorSlot = document.getElementById("error-banner-slot");
 let debounceTimer;
 
 async function refreshPreview() {
-  const res = await studioRequest("${studioPath(mount)}/preview-thread", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content_md: mdInput.value, item_id: id }) });
+  const res = await studioRequest("/api/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content_md: mdInput.value, item_id: id, kind: "thread" }) });
   const data = await res.json();
   previewBody.innerHTML = data.html;
   renderTkPanel(data.scopes);
@@ -1939,7 +1920,7 @@ async function refreshPreview() {
 function scheduleSave() {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(async () => {
-    await api("PUT", "/api/items/" + id, { content_md: mdInput.value });
+    await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
     refreshPreview();
   }, 400);
 }
@@ -1959,17 +1940,17 @@ installPalette({
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-action='clear-stub']");
   if (!btn) return;
-  await api("PUT", "/api/items/" + id, { stub_of: null });
+  await api("PATCH", "/api/items/" + id, { stub_of: null });
   location.reload();
 });
 
 mdInput.addEventListener("input", scheduleSave);
 document.getElementById("save-draft-btn").addEventListener("click", async () => {
-  await api("PUT", "/api/items/" + id, { content_md: mdInput.value });
+  await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
   location.reload();
 });
 document.getElementById("publish-btn").addEventListener("click", async () => {
-  await api("PUT", "/api/items/" + id, { content_md: mdInput.value });
+  await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
   const note = document.getElementById("note-input").value.trim();
   const res = await studioRequest("/api/items/" + id + "/publish", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(note ? { note } : {}) });
   const data = await res.json().catch(() => ({}));
@@ -1982,7 +1963,7 @@ document.getElementById("tk-scope-list").addEventListener("click", async (e) => 
   const scope = Number(btn.dataset.scope);
   btn.disabled = true;
   btn.textContent = "generating…";
-  await api("PUT", "/api/items/" + id, { content_md: mdInput.value });
+  await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
   if (!(await api("POST", "/api/items/" + id + "/generate", { scope }))) { btn.disabled = false; return; }
   location.reload();
 });
@@ -2003,9 +1984,4 @@ document.getElementById("attach-btn").addEventListener("click", () => {
 });
 </script>`;
   return studioLayout("editing thread — blyg studio", body, mount);
-}
-
-function legacyError(c: Context, e: unknown) {
-  if (e instanceof BlyggerApiError && e.statusCode) return c.json(e.body, e.statusCode as 400 | 404);
-  throw e;
 }

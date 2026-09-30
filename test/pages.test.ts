@@ -7,7 +7,7 @@ import { apiJson, BASE, createAndPublish, getPublic, login } from "./helpers.ts"
 describe("public pages (§3.4)", () => {
   it("feed page shows header, fragment, permalink, RSS link", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_title: "A Test Blyg" });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_title: "A Test Blyg" });
     const id = await createAndPublish(cookie, "a *rendered* fragment");
     const html = await (await getPublic("/blyg/")).text();
     // Session 19: site identity now renders on the feed page too, not only in
@@ -37,7 +37,7 @@ describe("public pages (§3.4)", () => {
   it("edited fragments show the version line, 'Most recent', and the note", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "draft one");
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "sharpened" });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "sharpened" });
     await apiJson(cookie, "POST", `/api/items/${id}/publish`, { note: "sharpened the claim" });
     const html = await (await getPublic(`/blyg/f/${id}/`)).text();
     // The version line now carries the carousel's data attributes; without
@@ -55,10 +55,10 @@ describe("public pages (§3.4)", () => {
   it("shows pinned versions as citations linking to their frozen pages", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "first cut");
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 });
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "second cut" });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "second cut" });
     await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 2 });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${2}/pin`);
 
     const html = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(html).toContain("pinned:");
@@ -72,7 +72,7 @@ describe("public pages (§3.4)", () => {
   it("a pinned single-version item still shows its citation", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "only ever one");
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
     const html = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(html).toContain(`href="/blyg/f/${id}/v1/"`);
     expect(html).not.toContain("Most recent"); // one version — nothing to compare against
@@ -83,7 +83,7 @@ describe("public pages (§3.4)", () => {
     // is precisely where a reader needs to be told the pin is still good.
     const cookie = await login();
     const id = await createAndPublish(cookie, "will be pulled");
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
     await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, {});
     const html = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(html).toContain("withdrawn");
@@ -94,8 +94,8 @@ describe("public pages (§3.4)", () => {
   it("pinned-version pages render the frozen content with banner, canonical, and JSON twin", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "the **original** wording");
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 });
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "the revised wording" });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "the revised wording" });
     await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
 
     const res = await getPublic(`/blyg/f/${id}/v1/`);
@@ -117,9 +117,9 @@ describe("public pages (§3.4)", () => {
     // like the JSON route, or it would expose history withdrawal withholds.
     const cookie = await login();
     const id = await createAndPublish(cookie, "v1 text");
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "v2 text" });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "v2 text" });
     await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 2 });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${2}/pin`);
 
     expect((await getPublic(`/blyg/f/${id}/v1/`)).status).toBe(404); // unpinned
     expect((await getPublic(`/blyg/f/${id}/v3/`)).status).toBe(404); // nonexistent
@@ -132,7 +132,7 @@ describe("public pages (§3.4)", () => {
   it("a pinned-version page survives withdrawal of the item", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "citable forever");
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
     await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, {});
     const res = await getPublic(`/blyg/f/${id}/v1/`);
     expect(res.status).toBe(200);
@@ -182,7 +182,7 @@ describe("public pages (§3.4)", () => {
 describe("site identity on public pages (session 19)", () => {
   it("feed page renders author name, bio and links from settings", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", {
+    await apiJson(cookie, "PATCH", "/api/settings", {
       site_title: "Field Notes",
       author_name: "A. Author",
       author_bio: "Writes about protocols.",
@@ -202,14 +202,14 @@ describe("site identity on public pages (session 19)", () => {
   // checking each page for the fields separately.
   it("every public page opens with the identical masthead — no jump between feed and item pages", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", {
+    await apiJson(cookie, "PATCH", "/api/settings", {
       site_title: "Field Notes",
       author_name: "A. Author",
       author_bio: "Writes about protocols.",
       author_links: [{ label: "Homepage", url: "https://example.org/" }],
     });
     const id = await createAndPublish(cookie, "a fragment");
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
     const created = await apiJson(cookie, "POST", "/api/items", { content_md: `a thread\n\n![[${id}]]`, kind: "thread" });
     const threadId = created.json.id as string;
     await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
@@ -244,7 +244,7 @@ describe("site identity on public pages (session 19)", () => {
 
   it("keeps the name but drops the author block when no author fields are set", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", {
+    await apiJson(cookie, "PATCH", "/api/settings", {
       site_title: "Field Notes",
       author_name: "",
       author_bio: "",
@@ -276,7 +276,7 @@ describe("archive rows (session 19)", () => {
 describe("social / meta tags (session 19)", () => {
   it("an item page describes the item, not the site, and titles itself distinctly", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_title: "Field Notes", site_url: "https://example.org/blyg/" });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_title: "Field Notes", site_url: "https://example.org/blyg/" });
     const id = await createAndPublish(cookie, "A note about stigmergy and traces.");
     const html = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(html).toContain("<title>A note about stigmergy and traces. — Field Notes</title>");
@@ -288,10 +288,10 @@ describe("social / meta tags (session 19)", () => {
 
   it("a pinned page describes the frozen bytes, not the live ones", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: "https://example.org/blyg/" });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: "https://example.org/blyg/" });
     const id = await createAndPublish(cookie, "the original wording");
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 });
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "the revised wording" });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "the revised wording" });
     await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
     const pinned = await (await getPublic(`/blyg/f/${id}/v1/`)).text();
     expect(pinned).toContain('<meta name="description" content="the original wording">');
@@ -303,7 +303,7 @@ describe("social / meta tags (session 19)", () => {
 
   it("uses the item's own image for og:image, falling back to the twitter text card", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: "https://example.org/blyg/", avatar_media_id: "" });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: "https://example.org/blyg/", avatar_media_id: "" });
     const id = await createAndPublish(cookie, "an illustrated fragment");
     const form = new FormData();
     form.set("file", new File([new Uint8Array([1])], "p.png", { type: "image/png" }));
@@ -323,7 +323,7 @@ describe("social / meta tags (session 19)", () => {
 
   it("a withdrawn item unfurls as a withdrawal, with no image and no stale text", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_title: "Field Notes" });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_title: "Field Notes" });
     const id = await createAndPublish(cookie, "words that will be pulled");
     await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, {});
     const html = await (await getPublic(`/blyg/f/${id}/`)).text();
@@ -334,7 +334,7 @@ describe("social / meta tags (session 19)", () => {
 
   it("falls back to the newest item when no bio is set, and to the bio when one is", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { author_bio: "" });
+    await apiJson(cookie, "PATCH", "/api/settings", { author_bio: "" });
     await createAndPublish(cookie, "the most recently published thing");
     // Asserted against the top of the *rendered* feed rather than a named item:
     // `listPublic` orders by `updated DESC` at second precision, so items
@@ -345,7 +345,7 @@ describe("social / meta tags (session 19)", () => {
     expect(described.length).toBeGreaterThan(0);
     expect(topArticleText).toContain(described.replace(/…$/, ""));
 
-    await apiJson(cookie, "PUT", "/api/settings", { author_bio: "A blyg about protocols." });
+    await apiJson(cookie, "PATCH", "/api/settings", { author_bio: "A blyg about protocols." });
     expect(await (await getPublic("/blyg/")).text()).toContain(
       '<meta name="description" content="A blyg about protocols.">',
     );
@@ -397,8 +397,8 @@ describe("pinned-version carousel (session 19)", () => {
   it("carries the carousel's data on the feed page and degrades to real links", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "version one text");
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 });
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "version two text" });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "version two text" });
     await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
 
     const feed = await (await getPublic("/blyg/")).text();
@@ -446,10 +446,10 @@ describe("pinned-version carousel (session 19)", () => {
   it("serves each pinned version's own note, which is what the swap reads", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "first cut");
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 });
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "second cut" });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "second cut" });
     await apiJson(cookie, "POST", `/api/items/${id}/publish`, { note: "tightened it" });
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 2 });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${2}/pin`);
 
     const v1 = (await (await getPublic(`/blyg/items/${id}/v1.json`)).json()) as any;
     const v2 = (await (await getPublic(`/blyg/items/${id}/v2.json`)).json()) as any;
@@ -463,7 +463,7 @@ describe("pinned-version carousel (session 19)", () => {
   it("does not ship it where no item content is rendered", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "an archived item");
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
     // The archive is a list of links, and a pinned-version page is one frozen
     // version by definition — neither has a carousel to drive. The pinned page
     // in particular must not offer to page away from the version it froze.
@@ -482,7 +482,7 @@ describe("reading theme (session 19)", () => {
 
   it("an author's theme overrides the reader's light/dark rather than losing to it", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { theme: "solarized-dark" });
+    await apiJson(cookie, "PATCH", "/api/settings", { theme: "solarized-dark" });
     const css = await (await getPublic("/blyg/style.css")).text();
     expect(css).toContain("theme: Solarized Dark");
     expect(css).toContain("color-scheme: dark");
@@ -495,13 +495,13 @@ describe("reading theme (session 19)", () => {
 
   it("separates page from block only when the theme actually differs", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { theme: "slate" });
+    await apiJson(cookie, "PATCH", "/api/settings", { theme: "slate" });
     const slate = await (await getPublic("/blyg/style.css")).text();
     expect(slate).toContain("--block-pad: 2rem");
     expect(slate).toContain("--page: #2f3538");
     expect(slate).toContain("--paper: #f5f7f7");
 
-    await apiJson(cookie, "PUT", "/api/settings", { theme: "paper" });
+    await apiJson(cookie, "PATCH", "/api/settings", { theme: "paper" });
     const paper = await (await getPublic("/blyg/style.css")).text();
     // Same colour on both surfaces: padding the block would draw a card edge
     // around nothing.
@@ -510,7 +510,7 @@ describe("reading theme (session 19)", () => {
 
   it("ignores an unknown theme instead of emitting broken CSS", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { theme: "not-a-theme" });
+    await apiJson(cookie, "PATCH", "/api/settings", { theme: "not-a-theme" });
     const css = await (await getPublic("/blyg/style.css")).text();
     expect(css).not.toContain("theme:");
     expect(css).toContain("prefers-color-scheme: dark");
@@ -518,10 +518,10 @@ describe("reading theme (session 19)", () => {
 
   it("is a local setting — it never reaches the manifest", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { theme: "nord" });
+    await apiJson(cookie, "PATCH", "/api/settings", { theme: "nord" });
     const manifest = (await (await getPublic("/blyg/blyg.json")).json()) as any;
     expect(JSON.stringify(manifest)).not.toContain("nord");
-    await apiJson(cookie, "PUT", "/api/settings", { theme: "auto" });
+    await apiJson(cookie, "PATCH", "/api/settings", { theme: "auto" });
   });
 });
 

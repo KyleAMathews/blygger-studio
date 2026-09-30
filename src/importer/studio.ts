@@ -86,8 +86,8 @@ document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-action]");
   if (!btn) return;
   const action = btn.dataset.action, id = btn.dataset.id;
-  if (action === "pause") await subsApi("POST", "/api/subscriptions/" + id + "/pause");
-  else if (action === "resume") await subsApi("POST", "/api/subscriptions/" + id + "/resume");
+  if (action === "pause") await subsApi("PATCH", "/api/subscriptions/" + id, { paused: true });
+  else if (action === "resume") await subsApi("PATCH", "/api/subscriptions/" + id, { paused: false });
   else if (action === "resync") { await subsApi("POST", "/api/subscriptions/" + id + "/resync"); alert("resynced"); }
   else if (action === "delete-sub") {
     if (!confirm("Delete this subscription? Local imports, hopper memberships, and signals for it are removed. Nothing public is affected.")) return;
@@ -97,7 +97,7 @@ document.addEventListener("click", async (e) => {
 });
 document.addEventListener("change", async (e) => {
   if (e.target.dataset.action !== "toggle-blogroll") return;
-  await subsApi("PUT", "/api/subscriptions/" + e.target.dataset.id, { in_blogroll: e.target.checked });
+  await subsApi("PATCH", "/api/subscriptions/" + e.target.dataset.id, { in_blogroll: e.target.checked });
 });
 
 const addForm = document.getElementById("add-sub-form");
@@ -522,10 +522,10 @@ document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-action='stub']");
   if (!btn) return;
   btn.disabled = true;
-  const res = await studioRequest("/api/stubs", {
+  const res = await studioRequest("/api/items", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ subscription_id: btn.dataset.sub, remote_id: btn.dataset.remote }),
+    body: JSON.stringify({ mode: "response", source: { subscription_id: btn.dataset.sub, remote_id: btn.dataset.remote } }),
   });
   if (!res.ok) { btn.disabled = false; alert("Could not start a stub for that item."); return; }
   const data = await res.json();
@@ -565,10 +565,10 @@ document.addEventListener("click", async (e) => {
   const selection = entry ? selectionWithin(entry) : "";
   if (!selection) { quoteHint(btn, "select a passage first"); return; }
   btn.disabled = true;
-  const res = await studioRequest("/api/stubs", {
+  const res = await studioRequest("/api/items", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ subscription_id: btn.dataset.sub, remote_id: btn.dataset.remote, selection: selection }),
+    body: JSON.stringify({ mode: "response", source: { subscription_id: btn.dataset.sub, remote_id: btn.dataset.remote }, selection: selection }),
   });
   btn.disabled = false;
   if (!res.ok) { quoteHint(btn, "passage not found"); return; }
@@ -726,13 +726,16 @@ ${rows.length ? `<h2>Subscriptions</h2>\n<ul>\n${rows.join("\n")}\n</ul>` : ""}
 importerStudio.get("/reading", async (c) => {
   const data = studioData(c);
   const mount = normalizeMount(c.env.MOUNT);
-  const [reading, hoppers, subs, settings] = await Promise.all([
-    unwrap(BlyggerApi.listReading({ client: data.client, query: { page: Math.max(1, Math.floor(Number(c.req.query("page")) || 1)), sub: c.req.query("sub") } })),
+  let [reading, hoppers, subs, settings] = await Promise.all([
+    unwrap(BlyggerApi.listReading({ client: data.client, query: { offset: (Math.max(1, Math.floor(Number(c.req.query("page")) || 1)) - 1) * 25, limit: 25, sub: c.req.query("sub") } })),
     listHoppers(data), listSubscriptions(data), getSettings(data),
   ]);
   const ourOrigin = siteOrigin(settings, c.req.url, mount);
-  const { selected, page, pages, total } = reading;
-  const rows = await Promise.all(reading.entries.map((e) => readingEntryHtml(data, e, hoppers, mount, ourOrigin, settings.timezone)));
+  const pages = Math.max(1, Math.ceil(reading.total / reading.limit));
+  if (reading.offset >= Math.max(1, reading.total)) reading = await unwrap(BlyggerApi.listReading({ client: data.client, query: { offset: (pages - 1) * 25, limit: 25, sub: c.req.query("sub") } }));
+  const { selected, total } = reading;
+  const page = Math.floor(reading.offset / reading.limit) + 1;
+  const rows = await Promise.all(reading.items.map((e) => readingEntryHtml(data, e, hoppers, mount, ourOrigin, settings.timezone)));
   // The filter has to survive paging, or page 2 of one feed silently becomes
   // page 2 of everything.
   const suffix = selected === "all" ? "" : `&sub=${encodeURIComponent(selected)}`;
@@ -850,7 +853,7 @@ document.addEventListener("click", async (e) => {
 document.addEventListener("change", async (e) => {
   if (e.target.dataset.action !== "toggle-public") return;
   await studioRequest("/api/hoppers/" + e.target.dataset.id, {
-    method: "PUT",
+    method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ public: e.target.checked }),
   });
@@ -864,7 +867,7 @@ document.addEventListener("submit", async (e) => {
   const name = e.target.elements.name.value.trim();
   if (!name) return;
   const res = await studioRequest("/api/hoppers/" + e.target.dataset.id, {
-    method: "PUT",
+    method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: name }),
   });

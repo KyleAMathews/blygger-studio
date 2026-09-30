@@ -1,17 +1,18 @@
+import { itemResource, versionResource, mediaResource, subscriptionResource, hopperResource, importedResource, mentionResource } from "./contract/resources.ts";
 import type { Context } from "hono";
 import { contractApp, readJson } from "./contract/app.ts";
 import { routes } from "./contract/routes.ts";
 import { annotateTkPreview, scopeSummaries } from "./authoring.ts";
 import { getItem, getSettings, getSettingsMap, getVersion, listAll, listVersions, publishedVersion } from "./model.ts";
-import { listHoppers, listHopperItems, getHopper, getImportedItem, listSubscriptions } from "./importer/store.ts";
+import { listHoppers, listHopperItems, getHopper, getImportedItem, listSubscriptions, getSubscription } from "./importer/store.ts";
 import { listVerifiedInbound, listOutbound } from "./mentions/store.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
 import { renderMarkdown, plainTextFromHtml } from "./markdown.ts";
 import { clampText } from "./preview.ts";
 import { applyInternalLinks, previewInternalLinks, previewTransclusions } from "./transclusion.ts";
 import { siteOrigin } from "./protocol.ts";
-import { formatDateIn, normalizeMount } from "./util.ts";
-import type { Env, SignalRow, ImportedItemRow } from "./types.ts";
+import { normalizeMount } from "./util.ts";
+import type { Env, SignalRow, ImportedItemRow, ItemRow } from "./types.ts";
 import { itemDetail } from "./item-data.ts";
 import { readingData } from "./reading-data.ts";
 import { getInbound } from "./mentions/store.ts";
@@ -20,24 +21,31 @@ import { normalizeOrigin } from "./stub.ts";
 import { mentionFetch } from "./mentions/http.ts";
 
 export const readApi = contractApp();
-const formatDate = formatDateIn;
+function collection<T>(rows: T[], query: Record<string, string>) {
+  const offset = Number(query.offset ?? 0), limit = Number(query.limit ?? 100);
+  return { items: rows.slice(offset, offset + limit), total: rows.length, offset, limit };
+}
 const excerptOf = (s: string, n: number) => clampText(plainTextFromHtml(renderMarkdown(s)), n);
 
 readApi.openapi(routes.listItems, async (c) => {
   const offset = Number(c.req.query("offset") ?? 0), limit = Number(c.req.query("limit") ?? 100);
   const [rows, count] = await Promise.all([
-    c.env.DB.prepare("SELECT * FROM items ORDER BY updated DESC, rowid DESC LIMIT ? OFFSET ?").bind(limit, offset).all(),
+    c.env.DB.prepare("SELECT * FROM items ORDER BY updated DESC, rowid DESC LIMIT ? OFFSET ?").bind(limit, offset).all<ItemRow>(),
     c.env.DB.prepare("SELECT COUNT(*) AS total FROM items").first<{ total: number }>(),
   ]);
-  return c.json({ items: rows.results, total: count?.total ?? 0, offset, limit });
+  return c.json({ items: rows.results.map(itemResource), total: count?.total ?? 0, offset, limit });
 });
 readApi.openapi(routes.getItem, async (c) => {
   const detail = await itemDetail(c.env.DB, c.req.param("id"));
-  return detail ? c.json(detail) : c.json({ error: "not found" }, 404);
+  return detail ? c.json({ ...itemResource(detail.item), authored_kind: detail.kind, media: detail.media.map(mediaResource), versions: detail.versions.map(versionResource), published: detail.published ? versionResource(detail.published) : null }) : c.json({ error: "not found" }, 404);
 });
 readApi.openapi(routes.getSettings, async (c) => c.json(await getSettings(c.env.DB)));
-readApi.openapi(routes.listSubscriptions, async (c) => c.json(await listSubscriptions(c.env.DB)));
-readApi.openapi(routes.listHoppers, async (c) => c.json(await listHoppers(c.env.DB)));
+readApi.openapi(routes.listSubscriptions, async (c) => c.json(collection((await listSubscriptions(c.env.DB)).map(subscriptionResource), c.req.query())));
+readApi.openapi(routes.getSubscription, async (c) => {
+  const sub = await getSubscription(c.env.DB, c.req.param("id"));
+  return sub ? c.json(subscriptionResource(sub)) : c.json({ error: "not found" }, 404);
+});
+readApi.openapi(routes.listHoppers, async (c) => c.json(collection((await listHoppers(c.env.DB)).map(hopperResource), c.req.query())));
 readApi.openapi(routes.getHopper, async (c) => {
   const hopper = await getHopper(c.env.DB, c.req.param("id"));
   if (!hopper) return c.json({ error: "not found" }, 404);
@@ -45,15 +53,19 @@ readApi.openapi(routes.getHopper, async (c) => {
   const rows = await c.env.DB.prepare(`SELECT ii.* FROM hopper_items hi JOIN imported_items ii
     ON ii.subscription_id = hi.subscription_id AND ii.remote_id = hi.remote_id
     WHERE hi.hopper_id = ? ORDER BY hi.added_at DESC`).bind(hopper.id).all<ImportedItemRow>();
-  const items = await Promise.all(rows.results.map(async (r) => ({ ...r, content_html: await sanitizeHtml(r.content_html) })));
-  return c.json({ hopper, memberships, items });
+  const items = await Promise.all(rows.results.map(async (r) => importedResource({ ...r, content_html: await sanitizeHtml(r.content_html) })));
+  return c.json({ hopper: hopperResource(hopper), memberships, items });
 });
-readApi.openapi(routes.listSignals, async (c) => c.json((await c.env.DB.prepare("SELECT * FROM signals").all<SignalRow>()).results));
-readApi.openapi(routes.listMentions, async (c) => c.json({ inbound: await listVerifiedInbound(c.env.DB), outbound: await listOutbound(c.env.DB) }));
-readApi.openapi(routes.listReading, async (c) => c.json(await readingData(c.env.DB, c.req.query("page"), c.req.query("sub"))));
+readApi.openapi(routes.listSignals, async (c) => c.json(collection((await c.env.DB.prepare("SELECT * FROM signals ORDER BY at DESC, subscription_id, remote_id").all<SignalRow>()).results, c.req.query())));
+readApi.openapi(routes.listMentions, async (c) => {
+  const direction = c.req.query("direction") ?? "inbound";
+  const rows = direction === "outbound" ? await listOutbound(c.env.DB) : (await listVerifiedInbound(c.env.DB)).map(mentionResource);
+  return c.json({ ...collection<typeof rows[number]>(rows, c.req.query()), direction });
+});
+readApi.openapi(routes.listReading, async (c) => c.json(await readingData(c.env.DB, Number(c.req.query("offset") ?? 0), Number(c.req.query("limit") ?? 25), c.req.query("sub"))));
 readApi.openapi(routes.getImportedItem, async (c) => {
   const row = await getImportedItem(c.env.DB, c.req.param("sub"), c.req.param("id"));
-  return row ? c.json({ ...row, content_html: await sanitizeHtml(row.content_html) }) : c.json({ error: "not found" }, 404);
+  return row ? c.json(importedResource({ ...row, content_html: await sanitizeHtml(row.content_html) })) : c.json({ error: "not found" }, 404);
 });
 readApi.openapi(routes.getUpdateState, async (c) => {
   const [settings, map] = await Promise.all([getSettings(c.env.DB), getSettingsMap(c.env.DB)]);
@@ -65,7 +77,7 @@ readApi.openapi(routes.getMentionSource, async (c) => {
   if (!row) return c.json({ error: "not found" }, 404);
   const holder = await c.env.DB.prepare("SELECT s.id AS id FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id WHERE ii.remote_id = ? AND s.origin = ? LIMIT 1").bind(row.source_id, row.source_origin).first<{ id: string }>();
   const subscription = (await listSubscriptions(c.env.DB)).find((s) => s.origin === row.source_origin) ?? null;
-  return c.json({ holder: holder?.id ?? null, subscription });
+  return c.json({ holder: holder?.id ?? null, subscription: subscription ? subscriptionResource(subscription) : null });
 });
 readApi.openapi(routes.getForkOptions, async (c) => {
   const settings = await getSettings(c.env.DB), mount = normalizeMount(c.env.MOUNT);
@@ -103,14 +115,7 @@ readApi.openapi(routes.getVersion, async (c) => {
   if (!Number.isInteger(version)) return c.json({ error: "bad version" }, 400);
   const row = await getVersion(c.env.DB, item.id, version);
   if (!row) return c.json({ error: "version not found" }, 404);
-  const tz = (await getSettings(c.env.DB)).timezone;
-  return c.json({
-    version: row.version,
-    published_at: formatDate(row.published_at, tz),
-    note: row.note,
-    pinned: row.pinned === 1,
-    content_html: row.content_html ?? "",
-  });
+  return c.json(versionResource(row));
 });
 
 /**
@@ -170,12 +175,8 @@ readApi.openapi(routes.search, async (c) => {
   // limit. `total` is what lets the palette say "20 of 63" instead of lying by
   // omission.
   const offset = Math.max(0, Number(c.req.query("offset") ?? 0) || 0);
-  return c.json({
-    results: results.slice(offset, offset + SEARCH_PAGE),
-    total: results.length,
-    offset,
-    limit: SEARCH_PAGE,
-  });
+  const limit = Number(c.req.query("limit") ?? SEARCH_PAGE);
+  return c.json({ items: results.slice(offset, offset + limit), total: results.length, offset, limit });
 });
 
 

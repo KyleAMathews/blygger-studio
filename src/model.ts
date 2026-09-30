@@ -123,12 +123,13 @@ export async function createDraft(
   db: D1Database,
   contentMd: string,
   kind: "fragment" | "thread" = "fragment",
+  stub: StubOf | null = null,
 ): Promise<ItemRow> {
   const id = newId();
   const now = nowIso();
   await db
-    .prepare("INSERT INTO items (id, kind, status, created, updated, version, content_md, dirty) VALUES (?, ?, 'draft', ?, ?, 0, ?, 1)")
-    .bind(id, kind, now, now, contentMd)
+    .prepare("INSERT INTO items (id, kind, status, created, updated, version, content_md, dirty, stub_of) VALUES (?, ?, 'draft', ?, ?, 0, ?, 1, ?)")
+    .bind(id, kind, now, now, contentMd, stub ? JSON.stringify(stub) : null)
     .run();
   return (await getItem(db, id))!;
 }

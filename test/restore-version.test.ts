@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { apiJson, BASE, createAndPublish, getPublic, login, STUDIO } from "./helpers.ts";
 
 async function publishEdit(cookie: string, id: string, contentMd: string, note?: string) {
-  await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: contentMd });
+  await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: contentMd });
   const res = await apiJson(cookie, "POST", `/api/items/${id}/publish`, note ? { note } : {});
   expect(res.status).toBe(200);
   return res.json.version as number;
@@ -125,12 +125,12 @@ describe("studio history viewer", () => {
     const id = await createAndPublish(cookie, "first *emphasis*");
     await publishEdit(cookie, id, "second", "changed my mind");
 
-    const v1 = await (await SELF.fetch(`${BASE}${STUDIO}/versions/${id}/1`, { headers: { cookie } })).json<any>();
+    const v1 = await (await SELF.fetch(`${BASE}/api/items/${id}/versions/1`, { headers: { cookie } })).json<any>();
     expect(v1.version).toBe(1);
     expect(v1.pinned).toBe(false); // unpinned, yet still readable locally
     expect(v1.content_html).toContain("<em>emphasis</em>");
 
-    const v2 = await (await SELF.fetch(`${BASE}${STUDIO}/versions/${id}/2`, { headers: { cookie } })).json<any>();
+    const v2 = await (await SELF.fetch(`${BASE}/api/items/${id}/versions/2`, { headers: { cookie } })).json<any>();
     expect(v2.note).toBe("changed my mind");
   });
 
@@ -138,7 +138,7 @@ describe("studio history viewer", () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "unpinned content");
     // Locally readable...
-    const local = await SELF.fetch(`${BASE}${STUDIO}/versions/${id}/1`, { headers: { cookie } });
+    const local = await SELF.fetch(`${BASE}/api/items/${id}/versions/1`, { headers: { cookie } });
     expect(local.status).toBe(200);
     // ...but not publicly promised.
     expect((await getPublic(`/blyg/items/${id}/v1.json`)).status).toBe(404);
@@ -147,9 +147,9 @@ describe("studio history viewer", () => {
   it("404s an unknown version and requires auth", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "x");
-    expect((await SELF.fetch(`${BASE}${STUDIO}/versions/${id}/42`, { headers: { cookie } })).status).toBe(404);
-    const noAuth = await SELF.fetch(`${BASE}${STUDIO}/versions/${id}/1`, { redirect: "manual" });
-    expect(noAuth.status).toBe(302);
+    expect((await SELF.fetch(`${BASE}/api/items/${id}/versions/42`, { headers: { cookie } })).status).toBe(404);
+    const noAuth = await SELF.fetch(`${BASE}/api/items/${id}/versions/1`, { redirect: "manual" });
+    expect(noAuth.status).toBe(401);
   });
 });
 
@@ -171,7 +171,7 @@ describe("the index no longer renders dead version controls", () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "pin me");
     await publishEdit(cookie, id, "second");
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
     const page = await (await SELF.fetch(`${BASE}${STUDIO}/`, { headers: { cookie } })).text();
     expect(page).toContain(`/blyg/f/${id}/v1/`);
     expect(page).not.toContain(`/blyg/items/${id}/v1.json`);

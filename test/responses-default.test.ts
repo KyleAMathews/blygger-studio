@@ -34,9 +34,9 @@ async function respondTo(itemId: string, origin = "https://friend.example/blyg/"
 }
 
 const setDefault = (cookie: string, on: boolean) =>
-  apiJson(cookie, "PUT", "/api/settings", { show_responses_default: on });
+  apiJson(cookie, "PATCH", "/api/settings", { show_responses_default: on });
 const setItem = (cookie: string, id: string, mode: string) =>
-  apiJson(cookie, "PUT", `/api/items/${id}/responses`, { mode });
+  apiJson(cookie, "PATCH", `/api/items/${id}`, { responses: mode });
 const page = async (id: string) => (await getPublic(`/blyg/f/${id}/`)).text();
 
 // Settings are one row per blyg and this file's storage is shared across its
@@ -112,18 +112,18 @@ describe("a per-item override beats the default, both ways", () => {
     await setDefault(cookie, true);
     // With a default in play the caller cannot compute this itself.
     const res = await setItem(cookie, id, "default");
-    expect(res.json).toMatchObject({ override: null, showing: true });
+    expect(res.json).toMatchObject({ responses: "default" });
   });
 
-  it("still accepts the legacy boolean, as a hard override", async () => {
+  it("uses an explicit show preference as a hard override", async () => {
     const cookie = await login();
     await setDefault(cookie, false);
     const id = await createAndPublish(cookie, "an item");
     await respondTo(id);
     // Third-party tools already call this endpoint.
-    const res = await apiJson(cookie, "PUT", `/api/items/${id}/responses`, { show: true });
+    const res = await apiJson(cookie, "PATCH", `/api/items/${id}`, { responses: "show" });
     expect(res.status).toBe(200);
-    expect(res.json.override).toBe(1);
+    expect(res.json.responses).toBe("show");
     expect(await page(id)).toContain("A Stranger");
   });
 
@@ -141,7 +141,7 @@ describe("per-mention hiding is unaffected", () => {
     const mentionId = await respondTo(id);
     await setDefault(cookie, true);
     expect(await page(id)).toContain("A Stranger");
-    await apiJson(cookie, "PUT", `/api/mentions/${mentionId}/hidden`, { hidden: true });
+    await apiJson(cookie, "PATCH", `/api/mentions/${mentionId}`, { hidden: true });
     expect(await page(id)).not.toContain("A Stranger");
   });
 });

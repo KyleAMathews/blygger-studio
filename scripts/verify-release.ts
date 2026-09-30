@@ -45,7 +45,7 @@ try {
   const client = sdk.createBlyggerClient({ baseUrl, auth: token });
   const draft = await sdk.unwrap(sdk.BlyggerApi.createItem({ client, body: { content_md: "Packaged Node SDK" } }));
   const detail = await sdk.unwrap(sdk.BlyggerApi.getItem({ client, path: { id: draft.id } }));
-  assert.equal(detail.item.content_md, "Packaged Node SDK");
+  assert.equal(detail.content_md, "Packaged Node SDK");
   const media = await sdk.unwrap(sdk.BlyggerApi.uploadMedia({ client, body: { file: new File([new Uint8Array([1, 2, 3])], "image.png", { type: "image/png" }) } }));
   assert.equal(media.mime, "image/png");
   const unauthorized = await sdk.BlyggerApi.getSettings({ client: sdk.createBlyggerClient({ baseUrl }) });

@@ -44,7 +44,7 @@ describe("editor discard", () => {
   it("a dirty published item discards the changes, not the item", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "published text");
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "edited but unpublished" });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "edited but unpublished" });
     const html = await studioPage(cookie, `${STUDIO}/edit/${id}`);
     expect(html).toContain(`data-action="discard-changes" data-id="${id}" data-version="1"`);
     // Deleting a published item must never be offered — withdraw is the exit.
@@ -72,7 +72,7 @@ describe("editor discard", () => {
     const id = (await apiJson(cookie, "POST", "/api/items", { content_md: "a published thread", kind: "thread" }))
       .json.id as string;
     await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "edited but unpublished" });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "edited but unpublished" });
     const html = await studioPage(cookie, `${STUDIO}/edit/${id}`);
     expect(html).toContain(`data-action="discard-changes" data-id="${id}" data-version="1"`);
     expect(html).not.toContain(`data-action="discard" data-id="${id}"`);
@@ -102,7 +102,7 @@ describe("editor discard", () => {
   it("discarding changes restores the published text without publishing anything", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "the published wording");
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "a draft that will be thrown away" });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "a draft that will be thrown away" });
     const restored = await apiJson(cookie, "POST", `/api/items/${id}/restore`, { version: 1 });
     expect(restored.status).toBe(200);
     // Still v1 in public: nothing was published and no version was rewound.
@@ -133,7 +133,7 @@ describe("after an action, where the page goes", () => {
   it("discarding changes reloads, because the item is still there", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "still here");
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "edited" });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "edited" });
     const html = await studioPage(cookie, `${STUDIO}/edit/${id}`);
     const branch = html.slice(html.indexOf('action === "discard-changes"'));
     expect(branch.slice(0, branch.indexOf("} else"))).not.toContain("location.href");
@@ -164,7 +164,7 @@ describe("quick edit", () => {
   it("shows the working copy, which may be ahead of what is published", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "published version");
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "unpublished working copy" });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "unpublished working copy" });
     const html = await studioPage(cookie, STUDIO);
     const box = html.slice(html.indexOf(`id="qe-${id}"`));
     expect(box.slice(0, 400)).toContain("unpublished working copy");

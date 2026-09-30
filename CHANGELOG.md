@@ -25,7 +25,10 @@ not have its own repo until session 26.
 Studio reads and writes through an authenticated OpenAPI Hono API and a
 Hey API-generated JavaScript/TypeScript SDK. The existing UI and public Blygger
 protocol output keep their behavior. Reading batches page bodies, and item
-reads keep D1 query counts bounded.
+reads keep D1 query counts bounded. The owner API uses resource routes, strict
+Zod request validation, boolean preferences, structured item references, and
+offset pagination. Partial edits validate before an atomic write. Replaced
+private routes are removed, and Studio uses the new routes throughout.
 
 Merges to main now publish GitHub releases automatically. Downloads include the
 OpenAPI spec, a Worker bundle with migrations and generic deployment config,

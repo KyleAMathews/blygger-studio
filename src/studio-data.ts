@@ -1,3 +1,4 @@
+import { studioItem, studioVersion, studioMedia, studioSubscription, studioHopper, studioImported, studioMention } from "./studio-resources.ts";
 import type { Context } from "hono";
 import { BlyggerApi, unwrap, BlyggerApiError, createBlyggerClient, type BlyggerClient } from "../sdk/dist/browser.js";
 import { ownerApi } from "./owner-api.ts";
@@ -30,33 +31,40 @@ export class StudioData {
 
 export const studioData = (c: Context<{ Bindings: Env }>) => new StudioData(c);
 export async function getItem(data: StudioData, id: string) {
-  try { return (await data.detail(id)).item; } catch (e) { if (e instanceof BlyggerApiError && e.statusCode === 404) return null; throw e; }
+  try { return studioItem(await data.detail(id)); } catch (e) { if (e instanceof BlyggerApiError && e.statusCode === 404) return null; throw e; }
 }
 export async function listAll(data: StudioData) {
   const rows: ItemRow[] = [];
   for (let offset = 0; ; offset += 100) {
-    const page = await unwrap(BlyggerApi.listItems({ client: data.client, query: { offset, limit: 100 } })); rows.push(...page.items);
+    const page = await unwrap(BlyggerApi.listItems({ client: data.client, query: { offset, limit: 100 } })); rows.push(...page.items.map(studioItem));
     if (offset + page.items.length >= page.total || !page.items.length) return rows;
   }
 }
 export const getSettings = (data: StudioData) => data.read("settings", () => unwrap(BlyggerApi.getSettings({ client: data.client })));
 export const getSettingsMap = (data: StudioData) => data.read("update-state", () => unwrap(BlyggerApi.getUpdateState({ client: data.client })));
-export const authoredKind = async (data: StudioData, item: ItemRow) => (await data.detail(item.id)).kind;
-export const publishedVersion = async (data: StudioData, item: ItemRow) => (await data.detail(item.id)).published;
-export const listVersions = async (data: StudioData, id: string) => (await data.detail(id)).versions;
-export const listMediaForItem = async (data: StudioData, id: string) => (await data.detail(id)).media;
-export const listSubscriptions = (data: StudioData) => data.read("subscriptions", () => unwrap(BlyggerApi.listSubscriptions({ client: data.client })));
-export const listHoppers = (data: StudioData) => data.read("hoppers", () => unwrap(BlyggerApi.listHoppers({ client: data.client })));
+export const authoredKind = async (data: StudioData, item: ItemRow) => (await data.detail(item.id)).authored_kind;
+export const publishedVersion = async (data: StudioData, item: ItemRow) => { const value = (await data.detail(item.id)).published; return value ? studioVersion(value) : null; };
+export const listVersions = async (data: StudioData, id: string) => (await data.detail(id)).versions.map(studioVersion);
+export const listMediaForItem = async (data: StudioData, id: string) => (await data.detail(id)).media.map(studioMedia);
+async function allPages<T>(load: (offset: number) => Promise<{ items: T[]; total: number }>) {
+  const rows: T[] = [];
+  for (let offset = 0; ; offset += 100) {
+    const page = await load(offset); rows.push(...page.items);
+    if (offset + page.items.length >= page.total || !page.items.length) return rows;
+  }
+}
+export const listSubscriptions = (data: StudioData) => data.read("subscriptions", async () => (await allPages((offset) => unwrap(BlyggerApi.listSubscriptions({ client: data.client, query: { offset, limit: 100 } })))).map(studioSubscription));
+export const listHoppers = (data: StudioData) => data.read("hoppers", async () => (await allPages((offset) => unwrap(BlyggerApi.listHoppers({ client: data.client, query: { offset, limit: 100 } })))).map(studioHopper));
 const hopperDetail = (data: StudioData, id: string) => data.read(`hopper:${id}`, () => unwrap(BlyggerApi.getHopper({ client: data.client, path: { id } })));
 export async function getHopper(data: StudioData, id: string) {
-  try { return (await hopperDetail(data, id)).hopper; } catch (e) { if (e instanceof BlyggerApiError && e.statusCode === 404) return null; throw e; }
+  try { return studioHopper((await hopperDetail(data, id)).hopper); } catch (e) { if (e instanceof BlyggerApiError && e.statusCode === 404) return null; throw e; }
 }
-export const hopperItemBodies = async (data: StudioData, id: string) => new Map((await hopperDetail(data, id)).items.map((row) => [JSON.stringify([row.subscription_id, row.remote_id]), row]));
+export const hopperItemBodies = async (data: StudioData, id: string) => new Map((await hopperDetail(data, id)).items.map(studioImported).map((row) => [JSON.stringify([row.subscription_id, row.remote_id]), row]));
 export const listHopperItems = async (data: StudioData, id: string) => (await hopperDetail(data, id)).memberships;
 export async function getImportedItem(data: StudioData, sub: string, id: string) {
-  try { return await unwrap(BlyggerApi.getImportedItem({ client: data.client, path: { sub, id } })); } catch (e) { if (e instanceof BlyggerApiError && e.statusCode === 404) return null; throw e; }
+  try { return studioImported(await unwrap(BlyggerApi.getImportedItem({ client: data.client, path: { sub, id } }))); } catch (e) { if (e instanceof BlyggerApiError && e.statusCode === 404) return null; throw e; }
 }
-export const getSignal = async (data: StudioData, sub: string, id: string) => (await data.read("signals", () => unwrap(BlyggerApi.listSignals({ client: data.client })))).find((s) => s.subscription_id === sub && s.remote_id === id) ?? null;
-const mentions = (data: StudioData) => data.read("mentions", () => unwrap(BlyggerApi.listMentions({ client: data.client })));
-export const listVerifiedInbound = async (data: StudioData) => (await mentions(data)).inbound;
-export const listOutbound = async (data: StudioData) => (await mentions(data)).outbound;
+export const getSignal = async (data: StudioData, sub: string, id: string) => (await data.read("signals", () => allPages((offset) => unwrap(BlyggerApi.listSignals({ client: data.client, query: { offset, limit: 100 } }))))).find((s) => s.subscription_id === sub && s.remote_id === id) ?? null;
+const mentions = (data: StudioData, direction: "inbound" | "outbound") => data.read(`mentions:${direction}`, () => allPages((offset) => unwrap(BlyggerApi.listMentions({ client: data.client, query: { offset, limit: 100, direction } }))));
+export const listVerifiedInbound = async (data: StudioData) => (await mentions(data, "inbound")).filter((row) => "hidden" in row).map(studioMention);
+export const listOutbound = async (data: StudioData) => (await mentions(data, "outbound")).filter((row) => "next_attempt_at" in row);

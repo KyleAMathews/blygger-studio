@@ -91,10 +91,10 @@ document.addEventListener("change", async (e) => {
   const sel = e.target.closest("[data-action='set-responses']");
   if (!sel) return;
   const previous = sel.dataset.was || "default";
-  const res = await studioRequest("/api/items/" + sel.dataset.id + "/responses", {
-    method: "PUT",
+  const res = await studioRequest("/api/items/" + sel.dataset.id, {
+    method: "PATCH",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ mode: sel.value }),
+    body: JSON.stringify({ responses: sel.value }),
   });
   if (!res.ok) { sel.value = previous; alert("Could not change that setting."); return; }
   // Reload rather than patching in place: the "N on the page now" line next to
@@ -110,8 +110,8 @@ document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-action='toggle-hidden']");
   if (!btn) return;
   const hidden = btn.dataset.hidden === "1";
-  const res = await studioRequest("/api/mentions/" + btn.dataset.id + "/hidden", {
-    method: "PUT",
+  const res = await studioRequest("/api/mentions/" + btn.dataset.id, {
+    method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ hidden: !hidden }),
   });

@@ -18,14 +18,14 @@ describe("generated SDK against the real Worker", () => {
     expect(created.response.status).toBe(201);
     const id = created.data.id;
     await unwrap(BlyggerApi.updateItem({ client: client, path: { id }, body: { content_md: "SDK saved" } }));
-    expect((await unwrap(BlyggerApi.getItem({ client: client, path: { id } }))).item.content_md).toBe("SDK saved");
+    expect((await unwrap(BlyggerApi.getItem({ client: client, path: { id } }))).content_md).toBe("SDK saved");
     await unwrap(BlyggerApi.publishItem({ client: client, path: { id } }));
-    await unwrap(BlyggerApi.pinItem({ client: client, path: { id }, body: { version: 1 } }));
+    await unwrap(BlyggerApi.pinItem({ client: client, path: { id, version: 1 } }));
     await unwrap(BlyggerApi.updateItem({ client: client, path: { id }, body: { content_md: "changed" } }));
     await unwrap(BlyggerApi.restoreItem({ client: client, path: { id }, body: { version: 1 } }));
-    expect((await unwrap(BlyggerApi.getItem({ client: client, path: { id } }))).item.content_md).toBe("SDK saved");
+    expect((await unwrap(BlyggerApi.getItem({ client: client, path: { id } }))).content_md).toBe("SDK saved");
     await unwrap(BlyggerApi.withdrawItem({ client: client, path: { id } }));
-    expect((await unwrap(BlyggerApi.getItem({ client: client, path: { id } }))).item.status).toBe("withdrawn");
+    expect((await unwrap(BlyggerApi.getItem({ client: client, path: { id } }))).status).toBe("withdrawn");
   });
   it("preserves structured validation and authorization failures", async () => {
     await expect(unwrap(BlyggerApi.getSettings({ client: clientFor() }))).rejects.toMatchObject({ statusCode: 401, body: { error: "unauthorized" } });
@@ -48,7 +48,7 @@ describe("generated SDK against the real Worker", () => {
     const { id } = await created.json<{ id: string }>();
     const res = await sdkRequest(client, `/api/items/${id}/publish`, { method: "POST", body: "{}" });
     expect(res.status).toBe(200);
-    const preview = await sdkRequest(client, "/blyg/studio/preview-thread", { method: "POST", body: JSON.stringify({ content_md: "preview" }) });
+    const preview = await sdkRequest(client, "/api/preview", { method: "POST", body: JSON.stringify({ content_md: "preview", kind: "thread" }) });
     expect(await preview.json()).toMatchObject({ html: "<p>preview</p>\n", scopes: [] });
     const missing = await sdkRequest(client, "/api/items/no-such-item");
     expect(missing.status).toBe(404);
@@ -90,7 +90,7 @@ describe("generated SDK against the real Worker", () => {
       await upsertL0Item(env.DB, sub.id, "same-id", { version: 1, contentMd: "safe", contentHash: "hash", observedAt: "2026-09-30T01:00:00Z", contentHtml: '<p onclick="bad()">safe</p><script>bad()</script>', created: "2026-09-30T00:00:00Z", updated: "2026-09-30T00:00:00Z" });
     }
     const response = await unwrap(BlyggerApi.listReading({ client: client }));
-    const imported = response.entries.filter((e) => e.imported && subIds.includes(e.imported.subscriptionId));
+    const imported = response.items.filter((e) => e.imported && subIds.includes(e.imported.subscriptionId));
     expect(imported).toHaveLength(2);
     expect(new Set(imported.map((e) => e.key)).size).toBe(2);
     for (const entry of imported) {
@@ -145,9 +145,9 @@ describe("generated SDK against the real Worker", () => {
       const value = Reflect.get(target, key);
       return typeof value === "function" ? value.bind(target) : value;
     } });
-    const page = await readingData(counted, "1", "own");
-    expect(page.entries.map((row) => row.own?.id)).toEqual(ids.slice(1).reverse());
-    expect(page.entries[0].contentHtml).toContain("budget 25");
+    const page = await readingData(counted, 0, 25, "own");
+    expect(page.items.map((row) => row.own?.id)).toEqual(ids.slice(1).reverse());
+    expect(page.items[0].contentHtml).toContain("budget 25");
     // Leave room for the SSR page's settings, hoppers and signals reads.
     expect(queries).toBeLessThanOrEqual(5);
     queries = 0;

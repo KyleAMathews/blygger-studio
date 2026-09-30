@@ -4,14 +4,7 @@ export type ClientOptions = {
     baseUrl: 'http://localhost:8787' | (string & {});
 };
 
-export type ApiError = {
-    error: string;
-    errors?: Array<unknown>;
-    tried?: Array<string>;
-    [key: string]: unknown;
-};
-
-export type ItemRow = {
+export type Item = {
     id: string;
     kind: 'fragment' | 'thread' | 'withdrawn';
     status: 'draft' | 'public' | 'withdrawn';
@@ -19,38 +12,56 @@ export type ItemRow = {
     updated: string;
     version: number;
     content_md: string;
-    dirty: number;
-    tk_provenance_json: string | null;
-    show_responses: number;
-    responses_override: number | null;
-    stub_of: string | null;
-    forked_from: string | null;
-    fork_cite: string | null;
+    dirty: boolean;
+    responses: 'default' | 'show' | 'hide';
+    provenance: Array<GenerationProvenance | null>;
+    stub_of: VersionReference | {
+        url: string;
+        cited?: Citation;
+    } | null;
+    forked_from: VersionReference | null;
+    fork_cite: Citation | null;
 };
 
-export type MediaRow = {
+export type GenerationProvenance = {
+    sources: Array<{
+        id: string;
+        version: number;
+    }>;
+    model?: string;
+    at?: string;
+};
+
+export type VersionReference = {
+    origin: string;
     id: string;
-    item_id: string | null;
-    r2_key: string;
-    mime: string;
-    alt: string | null;
-    created: string;
+    version: number;
+    cited?: Citation;
 };
 
-export type VersionRow = {
-    item_id: string;
-    version: number;
-    content_md: string;
-    content_html: string;
-    content_hash: string;
-    published_at: string;
-    note: string | null;
-    transclusions: string | null;
-    pinned: number;
-    pinned_at: string | null;
-    generated_json: string | null;
-    stub_of: string | null;
-    stub_cite: string | null;
+export type Citation = {
+    source: string;
+    author?: string;
+    excerpt?: string;
+    url: string;
+    retrieved: string;
+};
+
+export type ApiError = {
+    error: string;
+    errors?: Array<{
+        reason?: string;
+        at?: number;
+        id?: string;
+        directive?: string;
+        [key: string]: unknown;
+    }>;
+    tried?: Array<string>;
+    issues?: Array<{
+        path: Array<string | number>;
+        message: string;
+    }>;
+    [key: string]: unknown;
 };
 
 export type Settings = {
@@ -74,31 +85,72 @@ export type Settings = {
     update_notice_ack: boolean;
 };
 
-export type SubscriptionRow = {
+export type Subscription = {
     id: string;
     kind: 'blyg' | 'rss';
     origin: string;
     feed_url: string;
     title: string;
     status: 'active' | 'paused' | 'degraded';
-    etag: string | null;
-    last_modified: string | null;
     last_poll_at: string | null;
-    newest_guid: string | null;
     fail_count: number;
     last_index_sync_at: string | null;
-    in_blogroll: number;
-    flags: string;
     created: string;
+    in_blogroll: boolean;
+    flags: Array<{
+        type: string;
+        at: string;
+        detail?: string;
+    }>;
 };
 
-export type HopperRow = {
+export type Hopper = {
     id: string;
     name: string;
     slug: string | null;
-    public: number;
+    public: boolean;
     created: string;
-    slug_frozen: number;
+    slug_frozen: boolean;
+};
+
+export type Media = {
+    id: string;
+    item_id: string | null;
+    mime: string;
+    alt: string | null;
+    created: string;
+    url: string;
+};
+
+export type Version = {
+    item_id: string;
+    version: number;
+    content_md: string;
+    content_html: string;
+    content_hash: string;
+    published_at: string;
+    note: string | null;
+    pinned_at: string | null;
+    pinned: boolean;
+    transclusions: Array<Transclusion>;
+    generated: Array<GenerationProvenance>;
+    stub_of: VersionReference | {
+        url: string;
+        cited?: Citation;
+    } | null;
+    stub_cite: Citation | null;
+};
+
+export type Transclusion = {
+    id: string;
+    version: number;
+    origin?: string;
+    cited?: Citation;
+    selector?: {
+        exact: string;
+        prefix?: string;
+        suffix?: string;
+    };
 };
 
 export type HopperItemRow = {
@@ -108,7 +160,7 @@ export type HopperItemRow = {
     added_at: string;
 };
 
-export type ImportedItemRow = {
+export type ImportedItem = {
     subscription_id: string;
     remote_id: string;
     kind: 'fragment' | 'thread';
@@ -123,7 +175,7 @@ export type ImportedItemRow = {
     author_json: string | null;
     media_json: string | null;
     transclusions_json: string | null;
-    l0: number;
+    l0: boolean;
     pinned_version_retained: number | null;
     page: string | null;
 };
@@ -135,7 +187,7 @@ export type SignalRow = {
     at: string;
 };
 
-export type MentionInRow = {
+export type Mention = {
     id: string;
     source: string;
     target: string;
@@ -153,7 +205,7 @@ export type MentionInRow = {
     verified_at: string | null;
     attempts: number;
     error: string | null;
-    hidden: number;
+    hidden: boolean;
 };
 
 export type MentionOutRow = {
@@ -226,6 +278,10 @@ export type ListItemsErrors = {
     /**
      * Request failed
      */
+    405: ApiError;
+    /**
+     * Request failed
+     */
     409: ApiError;
     /**
      * Request failed
@@ -256,7 +312,7 @@ export type ListItemsResponses = {
      * Success
      */
     200: {
-        items: Array<ItemRow>;
+        items: Array<Item>;
         total: number;
         offset: number;
         limit: number;
@@ -268,14 +324,22 @@ export type ListItemsResponse = ListItemsResponses[keyof ListItemsResponses];
 export type CreateItemData = {
     body?: {
         content_md?: string;
-        kind?: string;
-        stub_of?: {
-            origin: string;
-            id: string;
-            version: number;
-        } | {
+        kind?: 'fragment' | 'thread';
+        stub_of?: VersionReference | {
             url: string;
-        } | unknown;
+            cited?: Citation;
+        } | null;
+        mode?: 'blank';
+    } | {
+        mode: 'fork';
+        source: VersionReference;
+    } | {
+        mode: 'response';
+        source: {
+            subscription_id: string;
+            remote_id: string;
+        };
+        selection?: string;
     };
     path?: never;
     query?: never;
@@ -295,6 +359,10 @@ export type CreateItemErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -327,79 +395,10 @@ export type CreateItemResponses = {
     /**
      * Success
      */
-    201: {
-        id: string;
-        kind: 'fragment' | 'thread';
-        status: 'draft';
-    };
+    201: Item;
 };
 
 export type CreateItemResponse = CreateItemResponses[keyof CreateItemResponses];
-
-export type ForkItemData = {
-    body: {
-        origin: string;
-        id: string;
-        version: number;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/fork';
-};
-
-export type ForkItemErrors = {
-    /**
-     * Request failed
-     */
-    400: ApiError;
-    /**
-     * Request failed
-     */
-    401: ApiError;
-    /**
-     * Request failed
-     */
-    404: ApiError;
-    /**
-     * Request failed
-     */
-    409: ApiError;
-    /**
-     * Request failed
-     */
-    413: ApiError;
-    /**
-     * Request failed
-     */
-    415: ApiError;
-    /**
-     * Request failed
-     */
-    422: ApiError;
-    /**
-     * Request failed
-     */
-    500: ApiError;
-    /**
-     * Request failed
-     */
-    502: ApiError;
-};
-
-export type ForkItemError = ForkItemErrors[keyof ForkItemErrors];
-
-export type ForkItemResponses = {
-    /**
-     * Success
-     */
-    201: {
-        id: string;
-        kind: 'fragment' | 'thread';
-        status: 'draft';
-    };
-};
-
-export type ForkItemResponse = ForkItemResponses[keyof ForkItemResponses];
 
 export type DeleteItemData = {
     body?: never;
@@ -423,6 +422,10 @@ export type DeleteItemErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -488,6 +491,10 @@ export type GetItemErrors = {
     /**
      * Request failed
      */
+    405: ApiError;
+    /**
+     * Request failed
+     */
     409: ApiError;
     /**
      * Request failed
@@ -518,11 +525,26 @@ export type GetItemResponses = {
      * Success
      */
     200: {
-        item: ItemRow;
-        kind: 'fragment' | 'thread';
-        media: Array<MediaRow>;
-        versions: Array<VersionRow>;
-        published: VersionRow & unknown;
+        id: string;
+        kind: 'fragment' | 'thread' | 'withdrawn';
+        status: 'draft' | 'public' | 'withdrawn';
+        created: string;
+        updated: string;
+        version: number;
+        content_md: string;
+        dirty: boolean;
+        responses: 'default' | 'show' | 'hide';
+        provenance: Array<GenerationProvenance | null>;
+        stub_of: VersionReference | {
+            url: string;
+            cited?: Citation;
+        } | null;
+        forked_from: VersionReference | null;
+        fork_cite: Citation | null;
+        authored_kind: 'fragment' | 'thread';
+        media: Array<Media>;
+        versions: Array<Version>;
+        published: Version | null;
     };
 };
 
@@ -531,14 +553,12 @@ export type GetItemResponse = GetItemResponses[keyof GetItemResponses];
 export type UpdateItemData = {
     body: {
         content_md?: string;
-        kind?: string;
-        stub_of?: {
-            origin: string;
-            id: string;
-            version: number;
-        } | {
+        kind?: 'fragment' | 'thread';
+        stub_of?: VersionReference | {
             url: string;
-        } | unknown;
+            cited?: Citation;
+        } | null;
+        responses?: 'default' | 'show' | 'hide';
     };
     path: {
         id: string;
@@ -560,6 +580,10 @@ export type UpdateItemErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -592,10 +616,7 @@ export type UpdateItemResponses = {
     /**
      * Success
      */
-    200: {
-        ok: boolean;
-        kind?: string;
-    };
+    200: Item;
 };
 
 export type UpdateItemResponse = UpdateItemResponses[keyof UpdateItemResponses];
@@ -624,6 +645,10 @@ export type PublishItemErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -692,6 +717,10 @@ export type GenerateItemErrors = {
     /**
      * Request failed
      */
+    405: ApiError;
+    /**
+     * Request failed
+     */
     409: ApiError;
     /**
      * Request failed
@@ -756,6 +785,10 @@ export type WithdrawItemErrors = {
     /**
      * Request failed
      */
+    405: ApiError;
+    /**
+     * Request failed
+     */
     409: ApiError;
     /**
      * Request failed
@@ -794,14 +827,13 @@ export type WithdrawItemResponses = {
 export type WithdrawItemResponse = WithdrawItemResponses[keyof WithdrawItemResponses];
 
 export type PinItemData = {
-    body: {
-        version: number;
-    };
+    body?: never;
     path: {
         id: string;
+        version: number;
     };
     query?: never;
-    url: '/api/items/{id}/pin';
+    url: '/api/items/{id}/versions/{version}/pin';
 };
 
 export type PinItemErrors = {
@@ -817,6 +849,10 @@ export type PinItemErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -885,6 +921,10 @@ export type RestoreItemErrors = {
     /**
      * Request failed
      */
+    405: ApiError;
+    /**
+     * Request failed
+     */
     409: ApiError;
     /**
      * Request failed
@@ -950,6 +990,10 @@ export type UploadMediaErrors = {
     /**
      * Request failed
      */
+    405: ApiError;
+    /**
+     * Request failed
+     */
     409: ApiError;
     /**
      * Request failed
@@ -1011,6 +1055,10 @@ export type GetSettingsErrors = {
     /**
      * Request failed
      */
+    405: ApiError;
+    /**
+     * Request failed
+     */
     409: ApiError;
     /**
      * Request failed
@@ -1060,11 +1108,11 @@ export type UpdateSettingsData = {
         avatar_media_id?: string;
         ai_model?: string;
         ai_style_prompt?: string;
-        accept_mentions?: boolean | 'on' | 'off';
-        update_check?: boolean | 'on' | 'off';
-        show_responses_default?: boolean | 'on' | 'off';
+        accept_mentions?: boolean;
+        update_check?: boolean;
+        show_responses_default?: boolean;
         update_feed_url?: string;
-        update_notice_ack?: boolean | 'on' | 'off';
+        update_notice_ack?: boolean;
     };
     path?: never;
     query?: never;
@@ -1084,6 +1132,10 @@ export type UpdateSettingsErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -1116,9 +1168,7 @@ export type UpdateSettingsResponses = {
     /**
      * Success
      */
-    200: {
-        ok: boolean;
-    };
+    200: Settings;
 };
 
 export type UpdateSettingsResponse = UpdateSettingsResponses[keyof UpdateSettingsResponses];
@@ -1126,7 +1176,10 @@ export type UpdateSettingsResponse = UpdateSettingsResponses[keyof UpdateSetting
 export type ListSubscriptionsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        offset?: number | null;
+        limit?: number;
+    };
     url: '/api/subscriptions';
 };
 
@@ -1143,6 +1196,10 @@ export type ListSubscriptionsErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -1175,7 +1232,12 @@ export type ListSubscriptionsResponses = {
     /**
      * Success
      */
-    200: Array<SubscriptionRow>;
+    200: {
+        items: Array<Subscription>;
+        total: number;
+        offset: number;
+        limit: number;
+    };
 };
 
 export type ListSubscriptionsResponse = ListSubscriptionsResponses[keyof ListSubscriptionsResponses];
@@ -1204,6 +1266,10 @@ export type CreateSubscriptionErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -1246,19 +1312,11 @@ export type CreateSubscriptionResponses = {
             asserted: string;
             actual: string;
         };
-    } | {
-        id: string;
-        kind: 'blyg' | 'rss';
-        origin: string;
     };
     /**
      * Subscribed
      */
-    201: {
-        id: string;
-        kind: 'blyg' | 'rss';
-        origin: string;
-    };
+    201: Subscription;
 };
 
 export type CreateSubscriptionResponse = CreateSubscriptionResponses[keyof CreateSubscriptionResponses];
@@ -1285,6 +1343,10 @@ export type DeleteSubscriptionErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -1324,10 +1386,74 @@ export type DeleteSubscriptionResponses = {
 
 export type DeleteSubscriptionResponse = DeleteSubscriptionResponses[keyof DeleteSubscriptionResponses];
 
+export type GetSubscriptionData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/subscriptions/{id}';
+};
+
+export type GetSubscriptionErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetSubscriptionError = GetSubscriptionErrors[keyof GetSubscriptionErrors];
+
+export type GetSubscriptionResponses = {
+    /**
+     * Success
+     */
+    200: Subscription;
+};
+
+export type GetSubscriptionResponse = GetSubscriptionResponses[keyof GetSubscriptionResponses];
+
 export type UpdateSubscriptionData = {
     body: {
         in_blogroll?: boolean;
         title?: string;
+        paused?: boolean;
     };
     path: {
         id: string;
@@ -1349,6 +1475,10 @@ export type UpdateSubscriptionErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -1381,134 +1511,10 @@ export type UpdateSubscriptionResponses = {
     /**
      * Success
      */
-    200: {
-        ok: boolean;
-    };
+    200: Subscription;
 };
 
 export type UpdateSubscriptionResponse = UpdateSubscriptionResponses[keyof UpdateSubscriptionResponses];
-
-export type PauseSubscriptionData = {
-    body?: never;
-    path: {
-        id: string;
-    };
-    query?: never;
-    url: '/api/subscriptions/{id}/pause';
-};
-
-export type PauseSubscriptionErrors = {
-    /**
-     * Request failed
-     */
-    400: ApiError;
-    /**
-     * Request failed
-     */
-    401: ApiError;
-    /**
-     * Request failed
-     */
-    404: ApiError;
-    /**
-     * Request failed
-     */
-    409: ApiError;
-    /**
-     * Request failed
-     */
-    413: ApiError;
-    /**
-     * Request failed
-     */
-    415: ApiError;
-    /**
-     * Request failed
-     */
-    422: ApiError;
-    /**
-     * Request failed
-     */
-    500: ApiError;
-    /**
-     * Request failed
-     */
-    502: ApiError;
-};
-
-export type PauseSubscriptionError = PauseSubscriptionErrors[keyof PauseSubscriptionErrors];
-
-export type PauseSubscriptionResponses = {
-    /**
-     * Success
-     */
-    200: {
-        ok: boolean;
-    };
-};
-
-export type PauseSubscriptionResponse = PauseSubscriptionResponses[keyof PauseSubscriptionResponses];
-
-export type ResumeSubscriptionData = {
-    body?: never;
-    path: {
-        id: string;
-    };
-    query?: never;
-    url: '/api/subscriptions/{id}/resume';
-};
-
-export type ResumeSubscriptionErrors = {
-    /**
-     * Request failed
-     */
-    400: ApiError;
-    /**
-     * Request failed
-     */
-    401: ApiError;
-    /**
-     * Request failed
-     */
-    404: ApiError;
-    /**
-     * Request failed
-     */
-    409: ApiError;
-    /**
-     * Request failed
-     */
-    413: ApiError;
-    /**
-     * Request failed
-     */
-    415: ApiError;
-    /**
-     * Request failed
-     */
-    422: ApiError;
-    /**
-     * Request failed
-     */
-    500: ApiError;
-    /**
-     * Request failed
-     */
-    502: ApiError;
-};
-
-export type ResumeSubscriptionError = ResumeSubscriptionErrors[keyof ResumeSubscriptionErrors];
-
-export type ResumeSubscriptionResponses = {
-    /**
-     * Success
-     */
-    200: {
-        ok: boolean;
-    };
-};
-
-export type ResumeSubscriptionResponse = ResumeSubscriptionResponses[keyof ResumeSubscriptionResponses];
 
 export type ResyncSubscriptionData = {
     body?: never;
@@ -1532,6 +1538,10 @@ export type ResyncSubscriptionErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -1575,7 +1585,10 @@ export type ResyncSubscriptionResponse = ResyncSubscriptionResponses[keyof Resyn
 export type ListHoppersData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        offset?: number | null;
+        limit?: number;
+    };
     url: '/api/hoppers';
 };
 
@@ -1592,6 +1605,10 @@ export type ListHoppersErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -1624,7 +1641,12 @@ export type ListHoppersResponses = {
     /**
      * Success
      */
-    200: Array<HopperRow>;
+    200: {
+        items: Array<Hopper>;
+        total: number;
+        offset: number;
+        limit: number;
+    };
 };
 
 export type ListHoppersResponse = ListHoppersResponses[keyof ListHoppersResponses];
@@ -1651,6 +1673,10 @@ export type CreateHopperErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -1683,11 +1709,7 @@ export type CreateHopperResponses = {
     /**
      * Success
      */
-    201: {
-        id: string;
-        name: string;
-        slug: string | null;
-    };
+    201: Hopper;
 };
 
 export type CreateHopperResponse = CreateHopperResponses[keyof CreateHopperResponses];
@@ -1714,6 +1736,10 @@ export type DeleteHopperErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -1778,6 +1804,10 @@ export type GetHopperErrors = {
     /**
      * Request failed
      */
+    405: ApiError;
+    /**
+     * Request failed
+     */
     409: ApiError;
     /**
      * Request failed
@@ -1808,9 +1838,9 @@ export type GetHopperResponses = {
      * Success
      */
     200: {
-        hopper: HopperRow;
+        hopper: Hopper;
         memberships: Array<HopperItemRow>;
-        items: Array<ImportedItemRow>;
+        items: Array<ImportedItem>;
     };
 };
 
@@ -1844,6 +1874,10 @@ export type UpdateHopperErrors = {
     /**
      * Request failed
      */
+    405: ApiError;
+    /**
+     * Request failed
+     */
     409: ApiError;
     /**
      * Request failed
@@ -1873,11 +1907,7 @@ export type UpdateHopperResponses = {
     /**
      * Success
      */
-    200: {
-        ok: boolean;
-        slug: string | null;
-        slug_frozen: boolean;
-    };
+    200: Hopper;
 };
 
 export type UpdateHopperResponse = UpdateHopperResponses[keyof UpdateHopperResponses];
@@ -1906,6 +1936,10 @@ export type RemoveHopperItemErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -1972,6 +2006,10 @@ export type AddHopperItemErrors = {
     /**
      * Request failed
      */
+    405: ApiError;
+    /**
+     * Request failed
+     */
     409: ApiError;
     /**
      * Request failed
@@ -2031,6 +2069,10 @@ export type DeleteSignalErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -2098,6 +2140,10 @@ export type SetSignalErrors = {
     /**
      * Request failed
      */
+    405: ApiError;
+    /**
+     * Request failed
+     */
     409: ApiError;
     /**
      * Request failed
@@ -2134,136 +2180,7 @@ export type SetSignalResponses = {
 
 export type SetSignalResponse = SetSignalResponses[keyof SetSignalResponses];
 
-export type CreateStubData = {
-    body: {
-        subscription_id: string;
-        remote_id: string;
-        selection?: string;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/stubs';
-};
-
-export type CreateStubErrors = {
-    /**
-     * Request failed
-     */
-    400: ApiError;
-    /**
-     * Request failed
-     */
-    401: ApiError;
-    /**
-     * Request failed
-     */
-    404: ApiError;
-    /**
-     * Request failed
-     */
-    409: ApiError;
-    /**
-     * Request failed
-     */
-    413: ApiError;
-    /**
-     * Request failed
-     */
-    415: ApiError;
-    /**
-     * Request failed
-     */
-    422: ApiError;
-    /**
-     * Request failed
-     */
-    500: ApiError;
-    /**
-     * Request failed
-     */
-    502: ApiError;
-};
-
-export type CreateStubError = CreateStubErrors[keyof CreateStubErrors];
-
-export type CreateStubResponses = {
-    /**
-     * Success
-     */
-    201: {
-        id: string;
-    };
-};
-
-export type CreateStubResponse = CreateStubResponses[keyof CreateStubResponses];
-
-export type SetResponsesData = {
-    body: {
-        mode?: 'default' | 'show' | 'hide';
-        show?: boolean;
-    };
-    path: {
-        id: string;
-    };
-    query?: never;
-    url: '/api/items/{id}/responses';
-};
-
-export type SetResponsesErrors = {
-    /**
-     * Request failed
-     */
-    400: ApiError;
-    /**
-     * Request failed
-     */
-    401: ApiError;
-    /**
-     * Request failed
-     */
-    404: ApiError;
-    /**
-     * Request failed
-     */
-    409: ApiError;
-    /**
-     * Request failed
-     */
-    413: ApiError;
-    /**
-     * Request failed
-     */
-    415: ApiError;
-    /**
-     * Request failed
-     */
-    422: ApiError;
-    /**
-     * Request failed
-     */
-    500: ApiError;
-    /**
-     * Request failed
-     */
-    502: ApiError;
-};
-
-export type SetResponsesError = SetResponsesErrors[keyof SetResponsesErrors];
-
-export type SetResponsesResponses = {
-    /**
-     * Success
-     */
-    200: {
-        ok: boolean;
-        override: number | null;
-        showing: boolean;
-    };
-};
-
-export type SetResponsesResponse = SetResponsesResponses[keyof SetResponsesResponses];
-
-export type SetMentionHiddenData = {
+export type UpdateMentionData = {
     body: {
         hidden: boolean;
     };
@@ -2271,10 +2188,10 @@ export type SetMentionHiddenData = {
         id: string;
     };
     query?: never;
-    url: '/api/mentions/{id}/hidden';
+    url: '/api/mentions/{id}';
 };
 
-export type SetMentionHiddenErrors = {
+export type UpdateMentionErrors = {
     /**
      * Request failed
      */
@@ -2287,6 +2204,10 @@ export type SetMentionHiddenErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -2313,9 +2234,9 @@ export type SetMentionHiddenErrors = {
     502: ApiError;
 };
 
-export type SetMentionHiddenError = SetMentionHiddenErrors[keyof SetMentionHiddenErrors];
+export type UpdateMentionError = UpdateMentionErrors[keyof UpdateMentionErrors];
 
-export type SetMentionHiddenResponses = {
+export type UpdateMentionResponses = {
     /**
      * Success
      */
@@ -2325,12 +2246,15 @@ export type SetMentionHiddenResponses = {
     };
 };
 
-export type SetMentionHiddenResponse = SetMentionHiddenResponses[keyof SetMentionHiddenResponses];
+export type UpdateMentionResponse = UpdateMentionResponses[keyof UpdateMentionResponses];
 
 export type ListSignalsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        offset?: number | null;
+        limit?: number;
+    };
     url: '/api/signals';
 };
 
@@ -2347,6 +2271,10 @@ export type ListSignalsErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -2379,7 +2307,12 @@ export type ListSignalsResponses = {
     /**
      * Success
      */
-    200: Array<SignalRow>;
+    200: {
+        items: Array<SignalRow>;
+        total: number;
+        offset: number;
+        limit: number;
+    };
 };
 
 export type ListSignalsResponse = ListSignalsResponses[keyof ListSignalsResponses];
@@ -2387,7 +2320,11 @@ export type ListSignalsResponse = ListSignalsResponses[keyof ListSignalsResponse
 export type ListMentionsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        offset?: number | null;
+        limit?: number;
+        direction?: 'inbound' | 'outbound';
+    };
     url: '/api/mentions';
 };
 
@@ -2404,6 +2341,10 @@ export type ListMentionsErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -2437,8 +2378,11 @@ export type ListMentionsResponses = {
      * Success
      */
     200: {
-        inbound: Array<MentionInRow>;
-        outbound: Array<MentionOutRow>;
+        items: Array<Mention | MentionOutRow>;
+        total: number;
+        offset: number;
+        limit: number;
+        direction: 'inbound' | 'outbound';
     };
 };
 
@@ -2468,6 +2412,10 @@ export type PreviewErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -2521,7 +2469,7 @@ export type PreviewResponses = {
             reason?: string;
             [key: string]: unknown;
         }>;
-        transclusions?: Array<unknown>;
+        transclusions?: Array<Transclusion>;
     };
 };
 
@@ -2532,6 +2480,7 @@ export type SearchData = {
     path?: never;
     query?: {
         offset?: number | null;
+        limit?: number;
         q?: string;
     };
     url: '/api/search';
@@ -2550,6 +2499,10 @@ export type SearchErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -2583,7 +2536,7 @@ export type SearchResponses = {
      * Success
      */
     200: {
-        results: Array<{
+        items: Array<{
             id: string;
             excerpt: string;
             version: number;
@@ -2602,7 +2555,7 @@ export type GetVersionData = {
     body?: never;
     path: {
         id: string;
-        v: string;
+        v: number;
     };
     query?: never;
     url: '/api/items/{id}/versions/{v}';
@@ -2621,6 +2574,10 @@ export type GetVersionErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -2653,13 +2610,7 @@ export type GetVersionResponses = {
     /**
      * Success
      */
-    200: {
-        version: number;
-        published_at: string;
-        note: string | null;
-        pinned: boolean;
-        content_html: string;
-    };
+    200: Version;
 };
 
 export type GetVersionResponse = GetVersionResponses[keyof GetVersionResponses];
@@ -2668,7 +2619,8 @@ export type ListReadingData = {
     body?: never;
     path?: never;
     query?: {
-        page?: number;
+        offset?: number | null;
+        limit?: number;
         sub?: string;
     };
     url: '/api/reading';
@@ -2687,6 +2639,10 @@ export type ListReadingErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -2720,7 +2676,7 @@ export type ListReadingResponses = {
      * Success
      */
     200: {
-        entries: Array<ReadingEntry>;
+        items: Array<ReadingEntry>;
         counts: {
             all: number;
             own: number;
@@ -2729,8 +2685,7 @@ export type ListReadingResponses = {
             };
         };
         total: number;
-        page: number;
-        pages: number;
+        offset: number;
         limit: number;
         selected: string;
     };
@@ -2764,6 +2719,10 @@ export type GetImportedItemErrors = {
     /**
      * Request failed
      */
+    405: ApiError;
+    /**
+     * Request failed
+     */
     409: ApiError;
     /**
      * Request failed
@@ -2793,7 +2752,7 @@ export type GetImportedItemResponses = {
     /**
      * Success
      */
-    200: ImportedItemRow;
+    200: ImportedItem;
 };
 
 export type GetImportedItemResponse = GetImportedItemResponses[keyof GetImportedItemResponses];
@@ -2818,6 +2777,10 @@ export type GetUpdateStateErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */
@@ -2882,6 +2845,10 @@ export type GetMentionSourceErrors = {
     /**
      * Request failed
      */
+    405: ApiError;
+    /**
+     * Request failed
+     */
     409: ApiError;
     /**
      * Request failed
@@ -2913,7 +2880,7 @@ export type GetMentionSourceResponses = {
      */
     200: {
         holder: string | null;
-        subscription: SubscriptionRow & unknown;
+        subscription: Subscription | null;
     };
 };
 
@@ -2943,6 +2910,10 @@ export type GetForkOptionsErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
     /**
      * Request failed
      */

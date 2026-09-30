@@ -121,7 +121,7 @@ describe("endpoint discovery (§2.3.4)", () => {
 describe("sending (§2.3.3)", () => {
   it("enqueues one mention per remote reference on publish, and delivers source + target", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const remoteId = newId();
     await importFrom(THEIRS, { id: remoteId, kind: "fragment", version: 2, content_md: "their post", page: `f/${remoteId}/` });
 
@@ -154,7 +154,7 @@ describe("sending (§2.3.3)", () => {
 
   it("a republish re-sends only when the target's version changed (§15.2)", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const remoteId = newId();
     await importFrom(THEIRS, { id: remoteId, kind: "fragment", version: 2, content_md: "their post", page: `f/${remoteId}/` });
     const thread = (await apiJson(cookie, "POST", "/api/items", { kind: "thread", content_md: `![[${remoteId}]]\n\nMine.` })).json.id as string;
@@ -174,7 +174,7 @@ describe("sending (§2.3.3)", () => {
     // Republish with the reference untouched: an edit to our own prose. Until
     // migration 0011 this reset the row to `pending` and re-notified an origin
     // that had nothing new to hear.
-    await apiJson(cookie, "PUT", `/api/items/${thread}`, { content_md: `![[${remoteId}]]\n\nMine, with a typo fixed.` });
+    await apiJson(cookie, "PATCH", `/api/items/${thread}`, { content_md: `![[${remoteId}]]\n\nMine, with a typo fixed.` });
     expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
     expect((await row()).status).toBe("sent");
     // Our own version moved; the target's did not, and the target's is the test.
@@ -201,7 +201,7 @@ describe("sending (§2.3.3)", () => {
 
   it("withdrawal re-sends although nothing about the target changed (§15.7)", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const remoteId = newId();
     await importFrom(THEIRS, { id: remoteId, kind: "fragment", version: 2, content_md: "their post", page: `f/${remoteId}/` });
     const stub = (await apiJson(cookie, "POST", "/api/items", {
@@ -223,7 +223,7 @@ describe("sending (§2.3.3)", () => {
 
   it("a {url} stub is sent once and never re-sent — a web page has no version", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const url = "https://example.org/some/essay";
     const stub = (await apiJson(cookie, "POST", "/api/items", { kind: "thread", content_md: "Answering this.", stub_of: { url } })).json.id as string;
     await apiJson(cookie, "POST", `/api/items/${stub}/publish`, {});
@@ -236,14 +236,14 @@ describe("sending (§2.3.3)", () => {
     // Two null target versions must read as unchanged, which is why the
     // comparison is `IS NOT` and not `<>` — under `<>` this would re-send on
     // every republish forever.
-    await apiJson(cookie, "PUT", `/api/items/${stub}`, { content_md: "Answering this, at more length." });
+    await apiJson(cookie, "PATCH", `/api/items/${stub}`, { content_md: "Answering this, at more length." });
     await apiJson(cookie, "POST", `/api/items/${stub}/publish`, {});
     expect((await row()).status).toBe("sent");
   });
 
   it("never sends for an own-origin reference", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const mine = await createAndPublish(cookie, "my own fragment");
     const stub = await apiJson(cookie, "POST", "/api/items", {
       kind: "thread",
@@ -256,7 +256,7 @@ describe("sending (§2.3.3)", () => {
 
   it("records no_endpoint without retrying, and backs off on a 5xx", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const silent = newId();
     await importFrom("https://static.example/", { id: silent, kind: "fragment", version: 1, content_md: "static blyg" }, "Static");
     const a = await apiJson(cookie, "POST", "/api/items", {
@@ -299,7 +299,7 @@ describe("sending (§2.3.3)", () => {
 describe("receiving and structural verification (§2.3.5)", () => {
   async function ourItem(): Promise<{ id: string; target: string; cookie: string }> {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const id = await createAndPublish(cookie, "a fragment worth responding to");
     return { id, target: `${OURS}f/${id}/`, cookie };
   }
@@ -491,7 +491,7 @@ describe("receiving and structural verification (§2.3.5)", () => {
 
   it("accepts a mention that targets a withdrawn item — people may respond to a withdrawal", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const id = await createAndPublish(cookie, "soon withdrawn");
     await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, {});
     const res = await receiveMention(env.DB, { source: `${THEIRS}t/x/`, target: `${OURS}f/${id}/` }, OURS);
@@ -631,7 +631,7 @@ describe("the endpoint route (§2.3.1)", () => {
 describe("detect stubs — /studio/mentions (§3.3)", () => {
   it("groups verified mentions by target, badges the relation, and offers stub-back only when we hold their item", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const mine = await createAndPublish(cookie, "something people respond to");
 
     // Someone we subscribe to and have imported: stub-back is possible.
@@ -686,11 +686,11 @@ describe("detect stubs — /studio/mentions (§3.3)", () => {
 
   it("shows the outbound queue, and warns when no site URL is set", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: "" });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: "" });
     const html = await (await SELF.fetch(`${BASE}${STUDIO}/mentions`, { headers: { cookie } })).text();
     expect(html).toContain("No <strong>site URL</strong> is set");
 
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const remoteId = newId();
     await importFrom(THEIRS, { id: remoteId, kind: "fragment", version: 1, content_md: "theirs" });
     const stub = await apiJson(cookie, "POST", "/api/items", {
@@ -710,7 +710,7 @@ describe("detect stubs — /studio/mentions (§3.3)", () => {
 describe("the stub stack (§4.3)", () => {
   it("A's fragment → B's stub → A's stub of the stub, nested two deep and verified", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
 
     // A (us) publishes F.
     const f = await createAndPublish(cookie, "the original claim");
@@ -738,7 +738,7 @@ describe("the stub stack (§4.3)", () => {
     expect((await verifyMention(env.DB, inbound.id, `${THEIRS}t/${s1}/`, f, OURS, net.fetch)).relation).toBe("stub");
 
     // A stubs the stub back, from the studio's own gesture.
-    const created = await apiJson(cookie, "POST", "/api/stubs", { subscription_id: subId, remote_id: s1 });
+    const created = await apiJson(cookie, "POST", "/api/items", { mode: "response", source: { subscription_id: subId, remote_id: s1 } });
     expect(created.status).toBe(201);
     const s2 = created.json.id as string;
     expect((await apiJson(cookie, "POST", `/api/items/${s2}/publish`, {})).status).toBe(200);
@@ -795,13 +795,13 @@ describe("registrableDomain — the rate-limit grouping heuristic (§9.1 gap 1)"
 // option no caller ever passed.
 describe("declining to receive mentions (§15 is optional)", () => {
   async function setAccept(cookie: string, accept: boolean) {
-    const res = await apiJson(cookie, "PUT", "/api/settings", { accept_mentions: accept });
+    const res = await apiJson(cookie, "PATCH", "/api/settings", { accept_mentions: accept });
     expect(res.status).toBe(200);
   }
 
   it("withdraws the endpoint from the manifest, the pages and the network", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const id = await createAndPublish(cookie, "an item someone might respond to");
     const target = `${OURS}f/${id}/`;
 
@@ -844,7 +844,7 @@ describe("declining to receive mentions (§15 is optional)", () => {
 
   it("still sends mentions — the two halves are independent", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     await setAccept(cookie, false);
 
     const remoteId = newId();
@@ -863,11 +863,11 @@ describe("declining to receive mentions (§15 is optional)", () => {
 
   it("refuses a value that is neither true nor false, rather than reading it as on", async () => {
     const cookie = await login();
-    const res = await apiJson(cookie, "PUT", "/api/settings", { accept_mentions: "no" });
+    const res = await apiJson(cookie, "PATCH", "/api/settings", { accept_mentions: "no" });
     expect(res.status).toBe(400);
     // `getSettings` treats anything but "off" as on, so a typo that was stored
     // would silently re-open the endpoint the operator meant to close.
-    expect((await apiJson(cookie, "PUT", "/api/settings", { accept_mentions: "off" })).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", "/api/settings", { accept_mentions: false })).status).toBe(200);
     const manifest = await (await getPublic("/blyg/blyg.json")).json<{ webmention?: string }>();
     expect(manifest.webmention).toBeUndefined();
   });

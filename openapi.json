@@ -1,5 +1,5 @@
 {
-  "openapi": "3.0.3",
+  "openapi": "3.1.0",
   "info": {
     "title": "Blygger Studio API",
     "version": "1.0.0",
@@ -19,33 +19,7 @@
       }
     },
     "schemas": {
-      "ApiError": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string"
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "nullable": true
-            }
-          },
-          "tried": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "error"
-        ],
-        "additionalProperties": {
-          "nullable": true
-        }
-      },
-      "ItemRow": {
+      "Item": {
         "type": "object",
         "properties": {
           "id": {
@@ -80,30 +54,74 @@
             "type": "string"
           },
           "dirty": {
-            "type": "number"
+            "type": "boolean"
           },
-          "tk_provenance_json": {
+          "responses": {
             "type": "string",
-            "nullable": true
+            "enum": [
+              "default",
+              "show",
+              "hide"
+            ]
           },
-          "show_responses": {
-            "type": "number"
-          },
-          "responses_override": {
-            "type": "number",
-            "nullable": true
+          "provenance": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/GenerationProvenance"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           },
           "stub_of": {
-            "type": "string",
-            "nullable": true
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionReference"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "cited": {
+                    "$ref": "#/components/schemas/Citation"
+                  }
+                },
+                "required": [
+                  "url"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "forked_from": {
-            "type": "string",
-            "nullable": true
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "fork_cite": {
-            "type": "string",
-            "nullable": true
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Citation"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -115,111 +133,163 @@
           "version",
           "content_md",
           "dirty",
-          "tk_provenance_json",
-          "show_responses",
-          "responses_override",
+          "responses",
+          "provenance",
           "stub_of",
           "forked_from",
           "fork_cite"
         ]
       },
-      "MediaRow": {
+      "GenerationProvenance": {
         "type": "object",
         "properties": {
-          "id": {
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "id",
+                "version"
+              ]
+            }
+          },
+          "model": {
             "type": "string"
           },
-          "item_id": {
-            "type": "string",
-            "nullable": true
-          },
-          "r2_key": {
-            "type": "string"
-          },
-          "mime": {
-            "type": "string"
-          },
-          "alt": {
-            "type": "string",
-            "nullable": true
-          },
-          "created": {
+          "at": {
             "type": "string"
           }
         },
         "required": [
-          "id",
-          "item_id",
-          "r2_key",
-          "mime",
-          "alt",
-          "created"
+          "sources"
         ]
       },
-      "VersionRow": {
+      "VersionReference": {
         "type": "object",
         "properties": {
-          "item_id": {
-            "type": "string"
+          "origin": {
+            "type": "string",
+            "format": "uri"
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1
           },
           "version": {
-            "type": "number"
+            "type": "integer",
+            "exclusiveMinimum": 0
           },
-          "content_md": {
-            "type": "string"
-          },
-          "content_html": {
-            "type": "string"
-          },
-          "content_hash": {
-            "type": "string"
-          },
-          "published_at": {
-            "type": "string"
-          },
-          "note": {
-            "type": "string",
-            "nullable": true
-          },
-          "transclusions": {
-            "type": "string",
-            "nullable": true
-          },
-          "pinned": {
-            "type": "number"
-          },
-          "pinned_at": {
-            "type": "string",
-            "nullable": true
-          },
-          "generated_json": {
-            "type": "string",
-            "nullable": true
-          },
-          "stub_of": {
-            "type": "string",
-            "nullable": true
-          },
-          "stub_cite": {
-            "type": "string",
-            "nullable": true
+          "cited": {
+            "$ref": "#/components/schemas/Citation"
           }
         },
         "required": [
-          "item_id",
-          "version",
-          "content_md",
-          "content_html",
-          "content_hash",
-          "published_at",
-          "note",
-          "transclusions",
-          "pinned",
-          "pinned_at",
-          "generated_json",
-          "stub_of",
-          "stub_cite"
+          "origin",
+          "id",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "Citation": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "retrieved": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "url",
+          "retrieved"
         ]
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "reason": {
+                  "type": "string"
+                },
+                "at": {
+                  "type": "number"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "directive": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": {}
+            }
+          },
+          "tried": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ]
+                  }
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": {}
       },
       "Settings": {
         "type": "object",
@@ -303,7 +373,7 @@
           "update_notice_ack"
         ]
       },
-      "SubscriptionRow": {
+      "Subscription": {
         "type": "object",
         "properties": {
           "id": {
@@ -333,37 +403,47 @@
               "degraded"
             ]
           },
-          "etag": {
-            "type": "string",
-            "nullable": true
-          },
-          "last_modified": {
-            "type": "string",
-            "nullable": true
-          },
           "last_poll_at": {
-            "type": "string",
-            "nullable": true
-          },
-          "newest_guid": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "fail_count": {
             "type": "number"
           },
           "last_index_sync_at": {
-            "type": "string",
-            "nullable": true
-          },
-          "in_blogroll": {
-            "type": "number"
-          },
-          "flags": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "created": {
             "type": "string"
+          },
+          "in_blogroll": {
+            "type": "boolean"
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "at": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "at"
+              ]
+            }
           }
         },
         "required": [
@@ -373,18 +453,15 @@
           "feed_url",
           "title",
           "status",
-          "etag",
-          "last_modified",
           "last_poll_at",
-          "newest_guid",
           "fail_count",
           "last_index_sync_at",
+          "created",
           "in_blogroll",
-          "flags",
-          "created"
+          "flags"
         ]
       },
-      "HopperRow": {
+      "Hopper": {
         "type": "object",
         "properties": {
           "id": {
@@ -394,17 +471,19 @@
             "type": "string"
           },
           "slug": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "public": {
-            "type": "number"
+            "type": "boolean"
           },
           "created": {
             "type": "string"
           },
           "slug_frozen": {
-            "type": "number"
+            "type": "boolean"
           }
         },
         "required": [
@@ -414,6 +493,183 @@
           "public",
           "created",
           "slug_frozen"
+        ]
+      },
+      "Media": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "item_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mime": {
+            "type": "string"
+          },
+          "alt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "item_id",
+          "mime",
+          "alt",
+          "created",
+          "url"
+        ]
+      },
+      "Version": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "number"
+          },
+          "content_md": {
+            "type": "string"
+          },
+          "content_html": {
+            "type": "string"
+          },
+          "content_hash": {
+            "type": "string"
+          },
+          "published_at": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pinned_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "transclusions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Transclusion"
+            }
+          },
+          "generated": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GenerationProvenance"
+            }
+          },
+          "stub_of": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionReference"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "cited": {
+                    "$ref": "#/components/schemas/Citation"
+                  }
+                },
+                "required": [
+                  "url"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stub_cite": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Citation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "item_id",
+          "version",
+          "content_md",
+          "content_html",
+          "content_hash",
+          "published_at",
+          "note",
+          "pinned_at",
+          "pinned",
+          "transclusions",
+          "generated",
+          "stub_of",
+          "stub_cite"
+        ]
+      },
+      "Transclusion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "origin": {
+            "type": "string"
+          },
+          "cited": {
+            "$ref": "#/components/schemas/Citation"
+          },
+          "selector": {
+            "type": "object",
+            "properties": {
+              "exact": {
+                "type": "string"
+              },
+              "prefix": {
+                "type": "string"
+              },
+              "suffix": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "exact"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version"
         ]
       },
       "HopperItemRow": {
@@ -439,7 +695,7 @@
           "added_at"
         ]
       },
-      "ImportedItemRow": {
+      "ImportedItem": {
         "type": "object",
         "properties": {
           "subscription_id": {
@@ -466,12 +722,16 @@
             "type": "number"
           },
           "created": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "updated": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "observed_at": {
             "type": "string"
@@ -483,31 +743,43 @@
             "type": "string"
           },
           "content_hash": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "author_json": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "media_json": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "transclusions_json": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "l0": {
-            "type": "number"
+            "type": "boolean"
           },
           "pinned_version_retained": {
-            "type": "number",
-            "nullable": true
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "page": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -566,7 +838,7 @@
           "at"
         ]
       },
-      "MentionInRow": {
+      "Mention": {
         "type": "object",
         "properties": {
           "id": {
@@ -591,8 +863,10 @@
             ]
           },
           "relation": {
-            "type": "string",
-            "nullable": true,
+            "type": [
+              "string",
+              "null"
+            ],
             "enum": [
               "stub",
               "transclusion",
@@ -601,28 +875,40 @@
             ]
           },
           "source_origin": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "source_id": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "source_kind": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "source_version": {
-            "type": "number",
-            "nullable": true
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "source_author_json": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "source_page": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "first_seen": {
             "type": "string"
@@ -631,18 +917,22 @@
             "type": "string"
           },
           "verified_at": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "attempts": {
             "type": "number"
           },
           "error": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "hidden": {
-            "type": "number"
+            "type": "boolean"
           }
         },
         "required": [
@@ -679,15 +969,19 @@
             "type": "number"
           },
           "target_version": {
-            "type": "number",
-            "nullable": true
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "target": {
             "type": "string"
           },
           "endpoint": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "status": {
             "type": "string",
@@ -702,12 +996,16 @@
             "type": "number"
           },
           "next_attempt_at": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "last_error": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "created": {
             "type": "string"
@@ -816,8 +1114,10 @@
                 "type": "boolean"
               },
               "updated": {
-                "type": "string",
-                "nullable": true
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "observedAt": {
                 "type": "string"
@@ -826,12 +1126,16 @@
                 "type": "string"
               },
               "pinnedVersionRetained": {
-                "type": "number",
-                "nullable": true
+                "type": [
+                  "number",
+                  "null"
+                ]
               },
               "sourceUrl": {
-                "type": "string",
-                "nullable": true
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "required": [
@@ -866,6 +1170,10 @@
     "/api/items": {
       "post": {
         "operationId": "createItem",
+        "middleware": [
+          null,
+          null
+        ],
         "tags": [
           "studio"
         ],
@@ -879,54 +1187,112 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "content_md": {
-                    "type": "string"
-                  },
-                  "kind": {
-                    "type": "string"
-                  },
-                  "stub_of": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "origin": {
-                            "type": "string"
-                          },
-                          "id": {
-                            "type": "string"
-                          },
-                          "version": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "exclusiveMinimum": true
-                          }
-                        },
-                        "required": [
-                          "origin",
-                          "id",
-                          "version"
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "content_md": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "fragment",
+                          "thread"
                         ]
                       },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "url": {
-                            "type": "string"
+                      "stub_of": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/VersionReference"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "url": {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              "cited": {
+                                "$ref": "#/components/schemas/Citation"
+                              }
+                            },
+                            "required": [
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
                           }
-                        },
-                        "required": [
-                          "url"
                         ]
                       },
-                      {
-                        "nullable": true
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "blank"
+                        ]
                       }
-                    ]
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "fork"
+                        ]
+                      },
+                      "source": {
+                        "$ref": "#/components/schemas/VersionReference"
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "source"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "response"
+                        ]
+                      },
+                      "source": {
+                        "type": "object",
+                        "properties": {
+                          "subscription_id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "remote_id": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "subscription_id",
+                          "remote_id"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "selection": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "source"
+                    ],
+                    "additionalProperties": false
                   }
-                }
+                ]
               }
             }
           }
@@ -937,30 +1303,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "kind": {
-                      "type": "string",
-                      "enum": [
-                        "fragment",
-                        "thread"
-                      ]
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "draft"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "kind",
-                    "status"
-                  ]
+                  "$ref": "#/components/schemas/Item"
                 }
               }
             }
@@ -986,6 +1329,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -1070,8 +1423,10 @@
         "parameters": [
           {
             "schema": {
-              "type": "integer",
-              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ],
               "minimum": 0
             },
             "required": false,
@@ -1100,7 +1455,7 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/ItemRow"
+                        "$ref": "#/components/schemas/Item"
                       }
                     },
                     "total": {
@@ -1153,163 +1508,7 @@
               }
             }
           },
-          "409": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/fork": {
-      "post": {
-        "operationId": "forkItem",
-        "tags": [
-          "studio"
-        ],
-        "security": [
-          {
-            "ownerSession": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "origin": {
-                    "type": "string"
-                  },
-                  "id": {
-                    "type": "string"
-                  },
-                  "version": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
-                  }
-                },
-                "required": [
-                  "origin",
-                  "id",
-                  "version"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "kind": {
-                      "type": "string",
-                      "enum": [
-                        "fragment",
-                        "thread"
-                      ]
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "draft"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "kind",
-                    "status"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "404": {
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -1383,7 +1582,7 @@
       }
     },
     "/api/items/{id}": {
-      "put": {
+      "patch": {
         "operationId": "updateItem",
         "tags": [
           "studio"
@@ -1396,7 +1595,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -1414,48 +1614,48 @@
                     "type": "string"
                   },
                   "kind": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                      "fragment",
+                      "thread"
+                    ]
                   },
                   "stub_of": {
                     "anyOf": [
                       {
-                        "type": "object",
-                        "properties": {
-                          "origin": {
-                            "type": "string"
-                          },
-                          "id": {
-                            "type": "string"
-                          },
-                          "version": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "exclusiveMinimum": true
-                          }
-                        },
-                        "required": [
-                          "origin",
-                          "id",
-                          "version"
-                        ]
+                        "$ref": "#/components/schemas/VersionReference"
                       },
                       {
                         "type": "object",
                         "properties": {
                           "url": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "cited": {
+                            "$ref": "#/components/schemas/Citation"
                           }
                         },
                         "required": [
                           "url"
-                        ]
+                        ],
+                        "additionalProperties": false
                       },
                       {
-                        "nullable": true
+                        "type": "null"
                       }
                     ]
+                  },
+                  "responses": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "show",
+                      "hide"
+                    ]
                   }
-                }
+                },
+                "additionalProperties": false
               }
             }
           }
@@ -1466,18 +1666,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean"
-                    },
-                    "kind": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "ok"
-                  ]
+                  "$ref": "#/components/schemas/Item"
                 }
               }
             }
@@ -1503,6 +1692,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -1587,7 +1786,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -1641,6 +1841,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -1725,7 +1935,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -1740,10 +1951,108 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "item": {
-                      "$ref": "#/components/schemas/ItemRow"
+                    "id": {
+                      "type": "string"
                     },
                     "kind": {
+                      "type": "string",
+                      "enum": [
+                        "fragment",
+                        "thread",
+                        "withdrawn"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "public",
+                        "withdrawn"
+                      ]
+                    },
+                    "created": {
+                      "type": "string"
+                    },
+                    "updated": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "number"
+                    },
+                    "content_md": {
+                      "type": "string"
+                    },
+                    "dirty": {
+                      "type": "boolean"
+                    },
+                    "responses": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "show",
+                        "hide"
+                      ]
+                    },
+                    "provenance": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/GenerationProvenance"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "stub_of": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/VersionReference"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "url": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "cited": {
+                              "$ref": "#/components/schemas/Citation"
+                            }
+                          },
+                          "required": [
+                            "url"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "forked_from": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/VersionReference"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "fork_cite": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/Citation"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "authored_kind": {
                       "type": "string",
                       "enum": [
                         "fragment",
@@ -1753,29 +2062,41 @@
                     "media": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/MediaRow"
+                        "$ref": "#/components/schemas/Media"
                       }
                     },
                     "versions": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/VersionRow"
+                        "$ref": "#/components/schemas/Version"
                       }
                     },
                     "published": {
-                      "allOf": [
+                      "anyOf": [
                         {
-                          "$ref": "#/components/schemas/VersionRow"
+                          "$ref": "#/components/schemas/Version"
                         },
                         {
-                          "nullable": true
+                          "type": "null"
                         }
                       ]
                     }
                   },
                   "required": [
-                    "item",
+                    "id",
                     "kind",
+                    "status",
+                    "created",
+                    "updated",
+                    "version",
+                    "content_md",
+                    "dirty",
+                    "responses",
+                    "provenance",
+                    "stub_of",
+                    "forked_from",
+                    "fork_cite",
+                    "authored_kind",
                     "media",
                     "versions",
                     "published"
@@ -1805,6 +2126,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -1880,6 +2211,10 @@
     "/api/items/{id}/publish": {
       "post": {
         "operationId": "publishItem",
+        "middleware": [
+          null,
+          null
+        ],
         "tags": [
           "studio"
         ],
@@ -1891,7 +2226,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -1908,7 +2244,8 @@
                   "note": {
                     "type": "string"
                   }
-                }
+                },
+                "additionalProperties": false
               }
             }
           }
@@ -1960,6 +2297,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -2046,7 +2393,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -2067,7 +2415,8 @@
                 },
                 "required": [
                   "scope"
-                ]
+                ],
+                "additionalProperties": false
               }
             }
           }
@@ -2116,6 +2465,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -2191,6 +2550,10 @@
     "/api/items/{id}/withdraw": {
       "post": {
         "operationId": "withdrawItem",
+        "middleware": [
+          null,
+          null
+        ],
         "tags": [
           "studio"
         ],
@@ -2202,7 +2565,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -2219,7 +2583,8 @@
                   "note": {
                     "type": "string"
                   }
-                }
+                },
+                "additionalProperties": false
               }
             }
           }
@@ -2268,6 +2633,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -2340,8 +2715,8 @@
         }
       }
     },
-    "/api/items/{id}/pin": {
-      "post": {
+    "/api/items/{id}/versions/{version}/pin": {
+      "put": {
         "operationId": "pinItem",
         "tags": [
           "studio"
@@ -2354,33 +2729,23 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "required": true,
+            "name": "version",
+            "in": "path"
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "version": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
-                  }
-                },
-                "required": [
-                  "version"
-                ]
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Success",
@@ -2429,6 +2794,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -2515,7 +2890,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -2531,13 +2907,13 @@
                 "properties": {
                   "version": {
                     "type": "integer",
-                    "minimum": 0,
-                    "exclusiveMinimum": true
+                    "exclusiveMinimum": 0
                   }
                 },
                 "required": [
                   "version"
-                ]
+                ],
+                "additionalProperties": false
               }
             }
           }
@@ -2590,6 +2966,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -2755,6 +3141,16 @@
               }
             }
           },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "409": {
             "description": "Request failed",
             "content": {
@@ -2819,7 +3215,7 @@
       }
     },
     "/api/settings": {
-      "put": {
+      "patch": {
         "operationId": "updateSettings",
         "tags": [
           "studio"
@@ -2882,65 +3278,22 @@
                     "type": "string"
                   },
                   "accept_mentions": {
-                    "anyOf": [
-                      {
-                        "type": "boolean"
-                      },
-                      {
-                        "type": "string",
-                        "enum": [
-                          "on",
-                          "off"
-                        ]
-                      }
-                    ]
+                    "type": "boolean"
                   },
                   "update_check": {
-                    "anyOf": [
-                      {
-                        "type": "boolean"
-                      },
-                      {
-                        "type": "string",
-                        "enum": [
-                          "on",
-                          "off"
-                        ]
-                      }
-                    ]
+                    "type": "boolean"
                   },
                   "show_responses_default": {
-                    "anyOf": [
-                      {
-                        "type": "boolean"
-                      },
-                      {
-                        "type": "string",
-                        "enum": [
-                          "on",
-                          "off"
-                        ]
-                      }
-                    ]
+                    "type": "boolean"
                   },
                   "update_feed_url": {
                     "type": "string"
                   },
                   "update_notice_ack": {
-                    "anyOf": [
-                      {
-                        "type": "boolean"
-                      },
-                      {
-                        "type": "string",
-                        "enum": [
-                          "on",
-                          "off"
-                        ]
-                      }
-                    ]
+                    "type": "boolean"
                   }
-                }
+                },
+                "additionalProperties": false
               }
             }
           }
@@ -2951,15 +3304,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "ok"
-                  ]
+                  "$ref": "#/components/schemas/Settings"
                 }
               }
             }
@@ -2985,6 +3330,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -3107,6 +3462,16 @@
               }
             }
           },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "409": {
             "description": "Request failed",
             "content": {
@@ -3200,7 +3565,8 @@
                 },
                 "required": [
                   "url"
-                ]
+                ],
+                "additionalProperties": false
               }
             }
           }
@@ -3211,91 +3577,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "needsConfirm": {
-                          "type": "boolean",
-                          "enum": [
-                            true
-                          ]
-                        },
-                        "kind": {
-                          "type": "string",
-                          "enum": [
-                            "blyg",
-                            "rss"
-                          ]
-                        },
-                        "origin": {
-                          "type": "string"
-                        },
-                        "feedUrl": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        },
-                        "siteMismatch": {
-                          "type": "object",
-                          "properties": {
-                            "asserted": {
-                              "type": "string"
-                            },
-                            "actual": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "asserted",
-                            "actual"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "needsConfirm",
-                        "kind",
-                        "title"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "kind": {
-                          "type": "string",
-                          "enum": [
-                            "blyg",
-                            "rss"
-                          ]
-                        },
-                        "origin": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "kind",
-                        "origin"
-                      ]
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "201": {
-            "description": "Subscribed",
-            "content": {
-              "application/json": {
-                "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {
-                      "type": "string"
+                    "needsConfirm": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
                     },
                     "kind": {
                       "type": "string",
@@ -3306,13 +3594,44 @@
                     },
                     "origin": {
                       "type": "string"
+                    },
+                    "feedUrl": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "siteMismatch": {
+                      "type": "object",
+                      "properties": {
+                        "asserted": {
+                          "type": "string"
+                        },
+                        "actual": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "asserted",
+                        "actual"
+                      ]
                     }
                   },
                   "required": [
-                    "id",
+                    "needsConfirm",
                     "kind",
-                    "origin"
+                    "title"
                   ]
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Subscribed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
                 }
               }
             }
@@ -3338,6 +3657,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -3419,16 +3748,63 @@
             "ownerSession": []
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SubscriptionRow"
-                  }
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Subscription"
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "offset": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "offset",
+                    "limit"
+                  ]
                 }
               }
             }
@@ -3454,6 +3830,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -3527,7 +3913,7 @@
       }
     },
     "/api/subscriptions/{id}": {
-      "put": {
+      "patch": {
         "operationId": "updateSubscription",
         "tags": [
           "studio"
@@ -3540,7 +3926,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -3558,9 +3945,14 @@
                     "type": "boolean"
                   },
                   "title": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "paused": {
+                    "type": "boolean"
                   }
-                }
+                },
+                "additionalProperties": false
               }
             }
           }
@@ -3571,15 +3963,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "ok"
-                  ]
+                  "$ref": "#/components/schemas/Subscription"
                 }
               }
             }
@@ -3605,6 +3989,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -3689,7 +4083,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -3736,6 +4131,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -3806,11 +4211,9 @@
             }
           }
         }
-      }
-    },
-    "/api/subscriptions/{id}/pause": {
-      "post": {
-        "operationId": "pauseSubscription",
+      },
+      "get": {
+        "operationId": "getSubscription",
         "tags": [
           "studio"
         ],
@@ -3822,7 +4225,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -3835,15 +4239,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "ok"
-                  ]
+                  "$ref": "#/components/schemas/Subscription"
                 }
               }
             }
@@ -3878,130 +4274,7 @@
               }
             }
           },
-          "409": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/subscriptions/{id}/resume": {
-      "post": {
-        "operationId": "resumeSubscription",
-        "tags": [
-          "studio"
-        ],
-        "security": [
-          {
-            "ownerSession": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "ok"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "404": {
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -4088,7 +4361,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -4139,6 +4413,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -4235,7 +4519,8 @@
                 },
                 "required": [
                   "name"
-                ]
+                ],
+                "additionalProperties": false
               }
             }
           }
@@ -4246,24 +4531,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "slug": {
-                      "type": "string",
-                      "nullable": true
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "name",
-                    "slug"
-                  ]
+                  "$ref": "#/components/schemas/Hopper"
                 }
               }
             }
@@ -4289,6 +4557,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -4370,16 +4648,63 @@
             "ownerSession": []
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/HopperRow"
-                  }
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Hopper"
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "offset": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "offset",
+                    "limit"
+                  ]
                 }
               }
             }
@@ -4405,6 +4730,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -4478,7 +4813,7 @@
       }
     },
     "/api/hoppers/{id}": {
-      "put": {
+      "patch": {
         "operationId": "updateHopper",
         "tags": [
           "studio"
@@ -4491,7 +4826,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -4506,12 +4842,14 @@
                 "type": "object",
                 "properties": {
                   "name": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                   },
                   "public": {
                     "type": "boolean"
                   }
-                }
+                },
+                "additionalProperties": false
               }
             }
           }
@@ -4522,24 +4860,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean"
-                    },
-                    "slug": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "slug_frozen": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "ok",
-                    "slug",
-                    "slug_frozen"
-                  ]
+                  "$ref": "#/components/schemas/Hopper"
                 }
               }
             }
@@ -4565,6 +4886,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -4649,7 +4980,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -4696,6 +5028,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -4780,7 +5122,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -4796,7 +5139,7 @@
                   "type": "object",
                   "properties": {
                     "hopper": {
-                      "$ref": "#/components/schemas/HopperRow"
+                      "$ref": "#/components/schemas/Hopper"
                     },
                     "memberships": {
                       "type": "array",
@@ -4807,7 +5150,7 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/ImportedItemRow"
+                        "$ref": "#/components/schemas/ImportedItem"
                       }
                     }
                   },
@@ -4841,6 +5184,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -4927,7 +5280,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -4935,7 +5289,8 @@
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "sub",
@@ -4943,7 +5298,8 @@
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "remoteId",
@@ -4990,6 +5346,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -5074,7 +5440,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -5082,7 +5449,8 @@
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "sub",
@@ -5090,7 +5458,8 @@
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "remoteId",
@@ -5137,6 +5506,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -5223,7 +5602,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "sub",
@@ -5231,7 +5611,8 @@
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "remoteId",
@@ -5264,7 +5645,8 @@
                 },
                 "required": [
                   "thumb"
-                ]
+                ],
+                "additionalProperties": false
               }
             }
           }
@@ -5309,6 +5691,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -5393,7 +5785,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "sub",
@@ -5401,7 +5794,8 @@
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "remoteId",
@@ -5457,145 +5851,7 @@
               }
             }
           },
-          "409": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/stubs": {
-      "post": {
-        "operationId": "createStub",
-        "tags": [
-          "studio"
-        ],
-        "security": [
-          {
-            "ownerSession": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "subscription_id": {
-                    "type": "string"
-                  },
-                  "remote_id": {
-                    "type": "string"
-                  },
-                  "selection": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "subscription_id",
-                  "remote_id"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "404": {
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -5668,9 +5924,9 @@
         }
       }
     },
-    "/api/items/{id}/responses": {
-      "put": {
-        "operationId": "setResponses",
+    "/api/mentions/{id}": {
+      "patch": {
+        "operationId": "updateMention",
         "tags": [
           "studio"
         ],
@@ -5682,172 +5938,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "mode": {
-                    "type": "string",
-                    "enum": [
-                      "default",
-                      "show",
-                      "hide"
-                    ]
-                  },
-                  "show": {
-                    "type": "boolean"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean"
-                    },
-                    "override": {
-                      "type": "number",
-                      "nullable": true
-                    },
-                    "showing": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "ok",
-                    "override",
-                    "showing"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/mentions/{id}/hidden": {
-      "put": {
-        "operationId": "setMentionHidden",
-        "tags": [
-          "studio"
-        ],
-        "security": [
-          {
-            "ownerSession": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -5867,7 +5959,8 @@
                 },
                 "required": [
                   "hidden"
-                ]
+                ],
+                "additionalProperties": false
               }
             }
           }
@@ -5916,6 +6009,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -5999,16 +6102,63 @@
             "ownerSession": []
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SignalRow"
-                  }
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SignalRow"
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "offset": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "offset",
+                    "limit"
+                  ]
                 }
               }
             }
@@ -6034,6 +6184,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -6117,6 +6277,42 @@
             "ownerSession": []
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "inbound",
+                "outbound"
+              ]
+            },
+            "required": false,
+            "name": "direction",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
@@ -6125,22 +6321,45 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "inbound": {
+                    "items": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/MentionInRow"
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/Mention"
+                          },
+                          {
+                            "$ref": "#/components/schemas/MentionOutRow"
+                          }
+                        ]
                       }
                     },
-                    "outbound": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/MentionOutRow"
-                      }
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "offset": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "direction": {
+                      "type": "string",
+                      "enum": [
+                        "inbound",
+                        "outbound"
+                      ]
                     }
                   },
                   "required": [
-                    "inbound",
-                    "outbound"
+                    "items",
+                    "total",
+                    "offset",
+                    "limit",
+                    "direction"
                   ]
                 }
               }
@@ -6167,6 +6386,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -6270,7 +6499,8 @@
                       "thread"
                     ]
                   }
-                }
+                },
+                "additionalProperties": false
               }
             }
           }
@@ -6298,8 +6528,10 @@
                             "type": "string"
                           },
                           "output": {
-                            "type": "string",
-                            "nullable": true
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           },
                           "hasOutput": {
                             "type": "boolean"
@@ -6332,9 +6564,7 @@
                             "type": "string"
                           }
                         },
-                        "additionalProperties": {
-                          "nullable": true
-                        }
+                        "additionalProperties": {}
                       }
                     },
                     "errors": {
@@ -6352,15 +6582,13 @@
                             "type": "string"
                           }
                         },
-                        "additionalProperties": {
-                          "nullable": true
-                        }
+                        "additionalProperties": {}
                       }
                     },
                     "transclusions": {
                       "type": "array",
                       "items": {
-                        "nullable": true
+                        "$ref": "#/components/schemas/Transclusion"
                       }
                     }
                   },
@@ -6393,6 +6621,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -6479,12 +6717,24 @@
         "parameters": [
           {
             "schema": {
-              "type": "integer",
-              "nullable": true,
+              "type": [
+                "integer",
+                "null"
+              ],
               "minimum": 0
             },
             "required": false,
             "name": "offset",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false,
+            "name": "limit",
             "in": "query"
           },
           {
@@ -6504,7 +6754,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "results": {
+                    "items": {
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -6545,7 +6795,7 @@
                     }
                   },
                   "required": [
-                    "results",
+                    "items",
                     "total",
                     "offset",
                     "limit"
@@ -6575,6 +6825,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -6661,7 +6921,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -6669,7 +6930,8 @@
           },
           {
             "schema": {
-              "type": "string"
+              "type": "integer",
+              "exclusiveMinimum": 0
             },
             "required": true,
             "name": "v",
@@ -6682,32 +6944,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "version": {
-                      "type": "number"
-                    },
-                    "published_at": {
-                      "type": "string"
-                    },
-                    "note": {
-                      "type": "string",
-                      "nullable": true
-                    },
-                    "pinned": {
-                      "type": "boolean"
-                    },
-                    "content_html": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "version",
-                    "published_at",
-                    "note",
-                    "pinned",
-                    "content_html"
-                  ]
+                  "$ref": "#/components/schemas/Version"
                 }
               }
             }
@@ -6733,6 +6970,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -6819,11 +7066,24 @@
         "parameters": [
           {
             "schema": {
-              "type": "integer",
-              "minimum": 1
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
             },
             "required": false,
-            "name": "page",
+            "name": "offset",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "required": false,
+            "name": "limit",
             "in": "query"
           },
           {
@@ -6843,7 +7103,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "entries": {
+                    "items": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/ReadingEntry"
@@ -6874,10 +7134,7 @@
                     "total": {
                       "type": "number"
                     },
-                    "page": {
-                      "type": "number"
-                    },
-                    "pages": {
+                    "offset": {
                       "type": "number"
                     },
                     "limit": {
@@ -6888,11 +7145,10 @@
                     }
                   },
                   "required": [
-                    "entries",
+                    "items",
                     "counts",
                     "total",
-                    "page",
-                    "pages",
+                    "offset",
                     "limit",
                     "selected"
                   ]
@@ -6921,6 +7177,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -7007,7 +7273,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "sub",
@@ -7015,7 +7282,8 @@
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -7028,7 +7296,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ImportedItemRow"
+                  "$ref": "#/components/schemas/ImportedItem"
                 }
               }
             }
@@ -7054,6 +7322,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -7181,6 +7459,16 @@
               }
             }
           },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "409": {
             "description": "Request failed",
             "content": {
@@ -7258,7 +7546,8 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "id",
@@ -7274,16 +7563,18 @@
                   "type": "object",
                   "properties": {
                     "holder": {
-                      "type": "string",
-                      "nullable": true
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "subscription": {
-                      "allOf": [
+                      "anyOf": [
                         {
-                          "$ref": "#/components/schemas/SubscriptionRow"
+                          "$ref": "#/components/schemas/Subscription"
                         },
                         {
-                          "nullable": true
+                          "type": "null"
                         }
                       ]
                     }
@@ -7317,6 +7608,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -7452,8 +7753,10 @@
                             "type": "string"
                           },
                           "note": {
-                            "type": "string",
-                            "nullable": true
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           }
                         },
                         "required": [
@@ -7497,6 +7800,16 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -7569,5 +7882,6 @@
         }
       }
     }
-  }
+  },
+  "webhooks": {}
 }

@@ -36,7 +36,7 @@ describe("subscription API (§4.2)", () => {
   it("PUT toggles the blogroll flag and title override on an existing subscription", async () => {
     const cookie = await login();
     const sub = await createSubscription(env.DB, { kind: "blyg", origin: "https://a.example/", feedUrl: "https://a.example/feed.xml", title: "A" });
-    const put = await apiJson(cookie, "PUT", `/api/subscriptions/${sub.id}`, { in_blogroll: true, title: "Renamed" });
+    const put = await apiJson(cookie, "PATCH", `/api/subscriptions/${sub.id}`, { in_blogroll: true, title: "Renamed" });
     expect(put.status).toBe(200);
     const after = await getSubscription(env.DB, sub.id);
     expect(after).toMatchObject({ in_blogroll: 1, title: "Renamed" });
@@ -46,11 +46,11 @@ describe("subscription API (§4.2)", () => {
     const cookie = await login();
     const sub = await createSubscription(env.DB, { kind: "blyg", origin: "https://b.example/", feedUrl: "https://b.example/feed.xml", title: "B" });
 
-    const pause = await apiJson(cookie, "POST", `/api/subscriptions/${sub.id}/pause`);
+    const pause = await apiJson(cookie, "PATCH", `/api/subscriptions/${sub.id}`, { paused: true });
     expect(pause.status).toBe(200);
     expect((await getSubscription(env.DB, sub.id))?.status).toBe("paused");
 
-    const resume = await apiJson(cookie, "POST", `/api/subscriptions/${sub.id}/resume`);
+    const resume = await apiJson(cookie, "PATCH", `/api/subscriptions/${sub.id}`, { paused: false });
     expect(resume.status).toBe(200);
     expect((await getSubscription(env.DB, sub.id))?.status).toBe("active");
 
@@ -64,13 +64,11 @@ describe("subscription API (§4.2)", () => {
   it("404s pause/resume/resync/put/delete for an unknown id", async () => {
     const cookie = await login();
     for (const [method, path] of [
-      ["PUT", "/api/subscriptions/nope"],
-      ["POST", "/api/subscriptions/nope/pause"],
-      ["POST", "/api/subscriptions/nope/resume"],
+      ["PATCH", "/api/subscriptions/nope"],
       ["POST", "/api/subscriptions/nope/resync"],
       ["DELETE", "/api/subscriptions/nope"],
     ] as const) {
-      const { status } = await apiJson(cookie, method, path, method === "PUT" ? {} : undefined);
+      const { status } = await apiJson(cookie, method, path, method === "PATCH" ? {} : undefined);
       expect(status).toBe(404);
     }
   });
@@ -107,7 +105,7 @@ describe("hopper + signal API routes", () => {
     const add = await apiJson(cookie, "PUT", `/api/hoppers/${hopperId}/items/${sub.id}/remote-1`);
     expect(add.status).toBe(200);
 
-    const togglePublic = await apiJson(cookie, "PUT", `/api/hoppers/${hopperId}`, { public: true });
+    const togglePublic = await apiJson(cookie, "PATCH", `/api/hoppers/${hopperId}`, { public: true });
     expect(togglePublic.status).toBe(200);
 
     const remove = await apiJson(cookie, "DELETE", `/api/hoppers/${hopperId}/items/${sub.id}/remote-1`);
@@ -130,7 +128,7 @@ describe("hopper + signal API routes", () => {
     const created = await apiJson(cookie, "POST", "/api/hoppers", { name: "Draft ideas" });
     expect(created.json.slug).toBe("draft-ideas");
 
-    const renamed = await apiJson(cookie, "PUT", `/api/hoppers/${created.json.id}`, { name: "Protocol reading" });
+    const renamed = await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { name: "Protocol reading" });
     expect(renamed.status).toBe(200);
     expect(renamed.json.slug).toBe("protocol-reading");
     expect((await getHopper(env.DB, created.json.id))!.name).toBe("Protocol reading");
@@ -142,26 +140,26 @@ describe("hopper + signal API routes", () => {
     // hoppers, so every visitor came from a link. Renaming moves the name only.
     const cookie = await login();
     const created = await apiJson(cookie, "POST", "/api/hoppers", { name: "Good stuff" });
-    await apiJson(cookie, "PUT", `/api/hoppers/${created.json.id}`, { public: true });
+    await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { public: true });
 
-    const renamed = await apiJson(cookie, "PUT", `/api/hoppers/${created.json.id}`, { name: "Even better stuff" });
+    const renamed = await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { name: "Even better stuff" });
     expect(renamed.json.slug).toBe("good-stuff");
     const row = (await getHopper(env.DB, created.json.id))!;
     expect(row.name).toBe("Even better stuff");
     expect(row.slug).toBe("good-stuff");
 
     // Taking it private again does not release the address.
-    await apiJson(cookie, "PUT", `/api/hoppers/${created.json.id}`, { public: false });
+    await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { public: false });
     const afterPrivate = (await getHopper(env.DB, created.json.id))!;
     expect(afterPrivate.slug_frozen).toBe(1);
-    await apiJson(cookie, "PUT", `/api/hoppers/${created.json.id}`, { name: "Third name" });
+    await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { name: "Third name" });
     expect((await getHopper(env.DB, created.json.id))!.slug).toBe("good-stuff");
   });
 
   it("a rename that publishes in the same request freezes the NEW slug", async () => {
     const cookie = await login();
     const created = await apiJson(cookie, "POST", "/api/hoppers", { name: "Untitled" });
-    const res = await apiJson(cookie, "PUT", `/api/hoppers/${created.json.id}`, { name: "Reading list", public: true });
+    const res = await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { name: "Reading list", public: true });
     expect(res.json.slug).toBe("reading-list");
     const row = (await getHopper(env.DB, created.json.id))!;
     expect(row.slug).toBe("reading-list");
@@ -171,15 +169,15 @@ describe("hopper + signal API routes", () => {
   it("a rename keeps its own slug instead of colliding with itself", async () => {
     const cookie = await login();
     const created = await apiJson(cookie, "POST", "/api/hoppers", { name: "Same" });
-    const renamed = await apiJson(cookie, "PUT", `/api/hoppers/${created.json.id}`, { name: "Same" });
+    const renamed = await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { name: "Same" });
     expect(renamed.json.slug).toBe("same"); // not "same-2"
   });
 
   it("rejects an empty rename and 404s an unknown hopper", async () => {
     const cookie = await login();
     const created = await apiJson(cookie, "POST", "/api/hoppers", { name: "Real" });
-    expect((await apiJson(cookie, "PUT", `/api/hoppers/${created.json.id}`, { name: "   " })).status).toBe(400);
-    expect((await apiJson(cookie, "PUT", "/api/hoppers/nope", { name: "x" })).status).toBe(404);
+    expect((await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { name: "   " })).status).toBe(400);
+    expect((await apiJson(cookie, "PATCH", "/api/hoppers/nope", { name: "x" })).status).toBe(404);
   });
 
   it("PUT /api/signals sets a thumb; rejects an invalid value", async () => {
@@ -227,7 +225,7 @@ describe("studio hoppers pages", () => {
     expect(before).toContain('data-action="rename-hopper"');
     expect(before).not.toContain("frozen");
 
-    await apiJson(cookie, "PUT", `/api/hoppers/${hopper.id}`, { public: true });
+    await apiJson(cookie, "PATCH", `/api/hoppers/${hopper.id}`, { public: true });
     const after = await (await SELF.fetch(`${BASE}${STUDIO}/hoppers/${hopper.id}`, { headers: { cookie } })).text();
     expect(after).toContain("frozen — renaming keeps this URL");
     expect(after).toContain("/h/addressable/");
@@ -251,7 +249,7 @@ describe("the stub action (§3.1, decision #27 — absorbs `respond`)", () => {
       contentHash: "hash-l0",
     });
 
-    const created = await apiJson(cookie, "POST", "/api/stubs", { subscription_id: sub.id, remote_id: "l0-xyz" });
+    const created = await apiJson(cookie, "POST", "/api/items", { mode: "response", source: { subscription_id: sub.id, remote_id: "l0-xyz" } });
     expect(created.status).toBe(201);
     const editor = await (await SELF.fetch(`${BASE}${STUDIO}/edit/${created.json.id}`, { headers: { cookie } })).text();
     const textarea = /<textarea id="md-input"[^>]*>([\s\S]*?)<\/textarea>/.exec(editor);
@@ -271,7 +269,7 @@ describe("the stub action (§3.1, decision #27 — absorbs `respond`)", () => {
     });
     await env.DB.prepare("UPDATE imported_items SET l0 = 0 WHERE subscription_id = ? AND remote_id = ?").bind(sub.id, "abc123").run();
 
-    const created = await apiJson(cookie, "POST", "/api/stubs", { subscription_id: sub.id, remote_id: "abc123" });
+    const created = await apiJson(cookie, "POST", "/api/items", { mode: "response", source: { subscription_id: sub.id, remote_id: "abc123" } });
     expect(created.status).toBe(201);
     const row = await env.DB.prepare("SELECT kind, content_md, stub_of FROM items WHERE id = ?").bind(created.json.id).first<any>();
     expect(row.kind).toBe("thread");
@@ -286,8 +284,8 @@ describe("the stub action (§3.1, decision #27 — absorbs `respond`)", () => {
 
   it("404s for an unknown subscription or item, and 400s with no target", async () => {
     const cookie = await login();
-    expect((await apiJson(cookie, "POST", "/api/stubs", {})).status).toBe(400);
-    expect((await apiJson(cookie, "POST", "/api/stubs", { subscription_id: "nope", remote_id: "x" })).status).toBe(404);
+    expect((await apiJson(cookie, "POST", "/api/items", { mode: "response", source: {} })).status).toBe(400);
+    expect((await apiJson(cookie, "POST", "/api/items", { mode: "response", source: { subscription_id: "nope", remote_id: "x" } })).status).toBe(404);
   });
 
   it("the reading feed offers `stub ↗` on imported entries, and no `respond` anywhere", async () => {

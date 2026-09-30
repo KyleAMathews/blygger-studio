@@ -1,17 +1,14 @@
+import type { SubscriptionRow, HopperRow } from "../types.ts";
+import { subscriptionResource, hopperResource } from "../contract/resources.ts";
 import { contractApp, readJson } from "../contract/app.ts";
 import { routes } from "../contract/routes.ts";
 // Subscribe-side owner API (cookie auth, JSON) — v0.2-plan.md §4.2. Mounted
 // alongside ../api.ts under /api.
 
 
-import { createDraft, setStubOf } from "../model.ts";
-import { parseStubOf } from "../stub.ts";
-import { normalizeSelection, selectionText } from "../markdown.ts";
-import { locateSelection } from "../transclusion.ts";
 
 import { pollSubscription, reconcileIndex } from "./poll.ts";
 import { resolve } from "./resolve.ts";
-import { sourceTitleAndUrl } from "./util.ts";
 import {
   addHopperItem,
   createHopper,
@@ -21,15 +18,9 @@ import {
   deleteSubscription,
   getHopper,
   getHopperBySlug,
-  getImportedItem,
   getSubscription,
   removeHopperItem,
-  renameHopper,
-  setBlogrollFlag,
-  setHopperPublic,
   setSignal,
-  setSubscriptionStatus,
-  setSubscriptionTitle,
 } from "./store.ts";
 
 export const importerApi = contractApp();
@@ -91,30 +82,21 @@ importerApi.openapi(routes.createSubscription, async (c) => {
   // unconditionally, which also bootstraps newest_guid/etag for future gap
   // detection (§3.2) in one pass, for both kinds uniformly.
   await pollSubscription(c.env.DB, sub);
-  return c.json({ id: sub.id, kind: sub.kind, origin: sub.origin }, 201);
+  c.header("Location", `/api/subscriptions/${sub.id}`);
+  return c.json(subscriptionResource((await getSubscription(c.env.DB, sub.id))!), 201);
 });
 
 importerApi.openapi(routes.updateSubscription, async (c) => {
   const sub = await getSubscription(c.env.DB, c.req.param("id"));
   if (!sub) return c.json({ error: "not found" }, 404);
-  const body = await readJson<{ in_blogroll?: boolean; title?: string }>(c).catch(() => ({}) as Record<string, never>);
-  if (typeof body.in_blogroll === "boolean") await setBlogrollFlag(c.env.DB, sub.id, body.in_blogroll);
-  if (typeof body.title === "string" && body.title.trim()) await setSubscriptionTitle(c.env.DB, sub.id, body.title.trim());
-  return c.json({ ok: true });
-});
-
-importerApi.openapi(routes.pauseSubscription, async (c) => {
-  const sub = await getSubscription(c.env.DB, c.req.param("id"));
-  if (!sub) return c.json({ error: "not found" }, 404);
-  await setSubscriptionStatus(c.env.DB, sub.id, "paused");
-  return c.json({ ok: true });
-});
-
-importerApi.openapi(routes.resumeSubscription, async (c) => {
-  const sub = await getSubscription(c.env.DB, c.req.param("id"));
-  if (!sub) return c.json({ error: "not found" }, 404);
-  await setSubscriptionStatus(c.env.DB, sub.id, "active");
-  return c.json({ ok: true });
+  const body = await readJson<{ in_blogroll?: boolean; title?: string; paused?: boolean }>(c);
+  const assignments: string[] = [], values: (string | number)[] = [];
+  if (body.title !== undefined) { assignments.push("title = ?"); values.push(body.title); }
+  if (body.in_blogroll !== undefined) { assignments.push("in_blogroll = ?"); values.push(body.in_blogroll ? 1 : 0); }
+  if (body.paused !== undefined) { assignments.push("status = ?"); values.push(body.paused ? "paused" : "active"); }
+  if (!assignments.length) return c.json(subscriptionResource(sub));
+  const fresh = await c.env.DB.prepare(`UPDATE subscriptions SET ${assignments.join(", ")} WHERE id = ? RETURNING *`).bind(...values, sub.id).first<SubscriptionRow>();
+  return fresh ? c.json(subscriptionResource(fresh)) : c.json({ error: "subscription no longer exists" }, 404);
 });
 
 /** Force an index reconciliation right now, regardless of the periodic schedule. */
@@ -161,7 +143,8 @@ importerApi.openapi(routes.createHopper, async (c) => {
   const body = await readJson<{ name?: string }>(c).catch(() => ({}) as { name?: string });
   if (typeof body.name !== "string" || !body.name.trim()) return c.json({ error: "name required" }, 400);
   const hopper = await createHopper(c.env.DB, body.name.trim(), await uniqueSlug(c.env.DB, body.name.trim()));
-  return c.json({ id: hopper.id, name: hopper.name, slug: hopper.slug }, 201);
+  c.header("Location", `/api/hoppers/${hopper.id}`);
+  return c.json(hopperResource(hopper), 201);
 });
 
 importerApi.openapi(routes.updateHopper, async (c) => {
@@ -170,19 +153,11 @@ importerApi.openapi(routes.updateHopper, async (c) => {
   const body = await readJson<{ public?: boolean; name?: string }>(c)
     .catch(() => ({}) as { public?: boolean; name?: string });
 
-  // Rename first: if this request both renames and publishes, the slug should
-  // be derived from the new name and *then* frozen, not frozen at the old one.
-  let slug = hopper.slug;
-  if (typeof body.name === "string") {
-    const name = body.name.trim();
-    if (!name) return c.json({ error: "name must not be empty" }, 400);
-    // A slug that has ever been public is the hopper's permanent address
-    // (migration 0006) — the name moves, the URL does not.
-    slug = hopper.slug_frozen ? hopper.slug : await uniqueSlug(c.env.DB, name, hopper.id);
-    await renameHopper(c.env.DB, hopper.id, name, slug);
-  }
-  if (typeof body.public === "boolean") await setHopperPublic(c.env.DB, hopper.id, body.public);
-  return c.json({ ok: true, slug, slug_frozen: hopper.slug_frozen === 1 || body.public === true });
+  // Compute the rename before freezing the public URL. Apply both in one SQL update.
+  const slug = body.name === undefined || hopper.slug_frozen ? hopper.slug : await uniqueSlug(c.env.DB, body.name, hopper.id);
+  const fresh = await c.env.DB.prepare("UPDATE hoppers SET name = COALESCE(?, name), slug = ?, public = COALESCE(?, public), slug_frozen = MAX(slug_frozen, ?) WHERE id = ? AND slug_frozen = ? AND slug IS ? RETURNING *")
+    .bind(body.name ?? null, slug, body.public === undefined ? null : Number(body.public), Number(body.public === true), hopper.id, hopper.slug_frozen, hopper.slug).first<HopperRow>();
+  return fresh ? c.json(hopperResource(fresh)) : c.json({ error: "hopper changed while applying the patch; reload and try again" }, 409);
 });
 
 importerApi.openapi(routes.deleteHopper, async (c) => {
@@ -220,102 +195,4 @@ importerApi.openapi(routes.setSignal, async (c) => {
 importerApi.openapi(routes.deleteSignal, async (c) => {
   await deleteSignal(c.env.DB, c.req.param("sub"), c.req.param("remoteId"));
   return c.json({ ok: true });
-});
-
-/**
- * The stub action (v0.3-plan §3.1, decision #27) — one gesture, replacing
- * `respond`. Creates a **thread** draft citing exactly one target and opens
- * in the editor; the body is prefilled but entirely the author's to change.
- *
- * A blyg target gets the transclusion directive, because a stub without the
- * quote is not a stub in this medium's aesthetic. An L0 target gets the old
- * respond prefill — a markdown link and nothing else — keeping respond's one
- * real discipline: none of *their* text is copied.
- *
- * `stub_of` is set regardless of whether the body ends up quoting the target:
- * readers rely on the marker, never on body inspection (§2.2).
- *
- * **Partial quotation (§16.4, plan §7.3 P7)** changes only the prefill:
- *
- *   - with a `selection` — the author highlighted a passage and asked to quote
- *     it — the body is the directive plus that passage as an attached
- *     blockquote, which is the partial grammar. The selection is checked here
- *     against the snapshot we hold, so a selection that cannot publish is
- *     refused at the moment it is made rather than at publish, when the author
- *     has written a response around it.
- *   - without one, a **long** target prefills the directive plus an empty
- *     quote line, because quoting two thousand words to say one is the shape
- *     partial quotation exists to fix, and an empty `>` invites the passage
- *     while still letting the author delete the line for the whole form.
- *
- * Both are prefill only. The body remains entirely the author's to change, and
- * `stub_of` is set the same way in every case.
- */
-/**
- * Past this much text, stubbing the whole item is usually not what the author
- * means — so the prefill offers the partial grammar instead of the whole-item
- * one. A suggestion in the plan (§7.3 P7) and a number with no protocol force:
- * it changes which of two legal bodies is typed for you.
- */
-const LONG_TARGET_CHARS = 600;
-
-/** A normalized selection as an attached markdown blockquote: one `>` block per line. */
-function quoteLines(selection: string): string {
-  return selection
-    .split("\n")
-    .map((line) => `> ${line}`)
-    .join("\n>\n");
-}
-
-importerApi.openapi(routes.createStub, async (c) => {
-  type StubReq = { subscription_id?: string; remote_id?: string; selection?: string };
-  const body = await readJson<StubReq>(c).catch(() => ({}) as StubReq);
-  const subId = body.subscription_id;
-  const remoteId = body.remote_id;
-  if (!subId || !remoteId) return c.json({ error: "subscription_id and remote_id required" }, 400);
-  const sub = await getSubscription(c.env.DB, subId);
-  if (!sub) return c.json({ error: "subscription not found" }, 404);
-  const row = await getImportedItem(c.env.DB, subId, remoteId);
-  if (!row) return c.json({ error: "imported item not found" }, 404);
-
-  let contentMd: string;
-  let stubInput: unknown;
-  if (row.l0) {
-    const { title, url } = sourceTitleAndUrl(row, sub.origin);
-    const label = (title || sub.title || sub.origin).replace(/[[\]]/g, "");
-    contentMd = `[${label}](${url})\n\n`;
-    stubInput = { url };
-  } else {
-    // What a quote of this row would bake: the retained pinned version for a
-    // tombstone we kept, the watermark otherwise. An unretained tombstone has
-    // no bytes to quote, so the citation stands alone — a response to a
-    // withdrawal is legitimate (§2.3.6), it just cannot include the text.
-    const quotable = row.state === "current" || row.pinned_version_retained !== null;
-    const version = row.state === "tombstone" && row.pinned_version_retained !== null ? row.pinned_version_retained : row.version;
-    if (!quotable) {
-      contentMd = "";
-    } else if (typeof body.selection === "string" && body.selection.trim()) {
-      const selection = normalizeSelection(body.selection);
-      // Checked now, against the same bytes publish will check against. The
-      // alternative — prefill it and find out later — hands the author a draft
-      // that cannot be published and no hint as to which part is wrong.
-      if (!selection || !locateSelection(row.content_html, selection)) {
-        return c.json({ error: "that passage is not in the version we hold of this item" }, 400);
-      }
-      contentMd = `![[${remoteId}]]\n${quoteLines(selection)}\n\n`;
-    } else if (selectionText(row.content_html).length > LONG_TARGET_CHARS) {
-      // An empty quote line, focused by the caller: the grammar is already
-      // there, and the author types or pastes the passage into it.
-      contentMd = `![[${remoteId}]]\n> \n\n`;
-    } else {
-      contentMd = `![[${remoteId}]]\n\n`;
-    }
-    stubInput = { origin: sub.origin, id: remoteId, version };
-  }
-
-  const parsed = parseStubOf(stubInput);
-  if (!parsed.ok) return c.json({ error: parsed.reason }, 400);
-  const item = await createDraft(c.env.DB, contentMd, "thread");
-  await setStubOf(c.env.DB, item.id, parsed.stub);
-  return c.json({ id: item.id }, 201);
 });

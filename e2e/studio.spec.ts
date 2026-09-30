@@ -18,7 +18,7 @@ test("owner can compose, publish and change settings through the SDK", async ({ 
   await page.goto("/studio/settings");
   await page.locator("#site_title").fill("Browser SDK site");
   const dialogAccepted = page.waitForEvent("dialog").then(dialog => dialog.accept());
-  const saved = page.waitForResponse((response) => response.url().endsWith("/api/settings") && response.request().method() === "PUT");
+  const saved = page.waitForResponse((response) => response.url().endsWith("/api/settings") && response.request().method() === "PATCH");
   await page.locator('#settings-form button[type="submit"]').focus();
   await page.locator('#settings-form button[type="submit"]').press('Enter');
   expect((await saved).status()).toBe(200);
@@ -52,5 +52,30 @@ test("editor autosave, preview, image upload and history use the SDK", async ({ 
   await expect(page.locator('[data-action="view-version"]')).toBeVisible();
   await page.locator('[data-action="view-version"]').click();
   await expect(page.locator("#h-viewer-body")).toContainText("Autosaved preview");
+  expect(errors).toEqual([]);
+});
+
+
+test("owner can pin and fork through resource creation", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("dialog", (dialog) => dialog.accept());
+  await page.goto("/studio/login");
+  await page.locator('[name="password"]').fill("test-password");
+  await page.getByRole("button", { name: "log in", exact: true }).click();
+  await page.locator("#composer-text").fill("Browser fork source");
+  await page.locator("#composer-full").click();
+  const sourceUrl = page.url();
+  await page.locator("#publish-btn").click();
+  await expect(page.locator('[data-action="pin"]').first()).toBeVisible();
+  await page.locator('[data-action="pin"]').first().click();
+  await page.locator('a[href^="/studio/fork?"]').click();
+  const created = page.waitForResponse((response) => response.url().endsWith("/api/items") && response.request().method() === "POST");
+  await page.locator('[data-action="fork"]').click();
+  const forkResponse = await created;
+  expect(forkResponse.status()).toBe(201);
+  expect(forkResponse.request().postDataJSON()).toMatchObject({ mode: "fork", source: { version: 1 } });
+  await expect(page.locator("#md-input")).toHaveValue("Browser fork source");
+  expect(page.url()).not.toBe(sourceUrl);
   expect(errors).toEqual([]);
 });

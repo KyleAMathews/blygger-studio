@@ -59,7 +59,7 @@ async function itemJson(id: string): Promise<any> {
 /** Publish, pin v1, and hand back the item id — the only state a fork can start from. */
 async function publishAndPin(cookie: string, md: string): Promise<string> {
   const id = await createAndPublish(cookie, md);
-  expect((await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 })).status).toBe(200);
+  expect((await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`)).status).toBe(200);
   return id;
 }
 
@@ -68,7 +68,7 @@ describe("forking a pinned version of our own (§2.4)", () => {
     const cookie = await login();
     const parent = await publishAndPin(cookie, "the original text");
 
-    const forked = await apiJson(cookie, "POST", "/api/fork", { origin: OURS, id: parent, version: 1 });
+    const forked = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
     expect(forked.status).toBe(201);
     const id = forked.json.id as string;
 
@@ -83,7 +83,7 @@ describe("forking a pinned version of our own (§2.4)", () => {
   it("refuses a version that is not pinned — the whole basis of the claim", async () => {
     const cookie = await login();
     const parent = await createAndPublish(cookie, "never pinned");
-    const res = await apiJson(cookie, "POST", "/api/fork", { origin: OURS, id: parent, version: 1 });
+    const res = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
     expect(res.status).toBe(400);
     expect(res.json.error).toContain("not pinned");
   });
@@ -91,8 +91,8 @@ describe("forking a pinned version of our own (§2.4)", () => {
   it("refuses a malformed reference rather than coercing one", async () => {
     const cookie = await login();
     // `origin` is REQUIRED even for our own item (#27: a citation is absolute).
-    expect((await apiJson(cookie, "POST", "/api/fork", { id: "x", version: 1 })).status).toBe(400);
-    expect((await apiJson(cookie, "POST", "/api/fork", { origin: OURS, id: "x", version: 0 })).status).toBe(400);
+    expect((await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { id: "x", version: 1 } })).status).toBe(400);
+    expect((await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: "x", version: 0 } })).status).toBe(400);
   });
 
   it("forks a thread as a thread, keeping the directives rather than the baked HTML", async () => {
@@ -101,9 +101,9 @@ describe("forking a pinned version of our own (§2.4)", () => {
     const created = await apiJson(cookie, "POST", "/api/items", { content_md: `intro\n\n![[${quoted}]]`, kind: "thread" });
     const threadId = created.json.id as string;
     expect((await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {})).status).toBe(200);
-    expect((await apiJson(cookie, "POST", `/api/items/${threadId}/pin`, { version: 1 })).status).toBe(200);
+    expect((await apiJson(cookie, "PUT", `/api/items/${threadId}/versions/${1}/pin`)).status).toBe(200);
 
-    const forked = await apiJson(cookie, "POST", "/api/fork", { origin: OURS, id: threadId, version: 1 });
+    const forked = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: threadId, version: 1 } });
     expect(forked.status).toBe(201);
     expect(forked.json.kind).toBe("thread");
     // content_md, not content_html: a fork is a working copy, so it inherits
@@ -117,10 +117,10 @@ describe("lineage on the wire and on the page", () => {
   it("rides the pinned version document too, and cannot drift from the live item", async () => {
     const cookie = await login();
     const parent = await publishAndPin(cookie, "ancestor");
-    const forked = await apiJson(cookie, "POST", "/api/fork", { origin: OURS, id: parent, version: 1 });
+    const forked = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
     const id = forked.json.id as string;
     expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 })).status).toBe(200);
+    expect((await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`)).status).toBe(200);
 
     const pinned = await (await getPublic(`/blyg/items/${id}/v1.json`)).json<any>();
     expect(pinned.forked_from).toMatchObject({ origin: OURS, id: parent, version: 1 });
@@ -129,7 +129,7 @@ describe("lineage on the wire and on the page", () => {
   it("survives withdrawal — the endcap empties the work, not where the work came from", async () => {
     const cookie = await login();
     const parent = await publishAndPin(cookie, "ancestor");
-    const forked = await apiJson(cookie, "POST", "/api/fork", { origin: OURS, id: parent, version: 1 });
+    const forked = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
     const id = forked.json.id as string;
     expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
     expect((await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, {})).status).toBe(200);
@@ -143,7 +143,7 @@ describe("lineage on the wire and on the page", () => {
   it("states the lineage on the item's own page, citing the pinned version page", async () => {
     const cookie = await login();
     const parent = await publishAndPin(cookie, "ancestor text");
-    const forked = await apiJson(cookie, "POST", "/api/fork", { origin: OURS, id: parent, version: 1 });
+    const forked = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
     const id = forked.json.id as string;
     expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
 
@@ -159,7 +159,7 @@ describe("the publish-time check (§2.4)", () => {
   it("blocks publishing when a local lineage target turns out not to be pinned", async () => {
     const cookie = await login();
     const parent = await publishAndPin(cookie, "ancestor");
-    const forked = await apiJson(cookie, "POST", "/api/fork", { origin: OURS, id: parent, version: 1 });
+    const forked = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
     const id = forked.json.id as string;
     // Pins are irrevocable through every supported path, so the only way to
     // reach this state is to corrupt it directly — which is exactly the state

@@ -5,21 +5,11 @@ type Operation = { name: string; method: string; path: string; body: boolean; pa
 type Call = (options: { client: BlyggerClient; body?: unknown; path: Record<string, string>; query: Record<string, unknown>; signal?: AbortSignal }) => Promise<{ data?: unknown; error?: unknown; response?: Response }>;
 const operations = JSON.parse(operationJson) as Operation[];
 
-/** Adapts the legacy UI's Response-based handlers to generated, named SDK methods. */
+/** Adapts the Studio's Response-based handlers to generated, named SDK methods. */
 export async function sdkRequest(client: BlyggerClient, input: string, init: RequestInit = {}) {
   const url = new URL(input, "https://studio.invalid");
-  let path = url.pathname;
+  const path = url.pathname;
   const body: Record<string, unknown> = init.body instanceof FormData ? Object.fromEntries(init.body.entries()) : typeof init.body === "string" ? JSON.parse(init.body) : {};
-  const legacy = path.match(/\/studio\/(preview-thread|preview|fragments\/search|versions\/([^/]+)\/([^/]+))$/);
-  if (legacy) {
-    if (legacy[1] === "preview-thread") { path = "/api/preview"; body.kind = "thread"; }
-    else if (legacy[1] === "preview") path = "/api/preview";
-    else if (legacy[1] === "fragments/search") {
-      path = "/api/search";
-      url.searchParams.set("offset", String(Math.max(0, Math.floor(Number(url.searchParams.get("offset")) || 0))));
-    }
-    else path = `/api/items/${legacy[2]}/versions/${legacy[3]}`;
-  }
   const method = (init.method ?? "GET").toUpperCase();
   for (const operation of operations) {
     if (operation.method !== method) continue;

@@ -5,7 +5,7 @@ import { sanitizeHtml } from "./importer/sanitize.ts";
 import type { ImportedItemRow } from "./types.ts";
 
 /** Sort small identity/date rows first; load and sanitize bodies only for the selected page. */
-export async function readingData(db: D1Database, requestedPage: string | undefined, source: string | undefined) {
+export async function readingData(db: D1Database, requestedOffset: number, limit: number, source: string | undefined) {
   const [own, imported, subs] = await Promise.all([
     db.prepare("SELECT id, updated FROM items WHERE status IN ('public','withdrawn') ORDER BY updated DESC, rowid DESC").all<{ id: string; updated: string }>(),
     db.prepare("SELECT subscription_id, remote_id, updated, observed_at FROM imported_items ORDER BY observed_at DESC").all<{ subscription_id: string; remote_id: string; updated: string | null; observed_at: string }>(),
@@ -19,12 +19,11 @@ export async function readingData(db: D1Database, requestedPage: string | undefi
     ...imported.results.map((r) => ({ source: "imported" as const, id: r.remote_id, sub: r.subscription_id, at: clampDisplayAt(r.updated, r.observed_at) })),
   ].filter((r) => selected === "all" || (selected === "own" ? r.source === "own" : r.sub === selected));
   identities.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
-  const limit = 25, total = identities.length, pages = Math.max(1, Math.ceil(total / limit));
-  const page = Math.min(pages, Math.max(1, Math.floor(Number(requestedPage) || 1)));
-  const selectedRows = identities.slice((page - 1) * limit, page * limit);
+  const total = identities.length, offset = requestedOffset;
+  const selectedRows = identities.slice(offset, offset + limit);
   const ownIds = selectedRows.filter((r) => r.source === "own").map((r) => r.id);
   const importedIds = selectedRows.filter((r) => r.source === "imported");
-  // At most 25 ids (50 bindings for imported pairs), below D1's 100-bind limit.
+  // At most 50 ids (100 bindings for imported pairs), within D1's 100-bind limit.
   const [ownBodies, importedBodies] = await Promise.all([
     ownIds.length ? db.prepare(`SELECT i.id, i.kind, i.updated, v.content_html, previous.transclusions AS previous_transclusions
       FROM items i LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version
@@ -50,5 +49,5 @@ export async function readingData(db: D1Database, requestedPage: string | undefi
     const input: ImportedEntryInput = { subscriptionId: row.subscription_id, subscriptionTitle: sub?.title || sub?.origin || row.subscription_id, remoteId: row.remote_id, sourceUrl: sub ? sourceTitleAndUrl(row, sub.origin).url : null, kind: row.kind, withdrawn: row.state === "tombstone", l0: row.l0 === 1, updated: row.updated, observedAt: row.observed_at, contentHtml: await sanitizeHtml(row.content_html), pinnedVersionRetained: row.pinned_version_retained };
     return { ...buildReadingFeed([], [input])[0], key: `imported:${JSON.stringify([row.subscription_id, row.remote_id])}` };
   }));
-  return { entries: entries.filter((e) => e !== null), counts, selected, total, page, pages, limit };
+  return { items: entries.filter((e) => e !== null), counts, selected, total, offset, limit };
 }
