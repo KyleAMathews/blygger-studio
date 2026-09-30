@@ -204,5 +204,5 @@ ${groups.join("\n") || '<p class="mentions-empty">No verified mentions yet.</p>'
 ${outbound.length ? outbound.map((row) => outboundRow(row, mount, settings.timezone)).join("\n") : '<p class="mentions-empty">Nothing sent yet — mentions go out when you publish something that cites another origin.</p>'}
 <script>${stubScript(mount)}</script>
 <script>${RESPONSE_CONTROLS_SCRIPT}</script>`;
-  return c.html(studioLayout("mentions — blyg studio", body, true));
+  return c.html(studioLayout("mentions — blyg studio", body, mount));
 });

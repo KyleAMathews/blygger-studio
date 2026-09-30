@@ -56,6 +56,8 @@ export function makeApp(mount: string) {
   const studioBase = studioPath(mount);
   const studioLogin = studioBase + "/login";
 
+  app.get(studioBase + "/studio-sdk.js", (c) => c.body(studioSdkScript, 200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" }));
+
   app.use(studioBase + "/*", async (c, next) => {
     const path = new URL(c.req.url).pathname;
     if (path === studioLogin || path === studioBase + "/logout") return next();
@@ -71,7 +73,6 @@ export function makeApp(mount: string) {
   app.route(studioBase, mentionsStudio);
 
   app.route("/api", ownerApi);
-  app.get("/studio-sdk.js", (c) => c.body(studioSdkScript, 200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" }));
 
   // --- Public surface: mount-relative — cache 60s; JSON/XML get permissive CORS. ---
 

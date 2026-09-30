@@ -335,11 +335,11 @@ const MENU_SCRIPT = `
 `;
 
 /**
- * `wide` is retained as a no-op parameter: every studio page now renders at
- * one width so the chrome never moves between tabs. Text-heavy sections keep
- * a readable measure via `.prose` instead of by shrinking the whole page.
+ * Every studio page renders at one width so the chrome never moves between
+ * tabs. Text-heavy sections keep a readable measure via `.prose`. The SDK
+ * script lives under the same mount as Studio.
  */
-export function studioLayout(title: string, body: string, _wide = false): string {
+export function studioLayout(title: string, body: string, mount: string): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -347,7 +347,7 @@ export function studioLayout(title: string, body: string, _wide = false): string
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
 <script>${JS_MARKER}</script>
-<script src="/studio-sdk.js"></script>
+<script src="${escapeHtml(studioPath(mount))}/studio-sdk.js"></script>
 <style>${STUDIO_STYLE}</style>
 </head>
 <body>
@@ -427,6 +427,7 @@ ${error ? `<p style="color:var(--alert)">${escapeHtml(error)}</p>` : ""}
 <p><input type="password" name="password" placeholder="password" autofocus required></p>
 <p><button type="submit">log in</button></p>
 </form>`,
+    mount,
   );
 }
 
@@ -1349,7 +1350,7 @@ ${rows.join("\n") || "<p>Nothing yet — compose your first fragment above.</p>"
 <script>${actionScript(mount)}</script>
 <script>${paletteScript(mount)}</script>
 <script>${composerScript(mount)}</script>`;
-  return c.html(studioLayout("blyg studio", body));
+  return c.html(studioLayout("blyg studio", body, mount));
 });
 
 studio.get("/settings", async (c) => {
@@ -1469,7 +1470,7 @@ document.getElementById("settings-form").addEventListener("submit", async (e) =>
   if (await api("PUT", "/api/settings", body)) alert("saved");
 });
 </script>`;
-  return c.html(studioLayout("settings — blyg studio", body));
+  return c.html(studioLayout("settings — blyg studio", body, mount));
 });
 
 /** Syntax cheat sheet — studio furniture, not a protocol surface. Linked from the nav and from both composers' compose-help hints. */
@@ -1549,7 +1550,7 @@ studio.get("/syntax", async (c) => {
 
 <p class="compose-help">Both citations carry the same <code>{origin, id, version}</code> shape, deliberately: &ldquo;a citation is absolute&rdquo; is one rule, not two — <code>origin</code> is required even when it is your own.</p>
 </div>`;
-  return c.html(studioLayout("syntax — blyg studio", body));
+  return c.html(studioLayout("syntax — blyg studio", body, mount));
 });
 
 /** Studio-only live preview for the fragment editor — not a protocol surface. TK scopes are highlighted (task 6). */
@@ -1617,7 +1618,7 @@ ${v.note ? `<span class="h-note">&ldquo;${escapeHtml(v.note)}&rdquo;</span>` : "
 <p>Forking <code>${escapeHtml(id)}</code> on ${who}. The pinned version's text becomes a new draft of your own, permanently marked as descending from it.</p>
 ${pins.versions.length ? `<ul class="h-list">${rows}</ul>` : empty}
 <script>${forkScript(mount)}</script>`;
-  return studioLayout("fork — blyg studio", body);
+  return studioLayout("fork — blyg studio", body, mount);
 }
 
 function forkScript(mount: string): string {
@@ -1797,7 +1798,7 @@ document.getElementById("attach-btn").addEventListener("click", () => {
   input.click();
 });
 </script>`;
-  return studioLayout(`editing — blyg studio`, body, true);
+  return studioLayout(`editing — blyg studio`, body, mount);
 }
 
 /**
@@ -2001,7 +2002,7 @@ document.getElementById("attach-btn").addEventListener("click", () => {
   input.click();
 });
 </script>`;
-  return studioLayout("editing thread — blyg studio", body, true);
+  return studioLayout("editing thread — blyg studio", body, mount);
 }
 
 function legacyError(c: Context, e: unknown) {

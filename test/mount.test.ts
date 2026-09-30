@@ -5,7 +5,7 @@
 // config binding); here we build apps for other mounts via makeApp() and
 // drive them with the real test env bindings.
 
-import { env } from "cloudflare:test";
+import { createExecutionContext, env, waitOnExecutionContext } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { makeApp } from "../src/index.ts";
 import { normalizeMount, studioPath } from "../src/util.ts";
@@ -134,5 +134,41 @@ describe("custom multi-segment mount", () => {
     expect(res.headers.get("cache-control")).toBeNull();
     expect((await app.request(`${HOST}/studio`, {}, appEnv())).status).toBe(404);
     expect((await app.request(`${HOST}/studio/login`, {}, appEnv())).status).toBe(404);
+  });
+});
+
+
+describe.each(["", "/blyg", "/notes/b"])("Studio SDK at mount %s", (mount) => {
+  const app = makeApp(mount);
+  const base = studioPath(mount);
+  const bindings = { ...appEnv(), MOUNT: mount };
+
+  it("loads the SDK inside the forwarded Studio range, including on the login page", async () => {
+    const login = await app.request(`${HOST}${base}/login`, {}, bindings);
+    expect(login.status).toBe(200);
+    const html = await login.text();
+    const scriptPath = html.match(/<script src="([^"]+studio-sdk\.js)"><\/script>/)?.[1];
+    expect(scriptPath).toBe(`${base}/studio-sdk.js`);
+    const script = await app.request(`${HOST}${scriptPath}`, { redirect: "manual" }, bindings);
+    expect(script.status).toBe(200);
+    expect(script.headers.get("content-type")).toContain("text/javascript");
+    expect(await script.text()).toContain("studioRequest");
+    expect((await app.request(`${HOST}/studio-sdk.js`, {}, bindings)).status).toBe(404);
+  });
+
+  it("uses the mounted SDK URL across authenticated Studio pages", async () => {
+    const login = await app.request(`${HOST}${base}/login`, {
+      method: "POST",
+      body: new URLSearchParams({ password: "test-password" }),
+    }, bindings);
+    const cookie = (login.headers.get("set-cookie") ?? "").split(";")[0];
+    expect(cookie).toBeTruthy();
+    for (const suffix of ["", "/settings", "/syntax", "/subs", "/reading", "/hoppers", "/mentions"]) {
+      const ctx = createExecutionContext();
+      const page = await app.request(`${HOST}${base}${suffix}`, { headers: { cookie } }, bindings, ctx);
+      await waitOnExecutionContext(ctx);
+      expect(page.status).toBe(200);
+      expect(await page.text()).toContain(`<script src="${base}/studio-sdk.js"></script>`);
+    }
   });
 });

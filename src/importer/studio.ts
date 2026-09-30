@@ -148,7 +148,7 @@ importerStudio.get("/subs", async (c) => {
 </div>
 ${subs.length ? subs.map((sub) => subRow(sub, settings.timezone)).join("\n") : "<p>No subscriptions yet.</p>"}
 <script>${SUBS_SCRIPT}</script>`;
-  return c.html(studioLayout("subscriptions — blyg studio", body));
+  return c.html(studioLayout("subscriptions — blyg studio", body, mount));
 });
 
 // --- Reading feed (task 9, §3.6) ---
@@ -763,7 +763,7 @@ ${pager}
 <script>${READING_SCRIPT}</script>
 <script>${stubScript(mount)}</script>
 <script>${SUBS_SCRIPT}</script>`;
-  return c.html(studioLayout("reading — blyg studio", body, true));
+  return c.html(studioLayout("reading — blyg studio", body, mount));
 });
 
 // --- Hoppers (task 10, §3.4) ---
@@ -906,7 +906,7 @@ ${await hopperPeek(data, h.id, titleOf)}
 </form>
 ${rows.length ? rows.join("\n") : "<p>No hoppers yet — add items to a hopper from the reading feed.</p>"}
 <script>${hoppersScript(mount)}</script>`;
-  return c.html(studioLayout("hoppers — blyg studio", body));
+  return c.html(studioLayout("hoppers — blyg studio", body, mount));
 });
 
 importerStudio.get("/hoppers/:id", async (c) => {
@@ -963,5 +963,5 @@ ${hopperUrlLine(hopper, mount)}
 ${rows.length ? rows.join("\n") : "<p>Nothing in this hopper yet.</p>"}
 <script>${hoppersScript(mount)}</script>
 <script>${stubScript(mount)}</script>`;
-  return c.html(studioLayout(`${hopper.name} — blyg studio`, body, true));
+  return c.html(studioLayout(`${hopper.name} — blyg studio`, body, mount));
 });

@@ -28,7 +28,7 @@ try {
   assert.match(config, /FILL-ME-run-npm-run-init/);
   mf = new Miniflare({ modules: true, script: readFileSync(join(worker, "worker.js"), "utf8"), compatibilityDate: "2026-07-01", bindings: { MOUNT: "", OWNER_PASSWORD: "test", COOKIE_SECRET: "release-smoke-test-secret" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"] });
   assert.equal((await mf.dispatchFetch("http://localhost/api/openapi.json")).status, 401);
-  const browser = await mf.dispatchFetch("http://localhost/studio-sdk.js");
+  const browser = await mf.dispatchFetch("http://localhost/studio/studio-sdk.js");
   assert.equal(browser.status, 200);
   assert.match(await browser.text(), /blygger/);
   const sdk = await import(pathToFileURL(join(temp, "package/dist/index.js")).href);
