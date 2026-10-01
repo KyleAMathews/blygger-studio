@@ -31,6 +31,10 @@ try {
   writeFileSync(join(installed, ".git/info/exclude"), "node_modules\n");
   symlinkSync(join(root, "node_modules"), join(installed, "node_modules"), "dir");
   mkdirSync(bin);
+  const localD1 = join(temp, "d1");
+  const wranglerCli = join(root, "node_modules/wrangler/bin/wrangler.js");
+  // Seed the old schema first. No fixture command can contact remote D1.
+  execFileSync(process.execPath, [wranglerCli, "d1", "migrations", "apply", "DB", "--local", "--persist-to", localD1], { cwd: installed, encoding: "utf8", env: { ...process.env, WRANGLER_LOG_PATH: join(temp, "wrangler.log") } });
   const require = createRequire(import.meta.url);
   const npmCli = process.env.npm_execpath ?? require.resolve("npm/bin/npm-cli.js");
   const log = join(temp, "commands.jsonl");
@@ -44,6 +48,7 @@ let cmd, forwarded;
 if (tool === 'npm' && args[0] === 'install') { cmd = process.execPath; forwarded = [${JSON.stringify(npmCli)}, ...args, '--offline', '--package-lock-only', '--cache', ${JSON.stringify(join(temp, "cache"))}, '--userconfig', ${JSON.stringify(join(temp, "npmrc"))}]; }
 else if (tool === 'npm' && args.join(' ') === 'run build') { cmd = process.execPath; forwarded = [${JSON.stringify(npmCli)}, ...args]; }
 else if (tool === 'npm' && args[0] === 'test') { cmd = process.execPath; forwarded = ['node_modules/vitest/vitest.mjs', 'run', 'test/sdk.test.ts', '--maxWorkers=2']; }
+else if (tool === 'npx' && args.join(' ') === 'wrangler d1 migrations apply DB --remote') { cmd = process.execPath; forwarded = [${JSON.stringify(wranglerCli)}, 'd1', 'migrations', 'apply', 'DB', '--local', '--persist-to', ${JSON.stringify(localD1)}]; }
 else if (tool === 'npx' && args[0] === 'tsc') { cmd = process.execPath; forwarded = ['node_modules/typescript/bin/tsc', ...args.slice(1)]; }
 else { console.error('Unexpected upgrade command', tool, args); process.exit(1); }
 const result = spawnSync(cmd, forwarded, { stdio: 'inherit' }); process.exit(result.status ?? 1);
@@ -66,8 +71,11 @@ const result = spawnSync(cmd, forwarded, { stdio: 'inherit' }); process.exit(res
   const calls = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   for (const command of ["install", "test"]) assert.ok(calls.some(call => call.tool === "npm" && call.args[0] === command));
   assert.ok(calls.some(call => call.tool === "npx" && call.args[0] === "tsc"));
+  assert.ok(calls.some(call => call.tool === "npx" && call.args.join(" ") === "wrangler d1 migrations apply DB --remote"));
+  const schema = JSON.parse(execFileSync(process.execPath, [wranglerCli, "d1", "execute", "DB", "--local", "--persist-to", localD1, "--command", "SELECT name FROM sqlite_master WHERE type='index' AND name='signals_poll_order'", "--json"], { cwd: installed, encoding: "utf8", env: { ...process.env, WRANGLER_LOG_PATH: join(temp, "wrangler.log") } }));
+  assert.deepEqual(schema[0].results, [{ name: "signals_poll_order" }]);
   assert.match(output, /When you are ready:  npm run deploy/);
-  console.log("0.8.3 upgrade script: local release merge, install build, typecheck, SDK/Worker smoke, and declined deploy verified");
+  console.log("0.8.3 upgrade script: local release merge, install build, local migration, typecheck, SDK/Worker smoke, and declined deploy verified");
 } catch (error) { primaryFailure = error; throw error; }
 finally {
   try { rmSync(temp, { recursive: true, force: true }); }

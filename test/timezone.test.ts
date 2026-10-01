@@ -84,19 +84,3 @@ describe("the setting changes rendering, and only rendering", () => {
     expect(res.status).toBe(400);
   });
 });
-
-describe("the picker", () => {
-  it("offers the saved zone and defers the rest to the browser", async () => {
-    const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { timezone: "Europe/Berlin" });
-    const { SELF } = await import("cloudflare:test");
-    const html = await SELF.fetch("https://example.com/blyg/studio/settings", { headers: { cookie } }).then((r) =>
-      r.text(),
-    );
-    expect(html).toContain('id="timezone"');
-    expect(html).toContain('data-current="Europe/Berlin"');
-    // The server ships no zone list; the browser fills it from its own runtime.
-    expect(html).toContain('Intl.supportedValuesOf("timeZone")');
-    expect(html).toContain("resolvedOptions().timeZone");
-  });
-});

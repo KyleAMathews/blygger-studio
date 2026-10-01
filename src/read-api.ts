@@ -36,7 +36,9 @@ readApi.openapi(routes.listItems, async (c) => {
     c.env.DB.prepare("SELECT * FROM items ORDER BY updated DESC, rowid DESC LIMIT ? OFFSET ?").bind(limit, offset).all<ItemRow>(),
     c.env.DB.prepare("SELECT COUNT(*) AS total FROM items").first<{ total: number }>(),
   ]);
-  return c.json({ items: rows.results.map(itemResource), total: count?.total ?? 0, offset, limit });
+  // Return frozen version links without loading history bodies into the index.
+  const pins = rows.results.length ? (await c.env.DB.prepare(`SELECT item_id, version, CASE WHEN transclusions IS NULL THEN 'fragment' ELSE 'thread' END AS kind FROM versions WHERE pinned = 1 AND item_id IN (${rows.results.map(() => '?').join(',')}) ORDER BY version`).bind(...rows.results.map(row => row.id)).all<{ item_id: string; version: number; kind: 'fragment' | 'thread' }>()).results : [];
+  return c.json({ items: rows.results.map(row => ({ ...itemResource(row), pins: pins.filter(pin => pin.item_id === row.id).map(({ version, kind }) => ({ version, kind })) })), total: count?.total ?? 0, offset, limit });
 });
 readApi.openapi(routes.getItem, async (c) => {
   const detail = await itemDetail(c.env.DB, c.req.param("id"));

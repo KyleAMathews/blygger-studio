@@ -98,7 +98,7 @@ describe("root mount", () => {
     const res = await app.request(`${HOST}/studio`, { redirect: "manual" }, appEnv());
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toContain("/studio/login");
-    expect(res.headers.get("cache-control")).toBeNull();
+    expect(res.headers.get("cache-control")).toBe("no-store");
   });
 });
 
@@ -131,32 +131,31 @@ describe("custom multi-segment mount", () => {
     const res = await app.request(`${HOST}/notes/b/studio`, { redirect: "manual" }, appEnv());
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/notes/b/studio/login");
-    expect(res.headers.get("cache-control")).toBeNull();
+    expect(res.headers.get("cache-control")).toBe("no-store");
     expect((await app.request(`${HOST}/studio`, {}, appEnv())).status).toBe(404);
     expect((await app.request(`${HOST}/studio/login`, {}, appEnv())).status).toBe(404);
   });
 });
 
 
-describe.each(["", "/blyg", "/notes/b"])("Studio SDK at mount %s", (mount) => {
+describe.each(["", "/blyg", "/notes/b"])("Studio SPA at mount %s", (mount) => {
   const app = makeApp(mount);
   const base = studioPath(mount);
   const bindings = { ...appEnv(), MOUNT: mount };
 
-  it("loads the SDK inside the forwarded Studio range, including on the login page", async () => {
+  it("serves the login stylesheet inside the forwarded Studio range", async () => {
     const login = await app.request(`${HOST}${base}/login`, {}, bindings);
     expect(login.status).toBe(200);
     const html = await login.text();
-    const scriptPath = html.match(/<script src="([^"]+studio-sdk\.js)"><\/script>/)?.[1];
-    expect(scriptPath).toBe(`${base}/studio-sdk.js`);
-    const script = await app.request(`${HOST}${scriptPath}`, { redirect: "manual" }, bindings);
-    expect(script.status).toBe(200);
-    expect(script.headers.get("content-type")).toContain("text/javascript");
-    expect(await script.text()).toContain("studioRequest");
-    expect((await app.request(`${HOST}/studio-sdk.js`, {}, bindings)).status).toBe(404);
+    expect(html).toContain(`href="${base}/app.css"`);
+    expect(html).not.toContain('<script');
+    const style = await app.request(`${HOST}${base}/app.css`, {}, bindings);
+    expect(style.status).toBe(200);
+    expect(style.headers.get('content-type')).toContain('text/css');
+    expect((await app.request(`${HOST}/app.js`, {}, bindings)).status).toBe(404);
   });
 
-  it("uses the mounted SDK URL across authenticated Studio pages", async () => {
+  it("uses mounted assets across authenticated Studio routes", async () => {
     const login = await app.request(`${HOST}${base}/login`, {
       method: "POST",
       body: new URLSearchParams({ password: "test-password" }),
@@ -168,7 +167,7 @@ describe.each(["", "/blyg", "/notes/b"])("Studio SDK at mount %s", (mount) => {
       const page = await app.request(`${HOST}${base}${suffix}`, { headers: { cookie } }, bindings, ctx);
       await waitOnExecutionContext(ctx);
       expect(page.status).toBe(200);
-      expect(await page.text()).toContain(`<script src="${base}/studio-sdk.js"></script>`);
+      expect(await page.text()).toContain(`<script defer src="${base}/app.js"></script>`);
     }
   });
 });

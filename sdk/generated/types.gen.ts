@@ -314,7 +314,12 @@ export type ListItemsResponses = {
      * Success
      */
     200: {
-        items: Array<Item>;
+        items: Array<Item & {
+            pins?: Array<{
+                version: number;
+                kind: 'fragment' | 'thread';
+            }>;
+        }>;
         total: number;
         offset: number;
         limit: number;

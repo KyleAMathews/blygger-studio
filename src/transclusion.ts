@@ -1,6 +1,7 @@
 // Transclusion grammar & publish-time resolution — v0.1-plan §2.9. Grammar is
 // locked protocol surface: do not modify without Fable + Venkat.
 
+import { attachedQuote } from "./directives.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { excerptFromHtml, renderMarkdown, selectionText } from "./markdown.ts";
 import type { ImportedItemRow, ItemRow, TextQuoteSelector, Transclusion, VersionRow } from "./types.ts";
@@ -35,7 +36,7 @@ const LINK_INLINE = new RegExp(`(?<!!)\\[\\[([${ID_ALPHABET}]{26})\\]\\]`, "g");
  * ends at the first line that is not a quote line; a line that is empty after
  * its marker is a paragraph break *inside* the selection.
  */
-const QUOTE_LINE = /^\s*>/;
+
 
 /** How much context either side of the match to record — §16.4 says short. */
 const SELECTOR_CONTEXT = 32;
@@ -44,17 +45,7 @@ const SELECTOR_CONTEXT = 32;
  * The run of `>` lines attached to the directive at `i`, and where the caller
  * should resume. `lines[i]` is the directive itself.
  */
-function attachedQuote(lines: string[], i: number): { quoteMd: string | null; next: number } {
-  let j = i + 1;
-  const run: string[] = [];
-  while (j < lines.length && QUOTE_LINE.test(lines[j])) {
-    // Strip the marker and at most one following space — the usual markdown
-    // convention, and the one that leaves "> > nested" nested.
-    run.push(lines[j].replace(/^\s*>\s?/, ""));
-    j++;
-  }
-  return { quoteMd: run.length ? run.join("\n") : null, next: j };
-}
+
 
 /**
  * The selection a quote run denotes: its markdown rendered, then normalized by
@@ -115,29 +106,7 @@ export interface TransclusionRefError {
  * regex: a private copy in preview.ts would be the same duplicated-detector
  * drift that bit resolve.ts vs feed.ts in session 16.
  */
-export function extractDirectives(contentMd: string): { count: number; withoutDirectives: string } {
-  const lines = contentMd.split("\n");
-  const kept: string[] = [];
-  let count = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (RESERVED_LINE.test(line)) {
-      count++;
-      continue;
-    }
-    if (DIRECTIVE_LINE.test(line)) {
-      count++;
-      // The attached blockquote belongs to the directive, not to the prose:
-      // leaving it behind would show the author their own quote twice in a
-      // draft preview — once inside the baked snapshot and once as a stray
-      // quotation under it.
-      i = attachedQuote(lines, i).next - 1;
-      continue;
-    }
-    kept.push(line);
-  }
-  return { count, withoutDirectives: kept.join("\n") };
-}
+export { extractDirectives } from "./directives.ts";
 
 export interface ResolveResult {
   html: string;

@@ -13,31 +13,8 @@
 // of DIRECTIVE_LINE and LINK_INLINE in transclusion.ts, so the cases below
 // mirror that file's: own-line vs inline, and the `!` that separates them.
 import { describe, expect, it } from "vitest";
-import { SELF } from "cloudflare:test";
-import { apiJson, createAndPublish, login, STUDIO } from "./helpers.ts";
-import { paletteScript } from "../src/studio.ts";
-
-type Trigger = { form: "transclude" | "link"; query: string; start: number } | null;
-
-/**
- * Compile the emitted script and hand back its two pure functions. This works
- * only because `paletteScript` touches no DOM at load — the page calls
- * `installPalette` itself — and it doubles as a parse check on every edit to
- * that script, in the same spirit as inline-scripts.test.ts.
- */
-const { trigger, insert } = (() => {
-  const fn = new Function(paletteScript("/blyg") + "\nreturn { paletteTrigger, paletteInsert };");
-  const api = fn() as {
-    paletteTrigger: (text: string, caret: number, allowTransclude: boolean) => Trigger;
-    paletteInsert: (
-      text: string,
-      caret: number,
-      t: NonNullable<Trigger>,
-      id: string,
-    ) => { text: string; caret: number };
-  };
-  return { trigger: api.paletteTrigger, insert: api.paletteInsert };
-})();
+import { apiJson, createAndPublish, login } from "./helpers.ts";
+import { paletteTrigger as trigger, paletteInsert as insert, type Trigger } from "../src/palette.ts";
 
 /** `|` marks the caret, which is how these cases are easiest to read. */
 function at(withCaret: string, allowTransclude = true): Trigger {
@@ -125,50 +102,6 @@ describe("paletteInsert — the insertion matches the trigger", () => {
   });
 });
 
-describe("every composer can reach the palette", () => {
-  async function pages(): Promise<{ cookie: string; fragment: string; thread: string }> {
-    const cookie = await login();
-    const fragment = await createAndPublish(cookie, "a published fragment");
-    const thread = (await apiJson(cookie, "POST", "/api/items", { content_md: "a thread", kind: "thread" })).json
-      .id as string;
-    return { cookie, fragment, thread };
-  }
-  const read = async (cookie: string, path: string) =>
-    (await SELF.fetch(`https://example.com${path}`, { headers: { cookie } })).text();
-
-  it("renders the panel on the index composer, the fragment editor and the thread editor", async () => {
-    const { cookie, fragment, thread } = await pages();
-    for (const path of [STUDIO, `${STUDIO}/edit/${fragment}`, `${STUDIO}/edit/${thread}`]) {
-      const html = await read(cookie, path);
-      expect(html, `${path}: no palette panel`).toContain('id="palette"');
-      expect(html, `${path}: no palette results list`).toContain('id="palette-results"');
-      expect(html, `${path}: palette not installed`).toContain("installPalette({");
-      // The panel is absolutely positioned at its static position, so the box
-      // it sits in has to establish one.
-      expect(html, `${path}: palette container is not positioned`).toContain("position:relative;");
-    }
-  });
-
-  it("offers the directive form on the thread editor only", async () => {
-    const { cookie, fragment, thread } = await pages();
-    expect(await read(cookie, `${STUDIO}/edit/${thread}`)).toContain("transclude: true");
-    // A fragment never resolves `![[id]]` at publish — publishItem runs
-    // resolveTransclusions for threads alone — so offering that insertion here
-    // would write a line that publishes as literal text.
-    expect(await read(cookie, `${STUDIO}/edit/${fragment}`)).toContain("transclude: false");
-    expect(await read(cookie, STUDIO)).toContain("transclude: false");
-  });
-
-  it("no longer ships the dead search input", async () => {
-    const { cookie, thread } = await pages();
-    const html = await read(cookie, `${STUDIO}/edit/${thread}`);
-    // It was focusable, looked like the query box, and was wired to nothing:
-    // the query has always been the text in the textarea.
-    expect(html).not.toContain('id="palette-search"');
-    expect(html).toContain('id="palette-hint"');
-  });
-});
-
 describe("the candidate list pages, and says so", () => {
   // Storage is shared across this file, so every case searches for its own
   // token rather than the whole blyg — otherwise the totals drift with
@@ -227,14 +160,5 @@ describe("the candidate list pages, and says so", () => {
     expect(res.json.items).toHaveLength(2);
   });
 
-  it("every composer ships the count line", async () => {
-    const cookie = await login();
-    const thread = (await apiJson(cookie, "POST", "/api/items", { content_md: "a thread", kind: "thread" })).json
-      .id as string;
-    for (const path of [STUDIO, `${STUDIO}/edit/${thread}`]) {
-      const html = await (await SELF.fetch(`https://example.com${path}`, { headers: { cookie } })).text();
-      expect(html, path).toContain('id="palette-foot"');
-      expect(html, path).toContain('foot: document.getElementById("palette-foot")');
-    }
-  });
+
 });

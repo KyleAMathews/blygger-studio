@@ -440,12 +440,8 @@ export const WEBMENTION_PATH = "webmention";
  * The client version is independent of PROTOCOL_VERSION below and always will
  * be: this is implementation identity, which the wire is indifferent to.
  */
-export const CLIENT = {
-  name: "blygger-studio",
-  version: "0.9.0",
-  /** Canonical source, for the manifest's `generator_url` (§16.6a, decision #34). */
-  url: "https://github.com/blygger/blygger-studio",
-} as const;
+import { CLIENT } from "./client.ts";
+export { CLIENT, FRAGMENT_MAX_CHARS } from "./client.ts";
 
 /**
  * Manifest `generator` key — informative per decision #18d, never a
@@ -491,6 +487,5 @@ export const PROTOCOL_VERSION = "0.3";
  * way a self-report can be wrong, which is by understating what is there.
  */
 export const PROTOCOL_LEVEL = 2;
-export const FRAGMENT_MAX_CHARS = 1000;
 export const FEED_WINDOW = 50;
 export const FEED_PAGE_SIZE = 100;

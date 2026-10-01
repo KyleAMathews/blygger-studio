@@ -8,15 +8,15 @@ Keep the existing Studio UI. Put its data access behind authenticated OpenAPI Ho
 
 The contract lives in `src/contract/`; `npm run openapi` writes `openapi.json`. The owner can also fetch `/api/openapi.json`. Generation is pinned and CI checks contract and SDK drift. Tests check API response shapes, SDK uploads/errors, and browser flows. Build output is ignored and rebuilt before development, tests, and deployment. Each merge to main automatically tags a new, CI-checked version and publishes the OpenAPI spec, an installable SDK archive, and a bundled Worker with migrations and generic config. A manifest and checksums record the versions and source commit; CI verifies the extracted downloads before publication.
 
-## 2. SPA
+## 2. SPA — implemented in Studio 0.10.0
 
-Replace all three legacy Studio modules and their inline scripts in one PR with React, TanStack Router, TanStack DB, and Base UI. Keep the present typography, spacing, colors, themes, and features. Preserve mounted Studio URLs, login/logout, previews, bracket search, editor history, attachments, TK generation, subscriptions, hoppers, signals, mentions, and settings.
+The SPA replaces all three legacy Studio modules and their inline scripts with React, TanStack Router, TanStack DB, and Base UI. It keeps the existing themes, spacing, navigation, and mounted Studio URLs. Login/logout, previews, bracket search, editor history, attachments, TK generation, subscriptions, hoppers, signals, mentions, and settings use the production SPA.
 
-TanStack DB collections read and write through the SDK. Reading polls the API backed by D1; the existing cron still fetches remote subscriptions. Poll visible reading data every 15 seconds, pause in hidden tabs, refresh on focus, and refresh affected collections after writes. Keep stable item keys across subscriptions, handle deletions and withdrawal, and show errors without discarding cached data or edits. Do not let polling overwrite editor drafts.
-Measure D1 rows read for large collections. SQL pagination bounds returned rows, but counts, sorting, and offsets can still repeat scans.
-Use measured indexes or cursor pagination where those scans dominate. The API sanitizes imported HTML before the browser sees it.
+Route loaders preload TanStack DB collections through the SDK. Active views poll the D1-backed API every 15 seconds, pause in hidden tabs, and refresh on focus. Reading loads only the current 25-entry page. Writes refresh affected collections. Polling never replaces unsaved editor drafts, and navigation waits for draft saves. Failed reads keep cached data and show a retry. The API sanitizes imported HTML before the browser sees it.
 
-Delete the old SSR Studio, inline scripts, compatibility adapter, and unused read wrappers in that same PR. Keep public SSR pages. Add browser coverage and visual baselines for desktop/mobile parity and test navigation, polling, mutation failures, and draft retention.
+The old SSR Studio, inline scripts, compatibility adapter, and unused read wrappers are removed. Public SSR pages and subscription cron remain. Desktop/mobile browser checks replace retired Studio HTML assertions. Worker tests retain the API, public-output, lifecycle, grammar, and malformed-storage checks. See [test coverage and limits](testing.md).
+
+Migration 0013 adds an index for signal polling order. A local 5,000-record fixture measures the slice query's D1 rows read. Counts and deep offsets can still scan rows. Compose and catalog collections load in batches of 100. This change does not promise constant database cost or resolve concurrent text-edit conflicts.
 
 ## 3. Ecosystem compatibility, OAuth, and MCP
 

@@ -5,7 +5,7 @@
 
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { apiJson, BASE, createAndPublish, getPublic, login, STUDIO } from "./helpers.ts";
+import { apiJson, BASE, createAndPublish, getPublic, login } from "./helpers.ts";
 
 async function publishEdit(cookie: string, id: string, contentMd: string, note?: string) {
   await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: contentMd });
@@ -50,8 +50,9 @@ describe("restore is forward-only", () => {
     const id = await createAndPublish(cookie, "v1 text");
     await publishEdit(cookie, id, "v2 text");
     await apiJson(cookie, "POST", `/api/items/${id}/restore`, { version: 1 });
-    const page = await (await SELF.fetch(`${BASE}${STUDIO}/`, { headers: { cookie } })).text();
-    expect(page).toContain("unpublished changes");
+    const detail = await apiJson(cookie, "GET", `/api/items/${id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.json).toMatchObject({ dirty: true, version: 2, content_md: "v1 text" });
   });
 });
 
@@ -150,30 +151,5 @@ describe("studio history viewer", () => {
     expect((await SELF.fetch(`${BASE}/api/items/${id}/versions/42`, { headers: { cookie } })).status).toBe(404);
     const noAuth = await SELF.fetch(`${BASE}/api/items/${id}/versions/1`, { redirect: "manual" });
     expect(noAuth.status).toBe(401);
-  });
-});
-
-describe("the index no longer renders dead version controls", () => {
-  it("replaces the always-disabled arrow nav with a truthful summary", async () => {
-    const cookie = await login();
-    const id = await createAndPublish(cookie, "one");
-    await publishEdit(cookie, id, "two");
-    const page = await (await SELF.fetch(`${BASE}${STUDIO}/`, { headers: { cookie } })).text();
-
-    expect(page).not.toContain("version-nav");
-    expect(page).not.toContain("of 2</span>");
-    expect(page).toContain("2 versions");
-  });
-
-  it("links pinned versions to their frozen public pages", async () => {
-    // Session 18: pin chips link the rendered page, not the raw JSON — the
-    // page carries the JSON-twin link, so the file is one hop away.
-    const cookie = await login();
-    const id = await createAndPublish(cookie, "pin me");
-    await publishEdit(cookie, id, "second");
-    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
-    const page = await (await SELF.fetch(`${BASE}${STUDIO}/`, { headers: { cookie } })).text();
-    expect(page).toContain(`/blyg/f/${id}/v1/`);
-    expect(page).not.toContain(`/blyg/items/${id}/v1.json`);
   });
 });

@@ -5,11 +5,11 @@
 // The load-bearing assertions here are the negative ones: a response list is
 // page chrome, so it must not reach the item document, the feed, the hash, or
 // a pinned page — otherwise a stranger's publish would mutate versioned state.
-import { env, SELF } from "cloudflare:test";
+import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { markInboundVerified, upsertInbound } from "../src/mentions/store.ts";
 import { newId } from "../src/util.ts";
-import { apiJson, BASE, createAndPublish, getPublic, login, STUDIO } from "./helpers.ts";
+import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
 
 const OURS = "https://example.com/blyg/";
 
@@ -75,11 +75,10 @@ describe("the public responses list (§3.4)", () => {
     expect(html).toContain("Welcome");
     expect(html).not.toContain("Unwelcome");
 
-    // Still in the studio — "not on my page" is not "this never happened".
-    const studio = await (await SELF.fetch(`${BASE}${STUDIO}/mentions`, { headers: { cookie } })).text();
-    expect(studio).toContain("Unwelcome");
-    expect(studio).toContain("show on page");
-
+    // Hiding affects public presentation; the owner resource still retains it.
+    const mentions = await apiJson(cookie, "GET", "/api/mentions?direction=inbound");
+    expect(mentions.status).toBe(200);
+    expect(mentions.json.items.find((row: { id: string }) => row.id === drop)).toMatchObject({ hidden: true });
     await apiJson(cookie, "PATCH", `/api/mentions/${drop}`, { hidden: false });
     html = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(html).toContain("Unwelcome");

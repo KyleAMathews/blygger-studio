@@ -4,8 +4,8 @@ The reference client for the [Blygger protocol](https://github.com/blygger/blygg
 a Cloudflare Worker that publishes a blyg, subscribes to others, and threads,
 transcludes and responds across them.
 
-**Protocol implemented:** `blyg 0.3`, level 2 · **Client version:** 0.9.0 ·
-`generator: blygger-studio/0.9.0` · [releases + upgrading](#releases-and-upgrading)
+**Protocol implemented:** `blyg 0.3`, level 2 · **Client version:** 0.10.0 ·
+`generator: blygger-studio/0.10.0` · [releases + upgrading](#releases-and-upgrading)
 
 > The [Blygger spec](https://github.com/blygger/blygger-spec) defines the protocol.
 > As of 2026-09-28, at least seven clients publish live blygs. Six are other
@@ -141,6 +141,7 @@ in-memory fixtures and do not need `.dev.vars` or a Cloudflare login.
 ```sh
 npm run build
 npm run typecheck
+npm run test:ui -- --maxWorkers=2
 npm test -- --maxWorkers=2
 npx playwright install chromium
 npm run test:e2e
@@ -185,7 +186,7 @@ Download assets from the same release so the SDK and contract match the Worker.
 Install the SDK archive, then use it from an app on the same origin as Studio:
 
 ```sh
-npm install ./blygger-sdk-0.1.0.tgz
+npm install ./blygger-sdk-0.1.1.tgz
 ```
 
 ```js
@@ -247,7 +248,7 @@ Keep your fork's `CLIENT` name if you changed it.
 Each merge to `main` runs release CI and, after checks pass, creates `v{version}`
 at that commit and publishes the downloads. There is no manual tag push.
 Before merging, bump `package.json`, the root versions in `package-lock.json`,
-and `CLIENT.version` in `src/types.ts`. Add a matching changelog entry with a
+and `CLIENT.version` in `src/client.ts`. Add a matching changelog entry with a
 **Migrations:** line. Bump `sdk/package.json` when its public API changes.
 PR CI rejects a version that is not newer than existing release tags.
 
@@ -281,8 +282,10 @@ src/importer/       subscribe side — resolve, feed parse, poll, hoppers, L0
 src/mentions/       Webmention in and out, structural verification
 src/tk.ts           TK scope grammar · src/tk-generate.ts  instructed generation
 src/stub.ts         stubs (respond) · src/fork.ts  forks and lineage
-src/pages.ts        public pages · src/studio.ts  the authoring UI
-migrations/         D1 schema, 0001–0012
+src/pages.ts        public server-rendered pages
+src/spa.ts          Studio shell, login/logout, embedded browser assets
+src/ui/             React Studio, Router loaders, DB collections and Base UI
+migrations/         D1 schema, 0001–0013
 scripts/            export, deploy-all
 wrangler.jsonc      your deployment — generic here; `npm run init` fills it in
 deploy-targets.json your live deployments (gitignored; see the .example)
@@ -296,7 +299,7 @@ Please report it rather than working around it.
 ## Versioning
 
 **Client version and protocol version are independent, deliberately.** This client
-is 0.9.0 and implements protocol 0.3. The manifest carries both — `blyg` is the
+is 0.10.0 and implements protocol 0.3. The manifest carries both — `blyg` is the
 protocol version, `generator` is this client's identity — and per the spec's
 decision #18d `generator` is *informative*: no reader may gate behaviour on it.
 
@@ -309,8 +312,8 @@ moved out of the spec repo at session 26 (2026-09-28).
 People already do, and that is fine. Two requests, both so that the upgrade path
 keeps working for you:
 
-1. **Change `CLIENT` in `src/types.ts`.** A fork that keeps reporting
-   `blygger-studio/0.9.0` makes the ecosystem census wrong for everyone, and it is
+1. **Change `CLIENT` in `src/client.ts`.** A fork that keeps reporting
+   `blygger-studio/0.10.0` makes the ecosystem census wrong for everyone, and it is
    the census that drives update notices. Give your fork its own name and version —
    that is what `Blynger`, `blyg-publisher` and the rest do.
 2. **Tell us it exists**, so it can be listed at `blygger.org` and so a breaking
@@ -330,11 +333,18 @@ not define a public publishing protocol.
 
 `npm run openapi` updates the contract. `npm run sdk:generate` rebuilds the SDK
 with a pinned Hey API generator on Node 22.18+, using the unchanged spec.
-Dependency installation builds the SDK, including during upgrades from 0.8.3.
+Dependency installation builds the SDK and Studio assets, including during upgrades from 0.8.3.
 The npm dev, test, and deploy scripts also run `npm run build` for you.
 Build first when you run TypeScript, Vitest, or Wrangler directly.
 CI checks types, contract and SDK drift, Worker tests, and Chromium browser tests.
-See [the migration plan](docs/migration.md) for the complete SPA cutover and the
+Studio 0.10.0 uses React, TanStack Router, TanStack DB, and Base UI. Route loaders
+preload collections through the SDK. Active views poll the D1-backed API every
+15 seconds, pause while the tab is hidden, and refresh on focus. Polling keeps
+unsaved editor text. The Worker embeds the browser assets. Deployment needs no
+extra asset binding. For a mounted installation, forward `{mount}/*` and
+`/api/*`, including `{mount}/studio/app.js` and `{mount}/studio/app.css`.
+
+See [the migration plan](docs/migration.md) for the completed SPA cutover and the
 queued OAuth and MCP work.
 
 ## Browser tests

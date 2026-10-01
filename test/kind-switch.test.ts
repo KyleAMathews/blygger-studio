@@ -10,9 +10,8 @@
 // The boundary under test is `version === 0`. A draft has no wire presence, so
 // its kind is studio state; a published item's kind is a field readers already
 // have and history records, and must never move.
-import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { apiJson, BASE, createAndPublish, login, STUDIO } from "./helpers.ts";
+import { apiJson, createAndPublish, login } from "./helpers.ts";
 
 const ORIGIN = "https://friend.example/blyg/";
 
@@ -22,35 +21,31 @@ async function draft(cookie: string, kind: "fragment" | "thread", contentMd = "a
   return res.json.id as string;
 }
 
-async function editor(cookie: string, id: string): Promise<string> {
-  const res = await SELF.fetch(`${BASE}${STUDIO}/edit/${id}`, { headers: { cookie } });
+async function detail(cookie: string, id: string) {
+  const res = await apiJson(cookie, "GET", `/api/items/${id}`);
   expect(res.status).toBe(200);
-  return res.text();
+  return res.json;
 }
 
 describe("a never-published draft can change kind", () => {
   it("fragment to thread, keeping the text and landing in the thread editor", async () => {
     const cookie = await login();
     const id = await draft(cookie, "fragment", "words I want to keep");
-    expect(await editor(cookie, id)).not.toContain("editing thread");
+    expect((await detail(cookie, id)).authored_kind).toBe("fragment");
 
     const res = await apiJson(cookie, "PATCH", `/api/items/${id}`, { kind: "thread" });
     expect(res.status).toBe(200);
     expect(res.json.kind).toBe("thread");
 
-    const html = await editor(cookie, id);
-    expect(html).toContain("editing thread");
-    // The whole point: the draft is the same row, so the text survives.
-    expect(html).toContain("words I want to keep");
+    // The same resource keeps its text when its authored kind changes.
+    expect(await detail(cookie, id)).toMatchObject({ id, authored_kind: "thread", content_md: "words I want to keep" });
   });
 
   it("thread to fragment, the same way", async () => {
     const cookie = await login();
     const id = await draft(cookie, "thread", "words I want to keep");
     expect(await apiJson(cookie, "PATCH", `/api/items/${id}`, { kind: "fragment" })).toMatchObject({ status: 200 });
-    const html = await editor(cookie, id);
-    expect(html).not.toContain("editing thread");
-    expect(html).toContain("words I want to keep");
+    expect(await detail(cookie, id)).toMatchObject({ id, authored_kind: "fragment", content_md: "words I want to keep" });
   });
 
   it("accepts kind and content_md in one call", async () => {
@@ -58,17 +53,7 @@ describe("a never-published draft can change kind", () => {
     const id = await draft(cookie, "fragment", "before");
     const res = await apiJson(cookie, "PATCH", `/api/items/${id}`, { kind: "thread", content_md: "after" });
     expect(res.status).toBe(200);
-    const html = await editor(cookie, id);
-    expect(html).toContain("editing thread");
-    expect(html).toContain("after");
-  });
-
-  it("offers the switch in both editors, on a draft", async () => {
-    const cookie = await login();
-    const frag = await draft(cookie, "fragment");
-    const thread = await draft(cookie, "thread");
-    expect(await editor(cookie, frag)).toContain(`data-action="switch-kind" data-id="${frag}" data-kind="thread"`);
-    expect(await editor(cookie, thread)).toContain(`data-action="switch-kind" data-id="${thread}" data-kind="fragment"`);
+    expect(await detail(cookie, id)).toMatchObject({ id, authored_kind: "thread", content_md: "after" });
   });
 });
 
@@ -88,17 +73,11 @@ describe("a published item's kind is fixed", () => {
     expect((await apiJson(cookie, "PATCH", `/api/items/${id}`, { kind: "thread" })).status).toBe(409);
   });
 
-  it("offers no switch control once published", async () => {
-    const cookie = await login();
-    const id = await createAndPublish(cookie, "published");
-    expect(await editor(cookie, id)).not.toContain('data-action="switch-kind"');
-  });
-
   it("a rejected switch does not quietly save the content sent with it", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "the published text");
     await apiJson(cookie, "PATCH", `/api/items/${id}`, { kind: "thread", content_md: "sneaked in" });
-    expect(await editor(cookie, id)).not.toContain("sneaked in");
+    expect(await detail(cookie, id)).toMatchObject({ authored_kind: "fragment", content_md: "the published text" });
   });
 });
 

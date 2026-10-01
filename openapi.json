@@ -1461,7 +1461,39 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Item"
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/Item"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "pins": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "version": {
+                                      "type": "integer",
+                                      "exclusiveMinimum": 0
+                                    },
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "fragment",
+                                        "thread"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "version",
+                                    "kind"
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ]
                       }
                     },
                     "total": {

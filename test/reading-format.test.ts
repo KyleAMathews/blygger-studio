@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import { plainTextFromAny } from "../src/importer/l0.ts";
-import { readingPage, READING_PAGE_SIZE } from "../src/importer/studio.ts";
+import { readingPage, READING_PAGE_SIZE } from "../src/paging.ts";
 
 describe("plainTextFromAny keeps structure", () => {
   it("turns paragraph boundaries into blank lines, not spaces", () => {

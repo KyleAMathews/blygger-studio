@@ -7,6 +7,7 @@ Worker and SDK downloads before exercising them.
 ```sh
 npm ci
 npm run typecheck
+npm run test:ui -- --maxWorkers=2
 npm test -- --maxWorkers=2
 npx playwright install chromium
 npm run test:e2e
@@ -98,7 +99,7 @@ These checks do not cover every conceivable production mutation.
   tied timestamps where an established tie order exists. Search uses distinct
   timestamps rather than inventing a tie contract.
 - `test/stored-resources.test.ts` isolates malformed and wrong-shaped stored JSON
-  through SDK reads and retained Studio rendering. Valid citation and provenance
+  through SDK reads. Valid citation and provenance
   data survive damage in another column. Stored bytes remain unchanged.
 - `e2e/save-oracle.spec.ts` drives both editors through failed saves, session
   rejection, recovery, failed save before publication, and delayed autosaves.
@@ -107,7 +108,7 @@ These checks do not cover every conceivable production mutation.
   The delayed case records request invocation before network delivery. It can
   therefore detect overlapping saves without relying on a request arriving late.
 - `e2e/mounted-studio.spec.ts` uses a real HTTP proxy forwarding only `/notes/b/*`
-  and `/api/*`. It checks login, SDK loading, saving, upload, and imported-response
+  and `/api/*`. It checks login, embedded SPA loading, saving, upload, and imported-response
   creation in desktop and mobile Chromium. This establishes local proxy behavior,
   not the route settings of an uninspected live Cloudflare deployment.
 - `test/sdk.test.ts` lets the Worker commit a creation, then throws a transport
@@ -127,7 +128,8 @@ These checks do not cover every conceivable production mutation.
 - `scripts/verify-upgrade.ts` executes the actual 0.8.3 upgrade script against a
   local synthetic release. Offline installation reuses linked dependencies but
   runs the real postinstall build. The real typecheck and SDK/Worker smoke suite
-  run. The fixture declines deployment and rejects unexpected commands. It does
+  run. The fixture routes the migration command to local D1, checks the new index,
+  declines deployment, and rejects unexpected commands. It does
   not establish registry availability, remote migrations, config-conflict
   resolution, or Cloudflare deployment. CI's preceding `npm ci` independently
   checks a fresh dependency installation. A fault control removed postinstall
@@ -169,3 +171,30 @@ repository revision containing this file, within the stated domains.
 - D1/R2 fault handling, upload orphan cleanup, and crash recovery remain open.
 - Browser coverage is Chromium desktop/mobile. Firefox and WebKit behavior is
   not established by these runs.
+
+## SPA cutover coverage
+
+Legacy Studio HTML and inline-script assertions are replaced by browser checks
+against the production bundle. Public-page, API, lifecycle, grammar, and malformed
+storage tests remain in the Worker suite. There is no separate development SPA.
+
+| Contract | Tests |
+|---|---|
+| Ordered draft saves, stale acknowledgements, generation queue | `test-ui/state.test.ts`, `e2e/save-oracle.spec.ts` |
+| Polling, hidden tabs, focus, cache eviction and route preload | `test-ui/state.test.ts`, `e2e/spa-studio.spec.ts` |
+| Navigation, themes, editor kind/history/pins, quick edit, bracket paging | `e2e/parity.spec.ts` |
+| Frozen imported HTML, retained withdrawals, legacy actions, hoppers | `e2e/parity.spec.ts`, retained importer API tests |
+| Mentions, response policy, source guidance and update preferences | `e2e/parity.spec.ts`, retained mentions/response/update tests |
+| Mounted authentication and asset forwarding | `test/mount.test.ts`, `e2e/mounted-studio.spec.ts` |
+
+The browser suite runs each case in desktop and mobile Chromium. It does not
+prove behavior in every browser or establish live Cloudflare route settings.
+Reading requests return 25 bodies per page; counts and offset scans can still
+read more D1 rows. Large compose/catalog collections load in batches of 100.
+These limits are not a database-cost or concurrent-edit conflict guarantee.
+
+The 5,000-signal fixture in `test/review-regressions.test.ts` measures D1
+`rows_read` for a ten-row slice at offset 100. Without the ordering index,
+the slice scanned at least 5,000 rows. With migration 0013, the test requires
+at most 500 rows. This excludes the count query and is a local D1 result.
+It does not establish total polling cost for a live site.

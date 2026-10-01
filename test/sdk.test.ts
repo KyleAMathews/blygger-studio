@@ -1,7 +1,6 @@
 import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { BlyggerApi, unwrap, BlyggerApiError, createBlyggerClient } from "../sdk/dist/browser.js";
-import { sdkRequest } from "../src/sdk-request.ts";
 import { itemDetail } from "../src/item-data.ts";
 import { readingData } from "../src/reading-data.ts";
 import { routes } from "../src/contract/routes.ts";
@@ -42,16 +41,10 @@ describe("generated SDK against the real Worker", () => {
     expect(response.status).toBe(200);
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
   });
-  it("adapts legacy request handlers to SDK methods, including errors and previews", async () => {
+  it("previews drafts and exposes missing-item errors through named SDK methods", async () => {
     const client = clientFor(await login());
-    const created = await sdkRequest(client, "/api/items", { method: "POST", body: JSON.stringify({ content_md: "adapter" }) });
-    const { id } = await created.json<{ id: string }>();
-    const res = await sdkRequest(client, `/api/items/${id}/publish`, { method: "POST", body: "{}" });
-    expect(res.status).toBe(200);
-    const preview = await sdkRequest(client, "/api/preview", { method: "POST", body: JSON.stringify({ content_md: "preview", kind: "thread" }) });
-    expect(await preview.json()).toMatchObject({ html: "<p>preview</p>\n", scopes: [] });
-    const missing = await sdkRequest(client, "/api/items/no-such-item");
-    expect(missing.status).toBe(404);
+    expect(await unwrap(BlyggerApi.preview({ client, body: { content_md: 'preview', kind: 'thread' } }))).toMatchObject({ html: '<p>preview</p>\n', scopes: [] });
+    await expect(unwrap(BlyggerApi.getItem({ client, path: { id: 'no-such-item' } }))).rejects.toMatchObject({ statusCode: 404 });
   });
   it("never retries a write after a lost or failed response", async () => {
     let calls = 0;

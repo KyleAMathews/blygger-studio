@@ -33,7 +33,7 @@ import {
 } from "../src/mentions/store.ts";
 import { newId } from "../src/util.ts";
 import { itemDocBody } from "./importer/fixtures.ts";
-import { apiJson, BASE, createAndPublish, getPublic, login, STUDIO } from "./helpers.ts";
+import { apiJson, BASE, createAndPublish, getPublic, login } from "./helpers.ts";
 
 const OURS = "https://example.com/blyg/";
 const THEIRS = "https://friend.example/blyg/";
@@ -629,7 +629,7 @@ describe("the endpoint route (§2.3.1)", () => {
 });
 
 describe("detect stubs — /studio/mentions (§3.3)", () => {
-  it("groups verified mentions by target, badges the relation, and offers stub-back only when we hold their item", async () => {
+  it("returns verified relations and identifies imported sources for stub-back", async () => {
     const cookie = await login();
     await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const mine = await createAndPublish(cookie, "something people respond to");
@@ -671,24 +671,20 @@ describe("detect stubs — /studio/mentions (§3.3)", () => {
     });
     await verifyMention(env.DB, stranger.id, `https://stranger.example/t/${strangerId}/`, mine, OURS, strangerNet.fetch);
 
-    const html = await (await SELF.fetch(`${BASE}${STUDIO}/mentions`, { headers: { cookie } })).text();
-    // The group names the item by its opening words, not by its id.
-    expect(html).toContain("something people respond to");
-    expect(html).toContain("2 responses");
-    expect(html).toContain(">stub<");
-    expect(html).toContain(">transclusion<");
-    expect(html).toContain("Friend Author");
-    expect(html).toContain(`data-remote="${knownId}"`);
-    expect(html).toContain("subscribe to https://stranger.example/");
-    // A pointer, not a copy: none of their text is on this page.
-    expect(html).not.toContain("their stub");
+    const result = await apiJson(cookie, "GET", "/api/mentions?direction=inbound");
+    const rows = result.json.items.filter((row: { target_item_id: string }) => row.target_item_id === mine);
+    expect(rows).toHaveLength(2);
+    expect(rows.find((row: { id: string }) => row.id === known.id)).toMatchObject({ relation: "stub", status: "verified" });
+    expect(JSON.parse(rows.find((row: { id: string }) => row.id === known.id).source_author_json).name).toBe("Friend Author");
+    expect(rows.find((row: { id: string }) => row.id === stranger.id)).toMatchObject({ relation: "transclusion", status: "verified" });
+    expect((await apiJson(cookie, "GET", `/api/mentions/${known.id}/source`)).json.holder).toBeTruthy();
+    expect((await apiJson(cookie, "GET", `/api/mentions/${stranger.id}/source`)).json.holder).toBeNull();
   });
 
-  it("shows the outbound queue, and warns when no site URL is set", async () => {
+  it("exposes the outbound queue and canonical site preference", async () => {
     const cookie = await login();
     await apiJson(cookie, "PATCH", "/api/settings", { site_url: "" });
-    const html = await (await SELF.fetch(`${BASE}${STUDIO}/mentions`, { headers: { cookie } })).text();
-    expect(html).toContain("No <strong>site URL</strong> is set");
+    expect((await apiJson(cookie, "GET", "/api/settings")).json.site_url).toBe("");
 
     await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const remoteId = newId();
@@ -700,10 +696,9 @@ describe("detect stubs — /studio/mentions (§3.3)", () => {
     });
     await apiJson(cookie, "POST", `/api/items/${stub.json.id}/publish`, {});
 
-    const after = await (await SELF.fetch(`${BASE}${STUDIO}/mentions`, { headers: { cookie } })).text();
-    expect(after).not.toContain("No <strong>site URL</strong> is set");
-    expect(after).toContain(`${THEIRS}f/${remoteId}/`);
-    expect(after).toContain(stub.json.id.slice(0, 8));
+    expect((await apiJson(cookie, "GET", "/api/settings")).json.site_url).toBe(OURS);
+    const after = await apiJson(cookie, "GET", "/api/mentions?direction=outbound");
+    expect(after.json.items).toEqual(expect.arrayContaining([expect.objectContaining({ target: `${THEIRS}f/${remoteId}/`, item_id: stub.json.id })]));
   });
 });
 
@@ -830,11 +825,7 @@ describe("declining to receive mentions (§15 is optional)", () => {
     });
     expect(res.status).toBe(404);
 
-    // The control the operator actually uses reflects it — asserted on the
-    // control, not on prose, since the page inlines its own stylesheet.
-    const settingsHtml = await (await SELF.fetch(`${BASE}${STUDIO}/settings`, { headers: { cookie } })).text();
-    expect(settingsHtml).toContain('id="accept_mentions"');
-    expect(settingsHtml).not.toMatch(/id="accept_mentions" checked/);
+    expect((await apiJson(cookie, "GET", "/api/settings")).json.accept_mentions).toBe(false);
 
     // Reversible, and the item is untouched by any of it.
     await setAccept(cookie, true);

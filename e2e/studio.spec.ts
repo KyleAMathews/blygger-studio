@@ -17,12 +17,11 @@ test("owner can compose, publish and change settings through the SDK", async ({ 
   await expect(page.locator("body")).toContainText("Browser SDK round trip");
   await page.goto("/studio/settings");
   await page.locator("#site_title").fill("Browser SDK site");
-  const dialogAccepted = page.waitForEvent("dialog").then(dialog => dialog.accept());
   const saved = page.waitForResponse((response) => response.url().endsWith("/api/settings") && response.request().method() === "PATCH");
   await page.locator('#settings-form button[type="submit"]').focus();
   await page.locator('#settings-form button[type="submit"]').press('Enter');
   expect((await saved).status()).toBe(200);
-  await dialogAccepted;
+  await expect(page.getByRole("status")).toHaveText("saved");
   await page.reload();
   await expect(page.locator("#site_title")).toHaveValue("Browser SDK site");
   expect(errors).toEqual([]);
@@ -40,6 +39,7 @@ test("editor autosave, preview, image upload and history use the SDK", async ({ 
   await expect(page.locator("#md-input")).toHaveValue("Editor fixture");
   await page.locator("#md-input").fill("Autosaved **preview**");
   await expect(page.locator("#preview-body strong")).toHaveText("preview");
+  await expect(page.locator(".save-state")).toHaveText("saved");
   await page.reload();
   await expect(page.locator("#md-input")).toHaveValue("Autosaved **preview**");
   const chooser = page.waitForEvent("filechooser");

@@ -6,7 +6,7 @@
 // operate on a subscription created directly via the store.
 import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { addHopperItem, createHopper, createSubscription, deleteHopper, getHopper, getHopperBySlug, getSubscription, listHoppers, upsertL0Item } from "../../src/importer/store.ts";
+import { createSubscription, getHopper, getHopperBySlug, getSubscription, upsertL0Item } from "../../src/importer/store.ts";
 import { apiJson, BASE, login, STUDIO } from "../helpers.ts";
 
 describe("subscription API (§4.2)", () => {
@@ -75,16 +75,6 @@ describe("subscription API (§4.2)", () => {
 });
 
 describe("studio subs page", () => {
-  it("renders 200 with the add-by-url form and lists existing subscriptions", async () => {
-    const cookie = await login();
-    await createSubscription(env.DB, { kind: "blyg", origin: "https://c.example/", feedUrl: "https://c.example/feed.xml", title: "C" });
-    const res = await SELF.fetch(`${BASE}${STUDIO}/subs`, { headers: { cookie } });
-    expect(res.status).toBe(200);
-    const html = await res.text();
-    expect(html).toContain("add-sub-form");
-    expect(html).toContain("C");
-    expect(html).toContain("https://c.example/");
-  });
 
   it("redirects to login when unauthenticated", async () => {
     const res = await SELF.fetch(`${BASE}${STUDIO}/subs`, { redirect: "manual" });
@@ -190,54 +180,6 @@ describe("hopper + signal API routes", () => {
   });
 });
 
-describe("studio hoppers pages", () => {
-  it("GET /studio/hoppers lists hoppers and renders the create form", async () => {
-    const cookie = await login();
-    await createHopper(env.DB, "Visible Hopper", "visible-hopper");
-    const res = await SELF.fetch(`${BASE}${STUDIO}/hoppers`, { headers: { cookie } });
-    expect(res.status).toBe(200);
-    const html = await res.text();
-    expect(html).toContain("Visible Hopper");
-    expect(html).toContain("new-hopper-form");
-  });
-
-  it("GET /studio/hoppers shows counts, sources, and a peek at the contents", async () => {
-    const cookie = await login();
-    const sub = await createSubscription(env.DB, { kind: "blyg", origin: "https://peek.example/", feedUrl: "https://peek.example/feed.xml", title: "Peek Source" });
-    const hopper = await createHopper(env.DB, "Peeked", "peeked");
-    await upsertL0Item(env.DB, sub.id, "remote-peek", {
-      version: 1, created: "2026-09-01T00:00:00Z", updated: "2026-09-01T00:00:00Z", observedAt: "2026-09-01T00:00:00Z",
-      contentMd: "# A headline\n\nbody text", contentHtml: "<h1>A headline</h1>\n<p>body text</p>", contentHash: "hash-peek",
-    });
-    await addHopperItem(env.DB, hopper.id, sub.id, "remote-peek");
-
-    const html = await (await SELF.fetch(`${BASE}${STUDIO}/hoppers`, { headers: { cookie } })).text();
-    expect(html).toContain("1 item &middot; 1 source");
-    expect(html).toContain("Peek Source");
-    expect(html).toContain("A headline"); // preview comes from rendered HTML, not markdown
-    expect(html).not.toContain("# A headline"); // ...so the "#" never survives
-  });
-
-  it("GET /studio/hoppers/:id offers rename and states the slug promise once public", async () => {
-    const cookie = await login();
-    const hopper = await createHopper(env.DB, "Addressable", "addressable");
-    const before = await (await SELF.fetch(`${BASE}${STUDIO}/hoppers/${hopper.id}`, { headers: { cookie } })).text();
-    expect(before).toContain('data-action="rename-hopper"');
-    expect(before).not.toContain("frozen");
-
-    await apiJson(cookie, "PATCH", `/api/hoppers/${hopper.id}`, { public: true });
-    const after = await (await SELF.fetch(`${BASE}${STUDIO}/hoppers/${hopper.id}`, { headers: { cookie } })).text();
-    expect(after).toContain("frozen — renaming keeps this URL");
-    expect(after).toContain("/h/addressable/");
-  });
-
-  it("GET /studio/hoppers/:id 404s for an unknown hopper", async () => {
-    const cookie = await login();
-    const res = await SELF.fetch(`${BASE}${STUDIO}/hoppers/nope`, { headers: { cookie } });
-    expect(res.status).toBe(404);
-  });
-});
-
 describe("the stub action (§3.1, decision #27 — absorbs `respond`)", () => {
   it("stubs an L0 entry with a citation line and none of its text", async () => {
     const cookie = await login();
@@ -251,13 +193,11 @@ describe("the stub action (§3.1, decision #27 — absorbs `respond`)", () => {
 
     const created = await apiJson(cookie, "POST", "/api/items", { mode: "response", source: { subscription_id: sub.id, remote_id: "l0-xyz" } });
     expect(created.status).toBe(201);
-    const editor = await (await SELF.fetch(`${BASE}${STUDIO}/edit/${created.json.id}`, { headers: { cookie } })).text();
-    const textarea = /<textarea id="md-input"[^>]*>([\s\S]*?)<\/textarea>/.exec(editor);
-    expect(textarea).not.toBeNull();
-    // respond's one real discipline survives: a link, and nothing of theirs.
-    expect(textarea![1]).toBe("[Our Eukaryotic Moment](https://blog.example/p/euk)\n\n");
-    expect(editor).not.toContain("secret body prose");
-    expect(editor).toContain("stub of");
+    const detail = await apiJson(cookie, "GET", `/api/items/${created.json.id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.json.content_md).toBe("[Our Eukaryotic Moment](https://blog.example/p/euk)\n\n");
+    expect(detail.json.content_md).not.toContain("secret body prose");
+    expect(detail.json.stub_of).toMatchObject({ url: "https://blog.example/p/euk" });
   });
 
   it("stubs a blyg entry with the transclusion directive and a citation", async () => {
@@ -276,67 +216,14 @@ describe("the stub action (§3.1, decision #27 — absorbs `respond`)", () => {
     expect(row.content_md).toBe("![[abc123]]\n\n");
     expect(JSON.parse(row.stub_of)).toEqual({ origin: "https://friend.example/blyg/", id: "abc123", version: 3 });
 
-    const editor = await (await SELF.fetch(`${BASE}${STUDIO}/edit/${created.json.id}`, { headers: { cookie } })).text();
-    expect(editor).toContain("stub of");
-    expect(editor).toContain("Friend");
-    expect(editor).toContain('data-action="clear-stub"');
+    const detail = await apiJson(cookie, "GET", `/api/items/${created.json.id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.json.stub_of).toMatchObject({ origin: "https://friend.example/blyg/", id: "abc123", version: 3 });
   });
 
   it("404s for an unknown subscription or item, and 400s with no target", async () => {
     const cookie = await login();
     expect((await apiJson(cookie, "POST", "/api/items", { mode: "response", source: {} })).status).toBe(400);
     expect((await apiJson(cookie, "POST", "/api/items", { mode: "response", source: { subscription_id: "nope", remote_id: "x" } })).status).toBe(404);
-  });
-
-  it("the reading feed offers `stub ↗` on imported entries, and no `respond` anywhere", async () => {
-    const cookie = await login();
-    const sub = await createSubscription(env.DB, { kind: "rss", origin: "https://r.example/feed", feedUrl: "https://r.example/feed", title: "R" });
-    await upsertL0Item(env.DB, sub.id, "l0-r", {
-      version: 1, created: "2026-09-01T00:00:00Z", updated: "2026-09-01T00:00:00Z", observedAt: "2026-09-01T00:00:00Z",
-      contentMd: "x", contentHtml: "<p>x</p>", contentHash: "hash-r",
-    });
-    const html = await (await SELF.fetch(`${BASE}${STUDIO}/reading`, { headers: { cookie } })).text();
-    expect(html).toContain(`data-action="stub"`);
-    expect(html).toContain(`data-remote="l0-r"`);
-    expect(html).toContain("stub ↗");
-    expect(html).not.toContain("respond");
-  });
-});
-
-describe("hopper picker cold start (session 18)", () => {
-  it("offers a create-a-hopper path even when the owner has none", async () => {
-    // Regression: the picker returned "" with zero hoppers, so the reading
-    // feed showed no route into curation at all until you had already found
-    // the hoppers page and made one. Hoppers are the unit of publicity
-    // (decision #12), so this was the entry point to the whole feature.
-    const cookie = await login();
-    const sub = await createSubscription(env.DB, { kind: "rss", origin: "https://cold.example/feed", feedUrl: "https://cold.example/feed", title: "Cold" });
-    await upsertL0Item(env.DB, sub.id, "l0-cold", {
-      version: 1, created: "2026-09-01T00:00:00Z", updated: "2026-09-01T00:00:00Z", observedAt: "2026-09-01T00:00:00Z",
-      contentMd: "x", contentHtml: "<p>x</p>", contentHash: "hash-cold",
-    });
-    // This file shares one D1 across tests, so clear the slate explicitly —
-    // the whole point of the case is "owner has never made a hopper".
-    for (const h of await listHoppers(env.DB)) await deleteHopper(env.DB, h.id);
-    expect(await listHoppers(env.DB)).toHaveLength(0);
-
-    const html = await (await SELF.fetch(`${BASE}${STUDIO}/reading`, { headers: { cookie } })).text();
-    expect(html).toContain(`data-action="add-to-hopper"`);
-    expect(html).toContain("create your first hopper");
-    expect(html).toContain(`value="__new__"`);
-  });
-
-  it("switches the label to '+ new hopper' once one exists", async () => {
-    const cookie = await login();
-    const sub = await createSubscription(env.DB, { kind: "rss", origin: "https://warm.example/feed", feedUrl: "https://warm.example/feed", title: "Warm" });
-    await upsertL0Item(env.DB, sub.id, "l0-warm", {
-      version: 1, created: "2026-09-01T00:00:00Z", updated: "2026-09-01T00:00:00Z", observedAt: "2026-09-01T00:00:00Z",
-      contentMd: "x", contentHtml: "<p>x</p>", contentHash: "hash-warm",
-    });
-    await createHopper(env.DB, "Existing", "existing");
-    const html = await (await SELF.fetch(`${BASE}${STUDIO}/reading`, { headers: { cookie } })).text();
-    expect(html).toContain("+ new hopper");
-    expect(html).not.toContain("create your first hopper");
-    expect(html).toContain("Existing");
   });
 });

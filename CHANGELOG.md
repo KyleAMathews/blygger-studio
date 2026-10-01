@@ -18,6 +18,29 @@ not have its own repo until session 26.
 
 ---
 
+## 0.10.0 — 2026-10-01
+
+**Migrations: apply `0013_signal_poll_index.sql`.**
+
+Studio is now a React SPA with TanStack Router, TanStack DB, and Base UI.
+Route loaders preload SDK reads. Active views poll the D1-backed API every
+15 seconds, pause in hidden tabs, and refresh on focus. Reading loads 25 entries
+at a time. Saves stay ordered, failed writes keep local edits, and navigation
+waits for pending draft saves. Cached reads never replace unsaved editor text.
+
+The UI keeps the existing themes, navigation, authoring, reading, subscriptions,
+hoppers, mentions, settings, history, uploads, bracket search, and TK controls.
+Mounted installations load assets within `{mount}/studio/`. The Worker embeds
+the assets, so downloaded Worker installations need no extra binding or build.
+All old Studio renderers, inline scripts, and SDK compatibility adapters are
+removed. Public pages, protocol output, and subscription cron remain unchanged.
+
+Item lists now include optional pinned-version references without loading
+history bodies. A signal-order index reduces repeated scans during polling.
+SDK 0.1.1 includes this additive response field. CI covers
+SPA state, desktop/mobile browser flows, mounted forwarding, draft recovery,
+API oracles, source upgrades, and extracted release downloads.
+
 ## 0.9.0 — 2026-09-30
 
 **Migrations: none.**

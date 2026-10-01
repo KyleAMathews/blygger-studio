@@ -8,7 +8,7 @@
 // the same split the importer uses: route-level tests go over the local path
 // (where the database is the authority and no fetch happens at all), and the
 // network logic is tested where it can be injected.
-import { env, SELF } from "cloudflare:test";
+import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { checkForkTarget, resolveForkSource } from "../src/fork.ts";
 import type { FetchLike } from "../src/importer/http.ts";
@@ -16,7 +16,7 @@ import { createSubscription } from "../src/importer/store.ts";
 import { forkedVersion, relationTo, upsertAndVerify } from "./fork-helpers.ts";
 import { createFork } from "../src/model.ts";
 import { listOutbound } from "../src/mentions/store.ts";
-import { apiJson, BASE, createAndPublish, getPublic, login, STUDIO } from "./helpers.ts";
+import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
 import { newId } from "../src/util.ts";
 
 const OURS = "https://example.com/blyg/";
@@ -72,8 +72,9 @@ describe("forking a pinned version of our own (§2.4)", () => {
     expect(forked.status).toBe(201);
     const id = forked.json.id as string;
 
-    const edit = await SELF.fetch(`${BASE}${STUDIO}/edit/${id}`, { headers: { cookie } });
-    expect(await edit.text()).toContain("the original text");
+    const draft = await apiJson(cookie, "GET", `/api/items/${id}`);
+    expect(draft.status).toBe(200);
+    expect(draft.json.content_md).toBe("the original text");
 
     expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
     const doc = await itemJson(id);
@@ -108,8 +109,9 @@ describe("forking a pinned version of our own (§2.4)", () => {
     expect(forked.json.kind).toBe("thread");
     // content_md, not content_html: a fork is a working copy, so it inherits
     // the source the author can edit, and re-resolves its own transclusions.
-    const edit = await SELF.fetch(`${BASE}${STUDIO}/edit/${forked.json.id}`, { headers: { cookie } });
-    expect(await edit.text()).toContain(`![[${quoted}]]`);
+    const draft = await apiJson(cookie, "GET", `/api/items/${forked.json.id}`);
+    expect(draft.status).toBe(200);
+    expect(draft.json.content_md).toBe(`intro\n\n![[${quoted}]]`);
   });
 });
 

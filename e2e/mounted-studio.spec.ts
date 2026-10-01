@@ -5,7 +5,7 @@ test("a forwarded nested Studio runs login, SDK saves, upload, and response crea
   const errors: string[] = [], paths: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   page.on("request", request => { if (request.url().startsWith(origin)) paths.push(new URL(request.url()).pathname); });
-  expect((await page.request.get(`${origin}/studio-sdk.js`)).status()).toBe(404);
+  expect((await page.request.get(`${origin}/studio/app.js`)).status()).toBe(404);
   await page.goto(`${studio}/login`);
   await page.locator('[name="password"]').fill("test-password");
   await page.getByRole("button", { name: "log in", exact: true }).click();
@@ -13,8 +13,7 @@ test("a forwarded nested Studio runs login, SDK saves, upload, and response crea
   await page.locator("#composer-full").click();
   await expect(page.locator("#md-input")).toHaveValue("Mounted editor");
   await page.locator("#md-input").fill("Mounted saved text");
-  const reloaded = page.waitForEvent("framenavigated", frame => frame === page.mainFrame());
-  await page.locator("#save-draft-btn").click(); await reloaded;
+  await page.locator("#save-draft-btn").click(); await expect(page.locator(".save-state")).toHaveText("saved");
   await expect(page.locator("#md-input")).toHaveValue("Mounted saved text");
   const chooser = page.waitForEvent("filechooser");
   await page.locator("#attach-btn").click();
@@ -29,7 +28,7 @@ test("a forwarded nested Studio runs login, SDK saves, upload, and response crea
   expect(response.request().postDataJSON()).toMatchObject({ mode: "response", source: { subscription_id: "browser-source", remote_id: "remote" } });
   await expect(page.locator("#md-input")).toHaveValue("[Remote title](https://source.example/post)\n\n");
   expect(page.url()).toContain(`${studio}/edit/`);
-  expect(paths).toContain("/notes/b/studio/studio-sdk.js");
-  expect(paths.every(path => path.startsWith("/notes/b/") || path.startsWith("/api/") || path === "/studio-sdk.js")).toBe(true);
+  expect(paths).toContain("/notes/b/studio/app.js");
+  expect(paths.every(path => path.startsWith("/notes/b/") || path.startsWith("/api/") || path === "/studio/app.js")).toBe(true);
   expect(errors).toEqual([]);
 });

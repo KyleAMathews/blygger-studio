@@ -1,34 +1,15 @@
-import studioSdkScript from "../build/studio-sdk.txt";
+import { studioSpa } from "./spa.ts";
 import { ownerApi } from "./owner-api.ts";
-// Blygger v0.1 "Seed" — route wiring. Public surface per v0.1-plan §3.3.
-//
-// Session 8 (locked decision #14): the public surface's mount path is
-// deployment config (Env.MOUNT, default /blyg), freely assignable including
-// "" = domain root. Routes are built per-mount by makeApp() and memoized.
-// /studio is client furniture, not protocol surface (decision #3) — nested
-// under the mount since session 16 (venkateshrao.com/blyg/studio, not
-// venkateshrao.com/studio) so a non-root deployment doesn't put studio at a
-// URL that looks unrelated to its own public page; a root-mount deployment
-// (mount="") is unaffected, since mount+"/studio" === "/studio" there. /api
-// stays host-rooted regardless of mount — it's invisible plumbing the
-// studio JS calls into, never a bookmarked/navigated URL, so nesting it
-// bought nothing and would have meant threading a mount-aware base through
-// every embedded fetch() call in studio.ts/importer/studio.ts instead of
-// just the human-facing links. Registration order matters at root mount:
-// studio/api handlers are registered before the public sub-app so its cache
-// middleware never wraps them — verified this still holds with studio
-// nested under a non-root mount too (no path collision: pub has no /studio
-// route, and studio/api are still registered on `app` before `pub` is
-// attached).
+// Studio is mounted at {mount}/studio and its assets share that range.
+// The owner API remains host-rooted at /api. Register both before the public
+// sub-app so public-page cache middleware cannot wrap private responses.
 
 import { type Context, Hono } from "hono";
 
-import { verifySession } from "./auth.ts";
 
 import { buildBlogrollOpml } from "./importer/opml.ts";
 import { publicHopperPage } from "./importer/pages.ts";
 import { runScheduledPoll } from "./importer/schedule.ts";
-import { importerStudio } from "./importer/studio.ts";
 import { getHopperBySlug, getImportedItem, getSubscription, listBlogrollSubscriptions, listHopperItems } from "./importer/store.ts";
 import { authoredKind, getItem, getMedia, getSettings, getVersion, listPublic } from "./model.ts";
 import { archivePage, feedPage, permalinkPage, pinnedVersionPage, STYLE_CSS, themeCss, threadPage } from "./pages.ts";
@@ -38,8 +19,6 @@ import { receiveMention, verifyMention } from "./mentions/receive.ts";
 
 import { drainOutbound } from "./mentions/send.ts";
 import { pruneFailedInbound } from "./mentions/store.ts";
-import { mentionsStudio } from "./mentions/studio.ts";
-import { studio } from "./studio.ts";
 import type { Env, Settings } from "./types.ts";
 import { FEED_PAGE_SIZE, WEBMENTION_PATH } from "./types.ts";
 import { normalizeMount, studioPath } from "./util.ts";
@@ -53,24 +32,7 @@ export function makeApp(mount: string) {
 
   // --- Studio: cookie auth, mount-relative (see header note). API: cookie auth, host-rooted. Registered first. ---
 
-  const studioBase = studioPath(mount);
-  const studioLogin = studioBase + "/login";
-
-  app.get(studioBase + "/studio-sdk.js", (c) => c.body(studioSdkScript, 200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" }));
-
-  app.use(studioBase + "/*", async (c, next) => {
-    const path = new URL(c.req.url).pathname;
-    if (path === studioLogin || path === studioBase + "/logout") return next();
-    if (!(await verifySession(c.env, c.req.header("cookie")))) return c.redirect(studioLogin);
-    return next();
-  });
-  app.use(studioBase, async (c, next) => {
-    if (!(await verifySession(c.env, c.req.header("cookie")))) return c.redirect(studioLogin);
-    return next();
-  });
-  app.route(studioBase, studio);
-  app.route(studioBase, importerStudio);
-  app.route(studioBase, mentionsStudio);
+  app.route(studioPath(mount), studioSpa(mount));
 
   app.route("/api", ownerApi);
 

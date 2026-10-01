@@ -4,7 +4,7 @@
 // output (see stripToOutput); the wire never sees "[TK]".
 
 import { renderMarkdown } from "./markdown.ts";
-import { ID_ALPHABET } from "./util.ts";
+import { ID_ALPHABET } from "./identity.ts";
 
 const SOURCE_REF = new RegExp(`!\\[\\[([${ID_ALPHABET}]{26})\\]\\]`, "g");
 

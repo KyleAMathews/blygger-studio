@@ -64,7 +64,7 @@ export const routes = {
   setSignal: route("setSignal", "put", "/signals/{sub}/{remoteId}", ok, z.object({ thumb: z.union([z.literal(1), z.literal(-1)]) })),
   deleteSignal: route("deleteSignal", "delete", "/signals/{sub}/{remoteId}", ok),
   updateMention: route("updateMention", "patch", "/mentions/{id}", ok.extend({ hidden: z.boolean() }), z.object({ hidden: z.boolean() })),
-  listItems: route("listItems", "get", "/items", z.object({ items: z.array(ItemSchema), total: z.number(), offset: z.number(), limit: z.number() }), undefined, 200, page),
+  listItems: route("listItems", "get", "/items", z.object({ items: z.array(ItemSchema.extend({ pins: z.array(z.object({ version: z.number().int().positive(), kind: z.enum(["fragment", "thread"]) })).optional() })), total: z.number(), offset: z.number(), limit: z.number() }), undefined, 200, page),
   getItem: route("getItem", "get", "/items/{id}", z.object({ ...ItemSchema.shape, authored_kind: z.enum(["fragment", "thread"]), media: z.array(MediaSchema), versions: z.array(VersionSchema), published: z.union([VersionSchema, z.null()]) })),
   getSettings: route("getSettings", "get", "/settings", SettingsSchema),
   listSubscriptions: route("listSubscriptions", "get", "/subscriptions", collection(SubscriptionSchema), undefined, 200, page),

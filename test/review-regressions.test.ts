@@ -4,11 +4,9 @@ import { contractApp, readJson } from "../src/contract/app.ts";
 import { routes } from "../src/contract/routes.ts";
 import { itemResource } from "../src/contract/resources.ts";
 import { itemShowsResponses, getSettings } from "../src/model.ts";
-import { studioItem } from "../src/studio-resources.ts";
 import { apiJson, BASE, STUDIO, login } from "./helpers.ts";
 import { createDraft, publish, getItem } from "../src/model.ts";
-import { sdkRequest } from "../src/sdk-request.ts";
-import { createBlyggerClient } from "../sdk/dist/browser.js";
+import { BlyggerApi, createBlyggerClient } from "../sdk/dist/browser.js";
 import { makeApp } from "../src/index.ts";
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { createSubscription, createHopper, addHopperItem, upsertL0Item } from "../src/importer/store.ts";
@@ -22,11 +20,11 @@ describe("external review regressions", () => {
     const { json: item } = await apiJson(cookie, "POST", "/api/items", { kind: "thread", content_md: "No quotes" });
     await apiJson(cookie, "POST", `/api/items/${item.id}/publish`);
     await apiJson(cookie, "PUT", `/api/items/${item.id}/versions/1/pin`);
-    const html = await (await request(cookie, `${STUDIO}/edit/${item.id}`)).text();
-    const badge = html.match(/class="h-badge pinned" href="([^"]+)"/);
-    expect(badge).not.toBeNull();
-    expect(badge![1]).toBe(`/blyg/t/${item.id}/v1/`);
-    expect((await request(cookie, badge![1])).status).toBe(200);
+    const resource = await apiJson(cookie, 'GET', `/api/items/${item.id}`);
+    expect(resource.json.versions[0]).toMatchObject({ kind: 'thread', pinned: true, transclusions: [] });
+    expect((await request(cookie, `/blyg/t/${item.id}/v1/`)).status).toBe(200);
+    const listed = await apiJson(cookie, 'GET', '/api/items');
+    expect(listed.json.items.find((row: { id: string }) => row.id === item.id).pins).toEqual([{ version: 1, kind: 'thread' }]);
   });
 
   it("R02 reads histories larger than the D1 row limit without aggregation", async () => {
@@ -91,7 +89,7 @@ describe("external review regressions", () => {
       seen = input instanceof Request ? input.url : String(input);
       return Response.json({ items: [], total: 0, offset: 0, limit: 100 }, { headers: { "cache-control": "no-store", "x-review": "preserved" } });
     } });
-    const response = await sdkRequest(client, "/api/items?future=value");
+    const { response } = await BlyggerApi.listItems({ client, throwOnError: true, query: { limit: 100, ...{ future: "value" } } });
     expect(new URL(seen).searchParams.get("future")).toBe("value");
     expect(response.headers.get("x-review")).toBe("preserved");
     expect(response.headers.get("cache-control")).toBe("no-store");
@@ -103,10 +101,10 @@ describe("external review regressions", () => {
     const row = await createDraft(env.DB, "Resource");
     row.tk_provenance_json = JSON.stringify([{ sources: [], model: "test", extension: { future: true } }]);
     row.show_responses = 1;
-    const mapped = studioItem(itemResource(row));
-    expect(JSON.parse(mapped.tk_provenance_json!)[0].extension).toEqual({ future: true });
+    const mapped = itemResource(row);
+    expect(mapped.provenance[0]?.extension).toEqual({ future: true });
     const settings = await getSettings(env.DB);
-    expect(itemShowsResponses(mapped, settings)).toBe(itemShowsResponses(row, settings));
+    expect(mapped.responses === "default" ? settings.show_responses_default : mapped.responses === "show").toBe(itemShowsResponses(row, settings));
     expect(() => itemResource({ ...row, id: 42 } as never)).toThrow();
   });
 
@@ -139,32 +137,35 @@ describe("external review regressions", () => {
       const value = Reflect.get(target, key); return typeof value === "function" ? value.bind(target) : value;
     } });
     const ctx = createExecutionContext();
-    const response = await makeApp("/blyg").fetch(new Request(BASE + STUDIO + "/hoppers", { headers: { cookie } }), { ...env, DB: db } as Env, ctx);
+    const response = await makeApp("/blyg").fetch(new Request(BASE + `/api/hoppers/${hopper.id}?preview=true`, { headers: { cookie } }), { ...env, DB: db } as Env, ctx);
     await waitOnExecutionContext(ctx);
     expect(response.status).toBe(200);
-    const html = await response.text(); expect(html).toContain("8 items"); expect(html).toContain("+5 more");
+    const page = await response.json<any>(); expect(page.total).toBe(8); expect(page.items).toHaveLength(3);
     expect(fetched).toBe(3);
   });
 
   it("R12 returns only the requested signal slice from D1", async () => {
     const cookie = await login();
     const app = makeApp("/blyg");
-    let signalsFetched = 0;
+    let signalsFetched = 0, rowsRead = 0;
     const db = new Proxy(env.DB, { get(target, key) {
       if (key === "prepare") return (sql: string) => {
         const wrap = (stmt: D1PreparedStatement): D1PreparedStatement => new Proxy(stmt, { get(statement, method) {
           if (method === "bind") return (...args: Parameters<D1PreparedStatement["bind"]>) => wrap(statement.bind(...args));
-          if (method === "all") return async () => { const result = await statement.all(); if (/SELECT \* FROM signals/i.test(sql)) signalsFetched += result.results.length; return result; };
+          if (method === "all") return async () => { const result = await statement.all(); if (/SELECT \* FROM signals/i.test(sql)) { signalsFetched += result.results.length; rowsRead += result.meta.rows_read; } return result; };
           const value = Reflect.get(statement, method); return typeof value === "function" ? value.bind(statement) : value;
         } });
         return wrap(target.prepare(sql));
       };
       const value = Reflect.get(target, key); return typeof value === "function" ? value.bind(target) : value;
     } });
-    await env.DB.batch(Array.from({ length: 205 }, (_, i) => env.DB.prepare("INSERT INTO signals (subscription_id, remote_id, thumb, at) VALUES ('review', ?, 1, 'now')").bind(String(i))));
+    await env.DB.batch(Array.from({ length: 5000 }, (_, i) => env.DB.prepare("INSERT INTO signals (subscription_id, remote_id, thumb, at) VALUES ('review', ?, 1, 'now')").bind(String(i))));
     const ctx = createExecutionContext();
     const response = await app.fetch(new Request(BASE + "/api/signals?offset=100&limit=10", { headers: { cookie } }), { ...env, DB: db } as Env, ctx);
     await waitOnExecutionContext(ctx);
     expect(response.status).toBe(200); expect(signalsFetched).toBe(10);
+    // The unindexed query scanned at least 5,000 rows for this ten-row page.
+    expect(rowsRead).toBeGreaterThan(0);
+    expect(rowsRead).toBeLessThanOrEqual(500);
   });
 });

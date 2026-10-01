@@ -16,11 +16,11 @@ async function editor(page: Page, kind: "fragment" | "thread") {
   await page.goto(`/studio/edit/${id}`);
   await expect(page.locator("#md-input")).toHaveValue("persisted");
   await page.clock.install();
-  await page.clock.pauseAt(new Date());
+  await page.clock.pauseAt(new Date(Date.now() + 10_000));
   return id as string;
 }
 for (const kind of ["fragment", "thread"] as const) {
-  for (const status of [401, 503]) test(`${kind} keeps text after save ${status} and can recover`, async ({ page }) => {
+  for (const status of [400, 401, 500, 503]) test(`${kind} keeps text after save ${status} and can recover`, async ({ page }) => {
     const id = await editor(page, kind);
     page.on("dialog", dialog => dialog.accept());
     await page.route(`**/api/items/${id}`, route => route.request().method() === "PATCH" ? route.fulfill({ status, json: { error: "save rejected" } }) : route.continue());
@@ -34,9 +34,9 @@ for (const kind of ["fragment", "thread"] as const) {
     expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string; version: number }>, id)).content_md).toBe("persisted");
     await page.unroute(`**/api/items/${id}`);
     const saved = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.request().method() === "PATCH" && response.status() === 200);
-    const reloaded = page.waitForEvent("framenavigated", frame => frame === page.mainFrame());
+    const acknowledged = expect(page.locator(".save-state")).toHaveText("saved");
     await page.locator("#save-draft-btn").click();
-    await saved; await reloaded; await page.waitForLoadState("domcontentloaded");
+    await saved; await acknowledged;
     await expect(page.locator("#md-input")).toHaveValue("unsaved text");
     expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string; version: number }>, id)).content_md).toBe("unsaved text");
   });
@@ -54,13 +54,13 @@ for (const kind of ["fragment", "thread"] as const) {
     });
     await page.locator("#md-input").fill("committed but unacknowledged");
     await page.locator("#save-draft-btn").click();
-    await expect.poll(() => dialogs.length).toBe(1);
+    await expect(page.locator("#error-banner-slot")).toContainText(/failed|fetch|network/i);
     await expect(page.locator("#md-input")).toHaveValue("committed but unacknowledged");
     expect(calls).toBe(1);
     expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string }>, id)).content_md).toBe("committed but unacknowledged");
     await page.unroute(`**/api/items/${id}`);
-    const reloaded = page.waitForEvent("framenavigated", frame => frame === page.mainFrame());
-    await page.locator("#save-draft-btn").click(); await reloaded; await page.waitForLoadState("domcontentloaded");
+    const acknowledged = expect(page.locator(".save-state")).toHaveText("saved");
+    await page.locator("#save-draft-btn").click(); await acknowledged;
     await expect(page.locator("#md-input")).toHaveValue("committed but unacknowledged");
   });
   test(`${kind} never publishes after a failed save`, async ({ page }) => {
@@ -88,8 +88,8 @@ for (const kind of ["fragment", "thread"] as const) {
     expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string }>, id)).content_md).toBe("persisted");
     await page.unroute(`**/api/items/${id}`);
     const saved = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.status() === 200);
-    const reloaded = page.waitForEvent("framenavigated", frame => frame === page.mainFrame());
-    await page.locator("#save-draft-btn").click(); await saved; await reloaded; await page.waitForLoadState("domcontentloaded");
+    const acknowledged = expect(page.locator(".save-state")).toHaveText("saved");
+    await page.locator("#save-draft-btn").click(); await saved; await acknowledged;
     expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string }>, id)).content_md).toBe("failed autosave");
   });
   test(`${kind} keeps the editor after publication fails following a successful save`, async ({ page }) => {
@@ -140,12 +140,11 @@ for (const kind of ["fragment", "thread"] as const) {
       if (bodies.length === 1) { started(); await held; }
       await route.continue();
     });
-    // Record calls before network delivery so the negative assertion cannot
-    // pass merely because a second request has not reached Playwright yet.
+    // Count fetch calls before delivery, independently of the SDK.
     await page.evaluate(() => {
-      const host = globalThis as unknown as { studioRequest: (path: string, init?: RequestInit) => Promise<Response>; patchCalls: number };
-      const original = host.studioRequest; host.patchCalls = 0;
-      host.studioRequest = (path, init) => { if (init?.method === "PATCH") host.patchCalls++; return original(path, init); };
+      const host = globalThis as unknown as { fetch: typeof fetch; patchCalls: number };
+      const original = host.fetch; host.patchCalls = 0;
+      host.fetch = (input, init) => { if (init?.method === 'PATCH' || (input instanceof Request && input.method === 'PATCH')) host.patchCalls++; return original(input, init); };
     });
     try {
       await page.locator("#md-input").fill("older"); await page.clock.runFor(401); await first;

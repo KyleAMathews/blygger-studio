@@ -1,14 +1,14 @@
-// /studio/reading (§3.6) end-to-end: own + imported + l0 fixtures render in
-// clamped order with kind/l0 badges and a withdrawn placeholder.
+// Reading resource (§3.6): own, imported and L0 identities sort by clamped
+// dates; withdrawn content stays absent. Studio rendering is covered in Playwright.
 import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { applyEffect, createSubscription, upsertL0Item } from "../../src/importer/store.ts";
 import { transition } from "../../src/importer/transition.ts";
-import { BASE, createAndPublish, login, STUDIO } from "../helpers.ts";
+import { apiJson, BASE, createAndPublish, login, STUDIO } from "../helpers.ts";
 import { itemDocBody } from "./fixtures.ts";
 
-describe("GET /studio/reading — §3.6", () => {
-  it("renders own, imported, and l0 entries in clamped reverse-chron order with badges", async () => {
+describe("reading resource and shell authentication — §3.6", () => {
+  it("returns own, imported, and l0 entries in clamped reverse-chron order", async () => {
     const cookie = await login();
     // Own item, published "now" (well after everything else below).
     await createAndPublish(cookie, "my own fragment");
@@ -31,24 +31,20 @@ describe("GET /studio/reading — §3.6", () => {
       contentHash: "sha256:whatever",
     });
 
-    const res = await SELF.fetch(`${BASE}${STUDIO}/reading`, { headers: { cookie } });
+    const res = await apiJson(cookie, "GET", "/api/reading");
     expect(res.status).toBe(200);
-    const html = await res.text();
-
-    const ownIdx = html.indexOf("my own fragment");
-    const importedIdx = html.indexOf("a friend&#39;s fragment") !== -1 ? html.indexOf("a friend&#39;s fragment") : html.indexOf("a friend");
-    const l0Idx = html.indexOf("an old post");
+    const rows = res.json.items;
+    const ownIdx = rows.findIndex((row: { contentHtml: string }) => row.contentHtml.includes("my own fragment"));
+    const importedIdx = rows.findIndex((row: { imported?: { remoteId: string } }) => row.imported?.remoteId === "remote-1");
+    const l0Idx = rows.findIndex((row: { imported?: { remoteId: string } }) => row.imported?.remoteId === "l0-post-1");
     expect(ownIdx).toBeGreaterThan(-1);
-    expect(importedIdx).toBeGreaterThan(-1);
-    expect(l0Idx).toBeGreaterThan(-1);
-    // Reverse-chron: own (newest) before imported before l0 (oldest).
-    expect(ownIdx).toBeLessThan(importedIdx);
-    expect(importedIdx).toBeLessThan(l0Idx);
-    expect(html).toContain("legacy rss");
-    expect(html).toContain("Friend");
+    expect(importedIdx).toBeGreaterThan(ownIdx);
+    expect(l0Idx).toBeGreaterThan(importedIdx);
+    expect(rows[l0Idx].l0).toBe(true);
+    expect(rows[importedIdx].imported.subscriptionTitle).toBe("Friend");
   });
 
-  it("renders a withdrawn imported item as a placeholder, no content", async () => {
+  it("returns a withdrawn imported item without its old content", async () => {
     const cookie = await login();
     const sub = await createSubscription(env.DB, { kind: "blyg", origin: "https://friend2.example/", feedUrl: "https://friend2.example/feed.xml", title: "Friend2" });
     const doc = await itemDocBody({ id: "remote-2", kind: "fragment", version: 1, content_md: "secret content should not show" });
@@ -59,10 +55,11 @@ describe("GET /studio/reading — §3.6", () => {
     const withdrawTr = transition({ local: { status: "current", version: 1 }, doc: JSON.parse(withdrawnDoc) });
     await applyEffect(env.DB, sub.id, "remote-2", withdrawTr.effect, "2026-08-02T00:00:00Z");
 
-    const res = await SELF.fetch(`${BASE}${STUDIO}/reading`, { headers: { cookie } });
-    const html = await res.text();
-    expect(html).toContain("withdrawn by origin");
-    expect(html).not.toContain("secret content should not show");
+    const res = await apiJson(cookie, "GET", `/api/reading?sub=${sub.id}`);
+    expect(res.status).toBe(200);
+    const entry = res.json.items.find((row: { imported?: { remoteId: string } }) => row.imported?.remoteId === "remote-2");
+    expect(entry).toMatchObject({ withdrawn: true });
+    expect(entry.contentHtml).not.toContain("secret content should not show");
   });
 
   it("requires auth", async () => {

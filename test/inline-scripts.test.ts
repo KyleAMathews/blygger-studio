@@ -8,8 +8,7 @@
 // newline in the middle of a string literal — SyntaxError on load, every
 // studio click handler dead, and 400 green tests.
 import { describe, expect, it } from "vitest";
-import { apiJson, createAndPublish, getPublic, login, STUDIO } from "./helpers.ts";
-import { SELF } from "cloudflare:test";
+import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
 
 function scriptBodies(html: string): string[] {
   return [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
@@ -42,38 +41,4 @@ describe("every inline script parses", () => {
     }
   });
 
-  it("studio pages", async () => {
-    const cookie = await login();
-    const fragment = await createAndPublish(cookie, "a published fragment");
-    const draft = (await apiJson(cookie, "POST", "/api/items", { content_md: "a draft" })).json.id as string;
-    const thread = (await apiJson(cookie, "POST", "/api/items", { content_md: "a thread", kind: "thread" })).json
-      .id as string;
-    // A hopper *detail* page carries scripts the hoppers index does not (it
-    // renders entries, so it ships the stub handler as of v0.3).
-    const hopper = (await apiJson(cookie, "POST", "/api/hoppers", { name: "Parse check" })).json.id as string;
-
-    const pages = [
-      STUDIO,
-      `${STUDIO}/settings`,
-      `${STUDIO}/subs`,
-      `${STUDIO}/reading`,
-      `${STUDIO}/hoppers`,
-      `${STUDIO}/hoppers/${hopper}`,
-      `${STUDIO}/mentions`,
-      `${STUDIO}/edit/${fragment}`,
-      `${STUDIO}/edit/${draft}`,
-      `${STUDIO}/edit/${thread}`,
-      // The fork picker ships its own handler (it is reached from the reading
-      // feed and from the history panel, neither of which loads the shared
-      // action script).
-      `${STUDIO}/fork?id=${fragment}`,
-    ];
-    for (const path of pages) {
-      const res = await SELF.fetch(`https://example.com${path}`, { headers: { cookie } });
-      expect(res.status, path).toBe(200);
-      const bodies = scriptBodies(await res.text());
-      expect(bodies.length, `${path}: no inline script`).toBeGreaterThan(0);
-      bodies.forEach((b, i) => assertParses(b, `${path} script ${i}`));
-    }
-  });
 });

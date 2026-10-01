@@ -80,36 +80,3 @@ describe("the wire is untouched — #46 and §5.3", () => {
     expect(html).toContain(`<a class="item-title" href="/blyg/f/${id}/">`);
   });
 });
-
-// The same cosmetic fix on the third surface: the studio's own reading feed.
-// Until session 28 only L0 entries got a promoted title, so a titled item from
-// a real blyg rendered its heading inline in the clamped body — the same
-// asymmetry as the public feed page, reached by a different route.
-describe("the studio reader promotes a title too", () => {
-  it("lifts a blyg-native leading heading into a linked entry title", async () => {
-    const cookie = await login();
-    await publishThread(cookie, "# On stigmergy\n\nTrails are left by walking.");
-    const html = await (await import("cloudflare:test")).SELF.fetch(
-      "https://example.com/blyg/studio/reading",
-      { headers: { cookie } },
-    ).then((r) => r.text());
-    const title = /<p class="entry-title">([\s\S]*?)<\/p>/.exec(html);
-    expect(title, "no promoted title in the reader").not.toBeNull();
-    expect(title![1]).toContain("On stigmergy");
-    expect(title![1]).toContain("<a href=");
-    expect(title![1]).toContain('target="_blank"');
-  });
-
-  it("leaves an untitled entry with no title line", async () => {
-    const cookie = await login();
-    await createAndPublish(cookie, "Just a fragment, no heading.");
-    const { SELF } = await import("cloudflare:test");
-    const html = await SELF.fetch("https://example.com/blyg/studio/reading", { headers: { cookie } }).then((r) =>
-      r.text(),
-    );
-    const cards = [...html.matchAll(/<div class="reading-entry">([\s\S]*?)<\/div>\s*<\/div>/g)].map((m) => m[1]);
-    const untitled = cards.find((c) => c.includes("Just a fragment"));
-    expect(untitled, "entry not found").toBeDefined();
-    expect(untitled!).not.toContain("entry-title");
-  });
-});
