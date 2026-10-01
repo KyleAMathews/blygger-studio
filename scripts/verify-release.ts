@@ -5,6 +5,8 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { verifySdkConsumer } from "./verify-sdk-consumer.ts";
+import { verifyPersistence } from "./verify-persistence.ts";
 import { Miniflare } from "miniflare";
 import { readD1Migrations } from "@cloudflare/vitest-pool-workers";
 
@@ -53,6 +55,8 @@ try {
   assert.equal(unauthorized.error.error, "unauthorized");
   assert.ok(readFileSync(join(temp, "package/LICENSE"), "utf8").includes("MIT"));
   assert.equal(JSON.parse(readFileSync(join(temp, "package/package.json"), "utf8")).version, manifest.sdkVersion);
+  await verifySdkConsumer(temp, join(output, sdkArchive), baseUrl, token);
+  await verifyPersistence(worker, temp);
   console.log("Release checksums, extracted Worker, and packaged Node SDK auth/read/write/upload verified");
 } finally {
   await mf?.dispose();

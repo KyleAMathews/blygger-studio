@@ -20,17 +20,20 @@ jobs:
       - run: npm run release:check
         if: github.event_name == 'pull_request'
       - run: npm run release:build
+      - run: npx playwright install --with-deps chromium
       - run: npm run release:verify
       - run: npm run openapi && git diff --exit-code -- openapi.json
       - run: npm test -- --maxWorkers=2
       - run: npm run test:upgrade
-      - run: npx playwright install --with-deps chromium
+      - run: npm run test:mutations
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: browser-traces
-          path: test-results/
+          name: test-failure-evidence
+          path: |
+            test-results/
+            build/mutation-*.log
   sdk-generation:
     runs-on: ubuntu-latest
     steps:

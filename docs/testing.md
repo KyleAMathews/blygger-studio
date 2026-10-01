@@ -11,6 +11,7 @@ npm test -- --maxWorkers=2
 npx playwright install chromium
 npm run test:e2e
 npm run test:upgrade
+npm run test:mutations
 npm run release:build
 npm run release:verify
 ```
@@ -77,8 +78,12 @@ histories own their records. the signals oracle resets its table between histori
 The lifecycle checker rejects rewound history and changed pinned content.
 It also retains the complete wire response from the first pin read and compares
 all later reads with those exact bytes. It never overwrites that reference.
-These controls calibrate comparisons. They do not claim that every conceivable
-production mutation was tested.
+These controls calibrate comparisons. `npm run test:mutations` also checks the
+full production path in an isolated copy. Green baselines precede four mutations:
+missing pins, wrong restored text, ignored offsets, and reversed tie order.
+Each must fail at its named semantic checkpoint. Setup errors and timeouts do
+not count as caught mutations. Logs remain in `build/mutation-*.log`.
+These checks do not cover every conceivable production mutation.
 
 ## Integration evidence
 
@@ -97,12 +102,28 @@ production mutation was tested.
   data survive damage in another column. Stored bytes remain unchanged.
 - `e2e/save-oracle.spec.ts` drives both editors through failed saves, session
   rejection, recovery, failed save before publication, and delayed autosaves.
+  A response-loss case commits the real PATCH, then aborts its browser response.
+  The editor keeps its text, reports failure, and recovers on a manual save.
   The delayed case records request invocation before network delivery. It can
   therefore detect overlapping saves without relying on a request arriving late.
 - `e2e/mounted-studio.spec.ts` uses a real HTTP proxy forwarding only `/notes/b/*`
   and `/api/*`. It checks login, SDK loading, saving, upload, and imported-response
   creation in desktop and mobile Chromium. This establishes local proxy behavior,
   not the route settings of an uninspected live Cloudflare deployment.
+- `test/sdk.test.ts` lets the Worker commit a creation, then throws a transport
+  error instead of returning its response. One request produces one stored item.
+  The SDK reports failure and does not retry. Caller retries have no idempotency
+  guarantee.
+- `scripts/verify-sdk-consumer.ts` installs the release tarball offline in a
+  fresh project. Node imports the package by name and checks read/write/upload/auth.
+  TypeScript checks NodeNext and browser Bundler resolution without `skipLibCheck`.
+  A wrong-type request must fail type checking. Browser bundling must select the
+  browser export. Chromium runs that bundle against the extracted Worker.
+- `scripts/verify-persistence.ts` stops one Worker process and starts another
+  with the same temporary D1/R2 storage. It checks drafts, full owner history,
+  pins, frozen citations, session validity, and exact uploaded bytes.
+  Public pin reads must return 200 before their bytes count as observations.
+  This checks a clean local restart, not crash recovery or remote durability.
 - `scripts/verify-upgrade.ts` executes the actual 0.8.3 upgrade script against a
   local synthetic release. Offline installation reuses linked dependencies but
   runs the real postinstall build. The real typecheck and SDK/Worker smoke suite
@@ -126,7 +147,7 @@ repository revision containing this file, within the stated domains.
 | ORC-003 | Each oracle file exposes contract, model, grammar, SDK driver, and checkpoint comparisons. Campaign mechanics are directly named in `oracle-campaign.ts`. |
 | ORC-004 | Grammar reconstruction, axis removal, ranges, and nearby invalid histories are recorded above. No claim of exhaustive arbitrary histories. |
 | ORC-005 | Real SDK/Worker executions compare public results after awaited actions. exact arrays retain duplicates, omissions, and order. Campaigns record execution. |
-| ORC-006 | Each checker rejects explicit wrong answers. Browser tests failed on the prior editor code at the intended save/publish/order checkpoints, then passed after the fix. |
+| ORC-006 | Each checker rejects explicit wrong answers. Four production mutations fail at named semantic checkpoints. Browser tests failed on the prior editor code at the intended save/publish/order checkpoints, then passed after the fix. |
 | ORC-007 | Equal-budget fixed/random campaigns and direct target/seed/path replay. replay calibration is executable. No commands generator. |
 | ORC-008 | Lifecycle retains working text, status, snapshots, kind, and pins: edit/read, withdraw, restore, publish, and repeated pin distinguish those states. Other models are stateless recomputations. |
 | ORC-009 | Model `content` maps to API `content_md`. snapshot index + 1 maps to the public version number. Authored kind remains distinct from withdrawal kind. |
@@ -145,5 +166,6 @@ repository revision containing this file, within the stated domains.
 - Part three owns real ecosystem-client request fixtures and OAuth/MCP behavior.
 - Generation success across the HTTP SDK boundary still needs a controlled
   provider fixture plus a stated handoff to each supported real provider.
+- D1/R2 fault handling, upload orphan cleanup, and crash recovery remain open.
 - Browser coverage is Chromium desktop/mobile. Firefox and WebKit behavior is
   not established by these runs.

@@ -40,6 +40,29 @@ for (const kind of ["fragment", "thread"] as const) {
     await expect(page.locator("#md-input")).toHaveValue("unsaved text");
     expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string; version: number }>, id)).content_md).toBe("unsaved text");
   });
+  test(`${kind} retains text when a committed save loses its response`, async ({ page }) => {
+    const id = await editor(page, kind);
+    const dialogs: string[] = [];
+    page.on("dialog", async dialog => { dialogs.push(dialog.message()); await dialog.accept(); });
+    let calls = 0;
+    await page.route(`**/api/items/${id}`, async route => {
+      if (route.request().method() !== "PATCH") return route.continue();
+      calls++;
+      const committed = await route.fetch();
+      expect(committed.status()).toBe(200);
+      await route.abort("failed");
+    });
+    await page.locator("#md-input").fill("committed but unacknowledged");
+    await page.locator("#save-draft-btn").click();
+    await expect.poll(() => dialogs.length).toBe(1);
+    await expect(page.locator("#md-input")).toHaveValue("committed but unacknowledged");
+    expect(calls).toBe(1);
+    expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string }>, id)).content_md).toBe("committed but unacknowledged");
+    await page.unroute(`**/api/items/${id}`);
+    const reloaded = page.waitForEvent("framenavigated", frame => frame === page.mainFrame());
+    await page.locator("#save-draft-btn").click(); await reloaded; await page.waitForLoadState("domcontentloaded");
+    await expect(page.locator("#md-input")).toHaveValue("committed but unacknowledged");
+  });
   test(`${kind} never publishes after a failed save`, async ({ page }) => {
     const id = await editor(page, kind);
     page.on("dialog", dialog => dialog.accept());

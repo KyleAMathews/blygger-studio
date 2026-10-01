@@ -59,6 +59,24 @@ describe("generated SDK against the real Worker", () => {
     await expect(unwrap(BlyggerApi.createItem({ client: client }))).rejects.toMatchObject({ statusCode: 502 });
     expect(calls).toBe(1);
   });
+  it("does not retry when the Worker commits a creation but its response is lost", async () => {
+    const cookie = await login(), ordinary = clientFor(cookie);
+    const before = await unwrap(BlyggerApi.listItems({ client: ordinary }));
+    let calls = 0, committedId = "";
+    const lost = createBlyggerClient({ baseUrl: BASE, headers: { cookie }, fetch: async (input, init) => {
+      calls++;
+      const response = await SELF.fetch(input instanceof Request ? input : new Request(input, init));
+      expect(response.status).toBe(201);
+      committedId = (await response.json<{ id: string }>()).id;
+      throw new TypeError("Connection lost after commit");
+    } });
+    await expect(unwrap(BlyggerApi.createItem({ client: lost, body: { content_md: "committed without acknowledgement" } }))).rejects.toThrow("Connection lost after commit");
+    expect(calls).toBe(1);
+    expect(committedId).not.toBe("");
+    expect((await unwrap(BlyggerApi.getItem({ client: ordinary, path: { id: committedId } }))).content_md).toBe("committed without acknowledgement");
+    expect((await unwrap(BlyggerApi.listItems({ client: ordinary }))).total).toBe(before.total + 1);
+    // A caller retry is a new creation; this test makes no idempotency promise.
+  });
   it("matches declared response schemas for private reads and write commands", async () => {
     const cookie = await login();
     const client = clientFor(cookie), draft = await unwrap(BlyggerApi.createItem({ client: client }));

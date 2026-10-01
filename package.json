@@ -34,7 +34,8 @@
     "release:build": "npm run build && node --import tsx scripts/release.ts",
     "release:verify": "node --import tsx scripts/verify-release.ts",
     "release:check": "node --import tsx scripts/check-release.ts",
-    "postinstall": "npm run build"
+    "postinstall": "npm run build",
+    "test:mutations": "node --import tsx scripts/verify-oracle-mutations.ts"
   },
   "dependencies": {
     "@hono/zod-openapi": "^1.6.3",

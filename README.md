@@ -261,8 +261,12 @@ Build and check the downloads locally with:
 ```sh
 npm run release:check
 npm run release:build
+npx playwright install chromium
 npm run release:verify
 ```
+
+Release verification installs the SDK in a temporary project and tests Node and Chromium.
+It also checks data after a fresh local Worker process starts.
 
 The commands write downloads to `build/release/`. `release:check` requires a new unreleased version.
 For an already published checkout, use only the build and verification commands.

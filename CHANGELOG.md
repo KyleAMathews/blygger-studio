@@ -44,6 +44,10 @@ Editors serialize saves and retain current text when a save fails. Publishing
 stops after a failed save. A response for older text cannot reload over newer
 edits. Independent lifecycle, pagination, and PATCH oracles protect the owner
 API, with SDK, browser recovery, mounted routing, and upgrade tests in CI.
+Release checks install the SDK in Node and browser projects and verify its
+TypeScript declarations. Native generator settings emit Node-compatible imports.
+Mutation controls check the production path. Restart tests check persisted
+D1/R2 state, and response-loss tests cover committed writes.
 
 ## 0.8.3 — 2026-09-29
 

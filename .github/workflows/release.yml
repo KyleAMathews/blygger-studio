@@ -34,6 +34,7 @@ jobs:
       - run: git diff --exit-code -- openapi.json sdk/generated sdk/generation.json
       - run: npm test -- --maxWorkers=2
       - run: npm run test:upgrade
+      - run: npm run test:mutations
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - run: npm run release:build
