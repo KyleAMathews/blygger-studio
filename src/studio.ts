@@ -652,6 +652,25 @@ ${isThread ? "" : quickEditBox(item, mount)}
 
 function actionScript(mount: string): string {
   return `
+// One editor writes in request order. Capture text when a save is requested;
+// a later edit must not be cleared by an earlier successful response.
+let editorSaveQueue = Promise.resolve();
+function saveEditorDraft(id) {
+  clearTimeout(debounceTimer);
+  const input = document.getElementById("md-input");
+  const text = input.value;
+  const save = editorSaveQueue.then(async () => {
+    try {
+      const result = await api("PATCH", "/api/items/" + id, { content_md: text });
+      return input.value === text ? result : null;
+    } catch (error) {
+      alert("save failed: " + error.message);
+      return null;
+    }
+  });
+  editorSaveQueue = save;
+  return save;
+}
 async function api(method, path, body) {
   const res = await studioRequest(path, {
     method,
@@ -734,7 +753,7 @@ document.addEventListener("click", async (e) => {
     // between the two editors — /edit/:id dispatches on kind.
     const to = btn.dataset.kind;
     const input = document.getElementById("md-input");
-    if (input) { if (!(await api("PATCH", "/api/items/" + id, { content_md: input.value }))) return; }
+    if (input) { if (!(await saveEditorDraft(id))) return; }
     if (!(await api("PATCH", "/api/items/" + id, { kind: to }))) return;
     location.reload();
     return;
@@ -857,10 +876,9 @@ function flash(msg) {
 /**
  * Create-or-update, returning the draft's id.
  *
- * PUT cannot change an item's kind, so if the toggle moved after a draft was
- * already created we discard that draft and make the right one. Nothing is
- * lost — the text lives in the textarea, which is the source we are writing
- * from — and the discarded draft was never published, so DELETE is legal.
+ * The composer replaces its draft when the kind toggle changes. The textarea
+ * retains the text, and the discarded draft was never published. Full editors
+ * use PATCH instead so attachments and history stay with the same item.
  */
 async function ensureDraft() {
   const kind = composerKind();
@@ -1692,7 +1710,7 @@ let debounceTimer;
 function scheduleSave() {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(async () => {
-    await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
+    if (!(await saveEditorDraft(id))) return;
     const res = await studioRequest("/api/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content_md: mdInput.value }) });
     const data = await res.json();
     previewBody.innerHTML = data.html;
@@ -1720,11 +1738,11 @@ installPalette({
   onInsert: () => { syncCount(); scheduleSave(); },
 });
 document.getElementById("save-draft-btn").addEventListener("click", async () => {
-  await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
+  if (!(await saveEditorDraft(id))) return;
   location.reload();
 });
 document.getElementById("publish-btn").addEventListener("click", async () => {
-  await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
+  if (!(await saveEditorDraft(id))) return;
   const note = document.getElementById("note-input").value.trim();
   const res = await studioRequest("/api/items/" + id + "/publish", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(note ? { note } : {}) });
   const data = await res.json().catch(() => ({}));
@@ -1742,9 +1760,10 @@ document.getElementById("tk-scope-list").addEventListener("click", async (e) => 
   const btn = e.target.closest(".tk-generate-btn");
   if (!btn) return;
   const scope = Number(btn.dataset.scope);
+  const label = btn.textContent;
   btn.disabled = true;
   btn.textContent = "generating…";
-  await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
+  if (!(await saveEditorDraft(id))) { btn.disabled = false; btn.textContent = label; return; }
   if (!(await api("POST", "/api/items/" + id + "/generate", { scope }))) { btn.disabled = false; return; }
   location.reload();
 });
@@ -1905,7 +1924,7 @@ async function refreshPreview() {
 function scheduleSave() {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(async () => {
-    await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
+    if (!(await saveEditorDraft(id))) return;
     refreshPreview();
   }, 400);
 }
@@ -1931,11 +1950,11 @@ document.addEventListener("click", async (e) => {
 
 mdInput.addEventListener("input", scheduleSave);
 document.getElementById("save-draft-btn").addEventListener("click", async () => {
-  await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
+  if (!(await saveEditorDraft(id))) return;
   location.reload();
 });
 document.getElementById("publish-btn").addEventListener("click", async () => {
-  await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
+  if (!(await saveEditorDraft(id))) return;
   const note = document.getElementById("note-input").value.trim();
   const res = await studioRequest("/api/items/" + id + "/publish", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(note ? { note } : {}) });
   const data = await res.json().catch(() => ({}));
@@ -1946,9 +1965,10 @@ document.getElementById("tk-scope-list").addEventListener("click", async (e) => 
   const btn = e.target.closest(".tk-generate-btn");
   if (!btn) return;
   const scope = Number(btn.dataset.scope);
+  const label = btn.textContent;
   btn.disabled = true;
   btn.textContent = "generating…";
-  await api("PATCH", "/api/items/" + id, { content_md: mdInput.value });
+  if (!(await saveEditorDraft(id))) { btn.disabled = false; btn.textContent = label; return; }
   if (!(await api("POST", "/api/items/" + id + "/generate", { scope }))) { btn.disabled = false; return; }
   location.reload();
 });

@@ -34,6 +34,9 @@ Older releases only have GitHub's source archives. You need:
 
 SDK generation uses a pinned Hey API npm package.
 
+Contributors: see [tests and their limits](docs/testing.md) for verification
+commands, oracle replay, and the upgrade test.
+
 ### Install the Worker download
 
 Download `blygger-worker-VERSION.tar.gz` and `SHA256SUMS` from the same release.

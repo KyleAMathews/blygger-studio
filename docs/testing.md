@@ -1,0 +1,149 @@
+# Tests and their limits
+
+The Worker suite runs against local workerd, D1, and R2 bindings. Browser tests
+run the bundled Worker in Miniflare. Release verification extracts the actual
+Worker and SDK downloads before exercising them.
+
+```sh
+npm ci
+npm run typecheck
+npm test -- --maxWorkers=2
+npx playwright install chromium
+npm run test:e2e
+npm run test:upgrade
+npm run release:build
+npm run release:verify
+```
+
+## Independent oracles
+
+The three generated oracles follow the
+[TanStack oracle-testing guide](https://github.com/TanStack/db/blob/main/docs/contributing/oracle-tests.md).
+Their models do not import production transitions, comparators, schemas, or
+resource projectors. They call the generated SDK against the actual Worker.
+
+| Owner | Promised result and checkpoint | Domain and limits |
+|---|---|---|
+| `test/item-lifecycle.oracle.test.ts` | After every action, owner content/status/history and public current/pinned snapshots match a small independent model. Restore keeps the version counter. pins keep their content. | Nonempty plain-text fragments and threads. sequential edit, publish, withdraw, restore, and pin. No TK, references, forks, concurrent publication, or deletion claim. |
+| `test/pagination.oracle.test.ts` | Every signals page and the complete ordered walk match independent sorting and slicing, including row values, duplicates, and exhaustion. | Static collections of 0–25 records, three timestamp values, and page widths 1–10. No snapshot guarantee across writes and no database-cost claim. |
+| `test/patch-atomicity.oracle.test.ts` | A subsequent owner read preserves every field after rejection and changes only requested fields after acceptance. | Draft content, kind, response preference, and citation clearing. Invalid enums, malformed citations, and immutable fields. Separate controlled race cases change kind, citation, and withdrawal state before the guarded SQL write. No promise about concurrent text-edit conflicts. |
+
+Each normal campaign runs eight histories with seed `20261001`, then eight
+histories with a fresh random seed. Both use the same generator, recorder,
+comparison, and budget. Fixed examples force important transitions that a small
+random campaign could miss. These are bounded checks, not a proof of all histories.
+
+To replay a failure, use its reported seed and shrink path:
+
+```sh
+ORACLE_TARGET=item-lifecycle ORACLE_SEED=123 ORACLE_PATH='0:1:2' npm test -- --maxWorkers=2 test/item-lifecycle.oracle.test.ts
+```
+
+The other targets are `pagination` and `patch-atomicity`. Replay mode selects
+only the named replay test. It does not first run fixed or random campaigns.
+These generators use arrays, not `fc.commands`. no command replay path exists.
+`test/oracle-replay.test.ts` captures a deliberate failure and checks direct
+seed/path replay of its reduced input.
+
+Failures retain the first input, violated checkpoint, and original exception.
+Fast-check reports the reduced input and replay information separately. A
+candidate that fails at a different checkpoint cannot replace the first failure.
+Worker test isolation releases fixture state after each test. Generated
+histories own their records. the signals oracle resets its table between histories.
+
+## Grammar and checker evidence
+
+- **Lifecycle:** both kinds and the fixed publish → pin → repeated pin → edit →
+  publish → withdraw → restore → publish history are reachable. Generated actions
+  choose from the current model's legal actions. Restore/pin cannot precede a
+  content version. withdrawal cannot precede publication. Removing version history
+  loses restore. removing pin state loses repeated-pin results. merging public
+  and withdrawn status changes which action is legal. Content tokens span 0–999.
+  generated histories contain 1–10 actions. Empty-content publication is excluded.
+- **Pagination:** fixed cases force an empty table and eleven tied records over
+  width-three pages. Generated width one reaches adjacent page boundaries.
+  Removing ties loses secondary ordering. removing multiple subscriptions loses
+  composite-key ordering. removing width changes loses page-boundary variation.
+  Width zero is invalid and excluded. Checker controls reject reordered,
+  duplicated, omitted, and stale-valued rows.
+- **PATCH:** a fixed case requests every modeled field with each rejection
+  branch, including a schema-valid citation rejected by the fragment rule.
+  Generation selects any field subset and one of five validation states.
+  Removing a field axis loses preservation/change checks for that field. removing
+  invalid requests loses atomic rejection. Changing citations and changing kind
+  remain separate race cases because each independently authorizes a write.
+  The checker rejects a result that applies only the valid content field.
+
+The lifecycle checker rejects rewound history and changed pinned content.
+It also retains the complete wire response from the first pin read and compares
+all later reads with those exact bytes. It never overwrites that reference.
+These controls calibrate comparisons. They do not claim that every conceivable
+production mutation was tested.
+
+## Integration evidence
+
+- `test/sdk-operations.test.ts` calls all 39 named SDK operations with and without
+  owner authentication. Adding a route without a matrix entry fails the test.
+  It checks status, response shape, and no-store headers. Generate, subscription
+  creation, RSS resync, and published deletion deliberately exercise error paths.
+  their success behavior is not credited by this matrix. Shared Zod schemas
+  check shape, while independent oracles judge the modeled meanings.
+- `test/collection-walks.test.ts` checks exact complete walks for items,
+  subscriptions, hoppers, inbound/outbound mentions, reading, and search. It checks
+  tied timestamps where an established tie order exists. Search uses distinct
+  timestamps rather than inventing a tie contract.
+- `test/stored-resources.test.ts` isolates malformed and wrong-shaped stored JSON
+  through SDK reads and retained Studio rendering. Valid citation and provenance
+  data survive damage in another column. Stored bytes remain unchanged.
+- `e2e/save-oracle.spec.ts` drives both editors through failed saves, session
+  rejection, recovery, failed save before publication, and delayed autosaves.
+  The delayed case records request invocation before network delivery. It can
+  therefore detect overlapping saves without relying on a request arriving late.
+- `e2e/mounted-studio.spec.ts` uses a real HTTP proxy forwarding only `/notes/b/*`
+  and `/api/*`. It checks login, SDK loading, saving, upload, and imported-response
+  creation in desktop and mobile Chromium. This establishes local proxy behavior,
+  not the route settings of an uninspected live Cloudflare deployment.
+- `scripts/verify-upgrade.ts` executes the actual 0.8.3 upgrade script against a
+  local synthetic release. Offline installation reuses linked dependencies but
+  runs the real postinstall build. The real typecheck and SDK/Worker smoke suite
+  run. The fixture declines deployment and rejects unexpected commands. It does
+  not establish registry availability, remote migrations, config-conflict
+  resolution, or Cloudflare deployment. CI's preceding `npm ci` independently
+  checks a fresh dependency installation. A fault control removed postinstall
+  from the temporary release. The old script then failed its real typecheck gate
+  because `sdk/dist/browser.js` was absent. This reached the intended gate, rather
+  than failing during fixture setup.
+
+## Guide review record
+
+This record is versioned with the tests it reviews. Its evidence applies to the
+repository revision containing this file, within the stated domains.
+
+| Requirement | Evidence or limit |
+|---|---|
+| ORC-001 | Each oracle identifies its API/established-behavior authority and exclusions in its opening comment and the owner table. |
+| ORC-002 | Expected results use local records and plain rules. no production semantic helpers are imported by models. |
+| ORC-003 | Each oracle file exposes contract, model, grammar, SDK driver, and checkpoint comparisons. Campaign mechanics are directly named in `oracle-campaign.ts`. |
+| ORC-004 | Grammar reconstruction, axis removal, ranges, and nearby invalid histories are recorded above. No claim of exhaustive arbitrary histories. |
+| ORC-005 | Real SDK/Worker executions compare public results after awaited actions. exact arrays retain duplicates, omissions, and order. Campaigns record execution. |
+| ORC-006 | Each checker rejects explicit wrong answers. Browser tests failed on the prior editor code at the intended save/publish/order checkpoints, then passed after the fix. |
+| ORC-007 | Equal-budget fixed/random campaigns and direct target/seed/path replay. replay calibration is executable. No commands generator. |
+| ORC-008 | Lifecycle retains working text, status, snapshots, kind, and pins: edit/read, withdraw, restore, publish, and repeated pin distinguish those states. Other models are stateless recomputations. |
+| ORC-009 | Model `content` maps to API `content_md`. snapshot index + 1 maps to the public version number. Authored kind remains distinct from withdrawal kind. |
+| ORC-010 | Named checkpoint failures retain the original input/cause and reject reductions with another checkpoint. Worker isolation owns cleanup. upgrade temporary repositories use `finally`. |
+| ORC-011 | Owner and public lifecycle reads provide separate observations. No second independent implementation is claimed. shared-fault risks in unmodeled rendering remain open. |
+| ORC-012 | This table records all guide obligations and scope limits. No complete bug-class closure is claimed beyond the named laws and histories. |
+| ORC-013 | Empty/width-one/tied page boundaries, repeated pin, restore after withdrawal, and valid-plus-invalid patches distinguish nearby weaker rules. Unmodeled limits remain open. |
+| ORC-014 | Worker/D1 evidence is local. Race tests supply controlled ordering. the HTTP proxy supplies known forwarding ranges. Production Cloudflare scheduling and live route configuration remain unverified. |
+
+## Open coverage
+
+- Database scan cost remains owned by the performance work in `migration.md`.
+  Exact pages and few returned rows do not prove cheap queries.
+- The SPA PR owns visibility/focus polling, stale-read rejection, and cache/write
+  interaction tests. The retained UI tests do not establish those future laws.
+- Part three owns real ecosystem-client request fixtures and OAuth/MCP behavior.
+- Generation success across the HTTP SDK boundary still needs a controlled
+  provider fixture plus a stated handoff to each supported real provider.
+- Browser coverage is Chromium desktop/mobile. Firefox and WebKit behavior is
+  not established by these runs.

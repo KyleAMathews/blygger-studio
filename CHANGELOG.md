@@ -23,8 +23,8 @@ not have its own repo until session 26.
 **Migrations: none.**
 
 Studio reads and writes through an authenticated OpenAPI Hono API and a
-Hey API-generated JavaScript/TypeScript SDK. The existing UI and public Blygger
-protocol output keep their behavior. Reading batches page bodies, and item
+Hey API-generated JavaScript/TypeScript SDK. The existing UI keeps its layout,
+and public Blygger protocol output keeps its behavior. Reading batches page bodies, and item
 reads keep D1 query counts bounded. The owner API uses resource routes, strict
 Zod request validation, boolean preferences, structured item references, and
 offset pagination. Partial edits validate before an atomic write. Replaced
@@ -39,6 +39,11 @@ OpenAPI spec, a Worker bundle with migrations and generic deployment config,
 and an installable SDK package. A manifest and SHA-256 checksums accompany them.
 CI checks versions, contracts, SDK generation, Worker behavior, browser flows,
 and extracted release artifacts before publication.
+
+Editors serialize saves and retain current text when a save fails. Publishing
+stops after a failed save. A response for older text cannot reload over newer
+edits. Independent lifecycle, pagination, and PATCH oracles protect the owner
+API, with SDK, browser recovery, mounted routing, and upgrade tests in CI.
 
 ## 0.8.3 — 2026-09-29
 
