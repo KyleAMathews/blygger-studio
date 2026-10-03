@@ -59,41 +59,132 @@ function Help({ thread }: { thread?: boolean }) {
     <p className="compose-help">
       Markdown supported. <code>![[id]]</code> quotes an item.{' '}
       <code>[[id]]</code> links an item. <code>[TK]an instruction[/TK]</code>{' '}
-      marks AI-drafted text. <Link to="/syntax">full syntax reference</Link>
+      marks AI-drafted text. Type <code>/image</code> on its own line, or
+      paste or drop an image, to insert one there.{' '}
+      <Link to="/syntax">full syntax reference</Link>
     </p>
   ) : (
     <p className="compose-help">
       Markdown supported. Write <code>[[id]]</code> to link another item of
       yours or something you read (type <code>[[</code> for a picker), and{' '}
       <code>[TK]an instruction[/TK]</code> to mark a scope for AI-drafted text —
-      a <em>generate</em> button appears, which saves and opens the editor.{' '}
+      a <em>generate</em> button appears, which saves and opens the editor.
+      Type <code>/image</code> on its own line, or paste or drop an image, to
+      insert one there.{' '}
       <Link to="/syntax">full syntax reference</Link>
     </p>
   );
 }
+/**
+ * Put `block` on its own paragraph at [start, end) of `text`, adding only the
+ * blank lines the surrounding text does not already supply.
+ */
+export function insertBlock(text: string, start: number, end: number, block: string) {
+  const before = text.slice(0, start);
+  const after = text.slice(end);
+  const lead = !before || before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n';
+  const trail = !after || after.startsWith('\n\n') ? '' : after.startsWith('\n') ? '\n' : '\n\n';
+  return { text: before + lead + block + trail + after, caret: (before + lead + block).length };
+}
+
+/** A line holding only `/image`, ending at the caret: the slash command. */
+export function imageCommandAt(text: string, caret: number) {
+  const lineStart = text.lastIndexOf('\n', caret - 1) + 1;
+  return text.slice(lineStart, caret).trim() === '/image' &&
+    (caret === text.length || text[caret] === '\n')
+    ? { start: lineStart, end: caret }
+    : null;
+}
+
+let uploadSeq = 0;
+
+/**
+ * Image uploads for both composers. An image goes where the author is
+ * writing, not at the end (session 30, Venkat): at the caret when the attach
+ * button is pressed, in place of a `/image` line, or where an image is pasted
+ * or dropped. A placeholder holds the spot while the upload runs, so text
+ * typed meanwhile cannot shift where the image lands; it is replaced by the
+ * real markdown on success and removed on failure.
+ */
 function useUpload(
   id: string | undefined | (() => Promise<string | undefined>),
-  append: (text: string) => void,
+  textarea: React.RefObject<HTMLTextAreaElement | null>,
+  setText: (text: string) => void,
 ) {
   const input = useRef<HTMLInputElement>(null);
   const action = useAction();
   const [attached, setAttached] = useState('');
-  const upload = async (file: File) => {
+  // Where the next picked file goes; captured when the picker opens, because
+  // the textarea loses its selection while the file dialog has focus.
+  const target = useRef<{ start: number; end: number } | null>(null);
+  const current = () => textarea.current?.value ?? '';
+  const caret = () => {
+    const el = textarea.current;
+    return el ? { start: el.selectionStart, end: el.selectionEnd } : { start: current().length, end: current().length };
+  };
+  const upload = async (file: File, at: { start: number; end: number }) => {
     const itemId = typeof id === 'function' ? await id() : id;
-    const media = await unwrap(
-      BlyggerApi.uploadMedia({
-        client,
-        body: { file, ...(itemId ? { item_id: itemId } : {}) },
-      }),
-    );
-    append(`\n\n![](${mount}/${media.url})`);
-    setAttached(media.url);
-    if (itemId) await changed('item');
+    const token = `![uploading ${file.name || 'image'}…](#upload-${++uploadSeq})`;
+    const placed = insertBlock(current(), at.start, at.end, token);
+    setText(placed.text);
+    try {
+      const media = await unwrap(
+        BlyggerApi.uploadMedia({
+          client,
+          body: { file, ...(itemId ? { item_id: itemId } : {}) },
+        }),
+      );
+      setText(current().replace(token, `![](${mount}/${media.url})`));
+      setAttached(media.url);
+      if (itemId) await changed('item');
+    } catch (error) {
+      const now = current();
+      const i = now.indexOf(token);
+      if (i >= 0) setText(now.slice(0, i) + now.slice(i + token.length));
+      throw error;
+    }
+  };
+  const uploadFiles = (files: Iterable<File>, at: { start: number; end: number }) => {
+    const images = [...files].filter((f) => f.type.startsWith('image/'));
+    if (!images.length) return false;
+    void action.run(async () => {
+      for (const file of images) await upload(file, at);
+    });
+    return true;
+  };
+  const pick = (at = caret()) => {
+    target.current = at;
+    input.current?.click();
   };
   return {
     input,
     action,
     attached,
+    pick,
+    /**
+     * Call from the textarea's onChange with the new value. Returns the value
+     * to keep: a completed `/image` line is removed and opens the picker.
+     */
+    command(value: string): string {
+      const el = textarea.current;
+      const at = el ? el.selectionStart : value.length;
+      const hit = imageCommandAt(value, at);
+      if (!hit) return value;
+      const rest = value.slice(0, hit.start) + value.slice(hit.end);
+      pick({ start: hit.start, end: hit.start });
+      return rest;
+    },
+    textareaProps: {
+      onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        if (uploadFiles(event.clipboardData.files, caret())) event.preventDefault();
+      },
+      onDragOver: (event: React.DragEvent<HTMLTextAreaElement>) => {
+        if ([...event.dataTransfer.items].some((i) => i.kind === 'file')) event.preventDefault();
+      },
+      onDrop: (event: React.DragEvent<HTMLTextAreaElement>) => {
+        if (uploadFiles(event.dataTransfer.files, caret())) event.preventDefault();
+      },
+    },
     element: (
       <input
         ref={input}
@@ -102,7 +193,7 @@ function useUpload(
         hidden
         onChange={(event) => {
           const file = event.target.files?.[0];
-          if (file) void action.run(() => upload(file));
+          if (file) uploadFiles([file], target.current ?? caret());
           event.target.value = '';
         }}
       />
@@ -176,8 +267,8 @@ export function Compose() {
       }
     },
   });
-  const upload = useUpload(save, (addition) => {
-    setText((text) => text + addition);
+  const upload = useUpload(save, input, (next) => {
+    setText(next);
     setSaved(false);
   });
   const openEditor = async () => {
@@ -208,8 +299,9 @@ export function Compose() {
           id="composer-text"
           placeholder="compose a fragment…"
           value={text}
+          {...upload.textareaProps}
           onChange={(e) => {
-            setText(e.target.value);
+            setText(upload.command(e.target.value));
             setSaved(false);
           }}
         />
@@ -245,7 +337,7 @@ export function Compose() {
           <span>
             <Button
               id="composer-attach"
-              onClick={() => upload.input.current?.click()}
+              onClick={() => upload.pick()}
             >
               attach image
             </Button>{' '}
@@ -621,9 +713,7 @@ function Editor({ item }: { item: Detail }) {
       controller.abort();
     };
   }, [text, item.id, item.authored_kind]);
-  const upload = useUpload(item.id, (addition) =>
-    edit(draft.current!.text + addition),
-  );
+  const upload = useUpload(item.id, input, edit);
   const operation = (fn: () => Promise<unknown>) =>
     void action.run(async () => {
       if (!(await save())) return;
@@ -774,7 +864,8 @@ function Editor({ item }: { item: Detail }) {
             readOnly={replacing}
             ref={input}
             value={text}
-            onChange={(event) => edit(event.target.value)}
+            {...upload.textareaProps}
+            onChange={(event) => edit(upload.command(event.target.value))}
           />
           {!replacing ? (
             <BracketPicker
@@ -832,7 +923,7 @@ function Editor({ item }: { item: Detail }) {
           <Button
             id="attach-btn"
             disabled={replacing}
-            onClick={() => upload.input.current?.click()}
+            onClick={() => upload.pick()}
           >
             attach image
           </Button>{' '}
