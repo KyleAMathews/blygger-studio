@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client/index.js';
-import type { AddHopperItemData, AddHopperItemErrors, AddHopperItemResponses, CreateHopperData, CreateHopperErrors, CreateHopperResponses, CreateItemData, CreateItemErrors, CreateItemResponses, CreateSubscriptionData, CreateSubscriptionErrors, CreateSubscriptionResponses, DeleteHopperData, DeleteHopperErrors, DeleteHopperResponses, DeleteItemData, DeleteItemErrors, DeleteItemResponses, DeleteSignalData, DeleteSignalErrors, DeleteSignalResponses, DeleteSubscriptionData, DeleteSubscriptionErrors, DeleteSubscriptionResponses, DraftNoteData, DraftNoteErrors, DraftNoteResponses, GenerateItemData, GenerateItemErrors, GenerateItemResponses, GetForkOptionsData, GetForkOptionsErrors, GetForkOptionsResponses, GetHopperData, GetHopperErrors, GetHopperResponses, GetImportedItemData, GetImportedItemErrors, GetImportedItemResponses, GetItemData, GetItemErrors, GetItemFreshnessData, GetItemFreshnessErrors, GetItemFreshnessResponses, GetItemResponses, GetMentionSourceData, GetMentionSourceErrors, GetMentionSourceResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetSubscriptionData, GetSubscriptionErrors, GetSubscriptionResponses, GetUpdateStateData, GetUpdateStateErrors, GetUpdateStateResponses, GetVersionData, GetVersionErrors, GetVersionResponses, ListHoppersData, ListHoppersErrors, ListHoppersResponses, ListItemsData, ListItemsErrors, ListItemsResponses, ListMentionsData, ListMentionsErrors, ListMentionsResponses, ListReadingData, ListReadingErrors, ListReadingResponses, ListSignalsData, ListSignalsErrors, ListSignalsResponses, ListStaleThreadsData, ListStaleThreadsErrors, ListStaleThreadsResponses, ListSubscriptionsData, ListSubscriptionsErrors, ListSubscriptionsResponses, PinItemData, PinItemErrors, PinItemResponses, PreviewData, PreviewErrors, PreviewResponses, PublishItemData, PublishItemErrors, PublishItemResponses, RefreshItemData, RefreshItemErrors, RefreshItemResponses, RemoveHopperItemData, RemoveHopperItemErrors, RemoveHopperItemResponses, RestoreItemData, RestoreItemErrors, RestoreItemResponses, ResyncSubscriptionData, ResyncSubscriptionErrors, ResyncSubscriptionResponses, SearchData, SearchErrors, SearchResponses, SetSignalData, SetSignalErrors, SetSignalResponses, UpdateHopperData, UpdateHopperErrors, UpdateHopperResponses, UpdateItemData, UpdateItemErrors, UpdateItemResponses, UpdateMentionData, UpdateMentionErrors, UpdateMentionResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UpdateSubscriptionData, UpdateSubscriptionErrors, UpdateSubscriptionResponses, UploadMediaData, UploadMediaErrors, UploadMediaResponses, WithdrawItemData, WithdrawItemErrors, WithdrawItemResponses } from './types.gen.js';
+import type { AddHopperItemData, AddHopperItemErrors, AddHopperItemResponses, CreateHopperData, CreateHopperErrors, CreateHopperResponses, CreateItemData, CreateItemErrors, CreateItemResponses, CreateSubscriptionData, CreateSubscriptionErrors, CreateSubscriptionResponses, DeleteHopperData, DeleteHopperErrors, DeleteHopperResponses, DeleteItemData, DeleteItemErrors, DeleteItemResponses, DeleteSignalData, DeleteSignalErrors, DeleteSignalResponses, DeleteSubscriptionData, DeleteSubscriptionErrors, DeleteSubscriptionResponses, DraftNoteData, DraftNoteErrors, DraftNoteResponses, GenerateItemData, GenerateItemErrors, GenerateItemResponses, GetForkOptionsData, GetForkOptionsErrors, GetForkOptionsResponses, GetHopperData, GetHopperErrors, GetHopperResponses, GetImportedHistoryData, GetImportedHistoryErrors, GetImportedHistoryResponses, GetImportedItemData, GetImportedItemErrors, GetImportedItemResponses, GetImportedVersionData, GetImportedVersionErrors, GetImportedVersionResponses, GetItemData, GetItemErrors, GetItemFreshnessData, GetItemFreshnessErrors, GetItemFreshnessResponses, GetItemResponses, GetMentionSourceData, GetMentionSourceErrors, GetMentionSourceResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetSubscriptionData, GetSubscriptionErrors, GetSubscriptionResponses, GetUpdateStateData, GetUpdateStateErrors, GetUpdateStateResponses, GetVersionData, GetVersionErrors, GetVersionResponses, ListHoppersData, ListHoppersErrors, ListHoppersResponses, ListItemsData, ListItemsErrors, ListItemsResponses, ListMentionsData, ListMentionsErrors, ListMentionsResponses, ListReadingData, ListReadingErrors, ListReadingResponses, ListSignalsData, ListSignalsErrors, ListSignalsResponses, ListStaleThreadsData, ListStaleThreadsErrors, ListStaleThreadsResponses, ListSubscriptionsData, ListSubscriptionsErrors, ListSubscriptionsResponses, PinItemData, PinItemErrors, PinItemResponses, PreviewData, PreviewErrors, PreviewResponses, PublishItemData, PublishItemErrors, PublishItemResponses, RefreshItemData, RefreshItemErrors, RefreshItemResponses, RemoveHopperItemData, RemoveHopperItemErrors, RemoveHopperItemResponses, RestoreItemData, RestoreItemErrors, RestoreItemResponses, ResyncSubscriptionData, ResyncSubscriptionErrors, ResyncSubscriptionResponses, SearchData, SearchErrors, SearchResponses, SetSignalData, SetSignalErrors, SetSignalResponses, UpdateHopperData, UpdateHopperErrors, UpdateHopperResponses, UpdateItemData, UpdateItemErrors, UpdateItemResponses, UpdateMentionData, UpdateMentionErrors, UpdateMentionResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UpdateSubscriptionData, UpdateSubscriptionErrors, UpdateSubscriptionResponses, UploadMediaData, UploadMediaErrors, UploadMediaResponses, WithdrawItemData, WithdrawItemErrors, WithdrawItemResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -446,6 +446,26 @@ export const getImportedItem = <ThrowOnError extends boolean = false>(options: O
             type: 'apiKey'
         }],
     url: '/api/imports/{sub}/{id}',
+    ...options
+});
+
+export const getImportedHistory = <ThrowOnError extends boolean = false>(options: Options<GetImportedHistoryData, ThrowOnError>): RequestResult<GetImportedHistoryResponses, GetImportedHistoryErrors, ThrowOnError> => (options.client ?? client).get<GetImportedHistoryResponses, GetImportedHistoryErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }],
+    url: '/api/imports/{sub}/{id}/history',
+    ...options
+});
+
+export const getImportedVersion = <ThrowOnError extends boolean = false>(options: Options<GetImportedVersionData, ThrowOnError>): RequestResult<GetImportedVersionResponses, GetImportedVersionErrors, ThrowOnError> => (options.client ?? client).get<GetImportedVersionResponses, GetImportedVersionErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }],
+    url: '/api/imports/{sub}/{id}/versions/{v}',
     ...options
 });
 

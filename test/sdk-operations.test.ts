@@ -59,6 +59,8 @@ it("exercises every declared operation through its named SDK method, including a
     ["getItemFreshness", 409, client => api.getItemFreshness({ client, path: { id }, query: { probe: "false" } })],
     ["refreshItem", 409, client => api.refreshItem({ client, path: { id } })],
     ["draftNote", 409, client => api.draftNote({ client, path: { id } })],
+    ["getImportedHistory", 404, client => api.getImportedHistory({ client, path: { sub: sub.id, id: "remote" } })],
+    ["getImportedVersion", 404, client => api.getImportedVersion({ client, path: { sub: sub.id, id: "remote", v: 1 } })],
     ["withdrawItem", 200, client => api.withdrawItem({ client, path: { id } })],
     ["deleteItem", 409, client => api.deleteItem({ client, path: { id } })],
     ["deleteHopper", 200, client => api.deleteHopper({ client, path: { id: hopper.id } })],

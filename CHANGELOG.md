@@ -18,6 +18,26 @@ not have its own repo until session 26.
 
 ---
 
+## 0.15.0 — 2026-10-03
+
+**Migrations: none.**
+
+**History for what you read** (decision #40, the reader half). An entry from a
+blyg subscription in *reading* now has a *history* toggle. It shows the item's
+changelog, read from its origin when you open it: every version's note and
+date, which versions are pinned, and which notes the publisher's studio drafted
+(`changelog[].generated`).
+
+*See the change* shows a word diff of the markdown between two versions. It is
+offered only between versions the origin serves publicly: adjacent pins, and
+the last pin against the current version. An unpinned version's text is
+withheld at its source (§5.2), and nothing here offers or attempts it.
+
+API: `GET /imports/{sub}/{id}/history` and `GET /imports/{sub}/{id}/versions/{v}`,
+both fetched from the origin on demand. The diff is a small dependency-free
+word diff (`src/word-diff.ts`) that aligns paragraphs before words, so a long
+thread does not become a quadratic comparison.
+
 ## 0.14.0 — 2026-10-03
 
 **Migrations: apply `0015_note_generated.sql`.** It adds one column with a

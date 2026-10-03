@@ -22,6 +22,7 @@ import { Button, Failure, mount, usePoll, useSettings } from './components.tsx';
 import { displayUrl } from '../importer/util.ts';
 import { formatDateIn } from '../dates.ts';
 import { AddFeedForm } from './catalog.tsx';
+import { diffText, type DiffOp } from '../word-diff.ts';
 
 function Copy({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -434,6 +435,9 @@ export function ReadingPage({ sub, offset }: { sub: string; offset: number }) {
                     </>
                   ) : null}
                 </div>
+                {imported && !entry.l0 ? (
+                  <History sub={imported.subscriptionId} id={id} />
+                ) : null}
               </article>
             );
           })}
@@ -471,5 +475,130 @@ export function ReadingPage({ sub, offset }: { sub: string; offset: number }) {
         </section>
       </div>
     </>
+  );
+}
+
+type ImportedHistory = Awaited<ReturnType<typeof loadHistory>>;
+const loadHistory = (sub: string, id: string) =>
+  unwrap(BlyggerApi.getImportedHistory({ client, path: { sub, id } }));
+const loadVersion = (sub: string, id: string, v: number) =>
+  unwrap(BlyggerApi.getImportedVersion({ client, path: { sub, id, v } }));
+/**
+ * An imported item's history (#40): its notes as a timeline, read from the
+ * origin, and "see the change" only between versions the origin serves
+ * publicly — adjacent pins, and the last pin against the current version.
+ * Unpinned history is withheld at the source; nothing here offers it.
+ */
+function History({ sub, id }: { sub: string; id: string }) {
+  const [open, setOpen] = useState(false);
+  const [history, setHistory] = useState<ImportedHistory>();
+  const [diff, setDiff] = useState<{ from: number; to: number; ops: DiffOp[] }>();
+  const [error, setError] = useState<unknown>();
+  const [busy, setBusy] = useState(false);
+  const settings = useSettings();
+  const when = (iso: string) => (iso ? formatDateIn(iso, settings?.timezone || 'UTC') : '');
+  const toggle = async () => {
+    if (open) return setOpen(false);
+    setOpen(true);
+    if (history) return;
+    setError(undefined);
+    try {
+      setHistory(await loadHistory(sub, id));
+    } catch (e) {
+      setError(e);
+    }
+  };
+  const compare = async (from: number, to: number) => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      const [a, b] = await Promise.all([loadVersion(sub, id, from), loadVersion(sub, id, to)]);
+      setDiff({ from, to, ops: diffText(a.content_md, b.content_md) });
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  // The versions whose text is public, in order: every pin, then the current
+  // version unless the item is withdrawn.
+  const publicVersions = history
+    ? [
+        ...new Set([
+          ...history.changelog.filter((e) => e.pinned).map((e) => e.version),
+          ...(history.withdrawn ? [] : [history.current]),
+        ]),
+      ].sort((a, b) => a - b)
+    : [];
+  const previousPublic = (v: number) => {
+    const i = publicVersions.indexOf(v);
+    return i > 0 ? publicVersions[i - 1] : undefined;
+  };
+  return (
+    <div className="entry-history">
+      <Button
+        className="link"
+        data-action="history"
+        aria-expanded={open}
+        onClick={() => void toggle()}
+      >
+        {open ? 'hide history' : 'history'}
+      </Button>
+      {open ? (
+        <>
+          <Failure error={error} />
+          {history ? (
+            <ol className="h-list">
+              {history.changelog.map((e) => {
+                const prev = previousPublic(e.version);
+                return (
+                  <li className="h-row" key={e.version}>
+                    <strong>v{e.version}</strong>{' '}
+                    <span className="h-hint">{when(e.at)}</span>{' '}
+                    {e.note ?? <span className="h-hint">(no note)</span>}
+                    {e.generated ? (
+                      <span className="tc-chip" title="note drafted by the publisher's studio">
+                        generated
+                      </span>
+                    ) : null}
+                    {e.pinned ? <span className="tc-chip">📌 pinned</span> : null}
+                    {prev !== undefined ? (
+                      <Button
+                        className="link"
+                        data-action="see-change"
+                        disabled={busy}
+                        onClick={() => void compare(prev, e.version)}
+                      >
+                        see the change v{prev} → v{e.version}
+                      </Button>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ol>
+          ) : !error ? (
+            <p className="h-hint">Loading history from the origin…</p>
+          ) : null}
+          {diff ? (
+            <div className="entry-diff" aria-label={`changes from v${diff.from} to v${diff.to}`}>
+              <p className="h-hint">
+                v{diff.from} → v{diff.to}, as published (markdown source)
+              </p>
+              <pre>
+                {diff.ops.map((op, i) =>
+                  op.op === 'eq' ? (
+                    <span key={i}>{op.text}</span>
+                  ) : op.op === 'del' ? (
+                    <del key={i}>{op.text}</del>
+                  ) : (
+                    <ins key={i}>{op.text}</ins>
+                  ),
+                )}
+              </pre>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
   );
 }

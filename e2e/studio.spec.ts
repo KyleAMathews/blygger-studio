@@ -202,3 +202,37 @@ test("a drafted note is editable, flagged only while unedited, and cleared after
   expect(publishes.at(-1)).toMatchObject({ note_generated: false });
   expect(errors).toEqual([]);
 });
+
+test("an imported item's history shows notes, and diffs only public versions", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const ID = "00000000000000000000000001";
+  // The fixture cannot reach an origin; stub the two owner routes it would use.
+  await page.route(`**/api/imports/parity-native/${ID}/history`, (route) => route.fulfill({ json: { current: 3, withdrawn: false, changelog: [
+    { version: 1, at: "2026-09-01T00:00:00Z", note: null, pinned: true, generated: false },
+    { version: 2, at: "2026-09-02T00:00:00Z", note: "private middle edit", pinned: false, generated: false },
+    { version: 3, at: "2026-09-03T00:00:00Z", note: "Narrowed the claim.", pinned: false, generated: true },
+  ] } }));
+  await page.route(`**/api/imports/parity-native/${ID}/versions/*`, (route) => {
+    const v = Number(route.request().url().split("/").pop());
+    route.fulfill({ json: { version: v, content_md: v === 1 ? "The claim was broad." : "The claim is narrow.", note: null, pinned: v === 1 } });
+  });
+  await page.goto("/studio/login");
+  await page.locator('[name="password"]').fill("test-password");
+  await page.getByRole("button", { name: "log in", exact: true }).click();
+  // Filtered to the seeded source: other tests fill the first page of "all".
+  await page.goto("/studio/reading?sub=parity-native");
+  const entry = page.locator(".reading-entry").filter({ hasText: "Frozen source text." });
+  await entry.locator('[data-action="history"]').click();
+  await expect(entry.locator(".entry-history .h-row")).toHaveCount(3);
+  await expect(entry.locator(".entry-history")).toContainText("Narrowed the claim.");
+  await expect(entry.locator(".entry-history .tc-chip", { hasText: "generated" })).toHaveCount(1);
+  // v2 is neither pinned nor current: it is never offered as a side of a diff.
+  const buttons = entry.locator('[data-action="see-change"]');
+  await expect(buttons).toHaveCount(1);
+  await expect(buttons).toHaveText("see the change v1 → v3");
+  await buttons.click();
+  await expect(entry.locator(".entry-diff del")).toContainText("was broad.");
+  await expect(entry.locator(".entry-diff ins")).toContainText("is narrow.");
+  expect(errors).toEqual([]);
+});

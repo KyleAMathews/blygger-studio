@@ -153,6 +153,8 @@ saying so.
 
 ## Status
 
+**0.15.0** (session 32, 2026-10-03): *history* on imported reading entries — the changelog read from the origin, and a word diff between public versions (decision #40, reader half). No migration.
+
 **0.14.0** (session 32, 2026-10-03): drafted changelog notes, emitted as `changelog[].generated` when published unedited (decision #40). **Migration 0015.**
 
 **0.13.0** (session 32, 2026-10-03): `[TK]impyrt=…[/TK]` — pasted generated text disclosed as generated (decision #37), with a *mark selection as generated* button. No migration.
@@ -309,7 +311,7 @@ was specified to do in both cases.
   describes and MUST NOT quote it; between two pinned versions it may be as full as it
   likes. Editable before publish. Emit `"generated": true` on the changelog entry for such
   notes — that emission is what promotes §16.6c into §5.2.
-- [ ] **History view on a rolled-up item** (#40): notes as a timeline; where two
+- [x] **History view on a rolled-up item** — **done 0.15.0 (session 32)**: *history* on reading entries (blyg subscriptions), changelog read from the origin on demand (`src/imported-history.ts`), *see the change* only between public versions (adjacent pins, last pin → current), word diff in `src/word-diff.ts`. With 0.14.0's emission this is the whole build side of gate G6; G6 opens once both nodes have used it. Original entry: (#40): notes as a timeline; where two
   consecutive versions are both pinned, a local diff of the two pinned files ("see the
   change"). Needs nothing from the wire; works on any imported 0.2+ blyg with pins.
 - [ ] **Discovery surfaces from references** (decision #41, roadmap-tracks 2.13). Four,

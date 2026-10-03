@@ -2858,6 +2858,150 @@ export type GetImportedItemResponses = {
 
 export type GetImportedItemResponse = GetImportedItemResponses[keyof GetImportedItemResponses];
 
+export type GetImportedHistoryData = {
+    body?: never;
+    path: {
+        sub: string;
+        id: string;
+    };
+    query?: never;
+    url: '/api/imports/{sub}/{id}/history';
+};
+
+export type GetImportedHistoryErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetImportedHistoryError = GetImportedHistoryErrors[keyof GetImportedHistoryErrors];
+
+export type GetImportedHistoryResponses = {
+    /**
+     * Success
+     */
+    200: {
+        current: number;
+        withdrawn: boolean;
+        changelog: Array<{
+            version: number;
+            at: string;
+            note: string | null;
+            pinned: boolean;
+            generated: boolean;
+        }>;
+    };
+};
+
+export type GetImportedHistoryResponse = GetImportedHistoryResponses[keyof GetImportedHistoryResponses];
+
+export type GetImportedVersionData = {
+    body?: never;
+    path: {
+        sub: string;
+        id: string;
+        v: number;
+    };
+    query?: never;
+    url: '/api/imports/{sub}/{id}/versions/{v}';
+};
+
+export type GetImportedVersionErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetImportedVersionError = GetImportedVersionErrors[keyof GetImportedVersionErrors];
+
+export type GetImportedVersionResponses = {
+    /**
+     * Success
+     */
+    200: {
+        version: number;
+        content_md: string;
+        note: string | null;
+        pinned: boolean;
+    };
+};
+
+export type GetImportedVersionResponse = GetImportedVersionResponses[keyof GetImportedVersionResponses];
+
 export type GetUpdateStateData = {
     body?: never;
     path?: never;

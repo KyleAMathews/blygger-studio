@@ -18,6 +18,8 @@ import { getInbound } from "./mentions/store.ts";
 import { maybeCheckForUpdate } from "./update-check.ts";
 import { normalizeOrigin } from "./stub.ts";
 import { mentionFetch } from "./mentions/http.ts";
+import { platformFetch } from "./importer/http.ts";
+import { fetchImportedHistory, fetchPublicVersion } from "./imported-history.ts";
 
 export const readApi = contractApp();
 async function collection<T>(db: D1Database, query: Record<string, string>, sql: string, countSql: string) {
@@ -82,6 +84,24 @@ readApi.openapi(routes.listReading, async (c) => c.json(await readingData(c.env.
 readApi.openapi(routes.getImportedItem, async (c) => {
   const row = await getImportedItem(c.env.DB, c.req.param("sub"), c.req.param("id"));
   return row ? c.json(importedResource({ ...row, content_html: await sanitizeHtml(row.content_html) })) : c.json({ error: "not found" }, 404);
+});
+// History of an imported item (#40), read from its origin on demand. Blyg
+// subscriptions only: an L0 feed has no item documents and no versions.
+async function blygSubscription(db: D1Database, id: string) {
+  const sub = await getSubscription(db, id);
+  return sub && sub.kind === "blyg" ? sub : null;
+}
+readApi.openapi(routes.getImportedHistory, async (c) => {
+  const sub = await blygSubscription(c.env.DB, c.req.param("sub"));
+  if (!sub) return c.json({ error: "not a blyg subscription" }, 404);
+  const got = await fetchImportedHistory(platformFetch, sub, c.req.param("id"));
+  return got.ok ? c.json(got.value) : c.json({ error: got.error }, got.status);
+});
+readApi.openapi(routes.getImportedVersion, async (c) => {
+  const sub = await blygSubscription(c.env.DB, c.req.param("sub"));
+  if (!sub) return c.json({ error: "not a blyg subscription" }, 404);
+  const got = await fetchPublicVersion(platformFetch, sub, c.req.param("id"), Number(c.req.param("v")));
+  return got.ok ? c.json(got.value) : c.json({ error: got.error }, got.status);
 });
 readApi.openapi(routes.getUpdateState, async (c) => {
   const [settings, map] = await Promise.all([getSettings(c.env.DB), getSettingsMap(c.env.DB)]);

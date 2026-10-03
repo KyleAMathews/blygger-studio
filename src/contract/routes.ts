@@ -81,6 +81,8 @@ export const routes = {
   getVersion: route("getVersion", "get", "/items/{id}/versions/{v}", VersionSchema),
   listReading: route("listReading", "get", "/reading", z.object({ items: z.array(ReadingEntrySchema), counts, total: z.number(), offset: z.number(), limit: z.number(), selected: z.string() }), undefined, 200, page.extend({ limit: z.coerce.number().int().min(1).max(50).optional(), sub: z.string().optional() })),
   getImportedItem: route("getImportedItem", "get", "/imports/{sub}/{id}", ImportedItemSchema),
+  getImportedHistory: route("getImportedHistory", "get", "/imports/{sub}/{id}/history", z.object({ current: z.number().int(), withdrawn: z.boolean(), changelog: z.array(z.object({ version: z.number().int(), at: z.string(), note: z.string().nullable(), pinned: z.boolean(), generated: z.boolean() })) })),
+  getImportedVersion: route("getImportedVersion", "get", "/imports/{sub}/{id}/versions/{v}", z.object({ version: z.number().int(), content_md: z.string(), note: z.string().nullable(), pinned: z.boolean() })),
   getUpdateState: route("getUpdateState", "get", "/update-state", z.record(z.string(), z.string())),
   getMentionSource: route("getMentionSource", "get", "/mentions/{id}/source", z.object({ holder: z.string().nullable(), subscription: z.union([SubscriptionSchema, z.null()]) })),
   listStaleThreads: route("listStaleThreads", "get", "/freshness", z.object({ items: z.array(ThreadFreshnessSchema) })),

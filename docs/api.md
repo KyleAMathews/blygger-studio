@@ -28,7 +28,7 @@ Consult `openapi.json` for every field and response.
 | Mentions | `GET /mentions?direction=inbound` or `outbound` | `PATCH /mentions/{id}` with `hidden` |
 | Settings | `GET /settings` | `PATCH /settings` |
 | Media | Included in item detail | `POST /media` with a multipart file |
-| Imported items | `GET /imports/{sub}/{id}` | The subscription importer manages these items |
+| Imported items | `GET /imports/{sub}/{id}`, `GET /imports/{sub}/{id}/history`, `GET /imports/{sub}/{id}/versions/{v}` (history and public versions, read from the origin) | The subscription importer manages these items |
 | Reading | `GET /reading` | Read only |
 | Quote freshness | `GET /freshness`, `GET /items/{id}/freshness` | `POST /items/{id}/refresh` |
 
