@@ -195,6 +195,8 @@ export interface MediaRow {
   mime: string;
   alt: string | null;
   created: string;
+  /** 1 when the studio placed it in the text (migration 0016): shown only where referenced. */
+  inline: number;
 }
 
 export interface AuthorLink {

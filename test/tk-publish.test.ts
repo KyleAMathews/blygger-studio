@@ -4,10 +4,12 @@
 // present in content_html; hand-authored (ungenerated-via-/generate) output
 // gets no disclosure wrapper; the §7 definition-of-done scenario end to end.
 import { env } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { ProviderFetchLike } from "../src/ai/provider.ts";
 import { contentHash } from "../src/util.ts";
-import { createDraft, FragmentTooLongError, getItem, publish, saveWorkingCopy, TkPublishError, TransclusionResolveError } from "../src/model.ts";
+import { createDraft, FragmentTooLongError, getItem, publish, putSettings, saveWorkingCopy, TkPublishError, TransclusionResolveError } from "../src/model.ts";
+
+beforeEach(() => putSettings(env.DB, { ai_model: "claude-opus-5" }));
 import { runGenerateScope } from "../src/tk-generate.ts";
 import { parseScopes, setScopeOutput } from "../src/tk.ts";
 import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";

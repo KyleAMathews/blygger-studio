@@ -21,6 +21,7 @@ import {
 } from './components.tsx';
 import { paletteTrigger, paletteInsert } from '../palette.ts';
 import { Draft } from './draft.ts';
+import { stripStaleUploads, uploadToken } from './upload-tokens.ts';
 import { FRAGMENT_MAX_CHARS as MAX } from '../client.ts';
 function useAction() {
   const [error, setError] = useState<unknown>();
@@ -96,7 +97,7 @@ export function imageCommandAt(text: string, caret: number) {
     : null;
 }
 
-let uploadSeq = 0;
+
 
 /**
  * Image uploads for both composers. An image goes where the author is
@@ -124,14 +125,15 @@ function useUpload(
   };
   const upload = async (file: File, at: { start: number; end: number }) => {
     const itemId = typeof id === 'function' ? await id() : id;
-    const token = `![uploading ${file.name || 'image'}…](#upload-${++uploadSeq})`;
+    const token = uploadToken(file.name || 'image');
     const placed = insertBlock(current(), at.start, at.end, token);
     setText(placed.text);
     try {
       const media = await unwrap(
         BlyggerApi.uploadMedia({
           client,
-          body: { file, ...(itemId ? { item_id: itemId } : {}) },
+          // inline: placed in the text, so shown only where its line is (studio#24).
+          body: { file, inline: 'true', ...(itemId ? { item_id: itemId } : {}) },
         }),
       );
       setText(current().replace(token, `![](${mount}/${media.url})`));
@@ -156,6 +158,14 @@ function useUpload(
     target.current = at;
     input.current?.click();
   };
+  // Leaving mid-upload strands the placeholder in the saved draft and the
+  // image at the bottom of the page (studio#24), so it asks first.
+  useBlocker({
+    enableBeforeUnload: () => action.busy,
+    shouldBlockFn: () =>
+      action.busy &&
+      !window.confirm('An image is still uploading. Leave anyway? It will not be placed in the text.'),
+  });
   return {
     input,
     action,
@@ -644,7 +654,7 @@ function Editor({ item }: { item: Detail }) {
   const action = useAction();
   const collection = itemDetail(item.id);
   const draft = useRef<Draft | null>(null);
-  if (!draft.current)
+  if (!draft.current) {
     draft.current = new Draft(item.content_md, async (text) => {
       const transaction = collection.update(item.id, (row) => {
         row.content_md = text;
@@ -652,6 +662,9 @@ function Editor({ item }: { item: Detail }) {
       await transaction.isPersisted.promise;
       await changed('items', 'reading');
     });
+    const cleaned = stripStaleUploads(item.content_md);
+    if (cleaned !== item.content_md) draft.current.edit(cleaned);
+  }
   const [text, setText] = useState(draft.current.text);
   const [note, setNote] = useState('');
   // The note the studio drafted (#40); `generated` is sent only while the
@@ -1077,18 +1090,51 @@ function Editor({ item }: { item: Detail }) {
       {item.media.length ? (
         <section className="media">
           <h2>attachments</h2>
-          {item.media.map((media) => (
-            <p key={media.id}>
-              <a
-                href={`${mount}/${media.url}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {media.alt || media.url}
-              </a>{' '}
-              · {media.mime}
-            </p>
-          ))}
+          {item.media.map((media) => {
+            const inText = text.includes(media.url);
+            return (
+              <p key={media.id} className="attachment" data-media={media.id}>
+                <a
+                  href={`${mount}/${media.url}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {media.alt || media.url}
+                </a>{' '}
+                · {media.mime} ·{' '}
+                <span className="h-hint">
+                  {inText
+                    ? 'in the text — delete its line to remove it'
+                    : media.inline
+                      ? 'not in the text, so not shown'
+                      : 'shown below the post'}
+                </span>
+                {!inText ? (
+                  <>
+                    {' '}
+                    <Button
+                      className="link danger"
+                      data-action="remove-media"
+                      disabled={action.busy}
+                      onClick={() =>
+                        void action.run(async () => {
+                          await unwrap(
+                            BlyggerApi.deleteMedia({
+                              client,
+                              path: { id: media.id },
+                            }),
+                          );
+                          await changed('item');
+                        })
+                      }
+                    >
+                      remove
+                    </Button>
+                  </>
+                ) : null}
+              </p>
+            );
+          })}
         </section>
       ) : null}
       {item.status === 'public' ? (

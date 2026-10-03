@@ -18,7 +18,46 @@ not have its own repo until session 26.
 
 ---
 
-## 0.15.0 — 2026-10-03
+## 0.16.0 — 2026-10-03
+
+**Migrations: apply `0016_media_inline.sql`.** It adds `media.inline` and marks
+existing images that are already referenced in their item's text as inline.
+
+**Action needed if you use TK generation or drafted notes: set an AI model in
+Settings.** There is no longer a built-in default: which model you pay for is
+your choice, so a fresh install names none. Until a model is set, *generate*
+and *draft note* say so instead of quietly using Claude Opus 5. Example:
+`claude-sonnet-5-5`.
+
+**Images belong to the text they are in** (studio#24, and Venkat's report).
+
+- An image uploaded in the Studio is placed in the text and now appears only
+  there. Before this it also appeared again at the bottom of the post, and
+  stayed on the page after you deleted its line. Deleting the line now removes
+  it from the page, the feed and the item's `media` list.
+- Images uploaded by other tools through `POST /api/media` are not placed in the
+  text, so they are still shown below the post.
+- **Removing an attachment.** The editor's attachments list says where each image
+  stands (in the text, not shown, or shown below the post), and any image not in
+  the text has *remove* (`DELETE /api/media/{id}`). Files that a published
+  version still shows are kept, because a media URL must keep serving the same
+  bytes (§5.4); the image only leaves the item. Files nothing published shows
+  are deleted.
+- **Leaving the page while an image is uploading now asks first.** Leaving
+  mid-upload saved the "uploading…" placeholder into the draft and left the
+  image at the bottom of the page. Any such placeholder left from an abandoned
+  page is removed when the editor opens.
+
+**The full editor fills the window.** The draft field used to be a fixed height
+inside a pane that stretched to the preview's length, which left the lower half
+blank. It now takes the whole pane, and on a desktop the panes start at most of
+the window's height.
+
+**`$` in generated text and headings publishes as written** (studio#2). Two
+splices used string replacements, so `$&`, `` $` ``, `$'` and `$$` were expanded
+as patterns. Both now insert the text verbatim.
+
+
 
 **Migrations: none.**
 

@@ -3,7 +3,11 @@
 // (mirrors importer/http.ts's FetchLike).
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { beforeEach } from "vitest";
 import { generate, ProviderError, SCOPE_MARK_START, type ProviderFetchLike } from "../src/ai/provider.ts";
+import { putSettings } from "../src/model.ts";
+
+beforeEach(() => putSettings(env.DB, { ai_model: "claude-opus-5" }));
 
 function okResponse(body: unknown, status = 200) {
   return { ok: status >= 200 && status < 300, status, text: async () => JSON.stringify(body) };
@@ -29,7 +33,16 @@ describe("generate() — request shape (§4)", () => {
     ).rejects.toThrow(ProviderError);
   });
 
-  it("sends the API key, version header, and default model", async () => {
+  it("refuses to guess a model when none is configured", async () => {
+    await putSettings(env.DB, { ai_model: "" });
+    const { fetchImpl, calls } = fixture(() => okResponse({}));
+    await expect(
+      generate({ ...env, AI_PROVIDER_KEY: "k" }, { instruction: "x", currentText: null, sources: [], documentContext: "", stylePrompt: null }, fetchImpl),
+    ).rejects.toThrow(/no AI model is configured/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("sends the API key, version header, and the configured model", async () => {
     const { fetchImpl, calls } = fixture(() =>
       okResponse({ model: "claude-opus-5", content: [{ type: "text", text: "generated span" }] }),
     );

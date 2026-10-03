@@ -286,7 +286,9 @@ export function annotateGenerated(strippedMd: string, spans: GeneratedSpan[], ha
 export function applyGeneratedWrappers(html: string, doc: AnnotatedDocument): string {
   let out = html;
   for (const [token, blockHtml] of doc.blockReplacements) {
-    out = out.replace(`<p>${token}</p>`, blockHtml);
+    // A function replacement: a string one expands `$&`, `$'` and kin found in
+    // generated text (studio#2), so the splice would not be verbatim.
+    out = out.replace(`<p>${token}</p>`, () => blockHtml);
   }
   if (doc.hasInline) {
     out = out.split(INLINE_OPEN).join('<span class="blyg-tk-gen">').split(INLINE_CLOSE).join("</span>");

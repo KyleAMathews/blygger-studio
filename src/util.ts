@@ -162,3 +162,24 @@ export function isValidTimeZone(tz: string): boolean {
     return false;
   }
 }
+
+/** Is this media row's key used as a path in the HTML, relative or absolute? Keys are random, so a full-key match cannot hit another file. */
+export function placedIn(html: string, key: string): boolean {
+  return html.includes(`/${key}`) || html.includes(`"${key}`);
+}
+
+/**
+ * Attachments to append after the content (studio#24). An image the studio
+ * placed in the text (`inline`) is shown only where its line is, so deleting
+ * the line removes it; appending it as well showed it twice. Only uploads that
+ * never touched the text — another tool's POST /api/media — are appended, and
+ * only when the text does not already show them.
+ */
+export function unplacedMedia<T extends { r2_key: string; inline?: number }>(media: T[], html: string): T[] {
+  return media.filter((m) => m.inline !== 1 && !placedIn(html, m.r2_key));
+}
+
+/** The item's media as published: what the text shows plus what is appended. Inline images whose line was deleted are gone. */
+export function visibleMedia<T extends { r2_key: string; inline?: number }>(media: T[], html: string): T[] {
+  return media.filter((m) => m.inline !== 1 || placedIn(html, m.r2_key));
+}

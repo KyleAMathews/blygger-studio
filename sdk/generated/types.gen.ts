@@ -120,6 +120,7 @@ export type Media = {
     mime: string;
     alt: string | null;
     created: string;
+    inline: number;
     url: string;
 };
 
@@ -1064,6 +1065,7 @@ export type UploadMediaData = {
         file: Blob | File;
         item_id?: string;
         alt?: string;
+        inline?: 'true' | 'false';
     };
     path?: never;
     query?: never;
@@ -1127,6 +1129,72 @@ export type UploadMediaResponses = {
 };
 
 export type UploadMediaResponse = UploadMediaResponses[keyof UploadMediaResponses];
+
+export type DeleteMediaData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/media/{id}';
+};
+
+export type DeleteMediaErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type DeleteMediaError = DeleteMediaErrors[keyof DeleteMediaErrors];
+
+export type DeleteMediaResponses = {
+    /**
+     * Success
+     */
+    200: {
+        ok: boolean;
+        outcome: 'deleted' | 'detached';
+    };
+};
+
+export type DeleteMediaResponse = DeleteMediaResponses[keyof DeleteMediaResponses];
 
 export type GetSettingsData = {
     body?: never;

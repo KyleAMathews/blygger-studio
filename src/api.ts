@@ -13,6 +13,7 @@ import {
   discardDraft,
   FragmentTooLongError,
   getItem,
+  getMedia,
   getSettings,
   getVersion,
   insertMedia,
@@ -372,9 +373,34 @@ api.openapi(routes.uploadMedia, async (c) => {
     r2_key: r2Key,
     mime: file.type,
     alt: typeof alt === "string" ? alt : null,
+    // The studio sends inline=true for an upload it places in the text
+    // (studio#24): shown only where its line is, never appended.
+    inline: form?.get("inline") === "true" ? 1 : 0,
   });
   c.header("Location", `/${normalizeMount(c.env.MOUNT).replace(/^\//, "")}/${row.r2_key}`.replace(/^\/\//, "/"));
   return c.json({ id: row.id, url: row.r2_key, mime: row.mime }, 201);
+});
+
+/**
+ * Remove an attachment from its item (studio#24, #7). A media URL is a promise
+ * to serve the same bytes (§5.4), so bytes any published version still shows
+ * are kept and the row is only detached — it leaves the item, its page and its
+ * `media` list. Bytes nothing published references are deleted outright.
+ * The avatar is not an attachment and is refused.
+ */
+api.openapi(routes.deleteMedia, async (c) => {
+  const db = c.env.DB;
+  const row = await getMedia(db, c.req.param("id"));
+  if (!row) return c.json({ error: "not found" }, 404);
+  if ((await getSettings(db)).avatar_media_id === row.id) return c.json({ error: "this is the avatar; change it in Settings" }, 409);
+  const published = await db.prepare("SELECT 1 FROM versions WHERE instr(content_html, ?) > 0 LIMIT 1").bind(row.r2_key).first();
+  if (published) {
+    await db.prepare("UPDATE media SET item_id = NULL WHERE id = ?").bind(row.id).run();
+    return c.json({ ok: true, outcome: "detached" as const });
+  }
+  await c.env.MEDIA.delete(row.r2_key);
+  await db.prepare("DELETE FROM media WHERE id = ?").bind(row.id).run();
+  return c.json({ ok: true, outcome: "deleted" as const });
 });
 
 const SETTINGS_KEYS = [

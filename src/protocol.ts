@@ -17,7 +17,7 @@ import {
 } from "./model.ts";
 import type { ItemRow, ScopeProvenance, Settings, Transclusion, VersionRow } from "./types.ts";
 import { BRAND, FEED_WINDOW, GENERATOR, GENERATOR_URL, PROTOCOL_LEVEL, PROTOCOL_VERSION, WEBMENTION_PATH } from "./types.ts";
-import { absolutizeHtml, cdata, escapeXml, rfc822 } from "./util.ts";
+import { absolutizeHtml, cdata, escapeXml, rfc822, unplacedMedia, visibleMedia } from "./util.ts";
 
 /**
  * Canonical origin for this deployment — the blyg's base URL, always ending
@@ -105,7 +105,7 @@ export async function buildItemJson(db: D1Database, settings: Settings, item: It
     content_md: contentMd,
     content_html: contentHtml,
     content_hash: latest?.content_hash ?? "",
-    media: media.map((m) => ({ url: m.r2_key, mime: m.mime, alt: m.alt ?? "" })),
+    media: visibleMedia(media, contentHtml).map((m) => ({ url: m.r2_key, mime: m.mime, alt: m.alt ?? "" })),
     ...(transclusions !== undefined ? { transclusions } : {}),
     ...(stubOf ? { stub_of: stubOf } : {}),
     ...(forkedFrom ? { forked_from: forkedFrom } : {}),
@@ -232,7 +232,7 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
           origin,
         );
     if (!isWithdrawn) {
-      for (const m of await listMediaForItem(db, item.id)) {
+      for (const m of unplacedMedia(await listMediaForItem(db, item.id), html)) {
         html += `<p><img src="${origin}${m.r2_key}" alt="${escapeXml(m.alt ?? "")}"></p>`;
       }
     }

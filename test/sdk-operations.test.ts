@@ -58,6 +58,7 @@ it("exercises every declared operation through its named SDK method, including a
     ["listStaleThreads", 200, client => api.listStaleThreads({ client })],
     ["getItemFreshness", 409, client => api.getItemFreshness({ client, path: { id }, query: { probe: "false" } })],
     ["refreshItem", 409, client => api.refreshItem({ client, path: { id } })],
+    ["deleteMedia", 404, client => api.deleteMedia({ client, path: { id: "missing-media" } })],
     ["draftNote", 409, client => api.draftNote({ client, path: { id } })],
     ["getImportedHistory", 404, client => api.getImportedHistory({ client, path: { sub: sub.id, id: "remote" } })],
     ["getImportedVersion", 404, client => api.getImportedVersion({ client, path: { sub: sub.id, id: "remote", v: 1 } })],

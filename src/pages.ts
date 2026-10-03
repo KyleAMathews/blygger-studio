@@ -16,7 +16,7 @@ import { authoredKind, getMedia, itemShowsResponses, listMediaForItem, published
 import type { ItemRow, MediaRow, Settings, SubscriptionRow, Transclusion, VersionRow } from "./types.ts";
 import { loadFeedData, sourceKey, type FeedCardData, type FeedProvenance, type FeedItem } from "./public-feed.ts";
 import { WEBMENTION_PATH } from "./types.ts";
-import { escapeHtml, formatDateIn } from "./util.ts";
+import { escapeHtml, formatDateIn, unplacedMedia, visibleMedia } from "./util.ts";
 
 
 /**
@@ -778,8 +778,8 @@ function permalinkLink(id: string, isThread: boolean, mount: string): string {
   return `<p><a class="permalink" href="${mount}/${isThread ? "t" : "f"}/${id}/">Permalink</a></p>`;
 }
 
-function mediaHtml(media: MediaRow[], mount: string): string {
-  return media
+function mediaHtml(media: MediaRow[], mount: string, contentHtml: string): string {
+  return unplacedMedia(media, contentHtml)
     .map((m) => `<p><img src="${mount}/${m.r2_key}" alt="${escapeHtml(m.alt ?? "")}" loading="lazy"></p>`)
     .join("\n");
 }
@@ -802,7 +802,7 @@ ${forkLineage(item, tz, { compact: compactCitations })}
 <div class="item-content">
 ${contentHtml}
 </div>
-${mediaHtml(media, mount)}
+${mediaHtml(media, mount, contentHtml)}
 ${itemMeta(item, note, pins, mount, false, tz)}
 ${permalinkLink(item.id, false, mount)}
 </article>`;
@@ -972,7 +972,7 @@ ${kindLine}
 <div class="item-content card-clip">
 ${linkLeadingTitle(html, href)}
 </div>
-${mediaHtml(media, mount)}
+${mediaHtml(media, mount, html)}
 <p class="read-more"><a href="${href}">read the thread →</a></p>
 ${itemMeta(item, latest?.note ?? null, loaded ? loaded.pins : await pinnedVersions(db, item.id), mount, true, tz)}
 </article>`;
@@ -989,7 +989,7 @@ ${forkLineage(item, tz)}
 <div class="item-content">
 ${html}
 </div>
-${mediaHtml(media, mount)}
+${mediaHtml(media, mount, html)}
 ${itemMeta(item, latest?.note ?? null, await pinnedVersions(db, item.id), mount, true, tz)}
 ${permalinkLink(item.id, true, mount)}
 </article>`;
@@ -1242,7 +1242,8 @@ export function linkLeadingTitle(html: string, href: string): string {
   // An <h1> that already contains a link is left alone — nesting anchors is
   // invalid HTML and the author's own link should win.
   if (/<a[\s>]/i.test(m[2])) return html;
-  return html.replace(m[0], `<h1${m[1]}><a class="item-title" href="${href}">${m[2]}</a></h1>`);
+  // Function replacement, so `$&` in a heading is text, not a pattern (studio#2).
+  return html.replace(m[0], () => `<h1${m[1]}><a class="item-title" href="${href}">${m[2]}</a></h1>`);
 }
 
 /**
@@ -1373,7 +1374,7 @@ ${await responsesSection(db, item, settings, mount)}
     alternateJson,
     webmention,
     type: "article",
-    image: await socialImage(db, settings, media, origin),
+    image: await socialImage(db, settings, visibleMedia(media, latest?.content_html ?? ""), origin),
     siteName: settings.site_title,
   });
 }
@@ -1407,7 +1408,7 @@ ${await responsesSection(db, item, settings, mount)}
     alternateJson,
     webmention,
     type: "article",
-    image: await socialImage(db, settings, media, origin),
+    image: await socialImage(db, settings, visibleMedia(media, latest?.content_html ?? ""), origin),
     siteName: settings.site_title,
   });
 }

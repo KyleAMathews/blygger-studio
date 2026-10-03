@@ -554,8 +554,8 @@ export async function insertMedia(
 ): Promise<MediaRow> {
   const created = nowIso();
   await db
-    .prepare("INSERT INTO media (id, item_id, r2_key, mime, alt, created) VALUES (?, ?, ?, ?, ?, ?)")
-    .bind(row.id, row.item_id, row.r2_key, row.mime, row.alt, created)
+    .prepare("INSERT INTO media (id, item_id, r2_key, mime, alt, created, inline) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .bind(row.id, row.item_id, row.r2_key, row.mime, row.alt, created, row.inline)
     .run();
   return { ...row, created };
 }

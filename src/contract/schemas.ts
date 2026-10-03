@@ -41,6 +41,7 @@ export const MediaRowSchema = z.object({
   mime: z.string(),
   alt: z.string().nullable(),
   created: z.string(),
+  inline: z.number(),
 }).openapi("MediaRow");
 
 export const SubscriptionRowSchema = z.object({

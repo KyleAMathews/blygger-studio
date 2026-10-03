@@ -257,9 +257,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
       </p>
       {field(
         'ai_model',
-        'TK generation model (blank = provider default, currently claude-opus-5)',
+        'AI model for TK generation and drafted notes (required to use either)',
         false,
-        'claude-opus-5',
+        'e.g. claude-sonnet-5-5',
       )}
       {field(
         'ai_style_prompt',

@@ -50,8 +50,6 @@ export const platformProviderFetch: ProviderFetchLike = (url, init) => fetch(url
 
 const API_URL = "https://api.anthropic.com/v1/messages";
 const API_VERSION = "2023-06-01";
-/** Skill-mandated default (claude-api skill, 2026-08): use unless the settings override it. */
-const DEFAULT_MODEL = "claude-opus-5";
 const MAX_TOKENS = 4096;
 
 const SYSTEM_PROMPT =
@@ -120,7 +118,10 @@ export async function complete(
   const apiKey = env.AI_PROVIDER_KEY;
   if (!apiKey) throw new ProviderError("AI_PROVIDER_KEY is not configured");
   const settings = await getSettings(env.DB);
-  const model = settings.ai_model || DEFAULT_MODEL;
+  // No built-in default (session 32, Venkat): which model an operator pays for
+  // is the operator's choice, so a fresh install names none and says so.
+  const model = settings.ai_model.trim();
+  if (!model) throw new ProviderError("no AI model is configured: set one in Settings (for example claude-sonnet-5-5)");
 
   const res = await fetchImpl(API_URL, {
     method: "POST",

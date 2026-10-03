@@ -153,6 +153,8 @@ saying so.
 
 ## Status
 
+**0.16.0** (session 32, 2026-10-03): images belong to the text they are in (`media.inline`, **migration 0016**; studio#24), attachment removal, uploads block navigation, the editor fills the window, `$` patterns spliced verbatim (studio#2), and **no built-in AI model** — operators set one (our nodes: `claude-sonnet-5-5`).
+
 **0.15.0** (session 32, 2026-10-03): *history* on imported reading entries — the changelog read from the origin, and a word diff between public versions (decision #40, reader half). No migration.
 
 **0.14.0** (session 32, 2026-10-03): drafted changelog notes, emitted as `changelog[].generated` when published unedited (decision #40). **Migration 0015.**

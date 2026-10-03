@@ -5,10 +5,12 @@
 // (see its header note); the real HTTP route only gets network-free coverage
 // in tk-generate-api.test.ts.
 import { env } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { ProviderFetchLike } from "../src/ai/provider.ts";
 import { createAndPublish, login } from "./helpers.ts";
-import { createDraft, getItem, getTkProvenance, publish, withdraw } from "../src/model.ts";
+import { putSettings, createDraft, getItem, getTkProvenance, publish, withdraw } from "../src/model.ts";
+
+beforeEach(() => putSettings(env.DB, { ai_model: "claude-opus-5" }));
 import { runGenerateScope } from "../src/tk-generate.ts";
 
 function fixture(text: string, model = "claude-opus-5") {

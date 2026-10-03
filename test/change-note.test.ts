@@ -5,10 +5,12 @@
 // flag is emitted only when the note really is the studio's (drafted, unedited);
 // and drafting never publishes.
 import { env } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { ProviderFetchLike } from "../src/ai/provider.ts";
 import { draftChangeNote, quotesWithheld } from "../src/change-note.ts";
-import { getItem } from "../src/model.ts";
+import { putSettings, getItem } from "../src/model.ts";
+
+beforeEach(() => putSettings(env.DB, { ai_model: "claude-opus-5" }));
 import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
 
 function provider(text: string): { fetch: ProviderFetchLike; bodies: any[] } {
