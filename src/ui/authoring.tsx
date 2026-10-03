@@ -654,6 +654,9 @@ function Editor({ item }: { item: Detail }) {
     });
   const [text, setText] = useState(draft.current.text);
   const [note, setNote] = useState('');
+  // The note the studio drafted (#40); `generated` is sent only while the
+  // field still holds exactly that text — an edit makes the words the author's.
+  const [drafted, setDrafted] = useState<string>();
   const [preview, setPreview] =
     useState<Awaited<ReturnType<typeof getPreview>>>();
   const [version, setVersion] = useState<Version>();
@@ -978,6 +981,34 @@ function Editor({ item }: { item: Detail }) {
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
+          {item.version > 0 && item.status === 'public' ? (
+            <>
+              {' '}
+              <Button
+                id="draft-note-btn"
+                className="link"
+                disabled={action.busy}
+                title="Describe the change from the published version; you can edit it before publishing"
+                onClick={() =>
+                  operation(async () => {
+                    const result = await unwrap(
+                      BlyggerApi.draftNote({ client, path: { id: item.id } }),
+                    );
+                    setNote(result.note);
+                    setDrafted(result.note);
+                  })
+                }
+              >
+                draft note
+              </Button>
+              {drafted !== undefined && note.trim() === drafted ? (
+                <span className="h-hint" id="note-generated-hint">
+                  {' '}
+                  drafted — published as generated unless you edit it
+                </span>
+              ) : null}
+            </>
+          ) : null}
           <Button
             id="save-draft-btn"
             disabled={action.busy}
@@ -991,13 +1022,21 @@ function Editor({ item }: { item: Detail }) {
             disabled={action.busy}
             onClick={() =>
               operation(async () => {
-                return unwrap(
+                const result = await unwrap(
                   BlyggerApi.publishItem({
                     client,
                     path: { id: item.id },
-                    body: { note },
+                    body: {
+                      note,
+                      note_generated:
+                        drafted !== undefined && note.trim() === drafted,
+                    },
                   }),
                 );
+                // A note describes one change; it must not ride along on the next.
+                setNote('');
+                setDrafted(undefined);
+                return result;
               })
             }
           >
@@ -1087,7 +1126,10 @@ function Editor({ item }: { item: Detail }) {
           <ul className="h-list">
             {[...item.versions].reverse().map((v) => (
               <li className="h-row" key={v.version}>
-                <strong>v{v.version}</strong> {v.note}{' '}
+                <strong>v{v.version}</strong> {v.note}
+                {v.note_generated ? (
+                  <span className="tc-chip" title="note drafted by the studio">generated</span>
+                ) : null}{' '}
                 <span className="h-actions">
                   <Button
                     data-action="view-version"

@@ -99,15 +99,28 @@ export async function generate(
   req: GenerateRequest,
   fetchImpl: ProviderFetchLike = platformProviderFetch,
 ): Promise<GenerateResult> {
+  // req.stylePrompt is the site-level style prompt (settings.ai_style_prompt);
+  // the caller resolves it, since GenerateRequest already owns that field.
+  const system = req.stylePrompt ? `${SYSTEM_PROMPT}\n\n${req.stylePrompt}` : SYSTEM_PROMPT;
+  return complete(env, system, buildUserContent(req), fetchImpl);
+}
+
+/**
+ * One Messages API call with a system prompt and one user turn — the shared
+ * transport for every generation hook (TK scopes, changelog notes). Model is
+ * provider configuration, resolved here from settings the same way the API key
+ * is resolved from env, so every hook uses the model the operator chose.
+ */
+export async function complete(
+  env: Env,
+  system: string,
+  user: string,
+  fetchImpl: ProviderFetchLike = platformProviderFetch,
+): Promise<GenerateResult> {
   const apiKey = env.AI_PROVIDER_KEY;
   if (!apiKey) throw new ProviderError("AI_PROVIDER_KEY is not configured");
-  // Model isn't part of GenerateRequest (§4) — it's provider configuration,
-  // resolved here from settings the same way the API key is resolved from
-  // env. req.stylePrompt is the site-level style prompt (settings.ai_style_prompt);
-  // the caller resolves it, since GenerateRequest already owns that field.
   const settings = await getSettings(env.DB);
   const model = settings.ai_model || DEFAULT_MODEL;
-  const finalSystem = req.stylePrompt ? `${SYSTEM_PROMPT}\n\n${req.stylePrompt}` : SYSTEM_PROMPT;
 
   const res = await fetchImpl(API_URL, {
     method: "POST",
@@ -119,8 +132,8 @@ export async function generate(
     body: JSON.stringify({
       model,
       max_tokens: MAX_TOKENS,
-      system: finalSystem,
-      messages: [{ role: "user", content: buildUserContent(req) }],
+      system,
+      messages: [{ role: "user", content: user }],
     }),
   });
 

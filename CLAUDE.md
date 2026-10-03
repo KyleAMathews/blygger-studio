@@ -153,6 +153,8 @@ saying so.
 
 ## Status
 
+**0.14.0** (session 32, 2026-10-03): drafted changelog notes, emitted as `changelog[].generated` when published unedited (decision #40). **Migration 0015.**
+
 **0.13.0** (session 32, 2026-10-03): `[TK]impyrt=…[/TK]` — pasted generated text disclosed as generated (decision #37), with a *mark selection as generated* button. No migration.
 
 **0.12.0** (session 32, 2026-10-03): stale-quote detection and one-click refresh — a *quoted snapshots* panel on the thread editor, a notice on compose listing threads whose quotes are behind, and `GET /freshness`, `GET /items/{id}/freshness`, `POST /items/{id}/refresh` (decision #33's direct check; #38's detect-always, refresh-on-decision). No migration. 757 Worker + 6 UI-state + 128 browser tests.
@@ -300,7 +302,7 @@ was specified to do in both cases.
   hoppers, signals, mentions) so an agent can poll `/api` for staleness, inbound mentions
   and new imports. Poll first; no webhooks until a need is measured. The public state
   plane needs nothing — it is already the corpus.
-- [ ] **Generate a changelog note when the author leaves it blank** (decision #40,
+- [x] **Generate a changelog note** — **emission done 0.14.0 (session 32)**: *draft note* in the editor (`POST /items/{id}/note-draft`, `src/change-note.ts`), editable, drafted before publish rather than at it so publish stays network-free (#26); `changelog[].generated` only when published unedited (migration 0015); the §5.2 depth rule checked mechanically (`quotesWithheld`, 6-word runs of removed text) as well as prompted. The history view below is the other half of gate G6. Original entry: (decision #40,
   roadmap-tracks 2.12, spec §5.2 + §16.6c): at publish, diff the locally held prior
   version against the new one and draft a note through the existing generation provider.
   **Pin-bounded depth is the one hard rule:** if the prior version is unpinned the note

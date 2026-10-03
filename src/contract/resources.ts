@@ -12,8 +12,8 @@ export const ItemSchema = z.object(ItemRowSchema.omit({ show_responses: true, re
   provenance: z.array(z.union([ProvenanceSchema, z.null()])),
   stub_of: z.union([StubSchema, z.null()]), forked_from: z.union([VersionReferenceSchema, z.null()]), fork_cite: z.union([CitationSchema, z.null()]),
 }).openapi("Item");
-export const VersionSchema = z.object(VersionRowSchema.omit({ pinned: true, transclusions: true, generated_json: true, stub_of: true, stub_cite: true }).shape).extend({
-  kind: z.enum(["fragment", "thread", "withdrawn"]), pinned: z.boolean(), transclusions: z.array(TransclusionSchema), generated: z.array(ProvenanceSchema),
+export const VersionSchema = z.object(VersionRowSchema.omit({ pinned: true, transclusions: true, generated_json: true, stub_of: true, stub_cite: true, note_generated: true }).shape).extend({
+  kind: z.enum(["fragment", "thread", "withdrawn"]), pinned: z.boolean(), note_generated: z.boolean(), transclusions: z.array(TransclusionSchema), generated: z.array(ProvenanceSchema),
   stub_of: z.union([StubSchema, z.null()]), stub_cite: z.union([CitationSchema, z.null()]),
 }).openapi("Version");
 export const MediaSchema = z.object(MediaRowSchema.omit({ r2_key: true }).shape).extend({ url: z.string() }).openapi("Media");
@@ -32,7 +32,7 @@ function stored<T>(value: string | null, schema: z.ZodType<T>, fallback: T): T {
 }
 const provenance = z.array(z.union([ProvenanceSchema, z.null()]));
 export const itemResource = (row: ItemRow) => ItemSchema.parse({ ...row, dirty: row.dirty === 1, responses: row.responses_override === null ? "default" : row.responses_override === 1 ? "show" : "hide", provenance: stored(row.tk_provenance_json, provenance, []), stub_of: stored(row.stub_of, StubSchema.nullable(), null), forked_from: stored(row.forked_from, VersionReferenceSchema.nullable(), null), fork_cite: stored(row.fork_cite, CitationSchema.nullable(), null) });
-export const versionResource = (row: VersionRow) => VersionSchema.parse({ ...row, kind: !row.content_md ? "withdrawn" : row.transclusions === null ? "fragment" : "thread", pinned: row.pinned === 1, transclusions: stored(row.transclusions, z.array(TransclusionSchema), []), generated: stored(row.generated_json, z.array(ProvenanceSchema), []), stub_of: stored(row.stub_of, StubSchema.nullable(), null), stub_cite: stored(row.stub_cite, CitationSchema.nullable(), null) });
+export const versionResource = (row: VersionRow) => VersionSchema.parse({ ...row, kind: !row.content_md ? "withdrawn" : row.transclusions === null ? "fragment" : "thread", pinned: row.pinned === 1, note_generated: row.note_generated === 1, transclusions: stored(row.transclusions, z.array(TransclusionSchema), []), generated: stored(row.generated_json, z.array(ProvenanceSchema), []), stub_of: stored(row.stub_of, StubSchema.nullable(), null), stub_cite: stored(row.stub_cite, CitationSchema.nullable(), null) });
 export const mediaResource = (row: MediaRow) => MediaSchema.parse({ ...row, url: row.r2_key });
 export const subscriptionResource = (row: SubscriptionRow) => SubscriptionSchema.parse({ ...row, in_blogroll: row.in_blogroll === 1, flags: stored(row.flags, SubscriptionSchema.shape.flags, []) });
 export const hopperResource = (row: HopperRow) => HopperSchema.parse({ ...row, public: row.public === 1, slug_frozen: row.slug_frozen === 1 });

@@ -60,6 +60,8 @@ export async function buildItemJson(db: D1Database, settings: Settings, item: It
     at: v.published_at,
     note: v.note,
     ...(v.pinned === 1 ? { pinned: true } : {}),
+    // §16.6c / #40: the studio wrote this note. Only with a note to describe.
+    ...(v.note_generated === 1 && v.note ? { generated: true } : {}),
   }));
   // Thread items additionally carry transclusions provenance (§2.9); a
   // withdrawn thread's endcap empties it to [] alongside content_md/media.

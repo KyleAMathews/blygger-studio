@@ -165,3 +165,40 @@ test("pasted generated text is marked from a selection and published disclosed",
   expect(doc.generated).toEqual([{ sources: [] }]);
   expect(errors).toEqual([]);
 });
+
+test("a drafted note is editable, flagged only while unedited, and cleared after publish", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/studio/login");
+  await page.locator('[name="password"]').fill("test-password");
+  await page.getByRole("button", { name: "log in", exact: true }).click();
+  await page.locator("#composer-text").fill(`Note fixture ${Date.now()}`);
+  await page.locator("#composer-full").click();
+  await page.locator("#publish-btn").click();
+  await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
+  // The fixture has no model; the route's behaviour is covered by the Worker suite.
+  await page.route("**/note-draft", (route) => route.fulfill({ json: { note: "Added a second sentence.", model: "test", pinned_prior: false } }));
+  const publishes: unknown[] = [];
+  page.on("request", (r) => { if (r.url().endsWith("/publish")) publishes.push(r.postDataJSON()); });
+
+  await page.locator("#md-input").fill(`${await page.locator("#md-input").inputValue()} A second sentence.`);
+  await page.locator("#draft-note-btn").click();
+  await expect(page.locator("#note-input")).toHaveValue("Added a second sentence.");
+  await expect(page.locator("#note-generated-hint")).toBeVisible();
+  await page.locator("#publish-btn").click();
+  await expect(page.locator('[data-action="view-version"]')).toHaveCount(2);
+  expect(publishes.at(-1)).toMatchObject({ note: "Added a second sentence.", note_generated: true });
+  await expect(page.locator("#history .tc-chip", { hasText: "generated" })).toHaveCount(1);
+  await expect(page.locator("#note-input")).toHaveValue("");
+
+  // Edited before publishing: the words are the author's.
+  await page.locator("#md-input").fill(`${await page.locator("#md-input").inputValue()} A third.`);
+  await page.locator("#draft-note-btn").click();
+  await expect(page.locator("#note-generated-hint")).toBeVisible();
+  await page.locator("#note-input").fill("Added a third sentence, by hand.");
+  await expect(page.locator("#note-generated-hint")).toHaveCount(0);
+  await page.locator("#publish-btn").click();
+  await expect(page.locator('[data-action="view-version"]')).toHaveCount(3);
+  expect(publishes.at(-1)).toMatchObject({ note_generated: false });
+  expect(errors).toEqual([]);
+});

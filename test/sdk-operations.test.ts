@@ -58,6 +58,7 @@ it("exercises every declared operation through its named SDK method, including a
     ["listStaleThreads", 200, client => api.listStaleThreads({ client })],
     ["getItemFreshness", 409, client => api.getItemFreshness({ client, path: { id }, query: { probe: "false" } })],
     ["refreshItem", 409, client => api.refreshItem({ client, path: { id } })],
+    ["draftNote", 409, client => api.draftNote({ client, path: { id } })],
     ["withdrawItem", 200, client => api.withdrawItem({ client, path: { id } })],
     ["deleteItem", 409, client => api.deleteItem({ client, path: { id } })],
     ["deleteHopper", 200, client => api.deleteHopper({ client, path: { id: hopper.id } })],

@@ -46,7 +46,8 @@ function route<P extends string>(id: string, method: RouteConfig["method"], path
 export const routes = {
   createItem: route("createItem", "post", "/items", created, ItemCreateSchema, 201, undefined, true),
   updateItem: route("updateItem", "patch", "/items/{id}", ItemSchema, ItemEditSchema),
-  publishItem: route("publishItem", "post", "/items/{id}/publish", ok.extend({ version: z.number(), warning: z.string().optional() }), note, 200, undefined, true),
+  publishItem: route("publishItem", "post", "/items/{id}/publish", ok.extend({ version: z.number(), warning: z.string().optional() }), note.extend({ note_generated: z.boolean().optional() }), 200, undefined, true),
+  draftNote: route("draftNote", "post", "/items/{id}/note-draft", z.object({ note: z.string(), model: z.string(), pinned_prior: z.boolean() })),
   generateItem: route("generateItem", "post", "/items/{id}/generate", z.object({ text: z.string(), model: z.string() }), z.object({ scope: z.number().int().min(0) })),
   withdrawItem: route("withdrawItem", "post", "/items/{id}/withdraw", ok.extend({ version: z.number() }), note, 200, undefined, true),
   pinItem: route("pinItem", "put", "/items/{id}/versions/{version}/pin", ok.extend({ version: z.number(), already: z.boolean() })),

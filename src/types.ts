@@ -184,6 +184,8 @@ export interface VersionRow {
   stub_of: string | null;
   /** JSON `StubCite` (migration 0008) — the citation's human half, frozen at publish so it survives link rot. Client-side only. */
   stub_cite: string | null;
+  /** 1 when the studio drafted this version's note and the author published it unedited (migration 0015, #40). */
+  note_generated: number;
 }
 
 export interface MediaRow {

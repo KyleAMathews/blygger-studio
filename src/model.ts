@@ -281,7 +281,7 @@ export async function setTkProvenance(
  * if the published fragment exceeds the studio cap, or TransclusionResolveError
  * if a thread directive fails to resolve — nothing is written in any case.
  */
-export async function publish(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string): Promise<number> {
+export async function publish(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string, noteGenerated = false): Promise<number> {
   const now = nowIso();
   const version = item.version + 1;
   const kind = await authoredKind(db, item);
@@ -395,8 +395,8 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   const hash = await contentHash(strippedMd);
   await db.batch([
     db.prepare(
-      "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson),
+      "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0),
     db.prepare("UPDATE items SET status = 'public', kind = ?, version = ?, dirty = 0, updated = ? WHERE id = ?")
       .bind(kind, version, now, item.id),
   ]);

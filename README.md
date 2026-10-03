@@ -291,7 +291,7 @@ src/stub.ts         stubs (respond) · src/fork.ts  forks and lineage
 src/pages.ts        public server-rendered pages
 src/spa.ts          Studio shell, login/logout, embedded browser assets
 src/ui/             React Studio, Router loaders, DB collections and Base UI
-migrations/         D1 schema, 0001–0014
+migrations/         D1 schema, 0001–0015
 scripts/            export, deploy-all
 wrangler.jsonc      your deployment — generic here; `npm run init` fills it in
 deploy-targets.json your live deployments (gitignored; see the .example)

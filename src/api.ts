@@ -33,6 +33,7 @@ import { parseForkedFrom, parseStoredFork, parseStoredStub, parseStubOf } from "
 import { runGenerateScope } from "./tk-generate.ts";
 import type { Env, ItemRow, SubscriptionRow } from "./types.ts";
 import { BLOCKING, staleThreads, threadFreshness } from "./freshness.ts";
+import { draftChangeNote } from "./change-note.ts";
 import { platformFetch } from "./importer/http.ts";
 import { reconcileIndex } from "./importer/poll.ts";
 import { isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
@@ -160,7 +161,7 @@ async function sendMentionsFor(
  * `refresh` take, so a refresh gets exactly a publish's checks and error
  * mapping. Returns the response to send.
  */
-async function publishAndNotify(c: Context<{ Bindings: Env }>, item: ItemRow, note: string | null, extra: Record<string, unknown> = {}) {
+async function publishAndNotify(c: Context<{ Bindings: Env }>, item: ItemRow, note: string | null, extra: Record<string, unknown> = {}, noteGenerated = false) {
   const origin = siteOrigin(await getSettings(c.env.DB), c.req.url, normalizeMount(c.env.MOUNT));
   // §2.4's publish-time check. It lives here rather than inside publish()
   // deliberately: publish() is network-free by design (#26 — quoting follows
@@ -176,7 +177,7 @@ async function publishAndNotify(c: Context<{ Bindings: Env }>, item: ItemRow, no
     lineageNote = check.skipped;
   }
   try {
-    const version = await publish(c.env.DB, item, note, origin);
+    const version = await publish(c.env.DB, item, note, origin, noteGenerated);
     await sendMentionsFor(c, item.id, version);
     return c.json({ ok: true, version, ...extra, ...(lineageNote ? { warning: lineageNote } : {}) });
   } catch (e) {
@@ -203,8 +204,19 @@ api.openapi(routes.publishItem, async (c) => {
   // TK-stripped (published) length, not the raw working copy — see FragmentTooLongError.
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await readJson<{ note?: string }>(c);
-  return publishAndNotify(c, item, body.note?.trim() || null);
+  const body = await readJson<{ note?: string; note_generated?: boolean }>(c);
+  // note_generated is the studio's own assertion that the note is the drafted
+  // text, unedited (#40) — self-asserted, like every provenance member.
+  return publishAndNotify(c, item, body.note?.trim() || null, {}, body.note_generated === true);
+});
+
+/** Draft a changelog note from the local diff (#40). Never publishes; the author edits and decides. */
+api.openapi(routes.draftNote, async (c) => {
+  const item = await getItem(c.env.DB, c.req.param("id"));
+  if (!item) return c.json({ error: "not found" }, 404);
+  const result = await draftChangeNote(c.env, item);
+  if (!result.ok) return c.json({ error: result.error }, result.status);
+  return c.json({ note: result.note, model: result.model, pinned_prior: result.pinnedPrior });
 });
 
 // --- Snapshot freshness (decision #33's direct check; #38: detect always,

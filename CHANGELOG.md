@@ -18,6 +18,30 @@ not have its own repo until session 26.
 
 ---
 
+## 0.14.0 — 2026-10-03
+
+**Migrations: apply `0015_note_generated.sql`.** It adds one column with a
+default of 0 and changes no stored values.
+
+**The studio can draft a version's changelog note** (decision #40, spec §16.6c).
+In the editor, *draft note* describes the change between the published version
+and your working copy. The draft goes into the note field, and you can keep it,
+edit it, or replace it before publishing.
+
+- **The depth rule is enforced, not just requested.** When the previous version is
+  unpinned, its text is private, so a note may describe the change but must not
+  quote that text (§5.2). The prompt says so, and the studio also checks the
+  result: a draft that reproduces six or more consecutive words found only in the
+  previous version is refused. Between two pinned versions nothing is withheld,
+  so the check does not apply.
+- **A note you publish unedited is marked `"generated": true` in the changelog.**
+  Once you edit it, the words are yours and carry no mark. History in the editor
+  shows a *generated* chip on such notes.
+- Drafting happens before publish and never inside it, so publishing still needs
+  no network. Drafting uses the model and key configured for TK generation.
+- **Fixed:** the editor's note field now clears after a publish. Before this, the
+  previous note stayed in the field and was sent again with the next publish.
+
 ## 0.13.0 — 2026-10-03
 
 **Migrations: none.**

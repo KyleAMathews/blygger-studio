@@ -134,6 +134,7 @@ export type Version = {
     pinned_at: string | null;
     kind: 'fragment' | 'thread' | 'withdrawn';
     pinned: boolean;
+    note_generated: boolean;
     transclusions: Array<Transclusion>;
     generated: Array<GenerationProvenance>;
     stub_of: VersionReference | {
@@ -651,6 +652,7 @@ export type UpdateItemResponse = UpdateItemResponses[keyof UpdateItemResponses];
 export type PublishItemData = {
     body?: {
         note?: string;
+        note_generated?: boolean;
     };
     path: {
         id: string;
@@ -716,6 +718,73 @@ export type PublishItemResponses = {
 };
 
 export type PublishItemResponse = PublishItemResponses[keyof PublishItemResponses];
+
+export type DraftNoteData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/items/{id}/note-draft';
+};
+
+export type DraftNoteErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type DraftNoteError = DraftNoteErrors[keyof DraftNoteErrors];
+
+export type DraftNoteResponses = {
+    /**
+     * Success
+     */
+    200: {
+        note: string;
+        model: string;
+        pinned_prior: boolean;
+    };
+};
+
+export type DraftNoteResponse = DraftNoteResponses[keyof DraftNoteResponses];
 
 export type GenerateItemData = {
     body: {

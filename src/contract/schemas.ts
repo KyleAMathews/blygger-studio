@@ -31,6 +31,7 @@ export const VersionRowSchema = z.object({
   generated_json: z.string().nullable(),
   stub_of: z.string().nullable(),
   stub_cite: z.string().nullable(),
+  note_generated: z.number(),
 }).openapi("VersionRow");
 
 export const MediaRowSchema = z.object({
