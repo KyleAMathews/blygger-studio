@@ -23,11 +23,13 @@ not have its own repo until session 26.
 **Migrations: apply `0016_media_inline.sql`.** It adds `media.inline` and marks
 existing images that are already referenced in their item's text as inline.
 
-**Action needed if you use TK generation or drafted notes: set an AI model in
-Settings.** There is no longer a built-in default: which model you pay for is
-your choice, so a fresh install names none. Until a model is set, *generate*
-and *draft note* say so instead of quietly using Claude Opus 5. Example:
-`claude-sonnet-5-5`.
+**No built-in AI model.** This matters only if you have set the
+`AI_PROVIDER_KEY` Worker secret (without it, generation has never run and
+still reports the missing key). If you set a key and left Settings' model field
+blank, generation used to fall back to Claude Opus 5, billed to your key. Now
+*generate* and *draft note* ask you to choose one instead (for example
+`claude-sonnet-5-5`). Which model you pay for is your decision, so the package
+no longer makes it.
 
 **Images belong to the text they are in** (studio#24, and Venkat's report).
 
