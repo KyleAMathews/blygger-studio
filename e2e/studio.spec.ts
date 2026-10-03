@@ -79,3 +79,60 @@ test("owner can pin and fork through resource creation", async ({ page }) => {
   expect(page.url()).not.toBe(sourceUrl);
   expect(errors).toEqual([]);
 });
+
+test("stale quotes are listed, explained, and refreshed as one republish", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/studio/login");
+  await page.locator('[name="password"]').fill("test-password");
+  await page.getByRole("button", { name: "log in", exact: true }).click();
+  await expect(page.locator("#composer-text")).toBeVisible();
+  // In-page fetch: the session cookie is Secure, which Playwright's request
+  // context will not send over the fixture's plain http.
+  const api = async (method: string, path: string, data?: unknown) => {
+    const res = await page.evaluate(async ([method, path, data]) => {
+      const r = await fetch(`/api${path}`, { method, headers: { "content-type": "application/json" }, body: data === undefined ? undefined : JSON.stringify(data) });
+      return { ok: r.ok, json: await r.json() };
+    }, [method, path, data] as const);
+    expect(res.ok, `${method} ${path}`).toBe(true);
+    return res.json;
+  };
+  const marker = `Quoted source ${Date.now()}`;
+  const title = `Stale quote fixture ${Date.now()}`;
+  const source = (await api("POST", "/items", { content_md: `${marker}, first version.` })).id;
+  await api("POST", `/items/${source}/publish`, {});
+  const thread = (await api("POST", "/items", { content_md: `# ${title}\n\n![[${source}]]\n\nMy commentary.`, kind: "thread" })).id;
+  await api("POST", `/items/${thread}/publish`, {});
+  await api("PATCH", `/items/${source}`, { content_md: `${marker}, second version.` });
+  await api("POST", `/items/${source}/publish`, {});
+
+  // The cross-blyg notice names the thread and links to its snapshots.
+  await page.reload();
+  const notice = page.locator(".stale-notice");
+  await expect(notice).toContainText(title);
+  await notice.getByRole("link", { name: title }).click();
+  await expect(page.locator("#md-input")).toBeVisible();
+
+  // The panel says what is stale and by how much.
+  const row = page.locator('#snapshots [data-status="refreshable"]');
+  await expect(row).toContainText("v1 → v2 available");
+
+  // Unpublished edits block the refresh, and the panel says why.
+  await page.locator("#md-input").fill(`# ${title}\n\n![[${source}]]\n\nHalf-written edit.`);
+  await expect(page.locator("#snapshots")).toContainText("unpublished edits");
+  await expect(page.locator('[data-action="refresh-quotes"]')).toHaveCount(0);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.locator('[data-action="discard-changes"]').click();
+  await expect(page.locator("#md-input")).toHaveValue(`# ${title}\n\n![[${source}]]\n\nMy commentary.`);
+
+  // One click republishes with the new quote.
+  const refreshed = page.waitForResponse((r) => r.url().endsWith(`/api/items/${thread}/refresh`));
+  await page.locator('[data-action="refresh-quotes"]').click();
+  expect((await refreshed).status()).toBe(200);
+  await expect(page.locator("#snapshots h2")).toContainText("all current");
+  const doc = await page.evaluate(async (id) => (await fetch(`/items/${id}.json`)).json(), thread);
+  expect(doc.version).toBe(2);
+  expect(doc.content_html).toContain(`${marker}, second version.`);
+  expect(doc.changelog.at(-1).note).toBe("refreshed quoted snapshots");
+  expect(errors).toEqual([]);
+});

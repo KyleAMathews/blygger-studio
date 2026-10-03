@@ -30,6 +30,7 @@ Consult `openapi.json` for every field and response.
 | Media | Included in item detail | `POST /media` with a multipart file |
 | Imported items | `GET /imports/{sub}/{id}` | The subscription importer manages these items |
 | Reading | `GET /reading` | Read only |
+| Quote freshness | `GET /freshness`, `GET /items/{id}/freshness` | `POST /items/{id}/refresh` |
 
 Publication, withdrawal, restoration, and generation remain explicit operations:
 
@@ -37,6 +38,7 @@ Publication, withdrawal, restoration, and generation remain explicit operations:
 - `POST /items/{id}/restore` copies a stored version into the working draft. It does not publish.
 - `POST /items/{id}/generate` generates one TK scope.
 - `POST /subscriptions/{id}/resync` refreshes a Blyg subscription.
+- `POST /items/{id}/refresh` republishes a thread to re-bake quotes whose source has a newer version. See below.
 
 Preview and search use `/preview` and `/search`.
 The old fork, stub, pause, resume, response-policy, and pin routes no longer exist.
@@ -145,6 +147,29 @@ Subscription resources omit internal HTTP cache fields.
 Hopper detail includes `total` and `source_count`.
 Use `?preview=true` for an index preview of three memberships and bodies.
 The default hopper detail still includes all memberships and bodies.
+
+## Quote freshness
+
+A thread bakes each quote at the version it held when it published. A quote is
+**stale** when a newer version of the item it quoted exists, either here (our
+own item was republished, or the importer already pulled the source's new
+version) or only at the source's origin. Only the direct relation counts: a
+quote of a thread is not stale because that thread's own quotes moved.
+
+- `GET /freshness` lists every published thread with a stale quote or one that
+  would block a republish. It reads only D1.
+- `GET /items/{id}/freshness` reports each quote in the published version:
+  `baked` (the version in the thread), `held` (what a republish would bake now),
+  `live` (what the origin serves, from `{origin}items/{id}.json`), and a
+  `status` of `current`, `refreshable`, `behind`, `passage-missing`,
+  `unresolvable` or `retained`. It probes origins unless `?probe=false`. A
+  failed probe reads as `live: null`, never as stale.
+- `POST /items/{id}/refresh` with an optional `note` re-imports the sources
+  that are behind, then republishes. A refresh **is** a publish: it creates a
+  new version, a feed entry, and mentions for the references whose target
+  version changed. The words do not change, so `content_hash` stays the same.
+  It returns 409 when the working copy holds anything other than the published
+  words, when a quote would make the republish fail, or when nothing is stale.
 
 ## Errors and generation
 

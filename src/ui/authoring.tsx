@@ -388,6 +388,7 @@ export function Compose() {
       {!result.isLoading && !result.data?.length ? (
         <p>Nothing yet — compose your first fragment above.</p>
       ) : null}
+      <StaleNotice items={result.data ?? []} />
       {result.data?.map((item) => <ItemRow key={item.id} item={item} />)}
     </>
   );
@@ -1035,6 +1036,20 @@ function Editor({ item }: { item: Detail }) {
           </a>
         </p>
       ) : null}
+      {item.status === 'public' && item.authored_kind === 'thread' ? (
+        <QuotedSnapshots
+          id={item.id}
+          version={item.version}
+          unpublished={
+            (!saved && text !== item.content_md) ||
+            (item.dirty &&
+              !(
+                text === item.published?.content_md &&
+                !item.published?.generated.length
+              ))
+          }
+        />
+      ) : null}
       <section className="history" id="history">
         <h2>history</h2>
         {!item.versions.length ? (
@@ -1097,6 +1112,176 @@ function Editor({ item }: { item: Detail }) {
         <Html id="h-viewer-body" html={version?.content_html ?? ''} />
       </Modal>
     </>
+  );
+}
+type Freshness = Awaited<ReturnType<typeof loadFreshness>>;
+const loadFreshness = (id: string) =>
+  unwrap(BlyggerApi.getItemFreshness({ client, path: { id } }));
+const host = (origin: string) => {
+  try {
+    return new URL(origin).host;
+  } catch {
+    return origin;
+  }
+};
+function quoteState(q: Freshness['quotes'][number]): string {
+  switch (q.status) {
+    case 'current':
+      return `current · v${q.baked}`;
+    case 'refreshable':
+      return `v${q.baked} → v${q.held} available`;
+    case 'behind':
+      return `v${q.baked} → v${q.live} at its origin (imported on refresh)`;
+    case 'retained':
+    case 'passage-missing':
+      return q.reason ?? q.status;
+    case 'unresolvable':
+      return `no longer resolves: ${q.reason ?? 'unknown'}`;
+  }
+}
+/**
+ * Quoted snapshots (decision #33's direct check; #38: detect always, refresh
+ * only on a decision, never silently). A refresh is a republish of the
+ * published words, so it waits for unpublished edits to be dealt with, and it
+ * says so rather than folding them in.
+ */
+function QuotedSnapshots({
+  id,
+  version,
+  unpublished,
+}: {
+  id: string;
+  version: number;
+  unpublished: boolean;
+}) {
+  const action = useAction();
+  const [report, setReport] = useState<Freshness>();
+  const [failed, setFailed] = useState<unknown>();
+  const [note, setNote] = useState('refreshed quoted snapshots');
+  useEffect(() => {
+    let live = true;
+    setFailed(undefined);
+    loadFreshness(id)
+      .then((r) => live && setReport(r))
+      .catch((e) => live && setFailed(e));
+    return () => {
+      live = false;
+    };
+  }, [id, version]);
+  if (failed) return <Failure error={failed} />;
+  if (!report || !report.quotes.length) return null;
+  const refresh = async () => {
+    const result = await unwrap(
+      BlyggerApi.refreshItem({ client, path: { id }, body: { note } }),
+    );
+    await changed('item', 'items', 'reading');
+    setReport(await loadFreshness(id));
+    return result;
+  };
+  return (
+    <section className="snapshots" id="snapshots">
+      <h2>
+        quoted snapshots{' '}
+        <span className="h-hint">
+          {report.stale
+            ? `${report.stale} of ${report.quotes.length} quote an older version`
+            : 'all current'}
+        </span>
+      </h2>
+      <ul className="h-list">
+        {report.quotes.map((q, i) => (
+          <li className={`h-row q-${q.status}`} key={`${q.id}-${i}`} data-status={q.status}>
+            <code>{q.id.slice(0, 8)}</code>{' '}
+            <span className="q-source">{q.origin ? host(q.origin) : 'own'}</span>
+            {q.partial ? <span className="tc-chip">excerpt</span> : null}{' '}
+            <span className="q-state">{quoteState(q)}</span>
+          </li>
+        ))}
+      </ul>
+      {report.stale && !report.blocking ? (
+        unpublished ? (
+          <p className="h-hint" role="status">
+            This thread has unpublished edits. A refresh republishes the
+            published words with new quotes, so publish or discard the edits
+            first.
+          </p>
+        ) : (
+          <p>
+            <input
+              className="note"
+              aria-label="refresh note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />{' '}
+            <Button
+              data-action="refresh-quotes"
+              className="primary"
+              disabled={action.busy}
+              onClick={() => void action.run(refresh)}
+            >
+              refresh {report.stale} {report.stale === 1 ? 'quote' : 'quotes'} → v
+              {version + 1}
+            </Button>
+          </p>
+        )
+      ) : null}
+      {report.blocking ? (
+        <p className="h-hint" role="status">
+          A republish would fail until the quotes marked above are edited or
+          removed in the working copy.
+        </p>
+      ) : null}
+      <Failure error={action.error} />
+    </section>
+  );
+}
+/** Threads whose quotes are behind, database-only — the cross-blyg view. */
+function StaleNotice({
+  items: rows,
+}: {
+  items: ListItemsResponses[200]['items'];
+}) {
+  const [stale, setStale] = useState<{ id: string; stale: number; blocking: number }[]>([]);
+  const versions = rows.map((r) => `${r.id}:${r.version}`).join(',');
+  useEffect(() => {
+    let live = true;
+    unwrap(BlyggerApi.listStaleThreads({ client }))
+      .then((r) => live && setStale(r.items))
+      .catch(() => live && setStale([]));
+    return () => {
+      live = false;
+    };
+  }, [versions]);
+  if (!stale.length) return null;
+  const label = (id: string) => {
+    const row = rows.find((r) => r.id === id);
+    if (!row) return id.slice(0, 8);
+    const p = previewFromHtml(renderMarkdown(extractDirectives(row.content_md).withoutDirectives));
+    return p.title || p.body || id.slice(0, 8);
+  };
+  return (
+    <section className="stale-notice" role="status">
+      <p>
+        {stale.length === 1
+          ? '1 published thread quotes'
+          : `${stale.length} published threads quote`}{' '}
+        an older version of something:
+      </p>
+      <ul>
+        {stale.map((t) => (
+          <li key={t.id}>
+            <Link to="/edit/$id" params={{ id: t.id }} hash="snapshots">
+              {label(t.id)}
+            </Link>{' '}
+            <span className="h-hint">
+              {t.stale ? `${t.stale} stale` : ''}
+              {t.stale && t.blocking ? ' · ' : ''}
+              {t.blocking ? `${t.blocking} need editing` : ''}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 const getPreview = (

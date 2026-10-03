@@ -414,3 +414,15 @@ input.note { font: inherit; font-size: 0.9rem; padding: 0.3rem 0.5rem; border-ra
 
 .entry-actions > button, .entry-actions > a { flex-shrink: 0; white-space: nowrap; }
 .entry-actions > select { max-width: 100%; }
+.snapshots { margin-top: 1.5rem; font-size: 0.85rem; }
+.snapshots h2 { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); }
+.snapshots .h-hint { text-transform: none; letter-spacing: 0; font-weight: 400; opacity: 0.7; }
+.snapshots .h-list { list-style: none; padding: 0; margin: 0 0 0.5rem; }
+.snapshots .h-row { padding: 0.15rem 0; overflow-wrap: anywhere; }
+.snapshots .q-source { color: var(--ink-soft); }
+.snapshots .q-refreshable .q-state, .snapshots .q-behind .q-state { font-weight: 600; }
+.snapshots .q-passage-missing .q-state, .snapshots .q-unresolvable .q-state { color: var(--alert); }
+.stale-notice { border: 1px solid var(--rule-strong); border-radius: 4px; padding: 0.4rem 0.7rem; margin: 0.75rem 0; font-size: 0.85rem; }
+.stale-notice p { margin: 0 0 0.25rem; }
+.stale-notice ul { margin: 0; padding-left: 1.1rem; }
+.stale-notice .h-hint { opacity: 0.7; }

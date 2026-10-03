@@ -18,6 +18,34 @@ not have its own repo until session 26.
 
 ---
 
+## 0.12.0 — 2026-10-03
+
+**Migrations: none.**
+
+**Stale quotes are visible, and one click refreshes them.** A thread bakes each
+quote at the version it held when it published. When the quoted item changes
+later, the thread keeps the old words, which is correct (§10.4). Until now
+nothing told you it had happened.
+
+- **Compose** lists every published thread whose quotes are behind, with links.
+- **The thread editor** has a *quoted snapshots* panel. Each quote shows the
+  version baked and the version now available. For a quote from another blyg,
+  the panel asks that blyg directly for its current version (decision #33).
+  A quote can also be shown as unable to refresh: the source was withdrawn, or
+  an excerpt's passage is gone from the new version.
+- **Refresh** republishes the thread with the same words and new quotes. A quote
+  whose source is ahead of your import resyncs that subscription first. The new
+  version's `content_hash` is unchanged, so readers can tell a re-bake from an
+  edit (#38). The thread gets a new feed entry, and the sources whose version
+  changed get mentions. Refresh is never automatic.
+- Refresh refuses when the working copy has unpublished edits. It also refuses
+  when republishing would drop a generated-text disclosure that the published
+  version carried.
+
+API: `GET /freshness`, `GET /items/{id}/freshness`, `POST /items/{id}/refresh`
+(see `docs/api.md` § Quote freshness). The publish handler and refresh share one
+code path, so a refresh runs the same lineage check and error mapping.
+
 ## 0.11.1 — 2026-10-03
 
 **Migrations: apply `0014_public_page_indexes.sql` after the earlier migrations.**

@@ -29,6 +29,8 @@ const importedEntry = z.object({ subscriptionId: z.string(), subscriptionTitle: 
 export const ReadingEntrySchema = z.object({ key: z.string(), source: z.enum(["own", "imported"]), kind: z.enum(["fragment", "thread"]), withdrawn: z.boolean(), l0: z.boolean(), contentHtml: z.string(), displayAt: z.string(), own: ownEntry.optional(), imported: importedEntry.optional() }).openapi("ReadingEntry");
 const subscribed = SubscriptionSchema;
 const confirmation = z.object({ needsConfirm: z.literal(true), kind: z.enum(["blyg", "rss"]), origin: z.string().optional(), feedUrl: z.string().optional(), title: z.string(), siteMismatch: z.object({ asserted: z.string(), actual: z.string() }).optional() });
+const quoteFreshness = z.object({ id: z.string(), origin: z.string().optional(), baked: z.number().int(), held: z.number().int().nullable(), live: z.number().int().nullable(), partial: z.boolean(), status: z.enum(["current", "refreshable", "behind", "passage-missing", "unresolvable", "retained"]), reason: z.string().optional() }).openapi("QuoteFreshness");
+export const ThreadFreshnessSchema = z.object({ id: z.string(), version: z.number().int(), dirty: z.boolean(), quotes: z.array(quoteFreshness), stale: z.number().int().nonnegative(), blocking: z.number().int().nonnegative() }).openapi("ThreadFreshness");
 const counts = z.object({ all: z.number(), own: z.number(), subscriptions: z.record(z.string(), z.number()) });
 
 function route<P extends string>(id: string, method: RouteConfig["method"], path: P, response: z.ZodType, body?: z.ZodType, status = 200, query?: z.ZodObject, optionalBody = false): RouteConfig & { path: P } {
@@ -80,6 +82,9 @@ export const routes = {
   getImportedItem: route("getImportedItem", "get", "/imports/{sub}/{id}", ImportedItemSchema),
   getUpdateState: route("getUpdateState", "get", "/update-state", z.record(z.string(), z.string())),
   getMentionSource: route("getMentionSource", "get", "/mentions/{id}/source", z.object({ holder: z.string().nullable(), subscription: z.union([SubscriptionSchema, z.null()]) })),
+  listStaleThreads: route("listStaleThreads", "get", "/freshness", z.object({ items: z.array(ThreadFreshnessSchema) })),
+  getItemFreshness: route("getItemFreshness", "get", "/items/{id}/freshness", ThreadFreshnessSchema, undefined, 200, z.object({ probe: z.enum(["true", "false"]).optional() })),
+  refreshItem: route("refreshItem", "post", "/items/{id}/refresh", ok.extend({ version: z.number(), refreshed: z.array(z.string()), resynced: z.number().int().nonnegative(), warning: z.string().optional() }), note, 200, undefined, true),
   getForkOptions: route("getForkOptions", "get", "/fork-options", z.object({ origin: z.string(), ourOrigin: z.string(), versions: z.array(z.object({ version: z.number(), at: z.string(), note: z.string().nullable() })), error: z.string().optional() }), undefined, 200, z.object({ id: z.string(), sub: z.string().optional(), origin: z.string().optional() })),
 };
 // The resolve/confirm operation has two successful response shapes and statuses.

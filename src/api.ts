@@ -31,7 +31,10 @@ import { checkForkTarget, resolveForkSource } from "./fork.ts";
 import { siteOrigin } from "./protocol.ts";
 import { parseForkedFrom, parseStoredFork, parseStoredStub, parseStubOf } from "./stub.ts";
 import { runGenerateScope } from "./tk-generate.ts";
-import type { Env, ItemRow } from "./types.ts";
+import type { Env, ItemRow, SubscriptionRow } from "./types.ts";
+import { BLOCKING, staleThreads, threadFreshness } from "./freshness.ts";
+import { platformFetch } from "./importer/http.ts";
+import { reconcileIndex } from "./importer/poll.ts";
 import { isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
 
 const MEDIA_TYPES: Record<string, string> = {
@@ -152,14 +155,12 @@ async function sendMentionsFor(
   c.executionCtx.waitUntil(drainOutbound(c.env.DB, mentionFetch, { origin }).catch(() => {}));
 }
 
-api.openapi(routes.publishItem, async (c) => {
-  // Also the republish path for withdrawn items: vN+1 restores 'public'/authored kind.
-  // Studio-side fragment cap (§2.7) is enforced inside publish() against the
-  // TK-stripped (published) length, not the raw working copy — see FragmentTooLongError.
-  const item = await getItem(c.env.DB, c.req.param("id"));
-  if (!item) return c.json({ error: "not found" }, 404);
-  const body = await readJson<{ note?: string }>(c);
-  const note = body.note?.trim() || null;
+/**
+ * Publish an item and send what it owes — the one path both `publish` and
+ * `refresh` take, so a refresh gets exactly a publish's checks and error
+ * mapping. Returns the response to send.
+ */
+async function publishAndNotify(c: Context<{ Bindings: Env }>, item: ItemRow, note: string | null, extra: Record<string, unknown> = {}) {
   const origin = siteOrigin(await getSettings(c.env.DB), c.req.url, normalizeMount(c.env.MOUNT));
   // §2.4's publish-time check. It lives here rather than inside publish()
   // deliberately: publish() is network-free by design (#26 — quoting follows
@@ -177,7 +178,7 @@ api.openapi(routes.publishItem, async (c) => {
   try {
     const version = await publish(c.env.DB, item, note, origin);
     await sendMentionsFor(c, item.id, version);
-    return c.json({ ok: true, version, ...(lineageNote ? { warning: lineageNote } : {}) });
+    return c.json({ ok: true, version, ...extra, ...(lineageNote ? { warning: lineageNote } : {}) });
   } catch (e) {
     if (e instanceof TransclusionResolveError) {
       // Both bracket forms report here: `![[id]]` directives and `[[id]]`
@@ -194,6 +195,68 @@ api.openapi(routes.publishItem, async (c) => {
     }
     throw e;
   }
+}
+
+api.openapi(routes.publishItem, async (c) => {
+  // Also the republish path for withdrawn items: vN+1 restores 'public'/authored kind.
+  // Studio-side fragment cap (§2.7) is enforced inside publish() against the
+  // TK-stripped (published) length, not the raw working copy — see FragmentTooLongError.
+  const item = await getItem(c.env.DB, c.req.param("id"));
+  if (!item) return c.json({ error: "not found" }, 404);
+  const body = await readJson<{ note?: string }>(c);
+  return publishAndNotify(c, item, body.note?.trim() || null);
+});
+
+// --- Snapshot freshness (decision #33's direct check; #38: detect always,
+// refresh only on a decision, never silently) ---
+
+api.openapi(routes.listStaleThreads, async (c) => c.json({ items: await staleThreads(c.env.DB) }));
+
+api.openapi(routes.getItemFreshness, async (c) => {
+  const item = await getItem(c.env.DB, c.req.param("id"));
+  if (!item) return c.json({ error: "not found" }, 404);
+  if (item.kind !== "thread" || item.status !== "public") return c.json({ error: "only a published thread has quoted snapshots" }, 409);
+  const probe = c.req.query("probe") !== "false";
+  return c.json(await threadFreshness(c.env.DB, item, probe ? platformFetch : undefined));
+});
+
+/**
+ * Refresh a thread's stale quotes as one authoring act. A refresh **is** a
+ * republish (#38): same working copy, new version, a feed entry, and mentions
+ * to every origin whose target version changed (§15.2). So it refuses what a
+ * republish of *other* words would be — unpublished edits in the working copy —
+ * and what would fail anyway, and it refuses to bump a version for nothing.
+ * Quotes whose origin is ahead of our import resync that subscription first;
+ * the importer's own reconcile does the fetching, so a refreshed snapshot is
+ * byte-for-byte what a scheduled poll would have stored.
+ */
+api.openapi(routes.refreshItem, async (c) => {
+  const db = c.env.DB;
+  let item = await getItem(db, c.req.param("id"));
+  if (!item) return c.json({ error: "not found" }, 404);
+  if (item.kind !== "thread" || item.status !== "public") return c.json({ error: "only a published thread has quoted snapshots" }, 409);
+  const body = await readJson<{ note?: string }>(c);
+  let report = await threadFreshness(db, item, platformFetch);
+  if (report.dirty) return c.json({ error: "this thread has unpublished edits; publish or discard them before refreshing its quotes" }, 409);
+  let resynced = 0;
+  const behind = new Set(report.quotes.filter((q) => q.status === "behind" && q.origin).map((q) => q.origin!));
+  for (const origin of behind) {
+    const sub = await db.prepare("SELECT * FROM subscriptions WHERE origin = ? AND kind = 'blyg'").bind(origin).first<SubscriptionRow>();
+    if (!sub) continue;
+    const result = await reconcileIndex(db, sub);
+    if (result.ok) resynced++;
+  }
+  if (behind.size) report = await threadFreshness(db, item);
+  const blocking = report.quotes.filter((q) => BLOCKING.has(q.status));
+  if (blocking.length) {
+    return c.json({ error: "a republish would fail: edit or remove these quotes first", errors: blocking.map((q) => ({ id: q.id, reason: q.reason ?? q.status })) }, 409);
+  }
+  const refreshed = report.quotes.filter((q) => q.status === "refreshable").map((q) => q.id);
+  if (!refreshed.length) {
+    return c.json({ error: behind.size ? "the newer versions could not be imported yet; try again after the next poll" : "every quote is already current" }, 409);
+  }
+  item = (await getItem(db, item.id))!;
+  return publishAndNotify(c, item, body.note?.trim() || null, { refreshed, resynced });
 });
 
 /**

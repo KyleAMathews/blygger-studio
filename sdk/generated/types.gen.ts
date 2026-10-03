@@ -254,6 +254,26 @@ export type ReadingEntry = {
     };
 };
 
+export type ThreadFreshness = {
+    id: string;
+    version: number;
+    dirty: boolean;
+    quotes: Array<QuoteFreshness>;
+    stale: number;
+    blocking: number;
+};
+
+export type QuoteFreshness = {
+    id: string;
+    origin?: string;
+    baked: number;
+    held: number | null;
+    live: number | null;
+    partial: boolean;
+    status: 'current' | 'refreshable' | 'behind' | 'passage-missing' | 'unresolvable' | 'retained';
+    reason?: string;
+};
+
 export type ListItemsData = {
     body?: never;
     path?: never;
@@ -2896,6 +2916,205 @@ export type GetMentionSourceResponses = {
 };
 
 export type GetMentionSourceResponse = GetMentionSourceResponses[keyof GetMentionSourceResponses];
+
+export type ListStaleThreadsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/freshness';
+};
+
+export type ListStaleThreadsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListStaleThreadsError = ListStaleThreadsErrors[keyof ListStaleThreadsErrors];
+
+export type ListStaleThreadsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        items: Array<ThreadFreshness>;
+    };
+};
+
+export type ListStaleThreadsResponse = ListStaleThreadsResponses[keyof ListStaleThreadsResponses];
+
+export type GetItemFreshnessData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: {
+        probe?: 'true' | 'false';
+    };
+    url: '/api/items/{id}/freshness';
+};
+
+export type GetItemFreshnessErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetItemFreshnessError = GetItemFreshnessErrors[keyof GetItemFreshnessErrors];
+
+export type GetItemFreshnessResponses = {
+    /**
+     * Success
+     */
+    200: ThreadFreshness;
+};
+
+export type GetItemFreshnessResponse = GetItemFreshnessResponses[keyof GetItemFreshnessResponses];
+
+export type RefreshItemData = {
+    body?: {
+        note?: string;
+    };
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/items/{id}/refresh';
+};
+
+export type RefreshItemErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type RefreshItemError = RefreshItemErrors[keyof RefreshItemErrors];
+
+export type RefreshItemResponses = {
+    /**
+     * Success
+     */
+    200: {
+        ok: boolean;
+        version: number;
+        refreshed: Array<string>;
+        resynced: number;
+        warning?: string;
+    };
+};
+
+export type RefreshItemResponse = RefreshItemResponses[keyof RefreshItemResponses];
 
 export type GetForkOptionsData = {
     body?: never;

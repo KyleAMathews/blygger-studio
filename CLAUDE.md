@@ -153,7 +153,11 @@ saying so.
 
 ## Status
 
-**0.11.0 is released and deployed to both our nodes** (session 30, 2026-10-02): absolute URLs
+**0.12.0** (session 32, 2026-10-03): stale-quote detection and one-click refresh — a *quoted snapshots* panel on the thread editor, a notice on compose listing threads whose quotes are behind, and `GET /freshness`, `GET /items/{id}/freshness`, `POST /items/{id}/refresh` (decision #33's direct check; #38's detect-always, refresh-on-decision). No migration. 757 Worker + 6 UI-state + 128 browser tests.
+
+**0.11.1** (session 32, 2026-10-03), released and deployed: Kyle Mathews' #25 batches the public homepage's reads (≈300 D1 queries for 100 cards → 5–7) and migration **0014** adds four indexes, applied to both D1s first. Live time to first byte fell from ~4.2s to ~0.35s on venkateshrao and ~1.9s to ~0.3s on PI.
+
+**0.11.0** (session 30, 2026-10-02): absolute URLs
 in `content_html` (publish, import, bake, plus a cron repair of stored imports), thread cards that
 show the thread, and image insertion at the cursor, via `/image`, paste and drop. Operators coming from
 0.8.x have `docs/upgrading-to-0.11.md`. 735 Worker + 6 UI-state + 126 browser tests.
@@ -338,9 +342,16 @@ was specified to do in both cases.
   0011)**. `mentions_out.target_version`, a null-safe change test, and withdrawal as the one
   caller allowed to force a re-send (§15.7 owes a mention precisely because nothing changed).
   This is the half the 0.3 freeze needed: §15.2 asserted the reference client did this and it
-  did not. **The other half is still open** — decision #33's staleness probe needs the same
-  fact for *imported* items (fetch `{origin}items/{id}.json`, compare `version`), and the
-  bulk re-pin UI sits on top of it. Original entry:
+  did not. **The other half shipped in 0.12.0 (session 32)**: `src/freshness.ts` reports each
+  quote of a published thread against what a republish would bake (asking `resolveTarget`
+  itself, so it cannot drift from publish) and probes `{origin}items/{id}.json` for remote
+  quotes; `POST /items/{id}/refresh` resyncs lagging subscriptions and republishes. Found on
+  the way: "discard changes" leaves `dirty = 1` on purpose (a restore drops the positional TK
+  provenance cache), so refresh gates on *holds the published words* — clean, or byte-equal
+  with no `generated[]` to lose — not on `dirty`. **The same restore hazard is live for any
+  republish**: restoring a version that disclosed generated text and publishing it again
+  drops `generated[]`. Not fixed here; `impyrt` (#37) is the natural repair — re-wrap the
+  restored spans. Original entry:
 - [ ] ~~**Store the target version per outbound mention**~~ (roadmap-tracks 1.7, decision #33):
   `enqueueOutbound` resets every row to `pending` on republish because `mentions_out`
   holds no target version; spec §15.2 says unchanged references are not re-sent. Same
