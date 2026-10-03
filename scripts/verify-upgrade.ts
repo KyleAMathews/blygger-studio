@@ -72,8 +72,8 @@ const result = spawnSync(cmd, forwarded, { stdio: 'inherit' }); process.exit(res
   for (const command of ["install", "test"]) assert.ok(calls.some(call => call.tool === "npm" && call.args[0] === command));
   assert.ok(calls.some(call => call.tool === "npx" && call.args[0] === "tsc"));
   assert.ok(calls.some(call => call.tool === "npx" && call.args.join(" ") === "wrangler d1 migrations apply DB --remote"));
-  const schema = JSON.parse(execFileSync(process.execPath, [wranglerCli, "d1", "execute", "DB", "--local", "--persist-to", localD1, "--command", "SELECT name FROM sqlite_master WHERE type='index' AND name='signals_poll_order'", "--json"], { cwd: installed, encoding: "utf8", env: { ...process.env, WRANGLER_LOG_PATH: join(temp, "wrangler.log") } }));
-  assert.deepEqual(schema[0].results, [{ name: "signals_poll_order" }]);
+  const schema = JSON.parse(execFileSync(process.execPath, [wranglerCli, "d1", "execute", "DB", "--local", "--persist-to", localD1, "--command", "SELECT name FROM sqlite_master WHERE type='index' AND name IN ('signals_poll_order','items_public_order','versions_public_pins','media_item_created','subscriptions_origin') ORDER BY name", "--json"], { cwd: installed, encoding: "utf8", env: { ...process.env, WRANGLER_LOG_PATH: join(temp, "wrangler.log") } }));
+  assert.deepEqual(schema[0].results, ["items_public_order", "media_item_created", "signals_poll_order", "subscriptions_origin", "versions_public_pins"].map(name => ({ name })));
   assert.match(output, /When you are ready:  npm run deploy/);
   console.log("0.8.3 upgrade script: local release merge, install build, local migration, typecheck, SDK/Worker smoke, and declined deploy verified");
 } catch (error) { primaryFailure = error; throw error; }

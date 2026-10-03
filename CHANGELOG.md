@@ -18,6 +18,19 @@ not have its own repo until session 26.
 
 ---
 
+## 0.11.1 — 2026-10-03
+
+**Migrations: apply `0014_public_page_indexes.sql` after the earlier migrations.**
+
+The public homepage loads published card content, pin numbers, images, and
+citation sources in batches. It reuses the avatar and newest published content
+for page metadata. Pin links on other public pages now read only pin numbers,
+not entire version histories. The rendered HTML and public protocol stay the same.
+
+Indexes support the public item order, pinned versions, item media, and legacy
+citation source lookups. The migration changes no stored values. Regression
+checks bound query count and rows read with large histories and unrelated data.
+
 ## 0.11.0 — 2026-10-02
 
 **Migrations: none from 0.10.0. From 0.8.x, apply `0013_signal_poll_index.sql`

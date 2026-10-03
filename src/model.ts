@@ -501,7 +501,7 @@ export async function listVersions(db: D1Database, itemId: string): Promise<Vers
 }
 
 /** The published (latest-version) content of an item; the empty endcap row for withdrawn items. */
-export async function publishedVersion(db: D1Database, item: ItemRow): Promise<VersionRow | null> {
+export async function publishedVersion(db: D1Database, item: Pick<ItemRow, "id" | "version">): Promise<VersionRow | null> {
   return db
     .prepare("SELECT * FROM versions WHERE item_id = ? AND version = ?")
     .bind(item.id, item.version)

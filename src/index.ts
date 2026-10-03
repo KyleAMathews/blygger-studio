@@ -1,3 +1,4 @@
+import { listFeedItems } from "./public-feed.ts";
 import { studioSpa } from "./spa.ts";
 import { ownerApi } from "./owner-api.ts";
 // Studio is mounted at {mount}/studio and its assets share that range.
@@ -49,8 +50,7 @@ export function makeApp(mount: string) {
 
   // strict:false: serves both {mount} and {mount}/ (and "/" at root mount).
   pub.get("/", async (c) => {
-    const settings = await getSettings(c.env.DB);
-    const items = await listPublic(c.env.DB, FEED_PAGE_SIZE + 1);
+    const [settings, items] = await Promise.all([getSettings(c.env.DB), listFeedItems(c.env.DB, FEED_PAGE_SIZE + 1)]);
     const hasMore = items.length > FEED_PAGE_SIZE;
     return c.html(await feedPage(c.env.DB, settings, items.slice(0, FEED_PAGE_SIZE), hasMore, mount, siteOrigin(settings, c.req.url, mount)));
   });
