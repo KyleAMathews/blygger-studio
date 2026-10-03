@@ -168,6 +168,11 @@ domain, and the endpoint as a whole. See
 Every release has a `v{version}` tag and a
 [changelog entry](CHANGELOG.md) with an explicit **Migrations:** line. Read all
 entries between your installed version and the target before upgrading.
+
+> **Coming from 0.8.x or earlier?** 0.9–0.11 rebuilt the Studio and changed the
+> owner API. Read [Upgrading to 0.11](docs/upgrading-to-0.11.md) first. It
+> covers both upgrade paths, path mounts, checks, rollback, and the old-to-new
+> route table for third-party tools.
 Your running version is the `generator` in `https://blyg.example.com/blyg.json`
 (for a path mount, include that path before `blyg.json`).
 

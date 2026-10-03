@@ -18,6 +18,80 @@ not have its own repo until session 26.
 
 ---
 
+## 0.11.0 — 2026-10-02
+
+**Migrations: none from 0.10.0. From 0.8.x, apply `0013_signal_poll_index.sql`
+(added in 0.10.0).** Upgrading from 0.8.x or earlier? Read
+**[docs/upgrading-to-0.11.md](docs/upgrading-to-0.11.md)** first: it covers
+both upgrade paths, path-mounted blygs, how to check the result, rollback,
+and the API changes third-party tools need.
+
+Implements protocol 0.3. Public pages, feeds, item documents and the static
+export stay compatible with every other blyg.
+
+### If you are coming from 0.8.x: what 0.9 and 0.10 changed
+
+0.9.0 and 0.10.0 were contributed by **Kyle Mathews**
+([#21](https://github.com/blygger/blygger-studio/pull/21),
+[#22](https://github.com/blygger/blygger-studio/pull/22)), the largest change to
+this client since it was split out of `blygger-spec`.
+
+- **The Studio is a React app.** Compose, the editors, reading, subscriptions,
+  hoppers, mentions and settings were rebuilt with React, TanStack Router and
+  DB, and Base UI. The layout, themes and features are the ones you know. Views
+  refresh every 15 seconds while open. The old server-rendered Studio and its
+  inline scripts are gone. **Source installs now have a build step.** `npm
+  install` runs it, and so do the `deploy` scripts.
+- **Saving is safer.** A failed save keeps what you typed, instead of reloading
+  the stored draft over it. Publishing waits for the save, autosaves no longer
+  overlap, and leaving the editor saves first, staying put if the save fails.
+- **`/api` is a documented, validated contract.** 39 operations, defined once
+  and published as OpenAPI 3.1 (`/api/openapi.json` for a signed-in owner), with
+  a generated JavaScript/TypeScript SDK that runs in browsers, Node and Workers.
+  Routes are resource-shaped: POST creates, PATCH edits only the fields you
+  send, PUT pins. Bodies are validated strictly. **Several pre-0.9 routes were
+  removed with no aliases**; the upgrade guide has the old-to-new table. Auth is
+  unchanged: one owner session cookie.
+- **Releases carry downloads.** Each GitHub release has a Worker archive with
+  migrations built in, so you can deploy with no build, plus the OpenAPI file,
+  the SDK package, a manifest and SHA-256 checksums.
+- **Tests.** Browser tests on desktop and mobile Chromium (126 now), API
+  property tests against independent models, upgrade tests that run the real
+  0.8.3 `npm run upgrade`, and checks on the extracted release downloads.
+
+### New in 0.11.0
+
+- **Images resolve correctly between blygs.** Studio published image paths like
+  `/blyg/media/x.png` inside an item's `content_html`. A subscriber imported that
+  HTML and resolved the path against its own host, so the image was broken in
+  their reading feed and in any thread that quoted it. The RSS feed was already
+  correct, because §7 requires absolute URLs there. Now:
+  - publishing writes absolute URLs into `content_html`, as `[[id]]` links already
+    did (§16.2). The markdown source is untouched;
+  - importing resolves a fetched item's relative URLs against the source blyg;
+  - a quoted snapshot is resolved against its own blyg before it is baked into a
+    thread, so it can never be pointed at yours;
+  - items already imported are repaired in the background, up to 200 per poll.
+  Versions published before 0.11.0 keep their old HTML, because published
+  versions are frozen. Subscribers on 0.11.0 repair them on their side.
+- **Thread cards on the public feed show the thread.** A card used to be a
+  plain-text excerpt with the "thread" label run into the first sentence. It now
+  shows the top of the thread's own page, with the same formatting, quotes and
+  their provenance lines, and indentation, cut at a fixed height with a fade.
+  "THREAD · 2 quoted" is its own label line. Titles, link previews, RSS
+  headlines and archive rows still name a thread in its author's own words.
+- **Insert an image anywhere while writing.** In both the composer and the
+  editor:
+  - the attach button inserts at the cursor instead of at the end;
+  - typing `/image` on a line by itself opens the picker for that spot;
+  - you can paste or drop an image.
+  A placeholder holds the spot while the upload runs. `/image` is handled in the
+  editor and never reaches the stored text.
+- **Releases are cut from tags.** A `v{version}` tag starts the release
+  workflow; merging to `main` no longer does, despite what 0.9.0 says below.
+- Fixed two start-up races in the browser test harness that failed CI
+  intermittently.
+
 ## 0.10.0 — 2026-10-01
 
 **Migrations: apply `0013_signal_poll_index.sql`.**
