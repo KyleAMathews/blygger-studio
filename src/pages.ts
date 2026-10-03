@@ -12,8 +12,9 @@ import { blygItemUrl } from "./importer/util.ts";
 import { parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
 import { excerptFromHtml } from "./markdown.ts";
 import { clampText, leadingHeading, stripTransclusionQuotes } from "./preview.ts";
-import { authoredKind, getMedia, itemShowsResponses, listMediaForItem, listVersions, publishedVersion } from "./model.ts";
+import { authoredKind, getMedia, itemShowsResponses, listMediaForItem, publishedVersion } from "./model.ts";
 import type { ItemRow, MediaRow, Settings, SubscriptionRow, Transclusion, VersionRow } from "./types.ts";
+import { loadFeedData, sourceKey, type FeedCardData, type FeedProvenance, type FeedItem } from "./public-feed.ts";
 import { WEBMENTION_PATH } from "./types.ts";
 import { escapeHtml, formatDateIn } from "./util.ts";
 
@@ -664,8 +665,8 @@ function pageHeader(mount: string): string {
  * just the same thing uniformly: hide `.blyg-header` and `.masthead` and every
  * page is a bare block.
  */
-async function pageTop(db: D1Database, settings: Settings, mount: string): Promise<string> {
-  return `${pageHeader(mount)}\n${await masthead(db, settings, mount)}`;
+async function pageTop(db: D1Database, settings: Settings, mount: string, avatar?: MediaRow | null): Promise<string> {
+  return `${pageHeader(mount)}\n${await masthead(db, settings, mount, avatar)}`;
 }
 
 /**
@@ -688,12 +689,12 @@ async function pageTop(db: D1Database, settings: Settings, mount: string): Promi
  * Presentation only — reads settings that already exist, writes no new field,
  * and nothing here appears in any wire representation.
  */
-async function masthead(db: D1Database, settings: Settings, mount: string): Promise<string> {
+async function masthead(db: D1Database, settings: Settings, mount: string, loadedAvatar?: MediaRow | null): Promise<string> {
   const bits: string[] = [];
   // The avatar's URL is its `r2_key` (`media/{id}.{ext}`), not `media/{id}` —
   // the `/media/:file` route matches on the full key including the extension,
   // so an id alone 404s. Same lookup `mediaHtml` does for item images.
-  const avatar = settings.avatar_media_id ? await getMedia(db, settings.avatar_media_id) : null;
+  const avatar = loadedAvatar !== undefined ? loadedAvatar : settings.avatar_media_id ? await getMedia(db, settings.avatar_media_id) : null;
   if (avatar) {
     bits.push(`<img class="avatar" src="${mount}/${avatar.r2_key}" alt="" width="48" height="48">`);
   }
@@ -733,7 +734,7 @@ const formatDate = (iso: string, timeZone: string): string => formatDateIn(iso, 
  * survives withdrawal of the live stream (§2.8), so the endcap page is
  * exactly where a reader needs to be told what remains citable.
  */
-function itemMeta(item: ItemRow, note: string | null, pins: number[], mount: string, isThread: boolean, tz: string): string {
+function itemMeta(item: FeedItem, note: string | null, pins: number[], mount: string, isThread: boolean, tz: string): string {
   const created = formatDate(item.created, tz);
   // Citations link the HTML pages (session-18 route); each page links its
   // JSON twin, so the machine-citable file is one hop away, never hidden.
@@ -770,7 +771,7 @@ ${noteHtml}
 
 /** Pinned version numbers for an item, ascending — the citations §2.8 says the page should show. */
 async function pinnedVersions(db: D1Database, itemId: string): Promise<number[]> {
-  return (await listVersions(db, itemId)).filter((v) => v.pinned === 1).map((v) => v.version);
+  return (await db.prepare("SELECT version FROM versions WHERE item_id = ? AND pinned = 1 ORDER BY version ASC").bind(itemId).all<{ version: number }>()).results.map(v => v.version);
 }
 
 function permalinkLink(id: string, isThread: boolean, mount: string): string {
@@ -784,7 +785,7 @@ function mediaHtml(media: MediaRow[], mount: string): string {
 }
 
 export function renderFragment(
-  item: ItemRow,
+  item: FeedItem,
   contentHtml: string,
   media: MediaRow[],
   note: string | null,
@@ -811,9 +812,9 @@ ${permalinkLink(item.id, false, mount)}
  * `titleLink` is set on the feed page and unset on the permalink page: on the
  * item's own page the title would link to the page you are already reading.
  */
-async function fragmentBlock(db: D1Database, item: ItemRow, mount: string, tz: string, titleLink = false): Promise<string> {
-  const latest = await publishedVersion(db, item);
-  const media = await listMediaForItem(db, item.id);
+async function fragmentBlock(db: D1Database, item: FeedItem, mount: string, tz: string, titleLink = false, loaded?: FeedCardData): Promise<string> {
+  const latest = loaded ? loaded.latest : await publishedVersion(db, item);
+  const media = loaded ? loaded.media : await listMediaForItem(db, item.id);
   const html = latest?.content_html ?? "";
   return renderFragment(
     item,
@@ -821,7 +822,7 @@ async function fragmentBlock(db: D1Database, item: ItemRow, mount: string, tz: s
     media,
     latest?.note ?? null,
     mount,
-    await pinnedVersions(db, item.id),
+    loaded ? loaded.pins : await pinnedVersions(db, item.id),
     titleLink,
     tz,
   );
@@ -841,7 +842,7 @@ export interface ProvenanceLink {
  * `page` when we have one, the f/·t/ convention otherwise — and name the blyg
  * they came from, which is the byline §2.1 asks for.
  */
-export async function transclusionProvenance(db: D1Database, transclusions: Transclusion[], mount: string): Promise<string[]> {
+export async function transclusionProvenance(db: D1Database, transclusions: Transclusion[], mount: string, loaded?: FeedProvenance): Promise<string[]> {
   const out: string[] = [];
   for (const t of transclusions) {
     let link: ProvenanceLink;
@@ -854,7 +855,7 @@ export async function transclusionProvenance(db: D1Database, transclusions: Tran
       // publication was never a citation.
       link = { href: t.cited.url, label: `from <em>${escapeHtml(clampForeign(t.cited.source))}</em> ↗` };
     } else if (t.origin) {
-      const row = await db
+      const row = loaded ? loaded.remoteSources.get(sourceKey(t.origin, t.id)) : await db
         .prepare(
           `SELECT ii.kind AS kind, ii.page AS page, s.title AS title
            FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id
@@ -869,10 +870,10 @@ export async function transclusionProvenance(db: D1Database, transclusions: Tran
       const label = row?.title ? `from <em>${escapeHtml(row.title)}</em> ↗` : `from ${escapeHtml(new URL(t.origin).host)} ↗`;
       link = { href, label };
     } else {
-      const row = await db.prepare("SELECT * FROM items WHERE id = ?").bind(t.id).first<ItemRow>();
+      const row = loaded ? null : await db.prepare("SELECT * FROM items WHERE id = ?").bind(t.id).first<ItemRow>();
       // A withdrawn target keeps its permalink (the endcap is 200 forever), so
       // the link stands — it just has to name the authored kind, not "withdrawn".
-      const kind = row ? await authoredKind(db, row) : "fragment";
+      const kind = loaded ? loaded.localKinds.get(t.id) ?? "fragment" : row ? await authoredKind(db, row) : "fragment";
       link = { href: `${mount}/${kind === "thread" ? "t" : "f"}/${t.id}/`, label: `${kind} ↗` };
     }
     // A partial quote says so. §16.4 puts the disclosure on the second class,
@@ -953,12 +954,12 @@ function parseTransclusions(json: string | null | undefined): Transclusion[] {
  * heading): a leading heading is linked to the thread by `linkLeadingTitle`,
  * the same helper the fragment card uses.
  */
-async function threadCard(db: D1Database, item: ItemRow, mount: string, tz: string): Promise<string> {
-  const latest = await publishedVersion(db, item);
+async function threadCard(db: D1Database, item: FeedItem, mount: string, tz: string, loaded?: FeedCardData, provenance?: FeedProvenance): Promise<string> {
+  const latest = loaded ? loaded.latest : await publishedVersion(db, item);
   const href = `${mount}/t/${item.id}/`;
   const transclusions = parseTransclusions(latest?.transclusions);
-  const html = injectProvenance(latest?.content_html ?? "", await transclusionProvenance(db, transclusions, mount));
-  const media = await listMediaForItem(db, item.id);
+  const html = injectProvenance(latest?.content_html ?? "", await transclusionProvenance(db, transclusions, mount, provenance));
+  const media = loaded ? loaded.media : await listMediaForItem(db, item.id);
   // The kind line is apparatus, on its own line above the item, never inline
   // with the author's first sentence (session 30). The quote count says what
   // the card may be cutting off.
@@ -973,7 +974,7 @@ ${linkLeadingTitle(html, href)}
 </div>
 ${mediaHtml(media, mount)}
 <p class="read-more"><a href="${href}">read the thread →</a></p>
-${itemMeta(item, latest?.note ?? null, await pinnedVersions(db, item.id), mount, true, tz)}
+${itemMeta(item, latest?.note ?? null, loaded ? loaded.pins : await pinnedVersions(db, item.id), mount, true, tz)}
 </article>`;
 }
 
@@ -1005,7 +1006,7 @@ ${permalinkLink(item.id, true, mount)}
  * Versions published before migration 0008 have no frozen half and fall back
  * to the wire marker alone, which is always enough for identity.
  */
-export function stubCitation(row: VersionRow | null, tz: string, opts: { compact?: boolean } = {}): string {
+export function stubCitation(row: Pick<VersionRow, "stub_of" | "stub_cite"> | null, tz: string, opts: { compact?: boolean } = {}): string {
   const stub = parseStoredStub(row?.stub_of ?? null);
   if (!stub) return "";
   const cite = parseStoredCite(row?.stub_cite ?? null);
@@ -1040,7 +1041,7 @@ export function stubCitation(row: VersionRow | null, tz: string, opts: { compact
  * which is the only kind of URL a lineage pointer is allowed to name, because
  * it is the only one somebody promised to keep serving.
  */
-export function forkLineage(item: ItemRow, tz: string, opts: { compact?: boolean } = {}): string {
+export function forkLineage(item: Pick<ItemRow, "forked_from" | "fork_cite">, tz: string, opts: { compact?: boolean } = {}): string {
   const fork = parseStoredFork(item.forked_from);
   if (!fork) return "";
   const cite = parseStoredCite(item.fork_cite);
@@ -1273,17 +1274,17 @@ ${rows}
 </section>`;
 }
 
-export async function feedPage(db: D1Database, settings: Settings, items: ItemRow[], hasMore: boolean, mount: string, origin: string): Promise<string> {
+export async function feedPage(db: D1Database, settings: Settings, items: FeedItem[], hasMore: boolean, mount: string, origin: string): Promise<string> {
+  const [data, blogrollSubs] = await Promise.all([loadFeedData(db, items, settings.avatar_media_id || ""), listBlogrollSubscriptions(db)]);
   const blocks: string[] = [];
   for (const item of items) {
     // Withdrawn items don't appear on the feed page (rev-3 wireframe note) —
     // they still live in the archive listing and their permanent endcap URLs.
-    if (item.kind === "fragment") blocks.push(await fragmentBlock(db, item, mount, settings.timezone, true));
-    else if (item.kind === "thread") blocks.push(await threadCard(db, item, mount, settings.timezone));
+    if (item.kind === "fragment") blocks.push(await fragmentBlock(db, item, mount, settings.timezone, true, data.cards.get(item.id)));
+    else if (item.kind === "thread") blocks.push(await threadCard(db, item, mount, settings.timezone, data.cards.get(item.id), data.provenance));
   }
-  const blogrollSubs = await listBlogrollSubscriptions(db);
   const body = `<div class="blyg">
-${await pageTop(db, settings, mount)}
+${await pageTop(db, settings, mount, data.avatar)}
 ${blocks.join("\n") || '<p class="withdrawn">Nothing published yet.</p>'}
 ${hasMore ? `<footer class="older"><a href="${mount}/archive/">older items →</a></footer>` : ""}
 ${blogrollSection(blogrollSubs, mount)}
@@ -1297,13 +1298,13 @@ ${blogrollSection(blogrollSubs, mount)}
   const newest = items[0];
   const description =
     settings.author_bio ||
-    (newest ? excerptFromHtml((await publishedVersion(db, newest))?.content_html ?? "", 200) : "");
+    (newest ? excerptFromHtml(data.cards.get(newest.id)?.latest?.content_html ?? "", 200) : "");
   return layout(settings.site_title, body, mount, {
     hasBlogroll,
     description,
     url: origin,
     webmention: webmentionHref(settings, origin),
-    image: await socialImage(db, settings, [], origin),
+    image: data.avatar ? origin + data.avatar.r2_key : undefined,
     siteName: settings.site_title,
   });
 }

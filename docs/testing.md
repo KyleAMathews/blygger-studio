@@ -198,3 +198,24 @@ The 5,000-signal fixture in `test/review-regressions.test.ts` measures D1
 the slice scanned at least 5,000 rows. With migration 0013, the test requires
 at most 500 rows. This excludes the count query and is a local D1 result.
 It does not establish total polling cost for a live site.
+
+## Public homepage read budget
+
+`test/public-page-performance.test.ts` uses real local D1 and measures database
+calls and `rows_read`. A 100-card mixed page needs five render queries, or seven
+when local or legacy remote citations need lookups. Settings and item selection
+add two queries. The budget covers both root and mounted HTTP routes.
+
+The fixtures include 300 unpinned history versions, 2,000 unrelated media rows,
+and 5,000 unrelated drafts. History bodies must not enter the render results.
+The limited item query must use its ordered index without a temporary sort.
+Content assertions cover pins, thread images, citations, avatar metadata,
+blogroll output, empty pages, and the 100-card lookahead boundary.
+
+The new read budgets reject the prior renderer. A separate comparison against
+that renderer produced identical complete HTML for the mixed-card, citation,
+and empty-page fixtures. No copy of the old renderer remains in production.
+
+These budgets cover database work for the homepage. Published HTML size, the
+number of pins and attachments, browser image loads, and database latency can
+still affect response time. Archive and RSS generation have separate read paths.
