@@ -38,9 +38,20 @@ The rulings and their build consequences are in `../blygger-spec/docs/v0.3-plan.
 
 - Cloudflare Workers + D1 + R2, TypeScript, wrangler. Node: `/usr/local/bin/node` (see `warnings-node.md`; **no `node_modules/` synced by Dropbox** — follow the policy there).
 - **`npm install` needs `--legacy-peer-deps`.** npm 10.9.0's peer resolver crashes on vitest's optional peer graph; the environment, not this repo. A fresh clone hits it, an incremental install does not.
-- Server-rendered HTML + vanilla JS on the page; Hono allowed in the worker; no client-side framework.
-- **Inline page scripts live inside TS template literals, so escapes are a live hazard**: write `\\n` (not `\n`) inside a `confirm()`/string in `actionScript`/`composerScript`/`FEED_SCRIPT`, or the emitted JS gets a real newline inside a string literal and the whole script fails to parse. Session 19 shipped a studio where every button was dead this way, **with the full suite green** — assertions about HTML pass whether or not the `<script>` in it is valid JavaScript. `test/inline-scripts.test.ts` compiles every inline script via `new Function`; keep new pages covered by it.
-- **Page scripts need behaviour tests, not just markup tests.** The same blind spot produced a second session-19 bug: the shared action handler ends in `location.reload()`, correct for every action that leaves the item in place and wrong for `discard`, which deletes it (reloading an editor URL 404s). Assert on what a handler *does* — where it navigates, what it calls — not only that the button rendered.
+- **Studio is a React SPA; public pages stay server-rendered** (0.10.0, session 30 — Venkat
+  reversed v0.1-plan's "no client-side framework" rule when merging Kyle Mathews' #21/#22).
+  Studio: React + TanStack Router/DB + Base UI under `src/ui/`, built by `npm run build`
+  (also `postinstall`/`pretest`/`predeploy*`) and embedded in the Worker. It talks to `/api`
+  only through the generated SDK (`sdk/generated/`, from `openapi.json`, from the Zod
+  contract in `src/contract/`). Change a route → `npm run sdk:generate`; CI fails on drift.
+  Public pages, protocol files, static export and cron are still server-rendered from
+  `src/pages.ts`/`src/protocol.ts` with no framework, and that is not changing.
+- **Inline page scripts live inside TS template literals, so escapes are a live hazard** —
+  now only on the *public* pages (`VERSION_NAV_SCRIPT` and kin in `pages.ts`); the Studio's
+  inline scripts were deleted by 0.10.0: write `\\n` (not `\n`) inside a `confirm()`/string in `actionScript`/`composerScript`/`FEED_SCRIPT`, or the emitted JS gets a real newline inside a string literal and the whole script fails to parse. Session 19 shipped a studio where every button was dead this way, **with the full suite green** — assertions about HTML pass whether or not the `<script>` in it is valid JavaScript. `test/inline-scripts.test.ts` compiles every inline script via `new Function`; keep new pages covered by it.
+- **Page scripts need behaviour tests, not just markup tests.** For the Studio that now means
+  the Playwright suite (`npm run test:e2e`, desktop + mobile Chromium, 118 tests at 0.10.0) and
+  `npm run test:ui`; the Worker suite keeps API, public-output and lifecycle tests. The same blind spot produced a second session-19 bug: the shared action handler ends in `location.reload()`, correct for every action that leaves the item in place and wrong for `discard`, which deletes it (reloading an editor URL 404s). Assert on what a handler *does* — where it navigates, what it calls — not only that the button rendered.
 - Secrets: wrangler secrets only; register every key in `Code/.env.keys` per `warnings-keys.md`. Never commit secrets.
 
 ## Identity and versioning
@@ -95,10 +106,18 @@ are single-account and the personal one has no D1 scope, so the migration prefli
 cannot run from either; an env token silently overrides the OAuth session, so **unset it**
 before deploying. One OAuth session reaches both accounts.
 
-## `/api` is private and unversioned
+## `/api` is a documented contract, still owner-cookie only
 
-30 endpoints across `src/api.ts`, `src/importer/api.ts` and `src/mentions/api.ts`, all
-behind one owner cookie (`verifySession`, a 30-day HMAC over a single shared
+**Since 0.10.0** (#21, Kyle Mathews): 39 operations defined once in `src/contract/` (Zod →
+OpenAPI 3.1 → `openapi.json`, served to the owner at `/api/openapi.json`), resource-shaped
+(POST creates, PATCH edits, PUT pins), documented in `docs/api.md`, consumed through the
+generated SDK. The pre-0.10 routes (`PUT /items/:id`, `/fork`, `/stubs`, `/items/:id/pin`,
+`PUT …/responses`, pause/resume, …) were removed with **no aliases** — Venkat accepted the
+break (session 30). Kyle's phase 3 (`docs/migration.md` §3: ecosystem clients, then OAuth and
+MCP) is **⚠️ FABLE before it starts**: OAuth goes beyond #31's fixed token direction and MCP is
+#39's agent contract.
+
+Auth is unchanged by all of the above: one owner cookie (`verifySession`, a 30-day HMAC over a single shared
 `OWNER_PASSWORD`). There is exactly one principal and no scopes, tokens, revocation or
 audit, and `/api` gets no CORS.
 
@@ -130,9 +149,16 @@ See `docs/migration.md` for the client inventory and acceptance requirements.
 
 ## Status
 
+**0.10.0 is released and deployed to both our nodes** (session 30, 2026-10-02): Kyle
+Mathews' #21 (documented `/api` + generated SDK, which was 0.9.0 and never deployed on its own)
+and #22 (Studio as a React SPA). Migration **0013** (signal poll index) applied to both D1s first.
+**Releases are cut by pushing a `v{version}` tag**, not by merging (session 30, Venkat):
+`release.yml` builds the downloads (OpenAPI, SDK tarball, Worker archive, checksums) for that
+tag. 730 Worker tests + 6 UI-state + 118 browser tests at 0.10.0.
+
 Live on five nodes as of 2026-09-28, two of them Venkat's
 (`venkateshrao.com/blyg/`, `blyg.protocol-institute.org`) and three strangers'
-self-hosts. **0.8.3 is released and deployed to both our nodes** (session 29, 2026-09-29 — four releases that day, 0.8.0 through 0.8.3).
+self-hosts. 0.8.3 was session 29's (four releases that day, 0.8.0 through 0.8.3).
 
 0.8.0 carried the two-pane reader, `link post`, thread and reader titles, the responses
 default, the timezone setting, update alerts, the `init`/`upgrade` scripts and the generic
@@ -147,6 +173,11 @@ release tags rather than the tip of `main`, so it and the update alert agree abo
 "current" means. 755 tests, `tsc` clean (with `noUnusedLocals`, on since session 28).
 
 ## Backlog — from Venkat's issue list (session 26, 2026-09-28)
+
+> **Read entries below against 0.10.0.** Many name `studio.ts`, `importer/studio.ts`,
+> `threadEditPage`, `actionScript` and other SSR-Studio code that no longer exists; the
+> *semantics* in each entry still hold, but the UI half of an open item is now built in
+> `src/ui/` (React) over an SDK route, adding to `src/contract/` if the route is new.
 
 Triaged against the code, not the report. **Six items from that list turned out to touch
 the wire and are not here** — they are parked in
