@@ -132,21 +132,6 @@ page (never a manifest key). Build within that direction; anything beyond it is 
 Fable. Do not harden it in a way that breaks the tools now depending on it without
 saying so.
 
-### Approved API and SDK migration
-
-The maintainer explicitly approved the resource API redesign on this branch.
-Studio reads and writes through the generated SDK. Keep its existing UI for this
-first PR. Use PATCH for partial edits, POST for creation recipes, and PUT for
-permanent pins. Strict JSON validation and boolean preferences replace the old
-private request forms. Remove replaced routes and migrate Studio callers in the
-same PR. These are deliberate breaking changes to the private owner API, not
-changes to the public protocol. Do not restore compatibility aliases or bypass
-SDK reads to satisfy the earlier API-surface gate.
-
-The next complete chunk replaces Studio with React, TanStack Router, TanStack DB,
-and Base UI. Ecosystem client migration, OAuth, and MCP follow in part three.
-See `docs/migration.md` for the client inventory and acceptance requirements.
-
 ## Status
 
 **0.11.0 is released and deployed to both our nodes** (session 30, 2026-10-02): absolute URLs
@@ -196,15 +181,8 @@ was specified to do in both cases.
 
 ### Bugs
 
-- [ ] **Reader view doesn't roll up entries** the way the published surface does. Reading
-  feed presentation only; the published surface is the reference for what it should look
-  like. **Needs one sentence from Venkat before it can be built (session 28, Opus):** there
-  is no roll-up logic in the tree to point at, and `imported_items` is keyed
-  `(subscription, remote_id)` so the reading feed already shows one row per item rather than
-  one per version. So "roll up" means something else — most likely how a *thread* with baked
-  transclusions renders (the published card shows its quoted blockquotes with a provenance
-  line; the reading entry shows clamped `content_html`) — but that is a guess, and building
-  the wrong reading of it is worse than asking.
+- [x] ~~**Reader view doesn't roll up entries**~~ — **dropped session 30 (Venkat): a
+  mistaken diagnosis**, not a bug. Nothing to build.
 - [x] **Transclusion picker stops after a few items and has no search** — **done 0.7.0.**
   Neither half was what the report implied. There was never a missing query box: the query
   has always been the text you type in the editor. What existed was a *dead*
