@@ -5,10 +5,10 @@
 
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { apiJson, BASE, createAndPublish, getPublic, login, STUDIO } from "./helpers.ts";
+import { apiJson, BASE, createAndPublish, getPublic, login } from "./helpers.ts";
 
 async function publishEdit(cookie: string, id: string, contentMd: string, note?: string) {
-  await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: contentMd });
+  await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: contentMd });
   const res = await apiJson(cookie, "POST", `/api/items/${id}/publish`, note ? { note } : {});
   expect(res.status).toBe(200);
   return res.json.version as number;
@@ -50,8 +50,9 @@ describe("restore is forward-only", () => {
     const id = await createAndPublish(cookie, "v1 text");
     await publishEdit(cookie, id, "v2 text");
     await apiJson(cookie, "POST", `/api/items/${id}/restore`, { version: 1 });
-    const page = await (await SELF.fetch(`${BASE}${STUDIO}/`, { headers: { cookie } })).text();
-    expect(page).toContain("unpublished changes");
+    const detail = await apiJson(cookie, "GET", `/api/items/${id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.json).toMatchObject({ dirty: true, version: 2, content_md: "v1 text" });
   });
 });
 
@@ -125,12 +126,12 @@ describe("studio history viewer", () => {
     const id = await createAndPublish(cookie, "first *emphasis*");
     await publishEdit(cookie, id, "second", "changed my mind");
 
-    const v1 = await (await SELF.fetch(`${BASE}${STUDIO}/versions/${id}/1`, { headers: { cookie } })).json<any>();
+    const v1 = await (await SELF.fetch(`${BASE}/api/items/${id}/versions/1`, { headers: { cookie } })).json<any>();
     expect(v1.version).toBe(1);
     expect(v1.pinned).toBe(false); // unpinned, yet still readable locally
     expect(v1.content_html).toContain("<em>emphasis</em>");
 
-    const v2 = await (await SELF.fetch(`${BASE}${STUDIO}/versions/${id}/2`, { headers: { cookie } })).json<any>();
+    const v2 = await (await SELF.fetch(`${BASE}/api/items/${id}/versions/2`, { headers: { cookie } })).json<any>();
     expect(v2.note).toBe("changed my mind");
   });
 
@@ -138,7 +139,7 @@ describe("studio history viewer", () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "unpinned content");
     // Locally readable...
-    const local = await SELF.fetch(`${BASE}${STUDIO}/versions/${id}/1`, { headers: { cookie } });
+    const local = await SELF.fetch(`${BASE}/api/items/${id}/versions/1`, { headers: { cookie } });
     expect(local.status).toBe(200);
     // ...but not publicly promised.
     expect((await getPublic(`/blyg/items/${id}/v1.json`)).status).toBe(404);
@@ -147,33 +148,8 @@ describe("studio history viewer", () => {
   it("404s an unknown version and requires auth", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "x");
-    expect((await SELF.fetch(`${BASE}${STUDIO}/versions/${id}/42`, { headers: { cookie } })).status).toBe(404);
-    const noAuth = await SELF.fetch(`${BASE}${STUDIO}/versions/${id}/1`, { redirect: "manual" });
-    expect(noAuth.status).toBe(302);
-  });
-});
-
-describe("the index no longer renders dead version controls", () => {
-  it("replaces the always-disabled arrow nav with a truthful summary", async () => {
-    const cookie = await login();
-    const id = await createAndPublish(cookie, "one");
-    await publishEdit(cookie, id, "two");
-    const page = await (await SELF.fetch(`${BASE}${STUDIO}/`, { headers: { cookie } })).text();
-
-    expect(page).not.toContain("version-nav");
-    expect(page).not.toContain("of 2</span>");
-    expect(page).toContain("2 versions");
-  });
-
-  it("links pinned versions to their frozen public pages", async () => {
-    // Session 18: pin chips link the rendered page, not the raw JSON — the
-    // page carries the JSON-twin link, so the file is one hop away.
-    const cookie = await login();
-    const id = await createAndPublish(cookie, "pin me");
-    await publishEdit(cookie, id, "second");
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 });
-    const page = await (await SELF.fetch(`${BASE}${STUDIO}/`, { headers: { cookie } })).text();
-    expect(page).toContain(`/blyg/f/${id}/v1/`);
-    expect(page).not.toContain(`/blyg/items/${id}/v1.json`);
+    expect((await SELF.fetch(`${BASE}/api/items/${id}/versions/42`, { headers: { cookie } })).status).toBe(404);
+    const noAuth = await SELF.fetch(`${BASE}/api/items/${id}/versions/1`, { redirect: "manual" });
+    expect(noAuth.status).toBe(401);
   });
 });

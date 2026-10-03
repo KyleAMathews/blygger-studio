@@ -85,7 +85,7 @@ describe("threads & transclusion (§2.9)", () => {
     let item = await (await getPublic(`/blyg/items/${threadId}.json`)).json<any>();
     expect(item.content_html).toContain("original text");
 
-    await apiJson(cookie, "PUT", `/api/items/${f1}`, { content_md: "revised text" });
+    await apiJson(cookie, "PATCH", `/api/items/${f1}`, { content_md: "revised text" });
     await apiJson(cookie, "POST", `/api/items/${f1}/publish`, {});
     item = await (await getPublic(`/blyg/items/${threadId}.json`)).json<any>();
     expect(item.content_html).toContain("original text");
@@ -105,7 +105,7 @@ describe("threads & transclusion (§2.9)", () => {
     const f1 = await createAndPublish(cookie, "v1 text");
     const threadId = await createThread(cookie, `![[${f1}]]`);
     await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
-    await apiJson(cookie, "PUT", `/api/items/${f1}`, { content_md: "v2 text" });
+    await apiJson(cookie, "PATCH", `/api/items/${f1}`, { content_md: "v2 text" });
     await apiJson(cookie, "POST", `/api/items/${f1}/publish`, {});
 
     const rePub = await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
@@ -147,7 +147,7 @@ describe("threads & transclusion (§2.9)", () => {
     const f1 = await createAndPublish(cookie, "pinned fragment source");
     const threadId = await createThread(cookie, `![[${f1}]]`);
     await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
-    const pin = await apiJson(cookie, "POST", `/api/items/${threadId}/pin`, { version: 1 });
+    const pin = await apiJson(cookie, "PUT", `/api/items/${threadId}/versions/${1}/pin`);
     expect(pin.status).toBe(200);
 
     const res = await getPublic(`/blyg/items/${threadId}/v1.json`);
@@ -166,7 +166,7 @@ describe("threads & transclusion (§2.9)", () => {
     const f1 = await createAndPublish(cookie, "the quoted fragment");
     const threadId = await createThread(cookie, `Intro line.\n\n![[${f1}]]`);
     await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
-    await apiJson(cookie, "POST", `/api/items/${threadId}/pin`, { version: 1 });
+    await apiJson(cookie, "PUT", `/api/items/${threadId}/versions/${1}/pin`);
 
     const res = await getPublic(`/blyg/t/${threadId}/v1/`);
     expect(res.status).toBe(200);

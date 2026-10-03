@@ -1,0 +1,339 @@
+import { test, expect, type Page } from '@playwright/test';
+async function login(page: Page) {
+  await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
+  await page.getByRole('button', { name: 'log in', exact: true }).click();
+  await expect(page.locator('#composer-text')).toBeVisible();
+}
+test('reading preserves retained snapshots and restricts legacy actions', async ({ page }) => {
+  await login(page); await page.goto('/studio/reading?sub=parity-native');
+  await expect(page.locator('.reading-entry')).toHaveCount(2);
+  const retained = page.locator('.reading-entry').filter({ hasText: 'Pinned retained text.' });
+  await expect(retained).toContainText('retained pinned v1');
+  await expect(retained.getByRole('button', { name: 'copy [[id]]', exact: true })).toBeVisible();
+  const native = page.locator('.reading-entry').filter({ hasText: 'Native title' });
+  await expect(native.locator('.entry-title a')).toHaveAttribute('href', 'https://source.example/native');
+  await expect(native).toContainText('Frozen quote from a prior version.');
+  await page.goto('/studio/reading?sub=parity-rss');
+  const legacy = page.locator('.reading-entry');
+  await expect(legacy).toContainText('Legacy title');
+  await expect(legacy.getByRole('button', { name: 'copy [[id]]', exact: true })).toHaveCount(0);
+  await expect(legacy.getByRole('button', { name: 'quote selection', exact: true })).toHaveCount(0);
+  await expect(legacy.getByRole('button', { name: 'link post ↗', exact: true })).toHaveCount(0);
+  await expect(legacy.locator('.entry-open')).toHaveAttribute('href', 'https://legacy.example/post');
+  if (test.info().project.name === 'mobile') {
+    await expect(page.locator('#reading-sidebar')).toBeHidden();
+    await page.getByRole('button', { name: 'sources · Legacy source' }).click();
+    await expect(page.locator('#reading-sidebar')).toBeVisible();
+  }
+});
+test('hopper uses stored HTML instead of re-previewing remote markdown', async ({ page }) => {
+  await login(page);
+  const previews: string[] = [];
+  page.on('request', request => { if (new URL(request.url()).pathname === '/api/preview') previews.push(request.url()); });
+  await page.goto('/studio/hoppers/parity-hopper');
+  await expect(page.locator('.reading-entry')).toContainText('Frozen quote from a prior version.');
+  expect(previews).toEqual([]);
+});
+for (const kind of ['fragment', 'thread'] as const) test(`${kind} discard changes restores the working copy without rewinding publication`, async ({ page }) => {
+  await login(page);
+  const id = await page.evaluate(async kind => {
+    const item = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, content_md: 'published text' }) })).json();
+    await fetch(`/api/items/${item.id}/publish`, { method: 'POST' });
+    await fetch(`/api/items/${item.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: 'unpublished edit' }) });
+    return item.id as string;
+  }, kind);
+  await page.goto(`/studio/edit/${id}`);
+  page.on('dialog', dialog => dialog.accept());
+  await page.locator('[data-action=discard-changes]').click();
+  await expect(page.locator('#md-input')).toHaveValue('published text');
+  expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ version: 1, dirty: true, content_md: 'published text' });
+  await expect(page.locator('[data-action=view-version]')).toHaveCount(1);
+});
+test('quick edit retains markdown and persists without leaving compose', async ({ page }) => {
+  await login(page); await page.locator('#composer-text').fill('**Quick draft**'); await page.locator('#save-draft-btn').click();
+  const selected = page.locator('.item-row').filter({ hasText: 'Quick draft' }).first();
+  await expect(selected).toBeVisible();
+  const id = await selected.getAttribute('data-id');
+  const row = page.locator(`.item-row[data-id="${id}"]`);
+  await expect(row).not.toContainText('**Quick draft**');
+  await row.getByRole('button', { name: 'quick edit', exact: true }).click();
+  await expect(row.getByRole('textbox', { name: 'quick edit' })).toHaveValue('**Quick draft**');
+  await row.getByRole('textbox', { name: 'quick edit' }).fill('New **working copy**');
+  await row.getByRole('button', { name: 'save draft', exact: true }).click();
+  await expect(row.locator('.save-state')).toHaveText('saved');
+  await expect(page.locator('#composer-text')).toBeVisible();
+  await expect(row).toContainText('New working copy');
+});
+test('syntax links stay inside the Studio and paging rejects out-of-range bookmarks', async ({ page }) => {
+  await login(page); await page.goto('/studio/syntax');
+  await expect(page.locator('.prose a[href="/studio/reading"]')).toHaveCount(2);
+  await page.goto('/studio/reading?sub=missing&offset=999999');
+  await expect(page).toHaveURL(/sub=all&offset=0/);
+  await expect(page.locator('.reading-entry').first()).toBeVisible();
+});
+
+for (const [path, current] of [['', 'compose'], ['/reading', 'reading'], ['/hoppers', 'hoppers'], ['/mentions', 'mentions'], ['/settings', 'settings'], ['/syntax', 'syntax'], ['/subs', null], ['/hoppers/parity-hopper', 'hoppers']] as const) test(`navigation and menu remain stable on ${path || 'compose'}`, async ({ page }) => {
+  await login(page); await page.goto(`/studio${path}`);
+  await expect(page.locator('nav .menu-main a')).toHaveText(['reading', 'compose', 'hoppers', 'mentions', 'settings', 'syntax']);
+  await expect(page.locator('nav .menu-main a').nth(1)).toHaveAttribute('href', '/studio/');
+  await expect(page.locator('.menu-utility a')).toHaveAttribute('target', '_blank');
+  await expect(page.locator('.menu-utility form')).toHaveAttribute('action', '/studio/logout');
+  if (current) await expect(page.locator('nav a[aria-current=page]')).toHaveText(current);
+  else await expect(page.locator('nav a[aria-current=page]')).toHaveCount(0);
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollbarGutter)).toBe('stable');
+  if (test.info().project.name === 'mobile') {
+    await expect(page.getByRole('button', { name: 'Menu', exact: true })).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#studio-menu')).toBeHidden();
+    await page.getByRole('button', { name: 'Menu', exact: true }).click();
+    await expect(page.locator('#studio-menu')).toBeVisible();
+  }
+});
+
+test('palette pages all candidates and applies bracket grammar in each composer', async ({ page }) => {
+  await login(page);
+  const token = `${test.info().project.name}-palettetoken`;
+  await page.evaluate(async token => {
+    for (let i = 0; i < 23; i++) {
+      const item = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: `${token} ${i}` }) })).json();
+      await fetch(`/api/items/${item.id}/publish`, { method: 'POST' });
+    }
+  }, token);
+  await page.reload();
+  await page.locator('#composer-text').fill(`[[${token}`);
+  await expect(page.getByRole('option')).toHaveCount(20);
+  await page.getByRole('button', { name: 'load more (20 of 23)' }).click();
+  await expect(page.getByRole('option')).toHaveCount(23);
+  await page.getByRole('option').last().click();
+  await expect(page.locator('#composer-text')).toHaveValue(/^\[\[[0-9a-z]{26}\]\]$/);
+  await page.locator('#composer-text').fill(`![[${token}`);
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await page.locator('#composer-text').fill('thread picker');
+  await page.locator('[name=composer-kind][value=thread]').check();
+  await page.locator('#composer-full').click();
+  await page.locator('#md-input').fill(`![[${token}`);
+  await expect(page.getByRole('option')).toHaveCount(20);
+  await page.getByRole('option').first().click();
+  await expect(page.locator('#md-input')).toHaveValue(/^!\[\[[0-9a-z]{26}\]\]$/);
+  await expect(page.locator('#palette-search')).toHaveCount(0);
+});
+
+test('editor kind, discard, pinned history and TK controls retain their contracts', async ({ page }) => {
+  await login(page);
+  await expect(page.locator('[name=composer-kind][value=fragment]')).toBeChecked();
+  await page.locator('#composer-text').fill('plain draft');
+  await expect(page.getByRole('button', { name: 'generate in editor →' })).toHaveCount(0);
+  await page.locator('#composer-text').fill('[TK]instruction[/TK]');
+  await expect(page.getByRole('button', { name: 'generate in editor →' })).toBeVisible();
+  await page.locator('#composer-full').click();
+  await expect(page.locator('#tk')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'discard draft', exact: true })).toBeVisible();
+  await expect(page.locator('[data-action=switch-kind]')).toBeVisible();
+  await page.locator('#md-input').fill('No transclusions');
+  await page.locator('[data-action=switch-kind]').click();
+  await expect(page.locator('[data-action=switch-kind]')).toContainText('make this a fragment');
+  await page.locator('#publish-btn').click();
+  await expect(page.locator('[data-action=switch-kind]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'discard draft', exact: true })).toHaveCount(0);
+  page.on('dialog', dialog => dialog.accept());
+  await page.locator('[data-action=pin]').click();
+  const pinned = page.getByRole('link', { name: '📌 pinned', exact: true });
+  await expect(pinned).toHaveAttribute('href', /\/t\/[^/]+\/v1\/$/);
+  expect((await page.request.get((await pinned.getAttribute('href'))!)).status()).toBe(200);
+  const id = new URL(page.url()).pathname.split('/').at(-1)!;
+  await page.getByRole('link', { name: '← compose', exact: true }).click();
+  const row = page.locator(`.item-row[data-id="${id}"]`);
+  await expect(row.locator('.version-summary')).toContainText('1 version');
+  await expect(row.locator('.pin-chips a')).toHaveAttribute('href', /\/t\/[^/]+\/v1\/$/);
+});
+
+test('reading copy actions stay in the byline and link post creates only once', async ({ page }) => {
+  await login(page); await page.goto('/studio/reading?sub=parity-native');
+  const entry = page.locator('.reading-entry').filter({ hasText: 'Native title' });
+  await expect(entry.locator('.byline')).toContainText('copy [[id]]');
+  await expect(entry.locator('.entry-actions')).not.toContainText('copy [[id]]');
+  await expect(entry.locator('.entry-actions')).not.toContainText(/respond|reply|answer/);
+  await entry.getByRole('button', { name: 'quote selection', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Select text');
+  await expect(page).toHaveURL(/\/reading\?/);
+  const created = page.waitForResponse(response => response.url().endsWith('/api/items') && response.request().method() === 'POST');
+  await entry.getByRole('button', { name: 'link post ↗', exact: true }).click();
+  const response = await created;
+  expect(response.request().postDataJSON()).toEqual({ kind: 'fragment', content_md: '[[00000000000000000000000001]]\n\n' });
+  const id = (await response.json()).id;
+  await expect(page.locator('#md-input')).toHaveValue('[[00000000000000000000000001]]\n\n');
+  await page.reload(); await expect(page.locator('#md-input')).toHaveValue('[[00000000000000000000000001]]\n\n');
+  await expect(page).toHaveURL(new RegExp(`/edit/${id}$`));
+});
+
+test('settings keep timezone, receive policy, themes and update preferences', async ({ page }) => {
+  await login(page); await page.goto('/studio/settings');
+  await page.locator('#timezone').selectOption('America/Denver');
+  await page.locator('#accept_mentions').uncheck();
+  await page.locator('#update_check').uncheck();
+  await page.locator('.theme-opt').filter({ hasText: 'Paper' }).click();
+  await page.getByRole('button', { name: 'save settings', exact: true }).click();
+  await expect(page.getByRole('status')).toHaveText('saved');
+  await page.reload();
+  await expect(page.locator('#timezone')).toHaveValue('America/Denver');
+  await expect(page.locator('#accept_mentions')).not.toBeChecked();
+  await expect(page.locator('#update_check')).not.toBeChecked();
+  await expect(page.locator('[name=theme][value=paper]')).toBeChecked();
+});
+
+test('mentions group verified pointers, retain hidden rows and show source guidance', async ({ page }) => {
+  await login(page); await page.goto('/studio/mentions');
+  const group = page.locator('.mention-group').filter({ hasText: 'Mention target fixture' });
+  await expect(group).toContainText('2 responses');
+  await expect(group.locator('.rel')).toHaveText(['stub', 'stub']);
+  await expect(group.getByRole('button', { name: 'stub back ↗', exact: true })).toHaveCount(1);
+  await expect(group).toContainText('subscribe to https://stranger.example/ to stub back');
+  await expect(group).not.toContainText('Frozen source text');
+  await expect(group.locator('.hidden-row')).toContainText('Source author');
+  await expect(group.locator('.hidden-row').getByRole('button', { name: 'show on page', exact: true })).toBeVisible();
+  await expect(page.locator('.out-row')).toContainText('https://recipient.example/post');
+  await expect(page.locator('.out-row')).toContainText('retrying after');
+  await expect(page.locator('.mentions-note').last()).toContainText('No site URL is set');
+  await group.getByRole('combobox', { name: 'item responses' }).selectOption('show');
+  await expect(group).toContainText('1 on the page now');
+});
+
+test('subscription changes roll back on failure and stay durable on success', async ({ page }) => {
+  await login(page); await page.goto('/studio/subs');
+  const row = page.locator('.sub-row').filter({ hasText: 'Native source' });
+  await expect(page.locator('#add-sub-form')).toBeVisible();
+  await expect(row).toContainText('https://source.example/');
+  await page.route('**/api/subscriptions/parity-native', route => route.request().method() === 'PATCH' ? route.fulfill({ status: 503, json: { error: 'subscription write failed' } }) : route.continue());
+  await row.getByRole('button', { name: 'pause', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('subscription write failed');
+  await expect(row.getByRole('button', { name: 'pause', exact: true })).toBeVisible();
+  await page.unroute('**/api/subscriptions/parity-native');
+  await row.getByRole('button', { name: 'pause', exact: true }).click();
+  await expect(row.getByRole('button', { name: 'resume', exact: true })).toBeVisible();
+  await page.reload(); await expect(row.getByRole('button', { name: 'resume', exact: true })).toBeVisible();
+  await row.getByRole('button', { name: 'resume', exact: true }).click();
+  await expect(row.getByRole('button', { name: 'pause', exact: true })).toBeVisible();
+});
+
+test('hopper creation, rename and public slug work through the API', async ({ page }) => {
+  await login(page); await page.goto('/studio/hoppers');
+  await expect(page.locator('.hopper-row').filter({ hasText: 'Frozen hopper' })).toContainText('1 items · 1 sources');
+  await page.getByRole('textbox', { name: 'hopper name' }).fill('Hopper browser fixture');
+  await page.getByRole('button', { name: 'create hopper', exact: true }).click();
+  await page.getByRole('link', { name: 'Hopper browser fixture', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'public', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'public', exact: true })).toBeChecked();
+  await expect(page.getByText('The public URL stays fixed')).toBeVisible();
+  const publicUrl = await page.locator('a[href^="/h/"]').getAttribute('href');
+  await page.locator('[name=name]').fill('Renamed hopper');
+  await page.getByRole('button', { name: 'rename', exact: true }).click();
+  await expect(page.locator('h2')).toHaveText('Renamed hopper');
+  await expect(page.locator('a[href^="/h/"]')).toHaveAttribute('href', publicUrl!);
+  await page.goto('/studio/hoppers/not-a-hopper');
+  await expect(page.getByRole('alert')).toContainText('not found');
+});
+
+test('update notice acknowledgement survives reload and the upgrade banner obeys preferences', async ({ page }) => {
+  await page.route('**/api/update-state', route => route.fulfill({ json: { update_latest_seen: '99.0.0' } }));
+  await login(page);
+  await page.evaluate(async () => { await fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ update_check: true, update_notice_ack: false }) }); });
+  await page.reload();
+  await expect(page.locator('#update-notice')).toBeVisible();
+  await expect(page.locator('.update-banner').last()).toContainText('99.0.0');
+  await expect(page.locator('.update-banner').last()).toContainText('npm run upgrade');
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'got it', exact: true }).click();
+  await page.locator('#site_title').fill('Notice acknowledgement stays saved');
+  await page.getByRole('button', { name: 'save settings', exact: true }).click();
+  await expect(page.getByRole('status')).toHaveText('saved');
+  await expect(page.locator('#update-notice')).toHaveCount(0);
+  await page.reload(); await expect(page.locator('#update-notice')).toHaveCount(0);
+  await page.evaluate(async () => { await fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ update_check: false }) }); });
+  await page.reload(); await expect(page.locator('.update-banner')).toHaveCount(0);
+});
+
+test('fork picker refreshes pinned versions after a client navigation', async ({ page }) => {
+  await login(page);
+  await page.locator('#composer-text').fill('First pinned text');
+  await page.locator('#composer-full').click();
+  await page.locator('#publish-btn').click();
+  page.on('dialog', dialog => dialog.accept());
+  await page.locator('[data-action=pin]').click();
+  const editor = page.url();
+  await page.getByRole('link', { name: 'fork', exact: true }).click();
+  await expect(page.locator('[data-action=fork]')).toHaveCount(1);
+  await page.goBack();
+  await expect(page).toHaveURL(editor);
+  await page.locator('#md-input').fill('Second pinned text');
+  await page.locator('#publish-btn').click();
+  await page.locator('[data-action=pin]').click();
+  await page.getByRole('link', { name: 'fork', exact: true }).first().click();
+  await expect(page.locator('[data-action=fork]')).toHaveCount(2);
+});
+
+test('palette keeps results on failure and rejects late results for an old query', async ({ page }) => {
+  await login(page);
+  let reject = true;
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let delayed!: () => void;
+  const started = new Promise<void>(resolve => { delayed = resolve; });
+  await page.route('**/api/search?**', async route => {
+    const query = new URL(route.request().url()).searchParams;
+    if (query.get('q') === 'oldquery' && query.get('offset') === '20') {
+      if (reject) return route.fulfill({ status: 503, json: { error: 'search unavailable' } });
+      delayed(); await gate;
+      await route.fulfill({ json: { items: [{ id: 'old-late', excerpt: 'Late old result' }], total: 21, offset: 20, limit: 20 } }).catch(() => {});
+    } else if (query.get('q') === 'oldquery') {
+      await route.fulfill({ json: { items: Array.from({ length: 20 }, (_, i) => ({ id: `old-${i}`, excerpt: `Old result ${i}` })), total: 21, offset: 0, limit: 20 } });
+    } else {
+      await route.fulfill({ json: { items: [{ id: 'new', excerpt: 'New result only' }], total: 1, offset: 0, limit: 20 } });
+    }
+  });
+  await page.locator('#composer-text').fill('[[oldquery');
+  await expect(page.getByRole('option')).toHaveCount(20);
+  await page.getByRole('button', { name: 'load more (20 of 21)' }).click();
+  await expect(page.getByRole('alert')).toContainText('search unavailable');
+  await expect(page.getByRole('option')).toHaveCount(20);
+  reject = false;
+  await page.getByRole('button', { name: 'retry search', exact: true }).click();
+  await started;
+  await page.locator('#composer-text').fill('[[newquery');
+  await expect(page.getByRole('option')).toHaveText(['New result only']);
+  release();
+  await expect(page.getByRole('option')).toHaveText(['New result only']);
+});
+
+test('whole-fragment TK wrapping keeps text and publication warnings remain visible', async ({ page }) => {
+  await login(page); await page.locator('#composer-text').fill('Current fragment');
+  await page.locator('#composer-full').click();
+  page.once('dialog', dialog => dialog.accept('Rewrite this'));
+  await page.locator('#tk-generate-whole-btn').click();
+  await expect(page.locator('#md-input')).toHaveValue('[TK]Rewrite this[=]Current fragment[/TK]');
+  await page.locator('#md-input').fill('Published with a warning');
+  await page.route('**/api/items/*/publish', async route => {
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...await response.json(), warning: 'Mention delivery is waiting for a site URL.' } });
+  });
+  await page.locator('#publish-btn').click();
+  await expect(page.locator('.publish-warning')).toHaveText('Mention delivery is waiting for a site URL.');
+});
+
+test('quote selection rejects cross-entry ranges and accepts an entry excerpt', async ({ page }) => {
+  await login(page); await page.goto('/studio/reading?sub=parity-native');
+  const native = page.locator('.reading-entry').filter({ hasText: 'Native title' });
+  await page.locator('.reading-entry .content').evaluateAll(nodes => {
+    const texts = nodes.map(node => { const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT); return walker.nextNode()!; });
+    const range = document.createRange(); range.setStart(texts[0], 0); range.setEnd(texts[1], Math.min(5, texts[1].textContent!.length));
+    const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
+  });
+  await native.getByRole('button', { name: 'quote selection', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Select text in this entry');
+  await native.locator('.content').evaluate(node => {
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT); const text = walker.nextNode()!;
+    const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, Math.min(5, text.textContent!.length));
+    const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
+  });
+  await native.getByRole('button', { name: 'quote selection', exact: true }).click();
+  await expect(page).toHaveURL(/\/edit\//);
+  await expect(page.locator('#md-input')).toHaveValue('![[00000000000000000000000001]]\n> Froze\n\n');
+});

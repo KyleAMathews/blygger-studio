@@ -18,7 +18,7 @@ function parse(xml: string) {
 describe("feed.xml (§2.6)", () => {
   it("is valid RSS 2.0 with the blyg namespace and channel metadata", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_title: "A Test Blyg", author_bio: "a bio" });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_title: "A Test Blyg", author_bio: "a bio" });
     await createAndPublish(cookie, "a fragment");
 
     const doc = parse(await fetchFeed());
@@ -58,7 +58,7 @@ describe("feed.xml (§2.6)", () => {
     // Republish some items to exceed 50 events total: 12 + 4*10 = 52.
     for (let round = 0; round < 10; round++) {
       for (const id of ids.slice(0, 4)) {
-        await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: `round ${round}` });
+        await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: `round ${round}` });
         await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
       }
     }

@@ -7,7 +7,7 @@ import { CLIENT, GENERATOR } from "../src/types.ts";
 describe("manifest (§2.4)", () => {
   it("has the exact manifest shape", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", {
+    await apiJson(cookie, "PATCH", "/api/settings", {
       site_title: "A Test Blyg",
       author_name: "A Test Author",
       author_bio: "test bio",

@@ -18,6 +18,60 @@ not have its own repo until session 26.
 
 ---
 
+## 0.10.0 — 2026-10-01
+
+**Migrations: apply `0013_signal_poll_index.sql`.**
+
+Studio is now a React SPA with TanStack Router, TanStack DB, and Base UI.
+Route loaders preload SDK reads. Active views poll the D1-backed API every
+15 seconds, pause in hidden tabs, and refresh on focus. Reading loads 25 entries
+at a time. Saves stay ordered, failed writes keep local edits, and navigation
+waits for pending draft saves. Cached reads never replace unsaved editor text.
+
+The UI keeps the existing themes, navigation, authoring, reading, subscriptions,
+hoppers, mentions, settings, history, uploads, bracket search, and TK controls.
+Mounted installations load assets within `{mount}/studio/`. The Worker embeds
+the assets, so downloaded Worker installations need no extra binding or build.
+All old Studio renderers, inline scripts, and SDK compatibility adapters are
+removed. Public pages, protocol output, and subscription cron remain unchanged.
+
+Item lists now include optional pinned-version references without loading
+history bodies. A signal-order index reduces repeated scans during polling.
+SDK 0.1.1 includes this additive response field. CI covers
+SPA state, desktop/mobile browser flows, mounted forwarding, draft recovery,
+API oracles, source upgrades, and extracted release downloads.
+
+## 0.9.0 — 2026-09-30
+
+**Migrations: none.**
+
+Studio reads and writes through an authenticated OpenAPI Hono API and a
+Hey API-generated JavaScript/TypeScript SDK. The existing UI keeps its layout,
+and public Blygger protocol output keeps its behavior. Reading batches page bodies, and item
+reads keep D1 query counts bounded. The owner API uses resource routes, strict
+Zod request validation, boolean preferences, structured item references, and
+offset pagination. Partial edits validate before an atomic write. Replaced
+private routes are removed, and Studio uses the new routes throughout.
+Empty threads retain correct pinned links. Long version histories no longer
+share one D1 result row. Reads tolerate malformed stored JSON without changing
+it. Mentions page beyond their old caps, and hopper previews load three bodies.
+Dependency installation builds the SDK for upgrades from 0.8.3.
+
+Merges to main now publish GitHub releases automatically. Downloads include the
+OpenAPI spec, a Worker bundle with migrations and generic deployment config,
+and an installable SDK package. A manifest and SHA-256 checksums accompany them.
+CI checks versions, contracts, SDK generation, Worker behavior, browser flows,
+and extracted release artifacts before publication.
+
+Editors serialize saves and retain current text when a save fails. Publishing
+stops after a failed save. A response for older text cannot reload over newer
+edits. Independent lifecycle, pagination, and PATCH oracles protect the owner
+API, with SDK, browser recovery, mounted routing, and upgrade tests in CI.
+Release checks install the SDK in Node and browser projects and verify its
+TypeScript declarations. Native generator settings emit Node-compatible imports.
+Mutation controls check the production path. Restart tests check persisted
+D1/R2 state, and response-loss tests cover committed writes.
+
 ## 0.8.3 — 2026-09-29
 
 **Migrations: none.**

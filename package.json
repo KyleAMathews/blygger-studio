@@ -1,6 +1,6 @@
 {
   "name": "@blygger/studio",
-  "version": "0.8.3",
+  "version": "0.10.0",
   "private": true,
   "description": "Blygger Studio \u2014 reference client for the Blygger protocol (publish, subscribe, thread, transclude, respond)",
   "license": "MIT",
@@ -18,20 +18,58 @@
     "deploy": "wrangler deploy",
     "deploy:all": "node --experimental-strip-types scripts/deploy-all.ts",
     "deploy:vgr": "wrangler deploy --config wrangler.private.jsonc --env venkateshrao",
-    "deploy:pi": "wrangler deploy --config wrangler.private.jsonc --env protocolInstitute"
+    "deploy:pi": "wrangler deploy --config wrangler.private.jsonc --env protocolInstitute",
+    "openapi": "node --import tsx scripts/openapi.ts",
+    "sdk:generate": "npm run openapi && node --import tsx scripts/generate-sdk.ts && npm run build",
+    "build": "node --import tsx scripts/build-sdk.ts && node --import tsx scripts/build-spa.ts",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.ui.json",
+    "test:e2e": "playwright test",
+    "test:upgrade": "node --import tsx scripts/verify-upgrade.ts",
+    "predev": "npm run build",
+    "predeploy": "npm run build",
+    "pretest": "npm run build",
+    "predeploy:all": "npm run build",
+    "predeploy:vgr": "npm run build",
+    "predeploy:pi": "npm run build",
+    "release:build": "npm run build && node --import tsx scripts/release.ts",
+    "release:verify": "node --import tsx scripts/verify-release.ts",
+    "release:check": "node --import tsx scripts/check-release.ts",
+    "postinstall": "npm run build",
+    "test:mutations": "node --import tsx scripts/verify-oracle-mutations.ts",
+    "test:ui": "vitest run --config vitest.ui.config.ts"
   },
   "dependencies": {
+    "@base-ui/react": "^1.8.0",
+    "@hono/zod-openapi": "^1.6.3",
+    "@tanstack/query-core": "^5.104.0",
+    "@tanstack/query-db-collection": "^1.3.1",
+    "@tanstack/react-db": "^0.5.0",
+    "@tanstack/react-router": "^1.170.41",
     "fast-xml-parser": "^5",
     "hono": "^4",
-    "markdown-it": "^14"
+    "markdown-it": "^14",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "latest",
+    "@cloudflare/vitest-pool-workers": "0.18.6",
     "@cloudflare/workers-types": "^5",
+    "@hey-api/openapi-ts": "0.99.0",
+    "@playwright/test": "^1.63.0",
     "@types/markdown-it": "^14",
     "@types/node": "^26.1.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "esbuild": "^0.28.2",
+    "fast-check": "^4.10.2",
+    "miniflare": "^4.20260714.0",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^4.1.0",
     "wrangler": "^4"
+  },
+  "engines": {
+    "node": ">=22.18.0"
   }
 }

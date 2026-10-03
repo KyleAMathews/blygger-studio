@@ -1,0 +1,55 @@
+name: Release
+on:
+  push:
+    branches: [main]
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci
+      - run: npm run release:check
+        env:
+          RELEASE_RETRY_COMMIT: ${{ github.sha }}
+      - name: Read release version
+        id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+      - run: npm run sdk:generate
+      - run: npm run typecheck
+      - run: git diff --exit-code -- openapi.json sdk/generated sdk/generation.json
+      - run: npm run test:ui -- --maxWorkers=2
+      - run: npm test -- --maxWorkers=2
+      - run: npm run test:upgrade
+      - run: npm run test:mutations
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: npm run release:build
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+      - run: npm run release:verify
+      - name: Publish downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --target "$RELEASE_COMMIT" --generate-notes --draft
+          fi
+          gh release upload "$RELEASE_TAG" build/release/*.json build/release/*.tgz build/release/*.tar.gz build/release/SHA256SUMS --clobber
+          gh release edit "$RELEASE_TAG" --draft=false

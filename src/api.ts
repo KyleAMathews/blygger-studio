@@ -1,6 +1,11 @@
+import { itemResource } from "./contract/resources.ts";
+import { z } from "@hono/zod-openapi";
+import { createResponseDraft } from "./item-create.ts";
+import { contractApp, readJson, readForm } from "./contract/app.ts";
+import { ItemCreateSchema, ItemEditSchema, routes } from "./contract/routes.ts";
 // Owner API (cookie auth, JSON) — v0.1-plan §3.3.
 
-import { type Context, Hono } from "hono";
+import { type Context } from "hono";
 import {
   authoredKind,
   createDraft,
@@ -16,9 +21,6 @@ import {
   putSettings,
   RestoreVersionError,
   restoreVersion,
-  saveWorkingCopy,
-  setDraftKind,
-  setStubOf,
   TkPublishError,
   TransclusionResolveError,
   withdraw,
@@ -29,7 +31,7 @@ import { checkForkTarget, resolveForkSource } from "./fork.ts";
 import { siteOrigin } from "./protocol.ts";
 import { parseForkedFrom, parseStoredFork, parseStoredStub, parseStubOf } from "./stub.ts";
 import { runGenerateScope } from "./tk-generate.ts";
-import type { Env } from "./types.ts";
+import type { Env, ItemRow } from "./types.ts";
 import { isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
 
 const MEDIA_TYPES: Record<string, string> = {
@@ -41,12 +43,18 @@ const MEDIA_TYPES: Record<string, string> = {
 };
 const MEDIA_MAX_BYTES = 5 * 1024 * 1024;
 
-export const api = new Hono<{ Bindings: Env }>({ strict: false });
+export const api = contractApp();
 
-type ItemBody = { content_md?: string; kind?: string; stub_of?: unknown };
+type ItemBody = z.infer<typeof ItemEditSchema>;
 
-api.post("/items", async (c) => {
-  const body = await c.req.json<ItemBody>().catch(() => ({}) as ItemBody);
+api.openapi(routes.createItem, async (c) => {
+  const body = await readJson<z.infer<typeof ItemCreateSchema>>(c);
+  if (body.mode === "fork") return createForkResponse(c, body.source);
+  if (body.mode === "response") {
+    const item = await createResponseDraft(c, { ...body.source, selection: body.selection });
+    c.header("Location", `/api/items/${item.id}`);
+    return c.json(itemResource(item), 201);
+  }
   const kind = body.kind === "thread" ? "thread" : "fragment";
   // A stub is a thread declaring one target (§2.2) — the stub action creates
   // the draft and its citation in one call.
@@ -57,9 +65,9 @@ api.post("/items", async (c) => {
     if (!parsed.ok) return c.json({ error: parsed.reason }, 400);
     stub = parsed.stub;
   }
-  const item = await createDraft(c.env.DB, body.content_md ?? "", kind);
-  if (stub) await setStubOf(c.env.DB, item.id, stub);
-  return c.json({ id: item.id, kind: item.kind, status: item.status }, 201);
+  const item = await createDraft(c.env.DB, body.content_md ?? "", kind, stub);
+  c.header("Location", `/api/items/${item.id}`);
+  return c.json(itemResource(item), 201);
 });
 
 /**
@@ -72,8 +80,7 @@ api.post("/items", async (c) => {
  * fork.ts): a fork descends from bytes that are promised forever, so those are
  * the bytes it starts from.
  */
-api.post("/fork", async (c) => {
-  const body = await c.req.json<{ origin?: unknown; id?: unknown; version?: unknown }>().catch(() => ({}));
+async function createForkResponse(c: Context<{ Bindings: Env }>, body: { origin: string; id: string; version: number }) {
   const parsed = parseForkedFrom(body);
   if (!parsed.ok) return c.json({ error: parsed.reason }, 400);
   const settings = await getSettings(c.env.DB);
@@ -81,57 +88,45 @@ api.post("/fork", async (c) => {
   const resolved = await resolveForkSource(c.env.DB, parsed.ref, origin, settings.site_title, mentionFetch, nowIso());
   if (!resolved.ok) return c.json({ error: resolved.reason }, 400);
   const item = await createFork(c.env.DB, resolved.source.contentMd, resolved.source.kind, parsed.ref, resolved.source.cite);
-  return c.json({ id: item.id, kind: item.kind, status: item.status }, 201);
-});
+  c.header("Location", `/api/items/${item.id}`);
+  return c.json(itemResource(item), 201);
+}
 
-api.put("/items/:id", async (c) => {
-  // Withdrawn items stay editable — the working copy survives withdrawal
-  // and can be republished (§3.1).
+api.openapi(routes.updateItem, async (c) => {
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await c.req.json<ItemBody>();
-  // `kind` on a **never-published** draft only (session 28). A draft has no
-  // wire presence — no item document, no feed entry, nothing anyone has
-  // fetched — so its kind is still studio state and switching it rewrites
-  // nothing. The moment it is published, `kind` is a field readers have and
-  // history records, and changing it would make the archive disagree with
-  // itself; a withdrawn item is *published* by this test, because its
-  // endcap and its versions are both out there.
-  //
-  // The composer's own toggle does not come through here: it deletes and
-  // recreates, which it can because the text lives in its textarea. An
-  // editor draft has attachments, TK scopes and a save history behind it, so
-  // it is changed in place instead.
-  if (body.kind !== undefined) {
-    const kind = body.kind === "thread" ? "thread" : "fragment";
-    if (item.version !== 0) {
-      return c.json({ error: "kind is fixed once an item has been published" }, 409);
-    }
-    // Only threads carry a citation (§2.2), and a stub is a deliberate act —
-    // dropping it silently on a kind switch would discard a claim the author
-    // made. "clear stub" is already in the editor, so ask for it.
-    if (kind === "fragment" && parseStoredStub(item.stub_of)) {
-      return c.json({ error: "clear the stub before switching this to a fragment" }, 409);
-    }
-    if (kind !== item.kind) await setDraftKind(c.env.DB, item.id, kind);
-    if (typeof body.content_md !== "string" && !("stub_of" in body)) return c.json({ ok: true, kind });
+  const body = await readJson<ItemBody>(c);
+  const kind = body.kind ?? await authoredKind(c.env.DB, item);
+  if (body.kind !== undefined && item.version !== 0) return c.json({ error: "kind is fixed once an item has been published" }, 409);
+  const existingStub = parseStoredStub(item.stub_of);
+  if (kind === "fragment" && body.stub_of != null) return c.json({ error: "only threads can be stubs" }, 400);
+  if (body.kind === "fragment" && existingStub !== null && !("stub_of" in body && body.stub_of === null)) {
+    return c.json({ error: "clear the stub before switching this to a fragment" }, 409);
   }
-  // `stub_of: null` clears the citation — the body stays as written, so what
-  // was a stub becomes a thread that happens to quote something (§3.1).
+  let stubJson = item.stub_of;
   if ("stub_of" in body) {
-    if ((await authoredKind(c.env.DB, item)) !== "thread") return c.json({ error: "only threads can be stubs" }, 400);
-    if (body.stub_of === null) {
-      await setStubOf(c.env.DB, item.id, null);
-    } else {
+    if (body.stub_of === null) stubJson = null;
+    else {
+      if (kind !== "thread") return c.json({ error: "only threads can be stubs" }, 400);
       const parsed = parseStubOf(body.stub_of);
       if (!parsed.ok) return c.json({ error: parsed.reason }, 400);
-      await setStubOf(c.env.DB, item.id, parsed.stub);
+      stubJson = JSON.stringify(parsed.stub);
     }
-    if (typeof body.content_md !== "string") return c.json({ ok: true });
   }
-  if (typeof body.content_md !== "string") return c.json({ error: "content_md required" }, 400);
-  await saveWorkingCopy(c.env.DB, item.id, body.content_md);
-  return c.json({ ok: true });
+  const changesDraft = body.content_md !== undefined || body.kind !== undefined || "stub_of" in body;
+  const assignments: string[] = [], values: (string | number | null)[] = [];
+  if (body.content_md !== undefined) { assignments.push("content_md = ?"); values.push(body.content_md); }
+  if (body.kind !== undefined) { assignments.push("kind = ?"); values.push(body.kind); }
+  if ("stub_of" in body) { assignments.push("stub_of = ?"); values.push(stubJson); }
+  if (body.responses !== undefined) { assignments.push("responses_override = ?"); values.push(body.responses === "default" ? null : Number(body.responses === "show")); }
+  if (changesDraft) { assignments.push("dirty = 1", "updated = CASE WHEN version = 0 THEN ? ELSE updated END"); values.push(nowIso()); }
+  if (!assignments.length) return c.json(itemResource(item));
+  // Write only requested fields. Guard the state used for validation, so a
+  // concurrent publication or citation edit cannot invalidate that check.
+  const fresh = await c.env.DB.prepare(`UPDATE items SET ${assignments.join(", ")} WHERE id = ? AND version = ? AND kind = ? AND stub_of IS ? RETURNING *`)
+    .bind(...values, item.id, item.version, item.kind, item.stub_of).first<ItemRow>();
+  if (!fresh) return c.json({ error: "item changed while applying the patch; reload and try again" }, 409);
+  return c.json(itemResource(fresh));
 });
 
 /**
@@ -157,14 +152,14 @@ async function sendMentionsFor(
   c.executionCtx.waitUntil(drainOutbound(c.env.DB, mentionFetch, { origin }).catch(() => {}));
 }
 
-api.post("/items/:id/publish", async (c) => {
+api.openapi(routes.publishItem, async (c) => {
   // Also the republish path for withdrawn items: vN+1 restores 'public'/authored kind.
   // Studio-side fragment cap (§2.7) is enforced inside publish() against the
   // TK-stripped (published) length, not the raw working copy — see FragmentTooLongError.
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await c.req.json<{ note?: string }>().catch(() => ({}) as { note?: string });
-  const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
+  const body = await readJson<{ note?: string }>(c);
+  const note = body.note?.trim() || null;
   const origin = siteOrigin(await getSettings(c.env.DB), c.req.url, normalizeMount(c.env.MOUNT));
   // §2.4's publish-time check. It lives here rather than inside publish()
   // deliberately: publish() is network-free by design (#26 — quoting follows
@@ -209,24 +204,23 @@ api.post("/items/:id/publish", async (c) => {
  * lives in tk-generate.ts's runGenerateScope so tests can inject a fixture
  * provider fetch (same DI pattern as importer/schedule.ts's runScheduledPoll).
  */
-api.post("/items/:id/generate", async (c) => {
+api.openapi(routes.generateItem, async (c) => {
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await c.req.json<{ scope?: number }>().catch(() => ({}) as { scope?: number });
-  if (typeof body.scope !== "number") return c.json({ error: "scope index required" }, 400);
+  const body = await readJson<{ scope: number }>(c);
 
   const result = await runGenerateScope(c.env, item, body.scope);
   if (!result.ok) return c.json(result.body, result.status as 400 | 404 | 502);
   return c.json({ text: result.text, model: result.model });
 });
 
-api.post("/items/:id/withdraw", async (c) => {
+api.openapi(routes.withdrawItem, async (c) => {
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
   if (item.status === "withdrawn") return c.json({ error: "already withdrawn" }, 409);
   if (item.status !== "public") return c.json({ error: "not published" }, 409);
-  const body = await c.req.json<{ note?: string }>().catch(() => ({}) as { note?: string });
-  const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
+  const body = await readJson<{ note?: string }>(c);
+  const note = body.note?.trim() || null;
   const version = await withdraw(c.env.DB, item, note);
   // §2.3.6: a withdrawn stub re-sends its mention once, from the last real
   // version's references — the endcap has none — so the receiver re-verifies,
@@ -241,18 +235,17 @@ api.post("/items/:id/withdraw", async (c) => {
   return c.json({ ok: true, version });
 });
 
-api.post("/items/:id/pin", async (c) => {
+api.openapi(routes.pinItem, async (c) => {
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await c.req.json<{ version?: number }>().catch(() => ({}) as { version?: number });
-  if (typeof body.version !== "number") return c.json({ error: "version required" }, 400);
-  const row = await getVersion(c.env.DB, item.id, body.version);
+  const version = Number(c.req.param("version"));
+  const row = await getVersion(c.env.DB, item.id, version);
   if (!row) return c.json({ error: "version not found" }, 404);
   // Endcap (withdrawal) versions have no content to cite (§2.8).
   if (!row.content_md) return c.json({ error: "cannot pin an endcap version" }, 409);
   const already = row.pinned === 1;
-  if (!already) await pinVersion(c.env.DB, item.id, body.version);
-  return c.json({ ok: true, version: body.version, already });
+  if (!already) await pinVersion(c.env.DB, item.id, version);
+  return c.json({ ok: true, version: version, already });
 });
 
 /**
@@ -261,11 +254,10 @@ api.post("/items/:id/pin", async (c) => {
  * draft and publishes it as the next version, forward-only. See
  * model.restoreVersion().
  */
-api.post("/items/:id/restore", async (c) => {
+api.openapi(routes.restoreItem, async (c) => {
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await c.req.json<{ version?: number }>().catch(() => ({}) as { version?: number });
-  if (typeof body.version !== "number") return c.json({ error: "version required" }, 400);
+  const body = await readJson<{ version: number }>(c);
   try {
     await restoreVersion(c.env.DB, item, body.version);
   } catch (err) {
@@ -275,7 +267,7 @@ api.post("/items/:id/restore", async (c) => {
   return c.json({ ok: true, restored: body.version, publishesAs: item.version + 1 });
 });
 
-api.delete("/items/:id", async (c) => {
+api.openapi(routes.deleteItem, async (c) => {
   // Drafts only. Published items leave the public stream via withdraw — no delete exists.
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
@@ -284,8 +276,8 @@ api.delete("/items/:id", async (c) => {
   return c.json({ ok: true, outcome: "discarded" });
 });
 
-api.post("/media", async (c) => {
-  const form = await c.req.formData().catch(() => null);
+api.openapi(routes.uploadMedia, async (c) => {
+  const form = await readForm(c).catch(() => null);
   const file = form?.get("file");
   if (!(file instanceof File)) return c.json({ error: "file field required (multipart)" }, 400);
   const ext = MEDIA_TYPES[file.type];
@@ -306,6 +298,7 @@ api.post("/media", async (c) => {
     mime: file.type,
     alt: typeof alt === "string" ? alt : null,
   });
+  c.header("Location", `/${normalizeMount(c.env.MOUNT).replace(/^\//, "")}/${row.r2_key}`.replace(/^\/\//, "/"));
   return c.json({ id: row.id, url: row.r2_key, mime: row.mime }, 201);
 });
 
@@ -322,57 +315,17 @@ const SETTINGS_KEYS = [
   "ai_style_prompt",
 ] as const;
 
-api.put("/settings", async (c) => {
-  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
-  if (!body) return c.json({ error: "JSON body required" }, 400);
+api.openapi(routes.updateSettings, async (c) => {
+  const body = await readJson<Record<string, unknown>>(c);
   const patch: Record<string, string> = {};
   for (const key of SETTINGS_KEYS) {
     if (typeof body[key] === "string") patch[key] = body[key] as string;
   }
-  // Two-valued, and validated rather than coerced: `getSettings` treats
-  // anything but "off" as on, so accepting a free string here would let a typo
-  // silently re-open the endpoint the operator meant to close.
-  if (typeof body.accept_mentions === "boolean") {
-    patch.accept_mentions = body.accept_mentions ? "on" : "off";
-  } else if (body.accept_mentions === "on" || body.accept_mentions === "off") {
-    patch.accept_mentions = body.accept_mentions;
-  } else if (body.accept_mentions !== undefined) {
-    return c.json({ error: "accept_mentions must be a boolean, or \"on\" / \"off\"" }, 400);
+  for (const key of ["accept_mentions", "update_check", "show_responses_default", "update_notice_ack"] as const) {
+    if (typeof body[key] === "boolean") patch[key] = body[key] ? "on" : "off";
   }
-  // Same two-valued validation as accept_mentions, and for a sharper reason:
-  // `getSettings` treats anything but "on" as off, so a typo here fails closed
-  // (no check) rather than open. Still validated — silently ignoring a
-  // misspelled value would leave an operator believing they had enabled it.
-  if (typeof body.update_check === "boolean") {
-    patch.update_check = body.update_check ? "on" : "off";
-  } else if (body.update_check === "on" || body.update_check === "off") {
-    patch.update_check = body.update_check;
-  } else if (body.update_check !== undefined) {
-    return c.json({ error: "update_check must be a boolean, or \"on\" / \"off\"" }, 400);
-  }
-  // Validated rather than trusted: a bad zone would otherwise be written once
-  // and then silently swallowed by formatDateIn's UTC fallback on every page,
-  // leaving the author with a setting that looks saved and does nothing.
-  if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) {
-    return c.json({ error: `unknown timezone: ${patch.timezone}` }, 400);
-  }
-  if (typeof body.show_responses_default === "boolean") {
-    patch.show_responses_default = body.show_responses_default ? "on" : "off";
-  } else if (body.show_responses_default === "on" || body.show_responses_default === "off") {
-    patch.show_responses_default = body.show_responses_default;
-  } else if (body.show_responses_default !== undefined) {
-    return c.json({ error: 'show_responses_default must be a boolean, or "on" / "off"' }, 400);
-  }
-  if (body.update_notice_ack === true || body.update_notice_ack === "on") {
-    patch.update_notice_ack = "on";
-  }
-  if (Array.isArray(body.author_links)) {
-    const links = body.author_links.filter(
-      (l): l is { label: string; url: string } =>
-        !!l && typeof l === "object" && typeof (l as Record<string, unknown>).label === "string" && typeof (l as Record<string, unknown>).url === "string",
-    );
-    patch.author_links = JSON.stringify(links.map((l) => ({ label: l.label, url: l.url })));
-  }
+  if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return c.json({ error: `unknown timezone: ${patch.timezone}` }, 400);
+  if (Array.isArray(body.author_links)) patch.author_links = JSON.stringify(body.author_links);
   await putSettings(c.env.DB, patch);
-  return c.json({ ok: true });
+  return c.json(await getSettings(c.env.DB));
 });

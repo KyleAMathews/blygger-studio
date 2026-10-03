@@ -17,3 +17,10 @@ deploy-targets.json
 
 # init's resume marker — records what has already been provisioned.
 .blyg-init.json
+
+# Rebuilt from the checked-in SDK and app source.
+build/
+sdk/dist/
+playwright-report/
+test-results/
+sdk/LICENSE

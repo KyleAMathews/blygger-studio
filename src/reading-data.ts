@@ -1,0 +1,53 @@
+import { listSubscriptions } from "./importer/store.ts";
+import { buildReadingFeed, clampDisplayAt, type OwnEntryInput, type ImportedEntryInput } from "./importer/reading.ts";
+import { sourceTitleAndUrl } from "./importer/util.ts";
+import { sanitizeHtml } from "./importer/sanitize.ts";
+import type { ImportedItemRow } from "./types.ts";
+
+/** Sort small identity/date rows first; load and sanitize bodies only for the selected page. */
+export async function readingData(db: D1Database, requestedOffset: number, limit: number, source: string | undefined) {
+  const [own, imported, subs] = await Promise.all([
+    db.prepare("SELECT id, updated FROM items WHERE status IN ('public','withdrawn') ORDER BY updated DESC, rowid DESC").all<{ id: string; updated: string }>(),
+    db.prepare("SELECT subscription_id, remote_id, updated, observed_at FROM imported_items ORDER BY observed_at DESC").all<{ subscription_id: string; remote_id: string; updated: string | null; observed_at: string }>(),
+    listSubscriptions(db),
+  ]);
+  const selected = source === "own" || subs.some((s) => s.id === source) ? source! : "all";
+  const counts = { all: own.results.length + imported.results.length, own: own.results.length, subscriptions: Object.fromEntries(subs.map((s) => [s.id, 0])) };
+  for (const row of imported.results) counts.subscriptions[row.subscription_id] = (counts.subscriptions[row.subscription_id] ?? 0) + 1;
+  const identities = [
+    ...own.results.map((r) => ({ source: "own" as const, id: r.id, sub: "", at: r.updated })),
+    ...imported.results.map((r) => ({ source: "imported" as const, id: r.remote_id, sub: r.subscription_id, at: clampDisplayAt(r.updated, r.observed_at) })),
+  ].filter((r) => selected === "all" || (selected === "own" ? r.source === "own" : r.sub === selected));
+  identities.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  const total = identities.length, offset = requestedOffset;
+  const selectedRows = identities.slice(offset, offset + limit);
+  const ownIds = selectedRows.filter((r) => r.source === "own").map((r) => r.id);
+  const importedIds = selectedRows.filter((r) => r.source === "imported");
+  // At most 50 ids (100 bindings for imported pairs), within D1's 100-bind limit.
+  const [ownBodies, importedBodies] = await Promise.all([
+    ownIds.length ? db.prepare(`SELECT i.id, i.kind, i.updated, v.content_html, previous.transclusions AS previous_transclusions
+      FROM items i LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version
+      LEFT JOIN versions previous ON previous.item_id = i.id AND previous.version = i.version - 1
+      WHERE i.id IN (${ownIds.map(() => "?").join(",")})`).bind(...ownIds).all<{ id: string; kind: string; updated: string; content_html: string | null; previous_transclusions: string | null }>() : { results: [] },
+    importedIds.length ? db.prepare(`SELECT * FROM imported_items WHERE ${importedIds.map(() => "(subscription_id = ? AND remote_id = ?)").join(" OR ")}`)
+      .bind(...importedIds.flatMap((r) => [r.sub, r.id])).all<ImportedItemRow>() : { results: [] },
+  ]);
+  const ownById = new Map(ownBodies.results.map((r) => [r.id, r]));
+  const importedById = new Map(importedBodies.results.map((r) => [JSON.stringify([r.subscription_id, r.remote_id]), r]));
+  const entries = await Promise.all(selectedRows.map(async (identity) => {
+    if (identity.source === "own") {
+      const item = ownById.get(identity.id);
+      if (!item) return null;
+      const withdrawn = item.kind === "withdrawn";
+      const kind = item.kind === "thread" || (withdrawn && item.previous_transclusions) ? "thread" : "fragment";
+      const input: OwnEntryInput = { id: item.id, kind, withdrawn, updated: item.updated, contentHtml: withdrawn ? "" : item.content_html ?? "" };
+      return { ...buildReadingFeed([input], [])[0], key: `own:${item.id}` };
+    }
+    const row = importedById.get(JSON.stringify([identity.sub, identity.id]));
+    if (!row) return null;
+    const sub = subs.find((s) => s.id === row.subscription_id);
+    const input: ImportedEntryInput = { subscriptionId: row.subscription_id, subscriptionTitle: sub?.title || sub?.origin || row.subscription_id, remoteId: row.remote_id, sourceUrl: sub ? sourceTitleAndUrl(row, sub.origin).url : null, kind: row.kind, withdrawn: row.state === "tombstone", l0: row.l0 === 1, updated: row.updated, observedAt: row.observed_at, contentHtml: await sanitizeHtml(row.content_html), pinnedVersionRetained: row.pinned_version_retained };
+    return { ...buildReadingFeed([], [input])[0], key: `imported:${JSON.stringify([row.subscription_id, row.remote_id])}` };
+  }));
+  return { items: entries.filter((e) => e !== null), counts, selected, total, offset, limit };
+}

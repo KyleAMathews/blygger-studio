@@ -33,9 +33,9 @@ describe("TK generation provenance emission (§3.1)", () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "v1 text");
     await setGenerated(id, 1, [{ sources: [], model: "claude-x", at: "2026-08-10T18:00:00Z" }]);
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
 
-    await apiJson(cookie, "PUT", `/api/items/${id}`, { content_md: "v2 text" });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "v2 text" });
     await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
     // v2 has no generated_json recorded — omitted on the live item doc.
     const live = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();

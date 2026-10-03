@@ -1,0 +1,34 @@
+import { test, expect } from "@playwright/test";
+
+test("a forwarded nested Studio runs login, SDK saves, upload, and response creation", async ({ page }) => {
+  const origin = "http://127.0.0.1:8789", studio = `${origin}/notes/b/studio`;
+  const errors: string[] = [], paths: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("request", request => { if (request.url().startsWith(origin)) paths.push(new URL(request.url()).pathname); });
+  expect((await page.request.get(`${origin}/studio/app.js`)).status()).toBe(404);
+  await page.goto(`${studio}/login`);
+  await page.locator('[name="password"]').fill("test-password");
+  await page.getByRole("button", { name: "log in", exact: true }).click();
+  await page.locator("#composer-text").fill("Mounted editor");
+  await page.locator("#composer-full").click();
+  await expect(page.locator("#md-input")).toHaveValue("Mounted editor");
+  await page.locator("#md-input").fill("Mounted saved text");
+  await page.locator("#save-draft-btn").click(); await expect(page.locator(".save-state")).toHaveText("saved");
+  await expect(page.locator("#md-input")).toHaveValue("Mounted saved text");
+  const chooser = page.waitForEvent("filechooser");
+  await page.locator("#attach-btn").click();
+  const upload = page.waitForResponse(response => response.url().endsWith("/api/media"));
+  await (await chooser).setFiles({ name: "mounted.svg", mimeType: "image/svg+xml", buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>') });
+  expect((await upload).status()).toBe(201);
+  await page.goto(`${studio}/reading`);
+  const created = page.waitForResponse(response => response.url().endsWith("/api/items") && response.request().method() === "POST");
+  await page.locator('[data-action="stub"][data-remote="remote"]').click();
+  const response = await created;
+  expect(response.status()).toBe(201);
+  expect(response.request().postDataJSON()).toMatchObject({ mode: "response", source: { subscription_id: "browser-source", remote_id: "remote" } });
+  await expect(page.locator("#md-input")).toHaveValue("[Remote title](https://source.example/post)\n\n");
+  expect(page.url()).toContain(`${studio}/edit/`);
+  expect(paths).toContain("/notes/b/studio/app.js");
+  expect(paths.every(path => path.startsWith("/notes/b/") || path.startsWith("/api/") || path === "/studio/app.js")).toBe(true);
+  expect(errors).toEqual([]);
+});

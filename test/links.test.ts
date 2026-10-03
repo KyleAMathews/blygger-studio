@@ -12,7 +12,7 @@ import { transition } from "../src/importer/transition.ts";
 import { listOutbound } from "../src/mentions/store.ts";
 import { newId } from "../src/util.ts";
 import { itemDocBody } from "./importer/fixtures.ts";
-import { apiJson, BASE, createAndPublish, getPublic, login, STUDIO } from "./helpers.ts";
+import { apiJson, BASE, createAndPublish, getPublic, login } from "./helpers.ts";
 
 const OURS = "https://example.com/blyg/";
 const THEIRS = "https://friend.example/blyg/";
@@ -30,7 +30,7 @@ async function itemDoc(id: string): Promise<any> {
 describe("[[id]] links a local item, absolutely and silently", () => {
   it("renders an anchor to the target's page and records nothing on the wire", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const target = await createAndPublish(cookie, "The argument I want to point back at later.");
 
     const created = await apiJson(cookie, "POST", "/api/items", {
@@ -54,7 +54,7 @@ describe("[[id]] links a local item, absolutely and silently", () => {
 
   it("links a thread as readily as a fragment, and uses the right permalink shape", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const thread = (await apiJson(cookie, "POST", "/api/items", { kind: "thread", content_md: "A thread of mine." })).json.id as string;
     expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
 
@@ -64,7 +64,7 @@ describe("[[id]] links a local item, absolutely and silently", () => {
 
   it("does not notify the target — a link asserts nothing on its behalf", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const remoteId = newId();
     await importFrom(THEIRS, { id: remoteId, kind: "fragment", version: 3, content_md: "Their post about stigmergy.", page: `f/${remoteId}/` });
 
@@ -84,7 +84,7 @@ describe("[[id]] links a local item, absolutely and silently", () => {
 describe("[[id]] and ![[id]] are one `!` and two different acts apart", () => {
   it("a directive line still transcludes, and produces no stray link", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const target = await createAndPublish(cookie, "Quoted in full.");
     const thread = (await apiJson(cookie, "POST", "/api/items", {
       kind: "thread",
@@ -102,7 +102,7 @@ describe("[[id]] and ![[id]] are one `!` and two different acts apart", () => {
 
   it("fails the publish when a link does not resolve, naming what was written", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
     const missing = newId();
     const draft = (await apiJson(cookie, "POST", "/api/items", { content_md: `a link to [[${missing}]]` })).json.id as string;
     const res = await apiJson(cookie, "POST", `/api/items/${draft}/publish`, {});
@@ -122,7 +122,7 @@ describe("[[id]] and ![[id]] are one `!` and two different acts apart", () => {
   it("shows an unresolvable link in the composer preview instead of failing it", async () => {
     const cookie = await login();
     const missing = newId();
-    const res = await SELF.fetch(`${BASE}${STUDIO}/preview`, {
+    const res = await SELF.fetch(`${BASE}/api/preview`, {
       method: "POST",
       headers: { cookie, "content-type": "application/json" },
       body: JSON.stringify({ content_md: `a link to [[${missing}]]` }),

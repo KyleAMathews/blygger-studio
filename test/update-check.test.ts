@@ -1,16 +1,11 @@
-// The version-alert mechanism (session 28). Pure logic only — the fetch is a
-// thin wrapper and the interesting failures are all in the comparison.
-import { env, SELF } from "cloudflare:test";
+// Version-alert logic, fetch privacy, persistent preferences and owner release state.
+import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { apiJson, BASE, login, STUDIO } from "./helpers.ts";
+import { apiJson, login } from "./helpers.ts";
 import { CLIENT } from "../src/types.ts";
 
-async function studioIndex(cookie: string): Promise<string> {
-  const res = await SELF.fetch(`${BASE}${STUDIO}`, { headers: { cookie } });
-  expect(res.status).toBe(200);
-  return res.text();
-}
 import {
+  readState,
   compareVersions,
   fetchLatest,
   isBehind,
@@ -129,28 +124,25 @@ describe("fetchLatest never throws", () => {
   });
 });
 
-describe("the banner, end to end", () => {
-  it("checking is on by default, and the notice says so", async () => {
+describe("update preferences and release state", () => {
+  it("checking is on by default and its notice is unacknowledged", async () => {
     const cookie = await login();
-    const html = await studioIndex(cookie);
-    expect(html).toContain("Update alerts are on.");
-    expect(html).toContain("Settings");
-    expect(html).toContain('data-action="ack-update-notice"');
+    expect((await apiJson(cookie, "GET", "/api/settings")).json).toMatchObject({ update_check: true, update_notice_ack: false });
   });
 
-  it("the notice goes for good once acknowledged", async () => {
+  it("the notice acknowledgement persists", async () => {
     const cookie = await login();
-    expect(await studioIndex(cookie)).toContain("Update alerts are on.");
-    await apiJson(cookie, "PUT", "/api/settings", { update_notice_ack: true });
-    expect(await studioIndex(cookie)).not.toContain("Update alerts are on.");
+    expect((await apiJson(cookie, "GET", "/api/settings")).json.update_notice_ack).toBe(false);
+    await apiJson(cookie, "PATCH", "/api/settings", { update_notice_ack: true });
+    expect((await apiJson(cookie, "GET", "/api/settings")).json.update_notice_ack).toBe(true);
   });
 
-  it("shows an upgrade banner when a newer release has been seen", async () => {
+  it("returns stored newer-release state", async () => {
     const cookie = await login();
     // Whatever this client's version is, 99.0.0 is newer.
     //
     // `update_checked_at` is stamped to now as well, and that is not tidiness:
-    // rendering the studio index schedules a real check under `waitUntil`, so
+    // reading owner release state schedules a real check under `waitUntil`, so
     // without it the suite reaches out to GitHub and the answer overwrites the
     // version this test just seeded. Marking the check as already done today
     // keeps the test offline and deterministic.
@@ -162,12 +154,11 @@ describe("the banner, end to end", () => {
         "INSERT INTO settings (key, value) VALUES ('update_checked_at', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
       ).bind(new Date().toISOString()),
     ]);
-    const html = await studioIndex(cookie);
-    expect(html).toContain("Update available — 99.0.0");
-    expect(html).toContain("npm run upgrade");
+    const state = (await apiJson(cookie, "GET", "/api/update-state")).json;
+    expect(readState(state)).toMatchObject({ latest: "99.0.0", behind: true });
   });
 
-  it("shows no upgrade banner when level with the newest release", async () => {
+  it("returns level release state without an upgrade", async () => {
     const cookie = await login();
     await env.DB.batch([
       env.DB.prepare(
@@ -177,20 +168,19 @@ describe("the banner, end to end", () => {
         "INSERT INTO settings (key, value) VALUES ('update_checked_at', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
       ).bind(new Date().toISOString()),
     ]);
-    expect(await studioIndex(cookie)).not.toContain("Update available");
+    expect(readState((await apiJson(cookie, "GET", "/api/update-state")).json)).toMatchObject({ latest: CLIENT.version, behind: false });
   });
 
-  it("turning the check off hides the notice too", async () => {
+  it("turning the check off persists the preference", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PUT", "/api/settings", { update_check: false });
-    const html = await studioIndex(cookie);
-    expect(html).not.toContain("Update alerts are on.");
+    await apiJson(cookie, "PATCH", "/api/settings", { update_check: false });
+    expect((await apiJson(cookie, "GET", "/api/settings")).json.update_check).toBe(false);
   });
 
   it("rejects a junk update_check rather than silently ignoring it", async () => {
     const cookie = await login();
     // Silently ignoring would leave an operator believing they had changed it.
-    const res = await apiJson(cookie, "PUT", "/api/settings", { update_check: "maybe" });
+    const res = await apiJson(cookie, "PATCH", "/api/settings", { update_check: "maybe" });
     expect(res.status).toBe(400);
   });
 });

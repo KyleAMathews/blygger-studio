@@ -1,4 +1,5 @@
 import { SELF } from "cloudflare:test";
+import { routes } from "../src/contract/routes.ts";
 
 export const BASE = "https://example.com";
 /** Matches vitest.config.ts's default-worker MOUNT binding ("/blyg") — studio is nested under it since session 16. */
@@ -27,7 +28,18 @@ export async function apiJson(
     headers: { cookie, ...(body !== undefined ? { "content-type": "application/json" } : {}) },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  return { status: res.status, json: await res.json().catch(() => null) };
+  const json = await res.json().catch(() => null);
+  const pathname = new URL(path, BASE).pathname.replace(/^\/api/, "");
+  const contract = Object.values(routes).find((route) => route.method === method.toLowerCase() && new RegExp(`^${route.path.replace(/\{\w+\}/g, "[^/]+")}$`).test(pathname));
+  if (contract) {
+    const definition = contract.responses[res.status];
+    const media = definition && "content" in definition ? definition.content?.["application/json"] : undefined;
+    const schema = media && "schema" in media ? media.schema : undefined;
+    if (!schema || !("safeParse" in schema)) throw new Error(`Missing response contract: ${method} ${path} ${res.status}`);
+    const parsed = schema.safeParse(json);
+    if (!parsed.success) throw new Error(`Response contract failed: ${method} ${path} ${res.status}: ${parsed.error.message}`);
+  }
+  return { status: res.status, json };
 }
 
 /** Create a draft with content and publish it; returns the item id. */

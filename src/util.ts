@@ -16,19 +16,14 @@ export function normalizeMount(raw: string | undefined): string {
   return m.startsWith("/") ? m : "/" + m;
 }
 
-/**
- * Studio's base path for a given (already-normalized) mount — session 16:
- * studio is nested under the mount, not host-rooted. Single source of truth
- * for the "mount + /studio" convention so index.ts's route registration and
- * every studio.ts / importer/studio.ts link/redirect/embedded-script string
- * can't drift apart the way resolve.ts's duplicated feed-detection once did.
- */
+/** Shared mounted Studio path for routing and links. */
 export function studioPath(mount: string): string {
   return mount + "/studio";
 }
 
 /** Crockford base32, lowercase, no i/l/o/u. */
-export const ID_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
+import { ID_ALPHABET } from "./identity.ts";
+export { ID_ALPHABET } from "./identity.ts";
 
 /**
  * 128 random bits encoded as 26 chars of lowercase Crockford base32
@@ -155,14 +150,7 @@ export function relativeTime(iso: string, now = Date.now()): string {
  * whose every page 500s because of a bad string in settings would be a worse
  * failure than a date in the wrong zone.
  */
-export function formatDateIn(iso: string, timeZone: string): string {
-  const opts: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };
-  try {
-    return new Date(iso).toLocaleDateString("en-US", { ...opts, timeZone: timeZone || "UTC" });
-  } catch {
-    return new Date(iso).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
-  }
-}
+export { formatDateIn } from "./dates.ts";
 
 /** Is this a timezone the runtime actually knows? Used to validate the setting on save. */
 export function isValidTimeZone(tz: string): boolean {

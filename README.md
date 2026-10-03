@@ -4,119 +4,273 @@ The reference client for the [Blygger protocol](https://github.com/blygger/blygg
 a Cloudflare Worker that publishes a blyg, subscribes to others, and threads,
 transcludes and responds across them.
 
-**Protocol implemented:** `blyg 0.3`, level 2 · **Client version:** 0.6.1 ·
-`generator: blygger-studio/0.6.1` · [releases + upgrading](#releases-and-upgrading)
+**Protocol implemented:** `blyg 0.3`, level 2 · **Client version:** 0.10.0 ·
+`generator: blygger-studio/0.10.0` · [releases + upgrading](#releases-and-upgrading)
 
-> **This is one client, not the protocol.** As of 2026-09-28 there are at least
-> **seven** client implementations publishing live blygs, six of which are not this
-> one. Blygger is a protocol over static files and RSS; if this client's choices
-> don't suit you, the spec is short and writing your own is a normal thing to do —
-> several people already have. What makes a blyg a blyg is in
-> [`blygger-spec`](https://github.com/blygger/blygger-spec), not here.
+> The [Blygger spec](https://github.com/blygger/blygger-spec) defines the protocol.
+> As of 2026-09-28, at least seven clients publish live blygs. Six are other
+> implementations. Blygger uses static files and RSS. You can write your own
+> client if this client's choices do not suit you. Several people already do.
 
 ## What it does
 
-Two halves, on purpose:
+- **Studio** is the private interface for composing fragments and threads,
+  hoppers, subscriptions, signals, and TK generation. The protocol leaves these
+  features to each client. Other clients can implement them differently.
+- **Page** is the public protocol output: manifest, feed, item documents,
+  permalinks, pinned snapshots, and archives. The Worker serves this output
+  directly. You can also export identical bytes to a static host.
+  Identical output is a protocol requirement.
 
-- **Studio** (private, owner-only) — composing fragments and threads, hoppers,
-  subscriptions, signals, TK generation. **Implementation-defined:** the protocol
-  does not constrain any of it, and a different client is free to do all of this
-  differently.
-- **Page** (public) — the conformant `blyg` artifact: manifest, feed, item
-  documents, permalinks, pinned snapshots, archives. Served by the Worker directly
-  **or exported to any dumb static host**, byte-identically. That export is the
-  protocol's core invariant, not a convenience feature.
+## Installation
 
-## Quick start
+Use the [latest GitHub release](https://github.com/blygger/blygger-studio/releases/latest)
+for a live deployment. Release downloads start with Studio 0.9.0.
+Older releases only have GitHub's source archives. You need:
 
-```bash
-npm install --legacy-peer-deps    # see "npm" below — the flag is not optional here
-npm run dev                       # wrangler dev
-npm test                          # 531 tests
-npx tsc --noEmit
-npm run export -- --out DIR --base https://example.com/blyg/
+- Node.js 22.18 or newer.
+- A Cloudflare account with D1 and R2 enabled.
+- A domain on that account to use a custom domain.
+
+SDK generation uses a pinned Hey API npm package.
+
+Contributors: see [tests and their limits](docs/testing.md) for verification
+commands, oracle replay, and the upgrade test.
+
+### Install the Worker download
+
+Download `blygger-worker-VERSION.tar.gz` and `SHA256SUMS` from the same release.
+Replace `VERSION` below with the release number, without the `v` prefix.
+
+```sh
+shasum -a 256 blygger-worker-VERSION.tar.gz
+# Compare the result with this file's line in SHA256SUMS.
+# On Linux, use sha256sum if shasum is unavailable.
+tar -xzf blygger-worker-VERSION.tar.gz
+cd blygger-worker-VERSION
+npx wrangler@4 login
+npx wrangler@4 whoami
+npx wrangler@4 d1 create blyg-myname
+npx wrangler@4 r2 bucket create blyg-myname-media
 ```
 
-New deployment from scratch: follow [`blygger.org/start/`](https://blygger.org/start/),
-which is the path every third-party node so far has taken.
+Check the account in `whoami`. Edit the included `wrangler.jsonc`:
 
-## The one public endpoint, and how to turn it off
+- Set `name` to your Worker name and add your `account_id`.
+- Set the D1 database name and ID from `d1 create`. Keep its binding named `DB`.
+- Set the R2 bucket name. Keep its binding named `MEDIA`.
+- Add `routes: [{ "pattern": "blyg.example.com", "custom_domain": true }]`,
+  using your domain. Keep `vars.MOUNT` as `""` for a subdomain.
+- Keep `main: "worker.js"`, `no_bundle: true`, and `migrations_dir: "migrations"`.
 
-Everything this Worker serves is either static output or password-gated —
-**except `{mount}/webmention`**, which accepts an unauthenticated POST from
-anyone, because that is how another blyg tells yours that it has quoted or
-responded to you. Claims are structurally verified (the source's own item
-document must name your item) and no content of theirs is ever stored, but the
-endpoint is still open by necessity.
+Then provision the schema, set secrets through Wrangler's prompts, and deploy:
 
-It is also **optional**: protocol 0.3 §15 is OPTIONAL at every level. In
-**Settings → Accept Webmentions** you can switch it off, and off means gone —
-no manifest key, no `rel="webmention"` on your pages, 404 on the endpoint. You
-still *send* mentions when you quote other people. Rate limits, if you leave it
-on, are per source host, per registrable domain, and per endpoint per hour; the
-numbers are in [`src/mentions/store.ts`](src/mentions/store.ts) with the
-reasoning for each.
+```sh
+npx wrangler@4 d1 migrations apply DB --remote
+npx wrangler@4 secret put OWNER_PASSWORD
+npx wrangler@4 secret put COOKIE_SECRET
+npx wrangler@4 deploy
+```
+
+Use a strong owner password and a separate random cookie secret (at least 32
+random bytes, such as 64 hex characters generated by a password manager). Keep
+both out of the config. To check the setup:
+
+1. Open `https://blyg.example.com/studio`.
+2. Sign in.
+3. Set your title and author name in Settings.
+4. Add subscriptions.
+5. Publish a fragment.
+
+`AI_PROVIDER_KEY` is optional for TK generation. Set it with
+`npx wrangler@4 secret put AI_PROVIDER_KEY` if needed.
+
+The archive includes the Worker bundle, migrations, licenses, and a deployment
+README. It needs no `npm ci` or source build. Wrangler's
+[Cloudflare setup instructions](https://developers.cloudflare.com/r2/get-started/workers-api/)
+cover login and bucket creation.
+
+### Install from source
+
+Choose this path to change Studio or use its provisioning and export scripts.
+Replace `vVERSION` with a published release tag.
+
+```sh
+git clone --branch vVERSION https://github.com/blygger/blygger-studio.git
+cd blygger-studio
+git switch -c my-blyg
+npm ci
+npx wrangler login
+npm run init
+npm run deploy
+```
+
+`npm run init` asks you to choose the account and domain, creates D1 and R2,
+writes deployment config, applies migrations, and sets secrets. It can resume
+after a failed step. It does not deploy. `npm run deploy` does that afterward.
+Keep your deployment config in your own checkout. Contributors should use the
+ignored `wrangler.private.jsonc`. Build before a direct Wrangler deploy:
+
+```sh
+npm run build
+npx wrangler deploy --config wrangler.private.jsonc
+```
+
+Keep the committed template generic.
+
+To export an existing site's public pages for a static host:
+
+```sh
+npm run export -- --out exported-blyg --base https://blyg.example.com/
+```
+
+### Local development
+
+Clone the repository and run `npm ci`. Create an ignored `.dev.vars` file with
+local-only `OWNER_PASSWORD` and `COOKIE_SECRET` values, then run:
+
+```sh
+npx wrangler d1 migrations apply DB --local
+npm run dev
+```
+
+Open `http://localhost:8787/studio` and sign in with your local password. Local
+D1 and R2 data are separate from your live deployment. Tests use their own
+in-memory fixtures and do not need `.dev.vars` or a Cloudflare login.
+
+```sh
+npm run build
+npm run typecheck
+npm run test:ui -- --maxWorkers=2
+npm test -- --maxWorkers=2
+npx playwright install chromium
+npm run test:e2e
+```
+
+## The public Webmention endpoint
+
+`{mount}/webmention` accepts POST requests without a password. Another blyg uses
+this endpoint to report that it quotes or responds to one of your items.
+The Worker checks that the source item names your item. It stores no source
+content.
+
+Webmention is optional at every level of protocol 0.3 (§15). Disable
+**Settings → Accept Webmentions** to remove it. The Worker then omits the
+manifest key and page links, and the endpoint returns 404. Your blyg still sends
+mentions when you quote other people.
+
+When enabled, hourly rate limits apply to each source host, each registrable
+domain, and the endpoint as a whole. See
+[`src/mentions/store.ts`](src/mentions/store.ts) for the limits and their reasons.
 
 ## Releases and upgrading
 
-Releases are git tags `v{version}` with a GitHub release, and every one has an
-entry in [`CHANGELOG.md`](CHANGELOG.md). **Each entry states `Migrations:`
-explicitly** — that is the line to read before upgrading, because it decides
-whether a deploy is the whole job.
+Every release has a `v{version}` tag and a
+[changelog entry](CHANGELOG.md) with an explicit **Migrations:** line. Read all
+entries between your installed version and the target before upgrading.
+Your running version is the `generator` in `https://blyg.example.com/blyg.json`
+(for a path mount, include that path before `blyg.json`).
 
-**What you are running now** is in your own manifest, which is public:
-`curl https://your-origin/blyg/blyg.json` → `generator` is this client's name and
-version (`blygger-studio/0.8.2`). A node reporting `blyg-ref/0.3.0` is this same
-software under its pre-2026-09-28 name.
+### Release downloads
 
-**`npm run upgrade` moves you between releases**, not to the tip of `main`. It
-merges the newest `v*` tag, which is the only thing that has a changelog entry
-and therefore the only thing that can tell you whether there are migrations.
-Tracking `main` is a legitimate choice — it is just not what this script does,
-and if you make it, the studio's update alert will disagree with you, because
-that alert also compares against releases.
+Download assets from the same release so the SDK and contract match the Worker.
 
-### Upgrading a node you stood up by hand
+| Download | Use |
+| --- | --- |
+| `blygger-worker-VERSION.tar.gz` | Deploy the bundled Worker with migrations and generic config. See [installation](#install-the-worker-download). |
+| `blygger-openapi-VERSION.json` | Import into an OpenAPI viewer, API tool, or client generator. |
+| `blygger-sdk-SDK_VERSION.tgz` | Install the JavaScript/TypeScript SDK in your app. |
+| `release.json` | Check the Studio, SDK, and API versions, source commit, and generator pin. These versions are independent. |
+| `SHA256SUMS` | Compare the SHA-256 digest of each downloaded file before using it. |
 
-Which is every third-party node so far, since the template and `npm run init` in
-`self-host-plan.md` §4 are still unbuilt.
+Install the SDK archive, then use it from an app on the same origin as Studio:
 
-```bash
-git pull                          # only if you cloned blygger-studio — see below
-npm ci --legacy-peer-deps
-npm test                          # optional, ~20s, and worth it
-npm run deploy                    # wrangler deploy, your account, your config
+```sh
+npm install ./blygger-sdk-0.1.1.tgz
 ```
 
-Then re-read the changelog entry's `Migrations:` line. If it lists any:
+```js
+import { BlyggerApi, createBlyggerClient, unwrap } from "@blygger/sdk";
 
-```bash
-npx wrangler d1 migrations apply DB --remote
+const client = createBlyggerClient({ baseUrl: window.location.origin });
+const reading = await unwrap(BlyggerApi.listReading({ client, query: { offset: 0, limit: 25 } }));
 ```
 
-**If your copy came from `blygger-spec` rather than from this repo** — i.e. you
-cloned before 2026-09-28 and worked in `worker/` — `git pull` will not bring you
-here. The client left that repo by `git subtree split`, so this history is the
-same *content* with different commit ids, and `worker/` no longer exists there at
-all. Clone this repo fresh and carry over what is yours:
+Sign into `/studio` first: API calls use its owner session cookie. The SDK does
+not create a login session. Node clients must supply a session cookie in
+`headers` or a custom transport. See [SDK usage](sdk/README.md). Never embed an
+owner cookie in browser source. Cross-origin apps and OAuth are not supported
+yet. Install the downloads locally. The SDK is not published to the npm registry.
 
-- **`wrangler.jsonc`** — your D1 `database_id`, your R2 bucket, your routes and
-  your `vars` (`MOUNT`, and `SITE_URL` if you set one). Nothing in the committed
-  file is yours; all of it names our deployments.
-- **Nothing else.** Your secrets (`OWNER_PASSWORD`, `COOKIE_SECRET`, any AI
-  provider key) live in Cloudflare, not in the repo, and a redeploy does not touch
-  them. Your D1 database and R2 bucket are likewise untouched — an upgrade
-  replaces the Worker's code and nothing else.
+The downloaded OpenAPI file describes `/api` paths. Its default server is
+`http://localhost:8787`. Select your deployed origin in the API tool or generator.
+The deployed contract is also available to a signed-in owner at
+`/api/openapi.json`. Downloading the spec does not grant access to the API.
+See [the owner API guide](docs/api.md) for resource routes, partial edits, creation, and pagination.
 
-Keep your fork's own `CLIENT` name if you have modified the client (see
-[If you fork this](#if-you-fork-this)); an upgrade should not quietly rename you
-back to us.
+### Upgrade a Worker archive installation
 
-**There is no notification channel yet.** Nothing tells you a release exists — the
-directory-side update feed is item 3.1 on
-[the roadmap](https://github.com/blygger/blygger-spec/blob/main/docs/roadmap-tracks.md)
-and is not built. Until it is, watching this repo's releases on GitHub is the only
-mechanism there is, and for a security release we have no way to reach you at all.
+Download the new Worker archive. Check its checksum. Extract it into a new directory.
+Keep your existing deployment config and secrets. Copy the new `worker.js` and
+`migrations/` into your deployment directory. Do not replace your config with the
+archive's generic template. Keep `main: "worker.js"` and `no_bundle: true`.
+Save a D1 backup before any required schema changes. Run these commands from your deployment directory:
+
+```sh
+npx wrangler@4 d1 migrations apply DB --remote  # if the changelog lists migrations
+npx wrangler@4 deploy
+```
+
+Deploying replaces code. It does not reset D1, R2, or stored Cloudflare secrets.
+The archive does not include `npm run upgrade`. Use these steps for each release.
+
+### Upgrade a source installation
+
+Commit or stash local changes first, including your deployment config, then run:
+
+```sh
+npm run upgrade
+```
+
+The script downloads upstream tags, merges the newest release, preserves your
+`wrangler.jsonc` on conflicts, installs dependencies, applies new migrations,
+and runs type checks and tests. It asks before deploying. `git pull` tracks a branch.
+It does not select the latest release. A GitHub source ZIP has no Git history,
+so it cannot use this script. Clone the target release. Copy your config into the new checkout.
+
+For installations from the old `blygger-spec/worker/` tree, clone this repository
+fresh and copy your account, D1, R2, routes, and vars into its config. Git history
+changed during the split. Pulling the old repository will not upgrade Studio.
+Keep your fork's `CLIENT` name if you changed it.
+
+### Publishing a release
+
+Each merge to `main` runs release CI and, after checks pass, creates `v{version}`
+at that commit and publishes the downloads. There is no manual tag push.
+Before merging, bump `package.json`, the root versions in `package-lock.json`,
+and `CLIENT.version` in `src/client.ts`. Add a matching changelog entry with a
+**Migrations:** line. Bump `sdk/package.json` when its public API changes.
+PR CI rejects a version that is not newer than existing release tags.
+
+GitHub Actions must be enabled and allow the release job's `contents: write`
+permission. CI checks types, contract/SDK drift, Worker and browser tests, and
+extracted release artifacts. It needs no Cloudflare or npm publishing credentials.
+Publishing a release does not deploy anyone's Worker.
+
+Build and check the downloads locally with:
+
+```sh
+npm run release:check
+npm run release:build
+npx playwright install chromium
+npm run release:verify
+```
+
+Release verification installs the SDK in a temporary project and tests Node and Chromium.
+It also checks data after a fresh local Worker process starts.
+
+The commands write downloads to `build/release/`. `release:check` requires a new unreleased version.
+For an already published checkout, use only the build and verification commands.
 
 ## Layout
 
@@ -128,8 +282,10 @@ src/importer/       subscribe side — resolve, feed parse, poll, hoppers, L0
 src/mentions/       Webmention in and out, structural verification
 src/tk.ts           TK scope grammar · src/tk-generate.ts  instructed generation
 src/stub.ts         stubs (respond) · src/fork.ts  forks and lineage
-src/pages.ts        public pages · src/studio.ts  the authoring UI
-migrations/         D1 schema, 0001–0011
+src/pages.ts        public server-rendered pages
+src/spa.ts          Studio shell, login/logout, embedded browser assets
+src/ui/             React Studio, Router loaders, DB collections and Base UI
+migrations/         D1 schema, 0001–0013
 scripts/            export, deploy-all
 wrangler.jsonc      your deployment — generic here; `npm run init` fills it in
 deploy-targets.json your live deployments (gitignored; see the .example)
@@ -143,12 +299,12 @@ Please report it rather than working around it.
 ## Versioning
 
 **Client version and protocol version are independent, deliberately.** This client
-is 0.6.1 and implements protocol 0.3. The manifest carries both — `blyg` is the
+is 0.10.0 and implements protocol 0.3. The manifest carries both — `blyg` is the
 protocol version, `generator` is this client's identity — and per the spec's
 decision #18d `generator` is *informative*: no reader may gate behaviour on it.
 
-Nodes running the older `blyg-ref/0.3.0` build are unaffected and keep reporting
-that string truthfully. It is the same software; the name changed when the client
+Nodes running the older `blyg-ref/0.3.0` build keep working and report
+that version string. It is the same software. The name changed when the client
 moved out of the spec repo at session 26 (2026-09-28).
 
 ## If you fork this
@@ -156,38 +312,61 @@ moved out of the spec repo at session 26 (2026-09-28).
 People already do, and that is fine. Two requests, both so that the upgrade path
 keeps working for you:
 
-1. **Change `CLIENT` in `src/types.ts`.** A fork that keeps reporting
-   `blygger-studio/0.6.1` makes the ecosystem census wrong for everyone, and it is
+1. **Change `CLIENT` in `src/client.ts`.** A fork that keeps reporting
+   `blygger-studio/0.10.0` makes the ecosystem census wrong for everyone, and it is
    the census that drives update notices. Give your fork its own name and version —
    that is what `Blynger`, `blyg-publisher` and the rest do.
 2. **Tell us it exists**, so it can be listed at `blygger.org` and so a breaking
-   change to an extension point can be announced rather than discovered. Our repos
-   have zero GitHub forks, which means copies are invisible to us by default.
+   change to an extension point can be announced rather than discovered. Copies outside GitHub forks can be hard to discover.
 
-A stable publishing API — so that tools can write to a blyg without modifying its
+A stable publishing API — so that tools can write to a blyg without changing its
 client — is the open design question tracked as item 1.8 in
 [`roadmap-tracks.md`](https://github.com/blygger/blygger-spec/blob/main/docs/roadmap-tracks.md).
-Until it lands, `/api` is **private and unversioned**: 30 endpoints behind a single
-owner cookie. Build against it and expect it to move.
+Studio 0.9.0 replaces older private write routes and request forms.
+Third-party authoring tools must adopt the new contract.
+See [the owner API guide](docs/api.md) for the replacement routes.
 
-## npm
+The private Studio API now has a checked-in [OpenAPI contract](openapi.json) and a
+[generated JavaScript/TypeScript SDK](sdk/README.md). The owner can download the same
+contract at `/api/openapi.json`. It uses the existing session cookie. This API does
+not define a public publishing protocol.
 
-`npm install` **needs `--legacy-peer-deps`** on this project. npm 10.9.0's peer
-resolver crashes on vitest's optional peer graph
-(`TypeError: Cannot read properties of null (reading 'edgesOut')`), reproducible with
-a bare `npm install vitest` in an empty directory — the environment, not this repo.
-An existing lockfile masks it, so a fresh clone hits it and an incremental install
-does not.
+`npm run openapi` updates the contract. `npm run sdk:generate` rebuilds the SDK
+with a pinned Hey API generator on Node 22.18+, using the unchanged spec.
+Dependency installation builds the SDK and Studio assets, including during upgrades from 0.8.3.
+The npm dev, test, and deploy scripts also run `npm run build` for you.
+Build first when you run TypeScript, Vitest, or Wrangler directly.
+CI checks types, contract and SDK drift, Worker tests, and Chromium browser tests.
+Studio 0.10.0 uses React, TanStack Router, TanStack DB, and Base UI. Route loaders
+preload collections through the SDK. Active views poll the D1-backed API every
+15 seconds, pause while the tab is hidden, and refresh on focus. Polling keeps
+unsaved editor text. The Worker embeds the browser assets. Deployment needs no
+extra asset binding. For a mounted installation, forward `{mount}/*` and
+`/api/*`, including `{mount}/studio/app.js` and `{mount}/studio/app.css`.
+
+See [the migration plan](docs/migration.md) for the completed SPA cutover and the
+queued OAuth and MCP work.
+
+## Browser tests
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+The browser suite runs an in-memory Worker, D1 database, and R2 bucket. Outbound
+requests use a local fixture response. The tests need no deployment config or host credentials.
 
 ## History
 
-This repo was split out of
+This repository separated from
 [`blygger/blygger-spec`](https://github.com/blygger/blygger-spec) at session 26
-(2026-09-28), preserving all 59 commits of `worker/`'s history via
-`git subtree split`. The spec repo is now normative-only. The split happened because
-one repo holding both the protocol and one implementation of it stopped working the
-moment strangers began filing "transclusion is broken" meaning "your Worker has a
-bug" — there are six other implementations that could mean the first thing.
+(2026-09-28). `git subtree split` preserved all 59 commits from `worker/`.
+The spec repository now contains only normative protocol material.
+
+The split separates protocol issues from bugs in this client. A report such as
+"transclusion is broken" could refer to either. Six other implementations also
+use the protocol.
 
 ## License
 

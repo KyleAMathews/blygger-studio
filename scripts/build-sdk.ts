@@ -1,0 +1,11 @@
+import { build } from "esbuild";
+import { execFileSync } from "node:child_process";
+import { copyFileSync, mkdirSync, rmSync } from "node:fs";
+copyFileSync("LICENSE", "sdk/LICENSE");
+rmSync("sdk/dist", { recursive: true, force: true });
+execFileSync("./node_modules/.bin/tsc", ["-p", "sdk/tsconfig.json"], { stdio: "inherit" });
+for (const [outfile, platform] of [["sdk/dist/index.js", "neutral"], ["sdk/dist/browser.js", "browser"]] as const) {
+  await build({ entryPoints: ["sdk/index.ts"], outfile, bundle: true, format: "esm", platform, target: "es2022" });
+}
+copyFileSync("sdk/dist/index.d.ts", "sdk/dist/browser.d.ts");
+mkdirSync("build", { recursive: true });

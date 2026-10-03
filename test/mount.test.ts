@@ -5,7 +5,7 @@
 // config binding); here we build apps for other mounts via makeApp() and
 // drive them with the real test env bindings.
 
-import { env } from "cloudflare:test";
+import { createExecutionContext, env, waitOnExecutionContext } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { makeApp } from "../src/index.ts";
 import { normalizeMount, studioPath } from "../src/util.ts";
@@ -69,7 +69,7 @@ describe("root mount", () => {
     }, appEnv());
     const { id } = (await created.json()) as { id: string };
     await app.request(`${HOST}/api/items/${id}/publish`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body: "{}" }, appEnv());
-    await app.request(`${HOST}/api/items/${id}/pin`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ version: 1 }) }, appEnv());
+    await app.request(`${HOST}/api/items/${id}/versions/1/pin`, { method: "PUT", headers: { cookie } }, appEnv());
 
     const page = await app.request(`${HOST}/f/${id}/v1/`, {}, appEnv());
     expect(page.status).toBe(200);
@@ -98,7 +98,7 @@ describe("root mount", () => {
     const res = await app.request(`${HOST}/studio`, { redirect: "manual" }, appEnv());
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toContain("/studio/login");
-    expect(res.headers.get("cache-control")).toBeNull();
+    expect(res.headers.get("cache-control")).toBe("no-store");
   });
 });
 
@@ -131,8 +131,43 @@ describe("custom multi-segment mount", () => {
     const res = await app.request(`${HOST}/notes/b/studio`, { redirect: "manual" }, appEnv());
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/notes/b/studio/login");
-    expect(res.headers.get("cache-control")).toBeNull();
+    expect(res.headers.get("cache-control")).toBe("no-store");
     expect((await app.request(`${HOST}/studio`, {}, appEnv())).status).toBe(404);
     expect((await app.request(`${HOST}/studio/login`, {}, appEnv())).status).toBe(404);
+  });
+});
+
+
+describe.each(["", "/blyg", "/notes/b"])("Studio SPA at mount %s", (mount) => {
+  const app = makeApp(mount);
+  const base = studioPath(mount);
+  const bindings = { ...appEnv(), MOUNT: mount };
+
+  it("serves the login stylesheet inside the forwarded Studio range", async () => {
+    const login = await app.request(`${HOST}${base}/login`, {}, bindings);
+    expect(login.status).toBe(200);
+    const html = await login.text();
+    expect(html).toContain(`href="${base}/app.css"`);
+    expect(html).not.toContain('<script');
+    const style = await app.request(`${HOST}${base}/app.css`, {}, bindings);
+    expect(style.status).toBe(200);
+    expect(style.headers.get('content-type')).toContain('text/css');
+    expect((await app.request(`${HOST}/app.js`, {}, bindings)).status).toBe(404);
+  });
+
+  it("uses mounted assets across authenticated Studio routes", async () => {
+    const login = await app.request(`${HOST}${base}/login`, {
+      method: "POST",
+      body: new URLSearchParams({ password: "test-password" }),
+    }, bindings);
+    const cookie = (login.headers.get("set-cookie") ?? "").split(";")[0];
+    expect(cookie).toBeTruthy();
+    for (const suffix of ["", "/settings", "/syntax", "/subs", "/reading", "/hoppers", "/mentions"]) {
+      const ctx = createExecutionContext();
+      const page = await app.request(`${HOST}${base}${suffix}`, { headers: { cookie } }, bindings, ctx);
+      await waitOnExecutionContext(ctx);
+      expect(page.status).toBe(200);
+      expect(await page.text()).toContain(`<script defer src="${base}/app.js"></script>`);
+    }
   });
 });

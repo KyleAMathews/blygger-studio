@@ -1,0 +1,11 @@
+{
+  "generator": "@hey-api/openapi-ts",
+  "version": "0.99.0",
+  "input": "openapi.json",
+  "importExtension": ".js",
+  "plugins": [
+    "@hey-api/typescript",
+    "@hey-api/client-fetch",
+    "@hey-api/sdk"
+  ]
+}

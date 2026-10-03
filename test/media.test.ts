@@ -67,7 +67,7 @@ describe("avatar resolution (session 19)", () => {
   it("serves an avatar URL that actually resolves, on the page and in the manifest", async () => {
     const cookie = await login();
     const { json } = await upload(cookie, new File([new Uint8Array([1, 2])], "me.png", { type: "image/png" }));
-    await apiJson(cookie, "PUT", "/api/settings", { avatar_media_id: json.id, author_name: "A. Author" });
+    await apiJson(cookie, "PATCH", "/api/settings", { avatar_media_id: json.id, author_name: "A. Author" });
     await createAndPublish(cookie, "hello");
 
     // The route matches on the full r2_key including the extension, so

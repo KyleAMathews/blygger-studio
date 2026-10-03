@@ -113,6 +113,21 @@ page (never a manifest key). Build within that direction; anything beyond it is 
 Fable. Do not harden it in a way that breaks the tools now depending on it without
 saying so.
 
+### Approved API and SDK migration
+
+The maintainer explicitly approved the resource API redesign on this branch.
+Studio reads and writes through the generated SDK. Keep its existing UI for this
+first PR. Use PATCH for partial edits, POST for creation recipes, and PUT for
+permanent pins. Strict JSON validation and boolean preferences replace the old
+private request forms. Remove replaced routes and migrate Studio callers in the
+same PR. These are deliberate breaking changes to the private owner API, not
+changes to the public protocol. Do not restore compatibility aliases or bypass
+SDK reads to satisfy the earlier API-surface gate.
+
+The next complete chunk replaces Studio with React, TanStack Router, TanStack DB,
+and Base UI. Ecosystem client migration, OAuth, and MCP follow in part three.
+See `docs/migration.md` for the client inventory and acceptance requirements.
+
 ## Status
 
 Live on five nodes as of 2026-09-28, two of them Venkat's

@@ -5,11 +5,11 @@
 // The load-bearing assertions here are the negative ones: a response list is
 // page chrome, so it must not reach the item document, the feed, the hash, or
 // a pinned page — otherwise a stranger's publish would mutate versioned state.
-import { env, SELF } from "cloudflare:test";
+import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { markInboundVerified, upsertInbound } from "../src/mentions/store.ts";
 import { newId } from "../src/util.ts";
-import { apiJson, BASE, createAndPublish, getPublic, login, STUDIO } from "./helpers.ts";
+import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
 
 const OURS = "https://example.com/blyg/";
 
@@ -41,7 +41,7 @@ describe("the public responses list (§3.4)", () => {
 
     expect(await (await getPublic(`/blyg/f/${id}/`)).text()).not.toContain("Responses");
 
-    expect((await apiJson(cookie, "PUT", `/api/items/${id}/responses`, { show: true })).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", `/api/items/${id}`, { responses: "show" })).status).toBe(200);
     const html = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(html).toContain("Responses");
     expect(html).toContain("Their Name");
@@ -54,7 +54,7 @@ describe("the public responses list (§3.4)", () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "an item with several answers");
     for (let i = 0; i < 3; i++) await verifiedResponse(id, { origin: `https://n${i}.example/`, author: `Name ${i}` });
-    await apiJson(cookie, "PUT", `/api/items/${id}/responses`, { show: true });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { responses: "show" });
 
     const html = await (await getPublic(`/blyg/f/${id}/`)).text();
     const section = html.slice(html.indexOf('class="responses"'));
@@ -68,19 +68,18 @@ describe("the public responses list (§3.4)", () => {
     const id = await createAndPublish(cookie, "an item with a bad answer");
     const keep = await verifiedResponse(id, { origin: "https://good.example/", author: "Welcome" });
     const drop = await verifiedResponse(id, { origin: "https://spam.example/", author: "Unwelcome" });
-    await apiJson(cookie, "PUT", `/api/items/${id}/responses`, { show: true });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { responses: "show" });
 
-    expect((await apiJson(cookie, "PUT", `/api/mentions/${drop}/hidden`, { hidden: true })).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", `/api/mentions/${drop}`, { hidden: true })).status).toBe(200);
     let html = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(html).toContain("Welcome");
     expect(html).not.toContain("Unwelcome");
 
-    // Still in the studio — "not on my page" is not "this never happened".
-    const studio = await (await SELF.fetch(`${BASE}${STUDIO}/mentions`, { headers: { cookie } })).text();
-    expect(studio).toContain("Unwelcome");
-    expect(studio).toContain("show on page");
-
-    await apiJson(cookie, "PUT", `/api/mentions/${drop}/hidden`, { hidden: false });
+    // Hiding affects public presentation; the owner resource still retains it.
+    const mentions = await apiJson(cookie, "GET", "/api/mentions?direction=inbound");
+    expect(mentions.status).toBe(200);
+    expect(mentions.json.items.find((row: { id: string }) => row.id === drop)).toMatchObject({ hidden: true });
+    await apiJson(cookie, "PATCH", `/api/mentions/${drop}`, { hidden: false });
     html = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(html).toContain("Unwelcome");
     expect(keep).toBeTruthy();
@@ -94,7 +93,7 @@ describe("the public responses list (§3.4)", () => {
     await env.DB.prepare("UPDATE mentions_in SET source_author_json = ? WHERE id = ?")
       .bind(JSON.stringify({ name: "Unverified" }), pending.id)
       .run();
-    await apiJson(cookie, "PUT", `/api/items/${id}/responses`, { show: true });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { responses: "show" });
 
     const html = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(html).toContain("Verified");
@@ -107,10 +106,10 @@ describe("the public responses list (§3.4)", () => {
     // Pin first: pinning is *our* act and legitimately changes the document
     // (the changelog entry gains `pinned`). The snapshot must be taken after
     // it, so the only thing that could move it afterwards is the stranger.
-    await apiJson(cookie, "POST", `/api/items/${id}/pin`, { version: 1 });
+    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
     const before = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     await verifiedResponse(id, { author: "A Stranger" });
-    await apiJson(cookie, "PUT", `/api/items/${id}/responses`, { show: true });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { responses: "show" });
 
     const after = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     // A stranger publishing must not change our versioned state — otherwise
@@ -126,7 +125,7 @@ describe("the public responses list (§3.4)", () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "an item answered by a shouter");
     await verifiedResponse(id, { author: "X".repeat(500) });
-    await apiJson(cookie, "PUT", `/api/items/${id}/responses`, { show: true });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { responses: "show" });
 
     const html = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(html).not.toContain("X".repeat(200));
@@ -137,7 +136,7 @@ describe("the public responses list (§3.4)", () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "an item quoted rather than stubbed");
     await verifiedResponse(id, { origin: "https://quoter.example/", relation: "transclusion", author: "Quoter" });
-    await apiJson(cookie, "PUT", `/api/items/${id}/responses`, { show: true });
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { responses: "show" });
     expect(await (await getPublic(`/blyg/f/${id}/`)).text()).toContain("quoted this");
   });
 });

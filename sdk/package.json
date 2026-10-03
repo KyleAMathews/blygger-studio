@@ -1,0 +1,26 @@
+{
+  "name": "@blygger/sdk",
+  "version": "0.1.1",
+  "description": "Generated JavaScript and TypeScript client for the Blygger Studio API",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "generation.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "browser": {
+        "types": "./dist/browser.d.ts",
+        "default": "./dist/browser.js"
+      },
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
