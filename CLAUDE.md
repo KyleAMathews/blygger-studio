@@ -149,12 +149,17 @@ See `docs/migration.md` for the client inventory and acceptance requirements.
 
 ## Status
 
-**0.10.0 is released and deployed to both our nodes** (session 30, 2026-10-02): Kyle
+**0.11.0 is released and deployed to both our nodes** (session 30, 2026-10-02): absolute URLs
+in `content_html` (publish, import, bake, plus a cron repair of stored imports), thread cards that
+show the thread, and image insertion at the cursor, via `/image`, paste and drop. Operators coming from
+0.8.x have `docs/upgrading-to-0.11.md`. 735 Worker + 6 UI-state + 126 browser tests.
+
+**0.10.0** (same session): Kyle
 Mathews' #21 (documented `/api` + generated SDK, which was 0.9.0 and never deployed on its own)
 and #22 (Studio as a React SPA). Migration **0013** (signal poll index) applied to both D1s first.
 **Releases are cut by pushing a `v{version}` tag**, not by merging (session 30, Venkat):
 `release.yml` builds the downloads (OpenAPI, SDK tarball, Worker archive, checksums) for that
-tag. 730 Worker tests + 6 UI-state + 118 browser tests at 0.10.0.
+tag.
 
 Live on five nodes as of 2026-09-28, two of them Venkat's
 (`venkateshrao.com/blyg/`, `blyg.protocol-institute.org`) and three strangers'
