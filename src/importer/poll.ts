@@ -5,7 +5,7 @@
 // follows the origin's own serving surface (task 10 layers that last one on
 // top of rollup-null via `applyEffect`'s `retainPinnedVersion`).
 
-import { contentHash, nowIso } from "../util.ts";
+import { absolutizeHtml, contentHash, nowIso } from "../util.ts";
 import { parseFeed } from "./feed.ts";
 import type { FetchLike, FetchResult } from "./http.ts";
 import { platformFetch } from "./http.ts";
@@ -45,6 +45,15 @@ async function processItemCandidate(
   } catch {
     await appendFlag(db, sub.id, "unparseable", remoteId);
     return { processed: false };
+  }
+  // Relative URLs in a fetched item's HTML are the origin's, not ours: resolve
+  // them before storing, or every image a publisher wrote as `/media/x.png`
+  // renders against our host in the reading view (session 30). §5.4 makes media
+  // URLs relative to the origin. Change detection is on content_md's hash, so
+  // this never makes an unchanged item look changed.
+  if (raw && typeof raw === "object" && typeof (raw as { content_html?: unknown }).content_html === "string") {
+    const doc = raw as { content_html: string };
+    doc.content_html = absolutizeHtml(doc.content_html, sub.origin);
   }
   const localRow = await getImportedItem(db, sub.id, remoteId);
   const local = toLocalState(localRow);

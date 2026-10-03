@@ -5,7 +5,7 @@ import { attachedQuote } from "./directives.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { excerptFromHtml, renderMarkdown, selectionText } from "./markdown.ts";
 import type { ImportedItemRow, ItemRow, TextQuoteSelector, Transclusion, VersionRow } from "./types.ts";
-import { escapeHtml, ID_ALPHABET } from "./util.ts";
+import { absolutizeHtml, escapeHtml, ID_ALPHABET } from "./util.ts";
 
 const DIRECTIVE_LINE = new RegExp(`^\\s*!\\[\\[([${ID_ALPHABET}]{26})\\]\\]\\s*$`);
 const RESERVED_LINE = new RegExp(`^\\s*!\\[\\[([${ID_ALPHABET}]{26})@v\\d+\\]\\]\\s*$`);
@@ -242,7 +242,11 @@ export async function resolveTarget(
     // A retained tombstone's bytes are the *pinned* version's — 0.2 §13.4's
     // retention rule — so that, not the withdrawal version, is the provenance.
     const version = row.state === "tombstone" ? (row.pinned_version_retained as number) : row.version;
-    return { ok: true, target: { id, version, contentHtml: row.content_html, origin: row.sub_origin, kind: row.kind, page: row.page } };
+    // Resolved against the *source's* origin before baking, so the publisher's
+    // own absolutizing pass (publish(), session 30) finds nothing relative to
+    // re-point at us. Covers rows imported before the importer did this itself.
+    const contentHtml = absolutizeHtml(row.content_html, row.sub_origin);
+    return { ok: true, target: { id, version, contentHtml, origin: row.sub_origin, kind: row.kind, page: row.page } };
   }
   if (candidates.length) return { ok: false, reason: "source withdrawn by origin" };
   if (rows.results.length) return { ok: false, reason: "source is a plain RSS (L0) item, not a blyg item" };

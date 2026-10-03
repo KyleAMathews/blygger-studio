@@ -8,6 +8,7 @@ import type { FetchLike } from "./http.ts";
 import { platformFetch } from "./http.ts";
 import { pollSubscription } from "./poll.ts";
 import { backoffMs, mapLimit } from "./util.ts";
+import { absolutizeHtml } from "../util.ts";
 import { listSubscriptions } from "./store.ts";
 
 export const POLL_INTERVAL_MS = 30 * 60 * 1000;
@@ -42,7 +43,41 @@ export interface ScheduledPollResult {
 }
 
 /** One cron tick: poll every due subscription, bounded concurrency. */
+/**
+ * Heal blyg-native imports stored before 0.10.1 resolved their relative URLs
+ * (session 30). Same pattern as session 18's L0 date repair: the poll skips
+ * unchanged items, so rows already stored would never be rewritten by import
+ * alone. Idempotent — a repaired row no longer matches the filter, which is
+ * GLOB rather than LIKE so that protocol-relative `//host` URLs (correctly left
+ * alone) cannot match forever and starve the per-run limit — and
+ * bounded per run, so a large reading list heals over a few cron ticks
+ * instead of one long one. L0 rows are left alone: an RSS item's relative URLs
+ * resolve against its own link, not the feed's origin, and §7 already
+ * requires RSS HTML to be absolute.
+ */
+export async function repairImportedUrls(db: D1Database, limit = 200): Promise<number> {
+  const rows = await db
+    .prepare(
+      `SELECT ii.subscription_id AS sub, ii.remote_id AS remote, ii.content_html AS html, s.origin AS origin
+       FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id
+       WHERE ii.l0 = 0 AND (ii.content_html GLOB '*src="/[^/]*' OR ii.content_html GLOB '*href="/[^/]*'
+         OR ii.content_html GLOB '*src="media/*' OR ii.content_html GLOB '*href="media/*')
+       LIMIT ?`,
+    )
+    .bind(limit)
+    .all<{ sub: string; remote: string; html: string; origin: string }>();
+  let repaired = 0;
+  for (const r of rows.results) {
+    const fixed = absolutizeHtml(r.html, r.origin);
+    if (fixed === r.html) continue;
+    await db.prepare("UPDATE imported_items SET content_html = ? WHERE subscription_id = ? AND remote_id = ?").bind(fixed, r.sub, r.remote).run();
+    repaired++;
+  }
+  return repaired;
+}
+
 export async function runScheduledPoll(db: D1Database, fetchFn: FetchLike = platformFetch, now: number = Date.now()): Promise<ScheduledPollResult> {
+  await repairImportedUrls(db);
   const subs = await listSubscriptions(db);
   const due = dueSubscriptions(subs, now);
   await mapLimit(due, POLL_CONCURRENCY, (sub) => pollSubscription(db, sub, fetchFn));

@@ -13,7 +13,7 @@ import {
 } from "./transclusion.ts";
 import type { ForkedFrom, ItemRow, MediaRow, ScopeProvenance, Settings, StubCite, StubOf, Transclusion, VersionRow } from "./types.ts";
 import { FRAGMENT_MAX_CHARS } from "./types.ts";
-import { contentHash, newId, nowIso } from "./util.ts";
+import { absolutizeHtml, contentHash, newId, nowIso } from "./util.ts";
 
 export { TkPublishError, TransclusionResolveError };
 
@@ -359,6 +359,16 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   } else {
     contentHtml = spliceLinks(applyGeneratedWrappers(renderMarkdown(links.text), annotated));
   }
+
+  // Every URL in `content_html` is made absolute against our own origin, for
+  // the same reason `[[id]]` anchors are (§16.2): the HTML travels to
+  // subscribers, and a host-rooted `/blyg/media/x.png` resolves against *their*
+  // host there — a 404, or someone else's file (session 30, found on a live
+  // import). Remote snapshots baked into a thread are already absolute against
+  // their own origin by now (resolveTarget), and absolutizeHtml leaves absolute
+  // URLs alone, so this cannot re-point them at us. The RSS description was
+  // already absolutized at feed time (§7); this makes the item document match.
+  if (origin) contentHtml = absolutizeHtml(contentHtml, normalizedOrigin(origin));
 
   const generated: ScopeProvenance[] = scopes.map((_, i) => provenanceCache[i]).filter((p): p is ScopeProvenance => p != null);
   const generatedJson = generated.length ? JSON.stringify(generated) : null;
