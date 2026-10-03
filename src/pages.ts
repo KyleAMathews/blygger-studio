@@ -261,7 +261,19 @@ a.permalink:hover { color: var(--pencil); border-bottom-color: currentColor; }
 /* Kind marker. Was an ALL-CAPS bordered chip — the commonest template tell,
  * and heavier than the thing it labels. A blue lowercase word does the job. */
 .kind-chip { font: var(--apparatus); font-style: italic; color: var(--pencil); margin-right: 0.15rem; }
-.thread-card p:first-child { margin-bottom: 0.5rem; }
+/* A thread card's kind line: its own line, styled like the other apparatus
+   labels (.stub-cite .label), so it never runs into the author's first words. */
+.card-kind { font-family: var(--sans, inherit); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pencil); margin: 0 0 0.5rem; }
+.card-kind .quote-count { text-transform: none; letter-spacing: 0; color: var(--ink-soft); }
+/* The top of the thread's own page, cut at a fixed height. A height clip,
+   not a line clamp: the card holds blockquotes, headings and lists, which
+   -webkit-line-clamp cannot count. The fade is added only when the content
+   overflows (VERSION_NAV_SCRIPT sets .clipped), so a short thread's last line
+   is never dimmed; without script the content is still clipped, just unfaded. */
+.card-clip { max-height: 24rem; overflow: hidden; position: relative; }
+.card-clip.clipped { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 4rem), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 4rem), transparent); }
+.card-clip h1 { font-size: 1.15rem; line-height: 1.25; margin: 0 0 0.35rem; }
+.thread-card .read-more { margin: 0.6rem 0 0; }
 
 /* A transcluded fragment is someone's words held verbatim, so it is set as a
  * quotation with the editorial blue beside it, not as a tinted card. */
@@ -317,13 +329,6 @@ article.showing-pin .item-content[aria-busy="true"] { opacity: 0.5; }
  * left-aligned: the controls and the citations never move. */
 .version-line .vlabel { display: inline-block; min-width: 6.5em; }
 
-/* A thread card's title. Sized to the card, not to the page: a thread-card h1
-   at document scale would shout over the fragments beside it in the feed. */
-.thread-card-title { font-size: 1.15rem; line-height: 1.25; margin: 0 0 0.35rem; }
-/* How many items this thread quotes. The card shows the author's prose only,
-   so this is what says the item is longer than the teaser. */
-.thread-card .quote-count { font: var(--apparatus); color: var(--pencil); margin-right: 0.15rem; }
-.thread-card .card-responds { color: var(--ink-soft); font-style: italic; }
 /* A titled item's heading is its link; it should read as the heading, with the
  * link only showing on hover, rather than as a blue headline. */
 .blyg a.item-title { color: inherit; text-decoration: none; }
@@ -472,6 +477,14 @@ export const VERSION_NAV_SCRIPT = `
  * the item was actually written in.
  */
 (function () {
+  // Feed-page thread cards: fade the bottom edge only when the clip actually
+  // cuts something off, so a short thread is never dimmed (session 30). Runs
+  // before the version-line early return below, which a feed can trip.
+  var clips = document.querySelectorAll(".card-clip");
+  for (var c = 0; c < clips.length; c++) {
+    if (clips[c].scrollHeight > clips[c].clientHeight + 1) clips[c].classList.add("clipped");
+  }
+
   var lines = document.querySelectorAll(".version-line[data-item]");
   if (!lines.length || !window.fetch) return;
 
@@ -922,60 +935,44 @@ function parseTransclusions(json: string | null | undefined): Transclusion[] {
 }
 
 /**
- * A thread on the feed page is a teaser, not the thread: long-form items would
- * otherwise crowd out everything else in a mixed stream. That is why this
- * renders a plain-text excerpt rather than the item's HTML.
+ * A thread on the feed page shows the top of its own page: the same HTML the
+ * permalink renders, with the same provenance lines on its quotes, cut off at
+ * a fixed height and continued by "read the thread". Session 30, Venkat: the
+ * card should be "as much of the detail page view as will fit in the feed
+ * view, with the same formatting".
  *
- * Which is also why a titled thread used to lose its title (session 28,
- * reported by Venkat). A fragment card renders real HTML and gets
- * `linkLeadingTitle`; a thread card renders escaped text, so a leading `<h1>`
- * arrived as the first words of the excerpt — unstyled, unlinked, and
- * duplicated by the "read the thread" line beneath it. The asymmetry was an
- * accident of the two renderers, not a decision.
+ * **This reverses session 28's plain-text teaser, deliberately.** That teaser
+ * existed because long threads crowded a mixed stream, and its later fixes
+ * (author's prose only, heading split off) existed because flattening HTML to
+ * text welded a quoted sentence onto the author's own with no boundary. The
+ * fixed-height clip answers the first; rendering the real HTML answers the
+ * second, since a quote is then a blockquote with a provenance line naming
+ * whose it is, exactly as on the thread's own page.
  *
- * Split the heading off instead: it becomes the link, and the excerpt starts
- * from the text after it, so the title is no longer also the first sentence.
- *
- * **Presentation only, and it has to be.** Decision #46 rules there is no
- * title field at any version, items stay titleless (§5.3), and a *reader*
- * MUST NOT extract a title from a leading heading — inventing structure the
- * publisher did not assert is exactly what that rule prevents. What a client
- * does with its own pages is its own business, and #46 says so in as many
- * words: "the 'linked title' wish is a studio task". Nothing here touches
- * `content_html`, the item JSON, the feed or the static export; all of them
- * keep the bare heading.
+ * The title rule is unchanged (#46: presentation only, the wire keeps the bare
+ * heading): a leading heading is linked to the thread by `linkLeadingTitle`,
+ * the same helper the fragment card uses.
  */
 async function threadCard(db: D1Database, item: ItemRow, mount: string, tz: string): Promise<string> {
   const latest = await publishedVersion(db, item);
-  const html = latest?.content_html ?? "";
   const href = `${mount}/t/${item.id}/`;
-  // The teaser is the author's prose. Before this it was a flat excerpt of the
-  // whole item, so a thread that opened with a quote — the shape the stub
-  // action prefills — advertised the quoted person's sentence as its own, and
-  // one that quoted mid-way ran the two together with no boundary at all.
-  const own = authorOwnHtml(html);
-  const quoted = parseTransclusions(latest?.transclusions).length;
-  const { title, rest } = leadingHeading(own);
-  const titleLine = title
-    ? `<h1 class="thread-card-title"><a class="item-title" href="${href}">${escapeHtml(title)}</a></h1>`
-    : "";
-  const ownText = excerptFromHtml(rest, 300);
-  // A quote count, the same disclosure the studio's index rows have always
-  // made: the card is shorter than the item, and this says why.
-  const quoteChip = quoted
-    ? `<span class="quote-count" title="${quoted} quoted ${quoted === 1 ? "item" : "items"}">⧉${quoted}</span> `
-    : "";
-  // Said nothing of its own (rare, but legal). Naming what it answers is true;
-  // borrowing the quoted sentence to fill the space is the bug, not the fix.
-  const teaser = ownText
-    ? escapeHtml(ownText)
-    : `<span class="card-responds">${escapeHtml(respondsToLabel(latest) || "A quoted item.")}</span>`;
+  const transclusions = parseTransclusions(latest?.transclusions);
+  const html = injectProvenance(latest?.content_html ?? "", await transclusionProvenance(db, transclusions, mount));
+  const media = await listMediaForItem(db, item.id);
+  // The kind line is apparatus, on its own line above the item, never inline
+  // with the author's first sentence (session 30). The quote count says what
+  // the card may be cutting off.
+  const quoted = transclusions.length;
+  const kindLine = `<p class="card-kind">thread${quoted ? ` <span class="quote-count">· ${quoted} quoted</span>` : ""}</p>`;
   return `<article class="fragment thread-card">
 ${stubCitation(latest, tz, { compact: true })}
 ${forkLineage(item, tz, { compact: true })}
-${titleLine}
-<p><span class="kind-chip">thread</span> ${quoteChip}${teaser}</p>
-<p><a href="${href}">read the thread →</a></p>
+${kindLine}
+<div class="item-content card-clip">
+${linkLeadingTitle(html, href)}
+</div>
+${mediaHtml(media, mount)}
+<p class="read-more"><a href="${href}">read the thread →</a></p>
 ${itemMeta(item, latest?.note ?? null, await pinnedVersions(db, item.id), mount, true, tz)}
 </article>`;
 }

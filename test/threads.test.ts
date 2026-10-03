@@ -202,7 +202,8 @@ describe("threads & transclusion (§2.9)", () => {
     const threadId = await createThread(cookie, `intro text\n\n![[${f1}]]`);
     await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
     const html = await (await getPublic("/blyg/")).text();
-    expect(html).toContain("kind-chip");
+    expect(html).toContain('class="card-kind"');
+    expect(html).toContain('class="item-content card-clip"');
     expect(html).toContain(`/blyg/t/${threadId}/`);
     expect(html).toContain("read the thread");
   });

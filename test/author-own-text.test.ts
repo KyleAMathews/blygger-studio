@@ -15,6 +15,13 @@
 //
 // The studio's index rows had always been correct. These tests exist so the
 // public ones cannot drift back.
+//
+// Session 30 changed the *feed card* half (Venkat): the card now renders the
+// top of the thread's own page — real HTML, quotes as blockquotes with their
+// provenance line — instead of a plain-text teaser. Quoted words therefore DO
+// appear on the card again, but only where the page shows them: inside the
+// transclusion blockquote, never in the author's prose around it. The one-line
+// surfaces (title, og:title, RSS headline, archive row) are unchanged.
 import { describe, expect, it } from "vitest";
 import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
 
@@ -40,6 +47,16 @@ async function cardFor(id: string): Promise<string> {
 
 const tag = (html: string, re: RegExp) => re.exec(html)?.[1] ?? "";
 
+/** The card with every transclusion blockquote cut out — the author's own prose and apparatus. */
+function outsideQuotes(card: string): string {
+  let out = "", depth = 0, last = 0;
+  for (const m of card.matchAll(/<blockquote\b[^>]*>|<\/blockquote>/g)) {
+    if (m[0].startsWith("</")) { depth--; if (depth === 0) last = m.index! + m[0].length; }
+    else { if (depth === 0) out += card.slice(last, m.index); depth++; }
+  }
+  return out + card.slice(last);
+}
+
 describe("a thread that opens with a quote", () => {
   // The shape `POST /api/stubs` prefills, so it is the common case, not an
   // edge one.
@@ -51,11 +68,14 @@ describe("a thread that opens with a quote", () => {
     return { cookie, target, thread };
   }
 
-  it("the feed card teases the author's prose, not the quoted sentence", async () => {
+  it("the feed card shows the quote as a quote, with provenance, and the author's prose outside it", async () => {
     const { thread } = await setup();
     const card = await cardFor(thread);
-    expect(card).toContain("My own commentary");
-    expect(card).not.toContain("Their sentence");
+    expect(card).toContain("blyg-transclusion");
+    expect(card).toContain('class="provenance"');
+    expect(card).toContain("Their sentence");
+    expect(outsideQuotes(card)).toContain("My own commentary");
+    expect(outsideQuotes(card)).not.toContain("Their sentence");
   });
 
   it("the page title and og:title are the author's words", async () => {
@@ -113,11 +133,13 @@ describe("a thread that quotes mid-way", () => {
     const target = await createAndPublish(cookie, THEIRS);
     const thread = await publishThread(cookie, `${MINE}\n\n![[${target}]]\n\nAnd a closing line.`);
     const card = await cardFor(thread);
-    expect(card).toContain("My own commentary");
-    expect(card).toContain("And a closing line.");
     // The defect: a flat excerpt welded "…this thread actually says. Their
-    // sentence, which the author…" into one paragraph with no boundary.
-    expect(card).not.toContain("Their sentence");
+    // sentence, which the author…" into one paragraph with no boundary. The
+    // card now keeps the boundary the page has: the quote is in its blockquote.
+    expect(outsideQuotes(card)).toContain("My own commentary");
+    expect(outsideQuotes(card)).toContain("And a closing line.");
+    expect(outsideQuotes(card)).not.toContain("Their sentence");
+    expect(card).toContain("Their sentence");
   });
 });
 
@@ -128,8 +150,7 @@ describe("the card says how much it is not showing", () => {
     const b = await createAndPublish(cookie, "second quoted thing");
     const thread = await publishThread(cookie, `${MINE}\n\n![[${a}]]\n\n![[${b}]]`);
     const card = await cardFor(thread);
-    expect(card).toContain('class="quote-count"');
-    expect(card).toContain("⧉2");
+    expect(card).toContain('<p class="card-kind">thread <span class="quote-count">· 2 quoted</span></p>');
   });
 
   it("omits the count when a thread quotes nothing", async () => {
@@ -158,10 +179,10 @@ describe("a thread with nothing of its own to say", () => {
     return id;
   }
 
-  it("names what it answers rather than borrowing the quoted sentence", async () => {
+  it("names what it answers, and shows the quote only as a quote", async () => {
     const card = await cardFor(await quoteOnlyStub());
     expect(card).toContain("In response to");
-    expect(card).not.toContain("Their sentence");
+    expect(outsideQuotes(card)).not.toContain("Their sentence");
   });
 
   it("does the same in the page title", async () => {

@@ -27,15 +27,16 @@ describe("a titled thread on the feed page", () => {
     expect(html).toContain(`<a class="item-title" href="/blyg/t/${id}/">On stigmergy</a>`);
   });
 
-  it("drops the heading from the excerpt, so the title is not also the first sentence", async () => {
+  it("shows the heading once, as the title, with the body after it", async () => {
     const cookie = await login();
     await publishThread(cookie, "# On stigmergy\n\nTrails are left by walking.");
     const html = await (await getPublic("/blyg/")).text();
     const card = /<article class="fragment thread-card">([\s\S]*?)<\/article>/.exec(html);
     expect(card, "no thread card").not.toBeNull();
-    const excerpt = /<span class="kind-chip">thread<\/span>([^<]*)</.exec(card![1]);
-    expect(excerpt![1]).toContain("Trails are left by walking");
-    expect(excerpt![1]).not.toContain("On stigmergy");
+    expect(card![1].split("On stigmergy").length - 1).toBe(1);
+    expect(card![1]).toContain("<p>Trails are left by walking.</p>");
+    // The kind label is its own line, not glued to the first sentence (session 30).
+    expect(card![1]).toContain('<p class="card-kind">thread</p>');
   });
 
   it("leaves an untitled thread exactly as it was", async () => {
