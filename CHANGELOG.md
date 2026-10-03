@@ -18,6 +18,30 @@ not have its own repo until session 26.
 
 ---
 
+## 0.13.0 — 2026-10-03
+
+**Migrations: none.**
+
+**Text generated somewhere else can be disclosed as generated** (decision #37,
+spec §5.7 rule 7). Paste the text, select it in the editor, and click *mark
+selection as generated*. You can also type the wrap yourself:
+
+```
+[TK]impyrt=the pasted text[/TK]
+[TK]impyrt claude-opus-5=the pasted text[/TK]
+```
+
+The text publishes as written, in a `blyg-tk-gen` span, with a `generated[]`
+entry whose `sources` is empty ("no sources declared"). `model` appears only if
+you wrote one, and there is never an `at`: the studio cannot know when someone
+else's model produced the text. There is no "external" marker, because the
+claim is that the prose is machine-generated, not where the model ran.
+
+An `impyrt` scope's provenance comes from its own grammar, not from the
+position-indexed record that generated scopes use. So adding or reordering other
+scopes cannot move its disclosure onto the wrong span. It is never regenerated,
+and a `![[id]]` inside it is not read as a source reference.
+
 ## 0.12.0 — 2026-10-03
 
 **Migrations: none.**

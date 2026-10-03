@@ -1,13 +1,14 @@
 import { plainTextFromHtml, renderMarkdown } from "./markdown.ts";
 import { clampText } from "./preview.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, previewStrip, type TkScope } from "./tk.ts";
-export function scopeSummaries(scopes: TkScope[]): { index: number; instruction: string; output: string | null; hasOutput: boolean; block: boolean }[] {
+export function scopeSummaries(scopes: TkScope[]): { index: number; instruction: string; output: string | null; hasOutput: boolean; block: boolean; imported: boolean }[] {
   return scopes.map((s, index) => ({
     index,
     instruction: s.instruction,
     output: s.output === null ? null : clampText(plainTextFromHtml(renderMarkdown(s.output)), 60),
     hasOutput: s.output !== null,
     block: s.block,
+    imported: !!s.imported,
   }));
 }
 

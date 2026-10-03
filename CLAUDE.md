@@ -153,6 +153,8 @@ saying so.
 
 ## Status
 
+**0.13.0** (session 32, 2026-10-03): `[TK]impyrt=…[/TK]` — pasted generated text disclosed as generated (decision #37), with a *mark selection as generated* button. No migration.
+
 **0.12.0** (session 32, 2026-10-03): stale-quote detection and one-click refresh — a *quoted snapshots* panel on the thread editor, a notice on compose listing threads whose quotes are behind, and `GET /freshness`, `GET /items/{id}/freshness`, `POST /items/{id}/refresh` (decision #33's direct check; #38's detect-always, refresh-on-decision). No migration. 757 Worker + 6 UI-state + 128 browser tests.
 
 **0.11.1** (session 32, 2026-10-03), released and deployed: Kyle Mathews' #25 batches the public homepage's reads (≈300 D1 queries for 100 cards → 5–7) and migration **0014** adds four indexes, applied to both D1s first. Live time to first byte fell from ~4.2s to ~0.35s on venkateshrao and ~1.9s to ~0.3s on PI.
@@ -288,7 +290,7 @@ was specified to do in both cases.
   target's `page` (remote: origin + page), anchor text is ours to choose. Unresolvable is a
   publish error. **No** `transclusions[]` entry, **no** mention, **no** wire class — it is
   invisible on the wire by ruling, not by omission.
-- [ ] **`[TK]impyrt=<text>[/TK]` in the composer** (decision #37, spec §5.7 rule 7): a
+- [x] **`[TK]impyrt=<text>[/TK]` in the composer** — **done 0.13.0 (session 32)**: parsed in `tk.ts` with its provenance carried by the grammar (`imported`), so it never touches the positional cache; *mark selection as generated* in the editor; generate refuses it. Original entry: (decision #37, spec §5.7 rule 7): a
   studio-private TK form whose output is the pasted text verbatim, wrapped as an ordinary
   `blyg-tk-gen` span, with a `generated[]` entry carrying `sources: []` and `model`/`at`
   only if the author supplies them. No new wire member and no "external" flag. The

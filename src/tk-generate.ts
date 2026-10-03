@@ -25,6 +25,7 @@ export async function runGenerateScope(
   }
   const scope = scopes[scopeIndex];
   if (!scope) return { ok: false, status: 400, body: { error: "unknown scope index" } };
+  if (scope.imported) return { ok: false, status: 400, body: { error: "an impyrt scope holds text generated elsewhere; it is not regenerated here" } };
 
   const sources: { id: string; version: number; content_md: string }[] = [];
   for (const id of scope.sourceIds) {

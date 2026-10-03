@@ -6676,6 +6676,9 @@
                           },
                           "block": {
                             "type": "boolean"
+                          },
+                          "imported": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -6683,7 +6686,8 @@
                           "instruction",
                           "output",
                           "hasOutput",
-                          "block"
+                          "block",
+                          "imported"
                         ]
                       }
                     },

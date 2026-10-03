@@ -136,3 +136,32 @@ test("stale quotes are listed, explained, and refreshed as one republish", async
   expect(doc.changelog.at(-1).note).toBe("refreshed quoted snapshots");
   expect(errors).toEqual([]);
 });
+
+test("pasted generated text is marked from a selection and published disclosed", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/studio/login");
+  await page.locator('[name="password"]').fill("test-password");
+  await page.getByRole("button", { name: "log in", exact: true }).click();
+  const pasted = `A model wrote this ${Date.now()}.`;
+  await page.locator("#composer-text").fill(`Mine first. ${pasted} Mine after.`);
+  await page.locator("#composer-full").click();
+  const input = page.locator("#md-input");
+  await expect(input).toHaveValue(`Mine first. ${pasted} Mine after.`);
+  await input.evaluate((el: HTMLTextAreaElement, text) => {
+    const start = el.value.indexOf(text);
+    el.focus();
+    el.setSelectionRange(start, start + text.length);
+  }, pasted);
+  await page.locator("#tk-impyrt-btn").click();
+  await expect(input).toHaveValue(`Mine first. [TK]impyrt=${pasted}[/TK] Mine after.`);
+  await expect(page.locator(".tk-imported")).toBeVisible();
+  await expect(page.locator(".save-state")).toHaveText("saved");
+  await page.locator("#publish-btn").click();
+  await expect(page.locator('[data-action="view-version"]')).toBeVisible();
+  const id = new URL(page.url()).pathname.split("/").pop();
+  const doc = await page.evaluate(async (id) => (await fetch(`/items/${id}.json`)).json(), id);
+  expect(doc.content_html).toContain(`<span class="blyg-tk-gen">${pasted}</span>`);
+  expect(doc.generated).toEqual([{ sources: [] }]);
+  expect(errors).toEqual([]);
+});

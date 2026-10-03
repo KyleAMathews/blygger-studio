@@ -2487,6 +2487,7 @@ export type PreviewResponses = {
             output: string | null;
             hasOutput: boolean;
             block: boolean;
+            imported: boolean;
         }>;
         link_errors?: Array<{
             id?: string;

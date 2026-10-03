@@ -300,7 +300,13 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
     throw new FragmentTooLongError(strippedMd.length, FRAGMENT_MAX_CHARS);
   }
 
-  const provenanceCache = getTkProvenance(item);
+  // An `impyrt` scope carries its provenance in the grammar (decision #37):
+  // generated elsewhere, so no sources are declared and `model` appears only if
+  // the author wrote it. Never `at` — when it was generated is not known here.
+  const cache = getTkProvenance(item);
+  const provenanceCache: (ScopeProvenance | null)[] = scopes.map((s, i) =>
+    s.imported ? { sources: [], ...(s.imported.model ? { model: s.imported.model } : {}) } : cache[i] ?? null,
+  );
   const hasProvenance = scopes.map((_, i) => provenanceCache[i] != null);
   const annotated = annotateGenerated(strippedMd, spans, hasProvenance);
 

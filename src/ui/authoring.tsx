@@ -3,7 +3,7 @@ import { useLiveQuery } from '@tanstack/react-db';
 import { Link, useNavigate, useBlocker } from '@tanstack/react-router';
 import { formatDateIn } from '../dates.ts';
 import { renderMarkdown } from '../markdown.ts';
-import { parseScopes, previewStrip } from '../tk.ts';
+import { markImported, parseScopes, previewStrip } from '../tk.ts';
 import { extractDirectives } from '../directives.ts';
 import { previewFromHtml } from '../preview.ts';
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
@@ -903,18 +903,47 @@ function Editor({ item }: { item: Detail }) {
             >
               generate whole fragment…
             </Button>
-          ) : null}
+          ) : null}{' '}
+          <Button
+            id="tk-impyrt-btn"
+            className="link"
+            disabled={replacing}
+            title="Wrap the selected text as machine-generated text from another tool"
+            onClick={() => {
+              const el = input.current;
+              if (!el) return;
+              const value = draft.current!.text;
+              const [from, to] = [el.selectionStart, el.selectionEnd];
+              if (from === to) {
+                window.alert(
+                  'Select the pasted generated text first, then mark it.',
+                );
+                return;
+              }
+              edit(markImported(value, from, to));
+            }}
+          >
+            mark selection as generated
+          </Button>
         </h2>
         <ul>
           {preview?.scopes.map((scope) => (
             <li key={scope.index} className="tk-scope-row">
-              <span className="tk-instruction">{scope.instruction}</span>
-              <Button
-                disabled={action.busy}
-                onClick={() => operation(() => generate(scope.index))}
-              >
-                {scope.hasOutput ? 'regenerate' : 'generate'}
-              </Button>
+              {scope.imported ? (
+                <span className="tk-instruction tk-imported">
+                  generated elsewhere — disclosed, not regenerated
+                </span>
+              ) : (
+                <>
+                  <span className="tk-instruction">{scope.instruction}</span>
+                  <Button
+                    disabled={action.busy}
+                    onClick={() => operation(() => generate(scope.index))}
+                  >
+                    {scope.hasOutput ? 'regenerate' : 'generate'}
+                  </Button>
+                </>
+              )}
             </li>
           ))}
         </ul>
