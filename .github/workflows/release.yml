@@ -1,7 +1,11 @@
 name: Release
+# Releases are cut by pushing a tag (git tag v0.10.0 && git push origin v0.10.0),
+# not by every push to main: doc-only commits land on main routinely, and
+# `npm run upgrade` and the update alert follow release tags, so a release is
+# what reaches other operators' nodes. The tag must name package.json's version.
 on:
   push:
-    branches: [main]
+    tags: ["v*.*.*"]
 concurrency:
   group: publish-release
   cancel-in-progress: false
@@ -28,6 +32,10 @@ jobs:
         id: version
         run: |
           version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $version" >&2
+            exit 1
+          fi
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
       - run: npm run sdk:generate
       - run: npm run typecheck

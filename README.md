@@ -245,12 +245,13 @@ Keep your fork's `CLIENT` name if you changed it.
 
 ### Publishing a release
 
-Each merge to `main` runs release CI and, after checks pass, creates `v{version}`
-at that commit and publishes the downloads. There is no manual tag push.
-Before merging, bump `package.json`, the root versions in `package-lock.json`,
+A release is cut by pushing a `v{version}` tag. Release CI runs the full checks
+and then publishes the downloads at that tag. Merges to `main` do not release.
+Before tagging, bump `package.json`, the root versions in `package-lock.json`,
 and `CLIENT.version` in `src/client.ts`. Add a matching changelog entry with a
 **Migrations:** line. Bump `sdk/package.json` when its public API changes.
-PR CI rejects a version that is not newer than existing release tags.
+Release CI rejects a tag that does not match `package.json`, or a version that
+is not newer than existing release tags.
 
 GitHub Actions must be enabled and allow the release job's `contents: write`
 permission. CI checks types, contract/SDK drift, Worker and browser tests, and

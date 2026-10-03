@@ -18,4 +18,4 @@ for (const tag of tags) {
 }
 const entry = readFileSync("CHANGELOG.md", "utf8").split(/^## /m).find(section => section.startsWith(`${version} —`));
 if (!entry || !/Migrations:/i.test(entry)) throw new Error(`Add a ${version} changelog entry with an explicit Migrations: line`);
-console.log(`v${version} is ready for an automatic release on merge`);
+console.log(`v${version} is ready to release from its tag`);
