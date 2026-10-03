@@ -114,8 +114,27 @@ OpenAPI 3.1 → `openapi.json`, served to the owner at `/api/openapi.json`), res
 generated SDK. The pre-0.10 routes (`PUT /items/:id`, `/fork`, `/stubs`, `/items/:id/pin`,
 `PUT …/responses`, pause/resume, …) were removed with **no aliases** — Venkat accepted the
 break (session 30). Kyle's phase 3 (`docs/migration.md` §3: ecosystem clients, then OAuth and
-MCP) is **⚠️ FABLE before it starts**: OAuth goes beyond #31's fixed token direction and MCP is
-#39's agent contract.
+MCP) **was ruled session 31 (2026-10-03, decision #52): it proceeds, and Kyle builds 2.9.**
+OAuth is a way of *minting* #31's tokens (IndieAuth is what Micropub itself uses), and MCP is
+a transport for the contract, not a second one. **Review his auth PR against these four
+invariants before merging; Opus reviews and does not build tokens:**
+
+1. **One token model.** OAuth mints #31's tokens — scoped, listed, per-token revoke and
+   revoke-all in the studio; the password is typed only on the studio's own login page. A
+   manual mint-and-paste path exists beside the flow (CLI tools, crons and the reference
+   agent have no browser).
+2. **No `.well-known`, no manifest key.** `/.well-known/` is host-rooted and breaks a
+   path-mounted blyg (`venkateshrao.com/blyg/` is one); discovery is the HTML `rel` link on
+   the studio page and the metadata lives under the mount. Nothing reaches `blyg.json`.
+3. **Scopes:** a read scope for studio-private material; publishing a distinct verb from
+   drafting; no refresh-only scope (#38). Names are his; studio#11 lists the measured demand.
+4. **MCP:** same operations, same scopes, a token like any tool. Text written through it is
+   disclosed via client-recorded provenance (`tk-provenance`, studio#11) with `sources` in
+   the spec's §5.9 reference shape. Polling, not webhooks.
+
+Password reset rides with his auth middleware (#31: after tokens, MUST offer revoke-all).
+Upstreaming Blygger Desktop's reading-rows and read-state extensions is fine — studio-private.
+Reasoning: `../blygger-spec/docs/v0.4-plan.md` §8.1.
 
 Auth is unchanged by all of the above: one owner cookie (`verifySession`, a 30-day HMAC over a single shared
 `OWNER_PASSWORD`). There is exactly one principal and no scopes, tokens, revocation or
@@ -180,6 +199,11 @@ block below.
 was specified to do in both cases.
 
 ### Bugs
+
+- [ ] **`[[id]]` must be inert inside code spans and code blocks** (session 31, spec decision
+  #54 on blygger-spec#4): §10.1 now gives the link form the same exemption the directive
+  always had. studio#4 covers both forms. Fix both in one pass in the renderer and in the
+  preview; a code block that quotes the grammar must publish as literal text.
 
 - [x] ~~**Reader view doesn't roll up entries**~~ — **dropped session 30 (Venkat): a
   mistaken diagnosis**, not a bug. Nothing to build.
@@ -456,6 +480,16 @@ Deferred when the session wrapped, not blocked on anything.
   heading into its body, which is the fourth naming surface #46 did not reach.
 
 ### New features
+
+- [ ] **`cited` on `{url}` stubs** (session 31, decision #55; spec §16.1a — a ruled shape,
+  normative once this ships and an import retains it): when a stub targets a plain URL, emit
+  the §5.9 `cited` object on `stub_of` — `retrieved` always; `source`, `author`, `excerpt`
+  (≤ ~200 chars, a caption) and `url` when the page offers them. The pour-over-links
+  affordance (studio#17) is the natural producer. Importer: assert `cited` survives on a
+  `{url}` stub. The cross-node exercise opens gate G10.
+- [ ] **`page` never changes for an item** (session 31, decision #56; spec §5.8 SHOULD): the
+  client already emits a fixed `f/{id}/`·`t/{id}/`; add the assertion so slug work
+  (studio#19) cannot break it, and if slugs ever ship, a renamed slug keeps a redirect.
 
 - [ ] **Reset the owner password in settings.** **Design is fixed (decision #31), build with
   or after tokens:** a reset rotates the root secret and invalidates sessions; tokens are
