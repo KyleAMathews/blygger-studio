@@ -321,6 +321,9 @@ test('whole-fragment TK wrapping keeps text and publication warnings remain visi
 test('quote selection rejects cross-entry ranges and accepts an entry excerpt', async ({ page }) => {
   await login(page); await page.goto('/studio/reading?sub=parity-native');
   const native = page.locator('.reading-entry').filter({ hasText: 'Native title' });
+  // The range below spans the first two entries' text; wait until both have
+  // rendered, or evaluateAll can run against an empty list (flaked locally).
+  await expect(page.locator('.reading-entry .content').nth(1)).not.toBeEmpty();
   await page.locator('.reading-entry .content').evaluateAll(nodes => {
     const texts = nodes.map(node => { const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT); return walker.nextNode()!; });
     const range = document.createRange(); range.setStart(texts[0], 0); range.setEnd(texts[1], Math.min(5, texts[1].textContent!.length));
