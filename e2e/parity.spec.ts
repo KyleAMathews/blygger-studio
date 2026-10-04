@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { answerSheet } from './sheets.ts';
+import { editorMenu, expandRow, openCard } from './editor.ts';
 async function login(page: Page) {
   await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
   await page.getByRole('button', { name: 'log in', exact: true }).click();
@@ -44,7 +45,7 @@ for (const kind of ['fragment', 'thread'] as const) test(`${kind} discard change
     return item.id as string;
   }, kind);
   await page.goto(`/studio/edit/${id}`);
-  await page.locator('[data-action=discard-changes]').click();
+  await editorMenu(page, 'discard changes');
   await answerSheet(page, { name: /^Discard unpublished changes and go back to the published v1\?/ });
   await expect(page.locator('#md-input')).toHaveValue('published text');
   expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ version: 1, dirty: true, content_md: 'published text' });
@@ -55,7 +56,7 @@ test('quick edit retains markdown and persists without leaving compose', async (
   const selected = page.locator('.item-row').filter({ hasText: 'Quick draft' }).first();
   await expect(selected).toBeVisible();
   const id = await selected.getAttribute('data-id');
-  const row = page.locator(`.item-row[data-id="${id}"]`);
+  const row = await expandRow(page, id!);
   await expect(row).not.toContainText('**Quick draft**');
   await row.getByRole('button', { name: 'quick edit', exact: true }).click();
   await expect(row.getByRole('textbox', { name: 'quick edit' })).toHaveValue('**Quick draft**');
@@ -149,7 +150,7 @@ test('palette pages all candidates and applies bracket grammar in each composer'
   await page.locator('#composer-text').fill(`![[${token}`);
   await expect(page.getByRole('listbox')).toHaveCount(0);
   await page.locator('#composer-text').fill('thread picker');
-  await page.locator('[name=composer-kind][value=thread]').check();
+  await page.getByRole('radio', { name: 'thread', exact: true }).click();
   await page.locator('#composer-full').click();
   await page.locator('#md-input').fill(`![[${token}`);
   await expect(page.getByRole('option')).toHaveCount(20);
@@ -160,21 +161,28 @@ test('palette pages all candidates and applies bracket grammar in each composer'
 
 test('editor kind, discard, pinned history and TK controls retain their contracts', async ({ page }) => {
   await login(page);
-  await expect(page.locator('[name=composer-kind][value=fragment]')).toBeChecked();
+  await expect(page.getByRole('radio', { name: 'fragment', exact: true })).toBeChecked();
   await page.locator('#composer-text').fill('plain draft');
   await expect(page.getByRole('button', { name: 'generate in editor →' })).toHaveCount(0);
   await page.locator('#composer-text').fill('[TK]instruction[/TK]');
   await expect(page.getByRole('button', { name: 'generate in editor →' })).toBeVisible();
   await page.locator('#composer-full').click();
   await expect(page.locator('#tk')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'discard draft', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'more actions' }).click();
+  await expect(page.getByRole('dialog', { name: 'actions' }).getByRole('button', { name: 'discard draft', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'actions' })).toHaveCount(0);
   await expect(page.locator('[data-action=switch-kind]')).toBeVisible();
   await page.locator('#md-input').fill('No transclusions');
   await page.locator('[data-action=switch-kind]').click();
   await expect(page.locator('[data-action=switch-kind]')).toContainText('make this a fragment');
   await page.locator('#publish-btn').click();
   await expect(page.locator('[data-action=switch-kind]')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'discard draft', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'more actions' }).click();
+  await expect(page.getByRole('dialog', { name: 'actions' }).getByRole('button', { name: 'withdraw', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'actions' }).getByRole('button', { name: 'discard draft', exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await openCard(page, 'history');
   await page.locator('[data-action=pin]').click();
   await answerSheet(page, { name: /^Pin v1\? This is irrevocable/ });
   const pinned = page.getByRole('link', { name: '📌 pinned', exact: true });
@@ -182,7 +190,7 @@ test('editor kind, discard, pinned history and TK controls retain their contract
   expect((await page.request.get((await pinned.getAttribute('href'))!)).status()).toBe(200);
   const id = new URL(page.url()).pathname.split('/').at(-1)!;
   await page.getByRole('link', { name: '← compose', exact: true }).click();
-  const row = page.locator(`.item-row[data-id="${id}"]`);
+  const row = await expandRow(page, id);
   await expect(row.locator('.version-summary')).toContainText('1 version');
   await expect(row.locator('.pin-chips a')).toHaveAttribute('href', /\/t\/[^/]+\/v1\/$/);
 });
@@ -306,6 +314,7 @@ test('fork picker refreshes pinned versions after a client navigation', async ({
   await page.locator('#composer-text').fill('First pinned text');
   await page.locator('#composer-full').click();
   await page.locator('#publish-btn').click();
+  await openCard(page, 'history');
   await page.locator('[data-action=pin]').click();
   await answerSheet(page, { name: /^Pin v1\?/ });
   const editor = page.url();
@@ -315,6 +324,8 @@ test('fork picker refreshes pinned versions after a client navigation', async ({
   await expect(page).toHaveURL(editor);
   await page.locator('#md-input').fill('Second pinned text');
   await page.locator('#publish-btn').click();
+  await expect(page.locator('[data-action=view-version]')).toHaveCount(2);
+  await openCard(page, 'history');
   await page.locator('[data-action=pin]').click();
   await answerSheet(page, { name: /^Pin v2\?/ });
   await page.getByRole('link', { name: 'fork', exact: true }).first().click();
@@ -357,6 +368,7 @@ test('palette keeps results on failure and rejects late results for an old query
 test('whole-fragment TK wrapping keeps text and publication warnings remain visible', async ({ page }) => {
   await login(page); await page.locator('#composer-text').fill('Current fragment');
   await page.locator('#composer-full').click();
+  await openCard(page, 'tk');
   await page.locator('#tk-generate-whole-btn').click();
   await answerSheet(page, { name: 'Instruction for the whole fragment:', text: 'Rewrite this' });
   await expect(page.locator('#md-input')).toHaveValue('[TK]Rewrite this[=]Current fragment[/TK]');

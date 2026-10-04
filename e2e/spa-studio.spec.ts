@@ -27,8 +27,10 @@ test('SPA creates, edits, previews and publishes without document navigation', a
   await page.locator('#md-input').fill('React **round trip**');
   await expect(page.locator('#preview-body strong')).toHaveText('round trip');
   await page.locator('#publish-btn').click();
-  await expect(page.locator('[data-action=view-version]')).toBeVisible();
+  await expect(page.locator('[data-action=view-version]')).toHaveCount(1);
   expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ version: 1, content_md: 'React **round trip**' });
+  // The editor has no tab bar (PWA phase 2A): back to compose, then reading.
+  await page.getByRole('link', { name: '← compose', exact: true }).click();
   await page.getByRole('link', { name: 'reading', exact: true }).click();
   await expect(page.locator('.reading-entry').first()).toBeVisible();
   const entry = page.locator('.reading-entry').filter({ has: page.locator(`a[href$="/edit/${id}"]`) });

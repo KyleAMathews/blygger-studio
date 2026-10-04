@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { expandRow } from './editor.ts';
 import { answerSheet } from './sheets.ts';
 async function login(page: Page) {
   await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
@@ -59,7 +60,7 @@ test('a confirm sheet cancels, dismisses with Escape, and resolves on accept', a
   const marker = `Sheet fixture ${test.info().project.name} ${Date.now()}`;
   const id = await page.evaluate(async marker => (await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: marker }) })).json()).id as string, marker);
   await page.reload();
-  const row = page.locator(`.item-row[data-id="${id}"]`);
+  const row = await expandRow(page, id);
   const exists = () => page.evaluate(async id => (await fetch(`/api/items/${id}`)).status, id);
   await row.getByRole('button', { name: 'discard', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'Discard this unpublished draft?' });

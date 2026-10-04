@@ -300,61 +300,10 @@ main.login .btn { width: 100%; }
  * LEGACY SCREEN RULES — the screens later phases redesign. Kept working on
  * the new tokens; move or replace them with the screen's own stylesheet.
  * ====================================================================== */
-.stub-head { margin: 0 0 0.75rem; font-size: 0.9rem; color: var(--ink-soft); }
-.stub-head a { color: inherit; }
-.stub-head button.link { margin-left: 0.5rem; opacity: 0.8; }
-.composer { border: 1px solid var(--rule); border-radius: 10px; padding: 0.75rem; margin-bottom: 1rem; background: var(--card); }
-.composer textarea { width: 100%; min-height: 5.5rem; border: none; resize: vertical; font: inherit; background: transparent; outline: none; box-shadow: none; padding: 0; color: inherit; }
-.composer .bar { display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; font-size: 0.85rem; flex-wrap: wrap; gap: 0.5rem; }
-.count { opacity: 0.6; }
-.count.over { color: var(--alert); opacity: 1; }
-.kind-toggle { display: inline-flex; align-items: center; gap: 0.75rem; }
-.kind-toggle label { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; }
-.kind-toggle input { margin: 0; accent-color: var(--pencil); }
-.kind-hint { color: var(--ink-soft); font-size: 0.8rem; }
-.save-state { color: var(--ok); font-size: 0.8rem; margin-right: 0.3rem; }
-.quick-edit { margin: 0.5rem 0 0.2rem; border: 1px solid var(--rule-strong); border-radius: 8px; padding: 0.6rem; background: var(--sunk); }
-.quick-edit textarea { width: 100%; min-height: 5rem; border: none; resize: vertical; font: inherit; background: transparent; outline: none; box-shadow: none; padding: 0; color: inherit; }
-.qe-bar { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.4rem; }
-.qe-bar a { text-decoration: none; }
-.item-row button.active { border-color: var(--pencil); color: var(--pencil); }
 .compose-help { font-size: 0.8rem; opacity: 0.65; margin: 0 0 0.5rem; }
 .compose-help code { font-size: 0.95em; }
-.item-row { border-top: 1px solid var(--rule); border-left: 3px solid transparent; padding: 0.75rem 0.5rem 0.75rem 0.6rem; margin-left: -0.6rem; }
-.item-row .state { font-size: 0.8rem; margin-right: 0.4rem; }
-.item-row .state.pub { color: var(--ok); }
-.item-row .state.draft { opacity: 0.5; }
-.item-row .excerpt { margin: 0 0 0.3rem; }
-.item-row .excerpt.has-title { margin-bottom: 0.1rem; }
-.item-row .excerpt-title { font-weight: 600; }
-.item-row .excerpt-body { margin: 0 0 0.3rem; opacity: 0.8; font-size: 0.95rem; }
 .tc-chip { font-size: 0.72rem; border: 1px solid var(--rule-strong); border-radius: 3px; padding: 0.02rem 0.28rem; margin-right: 0.35rem; opacity: 0.75; }
-.item-row .timestamps { font-size: 0.8rem; opacity: 0.7; margin: 0.4rem 0; display: flex; flex-direction: column; gap: 0.1rem; }
-.item-row .version-summary { font-size: 0.8rem; opacity: 0.75; margin: 0.3rem 0 0; }
-.item-row .pin-chips a { text-decoration: none; border-bottom: 1px dotted currentColor; }
-.item-row .version-note { font-size: 0.85rem; opacity: 0.75; font-style: italic; margin: 0.3rem 0 0; }
-.item-row .actions { display: flex; gap: 0.4rem; align-items: center; margin-top: 0.5rem; flex-wrap: wrap; }
-.item-row.dirty { border-left-color: var(--alert); background: var(--alert-wash); }
-.unpublished-flag {
-  display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em;
-  color: var(--alert); background: var(--alert-wash); border: 1px solid var(--alert);
-  border-radius: 3px; padding: 0.1rem 0.4rem; margin-left: 0.5rem; vertical-align: middle;
-}
-.item-row.dirty .timestamps .draft-line { color: var(--alert); opacity: 1; font-weight: 600; }
-.withdrawn-row { opacity: 0.55; font-style: italic; }
 .kind-chip { font-size: 0.8rem; font-style: italic; color: var(--pencil); margin-right: 0.35rem; }
-.split, .panes { display: flex; gap: 1.25rem; align-items: stretch; }
-.pane { flex: 1; min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--rule); border-radius: 10px; padding: 0.75rem; min-height: max(20rem, calc(100vh - 16rem)); }
-.pane h2 { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); margin: 0 0 0.5rem; }
-.pane textarea { width: 100%; flex: 1 1 auto; min-height: 18rem; border: none; resize: none; font: inherit; font-family: var(--mono); font-size: 0.9rem; line-height: 1.5; background: transparent; outline: none; box-shadow: none; padding: 0; color: inherit; }
-@media (max-width: 800px) { .split, .panes { flex-direction: column; } .pane { min-height: 20rem; } .pane textarea { min-height: 60vh; } }
-.preview img { max-width: 100%; }
-.preview blockquote.blyg-transclusion { margin: 1rem 0; padding: 0.6rem 0.8rem; border-left: 3px solid var(--rule-strong); background: var(--sunk); border-radius: 0 4px 4px 0; font-size: 0.92rem; }
-.preview blockquote.blyg-transclusion p { margin: 0 0 0.25rem; }
-.preview .provenance { font-size: 0.75rem; opacity: 0.65; }
-.preview .unresolved { border-left-color: var(--alert); background: var(--alert-wash); color: var(--alert); font-style: italic; }
-.edit-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem; flex-wrap: wrap; gap: 0.5rem; }
-input.note { font-size: 0.9rem; padding: 0.3rem 0.5rem; border-radius: 8px; border: 1px solid var(--rule-strong); width: 22rem; max-width: 100%; }
 /* Theme picker swatches — each option shows the pair it produces. */
 .theme-grid { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.2rem 0 0.5rem; }
 .theme-opt { cursor: pointer; }
@@ -368,53 +317,11 @@ input.note { font-size: 0.9rem; padding: 0.3rem 0.5rem; border-radius: 8px; bord
 .theme-name { display: block; font-size: 0.75rem; color: var(--ink-soft); margin-top: 0.2rem; text-align: center; }
 .theme-opt input:checked ~ .theme-name { color: var(--ink); font-weight: 600; }
 
-.history { margin-top: 1.5rem; font-size: 0.85rem; }
-.history h2 { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); }
-.history .h-hint { text-transform: none; letter-spacing: 0; font-weight: 400; opacity: 0.7; }
-.history .h-list { list-style: none; padding: 0; margin: 0; }
 .h-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.35rem 0; border-top: 1px solid var(--rule); }
-.h-row.selected { background: var(--sunk); }
-.h-select { font-family: var(--mono); font-weight: 600; min-width: 3.2rem; }
-.h-select:disabled { opacity: 0.4; cursor: default; }
-.h-when { opacity: 0.7; }
-.h-note { font-style: italic; opacity: 0.8; }
-.h-badge { font-size: 0.75rem; color: var(--ink-soft); border: 1px solid var(--rule); border-radius: 3px; padding: 0.02rem 0.3rem; }
-.h-badge.current { border-color: var(--ok); color: var(--ok); }
-.h-badge.pinned { text-decoration: none; }
-.h-actions { margin-left: auto; display: flex; gap: 0.35rem; }
-.h-viewer { margin-top: 0.75rem; border: 1px solid var(--rule); border-radius: 8px; padding: 0.75rem; }
-.h-viewer-bar { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; font-size: 0.8rem; }
-.h-viewer-body { font-size: 0.95rem; max-height: 26rem; overflow-y: auto; }
-.h-viewer-body img { max-width: 100%; }
-.h-viewer-body blockquote.blyg-transclusion { margin: 1rem 0; padding: 0.6rem 0.8rem; border-left: 3px solid var(--rule-strong); background: var(--sunk); border-radius: 0 4px 4px 0; font-size: 0.92rem; }
-.note-row { margin-top: 0.75rem; font-size: 0.85rem; display: flex; gap: 0.5rem; align-items: center; }
-.note-row input { flex: 1; }
-.palette { position: absolute; border: 1px solid var(--rule-strong); border-radius: 10px; padding: 0.5rem; background: var(--card); color: var(--ink); max-width: 60ch; box-shadow: 0 4px 14px rgba(0,0,0,0.15); z-index: 10; }
-.palette-hint { font-size: 0.78rem; color: var(--ink-soft); margin: 0; }
-.palette-foot { margin-top: 0.4rem; border-top: 1px solid var(--rule); padding-top: 0.3rem; cursor: default; }
-.palette-foot.has-more { cursor: pointer; }
-.palette-foot.has-more:hover { color: inherit; }
-.palette-hint code { font-size: 0.95em; }
-.palette ul { list-style: none; margin: 0.5rem 0 0; padding: 0; font-size: 0.9rem; max-height: 14rem; overflow-y: auto; }
-.palette li { padding: 0.35rem 0.5rem; border-top: 1px solid var(--rule); cursor: pointer; }
-.palette li.sel { background: var(--sunk); border-radius: 4px; }
-.palette .meta { font-size: 0.78rem; opacity: 0.6; margin-left: 0.5rem; }
 .settings-form label { display: block; margin: 0.75rem 0 0.25rem; font-size: 0.85rem; opacity: 0.8; }
 .settings-form input, .settings-form textarea, .settings-form select { width: 100%; }
 .settings-form input[type=checkbox], .settings-form input[type=radio] { width: auto; }
 .settings-hint { margin: .35rem 0 0; font-size: .85rem; color: var(--ink-soft); }
-.tk-panel { margin-top: 1rem; border: 1px solid var(--rule); border-radius: 10px; padding: 0.75rem; }
-.tk-panel h2 { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); margin: 0 0 0.5rem; }
-.tk-panel ul { list-style: none; margin: 0; padding: 0; }
-.tk-scope-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-top: 1px solid var(--rule); font-size: 0.88rem; }
-.tk-scope-row:first-child { border-top: none; }
-.tk-instruction { flex: 1; opacity: 0.85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tk-pending { font-size: 0.75rem; opacity: 0.65; font-style: italic; }
-.tk-empty { opacity: 0.6; font-size: 0.88rem; font-style: italic; }
-/* Studio-only visibility for the wire's disclosure class. */
-.preview .blyg-tk-gen { background: var(--tk-bg); border-radius: 3px; box-shadow: 0 0 0 2px var(--tk-bg); }
-.preview div.blyg-tk-gen { padding: 0.1rem 0.4rem; }
-.preview span.blyg-tk-gen { padding: 0.03rem 0.15rem; }
 
 .sub-row { border-top: 1px solid var(--rule); padding: 0.75rem 0; }
 .sub-row .title-line { display: flex; align-items: center; gap: 0.5rem; }
@@ -531,18 +438,6 @@ input.note { font-size: 0.9rem; padding: 0.3rem 0.5rem; border-radius: 8px; bord
 .mention-row .vis-btn:hover { color: inherit; }
 .on-page { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); }
 
-.snapshots { margin-top: 1.5rem; font-size: 0.85rem; }
-.snapshots h2 { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); }
-.snapshots .h-hint { text-transform: none; letter-spacing: 0; font-weight: 400; opacity: 0.7; }
-.snapshots .h-list { list-style: none; padding: 0; margin: 0 0 0.5rem; }
-.snapshots .h-row { padding: 0.15rem 0; overflow-wrap: anywhere; }
-.snapshots .q-source { color: var(--ink-soft); }
-.snapshots .q-refreshable .q-state, .snapshots .q-behind .q-state { font-weight: 600; }
-.snapshots .q-passage-missing .q-state, .snapshots .q-unresolvable .q-state { color: var(--alert); }
-.stale-notice { border: 1px solid var(--rule-strong); border-radius: 10px; padding: 0.5rem 0.75rem; margin: 0.75rem 0; font-size: 0.85rem; }
-.stale-notice p { margin: 0 0 0.25rem; }
-.stale-notice ul { margin: 0; padding-left: 1.1rem; }
-.stale-notice .h-hint { opacity: 0.7; }
 .entry-history { font-size: 0.82rem; margin-top: 0.35rem; }
 .entry-history .h-list { list-style: none; padding: 0; margin: 0.3rem 0; }
 .entry-history .h-row { padding: 0.12rem 0; overflow-wrap: anywhere; }
@@ -551,9 +446,6 @@ input.note { font-size: 0.9rem; padding: 0.3rem 0.5rem; border-radius: 8px; bord
 .entry-diff del { background: var(--alert-bg); color: var(--alert); text-decoration: line-through; }
 .entry-diff ins { background: var(--ok-bg); color: var(--ok); text-decoration: none; }
 .entry-diff del + ins { margin-left: 0.3em; }
-.note-confirm label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); margin-bottom: 0.25rem; }
-.note-confirm textarea { width: 100%; min-height: 5rem; }
-.note-confirm .h-hint { opacity: 0.7; font-size: 0.82rem; }
 .dialog-popup > button { margin-top: 0.75rem; }
 
 /* Phone width: overflow, tap targets, gutters (session 29, carried over). */
@@ -565,7 +457,4 @@ input.note { font-size: 0.9rem; padding: 0.3rem 0.5rem; border-radius: 8px; bord
   .item-row .actions, .qe-bar, .entry-actions, .edit-bar { gap: 0.5rem; }
   .hopper-row, .hopper-head { flex-direction: column; gap: 0.5rem; }
   .hopper-row .actions, .hopper-head .actions { flex-wrap: wrap; }
-  .composer { padding: 0.6rem; }
-  .tk-scope-row { flex-wrap: wrap; }
-  .tk-instruction { white-space: normal; overflow: visible; flex-basis: 100%; }
 }

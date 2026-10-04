@@ -104,7 +104,7 @@ for (const kind of ["fragment", "thread"] as const) {
     expect(item).toMatchObject({ content_md: "saved but unpublished", version: 0 });
     await page.unroute(`**/api/items/${id}/publish`);
     await page.locator("#publish-btn").click();
-    await expect(page.locator('[data-action="view-version"]')).toBeVisible();
+    await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
   });
   test(`${kind} does not reload over edits entered while manual save is pending`, async ({ page }) => {
     const id = await editor(page, kind);

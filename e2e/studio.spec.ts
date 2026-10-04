@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { answerSheet } from "./sheets.ts";
+import { editorMenu, expandRow, openCard } from "./editor.ts";
 
 test("owner can compose, publish and change settings through the SDK", async ({ page }) => {
   const errors: string[] = [];
@@ -50,7 +51,8 @@ test("editor autosave, preview, image upload and history use the SDK", async ({ 
   expect((await uploaded).status()).toBe(201);
   await expect(page.locator("body")).toContainText("attached:");
   await page.locator("#publish-btn").click();
-  await expect(page.locator('[data-action="view-version"]')).toBeVisible();
+  await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
+  await openCard(page, "history");
   await page.locator('[data-action="view-version"]').click();
   await expect(page.locator("#h-viewer-body")).toContainText("Autosaved preview");
   expect(errors).toEqual([]);
@@ -67,7 +69,8 @@ test("owner can pin and fork through resource creation", async ({ page }) => {
   await page.locator("#composer-full").click();
   const sourceUrl = page.url();
   await page.locator("#publish-btn").click();
-  await expect(page.locator('[data-action="pin"]').first()).toBeVisible();
+  await expect(page.locator('[data-action="pin"]')).toHaveCount(1);
+  await openCard(page, "history");
   await page.locator('[data-action="pin"]').first().click();
   await answerSheet(page, { name: /^Pin v1\?/ });
   await page.locator('a[href^="/studio/fork?"]').click();
@@ -122,7 +125,7 @@ test("stale quotes are listed, explained, and refreshed as one republish", async
   await page.locator("#md-input").fill(`# ${title}\n\n![[${source}]]\n\nHalf-written edit.`);
   await expect(page.locator("#snapshots")).toContainText("unpublished edits");
   await expect(page.locator('[data-action="refresh-quotes"]')).toHaveCount(0);
-  await page.locator('[data-action="discard-changes"]').click();
+  await editorMenu(page, "discard changes");
   await answerSheet(page, { name: /^Discard unpublished changes/ });
   await expect(page.locator("#md-input")).toHaveValue(`# ${title}\n\n![[${source}]]\n\nMy commentary.`);
 
@@ -130,7 +133,7 @@ test("stale quotes are listed, explained, and refreshed as one republish", async
   const refreshed = page.waitForResponse((r) => r.url().endsWith(`/api/items/${thread}/refresh`));
   await page.locator('[data-action="refresh-quotes"]').click();
   expect((await refreshed).status()).toBe(200);
-  await expect(page.locator("#snapshots h2")).toContainText("all current");
+  await expect(page.locator("#snapshots > summary")).toContainText("all current");
   const doc = await page.evaluate(async (id) => (await fetch(`/items/${id}.json`)).json(), thread);
   expect(doc.version).toBe(2);
   expect(doc.content_html).toContain(`${marker}, second version.`);
@@ -159,7 +162,7 @@ test("pasted generated text is marked from a selection and published disclosed",
   await expect(page.locator(".tk-imported")).toBeVisible();
   await expect(page.locator(".save-state")).toHaveText("saved");
   await page.locator("#publish-btn").click();
-  await expect(page.locator('[data-action="view-version"]')).toBeVisible();
+  await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
   const id = new URL(page.url()).pathname.split("/").pop();
   const doc = await page.evaluate(async (id) => (await fetch(`/items/${id}.json`)).json(), id);
   expect(doc.content_html).toContain(`<span class="blyg-tk-gen">${pasted}</span>`);
@@ -193,7 +196,7 @@ test("a drafted note is editable, flagged only while unedited, and cleared after
   await page.locator("#note-confirm-ok").click();
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(2);
   expect(publishes.at(-1)).toMatchObject({ note: "Added a second sentence.", note_generated: true });
-  await expect(page.locator("#history .tc-chip", { hasText: "generated" })).toHaveCount(1);
+  await expect(page.locator("#history .badge", { hasText: "generated" })).toHaveCount(1);
   await expect(page.locator("#note-input")).toHaveValue("");
 
   // Edited before publishing: the words are the author's.
@@ -354,6 +357,7 @@ test("the composer list's publish asks for the note on a new version too", async
   await page.reload();
   const row = page.locator(`.item-row[data-id="${id}"]`);
   const published = page.waitForRequest((r) => r.url().endsWith(`/items/${id}/publish`));
+  await expandRow(page, id);
   await row.getByRole("button", { name: "publish", exact: true }).click();
   await expect(page.locator("#note-confirm-text")).toHaveValue("Reworded the opening.");
   await expect(page.locator(".dialog-popup")).toContainText("Version 2");
