@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { acceptSheets } from "./sheets.ts";
 
 /* Contract: a failed save keeps the current editor/text; publishing requires a
  * successful save. Saves from one editor apply in input order. This oracle
@@ -22,7 +23,7 @@ async function editor(page: Page, kind: "fragment" | "thread") {
 for (const kind of ["fragment", "thread"] as const) {
   for (const status of [400, 401, 500, 503]) test(`${kind} keeps text after save ${status} and can recover`, async ({ page }) => {
     const id = await editor(page, kind);
-    page.on("dialog", dialog => dialog.accept());
+    await acceptSheets(page);
     await page.route(`**/api/items/${id}`, route => route.request().method() === "PATCH" ? route.fulfill({ status, json: { error: "save rejected" } }) : route.continue());
     await page.locator("#md-input").fill("unsaved text");
     const failed = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.status() === status);
@@ -42,8 +43,7 @@ for (const kind of ["fragment", "thread"] as const) {
   });
   test(`${kind} retains text when a committed save loses its response`, async ({ page }) => {
     const id = await editor(page, kind);
-    const dialogs: string[] = [];
-    page.on("dialog", async dialog => { dialogs.push(dialog.message()); await dialog.accept(); });
+    await acceptSheets(page);
     let calls = 0;
     await page.route(`**/api/items/${id}`, async route => {
       if (route.request().method() !== "PATCH") return route.continue();
@@ -65,7 +65,7 @@ for (const kind of ["fragment", "thread"] as const) {
   });
   test(`${kind} never publishes after a failed save`, async ({ page }) => {
     const id = await editor(page, kind);
-    page.on("dialog", dialog => dialog.accept());
+    await acceptSheets(page);
     let published = 0;
     await page.route(`**/api/items/${id}/publish`, async route => { published++; await route.continue(); });
     await page.route(`**/api/items/${id}`, route => route.request().method() === "PATCH" ? route.fulfill({ status: 503, json: { error: "save rejected" } }) : route.continue());
@@ -79,7 +79,7 @@ for (const kind of ["fragment", "thread"] as const) {
   });
   test(`${kind} retains a failed autosave and recovers on the next save`, async ({ page }) => {
     const id = await editor(page, kind);
-    page.on("dialog", dialog => dialog.accept());
+    await acceptSheets(page);
     await page.route(`**/api/items/${id}`, route => route.request().method() === "PATCH" ? route.fulfill({ status: 503, json: { error: "autosave rejected" } }) : route.continue());
     await page.locator("#md-input").fill("failed autosave");
     const failed = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.status() === 503);

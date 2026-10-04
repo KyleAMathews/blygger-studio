@@ -29,7 +29,6 @@ test('SPA creates, edits, previews and publishes without document navigation', a
   await page.locator('#publish-btn').click();
   await expect(page.locator('[data-action=view-version]')).toBeVisible();
   expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ version: 1, content_md: 'React **round trip**' });
-  if (test.info().project.name === 'mobile') await page.getByRole('button', { name: 'Menu', exact: true }).click();
   await page.getByRole('link', { name: 'reading', exact: true }).click();
   await expect(page.locator('.reading-entry').first()).toBeVisible();
   const entry = page.locator('.reading-entry').filter({ has: page.locator(`a[href$="/edit/${id}"]`) });
@@ -88,7 +87,6 @@ test('route intent preloads reading before navigation and reuses the DB cache', 
   await login(page); await seedReading(page, 50);
   const reads: string[] = [];
   page.on('request', request => { if (new URL(request.url()).pathname === '/api/reading') reads.push(request.url()); });
-  if (test.info().project.name === 'mobile') await page.getByRole('button', { name: 'Menu', exact: true }).click();
   const link = page.getByRole('link', { name: 'reading', exact: true });
   const loaded = page.waitForResponse(response => new URL(response.url()).pathname === '/api/reading');
   await link.focus(); await loaded;

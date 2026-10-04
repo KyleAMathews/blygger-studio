@@ -157,7 +157,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
       <label>
         Reading theme{' '}
         <span style={{ fontWeight: 400, color: 'var(--ink-soft)' }}>
-          — the public pages only; the studio keeps its own light/dark
+          — your public pages and this studio
         </span>
       </label>
       <div className="theme-grid">
@@ -181,7 +181,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
               />
               <span className="theme-swatch" style={{ background }}>
                 <span
-                  className="sheet"
+                  className="sheet-mini"
                   style={{
                     background: automatic ? 'transparent' : theme.paper,
                   }}

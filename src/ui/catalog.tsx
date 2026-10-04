@@ -24,6 +24,7 @@ import {
   mount,
   useSettings,
 } from './components.tsx';
+import { confirm } from './sheets.tsx';
 function useAction() {
   const [error, setError] = useState<unknown>();
   const [busy, setBusy] = useState(false);
@@ -171,11 +172,14 @@ export function SubscriptionsPage() {
             ) : null}
             <Button
               className="danger"
-              onClick={() => {
+              onClick={async () => {
                 if (
-                  window.confirm(
-                    'Delete this subscription and its local imports, hopper memberships, and signals?',
-                  )
+                  await confirm({
+                    title:
+                      'Delete this subscription and its local imports, hopper memberships, and signals?',
+                    ok: 'delete',
+                    danger: true,
+                  })
                 )
                   void action.run(async () => {
                     await subscriptions.delete(sub.id).isPersisted.promise;
@@ -455,8 +459,15 @@ export function HopperPage({ id }: { id: string }) {
       })}
       <Button
         className="danger"
-        onClick={() => {
-          if (window.confirm('Delete this hopper?')) void action.run(remove);
+        onClick={async () => {
+          if (
+            await confirm({
+              title: 'Delete this hopper?',
+              ok: 'delete hopper',
+              danger: true,
+            })
+          )
+            void action.run(remove);
         }}
       >
         delete hopper

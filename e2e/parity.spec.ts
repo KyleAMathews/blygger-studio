@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { answerSheet } from './sheets.ts';
 async function login(page: Page) {
   await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
   await page.getByRole('button', { name: 'log in', exact: true }).click();
@@ -43,8 +44,8 @@ for (const kind of ['fragment', 'thread'] as const) test(`${kind} discard change
     return item.id as string;
   }, kind);
   await page.goto(`/studio/edit/${id}`);
-  page.on('dialog', dialog => dialog.accept());
   await page.locator('[data-action=discard-changes]').click();
+  await answerSheet(page, { name: /^Discard unpublished changes and go back to the published v1\?/ });
   await expect(page.locator('#md-input')).toHaveValue('published text');
   expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ version: 1, dirty: true, content_md: 'published text' });
   await expect(page.locator('[data-action=view-version]')).toHaveCount(1);
@@ -72,21 +73,61 @@ test('syntax links stay inside the Studio and paging rejects out-of-range bookma
   await expect(page.locator('.reading-entry').first()).toBeVisible();
 });
 
-for (const [path, current] of [['', 'compose'], ['/reading', 'reading'], ['/hoppers', 'hoppers'], ['/mentions', 'mentions'], ['/settings', 'settings'], ['/syntax', 'syntax'], ['/subs', null], ['/hoppers/parity-hopper', 'hoppers']] as const) test(`navigation and menu remain stable on ${path || 'compose'}`, async ({ page }) => {
+for (const [path, current] of [['', 'compose'], ['/reading', 'reading'], ['/hoppers', 'hoppers'], ['/mentions', 'mentions'], ['/more', 'more'], ['/settings', 'more'], ['/syntax', 'more'], ['/subs', 'reading'], ['/hoppers/parity-hopper', 'hoppers']] as const) test(`navigation tab bar remains stable on ${path || 'compose'}`, async ({ page }) => {
   await login(page); await page.goto(`/studio${path}`);
-  await expect(page.locator('nav .menu-main a')).toHaveText(['reading', 'compose', 'hoppers', 'mentions', 'settings', 'syntax']);
-  await expect(page.locator('nav .menu-main a').nth(1)).toHaveAttribute('href', '/studio/');
-  await expect(page.locator('.menu-utility a')).toHaveAttribute('target', '_blank');
-  await expect(page.locator('.menu-utility form')).toHaveAttribute('action', '/studio/logout');
-  if (current) await expect(page.locator('nav a[aria-current=page]')).toHaveText(current);
-  else await expect(page.locator('nav a[aria-current=page]')).toHaveCount(0);
+  const tabs = page.getByRole('navigation', { name: 'studio' }).getByRole('link');
+  await expect(tabs.locator('.tl')).toHaveText(['reading', 'compose', 'hoppers', 'mentions', 'more']);
+  await expect(tabs.nth(1)).toHaveAttribute('href', '/studio/');
+  await expect(tabs.nth(4)).toHaveAttribute('href', '/studio/more');
+  await expect(page.locator('nav.tabbar a[aria-current=page] .tl')).toHaveText(current);
+  await expect(page.locator('nav.tabbar a[aria-current=page]')).toHaveAccessibleName(current);
+  const publicPage = page.getByRole('link', { name: 'public page ↗' }).first();
+  await expect(publicPage).toHaveAttribute('target', '_blank');
+  await expect(publicPage).toHaveAttribute('href', '/');
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollbarGutter)).toBe('stable');
+  // A bottom tab bar on a phone, a left rail at desktop width — visible either way, no menu button.
+  const box = (await page.locator('nav.tabbar').boundingBox())!;
+  const viewport = page.viewportSize()!;
   if (test.info().project.name === 'mobile') {
-    await expect(page.getByRole('button', { name: 'Menu', exact: true })).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.locator('#studio-menu')).toBeHidden();
-    await page.getByRole('button', { name: 'Menu', exact: true }).click();
-    await expect(page.locator('#studio-menu')).toBeVisible();
+    expect(Math.round(box.y + box.height)).toBe(viewport.height);
+    expect(Math.round(box.width)).toBe(viewport.width);
+    await expect(page.locator('.topbar .tb-btn .lbl')).toBeHidden();
+  } else {
+    expect(box.x).toBe(0);
+    expect(box.width).toBeLessThan(120);
+    await expect(page.locator('.topbar .tb-btn .lbl')).toBeVisible();
   }
+});
+
+test('the tab bar navigates between screens without a document load', async ({ page }) => {
+  await login(page);
+  const documents: string[] = []; page.on('request', request => { if (request.resourceType() === 'document') documents.push(request.url()); });
+  const tabs = page.getByRole('navigation', { name: 'studio' });
+  await tabs.getByRole('link', { name: 'hoppers', exact: true }).click();
+  await expect(page).toHaveURL(/\/studio\/hoppers$/);
+  await expect(page.locator('.hopper-row').first()).toBeVisible();
+  await tabs.getByRole('link', { name: 'mentions', exact: true }).click();
+  await expect(page.locator('.mention-group').first()).toBeVisible();
+  await tabs.getByRole('link', { name: 'more', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'more', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'settings', exact: true }).click();
+  await expect(page.locator('#site_title')).toBeVisible();
+  await expect(tabs.locator('a[aria-current=page]')).toHaveAccessibleName('more');
+  await tabs.getByRole('link', { name: 'compose', exact: true }).click();
+  await expect(page.locator('#composer-text')).toBeVisible();
+  expect(documents).toEqual([]);
+});
+
+test('more offers settings, syntax, the public page and a log out that posts', async ({ page }) => {
+  await login(page); await page.goto('/studio/more');
+  await expect(page.getByRole('link', { name: 'settings', exact: true })).toHaveAttribute('href', '/studio/settings');
+  await expect(page.getByRole('link', { name: 'syntax', exact: true })).toHaveAttribute('href', '/studio/syntax');
+  await expect(page.locator('main').getByRole('link', { name: 'public page ↗' })).toHaveAttribute('href', '/');
+  await expect(page.locator('form[action="/studio/logout"]')).toHaveAttribute('method', 'post');
+  await page.getByRole('button', { name: 'log out', exact: true }).click();
+  await expect(page).toHaveURL(/\/studio\/login$/);
+  await page.goto('/studio/more');
+  await expect(page).toHaveURL(/\/studio\/login$/);
 });
 
 test('palette pages all candidates and applies bracket grammar in each composer', async ({ page }) => {
@@ -134,8 +175,8 @@ test('editor kind, discard, pinned history and TK controls retain their contract
   await page.locator('#publish-btn').click();
   await expect(page.locator('[data-action=switch-kind]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'discard draft', exact: true })).toHaveCount(0);
-  page.on('dialog', dialog => dialog.accept());
   await page.locator('[data-action=pin]').click();
+  await answerSheet(page, { name: /^Pin v1\? This is irrevocable/ });
   const pinned = page.getByRole('link', { name: '📌 pinned', exact: true });
   await expect(pinned).toHaveAttribute('href', /\/t\/[^/]+\/v1\/$/);
   expect((await page.request.get((await pinned.getAttribute('href'))!)).status()).toBe(200);
@@ -237,18 +278,27 @@ test('update notice acknowledgement survives reload and the upgrade banner obeys
   await login(page);
   await page.evaluate(async () => { await fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ update_check: true, update_notice_ack: false }) }); });
   await page.reload();
+  // Behind: a compact badge in the top bar leads to the notices on more.
+  await page.locator('#update-badge').click();
+  await expect(page).toHaveURL(/\/studio\/more$/);
   await expect(page.locator('#update-notice')).toBeVisible();
-  await expect(page.locator('.update-banner').last()).toContainText('99.0.0');
-  await expect(page.locator('.update-banner').last()).toContainText('npm run upgrade');
-  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.locator('#update-behind')).toContainText('99.0.0');
+  await expect(page.locator('#update-behind')).toContainText('npm run upgrade');
+  await expect(page.locator('#update-notice').getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute('href', '/studio/settings');
   await page.getByRole('button', { name: 'got it', exact: true }).click();
+  await expect(page.locator('#update-notice')).toHaveCount(0);
+  await page.getByRole('link', { name: 'settings', exact: true }).click();
   await page.locator('#site_title').fill('Notice acknowledgement stays saved');
   await page.getByRole('button', { name: 'save settings', exact: true }).click();
   await expect(page.getByRole('status')).toHaveText('saved');
+  await page.goto('/studio/more'); await expect(page.locator('#update-behind')).toBeVisible();
   await expect(page.locator('#update-notice')).toHaveCount(0);
-  await page.reload(); await expect(page.locator('#update-notice')).toHaveCount(0);
+  await page.reload(); await expect(page.locator('#update-behind')).toBeVisible();
+  await expect(page.locator('#update-notice')).toHaveCount(0);
   await page.evaluate(async () => { await fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ update_check: false }) }); });
-  await page.reload(); await expect(page.locator('.update-banner')).toHaveCount(0);
+  await page.reload(); await expect(page.getByRole('heading', { name: 'more', exact: true })).toBeVisible();
+  await expect(page.locator('.update-banner')).toHaveCount(0);
+  await expect(page.locator('#update-badge')).toHaveCount(0);
 });
 
 test('fork picker refreshes pinned versions after a client navigation', async ({ page }) => {
@@ -256,8 +306,8 @@ test('fork picker refreshes pinned versions after a client navigation', async ({
   await page.locator('#composer-text').fill('First pinned text');
   await page.locator('#composer-full').click();
   await page.locator('#publish-btn').click();
-  page.on('dialog', dialog => dialog.accept());
   await page.locator('[data-action=pin]').click();
+  await answerSheet(page, { name: /^Pin v1\?/ });
   const editor = page.url();
   await page.getByRole('link', { name: 'fork', exact: true }).click();
   await expect(page.locator('[data-action=fork]')).toHaveCount(1);
@@ -266,6 +316,7 @@ test('fork picker refreshes pinned versions after a client navigation', async ({
   await page.locator('#md-input').fill('Second pinned text');
   await page.locator('#publish-btn').click();
   await page.locator('[data-action=pin]').click();
+  await answerSheet(page, { name: /^Pin v2\?/ });
   await page.getByRole('link', { name: 'fork', exact: true }).first().click();
   await expect(page.locator('[data-action=fork]')).toHaveCount(2);
 });
@@ -306,8 +357,8 @@ test('palette keeps results on failure and rejects late results for an old query
 test('whole-fragment TK wrapping keeps text and publication warnings remain visible', async ({ page }) => {
   await login(page); await page.locator('#composer-text').fill('Current fragment');
   await page.locator('#composer-full').click();
-  page.once('dialog', dialog => dialog.accept('Rewrite this'));
   await page.locator('#tk-generate-whole-btn').click();
+  await answerSheet(page, { name: 'Instruction for the whole fragment:', text: 'Rewrite this' });
   await expect(page.locator('#md-input')).toHaveValue('[TK]Rewrite this[=]Current fragment[/TK]');
   await page.locator('#md-input').fill('Published with a warning');
   await page.route('**/api/items/*/publish', async route => {

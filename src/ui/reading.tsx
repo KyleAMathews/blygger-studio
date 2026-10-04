@@ -19,6 +19,7 @@ import {
   refreshReading,
 } from './data.ts';
 import { Button, Failure, mount, usePoll, useSettings } from './components.tsx';
+import { prompt } from './sheets.tsx';
 import { displayUrl } from '../importer/util.ts';
 import { formatDateIn } from '../dates.ts';
 import { AddFeedForm } from './catalog.tsx';
@@ -368,9 +369,9 @@ export function ReadingPage({ sub, offset }: { sub: string; offset: number }) {
                             void run(async () => {
                               let hopperId = selected;
                               if (selected === '__new__') {
-                                const name = window.prompt(
-                                  'Name the new hopper:',
-                                );
+                                const name = await prompt({
+                                  title: 'Name the new hopper:',
+                                });
                                 if (!name?.trim()) return;
                                 const hopper = await unwrap(
                                   BlyggerApi.createHopper({

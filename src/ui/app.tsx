@@ -34,7 +34,13 @@ import {
 } from './data.ts';
 import { Button } from './components.tsx';
 import { SyntaxPage } from './syntax.tsx';
+import { MorePage } from './more.tsx';
+import { SheetHost } from './sheets.tsx';
+import { applyCachedTheme } from './theme.ts';
 import './studio.css';
+// Paint the last theme this device saw before the first render; settings
+// repaint it once they load (see theme.ts).
+applyCachedTheme();
 const rootRoute = createRootRoute({
   loader: () => settingsCollection.preload(),
   pendingComponent: () => <p>Loading Studio…</p>,
@@ -187,6 +193,11 @@ const fork = createRoute({
     <ForkPage id={fork.useSearch().id} options={fork.useLoaderData()} />
   ),
 });
+const more = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/more',
+  component: MorePage,
+});
 const syntax = createRoute({
   getParentRoute: () => rootRoute,
   path: '/syntax',
@@ -203,6 +214,7 @@ export const router = createRouter({
     hopper,
     mentions,
     fork,
+    more,
     syntax,
   ]),
   basepath,
@@ -216,5 +228,8 @@ declare module '@tanstack/react-router' {
   }
 }
 createRoot(document.getElementById('studio-root')!).render(
-  <RouterProvider router={router} />,
+  <>
+    <RouterProvider router={router} />
+    <SheetHost />
+  </>,
 );

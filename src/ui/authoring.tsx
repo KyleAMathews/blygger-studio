@@ -19,6 +19,7 @@ import {
   usePoll,
   useSettings,
 } from './components.tsx';
+import { confirm, prompt, toast } from './sheets.tsx';
 import { paletteTrigger, paletteInsert } from '../palette.ts';
 import { Draft } from './draft.ts';
 import { stripStaleUploads, uploadToken } from './upload-tokens.ts';
@@ -162,9 +163,13 @@ function useUpload(
   // image at the bottom of the page (studio#24), so it asks first.
   useBlocker({
     enableBeforeUnload: () => action.busy,
-    shouldBlockFn: () =>
+    shouldBlockFn: async () =>
       action.busy &&
-      !window.confirm('An image is still uploading. Leave anyway? It will not be placed in the text.'),
+      !(await confirm({
+        title: 'An image is still uploading. Leave anyway? It will not be placed in the text.',
+        ok: 'leave',
+        danger: true,
+      })),
   });
   return {
     input,
@@ -688,8 +693,14 @@ function ItemRow({ item }: { item: ListItemsResponses[200]['items'][number] }) {
           <Button
             className="danger"
             disabled={action.busy}
-            onClick={() => {
-              if (window.confirm('Discard this unpublished draft?'))
+            onClick={async () => {
+              if (
+                await confirm({
+                  title: 'Discard this unpublished draft?',
+                  ok: 'discard',
+                  danger: true,
+                })
+              )
                 mutate(() => items.delete(item.id).isPersisted.promise);
             }}
           >
@@ -699,11 +710,12 @@ function ItemRow({ item }: { item: ListItemsResponses[200]['items'][number] }) {
           <>
             <Button
               disabled={action.busy}
-              onClick={() => {
+              onClick={async () => {
                 if (
-                  window.confirm(
-                    `Pin v${item.version}? It will stay fetchable forever.`,
-                  )
+                  await confirm({
+                    title: `Pin v${item.version}? It will stay fetchable forever.`,
+                    ok: `pin v${item.version}`,
+                  })
                 )
                   mutate(() =>
                     unwrap(
@@ -720,11 +732,14 @@ function ItemRow({ item }: { item: ListItemsResponses[200]['items'][number] }) {
             <Button
               className="danger"
               disabled={action.busy}
-              onClick={() => {
+              onClick={async () => {
                 if (
-                  window.confirm(
-                    'Withdraw this item? This publishes a permanent endcap.',
-                  )
+                  await confirm({
+                    title:
+                      'Withdraw this item? This publishes a permanent endcap.',
+                    ok: 'withdraw',
+                    danger: true,
+                  })
                 )
                   mutate(() =>
                     unwrap(
@@ -857,12 +872,21 @@ function Editor({ item }: { item: Detail }) {
     );
   };
   const restore = async (version: number, discardChanges = false) => {
-    const message = discardChanges
-      ? `Discard unpublished changes and go back to the published v${version}?\n\nThe public item is not affected — it is already v${version}.`
-      : `Restore v${version} into the working copy?\n\nNothing is published yet and no version is rewound — this replaces your current draft, which you would then publish as v${
-          item.version + 1
-        }.`;
-    if (!window.confirm(message)) return;
+    const question = discardChanges
+      ? {
+          title: `Discard unpublished changes and go back to the published v${version}?`,
+          body: `The public item is not affected — it is already v${version}.`,
+          ok: 'discard changes',
+          danger: true,
+        }
+      : {
+          title: `Restore v${version} into the working copy?`,
+          body: `Nothing is published yet and no version is rewound — this replaces your current draft, which you would then publish as v${
+            item.version + 1
+          }.`,
+          ok: `restore → v${item.version + 1}`,
+        };
+    if (!(await confirm(question))) return;
     clearTimeout(saveTimer.current);
     setReplacing(true);
     try {
@@ -887,7 +911,14 @@ function Editor({ item }: { item: Detail }) {
     }
   };
   const discardDraft = async () => {
-    if (!window.confirm('Discard this draft? It was never published.')) return;
+    if (
+      !(await confirm({
+        title: 'Discard this draft? It was never published.',
+        ok: 'discard draft',
+        danger: true,
+      }))
+    )
+      return;
     clearTimeout(saveTimer.current);
     setReplacing(true);
     try {
@@ -900,11 +931,14 @@ function Editor({ item }: { item: Detail }) {
       setReplacing(false);
     }
   };
-  const withdraw = () => {
+  const withdraw = async () => {
     if (
-      !window.confirm(
-        "Withdraw this item? This publishes a permanent endcap — reversible by republishing, but the withdrawal itself can't be undone.",
-      )
+      !(await confirm({
+        title:
+          "Withdraw this item? This publishes a permanent endcap — reversible by republishing, but the withdrawal itself can't be undone.",
+        ok: 'withdraw',
+        danger: true,
+      }))
     )
       return;
     operation(() =>
@@ -926,9 +960,10 @@ function Editor({ item }: { item: Detail }) {
   };
   const pin = async (version: number) => {
     if (
-      !window.confirm(
-        `Pin v${version}? This is irrevocable — it stays fetchable forever, even past withdrawal.`,
-      )
+      !(await confirm({
+        title: `Pin v${version}? This is irrevocable — it stays fetchable forever, even past withdrawal.`,
+        ok: 'pin',
+      }))
     )
       return;
     await unwrap(
@@ -1014,10 +1049,10 @@ function Editor({ item }: { item: Detail }) {
               id="tk-generate-whole-btn"
               className="link"
               disabled={replacing}
-              onClick={() => {
-                const instruction = window.prompt(
-                  'Instruction for the whole fragment:',
-                );
+              onClick={async () => {
+                const instruction = await prompt({
+                  title: 'Instruction for the whole fragment:',
+                });
                 if (!instruction) return;
                 const existing = draft.current!.text.trim();
                 edit(
@@ -1039,9 +1074,7 @@ function Editor({ item }: { item: Detail }) {
               const value = draft.current!.text;
               const [from, to] = [el.selectionStart, el.selectionEnd];
               if (from === to) {
-                window.alert(
-                  'Select the pasted generated text first, then mark it.',
-                );
+                toast('Select the pasted generated text first, then mark it.');
                 return;
               }
               edit(markImported(value, from, to));
@@ -1165,7 +1198,7 @@ function Editor({ item }: { item: Detail }) {
             <Button
               className="danger"
               disabled={action.busy}
-              onClick={withdraw}
+              onClick={() => void withdraw()}
             >
               withdraw
             </Button>

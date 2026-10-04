@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { answerSheet } from "./sheets.ts";
 
 test("owner can compose, publish and change settings through the SDK", async ({ page }) => {
   const errors: string[] = [];
@@ -59,7 +60,6 @@ test("editor autosave, preview, image upload and history use the SDK", async ({ 
 test("owner can pin and fork through resource creation", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  page.on("dialog", (dialog) => dialog.accept());
   await page.goto("/studio/login");
   await page.locator('[name="password"]').fill("test-password");
   await page.getByRole("button", { name: "log in", exact: true }).click();
@@ -69,6 +69,7 @@ test("owner can pin and fork through resource creation", async ({ page }) => {
   await page.locator("#publish-btn").click();
   await expect(page.locator('[data-action="pin"]').first()).toBeVisible();
   await page.locator('[data-action="pin"]').first().click();
+  await answerSheet(page, { name: /^Pin v1\?/ });
   await page.locator('a[href^="/studio/fork?"]').click();
   const created = page.waitForResponse((response) => response.url().endsWith("/api/items") && response.request().method() === "POST");
   await page.locator('[data-action="fork"]').click();
@@ -121,8 +122,8 @@ test("stale quotes are listed, explained, and refreshed as one republish", async
   await page.locator("#md-input").fill(`# ${title}\n\n![[${source}]]\n\nHalf-written edit.`);
   await expect(page.locator("#snapshots")).toContainText("unpublished edits");
   await expect(page.locator('[data-action="refresh-quotes"]')).toHaveCount(0);
-  page.once("dialog", (dialog) => dialog.accept());
   await page.locator('[data-action="discard-changes"]').click();
+  await answerSheet(page, { name: /^Discard unpublished changes/ });
   await expect(page.locator("#md-input")).toHaveValue(`# ${title}\n\n![[${source}]]\n\nMy commentary.`);
 
   // One click republishes with the new quote.
