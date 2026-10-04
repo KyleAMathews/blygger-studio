@@ -540,9 +540,21 @@ export async function feedEvents(db: D1Database, limit: number): Promise<FeedEve
     .bind(limit)
     .all<VersionRow>();
   const items = new Map<string, ItemRow>();
+  // One query for every distinct item, not one per event: the feed window
+  // holds up to 50 publish events and the old per-event getItem turned one
+  // feed render into dozens of sequential D1 roundtrips (~29s observed on
+  // live nodes — past every reader's fetch timeout, so the feed read as
+  // "invalid"). Order of events is preserved; only the item lookup is batched.
+  if (rows.results.length) {
+    const ids = JSON.stringify([...new Set(rows.results.map((v) => v.item_id))]);
+    const found = await db
+      .prepare(`SELECT * FROM items WHERE id IN (SELECT value FROM json_each(?))`)
+      .bind(ids)
+      .all<ItemRow>();
+    for (const item of found.results) items.set(item.id, item);
+  }
   const events: FeedEvent[] = [];
   for (const v of rows.results) {
-    if (!items.has(v.item_id)) items.set(v.item_id, (await getItem(db, v.item_id))!);
     events.push({ item: items.get(v.item_id)!, version: v });
   }
   return events;

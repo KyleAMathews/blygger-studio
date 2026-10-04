@@ -421,6 +421,14 @@ export interface PageMeta {
    * finds us; a blyg sender reads the manifest key instead.
    */
   webmention?: string;
+  /**
+   * Absolute feed URL for RSS autodiscovery — `${origin}feed.xml`.
+   * When omitted, layout falls back to the mount-relative `${mount}/feed.xml`
+   * so pages without an origin (hopper) still advertise a feed.
+   */
+  feedUrl?: string;
+  /** Feed title for the autodiscovery link — the blyg's title. */
+  feedTitle?: string;
 }
 
 function metaTags(meta: PageMeta): string {
@@ -608,6 +616,11 @@ export const VERSION_NAV_SCRIPT = `
 `;
 
 export function layout(title: string, body: string, mount: string, meta: PageMeta = {}): string {
+  // RSS autodiscovery: absolute URL + title. A relative href without a title
+  // is valid HTML but several readers ignore it — pasting `<origin>/blyg/`
+  // then fails with "invalid link" while `<origin>/blyg/feed.xml` works.
+  const feedHref = meta.feedUrl ?? `${mount}/feed.xml`;
+  const feedTitle = meta.feedTitle ? ` title="${escapeHtml(meta.feedTitle)}"` : "";
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -615,7 +628,7 @@ export function layout(title: string, body: string, mount: string, meta: PageMet
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
 ${metaTags({ ...meta, ogTitle: meta.ogTitle ?? title })}<link rel="stylesheet" href="${mount}/style.css">
-<link rel="alternate" type="application/rss+xml" href="${mount}/feed.xml">
+<link rel="alternate" type="application/rss+xml"${feedTitle} href="${escapeHtml(feedHref)}">
 ${meta.webmention ? `<link rel="webmention" href="${meta.webmention}">\n` : ""}${meta.alternateJson ? `<link rel="alternate" type="application/json" href="${meta.alternateJson}">\n` : ""}${meta.canonical ? `<link rel="canonical" href="${meta.canonical}">\n` : ""}${meta.hasBlogroll ? `<link rel="blogroll" href="${mount}/blogroll.opml">\n` : ""}</head>
 <body>
 ${body}
@@ -1180,7 +1193,7 @@ export function authorOwnHtml(html: string): string {
  * that is the misattribution this whole helper exists to prevent — and not an
  * empty string either. A stub knows what it answers, so it says that.
  */
-export function respondsToLabel(latest: VersionRow | null): string {
+export function respondsToLabel(latest: Pick<VersionRow, "stub_of" | "stub_cite"> | null): string {
   const stub = parseStoredStub(latest?.stub_of ?? null);
   if (!stub) return "";
   const cite = parseStoredCite(latest?.stub_cite ?? null);
@@ -1308,6 +1321,8 @@ ${blogrollSection(blogrollSubs, mount)}
     webmention: webmentionHref(settings, origin),
     image: data.avatar ? origin + data.avatar.r2_key : undefined,
     siteName: settings.site_title,
+    feedUrl: `${origin}feed.xml`,
+    feedTitle: settings.site_title,
   });
 }
 
@@ -1326,7 +1341,7 @@ function webmentionHref(settings: Settings, origin: string): string | undefined 
  * nothing to summarize and nothing to unfurl — the tags say what the page *is*,
  * and deliberately carry no image.
  */
-function withdrawnMeta(settings: Settings, url: string, alternateJson?: string, webmention?: string): PageMeta {
+function withdrawnMeta(settings: Settings, url: string, alternateJson?: string, webmention?: string, origin?: string): PageMeta {
   return {
     description: `A withdrawn item on ${settings.site_title}.`,
     url,
@@ -1334,6 +1349,7 @@ function withdrawnMeta(settings: Settings, url: string, alternateJson?: string, 
     siteName: settings.site_title,
     alternateJson,
     webmention,
+    ...(origin ? { feedUrl: `${origin}feed.xml`, feedTitle: settings.site_title } : {}),
   };
 }
 
@@ -1356,7 +1372,7 @@ export async function permalinkPage(db: D1Database, settings: Settings, item: It
       `withdrawn — ${settings.site_title}`,
       `<div class="blyg">\n${await pageTop(db, settings, mount)}\n${await withdrawnBlock(db, item, mount, settings.timezone)}\n</div>`,
       mount,
-      withdrawnMeta(settings, url, alternateJson, webmention),
+      withdrawnMeta(settings, url, alternateJson, webmention, origin),
     );
   }
   const latest = await publishedVersion(db, item);
@@ -1377,6 +1393,8 @@ ${await responsesSection(db, item, settings, mount)}
     type: "article",
     image: await socialImage(db, settings, visibleMedia(media, latest?.content_html ?? ""), origin),
     siteName: settings.site_title,
+    feedUrl: `${origin}feed.xml`,
+    feedTitle: settings.site_title,
   });
 }
 
@@ -1390,7 +1408,7 @@ export async function threadPage(db: D1Database, settings: Settings, item: ItemR
       `withdrawn — ${settings.site_title}`,
       `<div class="blyg">\n${await pageTop(db, settings, mount)}\n${await withdrawnBlock(db, item, mount, settings.timezone)}\n</div>`,
       mount,
-      withdrawnMeta(settings, url, alternateJson, webmention),
+      withdrawnMeta(settings, url, alternateJson, webmention, origin),
     );
   }
   const latest = await publishedVersion(db, item);
@@ -1411,6 +1429,8 @@ ${await responsesSection(db, item, settings, mount)}
     type: "article",
     image: await socialImage(db, settings, visibleMedia(media, latest?.content_html ?? ""), origin),
     siteName: settings.site_title,
+    feedUrl: `${origin}feed.xml`,
+    feedTitle: settings.site_title,
   });
 }
 
@@ -1487,6 +1507,8 @@ ${noteHtml}
     // that it shows the bytes from then. Site identity is true either way.
     image: await socialImage(db, settings, [], origin),
     siteName: settings.site_title,
+    feedUrl: `${origin}feed.xml`,
+    feedTitle: settings.site_title,
   });
 }
 
@@ -1539,5 +1561,7 @@ ${rows.join("\n")}
     url: `${origin}archive/`,
     image: await socialImage(db, settings, [], origin),
     siteName: settings.site_title,
+    feedUrl: `${origin}feed.xml`,
+    feedTitle: settings.site_title,
   });
 }
