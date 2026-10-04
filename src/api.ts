@@ -33,6 +33,7 @@ import { flattenFork } from "./fork-flatten.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { siteOrigin } from "./protocol.ts";
 import { parseForkedFrom, parseStoredFork, parseStoredStub, parseStubOf } from "./stub.ts";
+import { parseScopes } from './tk.ts';
 import { runGenerateScope } from "./tk-generate.ts";
 import type { Env, ItemRow, SubscriptionRow } from "./types.ts";
 import { BLOCKING, staleThreads, threadFreshness } from "./freshness.ts";
@@ -72,7 +73,11 @@ api.openapi(routes.createItem, async (c) => {
     if (!parsed.ok) return c.json({ error: parsed.reason }, 400);
     stub = parsed.stub;
   }
-  const item = await createDraft(c.env.DB, body.content_md ?? "", kind, stub);
+  if (body.provenance !== undefined) {
+    const parsed = parseScopes(body.content_md ?? '');
+    if (parsed.errors.length || parsed.scopes.length !== body.provenance.length) return c.json({ error: 'provenance must have one entry per TK scope' }, 400);
+  }
+  const item = await createDraft(c.env.DB, body.content_md ?? "", kind, stub, body.provenance);
   c.header("Location", `/api/items/${item.id}`);
   return c.json(itemResource(item), 201);
 });
@@ -136,8 +141,13 @@ api.openapi(routes.updateItem, async (c) => {
       stubJson = JSON.stringify(parsed.stub);
     }
   }
-  const changesDraft = body.content_md !== undefined || body.kind !== undefined || "stub_of" in body;
+  if (body.provenance !== undefined) {
+    const parsed = parseScopes(body.content_md ?? item.content_md);
+    if (parsed.errors.length || parsed.scopes.length !== body.provenance.length) return c.json({ error: 'provenance must have one entry per TK scope' }, 400);
+  }
+  const changesDraft = body.provenance !== undefined || body.content_md !== undefined || body.kind !== undefined || "stub_of" in body;
   const assignments: string[] = [], values: (string | number | null)[] = [];
+  if (body.provenance !== undefined) { assignments.push("tk_provenance_json = ?"); values.push(JSON.stringify(body.provenance)); }
   if (body.content_md !== undefined) { assignments.push("content_md = ?"); values.push(body.content_md); }
   if (body.kind !== undefined) { assignments.push("kind = ?"); values.push(body.kind); }
   if ("stub_of" in body) { assignments.push("stub_of = ?"); values.push(stubJson); }
@@ -146,8 +156,8 @@ api.openapi(routes.updateItem, async (c) => {
   if (!assignments.length) return c.json(itemResource(item));
   // Write only requested fields. Guard the state used for validation, so a
   // concurrent publication or citation edit cannot invalidate that check.
-  const fresh = await c.env.DB.prepare(`UPDATE items SET ${assignments.join(", ")} WHERE id = ? AND version = ? AND kind = ? AND stub_of IS ? RETURNING *`)
-    .bind(...values, item.id, item.version, item.kind, item.stub_of).first<ItemRow>();
+  const fresh = await c.env.DB.prepare(`UPDATE items SET ${assignments.join(", ")} WHERE id = ? AND version = ? AND kind = ? AND stub_of IS ? AND tk_provenance_json IS ? RETURNING *`)
+    .bind(...values, item.id, item.version, item.kind, item.stub_of, item.tk_provenance_json).first<ItemRow>();
   if (!fresh) return c.json({ error: "item changed while applying the patch; reload and try again" }, 409);
   return c.json(itemResource(fresh));
 });

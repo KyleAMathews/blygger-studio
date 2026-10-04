@@ -1,4 +1,4 @@
-import { ItemSchema, VersionSchema, MediaSchema, SubscriptionSchema, HopperSchema, ImportedItemSchema, MentionSchema, VersionReferenceSchema, StubSchema, TransclusionSchema } from "./resources.ts";
+import { ItemSchema, VersionSchema, MediaSchema, SubscriptionSchema, HopperSchema, ImportedItemSchema, MentionSchema, VersionReferenceSchema, StubSchema, TransclusionSchema, ProvenanceSchema } from "./resources.ts";
 import { optionalJsonBody } from "./app.ts";
 import { createRoute, z, type RouteConfig } from "@hono/zod-openapi";
 import { SettingsSchema, HopperItemRowSchema, SignalRowSchema, MentionOutRowSchema } from "./schemas.ts";
@@ -9,7 +9,7 @@ const ok = z.object({ ok: z.boolean() });
 const created = ItemSchema;
 const ref = VersionReferenceSchema;
 const stub = StubSchema;
-export const ItemEditSchema = z.object({ content_md: z.string().optional(), kind: z.enum(["fragment", "thread"]).optional(), stub_of: z.union([stub, z.null()]).optional(), responses: z.enum(["default", "show", "hide"]).optional() }).strict();
+export const ItemEditSchema = z.object({ provenance: z.array(z.union([ProvenanceSchema, z.null()])).optional(), content_md: z.string().optional(), kind: z.enum(["fragment", "thread"]).optional(), stub_of: z.union([stub, z.null()]).optional(), responses: z.enum(["default", "show", "hide"]).optional() }).strict();
 export const ItemCreateSchema = z.union([
   ItemEditSchema.omit({ responses: true }).extend({ mode: z.literal("blank").optional() }).strict(),
   z.object({ mode: z.literal("fork"), source: ref }).strict(),
@@ -39,7 +39,7 @@ function route<P extends string>(id: string, method: RouteConfig["method"], path
   return createRoute({
     operationId: id, method, path, ...(body ? { middleware: optionalBody ? optionalJsonBody : undefined } : {}), tags: ["studio"], security: [{ ownerSession: [] }],
     request: { ...(Object.keys(params).length ? { params: z.object(params) } : {}), ...(query ? { query } : {}), ...(body ? { body: { required: !optionalBody, content: json(body) } } : {}) },
-    responses: { [status]: { description: "Success", content: json(response) }, ...Object.fromEntries([400, 401, 404, 405, 409, 413, 415, 422, 500, 502].map((s) => [s, { description: "Request failed", content: json(ErrorSchema) }])) },
+    responses: { [status]: { description: "Success", content: json(response) }, ...Object.fromEntries([400, 401, 403, 404, 405, 409, 413, 415, 422, 500, 502].map((s) => [s, { description: "Request failed", content: json(ErrorSchema) }])) },
   });
 }
 

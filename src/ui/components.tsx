@@ -73,6 +73,7 @@ const nav = [
   ['hoppers', '/hoppers'],
   ['mentions', '/mentions'],
   ['settings', '/settings'],
+  ['access', '/access'],
   ['syntax', '/syntax'],
 ] as const;
 export function Layout({ children }: { children: ReactNode }) {

@@ -383,3 +383,8 @@ export const hopperPreview = scoped((id) =>
     }),
   ),
 );
+
+export const authorizations = createCollection(queryCollectionOptions<import('../../sdk/dist/browser.js').Authorization>({
+  id: 'authorizations', queryKey: ['authorizations'], queryClient, getKey: row => row.id,
+  queryFn: async ({ signal }) => (await unwrap(BlyggerApi.listAuthorizations({ client, signal }))).items,
+}));

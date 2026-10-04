@@ -2,7 +2,7 @@ import type { ItemRow, MediaRow, VersionRow, Transclusion } from "./types.ts";
 
 export type FeedItem = Pick<ItemRow, "id" | "kind" | "created" | "updated" | "version" | "forked_from" | "fork_cite">;
 
-/** Public presentation needs item metadata, never the working draft. */
+/** Public presentation needs item metadata, never the working copy. */
 export async function listFeedItems(db: D1Database, limit: number): Promise<FeedItem[]> {
   return (await db.prepare(`SELECT id, kind, created, updated, version, forked_from, fork_cite
     FROM items WHERE status IN ('public','withdrawn') ORDER BY updated DESC, rowid DESC LIMIT ?`)

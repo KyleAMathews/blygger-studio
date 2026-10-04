@@ -1,5 +1,8 @@
 import { listFeedItems } from "./public-feed.ts";
 import { studioSpa } from "./spa.ts";
+import { authorizationApi } from './authorization-api.ts';
+import { oauthRoutes } from './oauth-routes.ts';
+import { serveMcp } from './mcp.ts';
 import { ownerApi } from "./owner-api.ts";
 // Studio is mounted at {mount}/studio and its assets share that range.
 // The owner API remains host-rooted at /api. Register both before the public
@@ -30,9 +33,37 @@ const cors = (c: { header: (k: string, v: string) => void }) =>
 /** Build the app for one normalized mount ("" = root, else "/path"). */
 export function makeApp(mount: string) {
   const app = new Hono<{ Bindings: Env }>({ strict: false });
+  app.onError((_error, c) => {
+    // Authentication driver failures can contain SQL parameters and secrets.
+    // Keep a bounded event rather than Hono's default raw Error/stack output.
+    console.error('Worker request failed');
+    return c.json({ error: 'internal server error' }, 500, { 'Cache-Control': 'no-store' });
+  });
+  app.use('*', async (c, next) => {
+    const path = c.req.path, studio = studioPath(mount);
+    if (path === '/api' || path.startsWith('/api/') || path === studio || path.startsWith(studio + '/')) {
+      const url = new URL(c.req.url);
+      const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+      if (url.protocol !== 'https:' && !loopback) return c.json({ error: 'HTTPS required' }, 400, { 'Cache-Control': 'no-store' });
+    }
+    await next();
+  });
 
   // --- Studio: cookie auth, mount-relative (see header note). API: cookie auth, host-rooted. Registered first. ---
 
+  app.route(studioPath(mount) + '/auth', oauthRoutes());
+  app.all(studioPath(mount) + '/mcp', c => serveMcp(c.req.raw, c.env, c.executionCtx));
+  app.use('/api/*', async (c, next) => {
+    if (c.req.header('authorization') || c.req.method === 'OPTIONS') {
+      c.header('Access-Control-Allow-Origin', '*');
+      c.header('Access-Control-Allow-Methods', 'GET, HEAD, POST, PATCH, PUT, DELETE, OPTIONS');
+      c.header('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+      c.header('Access-Control-Expose-Headers', 'WWW-Authenticate, Location');
+      if (c.req.method === 'OPTIONS') return c.body(null, 204);
+    }
+    await next();
+  });
+  app.route('/api', authorizationApi);
   app.route(studioPath(mount), studioSpa(mount));
 
   app.route("/api", ownerApi);

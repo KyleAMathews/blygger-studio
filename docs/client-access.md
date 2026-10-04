@@ -1,0 +1,60 @@
+# Client access
+
+This branch adds owner-approved OAuth grants and manual tokens. Studio keeps its owner login. The owner password belongs only on the Studio login page; client tools use bearer tokens.
+
+## Manual tokens
+
+Open **access** in Studio. Enter a client name, choose REST API or MCP, select its permissions, and create a token. Copy the token from the dialog before closing it. It expires after 30 days and has no refresh token. Mint a replacement when needed.
+
+The REST API remains at `/api`. MCP is at `{mount}/studio/mcp`, such as `https://example.com/blyg/studio/mcp`. A token is bound to the selected resource: an MCP token cannot call REST, and a REST token cannot connect to MCP.
+
+| Scope | Allows |
+| --- | --- |
+| `owner:read` | Private reads: drafts, reading material, media, settings, and history |
+| `owner:draft` | Creating, editing, restoring and deleting drafts, media uploads, preview, and configured AI generation |
+| `owner:publish` | Publication, withdrawal, refresh, permanent pins, public response display, and media deletion |
+| `owner:manage` | Settings, subscriptions, signals, collections and response moderation, including their public effects |
+
+Scopes do not imply each other. Choose each permission the client needs. Editing an item's `responses` field requires both drafting and publishing permission because the public page changes immediately.
+
+## JavaScript clients
+
+Use the release SDK in browsers and Node.js. Configure the generated client's native Bearer scheme:
+
+```js
+import { BlyggerApi, createBlyggerClient, unwrap } from '@blygger/sdk';
+
+const client = createBlyggerClient({
+  baseUrl: 'https://example.com',
+  auth: scheme => scheme.scheme === 'bearer' ? accessToken : undefined,
+});
+const items = await unwrap(BlyggerApi.listItems({ client }));
+```
+
+Load `accessToken` from the client's credential store. Do not put it in browser source or a URL. Browser bearer requests support CORS. Owner-cookie requests remain same-origin; Studio does not expose credential-management operations to bearer clients.
+
+A Studio browser uses its HttpOnly cookie through `credentials: 'same-origin'` without an `auth` option. A Node owner client can pass its complete session cookie in `headers.Cookie`. A plain `auth` string is unsuitable for owner sessions now that the contract has both cookie and Bearer schemes.
+
+## Revocation and password reset
+
+Studio lists each grant, its permissions, resource and expiry. Revoke one authorization to disable its access and refresh credentials, or choose revoke-all. Revoke-all leaves your Studio session active.
+
+When resetting the owner password, use revoke-all first. Changing either `OWNER_PASSWORD` or `COOKIE_SECRET` also invalidates all delegated grants. Rotate `COOKIE_SECRET` with a password reset to invalidate existing Studio sessions too. Set secrets through Wrangler's interactive prompts; do not place them in committed config.
+
+## OAuth and MCP status
+
+OAuth uses S256 PKCE, explicit owner consent, one-hour access tokens and rotating refresh credentials. Grants end no later than 30 days after the owner session began. Resource metadata, login, consent, registration, tokens and MCP are under the Studio mount.
+
+Better Auth and its OAuth Provider supply native OIDC discovery at `{mount}/studio/auth/.well-known/openid-configuration`. The official MCP client has completed discovery, owner consent and tool calls through the Worker at root, `/blyg` and `/nested/blyg` mounts. Protected-resource challenges point to mounted metadata at `{mount}/studio/auth/resources/mcp`. No host-root discovery route is exposed.
+
+This mount-only profile does not meet RFC 9728's host-root protected-resource metadata publication rule. The explicit challenge works with the tested client; that result does not establish full RFC 9728 conformance or compatibility with every client. See [the source survey](auth-security-survey.md) and [the protocol boundaries](oauth-implementation-hardening.md).
+
+MCP uses the same REST handlers and Zod definitions. Tools require the operation's permissions; a denied call returns an HTTP 403 scope challenge. The tool list shows permitted operations. `uploadMedia` accepts `body.file` with `filename`, `contentType` and `dataBase64`, plus the REST metadata fields. Its adapter sends a multipart request to the REST handler. The same image types and 5 MiB raw-file limit apply; the encoded MCP request must fit within 8 MiB.
+
+For generated text, clients submit `provenance` with one entry per TK scope, using `null` for scopes with no claim. Each claim has `sources: [{ id, version }]`, and optional `model` and `at`. The claim is client-asserted. Publication strips TK authoring syntax and emits the provenance in the public item. See [the oracle coverage record](auth-oracles.md) for verified behavior and open boundaries.
+
+## Installation
+
+Apply D1 migration `0018_oauth.sql` and enable `nodejs_compat` before deploying this branch. Source installs use `npm run upgrade`; Worker archives use the release's D1 migration instructions. OAuth records use the existing DB binding, so no KV namespace or new deployment secret is needed.
+
+Resetting the owner password or cookie secret also invalidates owner login cookies. Log in again after either change. Rate limits use shared D1 counters and the Cloudflare client address; see [deployment boundaries](auth-deployment-hardening.md) for the ingress and rollout checks.

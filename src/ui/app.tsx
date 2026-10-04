@@ -10,6 +10,7 @@ import {
 import { Layout, basepath } from './components.tsx';
 import { Compose, EditorPage } from './authoring.tsx';
 import { ReadingPage } from './reading.tsx';
+import { AuthorizationsPage } from './authorizations.tsx';
 import { SettingsPage } from './settings.tsx';
 import {
   SubscriptionsPage,
@@ -23,6 +24,7 @@ import {
 } from './catalog.tsx';
 import {
   items,
+  authorizations,
   settings as settingsCollection,
   subscriptions,
   hoppers as hopperCollection,
@@ -187,6 +189,7 @@ const fork = createRoute({
     <ForkPage id={fork.useSearch().id} options={fork.useLoaderData()} />
   ),
 });
+const access = createRoute({ getParentRoute: () => rootRoute, path: '/access', loader: () => authorizations.preload(), component: AuthorizationsPage });
 const syntax = createRoute({
   getParentRoute: () => rootRoute,
   path: '/syntax',
@@ -198,6 +201,7 @@ export const router = createRouter({
     reading,
     edit,
     settings,
+    access,
     subs,
     hoppers,
     hopper,

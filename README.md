@@ -204,8 +204,7 @@ const reading = await unwrap(BlyggerApi.listReading({ client, query: { offset: 0
 Sign into `/studio` first: API calls use its owner session cookie. The SDK does
 not create a login session. Node clients must supply a session cookie in
 `headers` or a custom transport. See [SDK usage](sdk/README.md). Never embed an
-owner cookie in browser source. Cross-origin apps and OAuth are not supported
-yet. Install the downloads locally. The SDK is not published to the npm registry.
+owner cookie in browser source. Cross-origin clients can use resource-bound bearer tokens from Studio’s access page. See [client access](docs/client-access.md) for scopes, revocation, and the mounted OAuth/MCP discovery profile. Install the downloads locally. The SDK is not published to the npm registry.
 
 The downloaded OpenAPI file describes `/api` paths. Its default server is
 `http://localhost:8787`. Select your deployed origin in the API tool or generator.
@@ -363,7 +362,7 @@ extra asset binding. For a mounted installation, forward `{mount}/*` and
 `/api/*`, including `{mount}/studio/app.js` and `{mount}/studio/app.css`.
 
 See [the migration plan](docs/migration.md) for the completed SPA cutover and the
-queued OAuth and MCP work.
+OAuth and MCP client access.
 
 ## Browser tests
 

@@ -126,12 +126,13 @@ export async function createDraft(
   contentMd: string,
   kind: "fragment" | "thread" = "fragment",
   stub: StubOf | null = null,
+  provenance: (ScopeProvenance | null)[] | undefined = undefined,
 ): Promise<ItemRow> {
   const id = newId();
   const now = nowIso();
   await db
-    .prepare("INSERT INTO items (id, kind, status, created, updated, version, content_md, dirty, stub_of) VALUES (?, ?, 'draft', ?, ?, 0, ?, 1, ?)")
-    .bind(id, kind, now, now, contentMd, stub ? JSON.stringify(stub) : null)
+    .prepare("INSERT INTO items (id, kind, status, created, updated, version, content_md, dirty, stub_of, tk_provenance_json) VALUES (?, ?, 'draft', ?, ?, 0, ?, 1, ?, ?)")
+    .bind(id, kind, now, now, contentMd, stub ? JSON.stringify(stub) : null, provenance === undefined ? null : JSON.stringify(provenance))
     .run();
   return (await getItem(db, id))!;
 }
