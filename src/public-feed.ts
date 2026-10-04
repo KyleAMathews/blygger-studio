@@ -43,33 +43,44 @@ export async function loadFeedData(db: D1Database, items: FeedItem[], avatarId: 
   for (const v of versions.results as unknown as FeedVersion[]) cards.get(v.item_id)!.latest = v;
   for (const pin of pins.results as unknown as { item_id: string; version: number }[]) cards.get(pin.item_id)!.pins.push(pin.version);
   for (const m of media.results as unknown as MediaRow[]) cards.get(m.item_id!)!.media.push(m);
+  const provenance = await loadProvenance(
+    db,
+    items.filter(i => i.kind === "thread").map(i => JSON.parse(cards.get(i.id)!.latest?.transclusions || "[]") as Transclusion[]),
+  );
+  return { cards, provenance, avatar: (avatar.results[0] as unknown as MediaRow | undefined) ?? null };
+}
+
+/**
+ * Provenance for every direct transclusion of a set of threads, in two
+ * queries. Shared by the public pages and feed.xml so the two surfaces can
+ * never disagree about whose quote a blockquote is.
+ */
+export async function loadProvenance(db: D1Database, threads: Transclusion[][]): Promise<FeedProvenance> {
   const localIds = new Set<string>();
   const remote = new Map<string, { origin: string; id: string }>();
-  for (const item of items.filter(i => i.kind === "thread")) {
-    const transclusions = JSON.parse(cards.get(item.id)!.latest?.transclusions || "[]") as Transclusion[];
+  for (const transclusions of threads) {
     for (const t of transclusions) {
       if (!t.origin) localIds.add(t.id);
       else if (!t.cited) remote.set(sourceKey(t.origin, t.id), { origin: t.origin, id: t.id });
     }
   }
   const provenance: FeedProvenance = { localKinds: new Map(), remoteSources: new Map() };
-  if (localIds.size || remote.size) {
-    const [local, sources] = await db.batch([
-      db.prepare(`SELECT i.id, CASE WHEN i.kind = 'withdrawn' THEN
-        CASE WHEN COALESCE(v.transclusions, '') != '' THEN 'thread' ELSE 'fragment' END ELSE i.kind END AS kind
-        FROM json_each(?) s JOIN items i ON i.id = s.value
-        LEFT JOIN versions v ON i.kind = 'withdrawn' AND v.item_id = i.id AND v.version = i.version - 1`)
-        .bind(JSON.stringify([...localIds])),
-      db.prepare(`SELECT s.origin, ii.remote_id AS id, ii.kind, ii.page, s.title
-        FROM json_each(?) r JOIN subscriptions s ON s.origin = json_extract(r.value, '$.origin')
-        JOIN imported_items ii ON ii.subscription_id = s.id AND ii.remote_id = json_extract(r.value, '$.id')`)
-        .bind(JSON.stringify([...remote.values()])),
-    ]);
-    for (const row of local.results as unknown as { id: string; kind: "fragment" | "thread" }[]) provenance.localKinds.set(row.id, row.kind);
-    for (const row of sources.results as unknown as { origin: string; id: string; kind: string; page: string | null; title: string }[]) {
-      const key = sourceKey(row.origin, row.id);
-      if (!provenance.remoteSources.has(key)) provenance.remoteSources.set(key, row);
-    }
+  if (!localIds.size && !remote.size) return provenance;
+  const [local, sources] = await db.batch([
+    db.prepare(`SELECT i.id, CASE WHEN i.kind = 'withdrawn' THEN
+      CASE WHEN COALESCE(v.transclusions, '') != '' THEN 'thread' ELSE 'fragment' END ELSE i.kind END AS kind
+      FROM json_each(?) s JOIN items i ON i.id = s.value
+      LEFT JOIN versions v ON i.kind = 'withdrawn' AND v.item_id = i.id AND v.version = i.version - 1`)
+      .bind(JSON.stringify([...localIds])),
+    db.prepare(`SELECT s.origin, ii.remote_id AS id, ii.kind, ii.page, s.title
+      FROM json_each(?) r JOIN subscriptions s ON s.origin = json_extract(r.value, '$.origin')
+      JOIN imported_items ii ON ii.subscription_id = s.id AND ii.remote_id = json_extract(r.value, '$.id')`)
+      .bind(JSON.stringify([...remote.values()])),
+  ]);
+  for (const row of local.results as unknown as { id: string; kind: "fragment" | "thread" }[]) provenance.localKinds.set(row.id, row.kind);
+  for (const row of sources.results as unknown as { origin: string; id: string; kind: string; page: string | null; title: string }[]) {
+    const key = sourceKey(row.origin, row.id);
+    if (!provenance.remoteSources.has(key)) provenance.remoteSources.set(key, row);
   }
-  return { cards, provenance, avatar: (avatar.results[0] as unknown as MediaRow | undefined) ?? null };
+  return provenance;
 }

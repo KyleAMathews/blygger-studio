@@ -33,6 +33,23 @@ describe("feed.xml (§2.6)", () => {
     expect(ch["blyg:manifest"]).toBe("https://example.com/blyg/blyg.json");
   });
 
+  it("is subscribable in strict readers: self link, non-empty description, absolute titled discovery", async () => {
+    // studio#33: a relative, untitled <link rel=alternate> was ignored by
+    // several readers, and an empty <description> failed strict ones.
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/api/settings", { site_title: "Strict Blyg", author_bio: "" });
+    const id = await createAndPublish(cookie, "a fragment");
+    const doc = parse(await fetchFeed());
+    expect(doc.rss["@_xmlns:atom"]).toBe("http://www.w3.org/2005/Atom");
+    expect(doc.rss.channel["atom:link"]["@_href"]).toBe("https://example.com/blyg/feed.xml");
+    expect(doc.rss.channel["atom:link"]["@_rel"]).toBe("self");
+    expect(doc.rss.channel.description).toBe("Strict Blyg");
+    for (const path of ["/blyg/", `/blyg/f/${id}/`]) {
+      const html = await (await getPublic(path)).text();
+      expect(html).toContain('<link rel="alternate" type="application/rss+xml" title="Strict Blyg" href="https://example.com/blyg/feed.xml">');
+    }
+  });
+
   it("item entries carry guid, link, title, pubDate, and blyg extensions", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "some **bold** text for the feed", "first note");

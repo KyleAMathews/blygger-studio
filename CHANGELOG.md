@@ -18,6 +18,26 @@ not have its own repo until session 26.
 
 ---
 
+## 0.21.1 — 2026-10-04
+
+**Migrations: none.**
+
+**Blyg feeds subscribe in strict RSS readers.** Contributed by akashtattva (#33).
+
+- `feed.xml` renders in a fixed number of database queries instead of several
+  per item. Live feeds were slow enough that some readers timed out and called
+  them invalid.
+- Public pages advertise the feed with an absolute URL and the blyg's title, so
+  pasting a blyg's address into a reader finds it.
+- The feed carries an `atom:link rel="self"`, and its `<description>` falls back
+  to the site title when the bio is empty.
+- The feed and the public pages now share one loader for quote provenance, so
+  they cannot disagree about whose quote a blockquote is.
+
+Protocol: implements 0.3, unchanged.
+
+---
+
 ## 0.21.0 — 2026-10-03
 
 **Migrations: none.**

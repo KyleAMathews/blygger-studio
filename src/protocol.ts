@@ -3,6 +3,7 @@
 
 import { listBlogrollSubscriptions } from "./importer/store.ts";
 import { excerpt, excerptFromHtml } from "./markdown.ts";
+import { loadProvenance } from "./public-feed.ts";
 import { authorOwnHtml, forkLineage, injectProvenance, respondsToLabel, stubCitation, transclusionProvenance } from "./pages.ts";
 import { parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
 import {
@@ -222,7 +223,7 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
   const liveItems = events.filter(({ item }) => item.kind !== "withdrawn");
   const livePairs = JSON.stringify([...new Map(liveItems.map(({ item }) => [item.id, { id: item.id, version: item.version }])).values()]);
   const allIds = JSON.stringify([...new Set(events.map(({ item }) => item.id))]);
-  const withdrawnIds = JSON.stringify([...new Set(events.filter(({ item }) => item.kind === "withdrawn").map(({ item }) => ({ id: item.id, version: item.version })))]);
+  const withdrawnIds = JSON.stringify([...new Map(events.filter(({ item }) => item.kind === "withdrawn").map(({ item }) => [item.id, { id: item.id, version: item.version }])).values()]);
   const [latestRes, mediaRes, prevRes] = await db.batch([
     db.prepare(`SELECT v.item_id, v.content_md, v.content_html, v.transclusions, v.stub_of, v.stub_cite FROM json_each(?) s JOIN versions v
       ON v.item_id = json_extract(s.value, '$.id') AND v.version = json_extract(s.value, '$.version')`).bind(livePairs),
@@ -242,42 +243,16 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
   }
   const withdrawnKind = new Map<string, boolean>();
   for (const r of prevRes.results as unknown as Array<{ item_id: string; transclusions: string | null }>) {
-    withdrawnKind.set(r.item_id, r.transclusions !== null);
+    withdrawnKind.set(r.item_id, Boolean(r.transclusions));
   }
-  // Provenance for every transclusion on the page, in two queries — the same
-  // shape as loadFeedData, so the feed and the HTML page can never disagree
-  // about whose quote this is.
-  const localIds = new Set<string>();
-  const remote = new Map<string, { origin: string; id: string }>();
-  for (const { item } of liveItems) {
-    if (item.kind !== "thread") continue;
-    for (const t of latestTransclusions({ transclusions: latestById.get(item.id)?.transclusions ?? null })) {
-      if (!t.origin) localIds.add(t.id);
-      else if (!t.cited) remote.set(JSON.stringify([t.origin, t.id]), { origin: t.origin, id: t.id });
-    }
-  }
-  const provenance: { localKinds: Map<string, "fragment" | "thread">; remoteSources: Map<string, { kind: string; page: string | null; title: string }> } = {
-    localKinds: new Map(),
-    remoteSources: new Map(),
-  };
-  if (localIds.size || remote.size) {
-    const [localRes, sourcesRes] = await db.batch([
-      db.prepare(`SELECT i.id, CASE WHEN i.kind = 'withdrawn' THEN
-        CASE WHEN COALESCE(v.transclusions, '') != '' THEN 'thread' ELSE 'fragment' END ELSE i.kind END AS kind
-        FROM json_each(?) s JOIN items i ON i.id = s.value
-        LEFT JOIN versions v ON i.kind = 'withdrawn' AND v.item_id = i.id AND v.version = i.version - 1`)
-        .bind(JSON.stringify([...localIds])),
-      db.prepare(`SELECT s.origin, ii.remote_id AS id, ii.kind, ii.page, s.title
-        FROM json_each(?) r JOIN subscriptions s ON s.origin = json_extract(r.value, '$.origin')
-        JOIN imported_items ii ON ii.subscription_id = s.id AND ii.remote_id = json_extract(r.value, '$.id')`)
-        .bind(JSON.stringify([...remote.values()])),
-    ]);
-    for (const row of localRes.results as unknown as Array<{ id: string; kind: "fragment" | "thread" }>) provenance.localKinds.set(row.id, row.kind);
-    for (const row of sourcesRes.results as unknown as Array<{ origin: string; id: string; kind: string; page: string | null; title: string }>) {
-      const key = JSON.stringify([row.origin, row.id]);
-      if (!provenance.remoteSources.has(key)) provenance.remoteSources.set(key, row);
-    }
-  }
+  // Same loader as the public pages: the feed and the HTML page can never
+  // disagree about whose quote this is.
+  const provenance = await loadProvenance(
+    db,
+    liveItems
+      .filter(({ item }) => item.kind === "thread")
+      .map(({ item }) => latestTransclusions({ transclusions: latestById.get(item.id)?.transclusions ?? null })),
+  );
   const itemsXml: string[] = [];
   // Per §2.3, only the latest version's content is published — feed entries
   // for older publish events carry the event's version/note but render the
