@@ -798,6 +798,18 @@
               "string",
               "null"
             ]
+          },
+          "stub_of_json": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "forked_from_json": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -817,7 +829,9 @@
           "transclusions_json",
           "l0",
           "pinned_version_retained",
-          "page"
+          "page",
+          "stub_of_json",
+          "forked_from_json"
         ]
       },
       "SignalRow": {

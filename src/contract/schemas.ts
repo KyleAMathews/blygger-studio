@@ -80,6 +80,8 @@ export const ImportedItemRowSchema = z.object({
   l0: z.number(),
   pinned_version_retained: z.number().nullable(),
   page: z.string().nullable(),
+  stub_of_json: z.string().nullable(),
+  forked_from_json: z.string().nullable(),
 }).openapi("ImportedItemRow");
 
 export const HopperRowSchema = z.object({

@@ -182,6 +182,8 @@ export type ImportedItem = {
     l0: boolean;
     pinned_version_retained: number | null;
     page: string | null;
+    stub_of_json: string | null;
+    forked_from_json: string | null;
 };
 
 export type SignalRow = {

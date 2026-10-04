@@ -86,11 +86,38 @@ export function parseStubOf(raw: unknown): { ok: true; stub: StubOf } | { ok: fa
       return { ok: false, reason: "stub_of.url must be an absolute URL" };
     }
     if (url.protocol !== "http:" && url.protocol !== "https:") return { ok: false, reason: "stub_of.url must be http(s)" };
-    return { ok: true, stub: { url: url.toString() } };
+    if (r.cited === undefined) return { ok: true, stub: { url: url.toString() } };
+    const cited = parseCited(r.cited);
+    return cited.ok ? { ok: true, stub: { url: url.toString(), cited: cited.cite } } : cited;
   }
   const parsed = parseBlygRef(r, "stub_of");
   return parsed.ok ? { ok: true, stub: parsed.ref } : parsed;
 }
+
+/**
+ * A `{url}` stub's frozen citation (§5.9 rules, decision #55): `retrieved`
+ * required, `source`/`author`/`excerpt`/`url` optional strings, the excerpt a
+ * caption near 200 characters — clamped, not refused, since the cap exists to
+ * keep `cited` from becoming a quotation channel, not to fail a draft.
+ */
+function parseCited(raw: unknown): { ok: true; cite: StubCite } | { ok: false; reason: string } {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, reason: "stub_of.cited must be an object" };
+  const c = raw as Record<string, unknown>;
+  if (typeof c.retrieved !== "string" || Number.isNaN(Date.parse(c.retrieved))) return { ok: false, reason: "stub_of.cited.retrieved is required (an ISO 8601 time)" };
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+  const excerpt = str(c.excerpt);
+  return {
+    ok: true,
+    cite: {
+      source: str(c.source) ?? "",
+      ...(str(c.author) ? { author: str(c.author) } : {}),
+      ...(excerpt ? { excerpt: excerpt.length > CITED_EXCERPT_MAX ? excerpt.slice(0, CITED_EXCERPT_MAX - 1) + "…" : excerpt } : {}),
+      url: str(c.url) ?? "",
+      retrieved: c.retrieved,
+    },
+  };
+}
+const CITED_EXCERPT_MAX = 200;
 
 export function isBlygStub(stub: StubOf): stub is { origin: string; id: string; version: number } {
   return "id" in stub;
@@ -140,7 +167,12 @@ export async function composeStubCite(
   now: string,
 ): Promise<StubCite> {
   if (!isBlygStub(stub)) {
-    return { source: safeHost(stub.url), url: stub.url, retrieved: now };
+    // Frozen when the stub was made, when the studio knew more than the host
+    // (§5.9: "creation time for stub_of"); otherwise the host, as before.
+    const c = stub.cited;
+    return c
+      ? { ...c, source: c.source || safeHost(stub.url), url: c.url || stub.url }
+      : { source: safeHost(stub.url), url: stub.url, retrieved: now };
   }
   const url = await citedUrl(db, stub, ourOrigin);
   if (stub.origin === ourOrigin) {

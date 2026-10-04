@@ -153,6 +153,8 @@ saying so.
 
 ## Status
 
+**0.18.0** (session 33, 2026-10-03): imports keep `stub_of`/`forked_from` verbatim (studio#12, **migration 0017**); `{url}` stubs cite the feed and entry, frozen at creation (#55). The build side of gate G10.
+
 **0.17.0** (session 33, 2026-10-03): the bracket and TK grammar are inert inside code (#54, studio#4) and inside generated output (studio#5); links never nest (studio#13); preview resolves links in generated blocks (studio#14); no PUA markers reach HTML (studio#3). `src/code-ranges.ts` finds code with markdown-it's own parser. No migration.
 
 **0.16.0** (session 32, 2026-10-03): images belong to the text they are in (`media.inline`, **migration 0016**; studio#24), attachment removal, uploads block navigation, the editor fills the window, `$` patterns spliced verbatim (studio#2), and **no built-in AI model** — operators set one (our nodes: `claude-sonnet-5-5`).
@@ -502,7 +504,7 @@ Deferred when the session wrapped, not blocked on anything.
 
 ### New features
 
-- [ ] **`cited` on `{url}` stubs** (session 31, decision #55; spec §16.1a — a ruled shape,
+- [x] **`cited` on `{url}` stubs** — **done 0.18.0 (session 33)**. Finding: a hostname-only `cited` had been emitted since 0.4 (live on three venkateshrao stubs); what was missing was the import half (studio#12, now kept verbatim) and a useful citation (feed name + entry title, frozen at creation). Original entry: (session 31, decision #55; spec §16.1a — a ruled shape,
   normative once this ships and an import retains it): when a stub targets a plain URL, emit
   the §5.9 `cited` object on `stub_of` — `retrieved` always; `source`, `author`, `excerpt`
   (≤ ~200 chars, a caption) and `url` when the page offers them. The pour-over-links

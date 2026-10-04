@@ -7,6 +7,7 @@ import { normalizeSelection, selectionText } from "./markdown.ts";
 import { locateSelection } from "./transclusion.ts";
 import { getSubscription, getImportedItem } from "./importer/store.ts";
 import { sourceTitleAndUrl } from "./importer/util.ts";
+import { nowIso } from "./util.ts";
 
 /**
  * The stub action (v0.3-plan §3.1, decision #27) — one gesture, replacing
@@ -68,7 +69,12 @@ export async function createResponseDraft(c: Context<{ Bindings: Env }>, body: {
     const { title, url } = sourceTitleAndUrl(row, sub.origin);
     const label = (title || sub.title || sub.origin).replace(/[[\]]/g, "");
     contentMd = `[${label}](${url})\n\n`;
-    stubInput = { url };
+    // The citation's human half, frozen now (§5.9, decision #55): which feed,
+    // and the entry's own title as the caption — more than a hostname says.
+    stubInput = {
+      url,
+      cited: { source: sub.title || "", ...(title ? { excerpt: title } : {}), url, retrieved: nowIso() },
+    };
   } else {
     // What a quote of this row would bake: the retained pinned version for a
     // tombstone we kept, the watermark otherwise. An unretained tombstone has

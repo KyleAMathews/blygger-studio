@@ -18,7 +18,27 @@ not have its own repo until session 26.
 
 ---
 
-## 0.17.0 — 2026-10-03
+## 0.18.0 — 2026-10-03
+
+**Migrations: apply `0017_imported_lineage.sql`.** It adds two nullable columns
+to `imported_items` and changes no stored values.
+
+**Imports keep what an item answers and descends from** (studio#12). The
+importer used to keep a subscribed item's `transclusions` but drop its
+`stub_of` and `forked_from`. Both are now stored verbatim, including their
+`cited` citations, and exposed on imported items (`stub_of_json`,
+`forked_from_json`). A reader can show lineage from local data without
+re-fetching each document, and a citation now survives import on another node.
+Rows imported earlier fill in when their origin next publishes a version.
+
+**Responses to plain web pages say what they answer** (decision #55, spec
+§16.1a). A stub of a feed entry used to cite only the host
+(`simonwillison.net`). It now records the feed's name as `source` and the
+entry's title as `excerpt`, frozen when the stub is made, as §5.9 specifies for
+`stub_of`. Through the API, `PATCH /items/{id}` accepts `cited` on a `{url}`
+stub: `retrieved` is required, and `excerpt` is clamped near 200 characters.
+
+
 
 **Migrations: none.**
 

@@ -244,6 +244,10 @@ export interface ImportedItemRow {
   pinned_version_retained: number | null;
   /** Origin-relative permalink as the origin itself declares it (item doc `page`, v0.3-plan §2.3.2); null when the origin omits it and the f/·t/ convention applies. */
   page: string | null;
+  /** The origin's `stub_of`, verbatim JSON (migration 0017, studio#12). */
+  stub_of_json: string | null;
+  /** The origin's `forked_from`, verbatim JSON (migration 0017). */
+  forked_from_json: string | null;
 }
 
 export interface HopperRow {

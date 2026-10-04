@@ -26,6 +26,9 @@ export interface NormalizedItemDoc {
   author: unknown;
   media: unknown[];
   transclusions?: unknown[];
+  /** §10.6 / §5.6, kept verbatim (studio#12); undefined when absent or not an object. */
+  stub_of?: Record<string, unknown>;
+  forked_from?: Record<string, unknown>;
   /** v0.3 §2.3.2: origin-relative permalink the origin declares for itself; undefined when it doesn't. */
   page?: string;
 }
@@ -64,6 +67,9 @@ export interface TransitionResult {
 
 type NormalizeResult = { ok: true; doc: NormalizedItemDoc } | { ok: false; reason: "unparseable" | "unknown-kind" };
 
+const plainObject = (v: unknown): Record<string, unknown> | undefined =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
+
 function normalizeItemDoc(raw: unknown): NormalizeResult {
   if (!raw || typeof raw !== "object") return { ok: false, reason: "unparseable" };
   const r = raw as Record<string, unknown>;
@@ -88,6 +94,8 @@ function normalizeItemDoc(raw: unknown): NormalizeResult {
       author: r.author,
       media: Array.isArray(r.media) ? r.media : [],
       transclusions: Array.isArray(r.transclusions) ? r.transclusions : undefined,
+      stub_of: plainObject(r.stub_of),
+      forked_from: plainObject(r.forked_from),
       page: typeof r.page === "string" && r.page ? r.page : undefined,
     },
   };
