@@ -9,6 +9,7 @@ import { transition } from "../src/importer/transition.ts";
 import { itemDocBody } from "./importer/fixtures.ts";
 import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
 import { newId } from "../src/util.ts";
+import { applyVersionAgreement } from "../src/stub.ts";
 
 const OURS = "https://example.com/blyg/";
 const THEIRS = "https://friend.example/blyg/";
@@ -241,5 +242,23 @@ describe("the citation a stub carries (session 23 ruling: conventional citation 
     const plain = (await apiJson(cookie, "POST", "/api/items", { content_md: "just a thread", kind: "thread" })).json.id;
     await apiJson(cookie, "POST", `/api/items/${plain}/publish`, {});
     expect(await (await getPublic(`/blyg/t/${plain}/`)).text()).not.toContain("In response to");
+  });
+});
+
+describe("version agreement matches the stub's target by origin and id (studio#28)", () => {
+  const own = "https://me.example/blyg/";
+  const remote = { origin: "https://them.example/", id: "x1", version: 3 };
+  it("takes the baked version when the body quotes the remote target", () => {
+    expect(applyVersionAgreement(remote, [{ id: "x1", version: 5, origin: "https://them.example/" }], own)).toEqual({ ...remote, version: 5 });
+  });
+  it("ignores a local item that shares the remote target's id", () => {
+    expect(applyVersionAgreement(remote, [{ id: "x1", version: 9 }], own)).toEqual(remote);
+  });
+  it("treats an origin-less quote as our own, so a self-stub still agrees", () => {
+    const self = { origin: "https://me.example/blyg", id: "x1", version: 1 };
+    expect(applyVersionAgreement(self, [{ id: "x1", version: 2 }], own)).toEqual({ ...self, version: 2 });
+  });
+  it("ignores the same id quoted from a third origin", () => {
+    expect(applyVersionAgreement(remote, [{ id: "x1", version: 7, origin: "https://other.example/" }], own)).toEqual(remote);
   });
 });

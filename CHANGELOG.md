@@ -18,6 +18,34 @@ not have its own repo until session 26.
 
 ---
 
+## 0.21.2 — 2026-10-04
+
+**Migrations: none.**
+
+**Five fixes found by the conformance toolkit** (blygger-spec#11, by Aneesh
+Sathe), each reproduced on 0.21.0.
+
+- **A feed that drops every new entry no longer strands a reader** (#27). Any
+  gap in the feed window now triggers the index diff, as §13.2 says. Before,
+  the reader also needed a new entry in the feed, and otherwise stayed stale
+  until the daily sync.
+- **A stub's version agreement matches its target by origin as well as id**
+  (#28). A local item sharing a remote target's id could overwrite
+  `stub_of.version` with its own version.
+- **Forking an older client's thread keeps the author's own `>` lines** (#29).
+  Lines after a quote directive are treated as an attached excerpt only when
+  the pinned bake is marked partial.
+- **A fork of a remote pin cites the pinned page when the origin serves one**
+  (#30), as a fork of our own pin already did. The JSON file stays the
+  citation when there is no page, since pinned pages are optional (§8.4).
+  Existing forks keep the citation frozen when they were made.
+- **`feed.xml` carries `<dc:creator>`** when the author name is set (#31,
+  §7's SHOULD).
+
+Protocol: implements 0.3, unchanged.
+
+---
+
 ## 0.21.1 — 2026-10-04
 
 **Migrations: none.**

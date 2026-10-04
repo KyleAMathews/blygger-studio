@@ -384,7 +384,7 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   // never disagree on a published document. Threads only — the working copy
   // of a fragment never carries a stub (the API refuses to set one).
   const stub = kind === "thread" ? parseStoredStub(item.stub_of) : null;
-  const agreed = stub ? applyVersionAgreement(stub, transclusionsJson ? (JSON.parse(transclusionsJson) as Transclusion[]) : []) : null;
+  const agreed = stub ? applyVersionAgreement(stub, transclusionsJson ? (JSON.parse(transclusionsJson) as Transclusion[]) : [], normalizedOrigin(origin)) : null;
   const stubJson = agreed ? JSON.stringify(agreed) : null;
   // The citation's human half is resolved once and frozen (migration 0008):
   // the subscription that supplies the source's name can be renamed or

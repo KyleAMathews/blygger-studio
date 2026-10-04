@@ -253,6 +253,10 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
       .filter(({ item }) => item.kind === "thread")
       .map(({ item }) => latestTransclusions({ transclusions: latestById.get(item.id)?.transclusions ?? null })),
   );
+  // §7 (C-7-08): the standard RSS byline, whenever the item's author.name is
+  // present. Every item carries the blyg's one author, so it is the same line
+  // on each entry; the opaque author object never appears in the XML.
+  const creator = settings.author_name ? `      <dc:creator>${escapeXml(settings.author_name)}</dc:creator>\n` : "";
   const itemsXml: string[] = [];
   // Per §2.3, only the latest version's content is published — feed entries
   // for older publish events carry the event's version/note but render the
@@ -303,7 +307,7 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
       <title>${escapeXml(feedTitle(item, version.note, excerptText))}</title>
       <description>${isWithdrawn ? "" : cdata(html)}</description>
       <pubDate>${rfc822(version.published_at)}</pubDate>
-      <blyg:id>${item.id}</blyg:id>
+${creator}      <blyg:id>${item.id}</blyg:id>
       <blyg:kind>${item.kind}</blyg:kind>
       <blyg:version>${version.version}</blyg:version>
       <blyg:created>${item.created}</blyg:created>
@@ -312,7 +316,7 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
     );
   }
   return `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:blyg="${BRAND.nsUri}" xmlns:atom="http://www.w3.org/2005/Atom">
+<rss version="2.0" xmlns:blyg="${BRAND.nsUri}" xmlns:atom="http://www.w3.org/2005/Atom"${creator ? ' xmlns:dc="http://purl.org/dc/elements/1.1/"' : ""}>
   <channel>
     <title>${escapeXml(settings.site_title)}</title>
     <link>${origin}</link>

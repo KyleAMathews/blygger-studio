@@ -50,6 +50,21 @@ describe("feed.xml (§2.6)", () => {
     }
   });
 
+  it("bylines each item with dc:creator when author.name is present, and only then (§7, C-7-08)", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/api/settings", { author_name: "" });
+    await createAndPublish(cookie, "no byline yet");
+    let xml = await fetchFeed();
+    expect(xml).not.toContain("dc:creator");
+    expect(xml).not.toContain("xmlns:dc");
+    await apiJson(cookie, "PATCH", "/api/settings", { author_name: "Ada & Co" });
+    xml = await fetchFeed();
+    const doc = parse(xml);
+    expect(doc.rss["@_xmlns:dc"]).toBe("http://purl.org/dc/elements/1.1/");
+    for (const item of doc.rss.channel.item) expect(item["dc:creator"]).toBe("Ada & Co");
+    expect(xml).toContain("<dc:creator>Ada &amp; Co</dc:creator>");
+  });
+
   it("item entries carry guid, link, title, pubDate, and blyg extensions", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "some **bold** text for the feed", "first note");

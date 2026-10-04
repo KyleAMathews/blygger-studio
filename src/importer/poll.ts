@@ -184,7 +184,6 @@ export async function pollSubscription(db: D1Database, sub: SubscriptionRow, fet
   const observedAt = nowIso();
 
   let itemsFetched = 0;
-  let triggeredAny = false;
   let newestGuid: string | null = null;
 
   if (parsed.ok) {
@@ -196,7 +195,6 @@ export async function pollSubscription(db: D1Database, sub: SubscriptionRow, fet
       const watermark = local ? local.version : 0;
       const stale = entry.blyg.version === undefined || entry.blyg.version > watermark;
       if (!stale) continue;
-      triggeredAny = true;
       const itemUrl = entry.blyg.itemUrl || `${sub.origin}items/${entry.blyg.id}.json`;
       const r = await processItemCandidate(db, sub, fetchFn, entry.blyg.id, itemUrl, observedAt);
       if (r.processed) itemsFetched++;
@@ -204,9 +202,14 @@ export async function pollSubscription(db: D1Database, sub: SubscriptionRow, fet
   }
 
   // Gap check + the other unconditional reconciliation triggers (§3.2 step 4).
+  // A gap alone triggers the index diff (§13.2: "any suspected gap … falls
+  // back to an index diff"). The v0.2 plan also required a non-empty trigger
+  // set, which left a reader stale until the periodic sync whenever the feed
+  // dropped every new entry (studio#27). The cost is one index fetch on a rare
+  // poll; the next poll records the new newest GUID, so it does not repeat.
   const gap = !!sub.newest_guid && parsed.ok && !parsed.entries.some((e) => e.guid === sub.newest_guid);
   const periodicOrFirstSync = !sub.last_index_sync_at || Date.now() - Date.parse(sub.last_index_sync_at) >= INDEX_SYNC_PERIOD_MS;
-  const shouldReconcile = !parsed.ok || (gap && triggeredAny) || periodicOrFirstSync || wasDegraded;
+  const shouldReconcile = !parsed.ok || gap || periodicOrFirstSync || wasDegraded;
 
   let reconciled = false;
   if (shouldReconcile) {
