@@ -263,3 +263,27 @@ test("an uploaded image leaves with its line, and an unused attachment can be re
   await expect(page.locator(".attachment")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("the composer autosaves real text, and not a stray keystroke", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/studio/login");
+  await page.locator('[name="password"]').fill("test-password");
+  await page.getByRole("button", { name: "log in", exact: true }).click();
+  const creates: string[] = [];
+  page.on("request", (r) => { if (r.method() === "POST" && new URL(r.url()).pathname.endsWith("/api/items")) creates.push(r.url()); });
+  await page.locator("#composer-text").fill("ab");
+  await page.waitForTimeout(3600);
+  expect(creates).toHaveLength(0);
+  const marker = `Autosaved composer text ${Date.now()}`;
+  await page.locator("#composer-text").fill(marker);
+  await expect(page.locator("#composer-state")).toHaveText("saved", { timeout: 6000 });
+  expect(creates).toHaveLength(1);
+  // A further edit saves into the same draft, not a new one.
+  await page.locator("#composer-text").fill(`${marker} and more`);
+  await page.waitForTimeout(1200);
+  expect(creates).toHaveLength(1);
+  await page.reload();
+  await expect(page.locator(".item-row").filter({ hasText: `${marker} and more` })).toHaveCount(1);
+  expect(errors).toEqual([]);
+});

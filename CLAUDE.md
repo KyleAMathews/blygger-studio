@@ -153,6 +153,8 @@ saying so.
 
 ## Status
 
+**0.19.0** (session 33, 2026-10-03): the composer autosaves (studio#23; first save after a 3 s pause and ≥ 8 characters); image alt keeps escapes (studio#6). No migration.
+
 **0.18.0** (session 33, 2026-10-03): imports keep `stub_of`/`forked_from` verbatim (studio#12, **migration 0017**); `{url}` stubs cite the feed and entry, frozen at creation (#55). The build side of gate G10.
 
 **0.17.0** (session 33, 2026-10-03): the bracket and TK grammar are inert inside code (#54, studio#4) and inside generated output (studio#5); links never nest (studio#13); preview resolves links in generated blocks (studio#14); no PUA markers reach HTML (studio#3). `src/code-ranges.ts` finds code with markdown-it's own parser. No migration.

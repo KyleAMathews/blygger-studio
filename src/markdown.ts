@@ -3,6 +3,30 @@ import MarkdownIt from "markdown-it";
 // Safe mode: raw HTML in markdown is escaped, never passed through (§3).
 const md = new MarkdownIt({ html: false, linkify: true, typographer: false });
 
+// Image alt text from every text-bearing child (studio#6). markdown-it 14
+// emits an escape (`\*`) or an entity as a `text_special` token, and the
+// default image rule's renderInlineAsText keeps only `text`, so `![a \* b](…)`
+// got `alt="a  b"` while the same words outside an image read `a * b`.
+type InlineToken = { type: string; content: string; children: InlineToken[] | null };
+function altText(children: InlineToken[]): string {
+  return children
+    .map((t) =>
+      t.type === "text" || t.type === "text_special" || t.type === "code_inline"
+        ? t.content
+        : t.type === "image"
+          ? altText(t.children ?? [])
+          : t.type === "softbreak" || t.type === "hardbreak"
+            ? "\n"
+            : "",
+    )
+    .join("");
+}
+md.renderer.rules.image = (tokens, idx, options, _env, self) => {
+  const token = tokens[idx];
+  token.attrSet("alt", altText((token.children ?? []) as unknown as InlineToken[]));
+  return self.renderToken(tokens, idx, options);
+};
+
 export function renderMarkdown(contentMd: string): string {
   return md.render(contentMd);
 }

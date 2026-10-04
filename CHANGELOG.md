@@ -18,7 +18,23 @@ not have its own repo until session 26.
 
 ---
 
-## 0.18.0 — 2026-10-03
+## 0.19.0 — 2026-10-03
+
+**Migrations: none.**
+
+- **The composer autosaves** (studio#23), like the full editor. Before this,
+  text typed on the home page reached the server only through *save draft*,
+  *publish*, *Full Editor* or an in-app navigation, so a crashed tab or a closed
+  laptop lost it. The first save, which creates the draft, waits for a
+  three-second pause and at least eight characters, so a stray keystroke
+  doesn't leave an empty item behind. After that, edits save 400 ms after you
+  stop typing.
+- **Image alt text keeps escaped characters** (studio#6). `![a \* b](…)` now gets
+  `alt="a * b"`, the same as the text outside an image. Before this the escape
+  disappeared, because markdown-it 14 represents escapes and entities as a token
+  type the default image renderer skipped.
+
+
 
 **Migrations: apply `0017_imported_lineage.sql`.** It adds two nullable columns
 to `imported_items` and changes no stored values.

@@ -277,6 +277,17 @@ export function Compose() {
       }
     },
   });
+  // Autosave (studio#23): text in the composer used to reach the server only
+  // through save, publish, the editor button or an in-app navigation, so a
+  // crashed tab or a closed laptop lost it. The first save creates the draft,
+  // so it waits for a pause and a few real characters — a stray keystroke
+  // should not leave an item behind; after that, edits save like the editor's.
+  useEffect(() => {
+    if (saved || !text.trim()) return;
+    if (!id && (text.replace(/\s/g, '').length < 8)) return;
+    const timer = setTimeout(() => void action.run(save), id ? 400 : 3000);
+    return () => clearTimeout(timer);
+  }, [text, kind, id, saved]);
   const upload = useUpload(save, input, (next) => {
     setText(next);
     setSaved(false);
