@@ -32,7 +32,7 @@ The maintainer deferred host-root `.well-known` publication. Mounted OIDC discov
 
 ## Verified result
 
-The full Worker suite passes: 98 files, 1,051 tests passed and five existing skips. All thirteen security mutations reach their named failure assertions. Eight browser tests pass on desktop and mobile. The controlled two-isolate replay probe and Worker/UI typechecks pass. The new security file has28 cases. Five public failure witnesses were captured before repair; the other controls use deliberate mutations for RED evidence. Deployment-only facts remain unverified.
+The full Worker suite passes: 98 files, 1,052 tests passed and five existing skips. All thirteen security mutations reach their named failure assertions. Eight browser tests pass on desktop and mobile. The controlled two-isolate replay probe and Worker/UI typechecks pass. The new security file has28 cases. Five public failure witnesses were captured before repair; the other controls use deliberate mutations for RED evidence. Deployment-only facts remain unverified.
 
 ## Family scope limit
 

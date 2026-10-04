@@ -75,7 +75,7 @@ This map records evidence and limits for the working implementation. It does not
 | ORC-009 | Slots are history handles, not client IDs. Model generation combines root invalidation and revoke-all; `api` and `mcp` map to their concrete resource URLs. Browser labels map to binding-cookie possession. |
 | ORC-010 | The campaign retains the first mismatch and requires the same checkpoint during reduction. `withOracleCleanup` retains a primary mismatch as cause, records each close error, and tries every release. Hostile cleanup calibration rejects both error masking and skipped releases, and does not waive close failures after successful work. |
 | ORC-011 | A concrete shared production/model semantic-fault hypothesis and a different formulation were not established by this scan, so the conditional obligation is not triggered. REST/MCP item equality is bounded transport/value evidence; it does not independently establish common permission semantics. |
-| ORC-012 | This consolidated map records ordinary new-oracle review outcomes and trigger limits. No complete bug-class or guide-conformance closure is claimed. Exact committed-head closeout and other source audits remain owned by the implementation branch. |
+| ORC-012 | This consolidated map records ordinary new-oracle review outcomes and trigger limits. No complete bug-class or guide-conformance closure is claimed. The [PR review record](auth-pr-review.md) identifies the reviewed implementation commit and final checks. Other source audits remain outside that record. |
 | ORC-013 | Credential T−1/T, a surviving sibling after individual revocation, password-only rotation and storage 59/60 seconds distinguish the named reusable boundaries. Fixed exact consent-expiry/code examples remain bounded cases; arbitrary adjacent consent/code times are not credited. |
 | ORC-014 | The production Worker supplies real provider discovery, consent and MCP call premises. The separate Better Auth fixture and controlled clock have explicit limits. Deployed proxy behavior and host scheduling remain unverified rather than inferred from ordinary local calls. |
 
@@ -83,6 +83,6 @@ The mutation runner captures authorization and storage failures and replays thei
 
 ## Verification
 
-The full Worker suite passed 98 files: 1,051 tests and five existing skips. The auth/MCP prose rerun passed192 tests across15 files. Eight owner-auth browser cases, all thirteen security mutations, the controlled two-isolate race and Worker/UI typechecks passed. The term-scan rerun passed58 tests across five affected files. These runs have different scopes; their counts are not combined.
+The full Worker suite passed 98 files: 1,052 tests and five existing skips. The auth/MCP prose rerun passed192 tests across15 files. Eight owner-auth browser cases, all thirteen security mutations, the controlled two-isolate race and Worker/UI typechecks passed. The term-scan rerun passed58 tests across five affected files. These runs have different scopes; their counts are not combined.
 
 Logs and exact-source manifests are kept in the audit evidence. No local run establishes production TLS, database/operator access, external log secrecy or every distributed schedule. The implementation is committed on the review branch. No deployment or upstream merge is claimed. The PR records the reviewed commit and final check results.
