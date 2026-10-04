@@ -88,22 +88,17 @@ describe("stripJsonComments", () => {
   });
 
   it("parses the real wrangler.jsonc", () => {
-    expect(wranglerConfig.name).toBe("blyg");
+    // Only that it parses: on an operator's install this file is their own
+    // deployment, which is correct (studio#1). That the *repository* ships the
+    // template is checked in CI by scripts/check-template.ts.
+    expect(typeof wranglerConfig.name).toBe("string");
   });
 });
 
 describe("the shipped artifact names nobody's deployment", () => {
-  // The packaging requirement, asserted rather than trusted to review. A
-  // template copy that carried our account would work fine and tell every new
-  // user where our infrastructure lives.
-  it("commits no account id, database id or route", () => {
-    expect(wranglerConfig.account_id, "account_id must not be committed").toBeUndefined();
-    expect(wranglerConfig.env, "named env blocks are deployment-specific").toBeUndefined();
-    expect(wranglerConfig.routes, "routes name a domain").toBeUndefined();
-    // A UUID-shaped database_id would deploy somewhere; the placeholder fails.
-    expect(wranglerConfig.d1_databases[0].database_id).not.toMatch(/^[0-9a-f-]{36}$/);
-  });
-
+  // The packaging requirement, asserted rather than trusted to review. The
+  // committed wrangler.jsonc half lives in scripts/check-template.ts (CI only),
+  // because an operator's install legitimately holds their own (studio#1).
   it("commits no real hostname in the example manifest", () => {
     const serialized = JSON.stringify(exampleManifest);
     for (const ours of ["venkateshrao", "protocol-institute", "blygger.com"]) {

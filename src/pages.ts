@@ -17,6 +17,7 @@ import type { ItemRow, MediaRow, Settings, SubscriptionRow, Transclusion, Versio
 import { loadFeedData, sourceKey, type FeedCardData, type FeedProvenance, type FeedItem } from "./public-feed.ts";
 import { WEBMENTION_PATH } from "./types.ts";
 import { escapeHtml, formatDateIn, unplacedMedia, visibleMedia } from "./util.ts";
+import { graphemePrefix } from "./text.ts";
 
 
 /**
@@ -1063,7 +1064,7 @@ export function forkLineage(item: Pick<ItemRow, "forked_from" | "fork_cite">, tz
 /** Cap on any string an origin asserts about itself before it reaches our page. */
 function clampForeign(raw: string, max = 60): string {
   const flat = raw.replace(/\s+/g, " ").trim();
-  return flat.length > max ? flat.slice(0, max - 1) + "…" : flat;
+  return flat.length > max ? graphemePrefix(flat, max - 1) + "…" : flat;
 }
 
 /**

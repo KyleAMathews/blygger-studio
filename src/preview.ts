@@ -12,6 +12,7 @@
 // implementation shared with the feed/page excerpts, not a private copy.
 
 import { plainTextFromHtml } from "./markdown.ts";
+import { graphemePrefix } from "./text.ts";
 
 const TRANSCLUSION_OPEN = /<blockquote\s+class="blyg-transclusion[^"]*"[^>]*>/gi;
 const ANY_BLOCKQUOTE = /<blockquote\b[^>]*>|<\/blockquote\s*>/gi;
@@ -64,7 +65,7 @@ export function leadingHeading(html: string): { title: string | null; rest: stri
 export function clampText(text: string, n: number): string {
   const t = text.trim();
   if (t.length <= n) return t;
-  const cut = t.slice(0, n);
+  const cut = graphemePrefix(t, n);
   const lastSpace = cut.lastIndexOf(" ");
   return (lastSpace > n * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd() + "…";
 }

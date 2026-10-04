@@ -1,4 +1,5 @@
 import MarkdownIt from "markdown-it";
+import { graphemePrefix } from "./text.ts";
 
 // Safe mode: raw HTML in markdown is escaped, never passed through (§3).
 const md = new MarkdownIt({ html: false, linkify: true, typographer: false });
@@ -48,7 +49,7 @@ export function plainText(contentMd: string): string {
 /** First ~n chars of plain text, ellipsized. */
 export function excerpt(contentMd: string, n = 60): string {
   const text = plainText(contentMd);
-  return text.length <= n ? text : text.slice(0, n).trimEnd() + "…";
+  return text.length <= n ? text : graphemePrefix(text, n).trimEnd() + "…";
 }
 
 const BLOCK_BOUNDARY = /<\/(?:p|h[1-6]|li|blockquote|pre|div|tr|section|article)>|<br\s*\/?>/gi;
@@ -151,5 +152,5 @@ export function normalizeSelection(text: string): string {
 /** First ~n chars of already-rendered HTML's plain text, ellipsized. */
 export function excerptFromHtml(html: string, n = 60): string {
   const text = plainTextFromHtml(html);
-  return text.length <= n ? text : text.slice(0, n).trimEnd() + "…";
+  return text.length <= n ? text : graphemePrefix(text, n).trimEnd() + "…";
 }

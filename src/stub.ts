@@ -6,6 +6,7 @@
 import { blygItemUrl } from "./importer/util.ts";
 import { excerptFromHtml } from "./markdown.ts";
 import type { ForkedFrom, StubCite, StubOf, Transclusion } from "./types.ts";
+import { graphemePrefix } from "./text.ts";
 
 /**
  * A citation names *another origin's* item id, so it is deliberately not
@@ -111,7 +112,7 @@ function parseCited(raw: unknown): { ok: true; cite: StubCite } | { ok: false; r
     cite: {
       source: str(c.source) ?? "",
       ...(str(c.author) ? { author: str(c.author) } : {}),
-      ...(excerpt ? { excerpt: excerpt.length > CITED_EXCERPT_MAX ? excerpt.slice(0, CITED_EXCERPT_MAX - 1) + "…" : excerpt } : {}),
+      ...(excerpt ? { excerpt: excerpt.length > CITED_EXCERPT_MAX ? graphemePrefix(excerpt, CITED_EXCERPT_MAX - 1) + "…" : excerpt } : {}),
       url: str(c.url) ?? "",
       retrieved: c.retrieved,
     },

@@ -14,7 +14,7 @@ import {
 } from "./transclusion.ts";
 import type { ForkedFrom, ItemRow, MediaRow, ScopeProvenance, Settings, StubCite, StubOf, Transclusion, VersionRow } from "./types.ts";
 import { FRAGMENT_MAX_CHARS } from "./types.ts";
-import { absolutizeHtml, contentHash, newId, nowIso } from "./util.ts";
+import { absolutizeHtml, authoredText, contentHash, newId, nowIso } from "./util.ts";
 
 export { TkPublishError, TransclusionResolveError };
 
@@ -287,7 +287,10 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   const version = item.version + 1;
   const kind = await authoredKind(db, item);
 
-  const { scopes, errors: parseErrors } = parseScopes(item.content_md);
+  // What gets published is authored text: XML-safe, no internal sentinels
+  // (studio#15). The working copy keeps whatever was typed.
+  const source = authoredText(item.content_md);
+  const { scopes, errors: parseErrors } = parseScopes(source);
   const unresolved = unresolvedScopes(scopes);
   if (parseErrors.length || unresolved.length) {
     throw new TkPublishError([
@@ -296,7 +299,7 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
     ]);
   }
 
-  const { text: strippedMd, spans } = stripToOutput(item.content_md, scopes);
+  const { text: strippedMd, spans } = stripToOutput(source, scopes);
   if (kind === "fragment" && strippedMd.length > FRAGMENT_MAX_CHARS) {
     throw new FragmentTooLongError(strippedMd.length, FRAGMENT_MAX_CHARS);
   }

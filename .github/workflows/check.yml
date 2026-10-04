@@ -17,6 +17,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run typecheck
+      - run: npm run check:template
       - run: npm run release:build
       - run: npx playwright install --with-deps chromium
       - run: npm run release:verify

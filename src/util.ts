@@ -95,8 +95,27 @@ export function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+// ── Text that must survive the trip to other people's readers (studio#15) ──
+
+/**
+ * Characters XML 1.0 forbids: C0 controls other than tab, LF and CR,
+ * U+FFFE/U+FFFF, and unpaired surrogates. One of these in `feed.xml` is a
+ * well-formedness error that takes a subscriber's *whole* feed down in libxml2
+ * and most reader stacks — while `fast-xml-parser`, ours, tolerates it, so our
+ * own tests would never notice.
+ */
+const XML_INVALID = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+export const xmlSafe = (s: string) => s.replace(XML_INVALID, "");
+
+/**
+ * Authored text as publish keeps it: XML-safe, and without this client's
+ * internal sentinels (U+E000–U+E005, tk.ts and transclusion.ts), which are
+ * "never produced by normal authoring" only until someone pastes one.
+ */
+export const authoredText = (s: string) => xmlSafe(s).replace(/[\uE000-\uE005]/g, "");
+
 export function escapeXml(s: string): string {
-  return s
+  return xmlSafe(s)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -105,7 +124,7 @@ export function escapeXml(s: string): string {
 
 /** Wrap HTML for a CDATA section, splitting any `]]>` occurrences. */
 export function cdata(s: string): string {
-  return "<![CDATA[" + s.replaceAll("]]>", "]]]]><![CDATA[>") + "]]>";
+  return "<![CDATA[" + xmlSafe(s).replaceAll("]]>", "]]]]><![CDATA[>") + "]]>";
 }
 
 /**

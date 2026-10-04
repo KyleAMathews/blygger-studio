@@ -315,7 +315,7 @@ moved out of the spec repo at session 26 (2026-09-28).
 
 ## If you fork this
 
-People already do, and that is fine. Two requests, both so that the upgrade path
+People already do, and that is fine. Three requests, all so that the upgrade path
 keeps working for you:
 
 1. **Change `CLIENT` in `src/client.ts`.** A fork that keeps reporting
@@ -324,6 +324,18 @@ keeps working for you:
    that is what `Blynger`, `blyg-publisher` and the rest do.
 2. **Tell us it exists**, so it can be listed at `blygger.org` and so a breaking
    change to an extension point can be announced rather than discovered. Copies outside GitHub forks can be hard to discover.
+3. **Number your own migrations from `9000_`.** Upstream migrations are
+   numbered `0001_` upwards and will never use `9000_`–`9999_`; that range is
+   reserved for local changes (studio#10). D1 records applied migrations by
+   filename, so a local `0011_…` worked but collided in name with upstream's
+   `0011_…`, and an upgrade became a careful three-way merge. With local
+   migrations at `9000_` and up, `wrangler d1 migrations apply` runs upstream's
+   new ones in order and leaves yours alone. Two consequences to plan for:
+   - Your migrations sort **after** every upstream one, so a local migration
+     must not depend on an upstream schema change that hasn't shipped yet.
+   - When upstream adds a column or table you also added locally, the upstream
+     migration will fail on your copy. Read each release's `Migrations:` line
+     before applying, and drop or rename your local equivalent first.
 
 A stable publishing API — so that tools can write to a blyg without changing its
 client — is the open design question tracked as item 1.8 in

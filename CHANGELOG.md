@@ -18,6 +18,29 @@ not have its own repo until session 26.
 
 ---
 
+## 0.20.2 — 2026-10-03
+
+**Migrations: none.**
+
+- **The feed can no longer be broken by a pasted character** (studio#15, part 3).
+  Characters XML 1.0 forbids (C0 controls other than tab and newline, U+FFFE and
+  U+FFFF, and unpaired surrogates) used to pass straight into `feed.xml`. One of
+  them makes most feed readers reject the *whole* feed. They are now filtered
+  wherever the feed is written. Publish also strips them, along with this
+  client's internal marker characters, from the published text; your working
+  copy keeps what you typed.
+- **Excerpts never cut a character in half** (studio#15, part 2). Feed titles,
+  citation excerpts and card previews used to be able to end in half an emoji,
+  which readers show as �. Truncation now cuts between whole characters.
+  Charset-aware imports (part 1) are still open.
+- **`npm test` passes on an operator's install** (studio#1). Two tests asserted
+  that `wrangler.jsonc` was still the shipped template, so every correctly
+  configured install failed them. That check now runs only in this repository's
+  CI (`npm run check:template`).
+- **Local migrations have a reserved range** (studio#10). Number your own
+  migrations from `9000_`; upstream will never use `9000_`–`9999_`. See the
+  README section "If you fork this". CI enforces the range on this repository.
+
 ## 0.20.1 — 2026-10-03
 
 **Migrations: none.**
