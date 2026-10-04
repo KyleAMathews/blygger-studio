@@ -28,7 +28,7 @@ const controls = [
 ];
 try {
   const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
-  const source = execFileSync('rg', ['--files', 'src', 'test', 'migrations'], { encoding: 'utf8' }).trim().split('\n');
+  const source = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', 'src', 'test', 'migrations'], { encoding: 'utf8' }).split('\0').filter(Boolean);
   for (const file of new Set([...tracked, ...source])) {
     const destination = join(temporary, file); mkdirSync(dirname(destination), { recursive: true }); cpSync(join(root, file), destination);
   }
