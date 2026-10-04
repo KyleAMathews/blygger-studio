@@ -91,6 +91,7 @@ export const HopperRowSchema = z.object({
   public: z.number(),
   created: z.string(),
   slug_frozen: z.number(),
+  description: z.string().nullable(),
 }).openapi("HopperRow");
 
 export const HopperItemRowSchema = z.object({

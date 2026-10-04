@@ -489,6 +489,12 @@
           },
           "slug_frozen": {
             "type": "boolean"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -497,7 +503,8 @@
           "slug",
           "public",
           "created",
-          "slug_frozen"
+          "slug_frozen",
+          "description"
         ]
       },
       "Media": {
@@ -5312,6 +5319,10 @@
                   },
                   "public": {
                     "type": "boolean"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 280
                   }
                 },
                 "additionalProperties": false

@@ -51,7 +51,7 @@ describe("public homepage read budget", () => {
     expect(html).toContain('content="Title 99 Published 99"');
     expect(html).not.toContain('private working draft');
     expect(html).not.toContain('old body');
-    expect(meter.calls).toBeLessThanOrEqual(5);
+    expect(meter.calls).toBeLessThanOrEqual(6); // +1 since 0.24.0: the Collections list (one fixed query, not per card)
   });
 
   it("does not read unpinned history bodies or unrelated items and media", async () => {
@@ -102,7 +102,7 @@ describe("public homepage read budget", () => {
     expect(html).toContain('property="og:image" content="https://example.com/mounted/media/avatar.png"');
     expect(html).toContain('Also reading');
     expect(html).not.toContain('data-item="card2"');
-    expect(meter.calls).toBeLessThanOrEqual(7);
+    expect(meter.calls).toBeLessThanOrEqual(8); // +1 since 0.24.0: the Collections list (one fixed query, not per card)
   });
 
   it("renders an empty page at the domain root", async () => {
@@ -111,7 +111,7 @@ describe("public homepage read budget", () => {
     expect(html).toContain('Nothing published yet.');
     expect(html).toContain('href="/feed.xml"');
     expect(html).not.toContain('older items →');
-    expect(meter.calls).toBeLessThanOrEqual(5);
+    expect(meter.calls).toBeLessThanOrEqual(6); // +1 since 0.24.0: the Collections list (one fixed query, not per card)
   });
 
   it("bounds public list reads with 5,000 unrelated drafts", async () => {
@@ -140,7 +140,7 @@ describe("public homepage read budget", () => {
     expect(html).toContain('data-item="card100"');
     expect(html).not.toContain('data-item="card0"');
     expect(html).toContain(`href="${mount}/archive/"`);
-    expect(meter.calls).toBeLessThanOrEqual(7);
+    expect(meter.calls).toBeLessThanOrEqual(8); // +1 since 0.24.0: the Collections list (one fixed query, not per card)
   });
 
   it("uses an ordered index for the limited public-item query", async () => {

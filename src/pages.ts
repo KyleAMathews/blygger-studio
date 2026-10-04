@@ -6,7 +6,7 @@
 // "Permalink" text link (dropping the ∞ glyph). Task 8 originally shipped
 // against the rev-1 mockup; this brings it forward together with threads.
 
-import { listBlogrollSubscriptions } from "./importer/store.ts";
+import { listBlogrollSubscriptions, listPublicHoppers } from "./importer/store.ts";
 import { listPublicResponses } from "./mentions/store.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
@@ -345,6 +345,19 @@ article.showing-pin .item-content[aria-busy="true"] { opacity: 0.5; }
 .blogroll a:hover { border-bottom-color: currentColor; }
 .blogroll .blyg-mark { font-style: italic; color: var(--ink-soft); margin-right: 0.1rem; }
 .blogroll-foot { font: var(--apparatus); color: var(--ink-soft); margin: 0.8rem 0 0; }
+.collections { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); }
+.collections h2 { font: var(--apparatus); font-weight: 600; color: var(--ink-soft); margin: 0 0 0.6rem; letter-spacing: 0; }
+.collections ul { list-style: none; padding: 0; margin: 0; }
+.collections li { font: var(--apparatus); margin: 0 0 0.45rem; overflow-wrap: anywhere; }
+.collections a { color: var(--pencil); text-decoration: none; border-bottom: 1px solid var(--rule); }
+.collections a:hover { border-bottom-color: currentColor; }
+.collections .meta, .collection-head .meta { color: var(--ink-soft); }
+.collection-desc { color: var(--ink-soft); }
+.collections .collection-desc { display: block; }
+.collection-head { margin: 0 0 2rem; }
+.collection-head h2 { margin-bottom: 0.3rem; }
+.collection-head p { font: var(--apparatus); margin: 0.2rem 0; overflow-wrap: anywhere; }
+.collection-head .collection-desc { font-style: italic; }
 
 ul.archive { list-style: none; padding: 0; margin: 0; }
 ul.archive li { padding: 0.55rem 0; border-top: 1px solid var(--rule); display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
@@ -679,7 +692,7 @@ function pageHeader(mount: string): string {
  * just the same thing uniformly: hide `.blyg-header` and `.masthead` and every
  * page is a bare block.
  */
-async function pageTop(db: D1Database, settings: Settings, mount: string, avatar?: MediaRow | null): Promise<string> {
+export async function pageTop(db: D1Database, settings: Settings, mount: string, avatar?: MediaRow | null): Promise<string> {
   return `${pageHeader(mount)}\n${await masthead(db, settings, mount, avatar)}`;
 }
 
@@ -1289,8 +1302,31 @@ ${rows}
 </section>`;
 }
 
+/**
+ * Public hoppers, listed on the homepage and archive (0.24.0). A public hopper
+ * page existed since v0.2 (decision #12: curation display, never re-emitted on
+ * the feed), but nothing on the site linked to one, so a visitor could only
+ * find it from a pasted URL. Presentation only; nothing here is on the wire.
+ */
+export function collectionsSection(hoppers: { name: string; slug: string | null; description: string | null; count: number }[], mount: string): string {
+  const rows = hoppers
+    .filter((h) => h.slug)
+    .map((h) => {
+      const desc = h.description ? ` <span class="collection-desc">${escapeHtml(h.description)}</span>` : "";
+      return `<li><a href="${mount}/h/${encodeURIComponent(h.slug!)}/">${escapeHtml(h.name)}</a> <span class="meta">${h.count} ${h.count === 1 ? "item" : "items"}</span>${desc}</li>`;
+    })
+    .join("\n");
+  if (!rows) return "";
+  return `<section class="collections">
+<h2>Collections</h2>
+<ul>
+${rows}
+</ul>
+</section>`;
+}
+
 export async function feedPage(db: D1Database, settings: Settings, items: FeedItem[], hasMore: boolean, mount: string, origin: string): Promise<string> {
-  const [data, blogrollSubs] = await Promise.all([loadFeedData(db, items, settings.avatar_media_id || ""), listBlogrollSubscriptions(db)]);
+  const [data, blogrollSubs, collections] = await Promise.all([loadFeedData(db, items, settings.avatar_media_id || ""), listBlogrollSubscriptions(db), listPublicHoppers(db)]);
   const blocks: string[] = [];
   for (const item of items) {
     // Withdrawn items don't appear on the feed page (rev-3 wireframe note) —
@@ -1302,6 +1338,7 @@ export async function feedPage(db: D1Database, settings: Settings, items: FeedIt
 ${await pageTop(db, settings, mount, data.avatar)}
 ${blocks.join("\n") || '<p class="withdrawn">Nothing published yet.</p>'}
 ${hasMore ? `<footer class="older"><a href="${mount}/archive/">older items →</a></footer>` : ""}
+${collectionsSection(collections, mount)}
 ${blogrollSection(blogrollSubs, mount)}
 </div>
 <script>${VERSION_NAV_SCRIPT}</script>`;
@@ -1554,6 +1591,7 @@ ${await pageTop(db, settings, mount)}
 <ul class="archive">
 ${rows.join("\n")}
 </ul>
+${collectionsSection(await listPublicHoppers(db), mount)}
 </div>`;
   return layout(`archive — ${settings.site_title}`, body, mount, {
     description: `Every item published on ${settings.site_title}.`,

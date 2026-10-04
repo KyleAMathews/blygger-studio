@@ -347,6 +347,18 @@ export async function listHoppers(db: D1Database): Promise<HopperRow[]> {
   return (await db.prepare("SELECT * FROM hoppers ORDER BY created ASC").all<HopperRow>()).results;
 }
 
+/** Public hoppers with their member counts, for the Collections list on public pages. */
+export async function listPublicHoppers(db: D1Database): Promise<(HopperRow & { count: number })[]> {
+  return (
+    await db
+      .prepare(
+        `SELECT h.*, COUNT(hi.remote_id) AS count FROM hoppers h LEFT JOIN hopper_items hi ON hi.hopper_id = h.id
+         WHERE h.public = 1 AND h.slug IS NOT NULL GROUP BY h.id ORDER BY h.name COLLATE NOCASE`,
+      )
+      .all<HopperRow & { count: number }>()
+  ).results;
+}
+
 export async function setHopperPublic(db: D1Database, id: string, isPublic: boolean): Promise<void> {
   // Publishing latches slug_frozen; un-publishing never clears it. Once a
   // /h/{slug}/ URL has existed, it stays the hopper's address (migration 0006).

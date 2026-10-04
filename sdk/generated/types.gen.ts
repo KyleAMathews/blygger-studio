@@ -113,6 +113,7 @@ export type Hopper = {
     public: boolean;
     created: string;
     slug_frozen: boolean;
+    description: string | null;
 };
 
 export type Media = {
@@ -2023,6 +2024,7 @@ export type UpdateHopperData = {
     body: {
         name?: string;
         public?: boolean;
+        description?: string;
     };
     path: {
         id: string;

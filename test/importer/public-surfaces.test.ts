@@ -72,6 +72,39 @@ describe("public hopper page (§4.2 task 11)", () => {
     expect(html).toContain("https://curated-source.example/");
   });
 
+  it("wears the site's header, links home inside the mount, and carries its description (0.24.0)", async () => {
+    const cookie = await login();
+    const sub = await createSubscription(env.DB, { kind: "blyg", origin: "https://desc-source.example/", feedUrl: "https://desc-source.example/feed.xml", title: "Desc Source" });
+    const doc = await itemDocBody({ id: "desc-1", kind: "fragment", version: 1, content_md: "described content" });
+    await applyEffect(env.DB, sub.id, "desc-1", transition({ local: { status: "absent" }, doc: JSON.parse(doc) }).effect, "2026-08-01T00:00:00Z");
+    const hopper = await createHopper(env.DB, "Stigmergy Reading", "stigmergy-reading");
+    await addHopperItem(env.DB, hopper.id, sub.id, "desc-1");
+    const patched = await apiJson(cookie, "PATCH", `/api/hoppers/${hopper.id}`, { public: true, description: "Things about traces & trails" });
+    expect(patched.status).toBe(200);
+    expect(patched.json.description).toBe("Things about traces & trails");
+
+    const html = await (await getPublic("/blyg/h/stigmergy-reading/")).text();
+    expect(html).not.toContain('href="/">Home');
+    expect(html).toContain('class="site-name"><a href="/blyg/">');
+    expect(html).toContain('<p class="collection-desc">Things about traces &amp; trails</p>');
+    expect(html).toContain("1 item from 1 source");
+    expect(html).toContain('<meta name="description" content="Things about traces &amp; trails">');
+    expect(html).toContain("<title>Stigmergy Reading — ");
+
+    // Listed under Collections on the homepage and archive, with its count.
+    for (const path of ["/blyg/", "/blyg/archive/"]) {
+      const page = await (await getPublic(path)).text();
+      expect(page).toContain('<section class="collections">');
+      expect(page).toContain('<a href="/blyg/h/stigmergy-reading/">Stigmergy Reading</a> <span class="meta">1 item</span>');
+    }
+
+    // Clearing the description falls back to a generated one; going private delists.
+    expect((await apiJson(cookie, "PATCH", `/api/hoppers/${hopper.id}`, { description: "" })).json.description).toBeNull();
+    expect(await (await getPublic("/blyg/h/stigmergy-reading/")).text()).toContain("A collection on ");
+    await apiJson(cookie, "PATCH", `/api/hoppers/${hopper.id}`, { public: false });
+    expect(await (await getPublic("/blyg/")).text()).not.toContain("/blyg/h/stigmergy-reading/");
+  });
+
   it("renders a withdrawn-unpinned item as a placeholder, never re-exposing content", async () => {
     const sub = await createSubscription(env.DB, { kind: "blyg", origin: "https://withdrawn-source.example/", feedUrl: "https://withdrawn-source.example/feed.xml", title: "W" });
     const doc = await itemDocBody({ id: "gone-1", kind: "fragment", version: 1, content_md: "should not survive withdrawal" });

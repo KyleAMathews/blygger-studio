@@ -61,7 +61,7 @@ export const routes = {
   resyncSubscription: route("resyncSubscription", "post", "/subscriptions/{id}/resync", ok.extend({ changed: z.number() })),
   deleteSubscription: route("deleteSubscription", "delete", "/subscriptions/{id}", ok),
   createHopper: route("createHopper", "post", "/hoppers", HopperSchema, z.object({ name: z.string() }), 201),
-  updateHopper: route("updateHopper", "patch", "/hoppers/{id}", HopperSchema, z.object({ name: z.string().trim().min(1).optional(), public: z.boolean().optional() }).strict()),
+  updateHopper: route("updateHopper", "patch", "/hoppers/{id}", HopperSchema, z.object({ name: z.string().trim().min(1).optional(), public: z.boolean().optional(), description: z.string().trim().max(280).optional() }).strict()),
   deleteHopper: route("deleteHopper", "delete", "/hoppers/{id}", ok),
   addHopperItem: route("addHopperItem", "put", "/hoppers/{id}/items/{sub}/{remoteId}", ok),
   removeHopperItem: route("removeHopperItem", "delete", "/hoppers/{id}/items/{sub}/{remoteId}", ok),

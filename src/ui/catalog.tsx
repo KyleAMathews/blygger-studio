@@ -245,11 +245,12 @@ export function HopperPage({ id }: { id: string }) {
   const navigate = useNavigate();
   const settings = useSettings();
   const [name, setName] = useState<string>();
+  const [description, setDescription] = useState<string>();
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
   if (!row) return <p className="view-sub">Loading hopper…</p>;
-  const update = async (body: { name?: string; public?: boolean }) => {
+  const update = async (body: { name?: string; public?: boolean; description?: string }) => {
     await unwrap(BlyggerApi.updateHopper({ client, path: { id }, body }));
     await changed('hoppers', 'hopper', 'hopper-preview');
   };
@@ -290,6 +291,28 @@ export function HopperPage({ id }: { id: string }) {
             rename
           </Button>
         </form>
+        <form
+          className="row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void action.run(() =>
+              update({ description: description ?? row.hopper.description ?? '' }),
+            );
+          }}
+        >
+          <input
+            type="text"
+            name="description"
+            aria-label="description"
+            placeholder="one-line description (shown on the public page)"
+            maxLength={280}
+            value={description ?? row.hopper.description ?? ''}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <Button className="btn btn-ghost" type="submit">
+            save
+          </Button>
+        </form>
         <label className="check">
           <input
             type="checkbox"
@@ -320,6 +343,10 @@ export function HopperPage({ id }: { id: string }) {
             The public URL stays fixed when you rename this hopper.
           </p>
         ) : null}
+        <p className="hint">
+          A public hopper gets its own page and is listed under Collections on
+          your homepage and archive. It never appears in your feed.
+        </p>
       </div>
       <div className="section-h">
         <span>

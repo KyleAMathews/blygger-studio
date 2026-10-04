@@ -108,7 +108,8 @@ export function makeApp(mount: string) {
       if (!sub) continue;
       items.push({ row, sub });
     }
-    return c.html(await publicHopperPage(hopper, items, mount));
+    const settings = await getSettings(c.env.DB);
+    return c.html(await publicHopperPage(c.env.DB, settings, hopper, items, mount, siteOrigin(settings, c.req.url, mount)));
   });
 
   pub.get("/items/:file", async (c) => {

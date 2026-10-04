@@ -18,6 +18,30 @@ not have its own repo until session 26.
 
 ---
 
+## 0.24.0 — 2026-10-04
+
+**Migrations: 0018** (adds `hoppers.description`). Apply it before deploying:
+`npx wrangler d1 migrations apply DB --remote`. `/api` change: hoppers gain
+`description`, and `PATCH /api/hoppers/{id}` accepts it (an empty string clears it).
+
+**Public hoppers are now findable.** A public hopper has had its own page since
+v0.2, but nothing on the site linked to it.
+
+- **Collections:** the homepage and archive list your public hoppers, each with
+  its item count and description. A hopper never appears in your feed, as before
+  (decision #12).
+- **The hopper page wears the site's header and masthead**, says how many items
+  it holds from how many sources, and carries a description, title and social
+  metadata like every other public page.
+- **Fixed:** the page's "Home" link pointed at the host root, which on a
+  path-mounted blyg is not the blyg.
+- **Description:** each hopper takes an optional one-line description in its
+  settings, shown on the public page and in Collections.
+
+Protocol: implements 0.3, unchanged.
+
+---
+
 ## 0.23.0 — 2026-10-04
 
 **Migrations: none.** `/api` change: `GET /api/freshness` entries gain `behind`, and the
