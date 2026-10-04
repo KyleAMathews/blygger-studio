@@ -78,6 +78,10 @@ export type Settings = {
     timezone: string;
     avatar_media_id: string;
     ai_model: string;
+    ai_model_tk: string;
+    ai_model_changelog: string;
+    ai_model_feed: string;
+    feed_prompt: string;
     ai_style_prompt: string;
     accept_mentions: boolean;
     update_check: boolean;
@@ -218,6 +222,22 @@ export type Thumb = {
     remote_id: string;
     subscription_id: string | null;
     label: string | null;
+};
+
+export type AiModels = {
+    providers: Array<{
+        id: string;
+        label: string;
+        key_secret: string;
+        configured: boolean;
+    }>;
+    models: Array<{
+        id: string;
+        provider: string;
+        label: string;
+        note?: string;
+    }>;
+    local: boolean;
 };
 
 export type Mention = {
@@ -1301,6 +1321,10 @@ export type UpdateSettingsData = {
         timezone?: string;
         avatar_media_id?: string;
         ai_model?: string;
+        ai_model_tk?: string;
+        ai_model_changelog?: string;
+        ai_model_feed?: string;
+        feed_prompt?: string;
         ai_style_prompt?: string;
         accept_mentions?: boolean;
         update_check?: boolean;
@@ -2649,6 +2673,67 @@ export type ListThumbsResponses = {
 };
 
 export type ListThumbsResponse = ListThumbsResponses[keyof ListThumbsResponses];
+
+export type GetAiModelsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/ai/models';
+};
+
+export type GetAiModelsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetAiModelsError = GetAiModelsErrors[keyof GetAiModelsErrors];
+
+export type GetAiModelsResponses = {
+    /**
+     * Success
+     */
+    200: AiModels;
+};
+
+export type GetAiModelsResponse = GetAiModelsResponses[keyof GetAiModelsResponses];
 
 export type ListMentionsData = {
     body?: never;

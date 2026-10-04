@@ -89,7 +89,13 @@ export async function getSettings(db: D1Database): Promise<Settings> {
     author_links: links,
     site_url: map.site_url ?? "",
     avatar_media_id: map.avatar_media_id ?? "",
-    ai_model: map.ai_model ?? "",
+    // One model per AI function since 0.26.0; the single pre-0.26 model
+    // setting is the fallback for the two functions that existed then.
+    ai_model: map.ai_model_tk ?? map.ai_model ?? "",
+    ai_model_tk: map.ai_model_tk ?? map.ai_model ?? "",
+    ai_model_changelog: map.ai_model_changelog ?? map.ai_model ?? "",
+    ai_model_feed: map.ai_model_feed ?? "",
+    feed_prompt: map.feed_prompt ?? "",
     ai_style_prompt: map.ai_style_prompt ?? "",
     // Default on: an existing deployment's behaviour must not change under it.
     accept_mentions: map.accept_mentions !== "off",

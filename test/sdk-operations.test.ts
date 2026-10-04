@@ -48,6 +48,7 @@ it("exercises every declared operation through its named SDK method, including a
     ["listSignals", 200, client => api.listSignals({ client, query: { limit: 1 } })],
     ["listInteractions", 200, client => api.listInteractions({ client, query: { limit: 1, kind: "quote" } })],
     ["listThumbs", 200, client => api.listThumbs({ client })],
+    ["getAiModels", 200, client => api.getAiModels({ client })],
     ["listMentions", 200, client => api.listMentions({ client, query: { direction: "outbound", limit: 1 } })],
     ["preview", 200, client => api.preview({ client, body: { content_md: "**matrix**", kind: "thread", item_id: id } })],
     ["search", 200, client => api.search({ client, query: { q: "matrix", offset: 0, limit: 1 } })],

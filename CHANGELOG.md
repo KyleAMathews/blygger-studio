@@ -18,6 +18,40 @@ not have its own repo until session 26.
 
 ---
 
+## 0.26.0 — 2026-10-04
+
+**Migrations: none.** `/api` changes, all additive: settings gain `ai_model_tk`,
+`ai_model_changelog`, `ai_model_feed` and `feed_prompt`; new `GET /api/ai/models`.
+`ai_model` still works for one release: it reads as the TK model, and writing it
+sets both the TK and changelog models.
+
+**A model for each AI function, from three providers.**
+
+- **Settings → AI models** has a model picker per function: TK generation,
+  changelog notes and feed scoring, plus a disabled *authoring* row reserved
+  for agentic authoring. Your existing model carries over to the first two.
+- **The list comes from `models.json`**, which you can edit. Put your changes
+  in a gitignored `models.local.json` (same shape) so `npm run upgrade` never
+  conflicts, then redeploy. *other…* takes any model id; its provider is
+  inferred from the prefix (`claude-`, `gpt-`, `gemini-`). Prebuilt release
+  workers carry the shipped list only.
+- **Anthropic, OpenAI and Google models all work**, each called directly over
+  HTTP like the existing Anthropic call. Set the key for each provider you use:
+  `AI_PROVIDER_KEY` (Anthropic), `OPENAI_API_KEY` or `GOOGLE_AI_KEY`. Settings
+  shows which keys are set, never their values.
+- **Smart feed prompt:** Settings gains a prompt for the future Smart Feed,
+  a rubric your AI agent will score new items against. It is saved now and not
+  yet used; the agent that reads it, with your signals, is still to be designed.
+
+Shipped list (checked against each provider's model page 2026-10-04): Claude
+Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5; GPT-6 Astra, GPT-6.1 Sol, GPT-6 Luna;
+Gemini 3.1 Pro (preview), Gemini 3.8 Flash, Gemini 3.1 Flash-Lite.
+
+Protocol: implements 0.3, unchanged. `generated[].model` was always free text,
+so a non-Anthropic model id is valid on the wire as it stands.
+
+---
+
 ## 0.25.0 — 2026-10-04
 
 **Migrations: 0019** (the `interactions` table, with a backfill). Apply it before

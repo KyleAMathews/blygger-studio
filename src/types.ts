@@ -11,8 +11,12 @@ export interface Env {
    * protocol vocabulary.
    */
   MOUNT?: string;
-  /** TK generation (tk-core-plan.md §4): Anthropic Messages API key. Wrangler secret, per security-policy.md — never in code or .dev.vars committed to git. */
+  /** The Anthropic API key (the manifest's anthropic key_secret). Wrangler secret, per security-policy.md — never in code or .dev.vars committed to git. */
   AI_PROVIDER_KEY?: string;
+  /** OpenAI API key, when an OpenAI model is chosen in Settings (0.26.0). Wrangler secret. */
+  OPENAI_API_KEY?: string;
+  /** Google Gemini API key, when a Gemini model is chosen in Settings (0.26.0). Wrangler secret. */
+  GOOGLE_AI_KEY?: string;
 }
 
 export interface ItemRow {
@@ -356,8 +360,18 @@ export interface Settings {
    */
   timezone: string;
   avatar_media_id: string;
-  /** TK generation (tk-core-plan.md §4/§5): provider model id. Empty = provider default. */
+  /**
+   * Deprecated alias (0.26.0): reads as the TK model; writing it sets both the
+   * TK and changelog models. Kept one release for tools that still send it.
+   */
   ai_model: string;
+  /** Model for each AI function (0.26.0); a model id from the manifest or typed in. Empty = not configured. */
+  ai_model_tk: string;
+  ai_model_changelog: string;
+  /** Feed scoring: stored now, used once the smart feed's agent exists. */
+  ai_model_feed: string;
+  /** The smart feed's rubric: how the owner's agent should score new items. Stored only, for now. */
+  feed_prompt: string;
   /** TK generation: optional site-level style prompt appended to every generation request. */
   ai_style_prompt: string;
   /**

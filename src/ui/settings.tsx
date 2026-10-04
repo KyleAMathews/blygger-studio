@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { useRef, useState } from 'react';
-import type { Settings } from '../../sdk/dist/browser.js';
+import { useEffect, useRef, useState } from 'react';
+import type { AiModels, Settings } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import { settings, client } from './data.ts';
 import {
@@ -24,7 +24,10 @@ const fields = [
   'site_url',
   'timezone',
   'avatar_media_id',
-  'ai_model',
+  'ai_model_tk',
+  'ai_model_changelog',
+  'ai_model_feed',
+  'feed_prompt',
   'ai_style_prompt',
   'accept_mentions',
   'update_check',
@@ -98,8 +101,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
       | 'author_name'
       | 'author_bio'
       | 'site_url'
-      | 'ai_model'
       | 'ai_style_prompt'
+      | 'feed_prompt'
       | 'update_feed_url',
     label: string,
     multiline = false,
@@ -112,8 +115,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
       {multiline ? (
         <textarea
           id={key}
-          rows={3}
+          rows={key === 'feed_prompt' ? 4 : 3}
           value={form[key]}
+          placeholder={placeholder}
           onChange={(event) => change(key, event.target.value)}
         />
       ) : (
@@ -335,13 +339,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
         </div>
       </section>
       <section className="card">
-        <h3 className="card-h">generation</h3>
-        {field(
-          'ai_model',
-          'AI model for TK generation and drafted notes (required to use either)',
-          false,
-          'e.g. claude-sonnet-5-5',
-        )}
+        <h3 className="card-h">AI models</h3>
+        <ModelSettings form={form} change={change} />
         {field(
           'ai_style_prompt',
           'TK site-level style prompt (optional, appended to every generation request)',
@@ -351,12 +350,29 @@ function SettingsForm({ initial }: { initial: Settings }) {
           'auto_change_notes',
           'Automatically generate changelog notes when publishing a new version',
           <>
-            When a new version is published with no note, the model above
+            When a new version is published with no note, the changelog model
             drafts one from the change. You see it and can edit it before
             anything is published. A note published exactly as drafted is
             marked as generated in the changelog.
           </>,
         )}
+      </section>
+      <section className="card">
+        <h3 className="card-h">smart feed</h3>
+        {field(
+          'feed_prompt',
+          'Smart Feed prompt: how your AI agent should score new items',
+          true,
+          'e.g. Prioritize tech news and significant updates to items I have interacted with or liked. Deprioritize sports content, trivial updates, and items like ones I have disliked.',
+        )}
+        <p className="hint">
+          The prompt is a rubric. Your agent will score each new item in your
+          reading against it, then sort the Smart Feed by score or hide items
+          below a threshold. It will read your <Link to="/signals">signals</Link>{' '}
+          (thumbs, hoppers, stubs, forks and quotes) to know what you have
+          liked and engaged with. The agent is not built yet: this prompt is
+          saved now so the Smart Feed can use it when it is.
+        </p>
       </section>
       <section className="card">
         <h3 className="card-h">updates</h3>
@@ -414,5 +430,120 @@ function SettingsForm({ initial }: { initial: Settings }) {
         </Button>
       </div>
     </form>
+  );
+}
+
+const FUNCTIONS = [
+  { key: 'ai_model_tk', label: 'TK generation' },
+  { key: 'ai_model_changelog', label: 'changelog notes' },
+  { key: 'ai_model_feed', label: 'feed scoring', hint: 'for the Smart Feed; not used yet' },
+] as const;
+const OTHER = '__other__';
+
+/**
+ * One model per AI function (0.26.0), chosen from the model manifest
+ * (models.json, plus the operator's models.local.json) or typed in. The
+ * fourth row, authoring, is reserved and disabled: it signals where the
+ * studio is going without pretending to do it.
+ */
+function ModelSettings({
+  form,
+  change,
+}: {
+  form: Settings;
+  change: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
+}) {
+  const [manifest, setManifest] = useState<AiModels>();
+  const [other, setOther] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    let live = true;
+    unwrap(BlyggerApi.getAiModels({ client }))
+      .then((m) => live && setManifest(m))
+      .catch(() => live && setManifest({ providers: [], models: [], local: false }));
+    return () => {
+      live = false;
+    };
+  }, []);
+  const listed = (id: string) => !!manifest?.models.some((m) => m.id === id);
+  return (
+    <>
+      <p className="hint model-hint">
+        Each AI function uses its own model. The list comes from{' '}
+        <code>models.json</code> in your studio install, and you can edit it:
+        add or remove models there, or put your changes in{' '}
+        <code>models.local.json</code> (same shape) so upgrades never conflict,
+        then redeploy.{manifest?.local ? ' This install has a models.local.json.' : ''}{' '}
+        Choose <em>other…</em> to type any model id.
+      </p>
+      {manifest ? (
+        <ul className="provider-keys" aria-label="provider keys">
+          {manifest.providers.map((p) => (
+            <li key={p.id} data-configured={p.configured}>
+              {p.configured ? '✓' : '–'} {p.label}{' '}
+              <span className="hint">
+                {p.configured ? 'key set' : 'no key'} (<code>{p.key_secret}</code>)
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {FUNCTIONS.map((f) => {
+        const value = form[f.key];
+        const isOther = other[f.key] || (!!value && !!manifest && !listed(value));
+        return (
+          <div className="field model-field" key={f.key}>
+            <label htmlFor={f.key}>
+              <span>
+                {f.label}
+                {'hint' in f ? <span className="hint"> · {f.hint}</span> : null}
+              </span>
+            </label>
+            <select
+              id={f.key}
+              value={isOther ? OTHER : value}
+              onChange={(event) => {
+                const next = event.target.value;
+                setOther((o) => ({ ...o, [f.key]: next === OTHER }));
+                if (next !== OTHER) change(f.key, next);
+              }}
+            >
+              <option value="">— none —</option>
+              {manifest?.providers.map((p) => (
+                <optgroup key={p.id} label={p.configured ? p.label : `${p.label} (no key)`}>
+                  {manifest.models
+                    .filter((m) => m.provider === p.id)
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                        {m.note ? ` — ${m.note}` : ''}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+              <option value={OTHER}>other…</option>
+            </select>
+            {isOther ? (
+              <input
+                type="text"
+                aria-label={`${f.label} model id`}
+                placeholder="model id, e.g. claude-sonnet-5-5"
+                value={value}
+                onChange={(event) => change(f.key, event.target.value)}
+              />
+            ) : null}
+          </div>
+        );
+      })}
+      <div className="field model-field">
+        <label htmlFor="ai_model_authoring">
+          <span>
+            authoring<span className="hint"> · coming later</span>
+          </span>
+        </label>
+        <select id="ai_model_authoring" disabled value="">
+          <option value="">reserved for agentic authoring</option>
+        </select>
+      </div>
+    </>
   );
 }

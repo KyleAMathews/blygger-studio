@@ -86,7 +86,7 @@ export async function draftChangeNote(
 
   let result;
   try {
-    result = await complete(env, SYSTEM, user, fetchImpl);
+    result = await complete(env, SYSTEM, user, fetchImpl, "changelog");
   } catch (e) {
     if (e instanceof ProviderError) return { ok: false, status: 502, error: e.message };
     throw e;

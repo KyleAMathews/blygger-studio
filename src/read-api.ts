@@ -10,6 +10,7 @@ import { renderMarkdown, plainTextFromHtml } from "./markdown.ts";
 import { clampText } from "./preview.ts";
 import { applyInternalLinks, previewInternalLinks, previewTransclusions, resolveBlockLinks } from "./transclusion.ts";
 import { siteOrigin } from "./protocol.ts";
+import { MODELS, configuredProviders } from "./ai/models.ts";
 import { INTERACTION_KINDS, listInteractions, listThumbs, type InteractionKind } from "./interactions.ts";
 import { normalizeMount } from "./util.ts";
 import type { Env, SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, MentionInRow, MentionOutRow } from "./types.ts";
@@ -87,6 +88,14 @@ readApi.openapi(routes.listInteractions, async (c) => {
   const raw = c.req.query("kind");
   const kind = INTERACTION_KINDS.includes(raw as InteractionKind) ? (raw as InteractionKind) : undefined;
   return c.json({ ...(await listInteractions(c.env.DB, offset, limit, kind)), offset, limit });
+});
+readApi.openapi(routes.getAiModels, async (c) => {
+  const configured = configuredProviders(c.env);
+  return c.json({
+    providers: Object.entries(MODELS.providers).map(([id, p]) => ({ id, label: p.label, key_secret: p.key_secret, configured: configured[id] ?? false })),
+    models: MODELS.models,
+    local: MODELS.local,
+  });
 });
 readApi.openapi(routes.listThumbs, async (c) => c.json({ items: await listThumbs(c.env.DB) }));
 readApi.openapi(routes.listReading, async (c) => c.json(await readingData(c.env.DB, Number(c.req.query("offset") ?? 0), Number(c.req.query("limit") ?? 25), c.req.query("sub"), readingKind(c.req.query("kind")))));

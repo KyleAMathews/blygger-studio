@@ -330,3 +330,11 @@ main.login .btn { width: 100%; }
   .hopper-row, .hopper-head { flex-direction: column; gap: 0.5rem; }
   .hopper-row .actions, .hopper-head .actions { flex-wrap: wrap; }
 }
+
+/* Settings → AI models (0.26.0) */
+.provider-keys { list-style: none; margin: 0 0 14px; padding: 0; font-size: .86rem; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.provider-keys li[data-configured="true"] { color: var(--ok); }
+.provider-keys li[data-configured="false"] { color: var(--ink-soft); }
+.model-field select { width: 100%; }
+.model-field input { margin-top: 6px; }
+.model-hint code, .provider-keys code { font-size: .8em; }

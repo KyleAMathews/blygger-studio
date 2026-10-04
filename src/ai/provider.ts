@@ -8,7 +8,8 @@
 // `@anthropic-ai/sdk`.
 
 import { getSettings } from "../model.ts";
-import type { Env } from "../types.ts";
+import type { Env, Settings } from "../types.ts";
+import { providerFor, type AiPurpose } from "./models.ts";
 
 export interface GenerateRequest {
   instruction: string;
@@ -100,66 +101,125 @@ export async function generate(
   // req.stylePrompt is the site-level style prompt (settings.ai_style_prompt);
   // the caller resolves it, since GenerateRequest already owns that field.
   const system = req.stylePrompt ? `${SYSTEM_PROMPT}\n\n${req.stylePrompt}` : SYSTEM_PROMPT;
-  return complete(env, system, buildUserContent(req), fetchImpl);
+  return complete(env, system, buildUserContent(req), fetchImpl, "tk");
 }
 
 /**
- * One Messages API call with a system prompt and one user turn — the shared
- * transport for every generation hook (TK scopes, changelog notes). Model is
- * provider configuration, resolved here from settings the same way the API key
- * is resolved from env, so every hook uses the model the operator chose.
+ * One model call with a system prompt and one user turn — the shared transport
+ * for every generation hook (TK scopes, changelog notes, later feed scoring).
+ * `purpose` picks the model from settings (one per AI function, 0.26.0); the
+ * model picks the provider from the manifest (src/ai/models.ts); the provider
+ * names the Worker secret that holds its key. Every provider is called over
+ * raw HTTP, for the same small-dependency reason given at the top of this file.
  */
 export async function complete(
   env: Env,
   system: string,
   user: string,
   fetchImpl: ProviderFetchLike = platformProviderFetch,
+  purpose: AiPurpose = "tk",
 ): Promise<GenerateResult> {
-  const apiKey = env.AI_PROVIDER_KEY;
-  if (!apiKey) throw new ProviderError("AI_PROVIDER_KEY is not configured");
   const settings = await getSettings(env.DB);
   // No built-in default (session 32, Venkat): which model an operator pays for
   // is the operator's choice, so a fresh install names none and says so.
-  const model = settings.ai_model.trim();
-  if (!model) throw new ProviderError("no AI model is configured: set one in Settings (for example claude-sonnet-5-5)");
-
-  const res = await fetchImpl(API_URL, {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": API_VERSION,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: MAX_TOKENS,
-      system,
-      messages: [{ role: "user", content: user }],
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new ProviderError(`provider request failed: ${res.status} ${body}`.trim());
+  const model = modelFor(settings, purpose).trim();
+  if (!model) throw new ProviderError(`no AI model is configured for ${PURPOSE_LABELS[purpose]}: choose one in Settings (for example claude-sonnet-5-5)`);
+  const provider = providerFor(model);
+  if (!provider) throw new ProviderError(`no provider is known for model "${model}": add it to models.json (or models.local.json)`);
+  const apiKey = (env as unknown as Record<string, unknown>)[provider.spec.key_secret];
+  if (typeof apiKey !== "string" || !apiKey) throw new ProviderError(`${provider.spec.key_secret} is not configured (the ${provider.spec.label} API key)`);
+  switch (provider.spec.api) {
+    case "anthropic-messages":
+      return anthropic(apiKey, model, system, user, fetchImpl);
+    case "openai-responses":
+      return openai(apiKey, model, system, user, fetchImpl);
+    case "gemini-generate":
+      return gemini(apiKey, model, system, user, fetchImpl);
   }
+}
 
-  let json: AnthropicResponse;
+const PURPOSE_LABELS: Record<AiPurpose, string> = { tk: "TK generation", changelog: "changelog notes", feed: "feed scoring" };
+
+export function modelFor(settings: Pick<Settings, "ai_model_tk" | "ai_model_changelog" | "ai_model_feed">, purpose: AiPurpose): string {
+  return purpose === "tk" ? settings.ai_model_tk : purpose === "changelog" ? settings.ai_model_changelog : settings.ai_model_feed;
+}
+
+async function postJson(fetchImpl: ProviderFetchLike, url: string, headers: Record<string, string>, body: unknown): Promise<unknown> {
+  const res = await fetchImpl(url, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new ProviderError(`provider request failed: ${res.status} ${text}`.trim());
+  }
   try {
-    json = JSON.parse(await res.text());
+    return JSON.parse(await res.text());
   } catch {
     throw new ProviderError("provider returned invalid JSON");
   }
+}
 
+/** Anthropic Messages API. */
+async function anthropic(apiKey: string, model: string, system: string, user: string, fetchImpl: ProviderFetchLike): Promise<GenerateResult> {
+  const json = (await postJson(fetchImpl, API_URL, { "x-api-key": apiKey, "anthropic-version": API_VERSION }, {
+    model,
+    max_tokens: MAX_TOKENS,
+    system,
+    messages: [{ role: "user", content: user }],
+  })) as AnthropicResponse;
   if (json.stop_reason === "refusal") {
     const category = json.stop_details?.category;
     throw new ProviderError(`provider declined the request${category ? ` (${category})` : ""}`);
   }
-
-  const text = json.content
+  const text = (json.content ?? [])
     .filter((b) => b.type === "text")
     .map((b) => b.text ?? "")
     .join("");
   if (!text) throw new ProviderError("provider returned no text content");
+  return { text, model: json.model ?? model };
+}
 
-  return { text, model: json.model };
+interface OpenAiResponse {
+  model?: string;
+  status?: string;
+  incomplete_details?: { reason?: string } | null;
+  output?: { type: string; content?: { type: string; text?: string; refusal?: string }[] }[];
+}
+
+/** OpenAI Responses API. */
+async function openai(apiKey: string, model: string, system: string, user: string, fetchImpl: ProviderFetchLike): Promise<GenerateResult> {
+  const json = (await postJson(fetchImpl, "https://api.openai.com/v1/responses", { authorization: `Bearer ${apiKey}` }, {
+    model,
+    instructions: system,
+    input: user,
+    max_output_tokens: MAX_TOKENS,
+  })) as OpenAiResponse;
+  const parts = (json.output ?? []).filter((o) => o.type === "message").flatMap((o) => o.content ?? []);
+  const refusal = parts.find((p) => p.type === "refusal");
+  if (refusal) throw new ProviderError(`provider declined the request${refusal.refusal ? `: ${refusal.refusal}` : ""}`);
+  const text = parts.filter((p) => p.type === "output_text").map((p) => p.text ?? "").join("");
+  if (!text) throw new ProviderError(json.status === "incomplete" ? `provider stopped early (${json.incomplete_details?.reason ?? "incomplete"})` : "provider returned no text content");
+  return { text, model: json.model ?? model };
+}
+
+interface GeminiResponse {
+  modelVersion?: string;
+  promptFeedback?: { blockReason?: string };
+  candidates?: { finishReason?: string; content?: { parts?: { text?: string }[] } }[];
+}
+
+/** Google Gemini API, generateContent. */
+async function gemini(apiKey: string, model: string, system: string, user: string, fetchImpl: ProviderFetchLike): Promise<GenerateResult> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const json = (await postJson(fetchImpl, url, { "x-goog-api-key": apiKey }, {
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [{ role: "user", parts: [{ text: user }] }],
+    generationConfig: { maxOutputTokens: MAX_TOKENS },
+  })) as GeminiResponse;
+  if (json.promptFeedback?.blockReason) throw new ProviderError(`provider declined the request (${json.promptFeedback.blockReason})`);
+  const candidate = json.candidates?.[0];
+  const text = (candidate?.content?.parts ?? []).map((p) => p.text ?? "").join("");
+  if (!text) {
+    const reason = candidate?.finishReason;
+    throw new ProviderError(reason && reason !== "STOP" ? `provider stopped without text (${reason})` : "provider returned no text content");
+  }
+  return { text, model: json.modelVersion ?? model };
 }

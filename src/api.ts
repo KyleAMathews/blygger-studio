@@ -430,13 +430,22 @@ const SETTINGS_KEYS = [
   "avatar_media_id",
   "update_feed_url",
   "timezone",
-  "ai_model",
+  "ai_model_tk",
+  "ai_model_changelog",
+  "ai_model_feed",
+  "feed_prompt",
   "ai_style_prompt",
 ] as const;
 
 api.openapi(routes.updateSettings, async (c) => {
   const body = await readJson<Record<string, unknown>>(c);
   const patch: Record<string, string> = {};
+  // The pre-0.26 single model: sets the two functions it used to drive,
+  // unless the same request names them itself.
+  if (typeof body.ai_model === "string") {
+    patch.ai_model_tk = body.ai_model;
+    patch.ai_model_changelog = body.ai_model;
+  }
   for (const key of SETTINGS_KEYS) {
     if (typeof body[key] === "string") patch[key] = body[key] as string;
   }

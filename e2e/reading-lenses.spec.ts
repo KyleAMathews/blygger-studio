@@ -70,3 +70,30 @@ test('signals lists current thumbs and the activity log', async ({ page }) => {
     await api(page, 'DELETE', `/signals/parity-native/${NATIVE}`);
   }
 });
+
+test('settings: a model per AI function from the manifest, other…, a reserved authoring row, and the feed prompt', async ({ page }) => {
+  await login(page);
+  const before = (await api(page, 'GET', '/settings')).json;
+  try {
+    await page.goto('/studio/settings');
+    await expect(page.locator('.model-hint')).toContainText('models.json');
+    await expect(page.locator('.provider-keys li')).toHaveCount(3);
+    await page.locator('#ai_model_tk').selectOption('claude-sonnet-5-5');
+    await page.locator('#ai_model_feed').selectOption('__other__');
+    await page.getByLabel('feed scoring model id').fill('gemini-9-future');
+    await expect(page.locator('#ai_model_authoring')).toBeDisabled();
+    await page.locator('#feed_prompt').fill('Prioritize tech news.');
+    await page.locator('#settings-form button[type=submit]').first().click();
+    await expect.poll(async () => (await api(page, 'GET', '/settings')).json).toMatchObject({
+      ai_model_tk: 'claude-sonnet-5-5',
+      ai_model_feed: 'gemini-9-future',
+      feed_prompt: 'Prioritize tech news.',
+    });
+    // An unlisted saved model reopens as other…, with its id shown.
+    await page.reload();
+    await expect(page.locator('#ai_model_feed')).toHaveValue('__other__');
+    await expect(page.getByLabel('feed scoring model id')).toHaveValue('gemini-9-future');
+  } finally {
+    await api(page, 'PATCH', '/settings', { ai_model_tk: before.ai_model_tk, ai_model_changelog: before.ai_model_changelog, ai_model_feed: before.ai_model_feed, feed_prompt: before.feed_prompt });
+  }
+});

@@ -1,6 +1,6 @@
 {
   "name": "@blygger/studio",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "private": true,
   "description": "Blygger Studio \u2014 reference client for the Blygger protocol (publish, subscribe, thread, transclude, respond)",
   "license": "MIT",
@@ -21,7 +21,7 @@
     "deploy:pi": "wrangler deploy --config wrangler.private.jsonc --env protocolInstitute",
     "openapi": "node --import tsx scripts/openapi.ts",
     "sdk:generate": "npm run openapi && node --import tsx scripts/generate-sdk.ts && npm run build",
-    "build": "node --import tsx scripts/build-sdk.ts && node --import tsx scripts/build-spa.ts",
+    "build": "node --import tsx scripts/build-models.ts && node --import tsx scripts/build-sdk.ts && node --import tsx scripts/build-spa.ts",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.ui.json",
     "test:e2e": "playwright test",
     "test:upgrade": "node --import tsx scripts/verify-upgrade.ts",
