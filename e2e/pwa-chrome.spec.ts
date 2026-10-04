@@ -85,10 +85,14 @@ test('a prompt sheet returns typed text and creates nothing when cancelled', asy
   const names = async () => { const body = await hoppers(); return (Array.isArray(body) ? body : body.items ?? []).map(h => h.name); };
   const name = `Prompted hopper ${test.info().project.name} ${Date.now()}`;
   const entry = page.locator('.reading-entry').filter({ hasText: 'Native title' });
-  await entry.getByRole('combobox', { name: 'add to hopper' }).selectOption('__new__');
+  const newHopper = async () => {
+    await entry.getByRole('button', { name: 'add to hopper', exact: true }).click();
+    await page.getByRole('dialog', { name: '+ add to hopper…' }).getByRole('button', { name: 'new hopper…', exact: true }).click();
+  };
+  await newHopper();
   await answerSheet(page, { name: 'Name the new hopper:', accept: false });
   expect(await names()).not.toContain(name);
-  await entry.getByRole('combobox', { name: 'add to hopper' }).selectOption('__new__');
+  await newHopper();
   await answerSheet(page, { name: 'Name the new hopper:', text: name });
   await expect.poll(names).toContain(name);
 });

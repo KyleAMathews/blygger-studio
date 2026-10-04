@@ -15,7 +15,7 @@ test("owner can compose, publish and change settings through the SDK", async ({ 
   await page.locator("#publish-btn").click();
   await expect(page.locator("#composer-text")).toHaveValue("");
   await expect(page.locator("body")).toContainText("Browser SDK round trip");
-  await page.goto("/studio/reading");
+  await page.goto("/studio/reading?sub=all");
   await expect(page.locator("body")).toContainText("Browser SDK round trip");
   await page.goto("/studio/settings");
   await page.locator("#site_title").fill("Browser SDK site");
@@ -234,7 +234,8 @@ test("an imported item's history shows notes, and diffs only public versions", a
   // Filtered to the seeded source: other tests fill the first page of "all".
   await page.goto("/studio/reading?sub=parity-native");
   const entry = page.locator(".reading-entry").filter({ hasText: "Frozen source text." });
-  await entry.locator('[data-action="history"]').click();
+  await entry.getByRole("button", { name: "more actions", exact: true }).click();
+  await page.getByRole("dialog", { name: "actions" }).getByRole("button", { name: "history", exact: true }).click();
   await expect(entry.locator(".entry-history .h-row")).toHaveCount(3);
   await expect(entry.locator(".entry-history")).toContainText("Narrowed the claim.");
   await expect(entry.locator(".entry-history .tc-chip", { hasText: "generated" })).toHaveCount(1);

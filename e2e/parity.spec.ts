@@ -1,6 +1,13 @@
 import { test, expect, type Page } from '@playwright/test';
 import { answerSheet } from './sheets.ts';
 import { editorMenu, expandRow, openCard } from './editor.ts';
+// An entry's ⋯ sheet (an untitled menu sheet is named "actions").
+async function entryMenu(page: Page, entry: ReturnType<Page['locator']>) {
+  await entry.getByRole('button', { name: 'more actions', exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: 'actions' });
+  await expect(sheet).toBeVisible();
+  return sheet;
+}
 async function login(page: Page) {
   await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
   await page.getByRole('button', { name: 'log in', exact: true }).click();
@@ -11,22 +18,25 @@ test('reading preserves retained snapshots and restricts legacy actions', async 
   await expect(page.locator('.reading-entry')).toHaveCount(2);
   const retained = page.locator('.reading-entry').filter({ hasText: 'Pinned retained text.' });
   await expect(retained).toContainText('retained pinned v1');
-  await expect(retained.getByRole('button', { name: 'copy [[id]]', exact: true })).toBeVisible();
+  await expect((await entryMenu(page, retained)).getByRole('button', { name: 'copy [[id]]', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
   const native = page.locator('.reading-entry').filter({ hasText: 'Native title' });
   await expect(native.locator('.entry-title a')).toHaveAttribute('href', 'https://source.example/native');
   await expect(native).toContainText('Frozen quote from a prior version.');
   await page.goto('/studio/reading?sub=parity-rss');
   const legacy = page.locator('.reading-entry');
   await expect(legacy).toContainText('Legacy title');
-  await expect(legacy.getByRole('button', { name: 'copy [[id]]', exact: true })).toHaveCount(0);
-  await expect(legacy.getByRole('button', { name: 'quote selection', exact: true })).toHaveCount(0);
-  await expect(legacy.getByRole('button', { name: 'link post ↗', exact: true })).toHaveCount(0);
-  await expect(legacy.locator('.entry-open')).toHaveAttribute('href', 'https://legacy.example/post');
-  if (test.info().project.name === 'mobile') {
-    await expect(page.locator('#reading-sidebar')).toBeHidden();
-    await page.getByRole('button', { name: 'sources · Legacy source' }).click();
-    await expect(page.locator('#reading-sidebar')).toBeVisible();
-  }
+  await expect(legacy.locator('.entry-title a')).toHaveAttribute('href', 'https://legacy.example/post');
+  const menu = await entryMenu(page, legacy);
+  await expect(menu.getByRole('button', { name: 'copy [[id]]', exact: true })).toHaveCount(0);
+  await expect(menu.getByRole('button', { name: 'quote selection', exact: true })).toHaveCount(0);
+  await expect(menu.getByRole('button', { name: 'link post ↗', exact: true })).toHaveCount(0);
+  await expect(menu.getByRole('button', { name: 'history' })).toHaveCount(0);
+  await expect(menu).toContainText('https://legacy.example/post');
+  await page.keyboard.press('Escape');
+  // The timeline leads back to the sources list, where the source is listed.
+  await page.getByRole('link', { name: '← sources', exact: true }).click();
+  await expect(page.locator('.feed[data-id="parity-rss"]')).toContainText('Legacy source');
 });
 test('hopper uses stored HTML instead of re-previewing remote markdown', async ({ page }) => {
   await login(page);
@@ -195,17 +205,20 @@ test('editor kind, discard, pinned history and TK controls retain their contract
   await expect(row.locator('.pin-chips a')).toHaveAttribute('href', /\/t\/[^/]+\/v1\/$/);
 });
 
-test('reading copy actions stay in the byline and link post creates only once', async ({ page }) => {
+test('reading copy actions sit in the ⋯ sheet beside copy url, never beside stub, and link post creates only once', async ({ page }) => {
   await login(page); await page.goto('/studio/reading?sub=parity-native');
   const entry = page.locator('.reading-entry').filter({ hasText: 'Native title' });
-  await expect(entry.locator('.byline')).toContainText('copy [[id]]');
-  await expect(entry.locator('.entry-actions')).not.toContainText('copy [[id]]');
-  await expect(entry.locator('.entry-actions')).not.toContainText(/respond|reply|answer/);
-  await entry.getByRole('button', { name: 'quote selection', exact: true }).click();
+  await expect(entry.locator('.entry-bar')).not.toContainText('copy [[id]]');
+  await expect(entry.locator('.entry-bar')).not.toContainText(/respond|reply|answer/);
+  let menu = await entryMenu(page, entry);
+  await expect(menu.getByRole('button')).toHaveText([/quote selection/, /link post ↗$/, /fork$/, /copy \[\[id\]\]$/, /copy url$/, /share…$/, /source\.example.*↗/, /history$/]);
+  await expect(menu).not.toContainText(/stub|respond|reply|answer/);
+  await menu.getByRole('button', { name: /quote selection/ }).click();
   await expect(page.getByRole('alert')).toContainText('Select text');
   await expect(page).toHaveURL(/\/reading\?/);
   const created = page.waitForResponse(response => response.url().endsWith('/api/items') && response.request().method() === 'POST');
-  await entry.getByRole('button', { name: 'link post ↗', exact: true }).click();
+  menu = await entryMenu(page, entry);
+  await menu.getByRole('button', { name: 'link post ↗', exact: true }).click();
   const response = await created;
   expect(response.request().postDataJSON()).toEqual({ kind: 'fragment', content_md: '[[00000000000000000000000001]]\n\n' });
   const id = (await response.json()).id;
@@ -239,28 +252,36 @@ test('mentions group verified pointers, retain hidden rows and show source guida
   await expect(group).not.toContainText('Frozen source text');
   await expect(group.locator('.hidden-row')).toContainText('Source author');
   await expect(group.locator('.hidden-row').getByRole('button', { name: 'show on page', exact: true })).toBeVisible();
+  // The page-visibility pills write the item's responses override.
+  await group.getByRole('button', { name: 'show', exact: true }).click();
+  await expect(group.getByRole('button', { name: 'show', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(group).toContainText('1 on the page now');
+  await page.getByRole('button', { name: /^outbound/ }).click();
   await expect(page.locator('.out-row')).toContainText('https://recipient.example/post');
   await expect(page.locator('.out-row')).toContainText('retrying after');
   await expect(page.locator('.mentions-note').last()).toContainText('No site URL is set');
-  await group.getByRole('combobox', { name: 'item responses' }).selectOption('show');
-  await expect(group).toContainText('1 on the page now');
 });
 
 test('subscription changes roll back on failure and stay durable on success', async ({ page }) => {
+  // /subs is gone: each source's inspector sheet in reading manages it.
   await login(page); await page.goto('/studio/subs');
-  const row = page.locator('.sub-row').filter({ hasText: 'Native source' });
-  await expect(page.locator('#add-sub-form')).toBeVisible();
-  await expect(row).toContainText('https://source.example/');
+  await expect(page).toHaveURL(/\/studio\/reading$/);
+  const row = page.locator('.feed[data-id="parity-native"]');
+  const inspector = page.getByRole('dialog', { name: 'Native source' });
+  const inspect = async () => { await row.getByRole('button', { name: 'about Native source', exact: true }).click(); await expect(inspector).toBeVisible(); };
+  await inspect();
+  await expect(inspector).toContainText('https://source.example/');
+  await page.keyboard.press('Escape');
   await page.route('**/api/subscriptions/parity-native', route => route.request().method() === 'PATCH' ? route.fulfill({ status: 503, json: { error: 'subscription write failed' } }) : route.continue());
-  await row.getByRole('button', { name: 'pause', exact: true }).click();
+  await inspect(); await inspector.getByRole('button', { name: 'pause', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('subscription write failed');
-  await expect(row.getByRole('button', { name: 'pause', exact: true })).toBeVisible();
+  await expect(row.locator('.fs')).not.toHaveText('paused');
   await page.unroute('**/api/subscriptions/parity-native');
-  await row.getByRole('button', { name: 'pause', exact: true }).click();
-  await expect(row.getByRole('button', { name: 'resume', exact: true })).toBeVisible();
-  await page.reload(); await expect(row.getByRole('button', { name: 'resume', exact: true })).toBeVisible();
-  await row.getByRole('button', { name: 'resume', exact: true }).click();
-  await expect(row.getByRole('button', { name: 'pause', exact: true })).toBeVisible();
+  await inspect(); await inspector.getByRole('button', { name: 'pause', exact: true }).click();
+  await expect(row.locator('.fs')).toHaveText('paused');
+  await page.reload(); await expect(row.locator('.fs')).toHaveText('paused');
+  await inspect(); await inspector.getByRole('button', { name: 'resume', exact: true }).click();
+  await expect(row.locator('.fs')).not.toHaveText('paused');
 });
 
 test('hopper creation, rename and public slug work through the API', async ({ page }) => {
@@ -392,14 +413,14 @@ test('quote selection rejects cross-entry ranges and accepts an entry excerpt', 
     const range = document.createRange(); range.setStart(texts[0], 0); range.setEnd(texts[1], Math.min(5, texts[1].textContent!.length));
     const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
   });
-  await native.getByRole('button', { name: 'quote selection', exact: true }).click();
+  await (await entryMenu(page, native)).getByRole('button', { name: /quote selection/ }).click();
   await expect(page.getByRole('alert')).toContainText('Select text in this entry');
   await native.locator('.content').evaluate(node => {
     const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT); const text = walker.nextNode()!;
     const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, Math.min(5, text.textContent!.length));
     const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
   });
-  await native.getByRole('button', { name: 'quote selection', exact: true }).click();
+  await (await entryMenu(page, native)).getByRole('button', { name: /quote selection/ }).click();
   await expect(page).toHaveURL(/\/edit\//);
   await expect(page.locator('#md-input')).toHaveValue('![[00000000000000000000000001]]\n> Froze\n\n');
 });
