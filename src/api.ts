@@ -29,6 +29,8 @@ import {
 import { mentionFetch } from "./mentions/http.ts";
 import { drainOutbound, enqueueForVersion } from "./mentions/send.ts";
 import { checkForkTarget, resolveForkSource } from "./fork.ts";
+import { flattenFork } from "./fork-flatten.ts";
+import { blygItemUrl } from "./importer/util.ts";
 import { siteOrigin } from "./protocol.ts";
 import { parseForkedFrom, parseStoredFork, parseStoredStub, parseStubOf } from "./stub.ts";
 import { runGenerateScope } from "./tk-generate.ts";
@@ -85,6 +87,19 @@ api.openapi(routes.createItem, async (c) => {
  * fork.ts): a fork descends from bytes that are promised forever, so those are
  * the bytes it starts from.
  */
+/** A quoted item's page for a flattened quote's attribution line: ours, an import's own `page`, else its item document. */
+async function quotedLink(db: D1Database, quoteOrigin: string, id: string, ourOrigin: string): Promise<string> {
+  if (quoteOrigin === ourOrigin) {
+    const own = await db.prepare("SELECT kind FROM items WHERE id = ?").bind(id).first<{ kind: string }>();
+    if (own) return blygItemUrl(ourOrigin, own.kind === "thread" ? "thread" : "fragment", id, null);
+  }
+  const row = await db
+    .prepare("SELECT ii.kind AS kind, ii.page AS page FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id WHERE ii.remote_id = ? AND s.origin = ?")
+    .bind(id, quoteOrigin)
+    .first<{ kind: string; page: string | null }>();
+  return row ? blygItemUrl(quoteOrigin, row.kind, id, row.page) : `${quoteOrigin}items/${id}.json`;
+}
+
 async function createForkResponse(c: Context<{ Bindings: Env }>, body: { origin: string; id: string; version: number }) {
   const parsed = parseForkedFrom(body);
   if (!parsed.ok) return c.json({ error: parsed.reason }, 400);
@@ -92,7 +107,10 @@ async function createForkResponse(c: Context<{ Bindings: Env }>, body: { origin:
   const origin = siteOrigin(settings, c.req.url, normalizeMount(c.env.MOUNT));
   const resolved = await resolveForkSource(c.env.DB, parsed.ref, origin, settings.site_title, mentionFetch, nowIso());
   if (!resolved.ok) return c.json({ error: resolved.reason }, 400);
-  const item = await createFork(c.env.DB, resolved.source.contentMd, resolved.source.kind, parsed.ref, resolved.source.cite);
+  // #57: the fork starts from the pinned document, flattened — baked quotes as
+  // plain blockquotes with attribution, generated spans as impyrt.
+  const flat = await flattenFork(resolved.source, { origin: parsed.ref.origin, link: (o, id) => quotedLink(c.env.DB, o, id, origin) });
+  const item = await createFork(c.env.DB, flat.contentMd, resolved.source.kind, parsed.ref, resolved.source.cite);
   c.header("Location", `/api/items/${item.id}`);
   return c.json(itemResource(item), 201);
 }

@@ -153,6 +153,8 @@ saying so.
 
 ## Status
 
+**0.20.0** (session 33, 2026-10-03): a fork flattens its pinned document (#57, `src/fork-flatten.ts`): quotes as attributed blockquotes, generated spans as impyrt, whole-HTML fallback. The build side of gate G11. No migration.
+
 **0.19.0** (session 33, 2026-10-03): the composer autosaves (studio#23; first save after a 3 s pause and ≥ 8 characters); image alt keeps escapes (studio#6). No migration.
 
 **0.18.0** (session 33, 2026-10-03): imports keep `stub_of`/`forked_from` verbatim (studio#12, **migration 0017**); `{url}` stubs cite the feed and entry, frozen at creation (#55). The build side of gate G10.

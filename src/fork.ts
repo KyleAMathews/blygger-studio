@@ -13,7 +13,7 @@
 import { boundedText } from "./mentions/http.ts";
 import type { FetchLike } from "./importer/http.ts";
 import { excerptFromHtml } from "./markdown.ts";
-import type { ForkedFrom, StubCite } from "./types.ts";
+import type { ForkedFrom, ScopeProvenance, StubCite } from "./types.ts";
 
 /** Where a pinned version lives, on any conformant blyg (§2.8). */
 export function pinnedVersionUrl(ref: ForkedFrom): string {
@@ -23,6 +23,10 @@ export function pinnedVersionUrl(ref: ForkedFrom): string {
 export interface ForkSource {
   kind: "fragment" | "thread";
   contentMd: string;
+  /** The pinned version's rendered document — what a fork descends from (#57). */
+  contentHtml: string;
+  /** The pinned version's `generated[]`, re-wrapped as impyrt so the fork keeps the disclosure. */
+  generated: ScopeProvenance[];
   cite: StubCite;
 }
 
@@ -59,11 +63,11 @@ async function resolveOwnFork(
 ): Promise<ForkResolve> {
   const row = await db
     .prepare(
-      `SELECT v.content_md AS content_md, v.content_html AS content_html, v.transclusions AS transclusions, v.pinned AS pinned
+      `SELECT v.content_md AS content_md, v.content_html AS content_html, v.transclusions AS transclusions, v.pinned AS pinned, v.generated_json AS generated_json
        FROM versions v WHERE v.item_id = ? AND v.version = ?`,
     )
     .bind(ref.id, ref.version)
-    .first<{ content_md: string; content_html: string; transclusions: string | null; pinned: number }>();
+    .first<{ content_md: string; content_html: string; transclusions: string | null; pinned: number; generated_json: string | null }>();
   if (!row) return { ok: false, reason: `no v${ref.version} of ${ref.id} on this blyg` };
   if (row.pinned !== 1) return { ok: false, reason: `v${ref.version} is not pinned — only pinned versions can be forked` };
   const kind = row.transclusions !== null ? "thread" : "fragment";
@@ -72,6 +76,8 @@ async function resolveOwnFork(
     source: {
       kind,
       contentMd: row.content_md,
+      contentHtml: row.content_html,
+      generated: provenanceList(row.generated_json),
       cite: {
         source: ourTitle || hostOf(ourOrigin),
         ...(row.content_html ? { excerpt: excerptFromHtml(row.content_html, 80) } : {}),
@@ -119,6 +125,8 @@ async function resolveRemoteFork(db: D1Database, ref: ForkedFrom, fetchFn: Fetch
     source: {
       kind: doc.kind === "thread" ? "thread" : "fragment",
       contentMd,
+      contentHtml,
+      generated: Array.isArray(doc.generated) ? (doc.generated as ScopeProvenance[]) : [],
       cite: {
         source: sub?.title || hostOf(ref.origin),
         ...(author ? { author } : {}),
@@ -196,6 +204,16 @@ function authorName(raw: unknown): string | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const name = (raw as Record<string, unknown>).name;
   return typeof name === "string" && name ? name : undefined;
+}
+
+function provenanceList(json: string | null): ScopeProvenance[] {
+  if (!json) return [];
+  try {
+    const v = JSON.parse(json);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
 }
 
 function hostOf(url: string): string {

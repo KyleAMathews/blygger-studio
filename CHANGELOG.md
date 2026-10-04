@@ -18,7 +18,31 @@ not have its own repo until session 26.
 
 ---
 
-## 0.19.0 — 2026-10-03
+## 0.20.0 — 2026-10-03
+
+**Migrations: none.**
+
+**A fork starts from the pinned document, not from its directives** (decision
+#57, spec §16.6f). Forking a thread used to copy its `![[id]]` directives,
+which then resolved again in *your* blyg when you published. You could get a
+later version of a quote, a publish failure for a source you don't subscribe
+to, or quote-mentions sent to other people on your behalf. Now:
+
+- Your fork's own prose is copied exactly. Each quote becomes an ordinary,
+  editable blockquote of the text the pinned version baked, closed by a
+  *quoted from* line that links the quoted item. Nested quotes become nested
+  blockquotes, and a partial quote keeps its passage.
+- The fork inherits no `transclusions[]` and sends no quote-mentions. If you
+  want a live quote, write the `![[id]]` yourself.
+- Generated text stays disclosed. It comes back as `[TK]impyrt=…[/TK]`, with
+  the model where the source recorded one, so the fork republishes it as
+  generated. This also fixes fragment forks, which dropped `generated[]`
+  before.
+- If the source's markdown and its pinned HTML don't line up, the fork is
+  rebuilt entirely from the pinned HTML. Exact prose gives way before a
+  disclosure does.
+
+
 
 **Migrations: none.**
 

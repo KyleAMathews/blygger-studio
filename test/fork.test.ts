@@ -96,7 +96,7 @@ describe("forking a pinned version of our own (§2.4)", () => {
     expect((await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: "x", version: 0 } })).status).toBe(400);
   });
 
-  it("forks a thread as a thread, keeping the directives rather than the baked HTML", async () => {
+  it("forks a thread as a thread, flattening its quotes from the pinned document (#57)", async () => {
     const cookie = await login();
     const quoted = await createAndPublish(cookie, "a fragment to quote");
     const created = await apiJson(cookie, "POST", "/api/items", { content_md: `intro\n\n![[${quoted}]]`, kind: "thread" });
@@ -107,11 +107,11 @@ describe("forking a pinned version of our own (§2.4)", () => {
     const forked = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: threadId, version: 1 } });
     expect(forked.status).toBe(201);
     expect(forked.json.kind).toBe("thread");
-    // content_md, not content_html: a fork is a working copy, so it inherits
-    // the source the author can edit, and re-resolves its own transclusions.
+    // Decision #57 overrules the session-24 call this test used to assert: the
+    // directive re-resolved in the forker's context, so the fork descended from
+    // a composition, not from the pinned bytes. The quote is now flattened.
     const draft = await apiJson(cookie, "GET", `/api/items/${forked.json.id}`);
-    expect(draft.status).toBe(200);
-    expect(draft.json.content_md).toBe(`intro\n\n![[${quoted}]]`);
+    expect(draft.json.content_md).toBe(`intro\n\n> a fragment to quote\n>\n> — quoted from [example.com · v1](${OURS}f/${quoted}/)`);
   });
 });
 
