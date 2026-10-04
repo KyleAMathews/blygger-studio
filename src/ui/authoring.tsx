@@ -889,7 +889,6 @@ export function Compose() {
       <h2 className="view-h">compose</h2>
       <Help className="view-sub" />
       <PublishedBanner published={published} dismiss={() => setPublished(undefined)} />
-      <StaleNotice items={rows} />
       <div className="card composer">
         <div className="segmented" role="radiogroup" aria-label="kind">
           {(['fragment', 'thread'] as const).map((value) => (
@@ -2241,60 +2240,6 @@ function QuotedSnapshots({
       ) : null}
       <Failure error={action.error} />
     </Card>
-  );
-}
-/** Threads whose quotes are behind, database-only — the cross-blyg view. */
-function StaleNotice({
-  items: rows,
-}: {
-  items: ListItemsResponses[200]['items'];
-}) {
-  const [stale, setStale] = useState<{ id: string; stale: number; blocking: number }[]>([]);
-  const versions = rows.map((r) => `${r.id}:${r.version}`).join(',');
-  useEffect(() => {
-    let live = true;
-    unwrap(BlyggerApi.listStaleThreads({ client }))
-      .then((r) => live && setStale(r.items))
-      .catch(() => live && setStale([]));
-    return () => {
-      live = false;
-    };
-  }, [versions]);
-  if (!stale.length) return null;
-  const label = (id: string) => {
-    const row = rows.find((r) => r.id === id);
-    if (!row) return id.slice(0, 8);
-    const p = previewFromHtml(renderMarkdown(extractDirectives(row.content_md).withoutDirectives));
-    return p.title || p.body || id.slice(0, 8);
-  };
-  return (
-    <section className="stale-notice banner banner-warn" role="status">
-      <span className="mark" aria-hidden="true">
-        !
-      </span>
-      <div className="body">
-        <p>
-          {stale.length === 1
-            ? '1 published thread quotes'
-            : `${stale.length} published threads quote`}{' '}
-          an older version of something:
-        </p>
-        <ul>
-          {stale.map((t) => (
-            <li key={t.id}>
-              <Link to="/edit/$id" params={{ id: t.id }} hash="snapshots">
-                {label(t.id)}
-              </Link>{' '}
-              <span className="h-hint">
-                {t.stale ? `${t.stale} stale` : ''}
-                {t.stale && t.blocking ? ' · ' : ''}
-                {t.blocking ? `${t.blocking} need editing` : ''}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
   );
 }
 const getPreview = (

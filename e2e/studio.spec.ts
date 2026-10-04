@@ -110,11 +110,16 @@ test("stale quotes are listed, explained, and refreshed as one republish", async
   await api("PATCH", `/items/${source}`, { content_md: `${marker}, second version.` });
   await api("POST", `/items/${source}/publish`, {});
 
-  // The cross-blyg notice names the thread and links to its snapshots.
+  // Compose no longer nags; the updates tab lists the thread, stalest first,
+  // under the batching note, and links to its snapshots.
   await page.reload();
-  const notice = page.locator(".stale-notice");
-  await expect(notice).toContainText(title);
-  await notice.getByRole("link", { name: title }).click();
+  await expect(page.locator("#composer-text")).toBeVisible();
+  await expect(page.locator(".stale-notice")).toHaveCount(0);
+  await page.locator(".tabbar").getByRole("link", { name: "updates" }).click();
+  await expect(page.locator(".updates-note")).toContainText("descending order of staleness");
+  const entry = page.locator(".updates-list li").filter({ hasText: title });
+  await expect(entry).toContainText("1 version behind · 1 stale quote");
+  await entry.getByRole("link").click();
   await expect(page.locator("#md-input")).toBeVisible();
 
   // The panel says what is stale and by how much.

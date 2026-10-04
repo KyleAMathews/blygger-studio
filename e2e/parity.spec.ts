@@ -84,12 +84,13 @@ test('syntax links stay inside the Studio and paging rejects out-of-range bookma
   await expect(page.locator('.reading-entry').first()).toBeVisible();
 });
 
-for (const [path, current] of [['', 'compose'], ['/reading', 'reading'], ['/hoppers', 'hoppers'], ['/mentions', 'mentions'], ['/more', 'more'], ['/settings', 'more'], ['/syntax', 'more'], ['/subs', 'reading'], ['/hoppers/parity-hopper', 'hoppers']] as const) test(`navigation tab bar remains stable on ${path || 'compose'}`, async ({ page }) => {
+for (const [path, current] of [['', 'compose'], ['/reading', 'reading'], ['/hoppers', 'hoppers'], ['/mentions', 'mentions'], ['/updates', 'updates'], ['/more', 'more'], ['/settings', 'more'], ['/syntax', 'more'], ['/subs', 'reading'], ['/hoppers/parity-hopper', 'hoppers']] as const) test(`navigation tab bar remains stable on ${path || 'compose'}`, async ({ page }) => {
   await login(page); await page.goto(`/studio${path}`);
   const tabs = page.getByRole('navigation', { name: 'studio' }).getByRole('link');
-  await expect(tabs.locator('.tl')).toHaveText(['reading', 'compose', 'hoppers', 'mentions', 'more']);
+  await expect(tabs.locator('.tl')).toHaveText(['reading', 'compose', 'hoppers', 'mentions', 'updates', 'more']);
   await expect(tabs.nth(1)).toHaveAttribute('href', '/studio/');
-  await expect(tabs.nth(4)).toHaveAttribute('href', '/studio/more');
+  await expect(tabs.nth(4)).toHaveAttribute('href', '/studio/updates');
+  await expect(tabs.nth(5)).toHaveAttribute('href', '/studio/more');
   await expect(page.locator('nav.tabbar a[aria-current=page] .tl')).toHaveText(current);
   await expect(page.locator('nav.tabbar a[aria-current=page]')).toHaveAccessibleName(current);
   const publicPage = page.getByRole('link', { name: 'public page ↗' }).first();

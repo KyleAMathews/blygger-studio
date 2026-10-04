@@ -266,6 +266,7 @@ export type ThreadFreshness = {
     quotes: Array<QuoteFreshness>;
     stale: number;
     blocking: number;
+    behind: number;
 };
 
 export type QuoteFreshness = {

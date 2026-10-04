@@ -37,6 +37,7 @@ import {
 import { Button } from './components.tsx';
 import { SyntaxPage } from './syntax.tsx';
 import { MorePage } from './more.tsx';
+import { UpdatesPage } from './updates.tsx';
 import { SheetHost } from './sheets.tsx';
 import { applyCachedTheme } from './theme.ts';
 // Paint the last theme this device saw before the first render; settings
@@ -202,6 +203,13 @@ const mentions = createRoute({
     Promise.all([inbound.preload(), outbound.preload(), items.preload()]),
   component: MentionsPage,
 });
+// Quotes that have fallen behind their sources, stalest first (0.23.0).
+const updates = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/updates',
+  loader: () => items.preload(),
+  component: UpdatesPage,
+});
 const fork = createRoute({
   getParentRoute: () => rootRoute,
   path: '/fork',
@@ -246,6 +254,7 @@ export const router = createRouter({
     hoppers,
     hopper,
     mentions,
+    updates,
     fork,
     more,
     syntax,

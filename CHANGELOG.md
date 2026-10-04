@@ -18,6 +18,29 @@ not have its own repo until session 26.
 
 ---
 
+## 0.23.0 — 2026-10-04
+
+**Migrations: none.** `/api` change: `GET /api/freshness` entries gain `behind`, and the
+list now comes stalest first. Additive; regenerate the SDK if you use it.
+
+**Stale quotes move out of compose into a new *updates* tab.**
+
+- The warning banner at the top of compose is gone. It listed every thread
+  whose quotes had fallen behind, which read as a to-do list, and acting on
+  each alert as it came would publish a flood of trivial versions.
+- **updates** sits after *mentions* in the tab bar. It lists the same threads,
+  stalest first, each with how far behind it is: "4 versions behind · 2 stale
+  quotes", and "needs editing" when a republish would fail.
+- Staleness is the versions a thread's stale quotes have missed, summed. One
+  quote three versions behind and another one behind make a thread four behind.
+- The page states the norm it is built for: refresh items in batches, stalest
+  first, when they have drifted far enough, rather than one version per alert.
+  The same ordered queue is meant for a future maintenance agent.
+
+Protocol: implements 0.3, unchanged.
+
+---
+
 ## 0.22.0 — 2026-10-04
 
 **Migrations: none. No API, contract or data changes** — this release touches

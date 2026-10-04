@@ -30,7 +30,7 @@ export const ReadingEntrySchema = z.object({ key: z.string(), source: z.enum(["o
 const subscribed = SubscriptionSchema;
 const confirmation = z.object({ needsConfirm: z.literal(true), kind: z.enum(["blyg", "rss"]), origin: z.string().optional(), feedUrl: z.string().optional(), title: z.string(), siteMismatch: z.object({ asserted: z.string(), actual: z.string() }).optional() });
 const quoteFreshness = z.object({ id: z.string(), origin: z.string().optional(), baked: z.number().int(), held: z.number().int().nullable(), live: z.number().int().nullable(), partial: z.boolean(), status: z.enum(["current", "refreshable", "behind", "passage-missing", "unresolvable", "retained"]), reason: z.string().optional() }).openapi("QuoteFreshness");
-export const ThreadFreshnessSchema = z.object({ id: z.string(), version: z.number().int(), dirty: z.boolean(), quotes: z.array(quoteFreshness), stale: z.number().int().nonnegative(), blocking: z.number().int().nonnegative() }).openapi("ThreadFreshness");
+export const ThreadFreshnessSchema = z.object({ id: z.string(), version: z.number().int(), dirty: z.boolean(), quotes: z.array(quoteFreshness), stale: z.number().int().nonnegative(), blocking: z.number().int().nonnegative(), behind: z.number().int().nonnegative() }).openapi("ThreadFreshness");
 const counts = z.object({ all: z.number(), own: z.number(), subscriptions: z.record(z.string(), z.number()) });
 
 function route<P extends string>(id: string, method: RouteConfig["method"], path: P, response: z.ZodType, body?: z.ZodType, status = 200, query?: z.ZodObject, optionalBody = false): RouteConfig & { path: P } {

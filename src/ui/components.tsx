@@ -122,6 +122,7 @@ const tabs = [
   { label: 'compose', to: '/', icon: '✎' },
   { label: 'hoppers', to: '/hoppers', icon: '▤' },
   { label: 'mentions', to: '/mentions', icon: '↩' },
+  { label: 'updates', to: '/updates', icon: '↻' },
   { label: 'more', to: '/more', icon: '⋯' },
 ] as const;
 type Tab = (typeof tabs)[number]['label'];
@@ -132,6 +133,7 @@ export function tabFor(path: string): Tab | null {
   if (p === '/reading' || p === '/subs' || p === '/fork') return 'reading';
   if (p === '/hoppers' || p.startsWith('/hoppers/')) return 'hoppers';
   if (p === '/mentions') return 'mentions';
+  if (p === '/updates') return 'updates';
   if (p === '/more' || p === '/settings' || p === '/syntax') return 'more';
   return null;
 }
