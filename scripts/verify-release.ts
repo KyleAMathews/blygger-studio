@@ -28,7 +28,7 @@ try {
   assert.match(config, /"main": "worker.js"/);
   assert.match(config, /"no_bundle": true/);
   assert.match(config, /FILL-ME-run-npm-run-init/);
-  mf = new Miniflare({ modules: true, script: readFileSync(join(worker, "worker.js"), "utf8"), compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], bindings: { MOUNT: "", OWNER_PASSWORD: "test", COOKIE_SECRET: "release-smoke-test-secret" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"] });
+  mf = new Miniflare({ modules: [{ type: "ESModule", path: "worker.mjs", contents: readFileSync(join(worker, "worker.js"), "utf8") }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], bindings: { MOUNT: "", OWNER_PASSWORD: "test", COOKIE_SECRET: "release-smoke-test-secret" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"] });
   assert.equal((await mf.dispatchFetch("http://localhost/api/openapi.json")).status, 401);
   const browser = await mf.dispatchFetch("http://localhost/studio/app.js");
   assert.equal(browser.status, 200);

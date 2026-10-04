@@ -3,6 +3,7 @@
 import { renderMarkdown } from "./markdown.ts";
 import { htmlCodeRanges } from "./code-ranges.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, stripToOutput, TkPublishError, unresolvedScopes } from "./tk.ts";
+import { recordPublishInteractions } from "./interactions.ts";
 import { applyVersionAgreement, composeStubCite, composeTransclusionCite, parseStoredStub } from "./stub.ts";
 import {
   applyInternalLinks,
@@ -88,7 +89,13 @@ export async function getSettings(db: D1Database): Promise<Settings> {
     author_links: links,
     site_url: map.site_url ?? "",
     avatar_media_id: map.avatar_media_id ?? "",
-    ai_model: map.ai_model ?? "",
+    // One model per AI function since 0.26.0; the single pre-0.26 model
+    // setting is the fallback for the two functions that existed then.
+    ai_model: map.ai_model_tk ?? map.ai_model ?? "",
+    ai_model_tk: map.ai_model_tk ?? map.ai_model ?? "",
+    ai_model_changelog: map.ai_model_changelog ?? map.ai_model ?? "",
+    ai_model_feed: map.ai_model_feed ?? "",
+    feed_prompt: map.feed_prompt ?? "",
     ai_style_prompt: map.ai_style_prompt ?? "",
     // Default on: an existing deployment's behaviour must not change under it.
     accept_mentions: map.accept_mentions !== "off",
@@ -385,7 +392,7 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   // never disagree on a published document. Threads only — the working copy
   // of a fragment never carries a stub (the API refuses to set one).
   const stub = kind === "thread" ? parseStoredStub(item.stub_of) : null;
-  const agreed = stub ? applyVersionAgreement(stub, transclusionsJson ? (JSON.parse(transclusionsJson) as Transclusion[]) : []) : null;
+  const agreed = stub ? applyVersionAgreement(stub, transclusionsJson ? (JSON.parse(transclusionsJson) as Transclusion[]) : [], normalizedOrigin(origin)) : null;
   const stubJson = agreed ? JSON.stringify(agreed) : null;
   // The citation's human half is resolved once and frozen (migration 0008):
   // the subscription that supplies the source's name can be renamed or
@@ -401,6 +408,9 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
     db.prepare("UPDATE items SET status = 'public', kind = ?, version = ?, dirty = 0, updated = ? WHERE id = ?")
       .bind(kind, version, now, item.id),
   ]);
+  // The owner's private interaction log (src/interactions.ts): stubs, forks and
+  // quotes of other blygs' items that this version newly makes.
+  await recordPublishInteractions(db, item.id, version, normalizedOrigin(origin));
   return version;
 }
 
@@ -541,9 +551,21 @@ export async function feedEvents(db: D1Database, limit: number): Promise<FeedEve
     .bind(limit)
     .all<VersionRow>();
   const items = new Map<string, ItemRow>();
+  // One query for every distinct item, not one per event: the feed window
+  // holds up to 50 publish events and the old per-event getItem turned one
+  // feed render into dozens of sequential D1 roundtrips (~29s observed on
+  // live nodes — past every reader's fetch timeout, so the feed read as
+  // "invalid"). Order of events is preserved; only the item lookup is batched.
+  if (rows.results.length) {
+    const ids = JSON.stringify([...new Set(rows.results.map((v) => v.item_id))]);
+    const found = await db
+      .prepare(`SELECT * FROM items WHERE id IN (SELECT value FROM json_each(?))`)
+      .bind(ids)
+      .all<ItemRow>();
+    for (const item of found.results) items.set(item.id, item);
+  }
   const events: FeedEvent[] = [];
   for (const v of rows.results) {
-    if (!items.has(v.item_id)) items.set(v.item_id, (await getItem(db, v.item_id))!);
     events.push({ item: items.get(v.item_id)!, version: v });
   }
   return events;

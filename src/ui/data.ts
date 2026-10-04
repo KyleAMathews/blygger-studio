@@ -259,12 +259,30 @@ export const itemDetail = scoped(detailCollection);
 export type Reading = ListReadingResponses[200]['items'][number] & {
   rank: number;
 };
-function readingCollection(sub: string) {
+/**
+ * Reading lenses (0.25.0). "threads" and "fragments" narrow a timeline and its
+ * counts by kind; "background" and "smart" are placeholders for features that
+ * are not built yet (procedural updates with ignyr; the AI-ranked feed).
+ */
+export const LENSES = ['all', 'threads', 'fragments', 'background', 'smart'] as const;
+export type Lens = (typeof LENSES)[number];
+export const lensKind = (lens: Lens | undefined): 'thread' | 'fragment' | undefined =>
+  lens === 'threads' ? 'thread' : lens === 'fragments' ? 'fragment' : undefined;
+/**
+ * The cache key for one source under one lens: the source alone for the
+ * unfiltered view (so every existing key is unchanged), `sub~kind` otherwise.
+ */
+export const readingKey = (sub: string, lens?: Lens) => {
+  const kind = lensKind(lens);
+  return kind ? `${sub}~${kind}` : sub;
+};
+function readingCollection(key: string) {
+  const [sub, kind] = key.split('~') as [string, 'thread' | 'fragment' | undefined];
   return createCollection(
     queryCollectionOptions({
-      id: `reading:${sub}`,
+      id: `reading:${key}`,
       syncMode: 'on-demand',
-      queryKey: ['reading', sub],
+      queryKey: ['reading', key],
       queryClient,
       getKey: (row: Reading) => row.key,
       queryFn: async ({ signal, meta }) => {
@@ -278,7 +296,7 @@ function readingCollection(sub: string) {
         return unwrap(
           BlyggerApi.listReading({
             client,
-            query: { sub, offset, limit },
+            query: { sub, offset, limit, ...(kind ? { kind } : {}) },
             signal,
           }),
         );

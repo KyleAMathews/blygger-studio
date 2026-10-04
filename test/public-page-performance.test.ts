@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { makeApp } from "../src/index.ts";
 import { feedPage } from "../src/pages.ts";
+import { buildFeedXml } from "../src/protocol.ts";
 import { listFeedItems } from "../src/public-feed.ts";
 import { getSettings } from "../src/model.ts";
 
@@ -50,7 +51,7 @@ describe("public homepage read budget", () => {
     expect(html).toContain('content="Title 99 Published 99"');
     expect(html).not.toContain('private working draft');
     expect(html).not.toContain('old body');
-    expect(meter.calls).toBeLessThanOrEqual(5);
+    expect(meter.calls).toBeLessThanOrEqual(6); // +1 since 0.24.0: the Collections list (one fixed query, not per card)
   });
 
   it("does not read unpinned history bodies or unrelated items and media", async () => {
@@ -101,7 +102,7 @@ describe("public homepage read budget", () => {
     expect(html).toContain('property="og:image" content="https://example.com/mounted/media/avatar.png"');
     expect(html).toContain('Also reading');
     expect(html).not.toContain('data-item="card2"');
-    expect(meter.calls).toBeLessThanOrEqual(7);
+    expect(meter.calls).toBeLessThanOrEqual(8); // +1 since 0.24.0: the Collections list (one fixed query, not per card)
   });
 
   it("renders an empty page at the domain root", async () => {
@@ -110,7 +111,7 @@ describe("public homepage read budget", () => {
     expect(html).toContain('Nothing published yet.');
     expect(html).toContain('href="/feed.xml"');
     expect(html).not.toContain('older items →');
-    expect(meter.calls).toBeLessThanOrEqual(5);
+    expect(meter.calls).toBeLessThanOrEqual(6); // +1 since 0.24.0: the Collections list (one fixed query, not per card)
   });
 
   it("bounds public list reads with 5,000 unrelated drafts", async () => {
@@ -139,7 +140,7 @@ describe("public homepage read budget", () => {
     expect(html).toContain('data-item="card100"');
     expect(html).not.toContain('data-item="card0"');
     expect(html).toContain(`href="${mount}/archive/"`);
-    expect(meter.calls).toBeLessThanOrEqual(7);
+    expect(meter.calls).toBeLessThanOrEqual(8); // +1 since 0.24.0: the Collections list (one fixed query, not per card)
   });
 
   it("uses an ordered index for the limited public-item query", async () => {
@@ -147,4 +148,19 @@ describe("public homepage read budget", () => {
     expect(plan.results.map(r=>r.detail).join('\n')).toContain('items_public_order');
     expect(plan.results.map(r=>r.detail).join('\n')).not.toContain('TEMP B-TREE');
   });
+
+  it("renders feed.xml in a fixed number of queries, however many items it carries", async () => {
+    // #33 (studio): one query per feed event took live feeds to ~29s and
+    // readers called them invalid. The count must not grow with the window.
+    await fixture(50);
+    await env.DB.prepare("UPDATE items SET kind='withdrawn', status='withdrawn', version=3 WHERE id='card4'").run();
+    await env.DB.prepare("INSERT INTO versions (item_id,version,content_md,content_html,content_hash,published_at) VALUES ('card4',3,'','','h','2026-01-03')").run();
+    await env.DB.prepare("UPDATE versions SET transclusions=? WHERE item_id='card1'").bind(JSON.stringify([{ id: "card0", version: 2 }])).run();
+    const settings = await getSettings(env.DB), meter = measured(env.DB);
+    const xml = await buildFeedXml(meter.db, settings, "https://example.com/blyg/");
+    expect(xml).toContain("<blyg:id>card49</blyg:id>");
+    expect(xml).toContain("<blyg:kind>withdrawn</blyg:kind>");
+    expect(meter.calls).toBeLessThanOrEqual(10);
+  });
 });
+

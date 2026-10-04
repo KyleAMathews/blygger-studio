@@ -16,6 +16,11 @@ let primaryFailure: unknown;
 try {
   git(["rev-parse", "v0.8.3"]);
   git(["clone", "--quiet", "--shared", root, upstream]);
+  // The candidate can rename a migration after HEAD. Remove tracked files that
+  // the working snapshot deleted, so the fixture does not apply both names.
+  for (const file of git(["ls-files", "-z"], upstream).split("\0").filter(Boolean)) {
+    if (!existsSync(join(root, file))) rmSync(join(upstream, file));
+  }
   const files = [...git(["ls-files", "-z"]).split("\0"), ...git(["ls-files", "--others", "--exclude-standard", "-z"]).split("\0").filter(file => /^(src|migrations|test|e2e|scripts|docs)\//.test(file))];
   for (const file of files.filter(Boolean)) if (existsSync(join(root, file))) {
     mkdirSync(dirname(join(upstream, file)), { recursive: true });

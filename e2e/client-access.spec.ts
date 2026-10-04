@@ -16,13 +16,9 @@
  * UI state, request headers and bearer API statuses, not just response headers.
  * Limits: two Chromium profiles, not two independent browser engines or deployed TLS.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixture';
 
-test.beforeEach(async ({ context }) => {
-  // A stable fixture edge identity per browser preserves each login budget.
-  const ip = 'fd00:' + crypto.randomUUID().replaceAll('-', '').match(/.{4}/g)!.slice(0, 7).join(':');
-  await context.setExtraHTTPHeaders({ 'CF-Connecting-IP': ip });
-});
+
 
 // Browser receiving oracle: the model is the owner's named credential list
 // and its explicit read-only choice. Observe UI and real bearer API decisions.
@@ -120,4 +116,47 @@ test('browser completes OAuth consent without leaking a referrer to its callback
   expect(params.get('code')).toBeTruthy();
   const exchanged = await client.post('/studio/auth/oauth2/token', { form: { grant_type: 'authorization_code', client_id, redirect_uri: redirect, code: params.get('code')!, code_verifier: verifier } });
   expect(exchanged.status()).toBe(200);
+});
+
+// Delegated drafts may upload SVG images, but SVG documents must not inherit the
+// owner's authority. OWASP treats active same-origin uploads as a script boundary:
+// https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html
+// CSP sandbox removes script execution and the document's same-origin authority:
+// https://www.w3.org/TR/CSP3/#directive-sandbox
+// This receiving witness first proves draft-only authority cannot edit settings.
+// It then loads the uploaded bytes as an image (allowed) and as a document (must
+// remain inert). A harmless script marker after the document loads is the security checkpoint;
+// checking only a CSP header would not demonstrate browser enforcement.
+test('draft-only SVG uploads render as images without borrowing owner authority', async ({ page }) => {
+  await page.goto('/studio/login');
+  await page.locator('[name="password"]').fill('test-password');
+  await page.getByRole('button', { name: 'log in', exact: true }).click();
+  await expect(page.locator('#composer-text')).toBeVisible();
+  const marker = 'SVG authority probe ' + crypto.randomUUID();
+  const minted = await page.evaluate(async name => {
+    const response = await fetch('/api/authorizations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, scope: ['owner:draft'], resource: 'api' }) });
+    return { status: response.status, body: await response.json() };
+  }, marker);
+  expect(minted.status).toBe(200);
+  const { access_token, authorization } = minted.body;
+  const headers = { Authorization: 'Bearer ' + access_token };
+  expect((await page.request.patch('/api/settings', { headers, data: { site_title: marker } })).status()).toBe(403);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="red"/><script>document.documentElement.setAttribute('data-script-ran','yes')</script></svg>`;
+  const uploaded = await page.request.post('/api/media', { headers, multipart: { file: { name: 'authority.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) } } });
+  expect(uploaded.status()).toBe(201);
+  const media = await uploaded.json();
+  try {
+    // Image display must survive the defense; blocking all SVG is not the law.
+    const dimensions = await page.evaluate(async url => {
+      const image = new Image(); image.src = '/' + url;
+      await image.decode(); return [image.naturalWidth, image.naturalHeight];
+    }, media.url);
+    expect(dimensions).toEqual([40, 40]);
+    await page.goto('/' + media.url);
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('svg')).not.toHaveAttribute('data-script-ran', 'yes');
+  } finally {
+    await page.request.delete('/api/media/' + media.id, { headers: { Origin: 'http://127.0.0.1:8787' } });
+    await page.request.delete('/api/authorizations/' + authorization.id, { headers: { Origin: 'http://127.0.0.1:8787' } });
+  }
 });

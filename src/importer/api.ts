@@ -150,12 +150,14 @@ importerApi.openapi(routes.createHopper, async (c) => {
 importerApi.openapi(routes.updateHopper, async (c) => {
   const hopper = await getHopper(c.env.DB, c.req.param("id"));
   if (!hopper) return c.json({ error: "not found" }, 404);
-  const body = await readJson<{ public?: boolean; name?: string }>(c);
+  const body = await readJson<{ public?: boolean; name?: string; description?: string }>(c);
+  // An empty description clears it; an absent one leaves it alone.
+  const description = body.description === undefined ? undefined : body.description.trim() || null;
 
   // Compute the rename before freezing the public URL. Apply both in one SQL update.
   const slug = body.name === undefined || hopper.slug_frozen ? hopper.slug : await uniqueSlug(c.env.DB, body.name, hopper.id);
-  const fresh = await c.env.DB.prepare("UPDATE hoppers SET name = COALESCE(?, name), slug = ?, public = COALESCE(?, public), slug_frozen = MAX(slug_frozen, ?) WHERE id = ? AND slug_frozen = ? AND slug IS ? RETURNING *")
-    .bind(body.name ?? null, slug, body.public === undefined ? null : Number(body.public), Number(body.public === true), hopper.id, hopper.slug_frozen, hopper.slug).first<HopperRow>();
+  const fresh = await c.env.DB.prepare("UPDATE hoppers SET name = COALESCE(?, name), slug = ?, public = COALESCE(?, public), slug_frozen = MAX(slug_frozen, ?), description = CASE WHEN ? THEN ? ELSE description END WHERE id = ? AND slug_frozen = ? AND slug IS ? RETURNING *")
+    .bind(body.name ?? null, slug, body.public === undefined ? null : Number(body.public), Number(body.public === true), description === undefined ? 0 : 1, description ?? null, hopper.id, hopper.slug_frozen, hopper.slug).first<HopperRow>();
   return fresh ? c.json(hopperResource(fresh)) : c.json({ error: "hopper changed while applying the patch; reload and try again" }, 409);
 });
 

@@ -5,12 +5,22 @@ import { sanitizeHtml } from "./importer/sanitize.ts";
 import type { ImportedItemRow } from "./types.ts";
 
 /** Sort small identity/date rows first; load and sanitize bodies only for the selected page. */
-export async function readingData(db: D1Database, requestedOffset: number, limit: number, source: string | undefined) {
-  const [own, imported, subs] = await Promise.all([
-    db.prepare("SELECT id, updated FROM items WHERE status IN ('public','withdrawn') ORDER BY updated DESC, rowid DESC").all<{ id: string; updated: string }>(),
-    db.prepare("SELECT subscription_id, remote_id, updated, observed_at FROM imported_items ORDER BY observed_at DESC").all<{ subscription_id: string; remote_id: string; updated: string | null; observed_at: string }>(),
+/**
+ * `kind` is the reading lens (0.25.0): "thread" or "fragment" narrows every
+ * source, and the counts with it, so the sources list and a timeline agree
+ * under the same lens. A withdrawn own item counts as the kind it was authored.
+ */
+export async function readingData(db: D1Database, requestedOffset: number, limit: number, source: string | undefined, kind?: "thread" | "fragment") {
+  const [ownAll, importedAll, subs] = await Promise.all([
+    db.prepare(`SELECT i.id, i.updated, CASE WHEN i.kind = 'withdrawn' THEN
+        CASE WHEN COALESCE(p.transclusions, '') != '' THEN 'thread' ELSE 'fragment' END ELSE i.kind END AS kind
+      FROM items i LEFT JOIN versions p ON i.kind = 'withdrawn' AND p.item_id = i.id AND p.version = i.version - 1
+      WHERE i.status IN ('public','withdrawn') ORDER BY i.updated DESC, i.rowid DESC`).all<{ id: string; updated: string; kind: string }>(),
+    db.prepare("SELECT subscription_id, remote_id, updated, observed_at, kind FROM imported_items ORDER BY observed_at DESC").all<{ subscription_id: string; remote_id: string; updated: string | null; observed_at: string; kind: string }>(),
     listSubscriptions(db),
   ]);
+  const own = { results: kind ? ownAll.results.filter((r) => r.kind === kind) : ownAll.results };
+  const imported = { results: kind ? importedAll.results.filter((r) => r.kind === kind) : importedAll.results };
   const selected = source === "own" || subs.some((s) => s.id === source) ? source! : "all";
   const counts = { all: own.results.length + imported.results.length, own: own.results.length, subscriptions: Object.fromEntries(subs.map((s) => [s.id, 0])) };
   for (const row of imported.results) counts.subscriptions[row.subscription_id] = (counts.subscriptions[row.subscription_id] ?? 0) + 1;

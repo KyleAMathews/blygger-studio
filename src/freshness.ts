@@ -64,6 +64,12 @@ export interface ThreadFreshness {
   stale: number;
   /** Quotes that would make a republish fail. */
   blocking: number;
+  /**
+   * How far behind the thread is: the versions its stale quotes have missed,
+   * summed (each quote counts newest-known minus baked). The updates tab sorts
+   * by it, so the stalest threads come first and small drift waits for a batch.
+   */
+  behind: number;
 }
 
 /** Statuses a refresh changes. */
@@ -158,12 +164,20 @@ export async function threadFreshness(db: D1Database, item: ItemRow, fetchFn?: F
     quotes,
     stale: quotes.filter((q) => STALE.has(q.status)).length,
     blocking: quotes.filter((q) => BLOCKING.has(q.status)).length,
+    behind: quotes.reduce((n, q) => n + versionsMissed(q), 0),
   };
+}
+
+/** Versions a stale quote has missed; zero for every other status. */
+export function versionsMissed(q: QuoteFreshness): number {
+  if (!STALE.has(q.status)) return 0;
+  return Math.max(0, Math.max(q.held ?? q.baked, q.live ?? 0) - q.baked);
 }
 
 /**
  * Every published thread with at least one stale or blocking quote, database
- * only — the cross-blyg view. No network: the importer keeps imports current on
+ * only — the cross-blyg view behind the updates tab, stalest first (`behind`,
+ * then stale quotes, then blocking ones; most recently updated breaks ties). No network: the importer keeps imports current on
  * its own schedule, and probing every origin of every thread on a page load is
  * a cost the per-thread view pays on demand instead.
  */
@@ -176,5 +190,6 @@ export async function staleThreads(db: D1Database): Promise<ThreadFreshness[]> {
     const report = await threadFreshness(db, item);
     if (report.stale || report.blocking) out.push(report);
   }
-  return out;
+  // Array.prototype.sort is stable, so the query's recency order breaks ties.
+  return out.sort((a, b) => b.behind - a.behind || b.stale - a.stale || b.blocking - a.blocking);
 }

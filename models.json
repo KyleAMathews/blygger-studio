@@ -1,0 +1,20 @@
+{
+  "$comment": "The AI models offered in Settings → AI models. Edit this file to add, remove or relabel models, then redeploy. To keep your edits out of upgrade merges, put them in models.local.json instead (same shape, gitignored): its providers merge over these by key, its models replace or add by id, and ids listed in its \"remove\" array are dropped. Model ids not listed here can still be typed in with \"other…\"; the provider is then guessed from the id's prefix (claude-, gpt-, gemini-). Checked against each provider's model page 2026-10-04.",
+  "providers": {
+    "anthropic": { "label": "Anthropic", "api": "anthropic-messages", "key_secret": "AI_PROVIDER_KEY", "prefixes": ["claude-"] },
+    "openai": { "label": "OpenAI", "api": "openai-responses", "key_secret": "OPENAI_API_KEY", "prefixes": ["gpt-", "o1", "o3", "o4"] },
+    "google": { "label": "Google", "api": "gemini-generate", "key_secret": "GOOGLE_AI_KEY", "prefixes": ["gemini-"] }
+  },
+  "models": [
+    { "id": "claude-fable-5-1", "provider": "anthropic", "label": "Claude Fable 5.1", "note": "most capable; highest cost" },
+    { "id": "claude-opus-5-5", "provider": "anthropic", "label": "Claude Opus 5.5", "note": "frontier quality" },
+    { "id": "claude-sonnet-5-5", "provider": "anthropic", "label": "Claude Sonnet 5.5", "note": "balanced" },
+    { "id": "claude-haiku-4-5", "provider": "anthropic", "label": "Claude Haiku 4.5", "note": "fast and cheap" },
+    { "id": "gpt-6-astra", "provider": "openai", "label": "GPT-6 Astra", "note": "OpenAI flagship" },
+    { "id": "gpt-6.1-sol", "provider": "openai", "label": "GPT-6.1 Sol", "note": "balanced" },
+    { "id": "gpt-6-luna", "provider": "openai", "label": "GPT-6 Luna", "note": "fast and cheap" },
+    { "id": "gemini-3.1-pro-preview", "provider": "google", "label": "Gemini 3.1 Pro (preview)", "note": "Google's most capable; preview" },
+    { "id": "gemini-3.8-flash", "provider": "google", "label": "Gemini 3.8 Flash", "note": "balanced" },
+    { "id": "gemini-3.1-flash-lite", "provider": "google", "label": "Gemini 3.1 Flash-Lite", "note": "fast and cheap" }
+  ]
+}

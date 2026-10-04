@@ -106,7 +106,7 @@ are single-account and the personal one has no D1 scope, so the migration prefli
 cannot run from either; an env token silently overrides the OAuth session, so **unset it**
 before deploying. One OAuth session reaches both accounts.
 
-## `/api` is a documented contract, still owner-cookie only
+## `/api` is a documented contract with owner and delegated access
 
 **Since 0.10.0** (#21, Kyle Mathews): 39 operations defined once in `src/contract/` (Zod →
 OpenAPI 3.1 → `openapi.json`, served to the owner at `/api/openapi.json`), resource-shaped
@@ -136,9 +136,11 @@ Password reset rides with his auth middleware (#31: after tokens, MUST offer rev
 Upstreaming Blygger Desktop's reading-rows and read-state extensions is fine — studio-private.
 Reasoning: `../blygger-spec/docs/v0.4-plan.md` §8.1.
 
-Auth is unchanged by all of the above: one owner cookie (`verifySession`, a 30-day HMAC over a single shared
-`OWNER_PASSWORD`). There is exactly one principal and no scopes, tokens, revocation or
-audit, and `/api` gets no CORS.
+The owner still signs in with the existing password and 30-day owner cookie.
+Delegated clients use scoped OAuth grants or named manual bearer tokens. Studio
+lists grants and supports individual revocation and revoke-all. REST and MCP
+share the same permission rules. See `docs/client-access.md` for the current
+contract and `docs/auth-security-oracles.md` for its security checks.
 
 **Third-party authoring tools are already writing to it** — a native macOS studio, a
 Drafts action, an Obsidian plugin. Making this a real contract (tokens, scopes,
@@ -152,6 +154,20 @@ Fable. Do not harden it in a way that breaks the tools now depending on it witho
 saying so.
 
 ## Status
+
+**0.26.0** (session 34, 2026-10-04): one model per AI function (`ai_model_tk`/`_changelog`/`_feed`, falling back to the pre-0.26 `ai_model`, kept one release as a write alias) from an editable **`models.json`** (gitignored `models.local.json` overrides, merged at build into `build/models.json`; releases ship the base list only); OpenAI Responses and Gemini generateContent adapters beside Anthropic, all raw HTTP (`src/ai/provider.ts`, `src/ai/models.ts`); secrets `AI_PROVIDER_KEY`/`OPENAI_API_KEY`/`GOOGLE_AI_KEY`; `GET /api/ai/models`; the `feed_prompt` setting (stored, unused until the smart feed's agent). No migration.
+
+**0.25.0** (session 34, 2026-10-04): reading lenses (All/Threads/Fragments filter by kind, `kind` on `/api/reading`; Background and Smart Feed placeholders); the private **interaction log** (**migration 0019**, backfilled; `src/interactions.ts`, logged at the store and at publish, never on the wire); `GET /api/interactions`, `GET /api/thumbs`; more → signals.
+
+**0.24.0** (session 34, 2026-10-04): public hoppers listed as Collections on the homepage and archive; the hopper page gets `pageTop`, metadata and a description (**migration 0018**, `hoppers.description`); its Home link no longer points at the host root on path mounts.
+
+**0.23.0** (session 34, 2026-10-04): stale quotes move from a compose banner to an *updates* tab, stalest first by `behind` (versions missed, summed over stale quotes); the batching norm stated on the page. No migration.
+
+**0.22.0** (2026-10-03, contributed): the studio redesigned for the phone after Thicket Console — wears the reading theme, tab bar, NetNewsWire-style reading, bottom sheets for every confirm, copy + link / share, link from clipboard, scan-text instructions (optional on-device Tesseract), installable PWA. No API, contract or data changes; no migration.
+
+**0.21.2** (session 34, 2026-10-04): five conformance-toolkit fixes (studio#27–#31): any feed gap reconciles; stub version agreement matches origin and id; forks keep a legacy author's `>` lines (partiality from `blyg-partial`); remote fork cites the pinned page when served; `<dc:creator>`. No migration.
+
+**0.21.1** (session 34, 2026-10-04): akashtattva's #33, feeds for strict RSS readers (batched feed queries, ~4 s → ~0.5 s; absolute titled discovery link; atom self-link), with the provenance loader shared between feed and pages. No migration.
 
 **0.21.0** (session 33, 2026-10-03): a *Version N / Change* confirmation dialog before every new version with a note (typed, drafted, or auto-drafted), and the `auto_change_notes` setting (off by default) that drafts one when the field is empty (#40). No migration.
 

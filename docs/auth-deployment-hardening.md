@@ -1,6 +1,6 @@
 # Auth deployment boundaries
 
-The provider is pinned to Better Auth and OAuth Provider 1.7.7. Public OAuth HTTP routes use the native database rate limiter explicitly, so enforcement does not depend on a Worker `NODE_ENV` binding. Migration 0018 creates the native `rateLimit` table. Counters share D1 across Worker instances; module-local memory would only share an isolate.
+The provider is pinned to Better Auth and OAuth Provider 1.7.7. Public OAuth HTTP routes use the native database rate limiter explicitly, so enforcement does not depend on a Worker `NODE_ENV` binding. Migration 0020 creates the native `rateLimit` table. Counters share D1 across Worker instances; module-local memory would only share an isolate.
 
 The provider's default budgets are registration 5, token 20, authorize 30, revoke 30, introspection 100 and userinfo 60 requests per 60 seconds. Owner password login enters a separate native HTTP budget of 5 per 60 seconds before password checking. The internal budget route is not exposed by the public router. Server-side `auth.api` calls bypass HTTP rate limiting; they require their own caller authorization and must not replace the public HTTP budget.
 

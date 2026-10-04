@@ -120,10 +120,11 @@ async function resolveRemoteFork(db: D1Database, ref: ForkedFrom, fetchFn: Fetch
     .first<{ title: string }>();
   const author = authorName(doc.author);
   const contentHtml = typeof doc.content_html === "string" ? doc.content_html : "";
+  const kind = doc.kind === "thread" ? "thread" : "fragment";
   return {
     ok: true,
     source: {
-      kind: doc.kind === "thread" ? "thread" : "fragment",
+      kind,
       contentMd,
       contentHtml,
       generated: Array.isArray(doc.generated) ? (doc.generated as ScopeProvenance[]) : [],
@@ -131,7 +132,7 @@ async function resolveRemoteFork(db: D1Database, ref: ForkedFrom, fetchFn: Fetch
         source: sub?.title || hostOf(ref.origin),
         ...(author ? { author } : {}),
         ...(contentHtml ? { excerpt: excerptFromHtml(contentHtml, 80) } : {}),
-        url,
+        url: (await pinnedPageIfServed(ref, kind, doc.page, fetchFn)) ?? url,
         retrieved: now,
       },
     },
@@ -186,6 +187,33 @@ export async function checkForkTarget(
     return { ok: false, reason: `forked_from names ${url}, which no longer describes that version` };
   }
   return { ok: true };
+}
+
+/**
+ * The human half of a remote fork citation (studio#30, decision #24: "a human
+ * citation wants a page, not JSON"). A pinned version's page is optional for
+ * other clients (§8.4), so it is cited only when the origin actually serves
+ * it at fork time; otherwise the citation keeps the JSON file, which every
+ * conformant blyg promises. The page sits at the permalink plus `v{n}/`, and
+ * the permalink is the document's `page` when it declares one (§5.8).
+ */
+async function pinnedPageIfServed(ref: ForkedFrom, kind: "fragment" | "thread", page: unknown, fetchFn: FetchLike): Promise<string | null> {
+  let permalink: string;
+  try {
+    permalink = new URL(typeof page === "string" && page ? page : `${kind === "thread" ? "t" : "f"}/${ref.id}/`, ref.origin).href;
+  } catch {
+    return null;
+  }
+  if (!permalink.startsWith(ref.origin)) return null;
+  const candidate = `${permalink.endsWith("/") ? permalink : permalink + "/"}v${ref.version}/`;
+  try {
+    const res = await fetchFn(candidate);
+    if (!res.ok) return null;
+    const type = res.headers.get("content-type");
+    return !type || type.includes("text/html") ? candidate : null;
+  } catch {
+    return null;
+  }
 }
 
 function asDoc(body: string | null): Doc | null {

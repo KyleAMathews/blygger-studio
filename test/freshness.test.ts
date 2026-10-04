@@ -92,6 +92,25 @@ describe("detecting stale quotes", () => {
     expect(list.map((t) => t.id)).not.toContain(fresh);
   });
 
+  it("orders the queue stalest first, by versions missed summed over stale quotes", async () => {
+    const cookie = await login();
+    const a = await createAndPublish(cookie, "A v1.");
+    const b = await createAndPublish(cookie, "B v1.");
+    // `little` misses one version of one quote; `lots` misses three of one and
+    // two of another, so it is five behind and must come first even though
+    // `little` was published later (the old banner's recency order).
+    const lots = await publishThread(cookie, `![[${a}]]\n\n![[${b}]]\n\nLots.`);
+    for (const n of [2, 3, 4]) await editAndPublish(cookie, a, `A v${n}.`);
+    await editAndPublish(cookie, b, "B v2.");
+    const little = await publishThread(cookie, `![[${b}]]\n\nLittle.`);
+    await editAndPublish(cookie, b, "B v3.");
+    const list = (await apiJson(cookie, "GET", "/api/freshness")).json.items as { id: string; behind: number; stale: number }[];
+    const ours = list.filter((t) => t.id === lots || t.id === little);
+    expect(ours.map((t) => t.id)).toEqual([lots, little]);
+    expect(ours[0]).toMatchObject({ behind: 5, stale: 2 });
+    expect(ours[1]).toMatchObject({ behind: 1, stale: 1 });
+  });
+
   it("refuses a freshness report for something that is not a published thread", async () => {
     const cookie = await login();
     const frag = await createAndPublish(cookie, "Just a fragment.");

@@ -1,4 +1,4 @@
-/** The provider's KV storage contract, backed by the deployment's existing D1.
+/** Blygger consent and replay records in the deployment's existing D1.
  * Expiry is checked on reads, not left to a background cleanup task. */
 export class OAuthStorage {
   constructor(private readonly db: D1Database) {}

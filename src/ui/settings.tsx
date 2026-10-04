@@ -1,8 +1,17 @@
-import { useRef, useState } from 'react';
-import type { Settings } from '../../sdk/dist/browser.js';
+import type { ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { AiModels, Settings } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import { settings, client } from './data.ts';
-import { Button, Failure, mount, useSettings } from './components.tsx';
+import {
+  Button,
+  Failure,
+  mount,
+  useChrome,
+  useSettings,
+} from './components.tsx';
+import { Link } from '@tanstack/react-router';
+import './reading.css';
 import { THEMES } from '../themes.ts';
 import { CLIENT } from '../client.ts';
 
@@ -15,7 +24,10 @@ const fields = [
   'site_url',
   'timezone',
   'avatar_media_id',
-  'ai_model',
+  'ai_model_tk',
+  'ai_model_changelog',
+  'ai_model_feed',
+  'feed_prompt',
   'ai_style_prompt',
   'accept_mentions',
   'update_check',
@@ -42,8 +54,22 @@ function parseLinks(text: string): Settings['author_links'] {
     });
 }
 export function SettingsPage() {
+  useChrome({ framed: false });
   const row = useSettings();
-  return row ? <SettingsForm initial={row} /> : <p>Loading settings…</p>;
+  return (
+    <>
+      <Link className="back-link" to="/more">
+        ← more
+      </Link>
+      <h2 className="view-h">settings</h2>
+      <div style={{ height: 10 }} />
+      {row ? (
+        <SettingsForm initial={row} />
+      ) : (
+        <p className="view-sub">Loading settings…</p>
+      )}
+    </>
+  );
 }
 function SettingsForm({ initial }: { initial: Settings }) {
   const [form, setForm] = useState(() => {
@@ -75,51 +101,66 @@ function SettingsForm({ initial }: { initial: Settings }) {
       | 'author_name'
       | 'author_bio'
       | 'site_url'
-      | 'ai_model'
       | 'ai_style_prompt'
+      | 'feed_prompt'
       | 'update_feed_url',
     label: string,
     multiline = false,
     placeholder?: string,
   ) => (
-    <>
-      <label htmlFor={key}>{label}</label>
+    <div className="field">
+      <label htmlFor={key}>
+        <span>{label}</span>
+      </label>
       {multiline ? (
         <textarea
           id={key}
-          rows={3}
+          rows={key === 'feed_prompt' ? 4 : 3}
           value={form[key]}
+          placeholder={placeholder}
           onChange={(event) => change(key, event.target.value)}
         />
       ) : (
         <input
           id={key}
+          type={key === 'site_url' || key === 'update_feed_url' ? 'url' : 'text'}
           value={form[key]}
           placeholder={placeholder}
           onChange={(event) => change(key, event.target.value)}
         />
       )}
-    </>
+    </div>
   );
   const toggle = (
-    key: 'update_check' | 'show_responses_default' | 'accept_mentions' | 'auto_change_notes',
+    key:
+      | 'update_check'
+      | 'show_responses_default'
+      | 'accept_mentions'
+      | 'auto_change_notes',
     label: string,
+    hint?: ReactNode,
   ) => (
-    <p>
-      <label style={{ fontWeight: 400 }}>
+    <>
+      <label className="check">
         <input
           id={key}
           type="checkbox"
           checked={form[key]}
+          aria-describedby={hint ? `${key}-hint` : undefined}
           onChange={(event) => change(key, event.target.checked)}
-        />{' '}
-        {label}
+        />
+        <span>{label}</span>
       </label>
-    </p>
+      {hint ? (
+        <p className="hint check-hint" id={`${key}-hint`}>
+          {hint}
+        </p>
+      ) : null}
+    </>
   );
   return (
     <form
-      className="settings-form prose"
+      className="settings-form"
       id="settings-form"
       onSubmit={async (event) => {
         event.preventDefault();
@@ -141,214 +182,368 @@ function SettingsForm({ initial }: { initial: Settings }) {
       }}
     >
       <Failure error={error} />
-      {field('site_title', 'Site title')}
-      {field('author_name', 'Author name')}
-      {field('author_bio', 'Bio', true)}
-      <label htmlFor="author_links">Links (one per line, "label | url")</label>
-      <textarea
-        id="author_links"
-        rows={3}
-        value={links}
-        onChange={(event) => {
-          setLinks(event.target.value);
-          setSaved(false);
-        }}
-      />
-      <label>
-        Reading theme{' '}
-        <span style={{ fontWeight: 400, color: 'var(--ink-soft)' }}>
-          — the public pages only; the studio keeps its own light/dark
-        </span>
-      </label>
-      <div className="theme-grid">
-        {['auto', ...Object.keys(THEMES)].map((id) => {
-          const theme = THEMES[id];
-          const automatic = id === 'auto';
-          const background = automatic
-            ? 'linear-gradient(90deg,#fafbfb 50%,#14191a 50%)'
-            : theme.page;
-          const ink = automatic
-            ? 'linear-gradient(90deg,#1b2426 50%,#e3e7e7 50%)'
-            : theme.ink;
-          return (
-            <label className="theme-opt" key={id}>
-              <input
-                type="radio"
-                name="theme"
-                value={id}
-                checked={form.theme === id}
-                onChange={() => change('theme', id)}
-              />
-              <span className="theme-swatch" style={{ background }}>
-                <span
-                  className="sheet"
-                  style={{
-                    background: automatic ? 'transparent' : theme.paper,
-                  }}
-                >
-                  <span className="line" style={{ background: ink }} />
-                  <span
-                    className="line short"
-                    style={{ background: ink, opacity: 0.55 }}
-                  />
-                </span>
-              </span>
-              <span className="theme-name">
-                {automatic ? 'Auto' : theme.label}
-              </span>
-            </label>
-          );
-        })}
-      </div>
-      {field('site_url', 'Canonical site URL (blank = derive from request)')}
-      <label htmlFor="avatar_media_id">Avatar media ID</label>
-      <input
-        id="avatar_media_id"
-        value={form.avatar_media_id}
-        onChange={(event) => change('avatar_media_id', event.target.value)}
-      />
-      {avatar ? (
-        <img
-          src={`${mount}/${avatar}`}
-          alt="Uploaded avatar"
-          style={{ width: 64, height: 64, objectFit: 'cover' }}
-        />
-      ) : null}
-      <input
-        ref={file}
-        hidden
-        type="file"
-        accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
-        onChange={async (event) => {
-          const selected = event.target.files?.[0];
-          event.target.value = '';
-          if (!selected) return;
-          setBusy(true);
-          setError(undefined);
-          try {
-            const media = await unwrap(
-              BlyggerApi.uploadMedia({ client, body: { file: selected } }),
-            );
-            change('avatar_media_id', media.id);
-            setAvatar(media.url);
-          } catch (failure) {
-            setError(failure);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      />
-      <p>
-        <Button
-          type="button"
-          disabled={busy}
-          onClick={() => file.current?.click()}
-        >
-          upload avatar
-        </Button>{' '}
-        <Button
-          type="button"
-          onClick={() => {
-            change('avatar_media_id', '');
-            setAvatar('');
+      <section className="card">
+        <h3 className="card-h">profile</h3>
+        {field('site_title', 'Site title')}
+        {field('author_name', 'Author name')}
+        {field('author_bio', 'Bio', true)}
+        <div className="field">
+          <label htmlFor="author_links">
+            <span>Links (one per line, "label | url")</span>
+          </label>
+          <textarea
+            id="author_links"
+            rows={3}
+            value={links}
+            onChange={(event) => {
+              setLinks(event.target.value);
+              setSaved(false);
+            }}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="avatar_media_id">
+            <span>Avatar media ID</span>
+          </label>
+          <input
+            id="avatar_media_id"
+            type="text"
+            value={form.avatar_media_id}
+            onChange={(event) => change('avatar_media_id', event.target.value)}
+          />
+        </div>
+        <div className="row avatar-row">
+          {avatar ? (
+            <img src={`${mount}/${avatar}`} alt="Uploaded avatar" />
+          ) : null}
+          <span className="spacer" />
+          <Button
+            type="button"
+            className="btn btn-ghost btn-mini"
+            disabled={busy}
+            onClick={() => file.current?.click()}
+          >
+            upload avatar
+          </Button>
+          <Button
+            type="button"
+            className="btn btn-ghost btn-mini"
+            onClick={() => {
+              change('avatar_media_id', '');
+              setAvatar('');
+            }}
+          >
+            clear avatar
+          </Button>
+        </div>
+        <input
+          ref={file}
+          hidden
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+          onChange={async (event) => {
+            const selected = event.target.files?.[0];
+            event.target.value = '';
+            if (!selected) return;
+            setBusy(true);
+            setError(undefined);
+            try {
+              const media = await unwrap(
+                BlyggerApi.uploadMedia({ client, body: { file: selected } }),
+              );
+              change('avatar_media_id', media.id);
+              setAvatar(media.url);
+            } catch (failure) {
+              setError(failure);
+            } finally {
+              setBusy(false);
+            }
           }}
-        >
-          clear avatar
-        </Button>
-      </p>
-      {field(
-        'ai_model',
-        'AI model for TK generation and drafted notes (required to use either)',
-        false,
-        'e.g. claude-sonnet-5-5',
-      )}
-      {field(
-        'ai_style_prompt',
-        'TK site-level style prompt (optional, appended to every generation request)',
-        true,
-      )}
-      {toggle(
-        'auto_change_notes',
-        'Automatically generate changelog notes when publishing a new version',
-      )}
-      <p className="settings-hint">
-        When a new version is published with no note, the model above drafts
-        one from the change. You see it and can edit it before anything is
-        published. A note published exactly as drafted is marked as generated
-        in the changelog.
-      </p>
-      <label htmlFor="timezone">Timezone for displayed dates</label>
-      <select
-        id="timezone"
-        value={form.timezone}
-        onChange={(event) => change('timezone', event.target.value)}
-      >
-        {zones.map((zone) => (
-          <option key={zone} value={zone}>
-            {zone || 'UTC'}
-          </option>
-        ))}
-      </select>
-      {!initial.timezone ? (
-        <span className="settings-hint">
-          detected from this device — save to keep it
+        />
+      </section>
+      <section className="card">
+        <h3 className="card-h">theme</h3>
+        <div className="field">
+          <span>
+            Reading theme — your public pages and this studio
+          </span>
+          <div className="theme-grid" role="radiogroup" aria-label="Reading theme">
+            {['auto', ...Object.keys(THEMES)].map((id) => {
+              const theme = THEMES[id];
+              const automatic = id === 'auto';
+              const background = automatic
+                ? 'linear-gradient(90deg,#fafbfb 50%,#14191a 50%)'
+                : theme.page;
+              const ink = automatic
+                ? 'linear-gradient(90deg,#1b2426 50%,#e3e7e7 50%)'
+                : theme.ink;
+              return (
+                <label className="theme-opt" key={id}>
+                  <input
+                    type="radio"
+                    name="theme"
+                    value={id}
+                    checked={form.theme === id}
+                    onChange={() => change('theme', id)}
+                  />
+                  <span className="theme-swatch" style={{ background }}>
+                    <span
+                      className="sheet-mini"
+                      style={{
+                        background: automatic ? 'transparent' : theme.paper,
+                      }}
+                    >
+                      <span className="line" style={{ background: ink }} />
+                      <span
+                        className="line short"
+                        style={{ background: ink, opacity: 0.55 }}
+                      />
+                    </span>
+                  </span>
+                  <span className="theme-name">
+                    {automatic ? 'Auto' : theme.label}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+      <section className="card">
+        <h3 className="card-h">site</h3>
+        {field('site_url', 'Canonical site URL (blank = derive from request)')}
+        <div className="field">
+          <label htmlFor="timezone">
+            <span>Timezone for displayed dates</span>
+          </label>
+          <select
+            id="timezone"
+            value={form.timezone}
+            onChange={(event) => change('timezone', event.target.value)}
+          >
+            {zones.map((zone) => (
+              <option key={zone} value={zone}>
+                {zone || 'UTC'}
+              </option>
+            ))}
+          </select>
+          {!initial.timezone ? (
+            <p className="hint">detected from this device — save to keep it</p>
+          ) : null}
+          <p className="hint">
+            Your blyg runs on a server whose clock is UTC, so without this an
+            evening post can show tomorrow’s date. This changes display only, on
+            your pages and in the studio. Feed dates stay RFC-822 and item
+            documents stay ISO-8601 UTC.
+          </p>
+        </div>
+      </section>
+      <section className="card">
+        <h3 className="card-h">AI models</h3>
+        <ModelSettings form={form} change={change} />
+        {field(
+          'ai_style_prompt',
+          'TK site-level style prompt (optional, appended to every generation request)',
+          true,
+        )}
+        {toggle(
+          'auto_change_notes',
+          'Automatically generate changelog notes when publishing a new version',
+          <>
+            When a new version is published with no note, the changelog model
+            drafts one from the change. You see it and can edit it before
+            anything is published. A note published exactly as drafted is
+            marked as generated in the changelog.
+          </>,
+        )}
+      </section>
+      <section className="card">
+        <h3 className="card-h">smart feed</h3>
+        {field(
+          'feed_prompt',
+          'Smart Feed prompt: how your AI agent should score new items',
+          true,
+          'e.g. Prioritize tech news and significant updates to items I have interacted with or liked. Deprioritize sports content, trivial updates, and items like ones I have disliked.',
+        )}
+        <p className="hint">
+          The prompt is a rubric. Your agent will score each new item in your
+          reading against it, then sort the Smart Feed by score or hide items
+          below a threshold. It will read your <Link to="/signals">signals</Link>{' '}
+          (thumbs, hoppers, stubs, forks and quotes) to know what you have
+          liked and engaged with. The agent is not built yet: this prompt is
+          saved now so the Smart Feed can use it when it is.
+        </p>
+      </section>
+      <section className="card">
+        <h3 className="card-h">updates</h3>
+        {toggle(
+          'update_check',
+          'Tell me when a newer release of this client exists',
+          <>
+            On by default. Once a day your blyg fetches the client’s public
+            release feed and compares the newest version to the one you are
+            running — currently <code>{CLIENT.version}</code>. Nothing about
+            your blyg is sent: no URL, no identifier, no query. Before 1.0 the
+            wire format can change between releases, so an old client can stop
+            making sense to other blygs.
+          </>,
+        )}
+        {field(
+          'update_feed_url',
+          'Release feed (blank = this client’s own)',
+          false,
+          'https://github.com/blygger/blygger-studio/releases.atom',
+        )}
+        <p className="hint">
+          Only change this if you have modified the client and track your own
+          versions. Point it at your releases, or turn the check off.
+        </p>
+      </section>
+      <section className="card">
+        <h3 className="card-h">responses from other blygs</h3>
+        {toggle(
+          'show_responses_default',
+          'Show verified responses on my items’ public pages, by default',
+          <>
+            Applies to items that have not decided for themselves. An item’s
+            override keeps winning if you change this later. Set overrides and
+            hide individual responses in the mentions tab. A response list is a
+            citation trail with no count.
+          </>,
+        )}
+        {toggle(
+          'accept_mentions',
+          'Accept Webmentions — let other blygs tell yours when they quote, respond to or fork an item',
+          <>
+            Unchecking this removes the public Webmention endpoint and its
+            discovery links. Requests return 404. You still send mentions when
+            you quote other people, and collected responses stay in your Studio.
+          </>,
+        )}
+      </section>
+      <div className="save-bar">
+        <span className="state">
+          {saved ? <span role="status">saved</span> : null}
         </span>
-      ) : null}
-      <p className="settings-hint">
-        Your blyg runs on a server whose clock is UTC, so without this an
-        evening post can show tomorrow’s date. This changes display only, on
-        your pages and in the studio. Feed dates stay RFC-822 and item documents
-        stay ISO-8601 UTC.
-      </p>
-      <label>Updates</label>
-      {toggle(
-        'update_check',
-        'Tell me when a newer release of this client exists',
-      )}
-      <p className="settings-hint">
-        On by default. Once a day your blyg fetches the client’s public release
-        feed and compares the newest version to the one you are running —
-        currently <code>{CLIENT.version}</code>. Nothing about your blyg is
-        sent: no URL, no identifier, no query. Before 1.0 the wire format can
-        change between releases, so an old client can stop making sense to other
-        blygs.
-      </p>
-      {field(
-        'update_feed_url',
-        'Release feed (blank = this client’s own)',
-        false,
-        'https://github.com/blygger/blygger-studio/releases.atom',
-      )}
-      <p className="settings-hint">
-        Only change this if you have modified the client and track your own
-        versions. Point it at your releases, or turn the check off.
-      </p>
-      <label>Responses from other blygs</label>
-      {toggle(
-        'show_responses_default',
-        'Show verified responses on my items’ public pages, by default',
-      )}
-      <p className="settings-hint">
-        Applies to items that have not decided for themselves. An item’s
-        override keeps winning if you change this later. Set overrides and hide
-        individual responses in the mentions tab. A response list is a citation
-        trail with no count.
-      </p>
-      {toggle(
-        'accept_mentions',
-        'Accept Webmentions — let other blygs tell yours when they quote, respond to or fork an item',
-      )}
-      <p className="settings-hint">
-        Unchecking this removes the public Webmention endpoint and its discovery
-        links. Requests return 404. You still send mentions when you quote other
-        people, and collected responses stay in your Studio.
-      </p>
-      <p>
-        <Button className="primary" type="submit" disabled={busy}>
+        <Button className="btn btn-primary" type="submit" disabled={busy}>
           save settings
         </Button>
-      </p>
-      {saved ? <p role="status">saved</p> : null}
+      </div>
     </form>
+  );
+}
+
+const FUNCTIONS = [
+  { key: 'ai_model_tk', label: 'TK generation' },
+  { key: 'ai_model_changelog', label: 'changelog notes' },
+  { key: 'ai_model_feed', label: 'feed scoring', hint: 'for the Smart Feed; not used yet' },
+] as const;
+const OTHER = '__other__';
+
+/**
+ * One model per AI function (0.26.0), chosen from the model manifest
+ * (models.json, plus the operator's models.local.json) or typed in. The
+ * fourth row, authoring, is reserved and disabled: it signals where the
+ * studio is going without pretending to do it.
+ */
+function ModelSettings({
+  form,
+  change,
+}: {
+  form: Settings;
+  change: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
+}) {
+  const [manifest, setManifest] = useState<AiModels>();
+  const [other, setOther] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    let live = true;
+    unwrap(BlyggerApi.getAiModels({ client }))
+      .then((m) => live && setManifest(m))
+      .catch(() => live && setManifest({ providers: [], models: [], local: false }));
+    return () => {
+      live = false;
+    };
+  }, []);
+  const listed = (id: string) => !!manifest?.models.some((m) => m.id === id);
+  return (
+    <>
+      <p className="hint model-hint">
+        Each AI function uses its own model. The list comes from{' '}
+        <code>models.json</code> in your studio install, and you can edit it:
+        add or remove models there, or put your changes in{' '}
+        <code>models.local.json</code> (same shape) so upgrades never conflict,
+        then redeploy.{manifest?.local ? ' This install has a models.local.json.' : ''}{' '}
+        Choose <em>other…</em> to type any model id.
+      </p>
+      {manifest ? (
+        <ul className="provider-keys" aria-label="provider keys">
+          {manifest.providers.map((p) => (
+            <li key={p.id} data-configured={p.configured}>
+              {p.configured ? '✓' : '–'} {p.label}{' '}
+              <span className="hint">
+                {p.configured ? 'key set' : 'no key'} (<code>{p.key_secret}</code>)
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {FUNCTIONS.map((f) => {
+        const value = form[f.key];
+        const isOther = other[f.key] || (!!value && !!manifest && !listed(value));
+        return (
+          <div className="field model-field" key={f.key}>
+            <label htmlFor={f.key}>
+              <span>
+                {f.label}
+                {'hint' in f ? <span className="hint"> · {f.hint}</span> : null}
+              </span>
+            </label>
+            <select
+              id={f.key}
+              value={isOther ? OTHER : value}
+              onChange={(event) => {
+                const next = event.target.value;
+                setOther((o) => ({ ...o, [f.key]: next === OTHER }));
+                if (next !== OTHER) change(f.key, next);
+              }}
+            >
+              <option value="">— none —</option>
+              {manifest?.providers.map((p) => (
+                <optgroup key={p.id} label={p.configured ? p.label : `${p.label} (no key)`}>
+                  {manifest.models
+                    .filter((m) => m.provider === p.id)
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                        {m.note ? ` — ${m.note}` : ''}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+              <option value={OTHER}>other…</option>
+            </select>
+            {isOther ? (
+              <input
+                type="text"
+                aria-label={`${f.label} model id`}
+                placeholder="model id, e.g. claude-sonnet-5-5"
+                value={value}
+                onChange={(event) => change(f.key, event.target.value)}
+              />
+            ) : null}
+          </div>
+        );
+      })}
+      <div className="field model-field">
+        <label htmlFor="ai_model_authoring">
+          <span>
+            authoring<span className="hint"> · coming later</span>
+          </span>
+        </label>
+        <select id="ai_model_authoring" disabled value="">
+          <option value="">reserved for agentic authoring</option>
+        </select>
+      </div>
+    </>
   );
 }

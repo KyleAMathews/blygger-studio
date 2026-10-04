@@ -140,7 +140,16 @@ export function oauthRoutes() {
       // Better Auth 1.7.7 reports this specific failed binding as invalid_request.
       // RFC 7636 §4.6 requires invalid_grant; leave parser/authentication errors intact.
       if (error.error === 'invalid_request' && error.error_description === 'code verification failed') return c.json({ ...error, error: 'invalid_grant' }, 400);
-      if (seen && seen.client === form.get('client_id') && error.error === 'invalid_grant') await c.env.DB.prepare('INSERT OR IGNORE INTO oauth_revocations(grant_id) VALUES (?)').bind(seen.family).run();
+      // Native invalid_grant follows client authentication. HTTP Basic carries
+      // its client id in the header, not the form. A bad secret produces
+      // invalid_client and must never serve as evidence to revoke a grant.
+      let clientId = form.get('client_id');
+      const basic = c.req.header('authorization')?.match(/^Basic\s+(\S+)$/i);
+      if (basic) {
+        try { clientId = decodeURIComponent(atob(basic[1]).split(':')[0]); }
+        catch { clientId = null; }
+      }
+      if (seen && seen.client === clientId && error.error === 'invalid_grant') await c.env.DB.prepare('INSERT OR IGNORE INTO oauth_revocations(grant_id) VALUES (?)').bind(seen.family).run();
       // RFC 6749: grant failures are 400; invalid client authentication may be 401.
       if (response.status >= 400 && response.status < 500 && error.error) return new Response(response.body, { status: error.error === 'invalid_client' ? 401 : 400, headers: response.headers });
     }

@@ -18,6 +18,220 @@ not have its own repo until session 26.
 
 ---
 
+## 0.27.0 — 2026-10-04
+
+**Migrations: 0020_oauth.sql.** Adds OAuth provider tables, a shared rate limiter,
+client authorizations, and revocation state. Enable `nodejs_compat` before deployment.
+
+- Clients can use scoped OAuth grants or named manual bearer tokens for REST and MCP.
+  The owner approves permissions and manages grants from Studio's Client access page.
+- MCP exposes the existing API operations with the same scope checks. The generated
+  JavaScript SDK supports owner cookies and bearer tokens in browsers and Node.js.
+- Refresh replay, owner credential changes, and explicit revocation invalidate grants.
+  Native refresh cleanup can also invalidate another grant's refresh token for the
+  same client and owner. Other grants' access tokens retain their own revocation state.
+- Mounted discovery is available. Host-root `.well-known` routes remain deferred.
+- Security oracles include source-linked laws, model checks, browser probes, a
+  controlled two-isolate race, and mutations that verify the enforcement checks.
+
+## 0.26.0 — 2026-10-04
+
+**Migrations: none.** `/api` changes, all additive: settings gain `ai_model_tk`,
+`ai_model_changelog`, `ai_model_feed` and `feed_prompt`; new `GET /api/ai/models`.
+`ai_model` still works for one release: it reads as the TK model, and writing it
+sets both the TK and changelog models.
+
+**A model for each AI function, from three providers.**
+
+- **Settings → AI models** has a model picker per function: TK generation,
+  changelog notes and feed scoring, plus a disabled *authoring* row reserved
+  for agentic authoring. Your existing model carries over to the first two.
+- **The list comes from `models.json`**, which you can edit. Put your changes
+  in a gitignored `models.local.json` (same shape) so `npm run upgrade` never
+  conflicts, then redeploy. *other…* takes any model id; its provider is
+  inferred from the prefix (`claude-`, `gpt-`, `gemini-`). Prebuilt release
+  workers carry the shipped list only.
+- **Anthropic, OpenAI and Google models all work**, each called directly over
+  HTTP like the existing Anthropic call. Set the key for each provider you use:
+  `AI_PROVIDER_KEY` (Anthropic), `OPENAI_API_KEY` or `GOOGLE_AI_KEY`. Settings
+  shows which keys are set, never their values.
+- **Smart feed prompt:** Settings gains a prompt for the future Smart Feed,
+  a rubric your AI agent will score new items against. It is saved now and not
+  yet used; the agent that reads it, with your signals, is still to be designed.
+
+Shipped list (checked against each provider's model page 2026-10-04): Claude
+Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5; GPT-6 Astra, GPT-6.1 Sol, GPT-6 Luna;
+Gemini 3.1 Pro (preview), Gemini 3.8 Flash, Gemini 3.1 Flash-Lite.
+
+Protocol: implements 0.3, unchanged. `generated[].model` was always free text,
+so a non-Anthropic model id is valid on the wire as it stands.
+
+---
+
+## 0.25.0 — 2026-10-04
+
+**Migrations: 0019** (the `interactions` table, with a backfill). Apply it before
+deploying: `npx wrangler d1 migrations apply DB --remote`. `/api` changes, all
+additive: `GET /api/reading` takes `kind=thread|fragment`; new `GET /api/interactions`
+(paged, filterable by `kind`) and `GET /api/thumbs`.
+
+**Scaffolding for better reading.** This release telegraphs where reading is
+going: a feed your own AI agent sorts and filters from a prompt you write. The
+agent is not designed or built yet. What ships is the record it will need.
+
+- **Reading lenses.** Every reading screen has a lens bar: All, Threads,
+  Fragments, Background and Smart Feed. Threads and Fragments filter whatever is
+  open, a source, a hopper or everything, and the sources list counts follow the
+  lens. Background and Smart Feed are placeholders, marked with dashed outlines:
+  Background is for procedural staleness updates once the `ignyr` changelog
+  directive is designed into the protocol; Smart Feed is for the agent-ranked feed.
+- **Interaction log.** A private, append-only record of what you do with other
+  people's items: thumbs up, down and cleared, hopper adds and removals, and the
+  stubs, forks and quotes you publish. Each act is logged when it becomes real on
+  the server, never on a click you abandon, and is keyed by origin and id so it
+  survives an unsubscribe. The migration backfills it from current thumbs, hopper
+  memberships and your published versions. It is never published.
+- **more → signals.** Your current likes and dislikes, and the activity log,
+  newest first.
+
+Protocol: implements 0.3, unchanged. Nothing in this release is on the wire
+(decisions #11 and #12: AI, identity and editorial convenience never are).
+
+---
+
+## 0.24.0 — 2026-10-04
+
+**Migrations: 0018** (adds `hoppers.description`). Apply it before deploying:
+`npx wrangler d1 migrations apply DB --remote`. `/api` change: hoppers gain
+`description`, and `PATCH /api/hoppers/{id}` accepts it (an empty string clears it).
+
+**Public hoppers are now findable.** A public hopper has had its own page since
+v0.2, but nothing on the site linked to it.
+
+- **Collections:** the homepage and archive list your public hoppers, each with
+  its item count and description. A hopper never appears in your feed, as before
+  (decision #12).
+- **The hopper page wears the site's header and masthead**, says how many items
+  it holds from how many sources, and carries a description, title and social
+  metadata like every other public page.
+- **Fixed:** the page's "Home" link pointed at the host root, which on a
+  path-mounted blyg is not the blyg.
+- **Description:** each hopper takes an optional one-line description in its
+  settings, shown on the public page and in Collections.
+
+Protocol: implements 0.3, unchanged.
+
+---
+
+## 0.23.0 — 2026-10-04
+
+**Migrations: none.** `/api` change: `GET /api/freshness` entries gain `behind`, and the
+list now comes stalest first. Additive; regenerate the SDK if you use it.
+
+**Stale quotes move out of compose into a new *updates* tab.**
+
+- The warning banner at the top of compose is gone. It listed every thread
+  whose quotes had fallen behind, which read as a to-do list, and acting on
+  each alert as it came would publish a flood of trivial versions.
+- **updates** sits after *mentions* in the tab bar. It lists the same threads,
+  stalest first, each with how far behind it is: "4 versions behind · 2 stale
+  quotes", and "needs editing" when a republish would fail.
+- Staleness is the versions a thread's stale quotes have missed, summed. One
+  quote three versions behind and another one behind make a thread four behind.
+- The page states the norm it is built for: refresh items in batches, stalest
+  first, when they have drifted far enough, rather than one version per alert.
+  The same ordered queue is meant for a future maintenance agent.
+
+Protocol: implements 0.3, unchanged.
+
+---
+
+## 0.22.0 — 2026-10-04
+
+**Migrations: none. No API, contract or data changes** — this release touches
+the studio's front end and the static files the Worker serves for it.
+
+**The studio is redesigned for the phone**, after the owner console of
+aneeshsathe.com ("Thicket Console"): a top bar, a bottom tab bar (a left rail
+on wide screens), cards, pill controls and bottom sheets. Every existing
+control and confirmation keeps its wording.
+
+- **It wears your theme.** The reading theme in Settings now paints the studio
+  as well as the public pages — one setting, the same six themes plus Auto.
+- **Five tabs:** reading, compose, hoppers, mentions, more. *More* holds
+  settings, syntax, the public page, log out, and the update notices.
+- **Reading works like NetNewsWire:** a list of sources (all, my blyg, your
+  hoppers, every subscription with its status and count) opens into each
+  source's timeline. A source's ⓘ panel pauses, resyncs, lists in the
+  blogroll or deletes it — `/subs` now redirects to reading. Entries keep every
+  action; the rarer ones live under ⋯. Select text in an entry and a *quote
+  selection* button appears. Swipe a source ← for its panel, → to pause;
+  swipe an entry → for 👍, ← to stub.
+- **Compose and the editor:** filters over your items (drafts, unpublished
+  changes, public, withdrawn); rows that expand to quick edit and act; a
+  *published* banner with **copy + link** (the text plus its permalink, for
+  pasting into other apps) and **share…**; on phones the editor swaps between
+  draft and preview, with its actions in a bottom bar.
+- **New writing tools, all in the browser:** *link from clipboard* strips
+  tracking parameters and links the selected words; pasting a URL over
+  selected text links it; *scan text* points you at your phone's own text
+  scanning (iPhone: long-press → Scan Text; Android: the keyboard's scan or Lens
+  button, or Google Lens). An **optional**, per-device setting adds on-device
+  photo scanning with Tesseract.js, loaded from jsDelivr only when used.
+- **Every browser `confirm`/`prompt`/`alert` is now an in-app sheet.**
+- **Installable:** a web app manifest and a service worker that caches only the
+  app shell (never `/api`), so the studio can live on a phone's home screen.
+
+---
+
+## 0.21.2 — 2026-10-04
+
+**Migrations: none.**
+
+**Five fixes found by the conformance toolkit** (blygger-spec#11, by Aneesh
+Sathe), each reproduced on 0.21.0.
+
+- **A feed that drops every new entry no longer strands a reader** (#27). Any
+  gap in the feed window now triggers the index diff, as §13.2 says. Before,
+  the reader also needed a new entry in the feed, and otherwise stayed stale
+  until the daily sync.
+- **A stub's version agreement matches its target by origin as well as id**
+  (#28). A local item sharing a remote target's id could overwrite
+  `stub_of.version` with its own version.
+- **Forking an older client's thread keeps the author's own `>` lines** (#29).
+  Lines after a quote directive are treated as an attached excerpt only when
+  the pinned bake is marked partial.
+- **A fork of a remote pin cites the pinned page when the origin serves one**
+  (#30), as a fork of our own pin already did. The JSON file stays the
+  citation when there is no page, since pinned pages are optional (§8.4).
+  Existing forks keep the citation frozen when they were made.
+- **`feed.xml` carries `<dc:creator>`** when the author name is set (#31,
+  §7's SHOULD).
+
+Protocol: implements 0.3, unchanged.
+
+---
+
+## 0.21.1 — 2026-10-04
+
+**Migrations: none.**
+
+**Blyg feeds subscribe in strict RSS readers.** Contributed by akashtattva (#33).
+
+- `feed.xml` renders in a fixed number of database queries instead of several
+  per item. Live feeds were slow enough that some readers timed out and called
+  them invalid.
+- Public pages advertise the feed with an absolute URL and the blyg's title, so
+  pasting a blyg's address into a reader finds it.
+- The feed carries an `atom:link rel="self"`, and its `<description>` falls back
+  to the site title when the bio is empty.
+- The feed and the public pages now share one loader for quote provenance, so
+  they cannot disagree about whose quote a blockquote is.
+
+Protocol: implements 0.3, unchanged.
+
+---
+
 ## 0.21.0 — 2026-10-03
 
 **Migrations: none.**

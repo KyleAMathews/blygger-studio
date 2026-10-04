@@ -1,8 +1,13 @@
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useState,
+} from 'react';
 import { Button } from '@base-ui/react/button';
-import { Dialog } from '@base-ui/react/dialog';
-import { Link } from '@tanstack/react-router';
+import { Link, useLocation } from '@tanstack/react-router';
 import { useLiveQuery } from '@tanstack/react-db';
 import {
   settings as settingsCollection,
@@ -11,7 +16,8 @@ import {
   updates,
 } from './data.ts';
 import { readState } from '../versions.ts';
-import { CLIENT } from '../client.ts';
+import { Sheet } from './sheets.tsx';
+import { applyTheme } from './theme.ts';
 export { Button };
 export const mount =
   document.getElementById('studio-root')!.dataset.mount ?? '';
@@ -25,6 +31,18 @@ export function useSettings() {
     query: (q) => q.from({ settings: settingsCollection }),
   }).data?.[0];
 }
+/** The release check: `behind` when a newer release than this build exists. */
+export function useUpdateState() {
+  usePoll('updates', updates.utils.refetch);
+  const row = useLiveQuery({ query: (q) => q.from({ update: updates }) })
+    .data?.[0];
+  return row
+    ? readState({
+        update_latest_seen: row.update_latest_seen || '',
+        update_checked_at: row.update_checked_at || '',
+      })
+    : undefined;
+}
 export function Html({ html, id }: { html: string; id?: string }) {
   return <div id={id} dangerouslySetInnerHTML={{ __html: html }} />;
 }
@@ -35,6 +53,8 @@ export function Failure({ error }: { error: unknown }) {
     </p>
   ) : null;
 }
+/** A titled sheet with arbitrary content. Kept for existing callers; new code
+ *  can use <Sheet> from sheets.tsx directly. */
 export function Modal({
   open,
   close,
@@ -50,44 +70,90 @@ export function Modal({
   closeButton?: boolean;
 }) {
   return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(value) => {
-        if (!value) close();
-      }}
-    >
-      <Dialog.Portal>
-        <Dialog.Backdrop className="dialog-backdrop" />
-        <Dialog.Popup className="dialog-popup">
-          <Dialog.Title>{title}</Dialog.Title>
-          {children}
-          {closeButton ? <Dialog.Close render={<Button />}>close</Dialog.Close> : null}
-        </Dialog.Popup>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <Sheet open={open} onClose={close} title={title} className="dialog-popup">
+      {children}
+      {closeButton ? <Sheet.Close>close</Sheet.Close> : null}
+    </Sheet>
   );
 }
-const nav = [
-  ['reading', '/reading'],
-  ['compose', '/'],
-  ['hoppers', '/hoppers'],
-  ['mentions', '/mentions'],
-  ['settings', '/settings'],
-  ['access', '/access'],
-  ['syntax', '/syntax'],
+
+
+/* ---------------- CHROME ----------------
+ * A screen tells the Layout how to frame it with useChrome():
+ *   tabs   — show the bottom tab bar / left rail (default true). The editor
+ *            turns it off and renders its own <ActionBar>.
+ *   framed — sit the screen on one card (default true). Screens not yet
+ *            redesigned need it so their text reads against the card (Slate's
+ *            page is dark); redesigned screens turn it off and lay out cards.
+ *   wide   — the 1240px measure instead of 760px (default: reading, editor).
+ */
+export interface ChromeOptions {
+  tabs?: boolean;
+  framed?: boolean;
+  wide?: boolean;
+}
+const ChromeContext = createContext<(options: ChromeOptions) => void>(
+  () => {},
+);
+export function useChrome(options: ChromeOptions) {
+  const set = useContext(ChromeContext);
+  const { tabs, framed, wide } = options;
+  useLayoutEffect(() => {
+    set({ tabs, framed, wide });
+    return () => set({});
+  }, [set, tabs, framed, wide]);
+}
+/** A bottom action bar, for screens that hide the tab bar (the editor). */
+export function ActionBar({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className ? `actionbar ${className}` : 'actionbar'}>
+      {children}
+    </div>
+  );
+}
+
+const tabs = [
+  { label: 'reading', to: '/reading', icon: '◫' },
+  { label: 'compose', to: '/', icon: '✎' },
+  { label: 'hoppers', to: '/hoppers', icon: '▤' },
+  { label: 'mentions', to: '/mentions', icon: '↩' },
+  { label: 'updates', to: '/updates', icon: '↻' },
+  { label: 'more', to: '/more', icon: '⋯' },
+
 ] as const;
+type Tab = (typeof tabs)[number]['label'];
+/** Which tab owns a studio path (relative to the basepath). */
+export function tabFor(path: string): Tab | null {
+  const p = path.replace(/\/+$/, '') || '/';
+  if (p === '/' || p.startsWith('/edit/')) return 'compose';
+  if (p === '/reading' || p === '/subs' || p === '/fork') return 'reading';
+  if (p === '/hoppers' || p.startsWith('/hoppers/')) return 'hoppers';
+  if (p === '/mentions') return 'mentions';
+  if (p === '/updates') return 'updates';
+  if (p === '/more' || p === '/settings' || p === '/syntax' || p === '/signals' || p === '/access') return 'more';
+  return null;
+}
+function relativePath(pathname: string) {
+  return pathname.startsWith(basepath)
+    ? pathname.slice(basepath.length) || '/'
+    : pathname;
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const settings = useSettings();
-  usePoll('updates', updates.utils.refetch);
-  const updateRow = useLiveQuery({ query: (q) => q.from({ update: updates }) })
-    .data?.[0];
-  const update = updateRow
-    ? readState({
-        update_latest_seen: updateRow.update_latest_seen || '',
-        update_checked_at: updateRow.update_checked_at || '',
-      })
-    : undefined;
-  const [open, setOpen] = useState(false);
+  const update = useUpdateState();
+  const path = relativePath(useLocation({ select: (l) => l.pathname }));
+  const active = tabFor(path);
+  const [chrome, setChrome] = useState<ChromeOptions>({});
+  const showTabs = chrome.tabs ?? true;
+  const framed = chrome.framed ?? true;
+  const wide = chrome.wide ?? (path === '/reading' || path.startsWith('/edit/'));
   const [error, setError] = useState<unknown>();
   useEffect(() => {
     const failure = (event: Event) => setError((event as CustomEvent).detail);
@@ -101,96 +167,91 @@ export function Layout({ children }: { children: ReactNode }) {
       unsubscribe();
     };
   }, []);
+  // The studio wears the reading theme. Until settings load, the theme
+  // applied at startup (the last one seen on this device) stays.
+  const theme = settings?.theme;
+  useEffect(() => {
+    if (theme === undefined) return;
+    applyTheme(theme);
+    // `auto` follows the device; keep theme-color in step when it flips.
+    const media = matchMedia('(prefers-color-scheme: dark)');
+    const flip = () => applyTheme(theme);
+    media.addEventListener('change', flip);
+    return () => media.removeEventListener('change', flip);
+  }, [theme]);
+  useEffect(() => {
+    document.body.classList.toggle('has-tabs', showTabs);
+    document.body.classList.toggle('no-tabs', !showTabs);
+  }, [showTabs]);
+  const behind = !!(settings?.update_check && update?.behind);
+  const unacked = !!(settings?.update_check && !settings.update_notice_ack);
   return (
-    <>
-      <header className="studio">
-        <div className="studio-title">
-          <h1>blyg studio</h1>
-          <Button
-            className="menu-button"
-            aria-label="Menu"
-            aria-expanded={open}
-            aria-controls="studio-menu"
-            onClick={() => setOpen((value) => !value)}
-          >
-            ☰
-          </Button>
-        </div>
-        <nav id="studio-menu" className={open ? 'open' : ''}>
-          <ul className="menu-main">
-            {nav.map(([label, to]) => (
-              <li key={label}>
-                <Link
-                  to={to}
-                  activeProps={{ className: 'current', 'aria-current': 'page' }}
-                  activeOptions={{
-                    exact: to !== '/hoppers',
-                    includeSearch: false,
-                  }}
-                  onClick={() => setOpen(false)}
-                >
-                  {label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-          <div className="menu-utility">
-            <a href={`${mount}/`} target="_blank" rel="noreferrer">
-              public page ↗
-            </a>
-            <form method="post" action={`${basepath}/logout`}>
-              <Button type="submit" className="link">
-                log out
-              </Button>
-            </form>
-          </div>
-        </nav>
-      </header>
-      <Failure error={error} />
-      {error ? (
-        <Button
-          onClick={() => {
-            setError(undefined);
-            void polling.refresh();
-          }}
-        >
-          retry reads
-        </Button>
-      ) : null}
-      <main>
-        {settings?.update_check && !settings.update_notice_ack ? (
-          <div className="update-banner notice" id="update-notice">
-            Update alerts are on. You can turn them off in{' '}
-            <Link to="/settings">Settings</Link>.{' '}
-            <Button
-              className="link"
-              data-action="ack-update-notice"
-              onClick={() =>
-                void settingsCollection
-                  .update('settings', (row) => {
-                    row.update_notice_ack = true;
-                  })
-                  .isPersisted.promise.catch(setError)
-              }
+    <ChromeContext.Provider value={setChrome}>
+      <header className="topbar">
+        <h1 className="topbar-title">
+          <span aria-hidden="true">❝ </span>
+          {settings?.site_title ? `${settings.site_title} ` : ''}
+          <small>blygger studio</small>
+        </h1>
+        <div className="topbar-actions">
+          {behind ? (
+            <Link
+              to="/more"
+              className="tb-badge warn"
+              id="update-badge"
+              title="A newer release exists"
             >
-              got it
+              update
+            </Link>
+          ) : null}
+          <a
+            className="tb-btn"
+            href={`${mount}/`}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="public page ↗"
+          >
+            <span className="lbl">public page </span>↗
+          </a>
+        </div>
+      </header>
+      <main className={wide ? 'views wide' : 'views'}>
+        {error ? (
+          <div className="read-error">
+            <Failure error={error} />
+            <Button
+              className="btn btn-ghost btn-mini"
+              onClick={() => {
+                setError(undefined);
+                void polling.refresh();
+              }}
+            >
+              retry reads
             </Button>
           </div>
         ) : null}
-        {settings?.update_check && update?.behind ? (
-          <div className="update-banner">
-            <p>
-              A new version of {CLIENT.name} is available: {update.latest} (this
-              build: {CLIENT.version}).
-            </p>
-            <a href={CLIENT.url + '/releases'} target="_blank" rel="noreferrer">
-              release notes ↗
-            </a>{' '}
-            · Run <code>npm run upgrade</code> to update.
-          </div>
-        ) : null}
-        {children}
+        <div className={framed ? 'screen framed' : 'screen'}>{children}</div>
       </main>
-    </>
+      {showTabs ? (
+        <nav className="tabbar" aria-label="studio">
+          {tabs.map((tab) => (
+            <Link
+              key={tab.label}
+              to={tab.to}
+              className={tab.label === active ? 'tab is-active' : 'tab'}
+              aria-current={tab.label === active ? 'page' : undefined}
+            >
+              <span className="ti" aria-hidden="true">
+                {tab.icon}
+              </span>
+              <span className="tl">{tab.label}</span>
+              {tab.label === 'more' && (behind || unacked) ? (
+                <span className="flag" aria-hidden="true" />
+              ) : null}
+            </Link>
+          ))}
+        </nav>
+      ) : null}
+    </ChromeContext.Provider>
   );
 }

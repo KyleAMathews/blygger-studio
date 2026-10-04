@@ -5,7 +5,7 @@ a Cloudflare Worker that publishes a blyg, subscribes to others, and threads,
 transcludes and responds across them.
 
 **Protocol implemented:** `blyg 0.3`, level 2 · **Client version:** 0.10.0 ·
-`generator: blygger-studio/0.10.0` · [releases + upgrading](#releases-and-upgrading)
+`generator: blygger-studio/0.27.0` · [releases + upgrading](#releases-and-upgrading)
 
 > The [Blygger spec](https://github.com/blygger/blygger-spec) defines the protocol.
 > As of 2026-09-28, at least seven clients publish live blygs. Six are other
@@ -82,8 +82,13 @@ both out of the config. To check the setup:
 4. Add subscriptions.
 5. Publish a fragment.
 
-`AI_PROVIDER_KEY` is optional for TK generation. Set it with
-`npx wrangler@4 secret put AI_PROVIDER_KEY` if needed.
+AI is optional. Each AI function (TK generation, changelog notes, and later
+feed scoring) takes its own model in Settings → AI models, chosen from
+`models.json`. Set the key for each provider you use: `AI_PROVIDER_KEY`
+(Anthropic), `OPENAI_API_KEY` (OpenAI) or `GOOGLE_AI_KEY` (Google), e.g.
+`npx wrangler@4 secret put AI_PROVIDER_KEY`. To change the model list without
+upgrade conflicts, copy entries into a `models.local.json` (gitignored, same
+shape; see the comment in `models.json`) and redeploy.
 
 The archive includes the Worker bundle, migrations, licenses, and a deployment
 README. It needs no `npm ci` or source build. Wrangler's

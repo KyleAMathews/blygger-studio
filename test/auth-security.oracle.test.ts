@@ -49,7 +49,7 @@ async function issued() {
   return { ...f, code, tokens: await response.json() as { access_token: string; refresh_token: string; id_token: string } };
 }
 const refresh = (f: Awaited<ReturnType<typeof issued>>, token: string) => f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: token, resource: f.base + '/api' }) });
-const read = (f: Awaited<ReturnType<typeof issued>>, token: string) => f.request('/api/settings', { headers: { Authorization: 'Bearer ' + token } });
+const read = (f: Awaited<ReturnType<typeof flow>>, token: string) => f.request('/api/settings', { headers: { Authorization: 'Bearer ' + token } });
 const mcp = (f: Awaited<ReturnType<typeof issued>>, token: string, name = 'getSettings') => f.request('/blyg/studio/mcp', {
   method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2026-07-28', 'MCP-Method': 'tools/call', 'MCP-Name': name },
   body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: name === 'createItem' ? { body: { content_md: 'must not write' } } : {}, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }),
@@ -230,4 +230,39 @@ describe('security release boundaries', () => {
     expect((await read(f, signed.token)).status, 'invalid claim must deny protected reads').toBe(401);
     expect((await f.request('/api/items', { method: 'POST', headers: { Authorization: 'Bearer ' + signed.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: 'must not write' }) })).status).toBe(401);
   });
+  // RFC6749 §2.3.1 allows client identity in HTTP Basic rather than the form:
+  // https://www.rfc-editor.org/rfc/rfc6749.html#section-2.3.1
+  // The same consumed-refresh history must revoke its JWT grant for this native
+  // confidential-client profile. An incorrect secret is an authentication failure,
+  // not replay evidence: it must leave the valid JWT usable.
+  it('revokes the JWT grant on authenticated Basic refresh replay only', async () => {
+    const f = await flow();
+    const registered = await f.request(f.issuer + '/oauth2/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_name: 'Basic replay oracle', redirect_uris: [f.redirect], token_endpoint_auth_method: 'client_secret_basic', grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'] }) });
+    expect(registered.status).toBe(201);
+    const client = await registered.json() as { client_id: string; client_secret: string };
+    expect(client.client_secret).toBeTruthy();
+    const authorize = new URL(f.authorize); authorize.searchParams.set('client_id', client.client_id);
+    const consent = await f.request(authorize.href, { headers: { cookie: f.owner } });
+    expect(consent.status).toBe(200);
+    const handle = (await consent.text()).match(/name="handle" value="([^"]+)"/)![1];
+    const binding = consent.headers.getSetCookie().map(cookie => cookie.split(';')[0]).join('; ');
+    const approval = await f.request(f.issuer + '/consent', { method: 'POST', headers: { cookie: f.owner + '; ' + binding, Origin: f.base }, body: new URLSearchParams([['handle', handle], ['decision', 'allow'], ['scope', 'owner:read']]) });
+    expect(approval.status).toBe(302);
+    const code = new URL(approval.headers.get('location')!).searchParams.get('code')!;
+    const exchange = (values: Record<string, string>, secret = client.client_secret) => f.request(f.issuer + '/oauth2/token', { method: 'POST', headers: { Authorization: 'Basic ' + btoa(encodeURIComponent(client.client_id) + ':' + encodeURIComponent(secret)), 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(values) });
+    const first = await exchange({ grant_type: 'authorization_code', code, redirect_uri: f.redirect, code_verifier: f.verifier, resource: f.base + '/api' });
+    expect(first.status).toBe(200);
+    const issued = await first.json() as { refresh_token: string };
+    const refresh = { grant_type: 'refresh_token', refresh_token: issued.refresh_token, resource: f.base + '/api' };
+    const rotated = await exchange(refresh); expect(rotated.status).toBe(200);
+    const next = await rotated.json() as { access_token: string; refresh_token: string };
+    expect((await read(f, next.access_token)).status).toBe(200);
+    const forged = await exchange(refresh, 'wrong-secret');
+    expect(forged.status).toBe(401);
+    expect((await read(f, next.access_token)).status, 'failed client authentication cannot revoke the real grant').toBe(200);
+    const replay = await exchange(refresh); expect(replay.status).toBe(400);
+    expect(await replay.json()).toMatchObject({ error: 'invalid_grant' });
+    expect((await read(f, next.access_token)).status, 'authenticated Basic replay revokes the compromised JWT grant').toBe(401);
+  });
+
 });

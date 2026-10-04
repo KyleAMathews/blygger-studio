@@ -1,4 +1,6 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixture";
+import { answerSheet } from "./sheets.ts";
+import { editorMenu, expandRow, openCard } from "./editor.ts";
 
 test("owner can compose, publish and change settings through the SDK", async ({ page }) => {
   const errors: string[] = [];
@@ -13,7 +15,7 @@ test("owner can compose, publish and change settings through the SDK", async ({ 
   await page.locator("#publish-btn").click();
   await expect(page.locator("#composer-text")).toHaveValue("");
   await expect(page.locator("body")).toContainText("Browser SDK round trip");
-  await page.goto("/studio/reading");
+  await page.goto("/studio/reading?sub=all");
   await expect(page.locator("body")).toContainText("Browser SDK round trip");
   await page.goto("/studio/settings");
   await page.locator("#site_title").fill("Browser SDK site");
@@ -49,7 +51,8 @@ test("editor autosave, preview, image upload and history use the SDK", async ({ 
   expect((await uploaded).status()).toBe(201);
   await expect(page.locator("body")).toContainText("attached:");
   await page.locator("#publish-btn").click();
-  await expect(page.locator('[data-action="view-version"]')).toBeVisible();
+  await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
+  await openCard(page, "history");
   await page.locator('[data-action="view-version"]').click();
   await expect(page.locator("#h-viewer-body")).toContainText("Autosaved preview");
   expect(errors).toEqual([]);
@@ -59,7 +62,6 @@ test("editor autosave, preview, image upload and history use the SDK", async ({ 
 test("owner can pin and fork through resource creation", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  page.on("dialog", (dialog) => dialog.accept());
   await page.goto("/studio/login");
   await page.locator('[name="password"]').fill("test-password");
   await page.getByRole("button", { name: "log in", exact: true }).click();
@@ -67,8 +69,10 @@ test("owner can pin and fork through resource creation", async ({ page }) => {
   await page.locator("#composer-full").click();
   const sourceUrl = page.url();
   await page.locator("#publish-btn").click();
-  await expect(page.locator('[data-action="pin"]').first()).toBeVisible();
+  await expect(page.locator('[data-action="pin"]')).toHaveCount(1);
+  await openCard(page, "history");
   await page.locator('[data-action="pin"]').first().click();
+  await answerSheet(page, { name: /^Pin v1\?/ });
   await page.locator('a[href^="/studio/fork?"]').click();
   const created = page.waitForResponse((response) => response.url().endsWith("/api/items") && response.request().method() === "POST");
   await page.locator('[data-action="fork"]').click();
@@ -106,11 +110,16 @@ test("stale quotes are listed, explained, and refreshed as one republish", async
   await api("PATCH", `/items/${source}`, { content_md: `${marker}, second version.` });
   await api("POST", `/items/${source}/publish`, {});
 
-  // The cross-blyg notice names the thread and links to its snapshots.
+  // Compose no longer nags; the updates tab lists the thread, stalest first,
+  // under the batching note, and links to its snapshots.
   await page.reload();
-  const notice = page.locator(".stale-notice");
-  await expect(notice).toContainText(title);
-  await notice.getByRole("link", { name: title }).click();
+  await expect(page.locator("#composer-text")).toBeVisible();
+  await expect(page.locator(".stale-notice")).toHaveCount(0);
+  await page.locator(".tabbar").getByRole("link", { name: "updates" }).click();
+  await expect(page.locator(".updates-note")).toContainText("descending order of staleness");
+  const entry = page.locator(".updates-list li").filter({ hasText: title });
+  await expect(entry).toContainText("1 version behind · 1 stale quote");
+  await entry.getByRole("link").click();
   await expect(page.locator("#md-input")).toBeVisible();
 
   // The panel says what is stale and by how much.
@@ -121,15 +130,15 @@ test("stale quotes are listed, explained, and refreshed as one republish", async
   await page.locator("#md-input").fill(`# ${title}\n\n![[${source}]]\n\nHalf-written edit.`);
   await expect(page.locator("#snapshots")).toContainText("unpublished edits");
   await expect(page.locator('[data-action="refresh-quotes"]')).toHaveCount(0);
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.locator('[data-action="discard-changes"]').click();
+  await editorMenu(page, "discard changes");
+  await answerSheet(page, { name: /^Discard unpublished changes/ });
   await expect(page.locator("#md-input")).toHaveValue(`# ${title}\n\n![[${source}]]\n\nMy commentary.`);
 
   // One click republishes with the new quote.
   const refreshed = page.waitForResponse((r) => r.url().endsWith(`/api/items/${thread}/refresh`));
   await page.locator('[data-action="refresh-quotes"]').click();
   expect((await refreshed).status()).toBe(200);
-  await expect(page.locator("#snapshots h2")).toContainText("all current");
+  await expect(page.locator("#snapshots > summary")).toContainText("all current");
   const doc = await page.evaluate(async (id) => (await fetch(`/items/${id}.json`)).json(), thread);
   expect(doc.version).toBe(2);
   expect(doc.content_html).toContain(`${marker}, second version.`);
@@ -158,7 +167,7 @@ test("pasted generated text is marked from a selection and published disclosed",
   await expect(page.locator(".tk-imported")).toBeVisible();
   await expect(page.locator(".save-state")).toHaveText("saved");
   await page.locator("#publish-btn").click();
-  await expect(page.locator('[data-action="view-version"]')).toBeVisible();
+  await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
   const id = new URL(page.url()).pathname.split("/").pop();
   const doc = await page.evaluate(async (id) => (await fetch(`/items/${id}.json`)).json(), id);
   expect(doc.content_html).toContain(`<span class="blyg-tk-gen">${pasted}</span>`);
@@ -192,7 +201,7 @@ test("a drafted note is editable, flagged only while unedited, and cleared after
   await page.locator("#note-confirm-ok").click();
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(2);
   expect(publishes.at(-1)).toMatchObject({ note: "Added a second sentence.", note_generated: true });
-  await expect(page.locator("#history .tc-chip", { hasText: "generated" })).toHaveCount(1);
+  await expect(page.locator("#history .badge", { hasText: "generated" })).toHaveCount(1);
   await expect(page.locator("#note-input")).toHaveValue("");
 
   // Edited before publishing: the words are the author's.
@@ -230,7 +239,8 @@ test("an imported item's history shows notes, and diffs only public versions", a
   // Filtered to the seeded source: other tests fill the first page of "all".
   await page.goto("/studio/reading?sub=parity-native");
   const entry = page.locator(".reading-entry").filter({ hasText: "Frozen source text." });
-  await entry.locator('[data-action="history"]').click();
+  await entry.getByRole("button", { name: "more actions", exact: true }).click();
+  await page.getByRole("dialog", { name: "actions" }).getByRole("button", { name: "history", exact: true }).click();
   await expect(entry.locator(".entry-history .h-row")).toHaveCount(3);
   await expect(entry.locator(".entry-history")).toContainText("Narrowed the claim.");
   await expect(entry.locator(".entry-history .tc-chip", { hasText: "generated" })).toHaveCount(1);
@@ -353,6 +363,7 @@ test("the composer list's publish asks for the note on a new version too", async
   await page.reload();
   const row = page.locator(`.item-row[data-id="${id}"]`);
   const published = page.waitForRequest((r) => r.url().endsWith(`/items/${id}/publish`));
+  await expandRow(page, id);
   await row.getByRole("button", { name: "publish", exact: true }).click();
   await expect(page.locator("#note-confirm-text")).toHaveValue("Reworded the opening.");
   await expect(page.locator(".dialog-popup")).toContainText("Version 2");

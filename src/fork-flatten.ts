@@ -228,8 +228,16 @@ export async function flattenFork(input: ForkInput, ctx: FlattenContext): Promis
   for (let i = 0; i < lines.length; i++) {
     if (!inRanges(code, starts[i]) && DIRECTIVE_LINE.test(lines[i])) {
       if (q >= quotes.length) return { contentMd: await htmlToMarkdown(input.contentHtml, ctx), exact: false };
-      out.push(await flattenQuote(quotes[q++], ctx));
-      i = attachedQuote(lines, i).next - 1;
+      const baked = quotes[q++];
+      out.push(await flattenQuote(baked, ctx));
+      // The `>` lines after a directive are an attached excerpt only if the
+      // bake says it was partial (§16.4's second class). A client without
+      // partial grammar baked a whole quote, and those lines are the author's
+      // own prose, which §16.6f copies byte-exact (studio#29).
+      if (hasClass(baked, "blyg-partial")) i = attachedQuote(lines, i).next - 1;
+      // A blank line keeps the author's own blockquote from merging into the
+      // flattened one, as it was a separate block in the pinned rendering.
+      else if (/^\s{0,3}>/.test(lines[i + 1] ?? "")) out.push("");
       continue;
     }
     out.push(lines[i]);

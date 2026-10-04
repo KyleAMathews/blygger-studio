@@ -2,8 +2,8 @@
 // (decision #12): local snapshots + source attribution + origin links,
 // never a re-emission of anyone else's content on our own feed.
 
-import { layout } from "../pages.ts";
-import type { HopperRow, ImportedItemRow, SubscriptionRow } from "../types.ts";
+import { layout, pageTop } from "../pages.ts";
+import type { HopperRow, ImportedItemRow, Settings, SubscriptionRow } from "../types.ts";
 import { escapeHtml } from "../util.ts";
 import { sanitizeHtml } from "./sanitize.ts";
 import { blygItemUrl } from "./util.ts";
@@ -13,7 +13,7 @@ export interface HopperItemView {
   sub: SubscriptionRow;
 }
 
-export async function publicHopperPage(hopper: HopperRow, items: HopperItemView[], mount: string): Promise<string> {
+export async function publicHopperPage(db: D1Database, settings: Settings, hopper: HopperRow, items: HopperItemView[], mount: string, origin: string): Promise<string> {
   const blocks: string[] = [];
   for (const { row, sub } of items) {
     const withdrawn = row.state === "tombstone";
@@ -38,10 +38,25 @@ ${pinNote}
 ${attribution}
 </article>`);
   }
+  // The site's own header and masthead, like every other public page. The old
+  // bare `<a href="/">Home</a>` pointed at the host root, which on a
+  // path-mounted blyg (venkateshrao.com/blyg/) is not the blyg at all.
+  const sources = new Set(items.map(({ sub }) => sub.id)).size;
+  const summary = `${items.length} ${items.length === 1 ? "item" : "items"} from ${sources} ${sources === 1 ? "source" : "sources"}`;
+  const description = hopper.description || `A collection on ${settings.site_title}: ${summary}.`;
   const body = `<div class="blyg">
-<header class="blyg-header"><a href="/">Home</a></header>
+${await pageTop(db, settings, mount)}
+<header class="collection-head">
 <h2>${escapeHtml(hopper.name)}</h2>
+${hopper.description ? `<p class="collection-desc">${escapeHtml(hopper.description)}</p>\n` : ""}<p class="meta">A collection · ${summary} · <a href="${mount}/">${escapeHtml(settings.site_title)}</a></p>
+</header>
 ${blocks.join("\n") || "<p>Nothing here yet.</p>"}
 </div>`;
-  return layout(hopper.name, body, mount);
+  return layout(`${hopper.name} — ${settings.site_title}`, body, mount, {
+    description,
+    url: `${origin}h/${hopper.slug}/`,
+    siteName: settings.site_title,
+    feedUrl: `${origin}feed.xml`,
+    feedTitle: settings.site_title,
+  });
 }

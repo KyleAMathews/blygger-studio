@@ -41,4 +41,12 @@ describe("every inline script parses", () => {
     }
   });
 
+  // Not inline, but the same hazard: the studio's service worker is a TS
+  // template literal emitted as JavaScript (src/spa.ts).
+  it("the studio service worker", async () => {
+    const res = await getPublic("/blyg/studio/sw.js");
+    expect(res.status).toBe(200);
+    assertParses(await res.text(), "studio sw.js");
+  });
+
 });

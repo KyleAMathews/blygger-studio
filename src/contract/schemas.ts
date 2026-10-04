@@ -91,6 +91,7 @@ export const HopperRowSchema = z.object({
   public: z.number(),
   created: z.string(),
   slug_frozen: z.number(),
+  description: z.string().nullable(),
 }).openapi("HopperRow");
 
 export const HopperItemRowSchema = z.object({
@@ -152,6 +153,10 @@ export const SettingsSchema = z.object({
   timezone: z.string(),
   avatar_media_id: z.string(),
   ai_model: z.string(),
+  ai_model_tk: z.string(),
+  ai_model_changelog: z.string(),
+  ai_model_feed: z.string(),
+  feed_prompt: z.string(),
   ai_style_prompt: z.string(),
   accept_mentions: z.boolean(),
   update_check: z.boolean(),

@@ -130,16 +130,22 @@ export function isBlygStub(stub: StubOf): stub is { origin: string; id: string; 
  * the value the author saw when the stub was created. The two can never
  * disagree on a published document.
  *
- * Matching is on **id alone**, deliberately: decision #26's rule is that a
- * directive names an identity, not an origin — so an id that resolved is the
- * same item the citation names, and a resolution that was ambiguous never
- * reaches publish (it is an error).
+ * Matching is on **origin and id** (studio#28). Decision #26 says a
+ * directive names an identity, and an ambiguous *imported* match is a publish
+ * error, but resolution tries the local blyg first: a local item whose id
+ * equals a remote target's id shadows it, and the body then quotes a different
+ * item from the one the citation names. §10.6 rule 3 applies only when "the
+ * body transcludes the stub's target", so the origins must agree too. A
+ * transclusion with no `origin` is our own; `ownOrigin` says what that is.
  */
-export function applyVersionAgreement(stub: StubOf, transclusions: Transclusion[]): StubOf {
+export function applyVersionAgreement(stub: StubOf, transclusions: Transclusion[], ownOrigin: string): StubOf {
   if (!isBlygStub(stub)) return stub;
-  const baked = transclusions.find((t) => t.id === stub.id);
+  const target = withSlash(stub.origin);
+  const baked = transclusions.find((t) => t.id === stub.id && withSlash(t.origin ?? ownOrigin) === target);
   return baked ? { ...stub, version: baked.version } : stub;
 }
+
+const withSlash = (origin: string) => (origin.endsWith("/") ? origin : origin + "/");
 
 export function parseStoredStub(json: string | null): StubOf | null {
   if (!json) return null;

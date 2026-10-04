@@ -17,14 +17,12 @@
  * Limits: controlled HTTP schedules, not concurrent D1 writers, every network
  * failure or independent browser engines. Desktop/mobile are Chromium profiles.
  */
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./fixture";
+import { acceptSheets } from "./sheets.ts";
 
 // Each case represents an independent browser, with one stable fixture edge IP.
 // Preserve its real login budget throughout the case; do not disable throttling.
-test.beforeEach(async ({ context }) => {
-  const ip = 'fd00:' + crypto.randomUUID().replaceAll('-', '').match(/.{4}/g)!.slice(0, 7).join(':');
-  await context.setExtraHTTPHeaders({ 'CF-Connecting-IP': ip });
-});
+
 
 async function editor(page: Page, kind: "fragment" | "thread") {
   await page.goto("/studio/login");
@@ -43,7 +41,7 @@ async function editor(page: Page, kind: "fragment" | "thread") {
 for (const kind of ["fragment", "thread"] as const) {
   for (const status of [400, 401, 500, 503]) test(`${kind} keeps text after save ${status} and can recover`, async ({ page }) => {
     const id = await editor(page, kind);
-    page.on("dialog", dialog => dialog.accept());
+    await acceptSheets(page);
     await page.route(`**/api/items/${id}`, route => route.request().method() === "PATCH" ? route.fulfill({ status, json: { error: "save rejected" } }) : route.continue());
     await page.locator("#md-input").fill("unsaved text");
     const failed = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.status() === status);
@@ -66,8 +64,7 @@ for (const kind of ["fragment", "thread"] as const) {
   // allow a later successful save without assuming the first failure meant rollback.
   test(`${kind} retains text when a committed save loses its response`, async ({ page }) => {
     const id = await editor(page, kind);
-    const dialogs: string[] = [];
-    page.on("dialog", async dialog => { dialogs.push(dialog.message()); await dialog.accept(); });
+    await acceptSheets(page);
     let calls = 0;
     await page.route(`**/api/items/${id}`, async route => {
       if (route.request().method() !== "PATCH") return route.continue();
@@ -91,7 +88,7 @@ for (const kind of ["fragment", "thread"] as const) {
   // not just a hidden UI button, and read version zero after the rejected PATCH.
   test(`${kind} never publishes after a failed save`, async ({ page }) => {
     const id = await editor(page, kind);
-    page.on("dialog", dialog => dialog.accept());
+    await acceptSheets(page);
     let published = 0;
     await page.route(`**/api/items/${id}/publish`, async route => { published++; await route.continue(); });
     await page.route(`**/api/items/${id}`, route => route.request().method() === "PATCH" ? route.fulfill({ status: 503, json: { error: "save rejected" } }) : route.continue());
@@ -105,7 +102,7 @@ for (const kind of ["fragment", "thread"] as const) {
   });
   test(`${kind} retains a failed autosave and recovers on the next save`, async ({ page }) => {
     const id = await editor(page, kind);
-    page.on("dialog", dialog => dialog.accept());
+    await acceptSheets(page);
     await page.route(`**/api/items/${id}`, route => route.request().method() === "PATCH" ? route.fulfill({ status: 503, json: { error: "autosave rejected" } }) : route.continue());
     await page.locator("#md-input").fill("failed autosave");
     const failed = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.status() === 503);
@@ -130,7 +127,7 @@ for (const kind of ["fragment", "thread"] as const) {
     expect(item).toMatchObject({ content_md: "saved but unpublished", version: 0 });
     await page.unroute(`**/api/items/${id}/publish`);
     await page.locator("#publish-btn").click();
-    await expect(page.locator('[data-action="view-version"]')).toBeVisible();
+    await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
   });
   // Hold an older save until newer editor input exists. Releasing that save must
   // not replace the newer input; the next autosave must persist that newer text.

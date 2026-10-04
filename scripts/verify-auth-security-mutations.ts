@@ -4,7 +4,7 @@
  * production defense at a time without changing the expected result.
  * Model: each isolated baseline passes, then its mutant reaches the named semantic
  * assertion. Nonzero exit alone is insufficient: setup errors and timeouts fail
- * this verifier. The eleven controls cover claims, at-rest secrets, logs, limiter
+ * this verifier. The thirteen controls cover claims, at-rest secrets, logs, limiter
  * identity, browser framing, cross-isolate revocation and protected transport.
  * Driver: a disposable source copy runs the same Worker, browser or race test.
  * Refinement: exact mutation anchor, baseline exit, failure checkpoint and no runner
@@ -27,12 +27,17 @@ const controls = [
   { name: 'introspection owner revocation omitted', changes: [{ file: 'src/oauth-routes.ts', from: 'if (value.active) {', to: 'if (false) {' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'reports a revoked grant inactive', checkpoint: '"active": false' },
   { name: 'spoofable limiter identity', changes: [{ file: 'src/oauth.ts', from: "ipAddressHeaders: ['cf-connecting-ip']", to: "ipAddressHeaders: ['x-forwarded-for']" }], kind: 'worker', test: 'test/auth-deployment.oracle.test.ts', pattern: 'shares an atomic registration budget', checkpoint: 'AssertionError' },
   { name: 'frame blocking removed', changes: [{ file: 'src/spa.ts', from: "c.header('Content-Security-Policy', \"frame-ancestors 'none'\");", to: '' }, { file: 'src/spa.ts', from: "c.header('X-Frame-Options', 'DENY');", to: '' }, { file: 'src/oauth-routes.ts', from: "'Content-Security-Policy': \"frame-ancestors 'none'\", 'X-Frame-Options': 'DENY', ", to: '' }], kind: 'browser', test: 'e2e/client-access.spec.ts', pattern: 'hostile ancestor', checkpoint: 'Expected value: "net::ERR_BLOCKED_BY_RESPONSE"' },
-  { name: 'cross-isolate family tombstone omitted', changes: [{ file: 'src/oauth-routes.ts', from: "if (seen && seen.client === form.get('client_id')", to: "if (false && seen.client === form.get('client_id')" }], kind: 'race', test: 'scripts/verify-auth-security-race.ts', pattern: '', checkpoint: 'Cross-isolate replay must revoke the existing signed access token' },
+  { name: 'cross-isolate family tombstone omitted', changes: [{ file: 'src/oauth-routes.ts', from: "if (seen && seen.client === clientId", to: "if (false && seen.client === clientId" }], kind: 'race', test: 'scripts/verify-auth-security-race.ts', pattern: '', checkpoint: 'Cross-isolate replay must revoke the existing signed access token' },
   { name: 'root and contract errors logged in full', changes: [{ file: 'src/index.ts', from: "console.error('Worker request failed');", to: 'console.error(_error);' }, { file: 'src/contract/app.ts', from: "console.error('API request failed');", to: 'console.error(error);' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'does not leak sentinel', checkpoint: 'dependency logging must not leak credentials' },
   { name: 'native raw fallback logging restored', changes: [{ file: 'src/oauth.ts', from: 'onAPIError: { throw: true }', to: 'onAPIError: { throw: false }' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'does not leak sentinel', checkpoint: 'dependency logging must not leak credentials' },
   { name: 'cleartext transport guard removed', changes: [{ file: 'src/index.ts', from: "if (url.protocol !== 'https:' && !loopback)", to: 'if (false)' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'cleartext auth transport', checkpoint: 'cleartext protected transport must fail closed' },
+  { name: 'uploaded media sandbox removed', changes: [{ file: 'src/index.ts', from: '"Content-Security-Policy": "sandbox; script-src \'none\'",', to: '' }], kind: 'browser', test: 'e2e/client-access.spec.ts', pattern: 'SVG uploads', checkpoint: 'data-script-ran="yes"' },
+  { name: 'Basic replay client classification omitted', changes: [{ file: 'src/oauth-routes.ts', from: 'if (basic) {', to: 'if (false) {' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'authenticated Basic refresh replay', checkpoint: 'authenticated Basic replay revokes the compromised JWT grant' },
 ];
-const selected = process.argv[2] ? controls.filter(control => control.name.includes(process.argv[2])) : controls;
+// Browser controls share Playwright's server port; worker/race controls can run
+// while a separate browser verification owns it. The default still runs all thirteen.
+const selector = process.argv[2];
+const selected = selector === '--exclude-browser' ? controls.filter(control => control.kind !== 'browser') : selector ? controls.filter(control => control.name.includes(selector)) : controls;
 assert.ok(selected.length, 'No mutation matches the requested name');
 try {
   const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);

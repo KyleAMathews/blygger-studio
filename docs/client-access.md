@@ -4,7 +4,7 @@ This branch adds owner-approved OAuth grants and manual tokens. Studio keeps its
 
 ## Manual tokens
 
-Open **access** in Studio. Enter a client name, choose REST API or MCP, select its permissions, and create a token. Copy the token from the dialog before closing it. It expires after 30 days and has no refresh token. Mint a replacement when needed.
+Open **More → Client access** in Studio. Enter a client name, choose REST API or MCP, select its permissions, and create a token. Copy the token from the dialog before closing it. It expires after 30 days and has no refresh token. Mint a replacement when needed.
 
 The REST API remains at `/api`. MCP is at `{mount}/studio/mcp`, such as `https://example.com/blyg/studio/mcp`. A token is bound to the selected resource: an MCP token cannot call REST, and a REST token cannot connect to MCP.
 
@@ -39,7 +39,7 @@ A Studio browser uses its HttpOnly cookie through `credentials: 'same-origin'` w
 
 Studio lists each grant, its permissions, resource and expiry. Revoke one authorization to disable its access and refresh credentials, or choose revoke-all. Revoke-all leaves your Studio session active.
 
-When resetting the owner password, use revoke-all first. Changing either `OWNER_PASSWORD` or `COOKIE_SECRET` also invalidates all delegated grants. Rotate `COOKIE_SECRET` with a password reset to invalidate existing Studio sessions too. Set secrets through Wrangler's interactive prompts; do not place them in committed config.
+When resetting the owner password, use revoke-all first. Changing either `OWNER_PASSWORD` or `COOKIE_SECRET` also invalidates all delegated grants. Changing either secret also invalidates existing Studio sessions. Set secrets through Wrangler's interactive prompts; do not place them in committed config.
 
 ## OAuth and MCP status
 
@@ -55,6 +55,6 @@ For generated text, clients submit `provenance` with one entry per TK scope, usi
 
 ## Installation
 
-Apply D1 migration `0018_oauth.sql` and enable `nodejs_compat` before deploying this branch. Source installs use `npm run upgrade`; Worker archives use the release's D1 migration instructions. OAuth records use the existing DB binding, so no KV namespace or new deployment secret is needed.
+Apply D1 migration `0020_oauth.sql` and enable `nodejs_compat` before deploying this branch. Source installs use `npm run upgrade`; Worker archives use the release's D1 migration instructions. OAuth records use the existing DB binding, so no KV namespace or new deployment secret is needed.
 
 Resetting the owner password or cookie secret also invalidates owner login cookies. Log in again after either change. Rate limits use shared D1 counters and the Cloudflare client address; see [deployment boundaries](auth-deployment-hardening.md) for the ingress and rollout checks.

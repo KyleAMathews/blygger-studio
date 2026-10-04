@@ -1,3 +1,6 @@
+// The design system first, so each screen's own stylesheet (imported by its
+// module below) comes after it in the bundle and wins ties.
+import './studio.css';
 import { createRoot } from 'react-dom/client';
 import {
   createRootRoute,
@@ -13,7 +16,6 @@ import { ReadingPage } from './reading.tsx';
 import { AuthorizationsPage } from './authorizations.tsx';
 import { SettingsPage } from './settings.tsx';
 import {
-  SubscriptionsPage,
   HoppersPage,
   HopperPage,
   MentionsPage,
@@ -32,11 +34,21 @@ import {
   itemDetail,
   hopperDetail,
   readingView,
+  readingKey,
+  LENSES,
+  type Lens,
   queryClient,
 } from './data.ts';
 import { Button } from './components.tsx';
 import { SyntaxPage } from './syntax.tsx';
-import './studio.css';
+import { MorePage } from './more.tsx';
+import { UpdatesPage } from './updates.tsx';
+import { SignalsPage } from './signals.tsx';
+import { SheetHost } from './sheets.tsx';
+import { applyCachedTheme } from './theme.ts';
+// Paint the last theme this device saw before the first render; settings
+// repaint it once they load (see theme.ts).
+applyCachedTheme();
 const rootRoute = createRootRoute({
   loader: () => settingsCollection.preload(),
   pendingComponent: () => <p>Loading Studio…</p>,
@@ -86,37 +98,78 @@ function readingOffset(search: Record<string, unknown>) {
   }
   return 0;
 }
+/**
+ * /reading is the sources list; ?sub=X is one source's timeline and
+ * ?hopper=H a hopper's. A bookmark from before the sources list existed that
+ * pages without naming a source (?page=2, ?offset=25) still means "all".
+ */
+function readingSearch(search: Record<string, unknown>): {
+  sub?: string;
+  hopper?: string;
+  offset?: number;
+  lens?: Lens;
+} {
+  const offset = readingOffset(search);
+  const lens =
+    typeof search.lens === 'string' && (LENSES as readonly string[]).includes(search.lens) && search.lens !== 'all'
+      ? (search.lens as Lens)
+      : undefined;
+  const withLens = lens ? { lens } : {};
+  if (typeof search.hopper === 'string' && search.hopper)
+    return { hopper: search.hopper, offset, ...withLens };
+  if (typeof search.sub === 'string') return { sub: search.sub, offset, ...withLens };
+  if ('page' in search || 'offset' in search) return { sub: 'all', offset, ...withLens };
+  return withLens;
+}
 const reading = createRoute({
   getParentRoute: () => rootRoute,
   path: '/reading',
-  validateSearch: (search: Record<string, unknown>) => ({
-    sub: typeof search.sub === 'string' ? search.sub : 'all',
-    offset: readingOffset(search),
+  validateSearch: readingSearch,
+  loaderDeps: ({ search }) => ({
+    sub: search.sub,
+    hopper: search.hopper,
+    offset: search.offset ?? 0,
+    lens: search.lens,
   }),
-  loaderDeps: ({ search }) => ({ sub: search.sub, offset: search.offset }),
   loader: async ({ deps }) => {
+    if (deps.hopper) {
+      await Promise.all([
+        hopperDetail(deps.hopper).preload(),
+        subscriptions.preload(),
+        hopperCollection.preload(),
+        signals.preload(),
+      ]);
+      return;
+    }
+    // The sources list reads its counts from the first page of "all".
+    const sub = deps.sub ?? 'all';
+    const offset = deps.sub === undefined ? 0 : deps.offset;
+    // The placeholder lenses read nothing.
+    if (deps.lens === 'background' || deps.lens === 'smart') return;
+    const key = readingKey(sub, deps.lens);
     await Promise.all([
-      readingView(deps.sub, deps.offset).preload(),
+      readingView(key, offset).preload(),
       subscriptions.preload(),
       hopperCollection.preload(),
       signals.preload(),
     ]);
+    if (deps.sub === undefined) return;
     const page = queryClient
       .getQueriesData<
         import('../../sdk/dist/browser.js').ListReadingResponses[200]
-      >({ queryKey: ['reading', deps.sub] })
+      >({ queryKey: ['reading', key] })
       .map(([, data]) => data)
-      .find((data) => data?.offset === deps.offset);
+      .find((data) => data?.offset === offset);
     if (
       page &&
-      (page.selected !== deps.sub ||
-        (deps.offset > 0 && deps.offset >= page.total))
+      (page.selected !== sub || (offset > 0 && offset >= page.total))
     )
       throw redirect({
         to: '/reading',
         search: {
           sub: page.selected,
-          offset: deps.offset >= page.total ? 0 : deps.offset,
+          offset: offset >= page.total ? 0 : offset,
+          ...(deps.lens ? { lens: deps.lens } : {}),
         },
       });
   },
@@ -136,11 +189,13 @@ const settings = createRoute({
   path: '/settings',
   component: SettingsPage,
 });
+// Feeds are managed from reading now (each source's inspector sheet).
 const subs = createRoute({
   getParentRoute: () => rootRoute,
   path: '/subs',
-  loader: () => subscriptions.preload(),
-  component: SubscriptionsPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/reading', search: {}, replace: true });
+  },
 });
 const hoppers = createRoute({
   getParentRoute: () => rootRoute,
@@ -164,6 +219,19 @@ const mentions = createRoute({
   loader: () =>
     Promise.all([inbound.preload(), outbound.preload(), items.preload()]),
   component: MentionsPage,
+});
+// Quotes that have fallen behind their sources, stalest first (0.23.0).
+const updates = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/updates',
+  loader: () => items.preload(),
+  component: UpdatesPage,
+});
+// Thumbs and the private interaction log (0.25.0).
+const signalsPage = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/signals',
+  component: SignalsPage,
 });
 const fork = createRoute({
   getParentRoute: () => rootRoute,
@@ -190,6 +258,11 @@ const fork = createRoute({
   ),
 });
 const access = createRoute({ getParentRoute: () => rootRoute, path: '/access', loader: () => authorizations.preload(), component: AuthorizationsPage });
+const more = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/more',
+  component: MorePage,
+});
 const syntax = createRoute({
   getParentRoute: () => rootRoute,
   path: '/syntax',
@@ -206,7 +279,10 @@ export const router = createRouter({
     hoppers,
     hopper,
     mentions,
+    updates,
+    signalsPage,
     fork,
+    more,
     syntax,
   ]),
   basepath,
@@ -220,5 +296,17 @@ declare module '@tanstack/react-router' {
   }
 }
 createRoot(document.getElementById('studio-root')!).render(
-  <RouterProvider router={router} />,
+  <>
+    <RouterProvider router={router} />
+    <SheetHost />
+  </>,
 );
+// Installable PWA: the worker caches only the shell's static assets (see
+// studioServiceWorker in src/spa.ts). Its scope is the studio base itself,
+// which the Worker allows with Service-Worker-Allowed.
+if ('serviceWorker' in navigator)
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register(`${basepath}/sw.js`, { scope: basepath })
+      .catch(() => {});
+  });

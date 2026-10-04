@@ -3,6 +3,7 @@
 
 import { listBlogrollSubscriptions } from "./importer/store.ts";
 import { excerpt, excerptFromHtml } from "./markdown.ts";
+import { loadProvenance } from "./public-feed.ts";
 import { authorOwnHtml, forkLineage, injectProvenance, respondsToLabel, stubCitation, transclusionProvenance } from "./pages.ts";
 import { parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
 import {
@@ -203,7 +204,7 @@ export function feedTitle(item: ItemRow, note: string | null, excerptText: strin
   return note ? `${note} — ${excerptText}` : excerptText;
 }
 
-function latestTransclusions(latest: VersionRow | null): Transclusion[] {
+function latestTransclusions(latest: Pick<VersionRow, "transclusions"> | null): Transclusion[] {
   if (!latest?.transclusions) return [];
   return JSON.parse(latest.transclusions) as Transclusion[];
 }
@@ -215,24 +216,65 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
   // Root-relative path of the canonical origin ("" for a root mount) — keeps
   // injected provenance links consistent with `origin` after absolutizeHtml.
   const originPath = new URL(origin).pathname.replace(/\/$/, "");
+  // Batched loads: the old per-event publishedVersion / media / provenance
+  // queries turned one feed render into ~200 sequential D1 roundtrips
+  // (~29s on live nodes — past every reader's timeout, so SmartRSS and
+  // friends reported "invalid feed"). Same bytes out, fixed query count.
+  const liveItems = events.filter(({ item }) => item.kind !== "withdrawn");
+  const livePairs = JSON.stringify([...new Map(liveItems.map(({ item }) => [item.id, { id: item.id, version: item.version }])).values()]);
+  const allIds = JSON.stringify([...new Set(events.map(({ item }) => item.id))]);
+  const withdrawnIds = JSON.stringify([...new Map(events.filter(({ item }) => item.kind === "withdrawn").map(({ item }) => [item.id, { id: item.id, version: item.version }])).values()]);
+  const [latestRes, mediaRes, prevRes] = await db.batch([
+    db.prepare(`SELECT v.item_id, v.content_md, v.content_html, v.transclusions, v.stub_of, v.stub_cite FROM json_each(?) s JOIN versions v
+      ON v.item_id = json_extract(s.value, '$.id') AND v.version = json_extract(s.value, '$.version')`).bind(livePairs),
+    db.prepare(`SELECT m.* FROM json_each(?) s JOIN media m ON m.item_id = s.value ORDER BY m.created ASC`).bind(allIds),
+    db.prepare(`SELECT v.item_id, v.transclusions FROM json_each(?) s JOIN versions v
+      ON v.item_id = json_extract(s.value, '$.id') AND v.version = json_extract(s.value, '$.version') - 1`).bind(withdrawnIds),
+  ]);
+  const latestById = new Map<string, { content_md: string; content_html: string; transclusions: string | null; stub_of: string | null; stub_cite: string | null }>();
+  for (const v of latestRes.results as unknown as Array<{ item_id: string; content_md: string; content_html: string; transclusions: string | null; stub_of: string | null; stub_cite: string | null }>) {
+    latestById.set(v.item_id, v);
+  }
+  const mediaById = new Map<string, Array<{ r2_key: string; alt: string | null; inline?: number }>>();
+  for (const m of mediaRes.results as unknown as Array<{ item_id: string; r2_key: string; alt: string | null }>) {
+    const list = mediaById.get(m.item_id) ?? [];
+    list.push(m);
+    mediaById.set(m.item_id, list);
+  }
+  const withdrawnKind = new Map<string, boolean>();
+  for (const r of prevRes.results as unknown as Array<{ item_id: string; transclusions: string | null }>) {
+    withdrawnKind.set(r.item_id, Boolean(r.transclusions));
+  }
+  // Same loader as the public pages: the feed and the HTML page can never
+  // disagree about whose quote this is.
+  const provenance = await loadProvenance(
+    db,
+    liveItems
+      .filter(({ item }) => item.kind === "thread")
+      .map(({ item }) => latestTransclusions({ transclusions: latestById.get(item.id)?.transclusions ?? null })),
+  );
+  // §7 (C-7-08): the standard RSS byline, whenever the item's author.name is
+  // present. Every item carries the blyg's one author, so it is the same line
+  // on each entry; the opaque author object never appears in the XML.
+  const creator = settings.author_name ? `      <dc:creator>${escapeXml(settings.author_name)}</dc:creator>\n` : "";
   const itemsXml: string[] = [];
   // Per §2.3, only the latest version's content is published — feed entries
   // for older publish events carry the event's version/note but render the
   // item's *latest* content (see DEVLOG session 2).
   for (const { item, version } of events) {
     const isWithdrawn = item.kind === "withdrawn";
-    const latest = isWithdrawn ? null : await publishedVersion(db, item);
+    const latest = isWithdrawn ? null : latestById.get(item.id) ?? null;
     const latestMd = latest?.content_md ?? "";
-    const isThread = isWithdrawn ? (await authoredKind(db, item)) === "thread" : item.kind === "thread";
+    const isThread = isWithdrawn ? (withdrawnKind.get(item.id) ?? false) : item.kind === "thread";
     const rawHtml = latest?.content_html ?? "";
     let html = isWithdrawn
       ? ""
       : absolutizeHtml(
-          isThread ? injectProvenance(rawHtml, await transclusionProvenance(db, latestTransclusions(latest), originPath)) : rawHtml,
+          isThread ? injectProvenance(rawHtml, await transclusionProvenance(db, latestTransclusions(latest), originPath, provenance)) : rawHtml,
           origin,
         );
     if (!isWithdrawn) {
-      for (const m of unplacedMedia(await listMediaForItem(db, item.id), html)) {
+      for (const m of unplacedMedia(mediaById.get(item.id) ?? [], html)) {
         html += `<p><img src="${origin}${m.r2_key}" alt="${escapeXml(m.alt ?? "")}"></p>`;
       }
     }
@@ -265,7 +307,7 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
       <title>${escapeXml(feedTitle(item, version.note, excerptText))}</title>
       <description>${isWithdrawn ? "" : cdata(html)}</description>
       <pubDate>${rfc822(version.published_at)}</pubDate>
-      <blyg:id>${item.id}</blyg:id>
+${creator}      <blyg:id>${item.id}</blyg:id>
       <blyg:kind>${item.kind}</blyg:kind>
       <blyg:version>${version.version}</blyg:version>
       <blyg:created>${item.created}</blyg:created>
@@ -274,11 +316,12 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
     );
   }
   return `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:blyg="${BRAND.nsUri}">
+<rss version="2.0" xmlns:blyg="${BRAND.nsUri}" xmlns:atom="http://www.w3.org/2005/Atom"${creator ? ' xmlns:dc="http://purl.org/dc/elements/1.1/"' : ""}>
   <channel>
     <title>${escapeXml(settings.site_title)}</title>
     <link>${origin}</link>
-    <description>${escapeXml(settings.author_bio)}</description>
+    <description>${escapeXml(settings.author_bio || settings.site_title)}</description>
+    <atom:link href="${escapeXml(`${origin}feed.xml`)}" rel="self" type="application/rss+xml" />
     <lastBuildDate>${rfc822(built)}</lastBuildDate>
     <blyg:level>${PROTOCOL_LEVEL}</blyg:level>
     <blyg:manifest>${origin}blyg.json</blyg:manifest>

@@ -21,8 +21,8 @@
         "type": "oauth2",
         "flows": {
           "authorizationCode": {
-            "authorizationUrl": "/studio/auth/authorize",
-            "tokenUrl": "/studio/auth/token",
+            "authorizationUrl": "/studio/auth/oauth2/authorize",
+            "tokenUrl": "/studio/auth/oauth2/token",
             "scopes": {
               "owner:read": "Read private drafts, reading material, media, and settings",
               "owner:draft": "Create and edit drafts, upload media, and use configured AI generation",
@@ -393,6 +393,18 @@
           "ai_model": {
             "type": "string"
           },
+          "ai_model_tk": {
+            "type": "string"
+          },
+          "ai_model_changelog": {
+            "type": "string"
+          },
+          "ai_model_feed": {
+            "type": "string"
+          },
+          "feed_prompt": {
+            "type": "string"
+          },
           "ai_style_prompt": {
             "type": "string"
           },
@@ -425,6 +437,10 @@
           "timezone",
           "avatar_media_id",
           "ai_model",
+          "ai_model_tk",
+          "ai_model_changelog",
+          "ai_model_feed",
+          "feed_prompt",
           "ai_style_prompt",
           "accept_mentions",
           "update_check",
@@ -545,6 +561,12 @@
           },
           "slug_frozen": {
             "type": "boolean"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -553,7 +575,8 @@
           "slug",
           "public",
           "created",
-          "slug_frozen"
+          "slug_frozen",
+          "description"
         ]
       },
       "Media": {
@@ -930,6 +953,210 @@
           "at"
         ]
       },
+      "Interaction": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "at": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "thumb_up",
+              "thumb_down",
+              "thumb_clear",
+              "hopper_add",
+              "hopper_remove",
+              "stub",
+              "fork",
+              "quote"
+            ]
+          },
+          "origin": {
+            "type": "string"
+          },
+          "remote_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "own_item_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "own_version": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "hopper_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hopper_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "backfilled": {
+            "type": "integer"
+          },
+          "subscription_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "kind",
+          "origin",
+          "remote_id",
+          "version",
+          "own_item_id",
+          "own_version",
+          "hopper_id",
+          "hopper_name",
+          "backfilled",
+          "subscription_id",
+          "label"
+        ]
+      },
+      "Thumb": {
+        "type": "object",
+        "properties": {
+          "thumb": {
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  -1
+                ]
+              }
+            ]
+          },
+          "at": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "remote_id": {
+            "type": "string"
+          },
+          "subscription_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "thumb",
+          "at",
+          "origin",
+          "remote_id",
+          "subscription_id",
+          "label"
+        ]
+      },
+      "AiModels": {
+        "type": "object",
+        "properties": {
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "key_secret": {
+                  "type": "string"
+                },
+                "configured": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "key_secret",
+                "configured"
+              ]
+            }
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "provider": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "provider",
+                "label"
+              ]
+            }
+          },
+          "local": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "providers",
+          "models",
+          "local"
+        ]
+      },
       "Mention": {
         "type": "object",
         "properties": {
@@ -1280,6 +1507,10 @@
           "blocking": {
             "type": "integer",
             "minimum": 0
+          },
+          "behind": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "required": [
@@ -1288,7 +1519,8 @@
           "dirty",
           "quotes",
           "stale",
-          "blocking"
+          "blocking",
+          "behind"
         ]
       },
       "QuoteFreshness": {
@@ -4413,6 +4645,18 @@
                   "ai_model": {
                     "type": "string"
                   },
+                  "ai_model_tk": {
+                    "type": "string"
+                  },
+                  "ai_model_changelog": {
+                    "type": "string"
+                  },
+                  "ai_model_feed": {
+                    "type": "string"
+                  },
+                  "feed_prompt": {
+                    "type": "string"
+                  },
                   "ai_style_prompt": {
                     "type": "string"
                   },
@@ -6139,6 +6383,10 @@
                   },
                   "public": {
                     "type": "boolean"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 280
                   }
                 },
                 "additionalProperties": false
@@ -7709,6 +7957,505 @@
         }
       }
     },
+    "/api/interactions": {
+      "get": {
+        "operationId": "listInteractions",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "thumb_up",
+                "thumb_down",
+                "thumb_clear",
+                "hopper_add",
+                "hopper_remove",
+                "stub",
+                "fork",
+                "quote"
+              ]
+            },
+            "required": false,
+            "name": "kind",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Interaction"
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "offset": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "offset",
+                    "limit"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/thumbs": {
+      "get": {
+        "operationId": "listThumbs",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Thumb"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/models": {
+      "get": {
+        "operationId": "getAiModels",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiModels"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/mentions": {
       "get": {
         "operationId": "listMentions",
@@ -8604,6 +9351,18 @@
             },
             "required": false,
             "name": "sub",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "thread",
+                "fragment"
+              ]
+            },
+            "required": false,
+            "name": "kind",
             "in": "query"
           }
         ],

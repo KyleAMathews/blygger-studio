@@ -139,7 +139,8 @@ export function makeApp(mount: string) {
       if (!sub) continue;
       items.push({ row, sub });
     }
-    return c.html(await publicHopperPage(hopper, items, mount));
+    const settings = await getSettings(c.env.DB);
+    return c.html(await publicHopperPage(c.env.DB, settings, hopper, items, mount, siteOrigin(settings, c.req.url, mount)));
   });
 
   pub.get("/items/:file", async (c) => {
@@ -266,6 +267,9 @@ export function makeApp(mount: string) {
     if (!object) return c.notFound();
     return c.body(object.body as ReadableStream, 200, {
       "Content-Type": media.mime,
+      // Uploaded SVG can be opened as a document. Keep it inert and give it an
+      // opaque origin so delegated uploads cannot inherit an owner's authority.
+      "Content-Security-Policy": "sandbox; script-src 'none'",
       "Cache-Control": "public, max-age=31536000, immutable",
       "X-Content-Type-Options": "nosniff",
     });

@@ -1,444 +1,340 @@
-
-/* Design tokens — the same palette the public pages use (see STYLE_CSS in
- * pages.ts), so the studio and the thing it publishes read as one product.
- * The studio deliberately keeps its own *type*: it is a dense working tool,
- * not a reading surface, so it stays sans and compact where the public pages
- * are serif and airy. Only the colours are shared.
+/* Blyg Studio — design system (PWA redesign, phase 1).
  *
- * Every studio page gets this block via studioLayout(); the importer's
- * section styles (subs/reading/hoppers) are appended inside the body and
- * inherit these variables rather than restating literals, which is what the
- * scattered rgba(128,128,128,…)/#c00 values used to be. */
+ * Layout and component vocabulary follow the approved prototype
+ * (design/pwa-prototype), itself copied from the Thicket Console PWA: a sticky
+ * accent top bar, a bottom tab bar that becomes a left rail at ≥900px,
+ * rounded cards with a soft shadow, pill segmented controls, uppercase
+ * micro-badges and bottom sheets. Type is the studio's own sans throughout —
+ * no serif anywhere.
+ *
+ * Colours come only from this repo. The studio wears the reading theme
+ * (settings.theme): theme.ts writes the tokens below onto <html> from THEMES
+ * (src/themes.ts). For `auto` nothing is written inline and the two blocks
+ * below — the studio's long-standing light/dark pair — decide. --pencil plays
+ * Thicket's green: the top bar, the active tab, primary buttons.
+ *
+ * Screen-specific CSS belongs to later phases (authoring.css, reading.css).
+ * The legacy screen rules at the bottom of this file keep the screens that
+ * have not been redesigned yet working on the new tokens. */
+
 :root {
-  color-scheme: light dark;
-  --paper: #fafbfb;
-  --paper-sunk: #eef1f3;
-  --ink: #1b2426;
-  --ink-soft: #5c686b;
-  --rule: #dde3e5;
-  --rule-strong: #c3cdd0;
-  --pencil: #23608c;
-  /* State colours. These were var(--alert) and var(--ok) — fine on white, barely legible
-     on a dark background, which is where a dark-mode studio actually lives. */
-  --alert: #b3261e;
-  --alert-wash: rgba(179,38,30,0.08);
-  --ok: #1c7a52;
-  --warn: #a35a00;
+  /* auto (light) — the page sits one step below the card so cards read as cards. */
+  --page: #eef1f3; --card: #fafbfb; --sunk: #eef1f3;
+  --ink: #1b2426; --ink-soft: #5c686b; --page-ink: #1b2426; --page-ink-soft: #5c686b;
+  --rule: #dde3e5; --rule-strong: #c3cdd0;
+  --pencil: #23608c; --on-pencil: #fafbfb;
+  --alert: #b3261e; --ok: #1c7a52; --warn: #a35a00;
+  --radius: 14px;
+  --shadow: 0 1px 2px rgba(20,30,35,.06), 0 6px 20px rgba(20,30,35,.06);
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --rail: 92px;
+  color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #14191a;
-    --paper-sunk: #1d2426;
-    --ink: #e3e7e7;
-    --ink-soft: #95a2a5;
-    --rule: #2b3436;
-    --rule-strong: #3d494c;
-    --pencil: #8cc0e4;
-    --alert: #f0a19a;
-    --alert-wash: rgba(240,161,154,0.12);
-    --ok: #74c79c;
-    --warn: #e0a75c;
+  :root[data-theme="auto"] {
+    --page: #0f1314; --card: #14191a; --sunk: #1d2426;
+    --ink: #e3e7e7; --ink-soft: #95a2a5; --page-ink: #e3e7e7; --page-ink-soft: #95a2a5;
+    --rule: #2b3436; --rule-strong: #3d494c;
+    --pencil: #8cc0e4; --on-pencil: #0f1314;
+    --alert: #f0a19a; --ok: #74c79c; --warn: #e0a75c;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25);
+    color-scheme: dark;
   }
 }
+:root {
+  --ok-bg: color-mix(in srgb, var(--ok) 13%, var(--card));
+  --warn-bg: color-mix(in srgb, var(--warn) 13%, var(--card));
+  --alert-bg: color-mix(in srgb, var(--alert) 10%, var(--card));
+  --pencil-bg: color-mix(in srgb, var(--pencil) 12%, var(--card));
+  --tk-bg: color-mix(in srgb, var(--warn) 16%, transparent);
+  /* Legacy names, still used by the screens not yet redesigned. */
+  --paper: var(--card);
+  --paper-sunk: var(--sunk);
+  --alert-wash: color-mix(in srgb, var(--alert) 10%, transparent);
+}
 
+/* ---------- BASE ---------- */
 * { box-sizing: border-box; }
-/* Reserve the scrollbar track always: without it, a short page (settings) and
-   a long one (reading) render at different widths and the whole layout jumps
-   sideways on navigation. */
-html { scrollbar-gutter: stable; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+/* Reserve the scrollbar track always, so short and long pages share a width. */
+html { -webkit-text-size-adjust: 100%; }
+/* Reserve the scrollbar track on wide screens only, so pages don't jump
+   sideways between short and long screens; on a phone it is a dead strip. */
+@media (min-width: 900px) { html { scrollbar-gutter: stable; } }
 body {
-  background: var(--paper);
-  color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  line-height: 1.55;
-  /* One width for every studio page — see studioLayout(). */
-  max-width: 100ch;
-  margin: 0 auto;
-  padding: 1.5rem 1rem 4rem;
+  font-family: var(--sans); color: var(--ink); background: var(--page);
+  -webkit-font-smoothing: antialiased; line-height: 1.5; min-height: 100vh;
 }
-/* The studio never set a link colour, so every link fell back to the browser's
- * default blue-then-purple — including the six nav tabs, which are chrome
- * rather than content and should not read as six visited links. */
+h1, h2, h3, h4 { font-family: var(--sans); font-weight: 600; letter-spacing: .1px; }
+code, pre, kbd, .mono { font-family: var(--mono); }
+code { background: var(--sunk); padding: 1px 5px; border-radius: 5px; font-size: .85em; }
 a { color: var(--pencil); }
-a:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visible {
-  outline: 2px solid var(--pencil); outline-offset: 2px; border-radius: 2px;
-}
-/* Readable measure for text-heavy sections, without shrinking the page frame. */
+.muted { color: var(--ink-soft); }
+.small { font-size: .82rem; }
+.tiny { font-size: .74rem; }
 .prose { max-width: 68ch; }
-/* The top menu (session 29). It was a row of plain links, which read as body
-   text that happened to sit above the page; a working tool wants a bar you can
-   aim at. The tabs are real targets now — padded, with a hover wash, and the
-   current one filled — and below 640px they collapse behind a button. The menu
-   had to be structured before it could collapse, which is why this came before
-   the mobile pass rather than with it.
+:focus-visible { outline: 2px solid var(--pencil); outline-offset: 2px; }
 
-   The collapse is gated on html.js. The marker is set in the head by
-   studioLayout, so a narrow screen never flashes an expanded menu, and a
-   browser with JS off keeps the whole row rather than a button that does
-   nothing. */
-header.studio { margin-bottom: 1.25rem; border-bottom: 1px solid var(--rule); }
-header.studio .studio-title { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; min-height: 1.9rem; }
-header.studio h1 { font-size: 1.2rem; margin: 0; min-width: 0; overflow-wrap: anywhere; }
-header.studio nav {
-  display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap;
-  /* Fixed row height so a wrapping or longer title never shifts the links. */
-  min-height: 2.4rem; font-size: 0.9rem;
+/* ---------- TOP BAR ---------- */
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; padding-top: max(12px, env(safe-area-inset-top));
+  background: var(--pencil); color: var(--on-pencil);
+  box-shadow: 0 2px 10px rgba(0,0,0,.12);
 }
-header.studio nav .menu-main { display: flex; align-items: center; gap: 0.15rem; flex-wrap: wrap; flex: 1; list-style: none; margin: 0; padding: 0; }
-header.studio nav .menu-utility { display: flex; align-items: center; gap: 0.9rem; }
-header.studio nav form { display: inline; margin: 0; }
-header.studio nav a { color: var(--ink-soft); text-decoration: none; }
-header.studio nav .menu-main a { display: block; padding: 0.3rem 0.55rem 0.2rem; border-radius: 4px 4px 0 0; border-bottom: 2px solid transparent; }
-header.studio nav .menu-main a:hover { color: var(--ink); background: var(--paper-sunk); border-bottom-color: var(--rule-strong); }
-header.studio nav .menu-main a.current { color: var(--ink); font-weight: 600; background: var(--paper-sunk); border-bottom-color: var(--pencil); }
-header.studio nav .menu-utility a:hover { color: var(--ink); text-decoration: underline; }
-/* The hamburger exists only below the breakpoint; at full width the bar is the menu. */
-header.studio .menu-button { display: none; font: inherit; font-size: 1.1rem; line-height: 1; padding: 0.25rem 0.55rem; border: 1px solid var(--rule-strong); border-radius: 4px; background: transparent; color: inherit; cursor: pointer; flex-shrink: 0; }
-@media (max-width: 640px) {
-  header.studio .menu-button { display: inline-block; }
-  html.js header.studio nav { display: none; }
-  html.js header.studio nav.open { display: flex; }
-  header.studio nav { flex-direction: column; align-items: stretch; gap: 0.25rem; padding-bottom: 0.6rem; }
-  header.studio nav .menu-main { flex-direction: column; align-items: stretch; gap: 0.1rem; }
-  header.studio nav .menu-main a { padding: 0.5rem 0.6rem; border-radius: 4px; border-bottom: none; border-left: 3px solid transparent; }
-  header.studio nav .menu-main a:hover, header.studio nav .menu-main a.current { border-bottom-color: transparent; }
-  header.studio nav .menu-main a.current { border-left-color: var(--pencil); }
-  header.studio nav .menu-utility { justify-content: space-between; border-top: 1px solid var(--rule); padding-top: 0.5rem; }
+.topbar-title { margin: 0; font-size: 1.08rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-title small { font-weight: 400; font-size: .78rem; opacity: .8; margin-left: 6px; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.tb-btn {
+  background: transparent; color: var(--on-pencil); border: 1px solid color-mix(in srgb, var(--on-pencil) 45%, transparent);
+  border-radius: 10px; padding: 6px 10px; font-size: .8rem; font-weight: 600; cursor: pointer; text-decoration: none; line-height: 1.2;
 }
-button.link { background: none; border: none; padding: 0; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
-.stub-head { margin: 0 0 0.75rem; font-size: 0.9rem; color: var(--ink-soft); }
-.stub-head a { color: inherit; }
-.stub-head button.link { margin-left: 0.5rem; opacity: 0.8; }
-.composer { border: 1px solid var(--rule); border-radius: 6px; padding: 0.75rem; margin-bottom: 1rem; }
-.composer textarea { width: 100%; min-height: 5.5rem; border: none; resize: vertical; font: inherit; background: transparent; outline: none; }
-.composer .bar { display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; font-size: 0.85rem; flex-wrap: wrap; gap: 0.5rem; }
-.count { opacity: 0.6; }
-.count.over { color: var(--alert); opacity: 1; }
-/* Kind toggle — replaced the "+ new thread" link, which read as a separate
- * feature rather than as the other thing this same box can make. A radio pair
- * says the composer produces one of two kinds and fragment is the usual one. */
-.kind-toggle { display: inline-flex; align-items: center; gap: 0.75rem; }
-.kind-toggle label { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; }
-.kind-toggle input { margin: 0; accent-color: var(--pencil); }
-.kind-hint { color: var(--ink-soft); font-size: 0.8rem; }
-.save-state { color: var(--ok); font-size: 0.8rem; margin-right: 0.3rem; }
-/* Quick edit sits inside the row, under the excerpt it is editing. */
-.quick-edit { margin: 0.5rem 0 0.2rem; border: 1px solid var(--rule-strong); border-radius: 5px; padding: 0.6rem; background: var(--paper-sunk); }
-.quick-edit textarea { width: 100%; min-height: 5rem; border: none; resize: vertical; font: inherit; background: transparent; outline: none; color: inherit; }
-.qe-bar { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.4rem; }
-.qe-bar a { text-decoration: none; }
-.item-row button.active { border-color: var(--pencil); color: var(--pencil); }
+.tb-back { border: none; font-size: 1.3rem; padding: 2px 6px 2px 0; line-height: 1; }
+.tb-badge { text-decoration: none; font-size: .66rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; padding: 3px 8px; border-radius: 999px;
+  background: color-mix(in srgb, var(--on-pencil) 88%, var(--pencil)); color: var(--pencil); }
+.tb-badge.warn { background: var(--warn-bg); color: var(--warn); }
+@media (max-width: 440px) { .tb-btn .lbl { display: none; } }
+
+/* ---------- VIEWS ---------- */
+.views { padding: 16px 16px 104px; max-width: 760px; margin: 0 auto; }
+.views.wide { max-width: 1240px; }
+/* A screen not yet redesigned sits on one card ("framed"), so its text reads
+   against the card — on Slate the page itself is dark. Redesigned screens opt
+   out with useChrome({ framed: false }) and lay out their own cards. */
+.screen.framed {
+  background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 16px;
+}
+.screen.framed > :first-child { margin-top: 0; }
+.view-h { margin: 4px 2px 4px; font-size: 1.45rem; color: var(--page-ink); }
+.view-sub { margin: 0 2px 14px; color: var(--page-ink-soft); font-size: .86rem; }
+.section-h { font-weight: 600; font-size: 1.05rem; color: var(--page-ink); margin: 22px 2px 10px; display: flex; align-items: baseline; gap: 8px; }
+.section-h .muted { font-weight: 400; font-size: .8rem; color: var(--page-ink-soft); }
+.list-h { font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--page-ink-soft); margin: 18px 4px 6px; display: flex; justify-content: space-between; }
+.page-hint { text-align: center; color: var(--page-ink-soft); font-size: .78rem; margin: 6px 2px 0; }
+.empty { text-align: center; padding: 40px 20px; color: var(--page-ink-soft); }
+.empty .em { display: block; font-size: 30px; margin-bottom: 10px; opacity: .7; }
+
+/* ---------- CARDS ---------- */
+.card {
+  background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 16px; margin-bottom: 14px;
+}
+.card > :first-child { margin-top: 0; }
+.card > :last-child { margin-bottom: 0; }
+.card-h { font-weight: 600; font-size: 1rem; margin: 0 0 10px; display: flex; align-items: baseline; gap: 8px; }
+details.card > summary { font-weight: 600; cursor: pointer; color: var(--pencil); list-style: none; display: flex; align-items: center; gap: 8px; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary::before { content: "▸"; font-size: .8rem; transition: transform .15s; color: var(--ink-soft); }
+details.card[open] > summary::before { transform: rotate(90deg); }
+details.card > summary .muted { font-weight: 400; font-size: .8rem; margin-left: auto; }
+details.card[open] > summary { margin-bottom: 12px; }
+
+/* ---------- FORM PRIMITIVES ----------
+   Zero-specificity (:where) so a screen's own rule always wins. */
+.field { display: block; margin-bottom: 14px; }
+.field > span { display: block; font-size: .82rem; color: var(--ink-soft); margin-bottom: 6px; }
+.hint { font-size: .78rem; color: var(--ink-soft); margin: 6px 2px 0; }
+:where(input:not([type]), input[type=text], input[type=url], input[type=search], input[type=password], input[type=email], textarea, select) {
+  font: inherit; color: var(--ink); background: var(--sunk);
+  border: 1px solid var(--rule); border-radius: 10px; padding: 9px 11px; outline: none; max-width: 100%;
+}
+:where(input, textarea, select):focus { border-color: var(--pencil); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pencil) 18%, transparent); }
+/* The field's own ring replaces the generic outline (no doubled ring). */
+:where(input, textarea, select):focus-visible { outline: none; }
+:where(.field, .card, .sheet) :where(input:not([type]), input[type=text], input[type=url], input[type=search], input[type=password], textarea, select) { width: 100%; }
+:where(textarea) { resize: vertical; line-height: 1.55; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: .9rem; margin: 6px 0 12px; }
+.check input { margin-top: 4px; accent-color: var(--pencil); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row > input { flex: 1; min-width: 0; }
+.spacer { flex: 1; }
+
+/* ---------- BUTTONS ----------
+   .btn is the system. Bare <button>s on screens not yet redesigned keep a
+   quiet outlined look through the zero-specificity rule below, so any class
+   rule overrides it. */
+:where(button) {
+  font: inherit; font-size: .85rem; color: inherit; cursor: pointer;
+  padding: .3rem .75rem; border-radius: 8px; border: 1px solid var(--rule-strong); background: transparent;
+}
+:where(button.primary) { background: var(--pencil); color: var(--on-pencil); border-color: var(--pencil); font-weight: 600; }
+:where(button.danger) { color: var(--alert); border-color: var(--alert); }
+:where(button:disabled) { opacity: .5; cursor: not-allowed; }
+button.link { background: none; border: none; padding: 0; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; border-radius: 0; }
+.btn { font: inherit; font-weight: 600; font-size: .92rem; border-radius: 10px; padding: 10px 15px; border: 1px solid transparent; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; line-height: 1.2; background: transparent; color: inherit; }
+.btn-primary { background: var(--pencil); color: var(--on-pencil); border-color: var(--pencil); }
+.btn-primary:active { transform: translateY(1px); }
+.btn-ghost { background: transparent; color: var(--ink-soft); border-color: var(--rule); }
+.btn-ghost:hover { color: var(--ink); border-color: var(--rule-strong); }
+.btn-danger { background: transparent; color: var(--alert); border-color: var(--alert); }
+.btn-mini { padding: 6px 10px; font-size: .8rem; border-radius: 8px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.is-on { background: var(--pencil-bg); color: var(--pencil); border-color: var(--pencil); }
+.icon-btn { background: none; border: 1px solid transparent; border-radius: 8px; padding: 5px 8px; cursor: pointer; color: var(--ink-soft); font-size: .95rem; line-height: 1; }
+.icon-btn:hover { border-color: var(--rule); color: var(--ink); }
+.icon-btn[aria-pressed=true] { background: var(--pencil-bg); color: var(--pencil); border-color: var(--pencil); }
+
+/* ---------- SEGMENTED / CHIPS ---------- */
+.segmented { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 12px; scrollbar-width: none; }
+.segmented::-webkit-scrollbar { display: none; }
+.seg { flex: 0 0 auto; font: inherit; font-size: .85rem; padding: 7px 14px; border-radius: 999px;
+  border: 1px solid var(--rule); background: var(--card); color: var(--ink-soft); cursor: pointer; white-space: nowrap; text-decoration: none; }
+.seg.is-active, .seg[aria-pressed=true], .seg[aria-current=page] { background: var(--pencil); color: var(--on-pencil); border-color: var(--pencil); }
+.seg .n { font-size: .72rem; opacity: .75; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.seg-dashed { border-style: dashed; }
+
+/* ---------- BADGES / DOTS ---------- */
+.badge { display: inline-block; font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; padding: 2px 7px; border-radius: 999px; background: var(--sunk); color: var(--ink-soft); white-space: nowrap; vertical-align: middle; }
+.badge-ok { background: var(--ok-bg); color: var(--ok); }
+.badge-warn { background: var(--warn-bg); color: var(--warn); }
+.badge-alert { background: var(--alert-bg); color: var(--alert); }
+.badge-pencil { background: var(--pencil-bg); color: var(--pencil); }
+.badge-line { background: transparent; border: 1px solid var(--rule-strong); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: var(--rule-strong); flex: 0 0 auto; }
+.dot.public { background: var(--ok); }
+.dot.draft { background: transparent; border: 1.5px solid var(--ink-soft); }
+.dot.dirty { background: var(--warn); }
+.dot.withdrawn { background: var(--alert); }
+.dot.unread { background: var(--pencil); }
+
+/* ---------- BANNERS ---------- */
+.banner { display: flex; gap: 10px; align-items: flex-start; border-radius: 12px; padding: 11px 13px; font-size: .86rem; margin: 0 0 14px; border: 1px solid transparent; color: var(--ink); }
+.banner .mark { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 999px; display: grid; place-items: center; font-size: .8rem; font-weight: 700; }
+.banner .body { flex: 1; min-width: 0; }
+.banner .body > p { margin: 0 0 4px; }
+.banner-warn { background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.banner-warn .mark { background: var(--warn); color: var(--card); }
+.banner-ok { background: var(--ok-bg); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+.banner-ok .mark { background: var(--ok); color: var(--card); }
+.banner-alert { background: var(--alert-bg); border-color: color-mix(in srgb, var(--alert) 40%, transparent); }
+.banner-alert .mark { background: var(--alert); color: var(--card); }
+.banner-info { background: var(--pencil-bg); border-color: color-mix(in srgb, var(--pencil) 35%, transparent); }
+.banner-info .mark { background: var(--pencil); color: var(--on-pencil); }
+.banner a { font-weight: 600; }
+.error-banner { border: 1px solid color-mix(in srgb, var(--alert) 40%, transparent); background: var(--alert-bg); color: var(--alert); border-radius: 12px; padding: 10px 13px; font-size: .86rem; margin: 0 0 12px; overflow-wrap: anywhere; }
+.error-banner code { color: inherit; }
+.read-error { margin-bottom: 14px; }
+
+/* ---------- NAV LIST (more) ---------- */
+.nav-list { list-style: none; margin: 0 0 14px; padding: 0; background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.nav-list form { margin: 0; }
+.nav-list a, .nav-list button { display: flex; align-items: center; gap: 12px; padding: 14px 16px; text-decoration: none; color: var(--ink); border: none; border-radius: 0; background: none; width: 100%; text-align: left; cursor: pointer; border-top: 1px solid var(--rule); font: inherit; }
+.nav-list li:first-child a, .nav-list li:first-child button { border-top: none; }
+.nav-list .mi { width: 24px; text-align: center; color: var(--pencil); font-size: 1.1rem; flex: 0 0 auto; }
+.nav-list .ml { flex: 1; min-width: 0; }
+.nav-list .md { display: block; font-size: .76rem; color: var(--ink-soft); overflow-wrap: anywhere; }
+.nav-list .chev { margin-left: auto; color: var(--ink-soft); }
+/* Non-link rows (signals page): same box as a nav-list link. */
+.nav-list .signal-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--rule); }
+.nav-list li:first-child .signal-row { border-top: none; }
+.nav-list .signal-row a { display: inline; padding: 0; border: none; width: auto; color: var(--pencil); }
+
+/* ---------- TAB BAR → RAIL ---------- */
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  display: flex; background: var(--card); border-top: 1px solid var(--rule);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tab { flex: 1; background: none; border: none; font-size: .7rem; color: var(--ink-soft); text-decoration: none;
+  padding: 9px 4px 8px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; position: relative; min-height: 52px; }
+.tab .ti { font-size: 19px; line-height: 1; height: 20px; }
+.tab.is-active { color: var(--pencil); font-weight: 600; }
+.tab .count { position: absolute; top: 5px; left: 50%; margin-left: 6px; min-width: 16px; height: 16px; background: var(--alert); color: #fff; border-radius: 999px; font-size: .6rem; display: grid; place-items: center; padding: 0 4px; font-weight: 700; }
+.tab .flag { position: absolute; top: 7px; left: 50%; margin-left: 8px; width: 8px; height: 8px; border-radius: 999px; background: var(--warn); }
+/* The editor hides the tab bar (useChrome({ tabs: false })) and shows its own. */
+.actionbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; align-items: center; gap: 8px;
+  background: var(--card); color: var(--ink); border-top: 1px solid var(--rule); padding: 10px 14px; padding-bottom: max(10px, env(safe-area-inset-bottom));
+}
+.actionbar .state { font-size: .78rem; color: var(--ink-soft); flex: 1; min-width: 0; }
+.actionbar .state b { color: var(--ok); font-weight: 600; }
+
+/* ---------- SHEETS (replace window.confirm / prompt / alert) ---------- */
+.backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(10,15,18,.42); animation: fade .15s ease-out; }
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 61; max-height: 86vh; overflow-y: auto;
+  background: var(--card); color: var(--ink); border-radius: 18px 18px 0 0; padding: 8px 16px 18px; padding-bottom: max(18px, env(safe-area-inset-bottom));
+  box-shadow: 0 -10px 40px rgba(0,0,0,.25); animation: up .2s ease-out; outline: none;
+}
+.sheet::before { content: ""; display: block; width: 38px; height: 4px; border-radius: 999px; background: var(--rule-strong); margin: 0 auto 12px; }
+.sheet .sheet-title { margin: 0 0 6px; font-size: 1.15rem; overflow-wrap: anywhere; }
+.sheet .sheet-body { font-size: .9rem; color: var(--ink-soft); margin: 0 0 14px; white-space: pre-line; }
+.sheet .sheet-field { width: 100%; margin: 4px 0 14px; }
+.sheet textarea.sheet-field { min-height: 96px; }
+.sheet-actions { display: flex; flex-direction: column; gap: 8px; }
+.sheet-actions .btn { justify-content: center; padding: 13px; }
+.menu-list { list-style: none; margin: 0 -16px; padding: 0; }
+.menu-list li > button, .menu-list li > a { width: 100%; display: flex; align-items: center; gap: 12px; padding: 13px 18px; background: none; border: none; border-radius: 0; border-top: 1px solid var(--rule); cursor: pointer; text-align: left; color: var(--ink); text-decoration: none; font: inherit; font-size: .95rem; }
+.menu-list li:first-child > * { border-top: none; }
+.menu-list .mi { width: 22px; text-align: center; font-size: 1.05rem; color: var(--ink-soft); flex: 0 0 auto; }
+.menu-list .ml { flex: 1; min-width: 0; }
+.menu-list .md { display: block; font-size: .76rem; color: var(--ink-soft); }
+.menu-list .danger { color: var(--alert); }
+.menu-list .danger .mi { color: var(--alert); }
+.menu-list button:disabled { opacity: .45; cursor: not-allowed; }
+@keyframes up { from { transform: translateY(30px); opacity: .4; } to { transform: none; opacity: 1; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sheet, .backdrop, .toast { animation: none; } }
+
+.toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 70;
+  background: var(--ink); color: var(--card); padding: 9px 16px; border-radius: 999px; font-size: .85rem; box-shadow: 0 6px 20px rgba(0,0,0,.25); animation: up .2s ease-out; max-width: calc(100vw - 32px); text-align: center; }
+
+/* ---------- LOGIN (server-rendered shell) ---------- */
+main.login { max-width: 360px; margin: 12vh auto 0; padding: 24px 20px; background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: var(--shadow); }
+main.login h1 { margin: 0 0 12px; font-size: 1.3rem; }
+main.login input { width: 100%; }
+main.login .btn { width: 100%; }
+
+/* ---------- WIDE SCREENS: the tab bar becomes a left rail ---------- */
+@media (min-width: 900px) {
+  body.has-tabs { padding-left: var(--rail); }
+  .tabbar { top: 0; right: auto; width: var(--rail); flex-direction: column; justify-content: flex-start; padding-top: 70px; border-top: none; border-right: 1px solid var(--rule); }
+  .tab { flex: 0 0 auto; padding: 14px 4px; }
+  /* The bar spans the rail too, above it; the rail's tabs start below it. */
+  body.has-tabs .topbar { margin-left: calc(-1 * var(--rail)); padding-left: 20px; z-index: 35; }
+  .actionbar { left: var(--rail); }
+  body.no-tabs .actionbar { left: 0; }
+  .sheet { left: 50%; right: auto; width: 520px; max-width: calc(100vw - 32px); transform: translateX(-50%); bottom: auto; top: 12vh; max-height: 76vh; border-radius: 18px; animation: fade .15s; }
+  .sheet::before { display: none; }
+  body.has-tabs .toast { margin-left: calc(var(--rail) / 2); }
+}
+
+/* ======================================================================
+ * LEGACY SCREEN RULES — the screens later phases redesign. Kept working on
+ * the new tokens; move or replace them with the screen's own stylesheet.
+ * ====================================================================== */
 .compose-help { font-size: 0.8rem; opacity: 0.65; margin: 0 0 0.5rem; }
 .compose-help code { font-size: 0.95em; }
-button, .composer button, .item-row button, .bar button { font: inherit; font-size: 0.85rem; padding: 0.25rem 0.7rem; border-radius: 4px; border: 1px solid var(--rule-strong); background: transparent; color: inherit; cursor: pointer; }
-button.primary { border-color: currentColor; font-weight: 600; }
-button.danger { color: var(--alert); border-color: var(--alert); }
-.item-row { border-top: 1px solid var(--rule); border-left: 3px solid transparent; padding: 0.75rem 0.5rem 0.75rem 0.6rem; margin-left: -0.6rem; }
-.item-row .state { font-size: 0.8rem; margin-right: 0.4rem; }
-.item-row .state.pub { color: var(--ok); }
-.item-row .state.draft { opacity: 0.5; }
-.item-row .excerpt { margin: 0 0 0.3rem; }
-.item-row .excerpt.has-title { margin-bottom: 0.1rem; }
-.item-row .excerpt-title { font-weight: 600; }
-.item-row .excerpt-body { margin: 0 0 0.3rem; opacity: 0.8; font-size: 0.95rem; }
 .tc-chip { font-size: 0.72rem; border: 1px solid var(--rule-strong); border-radius: 3px; padding: 0.02rem 0.28rem; margin-right: 0.35rem; opacity: 0.75; }
-.item-row .timestamps { font-size: 0.8rem; opacity: 0.7; margin: 0.4rem 0; display: flex; flex-direction: column; gap: 0.1rem; }
-.item-row .version-summary { font-size: 0.8rem; opacity: 0.75; margin: 0.3rem 0 0; }
-.item-row .pin-chips a { text-decoration: none; border-bottom: 1px dotted currentColor; }
-.item-row .version-note { font-size: 0.85rem; opacity: 0.75; font-style: italic; margin: 0.3rem 0 0; }
-.item-row .actions { display: flex; gap: 0.4rem; align-items: center; margin-top: 0.5rem; flex-wrap: wrap; }
-.item-row.dirty { border-left-color: var(--alert); background: var(--alert-wash); }
-.unpublished-flag {
-  display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em;
-  color: var(--alert); background: var(--alert-wash); border: 1px solid var(--alert);
-  border-radius: 3px; padding: 0.1rem 0.4rem; margin-left: 0.5rem; vertical-align: middle;
-}
-.item-row.dirty .timestamps .draft-line { color: var(--alert); opacity: 1; font-weight: 600; }
-.withdrawn-row { opacity: 0.55; font-style: italic; }
 .kind-chip { font-size: 0.8rem; font-style: italic; color: var(--pencil); margin-right: 0.35rem; }
-.split, .panes { display: flex; gap: 1.25rem; align-items: stretch; }
-/* Panes fill the window (session 32): a fixed-height textarea inside a pane
-   stretched to the preview's height left the lower half blank. Each pane is a
-   column, the textarea takes whatever height the pane has, and on a desktop the
-   panes start at most of the viewport. min-width: 0 keeps long lines from
-   widening a flex child past its share. */
-.pane { flex: 1; min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--rule); border-radius: 6px; padding: 0.75rem; min-height: max(20rem, calc(100vh - 16rem)); }
-.pane h2 { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); margin: 0 0 0.5rem; }
-.pane textarea { width: 100%; flex: 1 1 auto; min-height: 18rem; border: none; resize: none; font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; line-height: 1.5; background: transparent; outline: none; }
-@media (max-width: 800px) { .split, .panes { flex-direction: column; } .pane { min-height: 20rem; } .pane textarea { min-height: 60vh; } }
-.preview img { max-width: 100%; }
-.preview blockquote.blyg-transclusion { margin: 1rem 0; padding: 0.6rem 0.8rem; border-left: 3px solid var(--rule-strong); background: var(--paper-sunk); border-radius: 0 4px 4px 0; font-size: 0.92rem; }
-.preview blockquote.blyg-transclusion p { margin: 0 0 0.25rem; }
-.preview .provenance { font-size: 0.75rem; opacity: 0.65; }
-.preview .unresolved { border-left-color: var(--alert); background: var(--alert-wash); color: var(--alert); font-style: italic; }
-/* --- Phone width (session 29) ---------------------------------------------
- *
- * The studio had one breakpoint (the 800px editor split) and was otherwise
- * built at desktop width. Three things actually broke on a phone, and they are
- * the only three this block fixes:
- *
- * 1. Horizontal overflow. A pasted URL, a monospace preview or an id is one
- *    unbroken token; one of them anywhere on the page sets the page's minimum
- *    width and every page scrolls sideways, which on a phone also breaks
- *    vertical scrolling at the edges.
- * 2. Tap targets. The action rows are 0.85rem buttons at 0.25rem padding —
- *    about 26px tall, well under the ~44px a thumb needs, and they sit in a
- *    row where "publish" is beside "discard".
- * 3. Page gutters. 1rem of body padding on a 100ch measure is right on a
- *    laptop and wasteful on a 390px screen.
- *
- * What is deliberately NOT here: a separate mobile layout. Every studio page
- * is a single column already, so the desktop structure survives the squeeze —
- * the exceptions (the editor split, the reading sidebar) have their own
- * breakpoints where they are defined. */
+
+.h-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.35rem 0; border-top: 1px solid var(--rule); }
+
+
+
+
+
+.dialog-popup > button { margin-top: 0.75rem; }
+
+/* Phone width: overflow, tap targets, gutters (session 29, carried over). */
 @media (max-width: 640px) {
-  body { padding: 1rem 0.75rem 3rem; }
-  /* An id, an origin or a pasted URL, anywhere it is shown raw. */
   .item-row, .reading-entry, .mention-row, .out-row, .hopper-row, .preview, .stub-head { overflow-wrap: anywhere; }
-  /* ~44px. A bare button selector would also catch .link (log out), which is
-     a text link wearing a button element and should stay text-sized. */
-  button:not(.link), .item-row button, .bar button, .entry-actions button { min-height: 2.6rem; padding: 0.4rem 0.8rem; }
+  .screen.framed { padding: 12px; }
+  /* ~44px tap targets on the legacy screens' bare buttons. */
+  :where(.screen) :where(button:not(.link):not(.btn):not(.tab):not(.entry-copy):not(.stub-btn):not(.vis-btn)) { min-height: 2.6rem; padding: 0.4rem 0.8rem; }
   .item-row .actions, .qe-bar, .entry-actions, .edit-bar { gap: 0.5rem; }
-  /* A flex row with a right-hand action block stacks rather than crushing the
-     text it is describing to a two-character column. */
   .hopper-row, .hopper-head { flex-direction: column; gap: 0.5rem; }
   .hopper-row .actions, .hopper-head .actions { flex-wrap: wrap; }
-  .composer { padding: 0.6rem; }
-  .tk-scope-row { flex-wrap: wrap; }
-  .tk-instruction { white-space: normal; overflow: visible; flex-basis: 100%; }
 }
-.edit-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem; flex-wrap: wrap; gap: 0.5rem; }
-input.note { font: inherit; font-size: 0.9rem; padding: 0.3rem 0.5rem; border-radius: 4px; border: 1px solid var(--rule-strong); background: transparent; color: inherit; width: 22rem; max-width: 100%; }
-/* Theme picker — each option is a swatch of the pair it actually produces
- * (the page behind, the block on top), because the names mean nothing until
- * you see them and a dropdown of words would make you save to find out. */
-.theme-grid { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.2rem 0 0.5rem; }
-.theme-opt { cursor: pointer; }
-.theme-opt input { position: absolute; opacity: 0; pointer-events: none; }
-.theme-swatch {
-  display: block; width: 5.5rem; height: 3.2rem; border-radius: 4px;
-  border: 2px solid var(--rule); padding: 0.5rem 0.45rem; overflow: hidden;
-}
-.theme-swatch .sheet { height: 100%; border-radius: 2px; display: flex; flex-direction: column; justify-content: center; gap: 0.18rem; padding: 0 0.3rem; }
-.theme-swatch .line { height: 2px; border-radius: 1px; }
-.theme-swatch .line.short { width: 55%; }
-.theme-opt input:checked + .theme-swatch { border-color: var(--pencil); }
-.theme-opt input:focus-visible + .theme-swatch { outline: 2px solid var(--pencil); outline-offset: 2px; }
-.theme-name { display: block; font-size: 0.75rem; color: var(--ink-soft); margin-top: 0.2rem; text-align: center; }
-.theme-opt input:checked ~ .theme-name { color: var(--ink); }
 
-.history { margin-top: 1.5rem; font-size: 0.85rem; }
-.history h2 { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); }
-.history .h-hint { text-transform: none; letter-spacing: 0; font-weight: 400; opacity: 0.7; }
-.history .h-list { list-style: none; padding: 0; margin: 0; }
-.h-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.35rem 0; border-top: 1px solid var(--rule); }
-.h-row.selected { background: var(--paper-sunk); }
-.h-select { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; min-width: 3.2rem; }
-.h-select:disabled { opacity: 0.4; cursor: default; }
-.h-when { opacity: 0.7; }
-.h-note { font-style: italic; opacity: 0.8; }
-.h-badge { font-size: 0.75rem; color: var(--ink-soft); border: 1px solid var(--rule); border-radius: 3px; padding: 0.02rem 0.3rem; }
-.h-badge.current { border-color: var(--ok); color: var(--ok); }
-.h-badge.pinned { text-decoration: none; }
-.h-actions { margin-left: auto; display: flex; gap: 0.35rem; }
-.h-viewer { margin-top: 0.75rem; border: 1px solid var(--rule); border-radius: 6px; padding: 0.75rem; }
-.h-viewer-bar { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; font-size: 0.8rem; }
-.h-viewer-body { font-size: 0.95rem; max-height: 26rem; overflow-y: auto; }
-.h-viewer-body img { max-width: 100%; }
-.h-viewer-body blockquote.blyg-transclusion { margin: 1rem 0; padding: 0.6rem 0.8rem; border-left: 3px solid var(--rule-strong); background: var(--paper-sunk); border-radius: 0 4px 4px 0; font-size: 0.92rem; }
-.error-banner { border: 1px solid var(--alert); background: var(--alert-wash); color: var(--alert); border-radius: 4px; padding: 0.5rem 0.75rem; font-size: 0.85rem; margin-bottom: 0.75rem; }
-.error-banner code { color: inherit; }
-.note-row { margin-top: 0.75rem; font-size: 0.85rem; display: flex; gap: 0.5rem; align-items: center; }
-.note-row input { flex: 1; }
-.palette { position: absolute; border: 1px solid var(--rule-strong); border-radius: 6px; padding: 0.5rem; background: Canvas; max-width: 60ch; box-shadow: 0 4px 14px rgba(0,0,0,0.15); z-index: 10; }
-.update-banner { border: 1px solid var(--rule); border-radius: 6px; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; font-size: 0.88rem; }
-.update-banner.behind { border-color: var(--rule-strong); }
-.update-banner.notice { color: var(--ink-soft); }
-.update-banner code { font-size: 0.95em; }
-.palette-hint { font-size: 0.78rem; color: var(--ink-soft); margin: 0; }
-.palette-foot { margin-top: 0.4rem; border-top: 1px solid var(--rule); padding-top: 0.3rem; cursor: default; }
-.palette-foot.has-more { cursor: pointer; }
-.palette-foot.has-more:hover { color: inherit; }
-.palette-hint code { font-size: 0.95em; }
-.palette ul { list-style: none; margin: 0.5rem 0 0; padding: 0; font-size: 0.9rem; max-height: 14rem; overflow-y: auto; }
-.palette li { padding: 0.35rem 0.5rem; border-top: 1px solid var(--rule); cursor: pointer; }
-.palette li.sel { background: var(--paper-sunk); border-radius: 4px; }
-.palette .meta { font-size: 0.78rem; opacity: 0.6; margin-left: 0.5rem; }
-.settings-form label { display: block; margin: 0.75rem 0 0.25rem; font-size: 0.85rem; opacity: 0.8; }
-.settings-form input, .settings-form textarea { width: 100%; font: inherit; padding: 0.4rem 0.5rem; border-radius: 4px; border: 1px solid var(--rule-strong); background: transparent; color: inherit; }
-.tk-panel { margin-top: 1rem; border: 1px solid var(--rule); border-radius: 6px; padding: 0.75rem; }
-.tk-panel h2 { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); margin: 0 0 0.5rem; }
-.tk-panel ul { list-style: none; margin: 0; padding: 0; }
-.tk-scope-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-top: 1px solid var(--rule); font-size: 0.88rem; }
-.tk-scope-row:first-child { border-top: none; }
-.tk-instruction { flex: 1; opacity: 0.85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tk-pending { font-size: 0.75rem; opacity: 0.65; font-style: italic; }
-.tk-empty { opacity: 0.6; font-size: 0.88rem; font-style: italic; }
-/* Studio-only visibility for the wire's disclosure class — the public page defaults to invisible (decision record). */
-.preview .blyg-tk-gen { background: rgba(90,140,255,0.12); border-radius: 3px; box-shadow: 0 0 0 2px rgba(90,140,255,0.12); }
-.preview div.blyg-tk-gen { padding: 0.1rem 0.4rem; }
-.preview span.blyg-tk-gen { padding: 0.03rem 0.15rem; }
-
-
-.sub-row { border-top: 1px solid var(--rule); padding: 0.75rem 0; }
-.sub-row .title-line { display: flex; align-items: center; gap: 0.5rem; }
-.status-dot { font-size: 0.8rem; }
-.status-dot.active { color: var(--ok); }
-.status-dot.paused { opacity: 0.5; }
-.status-dot.degraded { color: var(--warn); }
-.kind-chip { font-size: 0.8rem; font-style: italic; color: var(--pencil); }
-.sub-row .meta { font-size: 0.82rem; opacity: 0.7; margin: 0.25rem 0; }
-.sub-row .flags { font-size: 0.8rem; color: var(--warn); margin: 0.25rem 0; }
-.sub-row .actions { display: flex; gap: 0.4rem; align-items: center; margin-top: 0.4rem; flex-wrap: wrap; font-size: 0.85rem; }
-.sub-row label.blogroll { font-size: 0.85rem; display: flex; align-items: center; gap: 0.3rem; }
-.add-sub { border: 1px solid var(--rule); border-radius: 6px; padding: 0.75rem; margin-bottom: 1rem; }
-.add-sub input[type="url"] { width: 100%; font: inherit; padding: 0.4rem 0.5rem; border-radius: 4px; border: 1px solid var(--rule-strong); background: transparent; color: inherit; }
-.add-sub .confirm { margin-top: 0.6rem; font-size: 0.9rem; padding: 0.5rem; border: 1px solid var(--rule); border-radius: 4px; }
-.add-sub .mismatch { color: var(--warn); }
-
-
-.reading-entry { border-top: 1px solid var(--rule); padding: 0.85rem 0; }
-.reading-entry .byline { font-size: 0.8rem; opacity: 0.7; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
-.reading-entry .byline .kind-chip { font-size: 0.68rem; padding: 0.02rem 0.3rem; }
-/* The non-composition set: copy the construct, copy the URL, open the URL.
-   Pushed right as one group (margin-left:auto on the first of them) so
-   the byline reads as source-and-date on the left, handles on the right. */
-.reading-entry .byline .entry-copy { font: inherit; font-size: 0.8rem; color: var(--ink-soft); background: none; border: none; padding: 0; cursor: pointer; white-space: nowrap; }
-.reading-entry .byline .entry-copy:hover { color: inherit; text-decoration: underline; }
-.reading-entry .byline .entry-copy code { font-size: 0.95em; }
-.reading-entry .byline .entry-copy:first-of-type { margin-left: auto; }
-.reading-entry .byline .copy-fallback { font: inherit; font-size: 0.8rem; width: 32ch; border: 1px solid var(--rule); border-radius: 3px; padding: 0 0.3rem; background: transparent; color: inherit; }
-.reading-entry .byline .entry-open { margin-left: 0; text-decoration: none; font-variant-numeric: tabular-nums; color: var(--ink-soft); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.reading-entry .byline .entry-open:hover { text-decoration: underline; }
-.reading-entry .byline .l0-chip { font-size: 0.72rem; color: var(--ink-soft); border: 1px solid var(--rule); border-radius: 3px; padding: 0.02rem 0.3rem; }
-.reading-entry .entry-title { margin: 0.25rem 0 0.15rem; font-size: 1.02rem; font-weight: 600; line-height: 1.35; }
-.reading-entry .entry-title a { text-decoration: none; }
-.reading-entry .entry-title a:hover { text-decoration: underline; }
-.reading-entry .entry-title, .reading-entry .content { max-width: 72ch; }
-.reading-entry .content { margin-top: 0.4rem; }
-.reading-entry .content img { max-width: 100%; }
-.reading-entry .content > :first-child { margin-top: 0; }
-.reading-entry .content > :last-child { margin-bottom: 0; }
-/* An item's own headings shouldn't shout in a feed context — a fragment
-   starting with an h1 otherwise renders at full display size in the list. */
-.reading-entry .content :is(h1,h2,h3,h4,h5,h6) { font-size: 1rem; font-weight: 600; margin: 0.45rem 0 0.2rem; line-height: 1.35; }
-.reading-entry .content blockquote { margin: 0.5rem 0; padding-left: 0.8rem; border-left: 2px solid var(--rule); }
-/* Clamp by line count, not by cutting markup — see readingEntryHtml. */
-.reading-entry .content.clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.reading-entry .expand-btn { font-size: 0.78rem; opacity: 0.7; margin-top: 0.2rem; }
-.reading-entry .content:not(.clamped) + .expand-btn { display: none; }
-/* Two-pane reader (session 28, after Aneesh's desktop client): sources on the
-   left, the stream on the right. The preview pane that client has is
-   deliberately not copied: a browser already has tabs, and the open link uses
-   one. */
-.reading-layout { display: flex; gap: 1.5rem; align-items: flex-start; }
-.reading-sidebar { flex: 0 0 15rem; position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; font-size: 0.88rem; }
-.reading-main { flex: 1; min-width: 0; }
-.reading-sidebar .add-feed { margin-bottom: 0.9rem; }
-.reading-sidebar .add-feed input { width: 100%; font: inherit; font-size: 0.85rem; padding: 0.3rem 0.4rem; border: 1px solid var(--rule); border-radius: 4px; background: transparent; color: inherit; }
-.reading-sidebar .add-feed button { font: inherit; font-size: 0.82rem; margin-top: 0.35rem; }
-.reading-sidebar h2 { font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); margin: 1rem 0 0.35rem; font-weight: 600; }
-.reading-sidebar ul { list-style: none; margin: 0; padding: 0; }
-.reading-sidebar li a { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.22rem 0.4rem; border-radius: 4px; text-decoration: none; color: inherit; }
-.reading-sidebar li a:hover { background: var(--paper-sunk); }
-.reading-sidebar li a.current { background: var(--paper-sunk); font-weight: 600; }
-.reading-sidebar li a .feed-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.reading-sidebar li a .feed-count { color: var(--ink-soft); font-variant-numeric: tabular-nums; flex-shrink: 0; }
-.reading-sidebar li a.paused .feed-name { opacity: 0.55; font-style: italic; }
-.reading-sidebar .manage { margin-top: 0.9rem; font-size: 0.82rem; }
-/* Below 720px the sidebar stacks *above* the stream, which is correct order
-   and wrong result: a list of every subscription pushed the thing you came to
-   read off the first screen entirely. It collapses behind a control instead,
-   and the control names the source you are filtered to, so the collapsed state
-   still answers "what am I looking at". Gated on html.js — see JS_MARKER; with
-   scripting off the sidebar stays where it was. */
-.sources-toggle { display: none; font: inherit; font-size: 0.85rem; padding: 0.45rem 0.7rem; border: 1px solid var(--rule-strong); border-radius: 4px; background: transparent; color: inherit; cursor: pointer; text-align: left; width: 100%; }
-.sources-toggle .current-source { font-weight: 600; }
-@media (max-width: 720px) {
-  .reading-layout { flex-direction: column; }
-  .reading-sidebar { position: static; flex: 1 1 auto; max-height: none; width: 100%; }
-  .sources-toggle { display: block; }
-  html.js .reading-sidebar { display: none; }
-  html.js .reading-sidebar.open { display: block; }
-}
-.reading-pager { display: flex; justify-content: space-between; align-items: center; margin: 1.25rem 0 0; font-size: 0.9rem; border-top: 1px solid var(--rule); padding-top: 0.75rem; }
-.reading-pager .pager-info { opacity: 0.7; }
-.reading-entry.withdrawn-entry { opacity: 0.6; font-style: italic; }
-.entry-actions { margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; font-size: 0.85rem; }
-.entry-actions button { font-size: 0.9rem; padding: 0.1rem 0.4rem; border-radius: 4px; border: 1px solid var(--rule); background: transparent; cursor: pointer; }
-.entry-actions button.active { border-color: currentColor; background: var(--paper-sunk); }
-.entry-actions .stub-btn { font-size: 0.85rem; background: none; border: 0; padding: 0; cursor: pointer; color: inherit; border-bottom: 1px dotted currentColor; opacity: 0.8; }
-.entry-actions .stub-btn:hover { opacity: 1; }
-.entry-actions select { font: inherit; font-size: 0.85rem; padding: 0.15rem 0.3rem; border-radius: 4px; border: 1px solid var(--rule); background: transparent; color: inherit; }
-
-
-.hopper-row { border-top: 1px solid var(--rule); padding: 0.85rem 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
-.hopper-row .hopper-main { min-width: 0; flex: 1; }
-.hopper-row .hopper-meta { font-size: 0.85rem; opacity: 0.7; margin: 0.15rem 0 0; }
-.hopper-row .hopper-url { font-size: 0.85rem; margin: 0.15rem 0 0; }
-.hopper-row .actions { display: flex; gap: 0.5rem; align-items: center; font-size: 0.85rem; flex-shrink: 0; }
-.hopper-row .peek { margin: 0.45rem 0 0; padding: 0; list-style: none; font-size: 0.85rem; }
-.hopper-row .peek li { opacity: 0.8; padding: 0.1rem 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hopper-row .peek li .peek-title { font-weight: 600; }
-.hopper-row .peek li .peek-src { opacity: 0.65; }
-.hopper-row .peek .peek-more { opacity: 0.55; font-style: italic; }
-.hopper-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
-.hopper-head .hopper-url, .hopper-head .hopper-meta { font-size: 0.85rem; opacity: 0.75; margin: 0.2rem 0 0; }
-.hopper-head .actions { display: flex; gap: 0.5rem; align-items: center; font-size: 0.85rem; }
-.rename-form { display: flex; gap: 0.4rem; align-items: center; }
-.rename-form input { font: inherit; font-size: 0.9rem; padding: 0.2rem 0.4rem; border-radius: 4px; border: 1px solid var(--rule); background: transparent; color: inherit; }
-.slug-note { font-size: 0.8rem; opacity: 0.6; }
-
-
-.mention-group { border-top: 1px solid var(--rule); padding: 0.85rem 0; }
-.mention-group h3 { margin: 0 0 0.5rem; font-size: 0.95rem; font-weight: 600; }
-.mention-group h3 a { color: inherit; }
-.mention-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; padding: 0.35rem 0; font-size: 0.9rem; }
-.mention-row .rel { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; border: 1px solid var(--rule); border-radius: 3px; padding: 0 0.35rem; }
-.mention-row .who { font-weight: 600; }
-.mention-row .when { color: var(--ink-soft); font-size: 0.85rem; }
-.mention-row.gone { opacity: 0.55; text-decoration: line-through; }
-.mention-row .subscribe-first { color: var(--ink-soft); font-size: 0.85rem; }
-.out-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; padding: 0.3rem 0; font-size: 0.88rem; border-bottom: 1px solid var(--rule); }
-.out-row .status { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
-.out-row .status.sent { color: var(--ok, inherit); }
-.out-row .status.failed, .out-row .status.no_endpoint { color: var(--ink-soft); }
-.mentions-empty { color: var(--ink-soft); }
-.mentions-note { color: var(--ink-soft); font-size: 0.88rem; margin: 0 0 1rem; }
-.group-controls { font-size: 0.85rem; color: var(--ink-soft); margin: 0 0 0.5rem; }
-.group-controls label { cursor: pointer; }
-.mention-row.hidden-row { opacity: 0.6; }
-.mention-row .vis-btn { font-size: 0.8rem; background: none; border: 0; padding: 0; cursor: pointer; color: var(--ink-soft); text-decoration: underline; }
-.mention-row .vis-btn:hover { color: inherit; }
-.on-page { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); }
-.dialog-backdrop { position: fixed; inset: 0; background: #0008; }
-.dialog-popup { position: fixed; z-index: 2; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(90vw, 65ch); max-height: 85vh; overflow: auto; border: 1px solid var(--rule-strong); border-radius: 6px; padding: 1rem; background: var(--paper); color: var(--ink); }
-.error-banner { color: var(--alert); background: var(--alert-wash); padding: .65rem; border-radius: 4px; }
-.settings-form input[type=checkbox], .settings-form input[type=radio] { width: auto; }
-.settings-hint { margin: .35rem 0 0; font-size: .85rem; color: var(--ink-soft); }
-
-.entry-actions > button, .entry-actions > a { flex-shrink: 0; white-space: nowrap; }
-.entry-actions > select { max-width: 100%; }
-.snapshots { margin-top: 1.5rem; font-size: 0.85rem; }
-.snapshots h2 { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); }
-.snapshots .h-hint { text-transform: none; letter-spacing: 0; font-weight: 400; opacity: 0.7; }
-.snapshots .h-list { list-style: none; padding: 0; margin: 0 0 0.5rem; }
-.snapshots .h-row { padding: 0.15rem 0; overflow-wrap: anywhere; }
-.snapshots .q-source { color: var(--ink-soft); }
-.snapshots .q-refreshable .q-state, .snapshots .q-behind .q-state { font-weight: 600; }
-.snapshots .q-passage-missing .q-state, .snapshots .q-unresolvable .q-state { color: var(--alert); }
-.stale-notice { border: 1px solid var(--rule-strong); border-radius: 4px; padding: 0.4rem 0.7rem; margin: 0.75rem 0; font-size: 0.85rem; }
-.stale-notice p { margin: 0 0 0.25rem; }
-.stale-notice ul { margin: 0; padding-left: 1.1rem; }
-.stale-notice .h-hint { opacity: 0.7; }
-.entry-history { font-size: 0.82rem; margin-top: 0.35rem; }
-.entry-history .h-list { list-style: none; padding: 0; margin: 0.3rem 0; }
-.entry-history .h-row { padding: 0.12rem 0; overflow-wrap: anywhere; }
-.entry-history .h-hint { opacity: 0.7; }
-.entry-diff pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.8rem; border: 1px solid var(--rule-strong); border-radius: 4px; padding: 0.5rem; max-height: 24rem; overflow-y: auto; }
-.entry-diff del { background: var(--alert-wash); color: var(--alert); text-decoration: line-through; }
-.entry-diff ins { background: color-mix(in srgb, var(--ok) 15%, transparent); text-decoration: none; }
-.entry-diff del + ins { margin-left: 0.3em; }
-.note-confirm label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); margin-bottom: 0.25rem; }
-.note-confirm textarea { width: 100%; min-height: 5rem; font: inherit; padding: 0.4rem 0.5rem; border: 1px solid var(--rule-strong); border-radius: 4px; background: transparent; color: inherit; }
-.note-confirm .h-hint { opacity: 0.7; font-size: 0.82rem; }
+/* Settings → AI models (0.26.0) */
+.provider-keys { list-style: none; margin: 0 0 14px; padding: 0; font-size: .86rem; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.provider-keys li[data-configured="true"] { color: var(--ok); }
+.provider-keys li[data-configured="false"] { color: var(--ink-soft); }
+.model-field select { width: 100%; }
+.model-field input { margin-top: 6px; }
+.model-hint code, .provider-keys code { font-size: .8em; }

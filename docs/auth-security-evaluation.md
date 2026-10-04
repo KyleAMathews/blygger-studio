@@ -2238,3 +2238,44 @@ The prior final manifest identifies the earlier snapshot only. Security follow-u
 The full Worker suite passes: 96 files, 1,017 tests passed and five existing skips. All eleven security mutations reach their named failure assertions. Six browser tests pass on desktop and mobile. The controlled two-isolate replay probe and Worker/UI typechecks pass.
 
 Exact logs: `security-full-suite-settled-green.log`, `security-all-controls-green.log`, `security-browser-complete-green.log`, `security-cross-isolate-race-configured.log` and `security-typecheck-final-green.log` in the audit scratch directory. Each command exited0. The dedicated authenticated introspection regression now closes the earlier missing witness. No deployment facts, new commit or existing PR update are claimed.
+
+
+## PR preparation finding: delegated SVG documents
+
+The merge review found that a draft-only client's SVG upload could execute script
+when opened as a same-origin document. This could cross the owner's permission
+boundary. A receiving browser oracle now uses a harmless DOM marker to test that
+law. It first confirms a draft token cannot change settings, checks the uploaded
+SVG renders as an image, then opens it as a document.
+
+RED: `prep-svg-red.log` reached `data-script-ran="yes"` at the document checkpoint.
+GREEN: `prep-auth-browser-green.log` passed all eight auth browser cases on desktop
+and mobile after public media responses gained `sandbox; script-src 'none'`.
+The twelfth security mutation removes that header and reaches the same checkpoint.
+The fixture's earlier 401 setup failure is not RED evidence.
+
+Sources: [OWASP file upload guidance](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html)
+and [CSP sandbox](https://www.w3.org/TR/CSP3/#directive-sandbox).
+Disposition: fixed-now. This supplementary prep finding does not rewrite the
+original 125-entry lossless audit ledger.
+
+
+## PR preparation finding: HTTP Basic refresh replay
+
+Native confidential registration selects `client_secret_basic`. RFC6749 §2.3.1
+puts its client identity in the Authorization header, not the token form. The
+application replay wrapper previously required the form's `client_id`, so native
+refresh invalidation left that grant's signed access JWT usable.
+
+RED: `basic-replay-red.log` reached the named authenticated Basic replay checkpoint
+with protected read200 instead of401. A wrong-secret neighbor returned401 and left
+the valid access JWT usable. GREEN: `prep-basic-green.log` passed104 tests across
+security, OAuth flow and OAuth validation after the wrapper resolved Basic client
+identity for native `invalid_grant` responses. Native authentication still owns
+secret validation. `invalid_client` never triggers this revocation path.
+
+The thirteenth security mutation removes the Basic identity branch and must reach
+the same receiving assertion. Disposition: fixed-now. This supplementary finding
+resolves the Basic replay unknown in the earlier audit record without altering its
+original text or the125-entry ledger.
+Source: [RFC6749 §2.3.1](https://www.rfc-editor.org/rfc/rfc6749.html#section-2.3.1).

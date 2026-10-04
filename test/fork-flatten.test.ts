@@ -37,6 +37,15 @@ describe("flattening", () => {
     expect(out.contentMd).toBe(`> the passage\n>\n> — quoted from [example.com · v1](${OURS}items/${ID1}.json)\n\nMine.`);
   });
 
+  it("keeps the author's own > lines after a whole quote baked by a client without partial grammar (studio#29)", async () => {
+    const md = `![[${ID1}]]\n> my own quoted aside\n\nMine.`;
+    const html = `<blockquote class="blyg-transclusion" data-blyg-id="${ID1}" data-blyg-version="1">\n<p>their whole item</p>\n</blockquote>\n<blockquote>\n<p>my own quoted aside</p>\n</blockquote>\n<p>Mine.</p>`;
+    const out = await flattenFork({ contentMd: md, contentHtml: html, generated: [] }, ctx);
+    expect(out.exact).toBe(true);
+    expect(out.contentMd).toBe(`> their whole item\n>\n> — quoted from [example.com · v1](${OURS}items/${ID1}.json)\n\n> my own quoted aside\n\nMine.`);
+    expect((renderMarkdown(out.contentMd).match(/<blockquote>/g) ?? []).length).toBe(2);
+  });
+
   it("re-wraps the thread's own generated text as impyrt with its model, and quotes' generated text without one", async () => {
     const md = `I say. A model said this. Done.\n\n![[${ID1}]]`;
     const html = `<p>I say. <span class="blyg-tk-gen">A model said this.</span> Done.</p>\n<blockquote class="blyg-transclusion" data-blyg-id="${ID1}" data-blyg-version="1">\n<div class="blyg-tk-gen"><p>Quoted machine text.</p>\n</div>\n</blockquote>`;

@@ -220,13 +220,32 @@ describe("resolving a remote pinned version (fork.ts, fixture network)", () => {
     await createSubscription(env.DB, { kind: "blyg", origin: known, feedUrl: `${known}feed.xml`, title: "Friend's blyg" });
     const { fetch, calls } = net({ [knownUrl]: { body: pinnedDoc({ origin: known }) } });
     const res = await resolveForkSource(env.DB, { ...ref, origin: known }, OURS, "Mine", fetch, "2026-09-22T00:00:00Z");
-    expect(calls).toEqual([knownUrl]);
+    // The pinned page is probed and, absent here, the citation keeps the JSON.
+    expect(calls).toEqual([knownUrl, `${known}f/remote-item/v2/`]);
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.source.kind).toBe("fragment");
     expect(res.source.contentMd).toBe("their pinned words");
     expect(res.source.cite).toMatchObject({ source: "Friend's blyg", author: "Friend", url: knownUrl, retrieved: "2026-09-22T00:00:00Z" });
     expect(res.source.cite.excerpt).toContain("their pinned words");
+  });
+
+  it("cites the pinned page when the origin serves one, at its declared page (studio#30)", async () => {
+    const origin = "https://pages.example/blyg/";
+    const json = `${origin}items/remote-item/v2.json`;
+    const page = `${origin}notes/my-slug/v2/`;
+    const { fetch } = net({ [json]: { body: pinnedDoc({ origin, page: "notes/my-slug/" }) }, [page]: { body: "<html></html>" } });
+    const res = await resolveForkSource(env.DB, { ...ref, origin }, OURS, "Mine", fetch, "now");
+    expect(res.ok && res.source.cite.url).toBe(page);
+  });
+
+  it("keeps the JSON citation when a declared page points off the origin", async () => {
+    const origin = "https://offsite.example/blyg/";
+    const json = `${origin}items/remote-item/v2.json`;
+    const { fetch, calls } = net({ [json]: { body: pinnedDoc({ origin, page: "https://elsewhere.example/x/" }) } });
+    const res = await resolveForkSource(env.DB, { ...ref, origin }, OURS, "Mine", fetch, "now");
+    expect(res.ok && res.source.cite.url).toBe(json);
+    expect(calls).toEqual([json]);
   });
 
   it("names the host when we hold no subscription — forking is not limited to what we follow", async () => {

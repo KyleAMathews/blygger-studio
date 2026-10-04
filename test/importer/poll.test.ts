@@ -67,6 +67,27 @@ describe("poll cycle (§3.2)", () => {
     expect(fresh).toMatchObject({ state: "current", version: 1 });
   });
 
+  it("a gap with no new entries still reconciles: a feed that drops every new entry cannot strand a reader (studio#27)", async () => {
+    const origin = "https://dropped.example/blyg/";
+    const feed = `${origin}feed.xml`;
+    const sub = await createSubscription(env.DB, { kind: "blyg", origin, feedUrl: feed, title: "D" });
+    const v1 = await itemDocBody({ id: "x", kind: "fragment", version: 1, content_md: "first" });
+    const { transition } = await import("../../src/importer/transition.ts");
+    await applyEffect(env.DB, sub.id, "x", transition({ local: { status: "absent" as const }, doc: JSON.parse(v1), storedContentHash: undefined }).effect, "2026-08-01T00:00:00Z");
+    expect(await getImportedItem(env.DB, sub.id, "x")).toMatchObject({ version: 1 });
+    await env.DB.prepare("UPDATE subscriptions SET newest_guid = ?, last_index_sync_at = ? WHERE id = ?").bind("blyg:x:v1", new Date().toISOString(), sub.id).run();
+    const v2 = await itemDocBody({ id: "x", kind: "fragment", version: 2, content_md: "second" });
+    const { fetch, calls } = makeFixtureFetch({
+      [feed]: { body: feedBody({ items: [] }) },
+      [`${origin}items/index.json`]: { body: indexBody([{ id: "x", kind: "fragment", version: 2 }]) },
+      [`${origin}items/x.json`]: { body: v2 },
+    });
+    const result = await pollSubscription(env.DB, (await getSubscription(env.DB, sub.id))!, fetch);
+    expect(result.reconciled).toBe(true);
+    expect(calls).toContain(`${origin}items/index.json`);
+    expect(await getImportedItem(env.DB, sub.id, "x")).toMatchObject({ version: 2, content_md: "second" });
+  });
+
   it("a poll failure (network error) leaves imported_items completely untouched", async () => {
     const sub = await createSubscription(env.DB, { kind: "blyg", origin: ORIGIN, feedUrl: FEED_URL, title: "A" });
     const preDoc = await itemDocBody({ id: "existing", kind: "fragment", version: 1, content_md: "before" });

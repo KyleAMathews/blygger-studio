@@ -15,6 +15,9 @@ node_modules/
 wrangler.private.jsonc
 deploy-targets.json
 
+# An operator's own edits to the model list (see models.json); merged at build.
+models.local.json
+
 # init's resume marker — records what has already been provisioned.
 .blyg-init.json
 
