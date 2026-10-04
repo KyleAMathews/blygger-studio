@@ -203,7 +203,7 @@ export function feedTitle(item: ItemRow, note: string | null, excerptText: strin
   return note ? `${note} — ${excerptText}` : excerptText;
 }
 
-function latestTransclusions(latest: VersionRow | null): Transclusion[] {
+function latestTransclusions(latest: Pick<VersionRow, "transclusions"> | null): Transclusion[] {
   if (!latest?.transclusions) return [];
   return JSON.parse(latest.transclusions) as Transclusion[];
 }
@@ -215,24 +215,87 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
   // Root-relative path of the canonical origin ("" for a root mount) — keeps
   // injected provenance links consistent with `origin` after absolutizeHtml.
   const originPath = new URL(origin).pathname.replace(/\/$/, "");
+  // Batched loads: the old per-event publishedVersion / media / provenance
+  // queries turned one feed render into ~200 sequential D1 roundtrips
+  // (~29s on live nodes — past every reader's timeout, so SmartRSS and
+  // friends reported "invalid feed"). Same bytes out, fixed query count.
+  const liveItems = events.filter(({ item }) => item.kind !== "withdrawn");
+  const livePairs = JSON.stringify([...new Map(liveItems.map(({ item }) => [item.id, { id: item.id, version: item.version }])).values()]);
+  const allIds = JSON.stringify([...new Set(events.map(({ item }) => item.id))]);
+  const withdrawnIds = JSON.stringify([...new Set(events.filter(({ item }) => item.kind === "withdrawn").map(({ item }) => ({ id: item.id, version: item.version })))]);
+  const [latestRes, mediaRes, prevRes] = await db.batch([
+    db.prepare(`SELECT v.item_id, v.content_md, v.content_html, v.transclusions, v.stub_of, v.stub_cite FROM json_each(?) s JOIN versions v
+      ON v.item_id = json_extract(s.value, '$.id') AND v.version = json_extract(s.value, '$.version')`).bind(livePairs),
+    db.prepare(`SELECT m.* FROM json_each(?) s JOIN media m ON m.item_id = s.value ORDER BY m.created ASC`).bind(allIds),
+    db.prepare(`SELECT v.item_id, v.transclusions FROM json_each(?) s JOIN versions v
+      ON v.item_id = json_extract(s.value, '$.id') AND v.version = json_extract(s.value, '$.version') - 1`).bind(withdrawnIds),
+  ]);
+  const latestById = new Map<string, { content_md: string; content_html: string; transclusions: string | null; stub_of: string | null; stub_cite: string | null }>();
+  for (const v of latestRes.results as unknown as Array<{ item_id: string; content_md: string; content_html: string; transclusions: string | null; stub_of: string | null; stub_cite: string | null }>) {
+    latestById.set(v.item_id, v);
+  }
+  const mediaById = new Map<string, Array<{ r2_key: string; alt: string | null; inline?: number }>>();
+  for (const m of mediaRes.results as unknown as Array<{ item_id: string; r2_key: string; alt: string | null }>) {
+    const list = mediaById.get(m.item_id) ?? [];
+    list.push(m);
+    mediaById.set(m.item_id, list);
+  }
+  const withdrawnKind = new Map<string, boolean>();
+  for (const r of prevRes.results as unknown as Array<{ item_id: string; transclusions: string | null }>) {
+    withdrawnKind.set(r.item_id, r.transclusions !== null);
+  }
+  // Provenance for every transclusion on the page, in two queries — the same
+  // shape as loadFeedData, so the feed and the HTML page can never disagree
+  // about whose quote this is.
+  const localIds = new Set<string>();
+  const remote = new Map<string, { origin: string; id: string }>();
+  for (const { item } of liveItems) {
+    if (item.kind !== "thread") continue;
+    for (const t of latestTransclusions({ transclusions: latestById.get(item.id)?.transclusions ?? null })) {
+      if (!t.origin) localIds.add(t.id);
+      else if (!t.cited) remote.set(JSON.stringify([t.origin, t.id]), { origin: t.origin, id: t.id });
+    }
+  }
+  const provenance: { localKinds: Map<string, "fragment" | "thread">; remoteSources: Map<string, { kind: string; page: string | null; title: string }> } = {
+    localKinds: new Map(),
+    remoteSources: new Map(),
+  };
+  if (localIds.size || remote.size) {
+    const [localRes, sourcesRes] = await db.batch([
+      db.prepare(`SELECT i.id, CASE WHEN i.kind = 'withdrawn' THEN
+        CASE WHEN COALESCE(v.transclusions, '') != '' THEN 'thread' ELSE 'fragment' END ELSE i.kind END AS kind
+        FROM json_each(?) s JOIN items i ON i.id = s.value
+        LEFT JOIN versions v ON i.kind = 'withdrawn' AND v.item_id = i.id AND v.version = i.version - 1`)
+        .bind(JSON.stringify([...localIds])),
+      db.prepare(`SELECT s.origin, ii.remote_id AS id, ii.kind, ii.page, s.title
+        FROM json_each(?) r JOIN subscriptions s ON s.origin = json_extract(r.value, '$.origin')
+        JOIN imported_items ii ON ii.subscription_id = s.id AND ii.remote_id = json_extract(r.value, '$.id')`)
+        .bind(JSON.stringify([...remote.values()])),
+    ]);
+    for (const row of localRes.results as unknown as Array<{ id: string; kind: "fragment" | "thread" }>) provenance.localKinds.set(row.id, row.kind);
+    for (const row of sourcesRes.results as unknown as Array<{ origin: string; id: string; kind: string; page: string | null; title: string }>) {
+      const key = JSON.stringify([row.origin, row.id]);
+      if (!provenance.remoteSources.has(key)) provenance.remoteSources.set(key, row);
+    }
+  }
   const itemsXml: string[] = [];
   // Per §2.3, only the latest version's content is published — feed entries
   // for older publish events carry the event's version/note but render the
   // item's *latest* content (see DEVLOG session 2).
   for (const { item, version } of events) {
     const isWithdrawn = item.kind === "withdrawn";
-    const latest = isWithdrawn ? null : await publishedVersion(db, item);
+    const latest = isWithdrawn ? null : latestById.get(item.id) ?? null;
     const latestMd = latest?.content_md ?? "";
-    const isThread = isWithdrawn ? (await authoredKind(db, item)) === "thread" : item.kind === "thread";
+    const isThread = isWithdrawn ? (withdrawnKind.get(item.id) ?? false) : item.kind === "thread";
     const rawHtml = latest?.content_html ?? "";
     let html = isWithdrawn
       ? ""
       : absolutizeHtml(
-          isThread ? injectProvenance(rawHtml, await transclusionProvenance(db, latestTransclusions(latest), originPath)) : rawHtml,
+          isThread ? injectProvenance(rawHtml, await transclusionProvenance(db, latestTransclusions(latest), originPath, provenance)) : rawHtml,
           origin,
         );
     if (!isWithdrawn) {
-      for (const m of unplacedMedia(await listMediaForItem(db, item.id), html)) {
+      for (const m of unplacedMedia(mediaById.get(item.id) ?? [], html)) {
         html += `<p><img src="${origin}${m.r2_key}" alt="${escapeXml(m.alt ?? "")}"></p>`;
       }
     }
@@ -274,11 +337,12 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
     );
   }
   return `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:blyg="${BRAND.nsUri}">
+<rss version="2.0" xmlns:blyg="${BRAND.nsUri}" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>${escapeXml(settings.site_title)}</title>
     <link>${origin}</link>
-    <description>${escapeXml(settings.author_bio)}</description>
+    <description>${escapeXml(settings.author_bio || settings.site_title)}</description>
+    <atom:link href="${escapeXml(`${origin}feed.xml`)}" rel="self" type="application/rss+xml" />
     <lastBuildDate>${rfc822(built)}</lastBuildDate>
     <blyg:level>${PROTOCOL_LEVEL}</blyg:level>
     <blyg:manifest>${origin}blyg.json</blyg:manifest>
