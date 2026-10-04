@@ -251,35 +251,8 @@ export function setScopeOutput(contentMd: string, scope: TkScope, newOutput: str
 const BLOCK_SENTINEL = String.fromCharCode(0xe000);
 const INLINE_OPEN = String.fromCharCode(0xe001);
 const INLINE_CLOSE = String.fromCharCode(0xe002);
-// U+E004/E005 bracket output that has no recorded provenance (hand-written or
-// hand-edited). It gets no disclosure wrapper, but it is still TK output, and
-// inside a scope `![[id]]` is a source, never a quote (#20) — so the directive
-// walker must see where it is (studio#5). Stripped after rendering. (U+E003 is
-// transclusion.ts's link sentinel.)
-const INERT_OPEN = String.fromCharCode(0xe004);
-const INERT_CLOSE = String.fromCharCode(0xe005);
 const ENCODED_INLINE = new RegExp(`${encodeURIComponent(INLINE_OPEN)}|${encodeURIComponent(INLINE_CLOSE)}`, "g");
 
-/**
- * Offsets in annotated text that hold generated output, inline or provenance-
- * free, where `![[id]]` is never a transclusion directive (studio#5). Block
- * spans with provenance are already lifted out as single-line tokens.
- */
-export function generatedRanges(text: string): [number, number][] {
-  const out: [number, number][] = [];
-  for (const [open, close] of [[INLINE_OPEN, INLINE_CLOSE], [INERT_OPEN, INERT_CLOSE]]) {
-    let from = 0;
-    while (true) {
-      const a = text.indexOf(open, from);
-      if (a < 0) break;
-      const b = text.indexOf(close, a + 1);
-      if (b < 0) break;
-      out.push([a, b + 1]);
-      from = b + 1;
-    }
-  }
-  return out;
-}
 
 export interface AnnotatedDocument {
   /** Ready for renderMarkdown() (fragments) or resolveTransclusions() (threads). */
@@ -304,7 +277,7 @@ export function annotateGenerated(strippedMd: string, spans: GeneratedSpan[], ha
     out += strippedMd.slice(last, span.start);
     const text = strippedMd.slice(span.start, span.end);
     if (!hasProvenance[i]) {
-      out += INERT_OPEN + text + INERT_CLOSE;
+      out += text;
     } else if (span.block) {
       const token = `${BLOCK_SENTINEL}${i}${BLOCK_SENTINEL}`;
       blockReplacements.set(token, `<div class="blyg-tk-gen">${renderMarkdown(text)}</div>`);
@@ -321,7 +294,7 @@ export function annotateGenerated(strippedMd: string, spans: GeneratedSpan[], ha
 
 /** Splice annotateGenerated()'s placeholders/sentinels into already-rendered HTML. */
 export function applyGeneratedWrappers(html: string, doc: AnnotatedDocument): string {
-  let out = html.split(INERT_OPEN).join("").split(INERT_CLOSE).join("");
+  let out = html;
   for (const [token, blockHtml] of doc.blockReplacements) {
     // A function replacement: a string one expands `$&`, `$'` and kin found in
     // generated text (studio#2), so the splice would not be verbatim.

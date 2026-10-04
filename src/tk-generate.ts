@@ -30,7 +30,17 @@ export async function runGenerateScope(
   const sources: { id: string; version: number; content_md: string }[] = [];
   for (const id of scope.sourceIds) {
     const resolved = await resolveFragment(env.DB, id);
-    if (!resolved.ok) return { ok: false, status: 400, body: { error: "unresolvable source", id, reason: resolved.reason } };
+    if (!resolved.ok) {
+      // A source in a scope may today only be one of your own published
+      // fragments (the v0.1 rule). Imported items and threads are what remote
+      // generation sources (#44, gate G8) add; until then, say so plainly
+      // rather than call a valid id "unresolvable", which reads as a bug.
+      const imported = await env.DB.prepare("SELECT 1 FROM imported_items WHERE remote_id = ? LIMIT 1").bind(id).first();
+      if (imported || resolved.reason === "cannot use a thread as a TK source") {
+        return { ok: false, status: 400, body: { error: "TK transcludes are not yet implemented: a [TK] scope can draw on your own published fragments, but not yet on imported items or threads", id } };
+      }
+      return { ok: false, status: 400, body: { error: `unresolvable source: ${resolved.reason}`, id, reason: resolved.reason } };
+    }
     sources.push({ id, version: resolved.version.version, content_md: resolved.version.content_md });
   }
 

@@ -18,6 +18,20 @@ not have its own repo until session 26.
 
 ---
 
+## 0.20.1 — 2026-10-03
+
+**Migrations: none.**
+
+- **A `![[id]]` left on its own line in TK output becomes a quote at publish
+  again.** This is a provisional ruling (session 33): the protocol notes read
+  it as a real transclusion, and 0.17.0's change that made it inert (studio#5)
+  is reverted until the spec settles it. Code stays exempt (§10.1).
+- **"TK transcludes are not yet implemented"** replaces "unresolvable source"
+  when a `[TK]` scope names an imported item or a thread. Those ids are valid;
+  using them as generation sources arrives with remote generation sources
+  (decision #44). A draft, a withdrawn item, or an unknown id still gets an
+  "unresolvable source" error that says why.
+
 ## 0.20.0 — 2026-10-03
 
 **Migrations: none.**

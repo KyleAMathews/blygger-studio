@@ -2,8 +2,8 @@
 //
 //   studio#4  — `![[id]]` and `[[id]]` are inert inside code spans and code
 //               blocks (spec §10.1, decision #54).
-//   studio#5  — inside TK output `![[id]]` is a source, never a quote (#20),
-//               even when the output spans lines, with or without provenance.
+//   (studio#5 was reverted the same session: provisionally, an own-line
+//    `![[id]]` in TK output is a quote at publish — see the describe below.)
 //   studio#13 — a link never nests inside another anchor, and no placeholder
 //               character reaches an href.
 //   studio#14 — the preview resolves links inside generated blocks as publish does.
@@ -61,22 +61,16 @@ describe("studio#4: inert inside code", () => {
   });
 });
 
-describe("studio#5: inert inside TK output", () => {
-  it("an own-line directive inside multi-line inline output is not a quote", async () => {
-    const cookie = await login();
-    const target = await createAndPublish(cookie, "Target text.");
-    const { doc } = await publish(cookie, `Intro [TK]impyrt=line one\n![[${target}]]\nline two[/TK] tail`);
-    expect(doc.transclusions).toEqual([]);
-    expect(doc.content_html).not.toContain("blyg-transclusion");
-    expect(doc.content_html).not.toMatch(PUA);
-  });
-
-  it("nor inside hand-written block output with no provenance", async () => {
+describe("a directive left on its own line in TK output (provisional, session 33)", () => {
+  // Venkat took the session-33 Fable reading (v0.4-plan §9.2) over studio#5's:
+  // such a line is a real transclusion at publish, pending Fable reconciling it
+  // with decision #20. Code stays inert either way (#54).
+  it("is transcluded at publish", async () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "Target text.");
     const { doc } = await publish(cookie, `Intro.\n\n[TK]write it[=]Mine.\n\n![[${target}]][/TK]\n\nOutro.`);
-    expect(doc.transclusions).toEqual([]);
-    expect(doc.content_html).not.toContain("blyg-transclusion");
+    expect(doc.transclusions).toEqual([{ id: target, version: 1 }]);
+    expect(doc.content_html).toContain("blyg-transclusion");
     expect(doc.content_html).not.toMatch(PUA);
   });
 
@@ -85,6 +79,25 @@ describe("studio#5: inert inside TK output", () => {
     const target = await createAndPublish(cookie, "Target text.");
     const { doc } = await publish(cookie, `![[${target}]]\n\nThen [TK]impyrt=generated[/TK].`);
     expect(doc.transclusions).toEqual([{ id: target, version: 1 }]);
+  });
+});
+
+describe("TK sources not yet supported say so", () => {
+  it("an imported item or a thread as a source is 'not yet implemented', not 'unresolvable'", async () => {
+    const cookie = await login();
+    const thread = (await apiJson(cookie, "POST", "/api/items", { content_md: "a thread", kind: "thread" })).json.id as string;
+    await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {});
+    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: `[TK]summarize ![[${thread}]][/TK]` })).json.id as string;
+    const res = await apiJson(cookie, "POST", `/api/items/${id}/generate`, { scope: 0 });
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/^TK transcludes are not yet implemented/);
+  });
+
+  it("a genuinely unknown id still says why", async () => {
+    const cookie = await login();
+    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: `[TK]summarize ![[${UNKNOWN}]][/TK]` })).json.id as string;
+    const res = await apiJson(cookie, "POST", `/api/items/${id}/generate`, { scope: 0 });
+    expect(res.json.error).toBe("unresolvable source: unknown item");
   });
 });
 

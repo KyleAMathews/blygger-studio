@@ -3,7 +3,6 @@
 
 import { attachedQuote } from "./directives.ts";
 import { codeRanges, htmlCodeRanges, inRanges, lineOffsets, type Range } from "./code-ranges.ts";
-import { generatedRanges } from "./tk.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { excerptFromHtml, renderMarkdown, selectionText } from "./markdown.ts";
 import type { ImportedItemRow, ItemRow, TextQuoteSelector, Transclusion, VersionRow } from "./types.ts";
@@ -285,9 +284,11 @@ async function walk(
   };
 
   const lines = contentMd.split("\n");
-  // Lines inside code (studio#4) or inside generated output (studio#5, #20:
-  // within a TK scope `![[id]]` is a source, never a quote) are prose.
-  const inert = [...codeRanges(contentMd), ...generatedRanges(contentMd)];
+  // Lines inside code are prose (§10.1, #54; studio#4). A directive left on
+  // its own line in TK *output* is, provisionally, a real transclusion: Venkat
+  // took the session-33 Fable reading (v0.4-plan §9.2) over studio#5's, pending
+  // Fable reconciling it with decision #20.
+  const inert = codeRanges(contentMd);
   const starts = lineOffsets(lines);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
