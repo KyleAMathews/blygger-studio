@@ -233,3 +233,12 @@ createRoot(document.getElementById('studio-root')!).render(
     <SheetHost />
   </>,
 );
+// Installable PWA: the worker caches only the shell's static assets (see
+// studioServiceWorker in src/spa.ts). Its scope is the studio base itself,
+// which the Worker allows with Service-Worker-Allowed.
+if ('serviceWorker' in navigator)
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register(`${basepath}/sw.js`, { scope: basepath })
+      .catch(() => {});
+  });
