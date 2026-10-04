@@ -1,12 +1,13 @@
 // Data access + publish-flow semantics — v0.1-plan §3.1.
 
 import { renderMarkdown } from "./markdown.ts";
+import { htmlCodeRanges } from "./code-ranges.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, stripToOutput, TkPublishError, unresolvedScopes } from "./tk.ts";
 import { applyVersionAgreement, composeStubCite, composeTransclusionCite, parseStoredStub } from "./stub.ts";
 import {
   applyInternalLinks,
-  type InternalLinkDocument,
   type TransclusionRefError,
+  resolveBlockLinks,
   resolveInternalLinks,
   resolveTransclusions,
   TransclusionResolveError,
@@ -329,15 +330,10 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   const linkErrors: TransclusionRefError[] = [];
   const links = await resolveInternalLinks(db, annotated.text, normalizedOrigin(origin));
   linkErrors.push(...links.errors);
-  const blockLinks: InternalLinkDocument[] = [];
-  for (const [token, blockHtml] of annotated.blockReplacements) {
-    const resolvedBlock = await resolveInternalLinks(db, blockHtml, normalizedOrigin(origin));
-    if (resolvedBlock.replacements.size || resolvedBlock.errors.length) {
-      annotated.blockReplacements.set(token, resolvedBlock.text);
-      linkErrors.push(...resolvedBlock.errors);
-      blockLinks.push(resolvedBlock);
-    }
-  }
+  const { docs: blockLinks, errors: blockErrors } = await resolveBlockLinks(annotated.blockReplacements, (html) =>
+    resolveInternalLinks(db, html, normalizedOrigin(origin), undefined, htmlCodeRanges),
+  );
+  linkErrors.push(...blockErrors);
   if (linkErrors.length) throw new TransclusionResolveError(linkErrors);
   const spliceLinks = (html: string): string =>
     [links, ...blockLinks].reduce((acc, doc) => applyInternalLinks(acc, doc), html);

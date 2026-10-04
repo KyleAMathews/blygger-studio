@@ -2,6 +2,8 @@
 // locked protocol surface: do not modify without Fable + Venkat.
 
 import { attachedQuote } from "./directives.ts";
+import { codeRanges, htmlCodeRanges, inRanges, lineOffsets, type Range } from "./code-ranges.ts";
+import { generatedRanges } from "./tk.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { excerptFromHtml, renderMarkdown, selectionText } from "./markdown.ts";
 import type { ImportedItemRow, ItemRow, TextQuoteSelector, Transclusion, VersionRow } from "./types.ts";
@@ -18,10 +20,10 @@ const RESERVED_LINE = new RegExp(`^\\s*!\\[\\[([${ID_ALPHABET}]{26})@v\\d+\\]\\]
  * bakes nothing, and is silent on the wire — no `transclusions[]` entry, no
  * mention, no wire class.
  *
- * Like the TK grammar, this scans raw markdown rather than parsing it, so a
- * `[[id]]` inside a code span is substituted too. That is the existing house
- * behaviour for `![[id]]` and `[TK]`, and matching it beats being uniquely
- * clever here.
+ * Inside code spans and code blocks both forms are inert text (§10.1,
+ * decision #54; studio#4), found by `codeRanges` with the renderer's own
+ * parser. Inside another anchor a link renders as text only (studio#13) —
+ * see `applyInternalLinks`.
  */
 const LINK_INLINE = new RegExp(`(?<!!)\\[\\[([${ID_ALPHABET}]{26})\\]\\]`, "g");
 
@@ -283,8 +285,16 @@ async function walk(
   };
 
   const lines = contentMd.split("\n");
+  // Lines inside code (studio#4) or inside generated output (studio#5, #20:
+  // within a TK scope `![[id]]` is a source, never a quote) are prose.
+  const inert = [...codeRanges(contentMd), ...generatedRanges(contentMd)];
+  const starts = lineOffsets(lines);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    if (inRanges(inert, starts[i])) {
+      prose.push(line);
+      continue;
+    }
     const reserved = RESERVED_LINE.exec(line);
     if (reserved) {
       flushProse();
@@ -395,6 +405,12 @@ export interface InternalLinkDocument {
   text: string;
   /** Token -> the anchor HTML that replaces it after rendering. */
   replacements: Map<string, string>;
+  /**
+   * Token -> what it becomes where an anchor cannot go (studio#13): `text` (the
+   * anchor's label, escaped) inside another link's text; `literal` (the
+   * author's `[[id]]`) inside a tag, a URL or code.
+   */
+  labels: Map<string, { text: string; literal: string }>;
   errors: TransclusionRefError[];
 }
 
@@ -434,14 +450,18 @@ export async function resolveInternalLinks(
   contentMd: string,
   ourOrigin: string,
   onError: (err: TransclusionRefError) => string | null = () => null,
+  inert: (text: string) => Range[] = codeRanges,
 ): Promise<InternalLinkDocument> {
   const errors: TransclusionRefError[] = [];
   const replacements = new Map<string, string>();
+  const labels = new Map<string, { text: string; literal: string }>();
   let out = "";
   let last = 0;
 
+  const code = inert(contentMd);
   for (const m of contentMd.matchAll(LINK_INLINE)) {
     const at = m.index ?? 0;
+    if (inRanges(code, at)) continue; // inert inside code (§10.1, #54)
     out += contentMd.slice(last, at);
     last = at + m[0].length;
     const id = m[1];
@@ -453,6 +473,7 @@ export async function resolveInternalLinks(
       if (placeholder !== null) {
         const token = `${LINK_SENTINEL}${linkTokenSeq++}${LINK_SENTINEL}`;
         replacements.set(token, placeholder);
+        labels.set(token, { text: escapeHtml(m[0]), literal: m[0] });
         out += token;
       }
       continue;
@@ -463,17 +484,87 @@ export async function resolveInternalLinks(
       : blygItemUrl(ourOrigin, target.kind, target.id, null);
     const token = `${LINK_SENTINEL}${linkTokenSeq++}${LINK_SENTINEL}`;
     replacements.set(token, `<a href="${escapeHtml(href)}">${escapeHtml(anchorText(target))}</a>`);
+    labels.set(token, { text: escapeHtml(anchorText(target)), literal: m[0] });
     out += token;
   }
   out += contentMd.slice(last);
-  return { text: out, replacements, errors };
+  return { text: out, replacements, labels, errors };
 }
 
-/** Splice resolved anchors into already-rendered HTML — the tk.ts mechanism. */
+const ENCODED_SENTINEL = encodeURIComponent(LINK_SENTINEL);
+const ENCODED_TOKEN = new RegExp(`${ENCODED_SENTINEL}(\\d+)${ENCODED_SENTINEL}`, "g");
+
+/**
+ * Splice resolved anchors into already-rendered HTML — the tk.ts mechanism —
+ * but only where an anchor is valid (studio#13). Markdown can put a token in
+ * places an `<a>` must not go:
+ *
+ * - **inside another link's text** (`[see [[id]]](url)`): nesting anchors is
+ *   invalid HTML that browsers split, so the label goes in as text;
+ * - **inside a URL** (`<https://x/[[id]]>`, or a bare URL that linkify takes):
+ *   the renderer percent-encodes the sentinel into the href, so the author's
+ *   `[[id]]` goes back, and the visible URL text keeps it literally too;
+ * - **inside a tag** (an image's alt text) or **inside `<code>`**: literal.
+ *
+ * No sentinel character survives in any case.
+ */
 export function applyInternalLinks(html: string, doc: InternalLinkDocument): string {
-  let out = html;
-  for (const [token, anchor] of doc.replacements) out = out.split(token).join(anchor);
-  return out;
+  const label = (seq: string) => doc.labels.get(`${LINK_SENTINEL}${seq}${LINK_SENTINEL}`);
+  // 1. Tokens percent-encoded into attribute values: the author's literal, encoded the way the URL around it was.
+  let out = html.replace(ENCODED_TOKEN, (whole, seq: string) => {
+    const l = label(seq);
+    return l ? encodeURI(l.literal) : whole;
+  });
+  // 2. Walk tags and text, tracking whether we are inside an anchor or code.
+  const parts = out.split(/(<[^>]*>)/);
+  let inAnchor = 0, inCode = 0, anchorTag = "";
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (!part.includes(LINK_SENTINEL)) {
+      if (/^<a[\s>]/i.test(part)) { inAnchor++; anchorTag = part; }
+      else if (/^<\/a>/i.test(part)) inAnchor = Math.max(0, inAnchor - 1);
+      else if (/^<code[\s>]/i.test(part)) inCode++;
+      else if (/^<\/code>/i.test(part)) inCode = Math.max(0, inCode - 1);
+      continue;
+    }
+    const isTag = part.startsWith("<");
+    parts[i] = part.replace(new RegExp(`${LINK_SENTINEL}(\\d+)${LINK_SENTINEL}`, "g"), (whole, seq: string) => {
+      const token = `${LINK_SENTINEL}${seq}${LINK_SENTINEL}`;
+      const l = label(seq);
+      if (!l) return whole;
+      if (isTag) return escapeHtml(l.literal);
+      if (inCode) return escapeHtml(l.literal);
+      // An autolink's text is its URL: keep it reading as the URL it links to.
+      if (inAnchor) return anchorTag.includes(encodeURI(l.literal)) ? escapeHtml(l.literal) : l.text;
+      return doc.replacements.get(token) ?? whole;
+    });
+    if (isTag && /^<a[\s>]/i.test(part)) { inAnchor++; anchorTag = parts[i]; }
+  }
+  return parts.join("");
+}
+
+/**
+ * Resolve `[[id]]` inside each independently rendered generated block (a TK
+ * block span is lifted out of the body and rendered on its own, so the body's
+ * pass never sees it). Publish and preview both call this, so the preview shows
+ * the links readers will get, and an unresolvable one is an error in both
+ * places (studio#14). The input is rendered HTML, so code is `<code>`.
+ */
+export async function resolveBlockLinks(
+  blocks: Map<string, string>,
+  resolve: (html: string) => Promise<InternalLinkDocument>,
+): Promise<{ docs: InternalLinkDocument[]; errors: TransclusionRefError[] }> {
+  const docs: InternalLinkDocument[] = [];
+  const errors: TransclusionRefError[] = [];
+  for (const [token, blockHtml] of blocks) {
+    const doc = await resolve(blockHtml);
+    if (doc.replacements.size || doc.errors.length) {
+      blocks.set(token, doc.text);
+      errors.push(...doc.errors);
+      docs.push(doc);
+    }
+  }
+  return { docs, errors };
 }
 
 /**
@@ -481,11 +572,12 @@ export function applyInternalLinks(html: string, doc: InternalLinkDocument): str
  * the composer shows what publish will reject before the author hits publish —
  * the same contract as `previewTransclusions`.
  */
-export async function previewInternalLinks(db: D1Database, contentMd: string, ourOrigin: string): Promise<InternalLinkDocument> {
+export async function previewInternalLinks(db: D1Database, contentMd: string, ourOrigin: string, html = false): Promise<InternalLinkDocument> {
   return resolveInternalLinks(
     db,
     contentMd,
     ourOrigin,
     (err) => `<span class="blyg-link-unresolved" style="color:#b3412b">⚠ ${escapeHtml(err.reason)}</span>`,
+    html ? htmlCodeRanges : codeRanges,
   );
 }

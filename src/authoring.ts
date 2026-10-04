@@ -20,9 +20,9 @@ export function scopeSummaries(scopes: TkScope[]): { index: number; instruction:
  * and lets the caller render the remaining markdown (plain, or via
  * previewTransclusions for threads).
  */
-export function annotateTkPreview(contentMd: string): { scopes: TkScope[]; text: string; finish: (renderedHtml: string) => string } {
+export function annotateTkPreview(contentMd: string): { scopes: TkScope[]; text: string; blocks: Map<string, string>; finish: (renderedHtml: string) => string } {
   const { scopes } = parseScopes(contentMd);
   const { text, spans } = previewStrip(contentMd, scopes);
   const annotated = annotateGenerated(text, spans, spans.map(() => true));
-  return { scopes, text: annotated.text, finish: (renderedHtml) => applyGeneratedWrappers(renderedHtml, annotated) };
+  return { scopes, text: annotated.text, blocks: annotated.blockReplacements, finish: (renderedHtml) => applyGeneratedWrappers(renderedHtml, annotated) };
 }

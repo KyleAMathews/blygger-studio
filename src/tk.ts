@@ -5,6 +5,7 @@
 
 import { renderMarkdown } from "./markdown.ts";
 import { ID_ALPHABET } from "./identity.ts";
+import { codeRanges, inRanges } from "./code-ranges.ts";
 
 const SOURCE_REF = new RegExp(`!\\[\\[([${ID_ALPHABET}]{26})\\]\\]`, "g");
 
@@ -81,10 +82,17 @@ function isBlockPosition(contentMd: string, start: number, end: number): boolean
 export function parseScopes(contentMd: string): { scopes: TkScope[]; errors: TkParseError[] } {
   const scopes: TkScope[] = [];
   const errors: TkParseError[] = [];
+  // A `[TK]` written inside code is an example of the grammar, not a scope
+  // (studio#3), the same exemption the bracket grammar has (§10.1, #54).
+  const code = contentMd.includes("[TK]") ? codeRanges(contentMd) : [];
   let i = 0;
   while (true) {
     const tkIdx = contentMd.indexOf("[TK]", i);
     if (tkIdx === -1) break;
+    if (inRanges(code, tkIdx)) {
+      i = tkIdx + 4;
+      continue;
+    }
     const closeIdx = contentMd.indexOf("[/TK]", tkIdx + 4);
     if (closeIdx === -1) {
       errors.push({ at: tkIdx, reason: "unterminated scope (missing [/TK])" });
@@ -243,6 +251,35 @@ export function setScopeOutput(contentMd: string, scope: TkScope, newOutput: str
 const BLOCK_SENTINEL = String.fromCharCode(0xe000);
 const INLINE_OPEN = String.fromCharCode(0xe001);
 const INLINE_CLOSE = String.fromCharCode(0xe002);
+// U+E004/E005 bracket output that has no recorded provenance (hand-written or
+// hand-edited). It gets no disclosure wrapper, but it is still TK output, and
+// inside a scope `![[id]]` is a source, never a quote (#20) — so the directive
+// walker must see where it is (studio#5). Stripped after rendering. (U+E003 is
+// transclusion.ts's link sentinel.)
+const INERT_OPEN = String.fromCharCode(0xe004);
+const INERT_CLOSE = String.fromCharCode(0xe005);
+const ENCODED_INLINE = new RegExp(`${encodeURIComponent(INLINE_OPEN)}|${encodeURIComponent(INLINE_CLOSE)}`, "g");
+
+/**
+ * Offsets in annotated text that hold generated output, inline or provenance-
+ * free, where `![[id]]` is never a transclusion directive (studio#5). Block
+ * spans with provenance are already lifted out as single-line tokens.
+ */
+export function generatedRanges(text: string): [number, number][] {
+  const out: [number, number][] = [];
+  for (const [open, close] of [[INLINE_OPEN, INLINE_CLOSE], [INERT_OPEN, INERT_CLOSE]]) {
+    let from = 0;
+    while (true) {
+      const a = text.indexOf(open, from);
+      if (a < 0) break;
+      const b = text.indexOf(close, a + 1);
+      if (b < 0) break;
+      out.push([a, b + 1]);
+      from = b + 1;
+    }
+  }
+  return out;
+}
 
 export interface AnnotatedDocument {
   /** Ready for renderMarkdown() (fragments) or resolveTransclusions() (threads). */
@@ -267,7 +304,7 @@ export function annotateGenerated(strippedMd: string, spans: GeneratedSpan[], ha
     out += strippedMd.slice(last, span.start);
     const text = strippedMd.slice(span.start, span.end);
     if (!hasProvenance[i]) {
-      out += text;
+      out += INERT_OPEN + text + INERT_CLOSE;
     } else if (span.block) {
       const token = `${BLOCK_SENTINEL}${i}${BLOCK_SENTINEL}`;
       blockReplacements.set(token, `<div class="blyg-tk-gen">${renderMarkdown(text)}</div>`);
@@ -284,14 +321,26 @@ export function annotateGenerated(strippedMd: string, spans: GeneratedSpan[], ha
 
 /** Splice annotateGenerated()'s placeholders/sentinels into already-rendered HTML. */
 export function applyGeneratedWrappers(html: string, doc: AnnotatedDocument): string {
-  let out = html;
+  let out = html.split(INERT_OPEN).join("").split(INERT_CLOSE).join("");
   for (const [token, blockHtml] of doc.blockReplacements) {
     // A function replacement: a string one expands `$&`, `$'` and kin found in
     // generated text (studio#2), so the splice would not be verbatim.
     out = out.replace(`<p>${token}</p>`, () => blockHtml);
   }
   if (doc.hasInline) {
-    out = out.split(INLINE_OPEN).join('<span class="blyg-tk-gen">').split(INLINE_CLOSE).join("</span>");
+    // Inline markers can land where a <span> cannot go (studio#3): linkify takes
+    // them as URL characters and percent-encodes them into an href, and an
+    // image's alt text keeps them inside a tag. There the marker is dropped and
+    // the generated text stays as plain text; generated[] still discloses it.
+    out = out.replace(ENCODED_INLINE, "");
+    out = out
+      .split(/(<[^>]*>)/)
+      .map((part) =>
+        part.startsWith("<")
+          ? part.split(INLINE_OPEN).join("").split(INLINE_CLOSE).join("")
+          : part.split(INLINE_OPEN).join('<span class="blyg-tk-gen">').split(INLINE_CLOSE).join("</span>"),
+      )
+      .join("");
   }
   return out;
 }

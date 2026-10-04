@@ -153,6 +153,8 @@ saying so.
 
 ## Status
 
+**0.17.0** (session 33, 2026-10-03): the bracket and TK grammar are inert inside code (#54, studio#4) and inside generated output (studio#5); links never nest (studio#13); preview resolves links in generated blocks (studio#14); no PUA markers reach HTML (studio#3). `src/code-ranges.ts` finds code with markdown-it's own parser. No migration.
+
 **0.16.0** (session 32, 2026-10-03): images belong to the text they are in (`media.inline`, **migration 0016**; studio#24), attachment removal, uploads block navigation, the editor fills the window, `$` patterns spliced verbatim (studio#2), and **no built-in AI model** — operators set one (our nodes: `claude-sonnet-5-5`).
 
 **0.15.0** (session 32, 2026-10-03): *history* on imported reading entries — the changelog read from the origin, and a word diff between public versions (decision #40, reader half). No migration.
@@ -212,7 +214,7 @@ was specified to do in both cases.
 
 ### Bugs
 
-- [ ] **`[[id]]` must be inert inside code spans and code blocks** (session 31, spec decision
+- [x] **`[[id]]` must be inert inside code spans and code blocks** — **done 0.17.0 (session 33)**, with studio#3/#5/#13/#14 (spec decision
   #54 on blygger-spec#4): §10.1 now gives the link form the same exemption the directive
   always had. studio#4 covers both forms. Fix both in one pass in the renderer and in the
   preview; a code block that quotes the grammar must publish as literal text.

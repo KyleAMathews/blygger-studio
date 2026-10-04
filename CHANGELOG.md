@@ -18,7 +18,34 @@ not have its own repo until session 26.
 
 ---
 
-## 0.16.0 — 2026-10-03
+## 0.17.0 — 2026-10-03
+
+**Migrations: none.**
+
+**The bracket and TK grammar now apply only where they should.** Five reports
+from studio issues, all in the same code that turns `[[id]]`, `![[id]]` and
+`[TK]` into HTML:
+
+- **Code is plain text** (#4; spec §10.1, decision #54). `![[id]]`, `[[id]]`
+  and `[TK]…[/TK]` inside a code span or a code block (fenced with ``` or ~~~,
+  indented, or inside a list item) are no longer transcluded, linked or treated
+  as generation scopes. You can write about the syntax in a blyg, and an example
+  id in code no longer fails publish. Code blocks are found with the same
+  markdown parser that renders the text, so the two always agree.
+- **Inside generated text, `![[id]]` is never a quote** (#5, decision #20). An
+  own-line `![[id]]` inside TK output that spans several lines, or inside
+  hand-written output, is no longer transcluded or sent a mention.
+- **Links never nest** (#13). `[see [[id]]](url)` becomes one anchor whose text
+  is the target's label. In an autolink or a bare URL, your `[[id]]` stays part
+  of the URL. In an image's alt text it stays literal.
+- **The preview resolves links inside generated blocks the way publish does**
+  (#14). An unknown id there is now reported in the preview instead of failing
+  only at publish.
+- **No internal marker characters reach the HTML** (#3). Generated text that
+  linkify absorbs into a URL, or that sits in image alt text, now appears as
+  plain text. The item's `generated[]` still discloses it.
+
+
 
 **Migrations: apply `0016_media_inline.sql`.** It adds `media.inline` and marks
 existing images that are already referenced in their item's text as inline.

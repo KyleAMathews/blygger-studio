@@ -1,4 +1,6 @@
 import { ID_ALPHABET } from "./identity.ts";
+import { codeRanges, inRanges, lineOffsets } from "./code-ranges.ts";
+import { parseScopes } from "./tk.ts";
 const DIRECTIVE_LINE = new RegExp(`^\\s*!\\[\\[([${ID_ALPHABET}]{26})\\]\\]\\s*$`);
 
 const RESERVED_LINE = new RegExp(`^\\s*!\\[\\[([${ID_ALPHABET}]{26})@v\\d+\\]\\]\\s*$`);
@@ -20,8 +22,17 @@ export function extractDirectives(contentMd: string): { count: number; withoutDi
   const lines = contentMd.split("\n");
   const kept: string[] = [];
   let count = 0;
+  // Same inert regions as the publish walker: code (studio#4) and TK scopes,
+  // where `![[id]]` is a source (studio#5). This sees raw markdown, so scopes
+  // come from the TK parser rather than from sentinels.
+  const inert = [...codeRanges(contentMd), ...parseScopes(contentMd).scopes.map((sc): [number, number] => [sc.start, sc.end])];
+  const starts = lineOffsets(lines);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    if (inRanges(inert, starts[i])) {
+      kept.push(line);
+      continue;
+    }
     if (RESERVED_LINE.test(line)) {
       count++;
       continue;

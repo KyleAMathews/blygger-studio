@@ -8,7 +8,7 @@ import { getHopper, getImportedItem, listSubscriptions, getSubscription } from "
 import { sanitizeHtml } from "./importer/sanitize.ts";
 import { renderMarkdown, plainTextFromHtml } from "./markdown.ts";
 import { clampText } from "./preview.ts";
-import { applyInternalLinks, previewInternalLinks, previewTransclusions } from "./transclusion.ts";
+import { applyInternalLinks, previewInternalLinks, previewTransclusions, resolveBlockLinks } from "./transclusion.ts";
 import { siteOrigin } from "./protocol.ts";
 import { normalizeMount } from "./util.ts";
 import type { Env, SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, MentionInRow, MentionOutRow } from "./types.ts";
@@ -131,9 +131,12 @@ readApi.openapi(routes.preview, async (c) => {
   const tk = annotateTkPreview(body.content_md ?? "");
   // `[[id]]` resolves in the preview too, so an unresolvable link is visible
   // before publish rejects it — same contract as an unresolvable directive.
-  const links = await previewInternalLinks(c.env.DB, tk.text, siteOrigin(await getSettings(c.env.DB), c.req.url, mount));
-  const html = applyInternalLinks(tk.finish(renderMarkdown(links.text)), links);
-  return c.json({ html, scopes: scopeSummaries(tk.scopes), link_errors: links.errors });
+  const origin = siteOrigin(await getSettings(c.env.DB), c.req.url, mount);
+  const links = await previewInternalLinks(c.env.DB, tk.text, origin);
+  // Links inside generated blocks resolve here too, as at publish (studio#14).
+  const blocks = await resolveBlockLinks(tk.blocks, (html) => previewInternalLinks(c.env.DB, html, origin, true));
+  const html = [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(renderMarkdown(links.text)));
+  return c.json({ html, scopes: scopeSummaries(tk.scopes), link_errors: [...links.errors, ...blocks.errors] });
 });
 
 /**
@@ -219,11 +222,13 @@ async function threadPreview(c: Context<{ Bindings: Env }>) {
   // item_id is the thread being edited — the DAG check needs it, so the
   // preview rejects a circular quote at exactly the point publish would.
   const mount = normalizeMount(c.env.MOUNT);
-  const links = await previewInternalLinks(c.env.DB, tk.text, siteOrigin(await getSettings(c.env.DB), c.req.url, mount));
+  const origin = siteOrigin(await getSettings(c.env.DB), c.req.url, mount);
+  const links = await previewInternalLinks(c.env.DB, tk.text, origin);
+  const blocks = await resolveBlockLinks(tk.blocks, (html) => previewInternalLinks(c.env.DB, html, origin, true));
   const resolved = await previewTransclusions(c.env.DB, links.text, body.item_id);
   return c.json({
-    html: applyInternalLinks(tk.finish(resolved.html), links),
-    errors: [...resolved.errors, ...links.errors],
+    html: [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(resolved.html)),
+    errors: [...resolved.errors, ...links.errors, ...blocks.errors],
     transclusions: resolved.transclusions,
     scopes: scopeSummaries(tk.scopes),
   });
