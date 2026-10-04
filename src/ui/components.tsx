@@ -40,11 +40,14 @@ export function Modal({
   close,
   title,
   children,
+  closeButton = true,
 }: {
   open: boolean;
   close: () => void;
   title: string;
   children: ReactNode;
+  /** Off when the dialog's own actions already include a way out. */
+  closeButton?: boolean;
 }) {
   return (
     <Dialog.Root
@@ -58,7 +61,7 @@ export function Modal({
         <Dialog.Popup className="dialog-popup">
           <Dialog.Title>{title}</Dialog.Title>
           {children}
-          <Dialog.Close render={<Button />}>close</Dialog.Close>
+          {closeButton ? <Dialog.Close render={<Button />}>close</Dialog.Close> : null}
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

@@ -82,6 +82,7 @@ export type Settings = {
     accept_mentions: boolean;
     update_check: boolean;
     show_responses_default: boolean;
+    auto_change_notes: boolean;
     update_feed_url: string;
     update_notice_ack: boolean;
 };
@@ -1277,6 +1278,7 @@ export type UpdateSettingsData = {
         accept_mentions?: boolean;
         update_check?: boolean;
         show_responses_default?: boolean;
+        auto_change_notes?: boolean;
         update_feed_url?: string;
         update_notice_ack?: boolean;
     };

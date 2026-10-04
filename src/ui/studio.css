@@ -439,3 +439,6 @@ input.note { font: inherit; font-size: 0.9rem; padding: 0.3rem 0.5rem; border-ra
 .entry-diff del { background: var(--alert-wash); color: var(--alert); text-decoration: line-through; }
 .entry-diff ins { background: color-mix(in srgb, var(--ok) 15%, transparent); text-decoration: none; }
 .entry-diff del + ins { margin-left: 0.3em; }
+.note-confirm label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); margin-bottom: 0.25rem; }
+.note-confirm textarea { width: 100%; min-height: 5rem; font: inherit; padding: 0.4rem 0.5rem; border: 1px solid var(--rule-strong); border-radius: 4px; background: transparent; color: inherit; }
+.note-confirm .h-hint { opacity: 0.7; font-size: 0.82rem; }

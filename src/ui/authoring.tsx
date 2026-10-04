@@ -210,6 +210,101 @@ function useUpload(
     ),
   };
 }
+/**
+ * The changelog note, confirmed before a new version publishes (#40, session
+ * 33). Version 1 has nothing to describe and never asks. For a later version
+ * the dialog opens whenever there is a note to confirm: one typed by hand, one
+ * from *draft note*, or — when Settings' auto_change_notes is on and the field
+ * was left empty — one drafted now. An empty note with the setting off
+ * publishes straight away, as before. `generated` is true only when the
+ * confirmed text is exactly what the model drafted.
+ */
+type NoteChoice = { note: string; generated: boolean };
+function useNoteConfirm() {
+  const settings = useSettings();
+  const [state, setState] = useState<{
+    version: number;
+    text: string;
+    drafted?: string;
+    loading: boolean;
+    error?: unknown;
+    resolve: (choice: NoteChoice | null) => void;
+  }>();
+  const request = (
+    item: { id: string; version: number },
+    note: string,
+    drafted?: string,
+  ): Promise<NoteChoice | null> => {
+    const typed = note.trim();
+    if (item.version === 0) return Promise.resolve({ note: typed, generated: false });
+    const auto = !typed && !!settings?.auto_change_notes;
+    if (!typed && !auto) return Promise.resolve({ note: '', generated: false });
+    return new Promise((resolve) => {
+      setState({ version: item.version + 1, text: typed, drafted, loading: auto, resolve });
+      if (!auto) return;
+      unwrap(BlyggerApi.draftNote({ client, path: { id: item.id } }))
+        .then((r) => setState((s) => s && { ...s, text: r.note, drafted: r.note, loading: false }))
+        .catch((error) => setState((s) => s && { ...s, loading: false, error }));
+    });
+  };
+  const finish = (choice: NoteChoice | null) => {
+    state?.resolve(choice);
+    setState(undefined);
+  };
+  const element = (
+    <Modal
+      open={!!state}
+      close={() => finish(null)}
+      title={state ? `Version ${state.version}` : ''}
+      closeButton={false}
+    >
+      {state ? (
+        <div className="note-confirm" id="note-confirm">
+          <label htmlFor="note-confirm-text">Change</label>
+          <textarea
+            id="note-confirm-text"
+            value={state.text}
+            disabled={state.loading}
+            placeholder={state.loading ? 'Drafting a note…' : 'what changed? (optional)'}
+            onChange={(e) => setState({ ...state, text: e.target.value })}
+          />
+          {state.drafted !== undefined && state.text.trim() === state.drafted ? (
+            <p className="h-hint" id="note-confirm-generated">
+              Drafted by the model; it will be marked as generated unless you
+              edit it.
+            </p>
+          ) : null}
+          {state.error ? (
+            <p className="h-hint">
+              No note could be drafted:{' '}
+              {state.error instanceof Error ? state.error.message : String(state.error)}.
+              Write one, or confirm without.
+            </p>
+          ) : null}
+          <p>
+            <Button
+              id="note-confirm-ok"
+              className="primary"
+              disabled={state.loading}
+              onClick={() =>
+                finish({
+                  note: state.text.trim(),
+                  generated: state.drafted !== undefined && state.text.trim() === state.drafted,
+                })
+              }
+            >
+              Confirm
+            </Button>{' '}
+            <Button id="note-confirm-cancel" onClick={() => finish(null)}>
+              Cancel
+            </Button>
+          </p>
+        </div>
+      ) : null}
+    </Modal>
+  );
+  return { request, element };
+}
 export function Compose() {
   const navigate = useNavigate();
   const action = useAction();
@@ -417,6 +512,18 @@ export function Compose() {
 function ItemRow({ item }: { item: ListItemsResponses[200]['items'][number] }) {
   const settings = useSettings();
   const action = useAction();
+  const confirmNote = useNoteConfirm();
+  const publishRow = async () => {
+    const choice = await confirmNote.request(item, '');
+    if (!choice) return;
+    return unwrap(
+      BlyggerApi.publishItem({
+        client,
+        path: { id: item.id },
+        body: { ...(choice.note ? { note: choice.note } : {}), note_generated: choice.generated },
+      }),
+    );
+  };
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(item.content_md);
   const [saved, setSaved] = useState(false);
@@ -535,13 +642,7 @@ function ItemRow({ item }: { item: ListItemsResponses[200]['items'][number] }) {
             <Button
               className="primary"
               disabled={action.busy}
-              onClick={() =>
-                mutate(() =>
-                  unwrap(
-                    BlyggerApi.publishItem({ client, path: { id: item.id } }),
-                  ),
-                )
-              }
+              onClick={() => mutate(publishRow)}
             >
               publish
             </Button>
@@ -550,6 +651,7 @@ function ItemRow({ item }: { item: ListItemsResponses[200]['items'][number] }) {
           <Help />
         </div>
       ) : null}
+      {confirmNote.element}
       <Failure error={action.error} />
       {action.warning ? (
         <p role="status" className="publish-warning">
@@ -577,13 +679,7 @@ function ItemRow({ item }: { item: ListItemsResponses[200]['items'][number] }) {
         {item.version === 0 || item.dirty || item.status === 'withdrawn' ? (
           <Button
             disabled={action.busy}
-            onClick={() =>
-              mutate(() =>
-                unwrap(
-                  BlyggerApi.publishItem({ client, path: { id: item.id } }),
-                ),
-              )
-            }
+            onClick={() => mutate(publishRow)}
           >
             {item.status === 'withdrawn' ? 'republish' : 'publish'}
           </Button>
@@ -681,6 +777,7 @@ function Editor({ item }: { item: Detail }) {
   // The note the studio drafted (#40); `generated` is sent only while the
   // field still holds exactly that text — an edit makes the words the author's.
   const [drafted, setDrafted] = useState<string>();
+  const confirmNote = useNoteConfirm();
   const [preview, setPreview] =
     useState<Awaited<ReturnType<typeof getPreview>>>();
   const [version, setVersion] = useState<Version>();
@@ -1046,15 +1143,13 @@ function Editor({ item }: { item: Detail }) {
             disabled={action.busy}
             onClick={() =>
               operation(async () => {
+                const choice = await confirmNote.request(item, note, drafted);
+                if (!choice) return;
                 const result = await unwrap(
                   BlyggerApi.publishItem({
                     client,
                     path: { id: item.id },
-                    body: {
-                      note,
-                      note_generated:
-                        drafted !== undefined && note.trim() === drafted,
-                    },
+                    body: { note: choice.note, note_generated: choice.generated },
                   }),
                 );
                 // A note describes one change; it must not ride along on the next.
@@ -1095,6 +1190,7 @@ function Editor({ item }: { item: Detail }) {
           ) : null}
         </span>
       </div>
+      {confirmNote.element}
       {saved ? <p className="save-state">saved</p> : null}
       {upload.element}
       {upload.attached ? <p>attached: {upload.attached}</p> : null}

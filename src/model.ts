@@ -101,6 +101,7 @@ export async function getSettings(db: D1Database): Promise<Settings> {
     // rather than silent, which is the property that actually matters.
     timezone: map.timezone ?? "",
     show_responses_default: map.show_responses_default === "on",
+    auto_change_notes: map.auto_change_notes === "on",
     update_check: map.update_check !== "off",
     update_feed_url: map.update_feed_url ?? "",
     /** Cleared until the operator has seen the "alerts are on" notice once. */

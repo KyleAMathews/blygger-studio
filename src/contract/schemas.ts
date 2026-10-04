@@ -156,6 +156,7 @@ export const SettingsSchema = z.object({
   accept_mentions: z.boolean(),
   update_check: z.boolean(),
   show_responses_default: z.boolean(),
+  auto_change_notes: z.boolean(),
   update_feed_url: z.string(),
   update_notice_ack: z.boolean(),
 }).openapi("Settings");

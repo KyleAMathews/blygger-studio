@@ -400,6 +400,12 @@ export interface Settings {
    * from per-item to once — it does not reverse it.
    */
   show_responses_default: boolean;
+  /**
+   * Draft a changelog note with the configured model whenever a new version is
+   * published with an empty note (#40). The draft is shown for editing before
+   * anything is published; off by default, because it spends the operator's key.
+   */
+  auto_change_notes: boolean;
   /** Where to ask. Configurable so a fork checks its own releases, not ours. */
   update_feed_url: string;
   /**

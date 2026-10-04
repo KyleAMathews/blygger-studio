@@ -18,6 +18,30 @@ not have its own repo until session 26.
 
 ---
 
+## 0.21.0 — 2026-10-03
+
+**Migrations: none.**
+
+**Every changelog note is confirmed before a new version publishes**, and the
+studio can write one for you.
+
+- When you publish version 2 or later with a note, a *Version N* dialog shows
+  the note under **Change** for a last edit, with **Confirm** and **Cancel**.
+  This happens whether you typed the note, made it with *draft note*, or let
+  the studio draft it. **Cancel** publishes nothing.
+- A new setting, **Automatically generate changelog notes when publishing a new
+  version** (Settings, under the AI model; off by default because it uses your
+  AI key), drafts a note from the change whenever you publish with the note
+  field empty. You see the draft in the same dialog before anything is
+  published.
+- A note confirmed exactly as the model drafted it is marked
+  `"generated": true` in the changelog (§16.6c). Once you edit it, the words
+  are yours and carry no mark.
+- Version 1 never asks, since there's no earlier version to describe. With the
+  setting off and an empty note, publishing works as before, with no dialog.
+- The dialog covers every way to publish a new version of an existing item:
+  the full editor, quick edit, and *publish*/*republish* in the item list.
+
 ## 0.20.2 — 2026-10-03
 
 **Migrations: none.**

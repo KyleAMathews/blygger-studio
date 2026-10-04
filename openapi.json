@@ -349,6 +349,9 @@
           "show_responses_default": {
             "type": "boolean"
           },
+          "auto_change_notes": {
+            "type": "boolean"
+          },
           "update_feed_url": {
             "type": "string"
           },
@@ -370,6 +373,7 @@
           "accept_mentions",
           "update_check",
           "show_responses_default",
+          "auto_change_notes",
           "update_feed_url",
           "update_notice_ack"
         ]
@@ -3737,6 +3741,9 @@
                     "type": "boolean"
                   },
                   "show_responses_default": {
+                    "type": "boolean"
+                  },
+                  "auto_change_notes": {
                     "type": "boolean"
                   },
                   "update_feed_url": {

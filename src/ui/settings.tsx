@@ -20,6 +20,7 @@ const fields = [
   'accept_mentions',
   'update_check',
   'show_responses_default',
+  'auto_change_notes',
   'update_feed_url',
 ] as const;
 function editable(row: Settings): Settings {
@@ -101,7 +102,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
     </>
   );
   const toggle = (
-    key: 'update_check' | 'show_responses_default' | 'accept_mentions',
+    key: 'update_check' | 'show_responses_default' | 'accept_mentions' | 'auto_change_notes',
     label: string,
   ) => (
     <p>
@@ -266,6 +267,16 @@ function SettingsForm({ initial }: { initial: Settings }) {
         'TK site-level style prompt (optional, appended to every generation request)',
         true,
       )}
+      {toggle(
+        'auto_change_notes',
+        'Automatically generate changelog notes when publishing a new version',
+      )}
+      <p className="settings-hint">
+        When a new version is published with no note, the model above drafts
+        one from the change. You see it and can edit it before anything is
+        published. A note published exactly as drafted is marked as generated
+        in the changelog.
+      </p>
       <label htmlFor="timezone">Timezone for displayed dates</label>
       <select
         id="timezone"

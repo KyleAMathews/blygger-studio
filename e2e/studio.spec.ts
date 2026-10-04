@@ -186,6 +186,10 @@ test("a drafted note is editable, flagged only while unedited, and cleared after
   await expect(page.locator("#note-input")).toHaveValue("Added a second sentence.");
   await expect(page.locator("#note-generated-hint")).toBeVisible();
   await page.locator("#publish-btn").click();
+  // Every note is confirmed before a new version publishes (session 33).
+  await expect(page.locator("#note-confirm-text")).toHaveValue("Added a second sentence.");
+  await expect(page.locator("#note-confirm-generated")).toBeVisible();
+  await page.locator("#note-confirm-ok").click();
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(2);
   expect(publishes.at(-1)).toMatchObject({ note: "Added a second sentence.", note_generated: true });
   await expect(page.locator("#history .tc-chip", { hasText: "generated" })).toHaveCount(1);
@@ -198,6 +202,9 @@ test("a drafted note is editable, flagged only while unedited, and cleared after
   await page.locator("#note-input").fill("Added a third sentence, by hand.");
   await expect(page.locator("#note-generated-hint")).toHaveCount(0);
   await page.locator("#publish-btn").click();
+  await expect(page.locator("#note-confirm-text")).toHaveValue("Added a third sentence, by hand.");
+  await expect(page.locator("#note-confirm-generated")).toHaveCount(0);
+  await page.locator("#note-confirm-ok").click();
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(3);
   expect(publishes.at(-1)).toMatchObject({ note_generated: false });
   expect(errors).toEqual([]);
@@ -286,4 +293,71 @@ test("the composer autosaves real text, and not a stray keystroke", async ({ pag
   await page.reload();
   await expect(page.locator(".item-row").filter({ hasText: `${marker} and more` })).toHaveCount(1);
   expect(errors).toEqual([]);
+});
+
+test("auto change notes: a draft is shown for editing before a new version publishes, and cancel publishes nothing", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/studio/login");
+  await page.locator('[name="password"]').fill("test-password");
+  await page.getByRole("button", { name: "log in", exact: true }).click();
+  const api = (m: string, p: string, d?: unknown) => page.evaluate(async ([m, p, d]) => (await fetch('/api' + p, { method: m, headers: { 'content-type': 'application/json' }, body: d === undefined ? undefined : JSON.stringify(d) })).json(), [m, p, d] as const);
+  await api("PATCH", "/settings", { auto_change_notes: true });
+  await page.route("**/note-draft", (route) => route.fulfill({ json: { note: "Tightened the second line.", model: "test", pinned_prior: false } }));
+  const publishes: unknown[] = [];
+  page.on("request", (r) => { if (r.url().endsWith("/publish")) publishes.push(r.postDataJSON()); });
+  const id = (await api("POST", "/items", { content_md: `Auto note fixture ${Date.now()}` })).id;
+  await api("POST", `/items/${id}/publish`, {});
+  await page.goto(`/studio/edit/${id}`);
+  const input = page.locator("#md-input");
+  await input.fill(`${await input.inputValue()} Second line.`);
+
+  // Cancel: nothing is published.
+  await page.locator("#publish-btn").click();
+  await expect(page.locator("#note-confirm-text")).toHaveValue("Tightened the second line.");
+  await page.locator("#note-confirm-cancel").click();
+  await expect(page.locator("#note-confirm")).toHaveCount(0);
+  expect(publishes.filter((b: any) => b && "note_generated" in b)).toHaveLength(0);
+  await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
+
+  // Edit the draft and confirm: published with the author's words, not marked generated.
+  await page.locator("#publish-btn").click();
+  await expect(page.locator("#note-confirm-text")).toHaveValue("Tightened the second line.");
+  await page.locator("#note-confirm-text").fill("Tightened the second line, by hand.");
+  await expect(page.locator("#note-confirm-generated")).toHaveCount(0);
+  await page.locator("#note-confirm-ok").click();
+  await expect(page.locator('[data-action="view-version"]')).toHaveCount(2);
+  expect(publishes.at(-1)).toMatchObject({ note: "Tightened the second line, by hand.", note_generated: false });
+
+  // With the setting off and no note, a new version publishes without asking.
+  await api("PATCH", "/settings", { auto_change_notes: false });
+  await page.reload();
+  await input.fill(`${await input.inputValue()} Third.`);
+  await page.locator("#publish-btn").click();
+  await expect(page.locator('[data-action="view-version"]')).toHaveCount(3);
+  await expect(page.locator("#note-confirm")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("the composer list's publish asks for the note on a new version too", async ({ page }, info) => {
+  await page.goto("/studio/login");
+  await page.locator('[name="password"]').fill("test-password");
+  await page.getByRole("button", { name: "log in", exact: true }).click();
+  const api = (m: string, p: string, d?: unknown) => page.evaluate(async ([m, p, d]) => (await fetch('/api' + p, { method: m, headers: { 'content-type': 'application/json' }, body: d === undefined ? undefined : JSON.stringify(d) })).json(), [m, p, d] as const);
+  await api("PATCH", "/settings", { auto_change_notes: true });
+  await page.route("**/note-draft", (route) => route.fulfill({ json: { note: "Reworded the opening.", model: "test", pinned_prior: false } }));
+  const marker = `Row publish fixture ${Date.now()}`;
+  const id = (await api("POST", "/items", { content_md: marker })).id;
+  await api("POST", `/items/${id}/publish`, {});
+  await api("PATCH", `/items/${id}`, { content_md: `${marker}, reworded` });
+  await page.reload();
+  const row = page.locator(`.item-row[data-id="${id}"]`);
+  const published = page.waitForRequest((r) => r.url().endsWith(`/items/${id}/publish`));
+  await row.getByRole("button", { name: "publish", exact: true }).click();
+  await expect(page.locator("#note-confirm-text")).toHaveValue("Reworded the opening.");
+  await expect(page.locator(".dialog-popup")).toContainText("Version 2");
+  await page.locator(".dialog-popup").screenshot({ path: "/private/tmp/claude-501/-Users-Venkat-Dropbox-Code-blygger-protocol/0fd9c08a-76fd-4fbd-8415-6494efda88eb/scratchpad/note-confirm-" + info.project.name + ".png" });
+  await page.locator("#note-confirm-ok").click();
+  expect((await published).postDataJSON()).toMatchObject({ note: "Reworded the opening.", note_generated: true });
+  await api("PATCH", "/settings", { auto_change_notes: false });
 });
