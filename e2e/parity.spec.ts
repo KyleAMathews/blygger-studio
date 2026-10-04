@@ -95,7 +95,9 @@ for (const [path, current] of [['', 'compose'], ['/reading', 'reading'], ['/hopp
   const publicPage = page.getByRole('link', { name: 'public page ↗' }).first();
   await expect(publicPage).toHaveAttribute('target', '_blank');
   await expect(publicPage).toHaveAttribute('href', '/');
-  expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollbarGutter)).toBe('stable');
+  // The scrollbar track is reserved on wide screens (no sideways jump between short and long
+  // pages) and not on phones, where it would be a dead strip beside the full-width bars.
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollbarGutter)).toBe(page.viewportSize()!.width >= 900 ? 'stable' : 'auto');
   // A bottom tab bar on a phone, a left rail at desktop width — visible either way, no menu button.
   const box = (await page.locator('nav.tabbar').boundingBox())!;
   const viewport = page.viewportSize()!;

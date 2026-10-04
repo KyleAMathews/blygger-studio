@@ -59,7 +59,10 @@
 [hidden] { display: none !important; }
 html, body { margin: 0; }
 /* Reserve the scrollbar track always, so short and long pages share a width. */
-html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; }
+html { -webkit-text-size-adjust: 100%; }
+/* Reserve the scrollbar track on wide screens only, so pages don't jump
+   sideways between short and long screens; on a phone it is a dead strip. */
+@media (min-width: 900px) { html { scrollbar-gutter: stable; } }
 body {
   font-family: var(--sans); color: var(--ink); background: var(--page);
   -webkit-font-smoothing: antialiased; line-height: 1.5; min-height: 100vh;

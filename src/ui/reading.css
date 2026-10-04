@@ -9,7 +9,7 @@
 .view-head { display: flex; align-items: center; gap: 8px; margin: 4px 0 4px; }
 .view-head .view-h { margin: 0 2px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .view-h small { font-size: .8rem; font-weight: 400; color: var(--page-ink-soft); margin-left: 6px; }
-.view-head .icon-btn { color: var(--page-ink); border-color: var(--rule); background: var(--card); font-size: 1.15rem; padding: 6px 11px; min-height: 0; }
+.view-head .icon-btn { color: var(--ink); border-color: var(--rule); background: var(--card); font-size: 1.15rem; padding: 6px 11px; min-height: 0; }
 .back-link { display: inline-block; font-size: .86rem; color: var(--page-ink-soft); text-decoration: none; margin: 0 2px 2px; padding: 4px 0; }
 .back-link:hover { color: var(--page-ink); }
 .list-h a { color: inherit; text-transform: none; letter-spacing: 0; font-weight: 600; }
