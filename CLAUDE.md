@@ -153,6 +153,8 @@ saying so.
 
 ## Status
 
+**0.22.0** (2026-10-03, contributed): the studio redesigned for the phone after Thicket Console — wears the reading theme, tab bar, NetNewsWire-style reading, bottom sheets for every confirm, copy + link / share, link from clipboard, scan-text instructions (optional on-device Tesseract), installable PWA. No API, contract or data changes; no migration.
+
 **0.21.0** (session 33, 2026-10-03): a *Version N / Change* confirmation dialog before every new version with a note (typed, drafted, or auto-drafted), and the `auto_change_notes` setting (off by default) that drafts one when the field is empty (#40). No migration.
 
 **0.20.2** (session 33, 2026-10-03): XML-invalid characters filtered from the feed and stripped at publish, grapheme-safe excerpts (studio#15 parts 2–3; `src/text.ts`); `npm test` no longer fails on an operator's own `wrangler.jsonc` — the template guard is CI-only `npm run check:template` (studio#1); local migrations reserved `9000_`+ (studio#10).
