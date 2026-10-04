@@ -30,6 +30,7 @@ test('SPA creates, edits, previews and publishes without document navigation', a
   await expect(page.locator('[data-action=view-version]')).toBeVisible();
   expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ version: 1, content_md: 'React **round trip**' });
   await page.getByRole('link', { name: 'reading', exact: true }).click();
+  await page.locator('.feeds a[href*="sub=all"]').click();
   await expect(page.locator('.reading-entry').first()).toBeVisible();
   const entry = page.locator('.reading-entry').filter({ has: page.locator(`a[href$="/edit/${id}"]`) });
   for (let n = 0; n < 6 && !await entry.count(); n++) { await page.getByRole('button', { name: 'older', exact: true }).click(); await expect(page).toHaveURL(new RegExp(`offset=${(n + 1) * 25}`)); }
@@ -66,7 +67,7 @@ test('reading walks real API pages without gaps or repeats', async ({ page }) =>
       await fetch(`/api/items/${item.id}/publish`, { method: 'POST' }); ids.push(item.id);
     } return ids;
   });
-  await page.goto('/studio/reading');
+  await page.goto('/studio/reading?sub=all');
   const observed: string[] = [];
   const total = await page.evaluate(async () => (await (await fetch('/api/reading')).json()).total as number);
   const count = Math.ceil(total / 25);
@@ -94,7 +95,9 @@ test('route intent preloads reading before navigation and reuses the DB cache', 
   const before = reads.length;
   expect(before).toBe(1);
   await link.click();
-  await expect(page.locator('.reading-entry').first()).toBeVisible();
+  // /reading is the sources list; its counts come from the preloaded page.
+  await expect(page.locator('.feeds').first()).toBeVisible();
+  await expect(page.locator('.feeds a[href*="sub=all"] .fn')).not.toHaveText('');
   expect(reads).toHaveLength(before);
 });
 
