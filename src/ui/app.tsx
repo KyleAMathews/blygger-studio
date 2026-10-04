@@ -32,12 +32,16 @@ import {
   itemDetail,
   hopperDetail,
   readingView,
+  readingKey,
+  LENSES,
+  type Lens,
   queryClient,
 } from './data.ts';
 import { Button } from './components.tsx';
 import { SyntaxPage } from './syntax.tsx';
 import { MorePage } from './more.tsx';
 import { UpdatesPage } from './updates.tsx';
+import { SignalsPage } from './signals.tsx';
 import { SheetHost } from './sheets.tsx';
 import { applyCachedTheme } from './theme.ts';
 // Paint the last theme this device saw before the first render; settings
@@ -101,13 +105,19 @@ function readingSearch(search: Record<string, unknown>): {
   sub?: string;
   hopper?: string;
   offset?: number;
+  lens?: Lens;
 } {
   const offset = readingOffset(search);
+  const lens =
+    typeof search.lens === 'string' && (LENSES as readonly string[]).includes(search.lens) && search.lens !== 'all'
+      ? (search.lens as Lens)
+      : undefined;
+  const withLens = lens ? { lens } : {};
   if (typeof search.hopper === 'string' && search.hopper)
-    return { hopper: search.hopper, offset };
-  if (typeof search.sub === 'string') return { sub: search.sub, offset };
-  if ('page' in search || 'offset' in search) return { sub: 'all', offset };
-  return {};
+    return { hopper: search.hopper, offset, ...withLens };
+  if (typeof search.sub === 'string') return { sub: search.sub, offset, ...withLens };
+  if ('page' in search || 'offset' in search) return { sub: 'all', offset, ...withLens };
+  return withLens;
 }
 const reading = createRoute({
   getParentRoute: () => rootRoute,
@@ -117,6 +127,7 @@ const reading = createRoute({
     sub: search.sub,
     hopper: search.hopper,
     offset: search.offset ?? 0,
+    lens: search.lens,
   }),
   loader: async ({ deps }) => {
     if (deps.hopper) {
@@ -131,8 +142,11 @@ const reading = createRoute({
     // The sources list reads its counts from the first page of "all".
     const sub = deps.sub ?? 'all';
     const offset = deps.sub === undefined ? 0 : deps.offset;
+    // The placeholder lenses read nothing.
+    if (deps.lens === 'background' || deps.lens === 'smart') return;
+    const key = readingKey(sub, deps.lens);
     await Promise.all([
-      readingView(sub, offset).preload(),
+      readingView(key, offset).preload(),
       subscriptions.preload(),
       hopperCollection.preload(),
       signals.preload(),
@@ -141,7 +155,7 @@ const reading = createRoute({
     const page = queryClient
       .getQueriesData<
         import('../../sdk/dist/browser.js').ListReadingResponses[200]
-      >({ queryKey: ['reading', sub] })
+      >({ queryKey: ['reading', key] })
       .map(([, data]) => data)
       .find((data) => data?.offset === offset);
     if (
@@ -153,6 +167,7 @@ const reading = createRoute({
         search: {
           sub: page.selected,
           offset: offset >= page.total ? 0 : offset,
+          ...(deps.lens ? { lens: deps.lens } : {}),
         },
       });
   },
@@ -210,6 +225,12 @@ const updates = createRoute({
   loader: () => items.preload(),
   component: UpdatesPage,
 });
+// Thumbs and the private interaction log (0.25.0).
+const signalsPage = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/signals',
+  component: SignalsPage,
+});
 const fork = createRoute({
   getParentRoute: () => rootRoute,
   path: '/fork',
@@ -255,6 +276,7 @@ export const router = createRouter({
     hopper,
     mentions,
     updates,
+    signalsPage,
     fork,
     more,
     syntax,

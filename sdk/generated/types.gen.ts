@@ -195,6 +195,31 @@ export type SignalRow = {
     at: string;
 };
 
+export type Interaction = {
+    id: number;
+    at: string;
+    kind: 'thumb_up' | 'thumb_down' | 'thumb_clear' | 'hopper_add' | 'hopper_remove' | 'stub' | 'fork' | 'quote';
+    origin: string;
+    remote_id: string;
+    version: number | null;
+    own_item_id: string | null;
+    own_version: number | null;
+    hopper_id: string | null;
+    hopper_name: string | null;
+    backfilled: number;
+    subscription_id: string | null;
+    label: string | null;
+};
+
+export type Thumb = {
+    thumb: 1 | -1;
+    at: string;
+    origin: string;
+    remote_id: string;
+    subscription_id: string | null;
+    label: string | null;
+};
+
 export type Mention = {
     id: string;
     source: string;
@@ -2492,6 +2517,139 @@ export type ListSignalsResponses = {
 
 export type ListSignalsResponse = ListSignalsResponses[keyof ListSignalsResponses];
 
+export type ListInteractionsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        offset?: number | null;
+        limit?: number;
+        kind?: 'thumb_up' | 'thumb_down' | 'thumb_clear' | 'hopper_add' | 'hopper_remove' | 'stub' | 'fork' | 'quote';
+    };
+    url: '/api/interactions';
+};
+
+export type ListInteractionsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListInteractionsError = ListInteractionsErrors[keyof ListInteractionsErrors];
+
+export type ListInteractionsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        items: Array<Interaction>;
+        total: number;
+        offset: number;
+        limit: number;
+    };
+};
+
+export type ListInteractionsResponse = ListInteractionsResponses[keyof ListInteractionsResponses];
+
+export type ListThumbsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/thumbs';
+};
+
+export type ListThumbsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListThumbsError = ListThumbsErrors[keyof ListThumbsErrors];
+
+export type ListThumbsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        items: Array<Thumb>;
+    };
+};
+
+export type ListThumbsResponse = ListThumbsResponses[keyof ListThumbsResponses];
+
 export type ListMentionsData = {
     body?: never;
     path?: never;
@@ -2798,6 +2956,7 @@ export type ListReadingData = {
         offset?: number | null;
         limit?: number;
         sub?: string;
+        kind?: 'thread' | 'fragment';
     };
     url: '/api/reading';
 };

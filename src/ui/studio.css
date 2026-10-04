@@ -228,6 +228,10 @@ button.link { background: none; border: none; padding: 0; font: inherit; color: 
 .nav-list .ml { flex: 1; min-width: 0; }
 .nav-list .md { display: block; font-size: .76rem; color: var(--ink-soft); overflow-wrap: anywhere; }
 .nav-list .chev { margin-left: auto; color: var(--ink-soft); }
+/* Non-link rows (signals page): same box as a nav-list link. */
+.nav-list .signal-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--rule); }
+.nav-list li:first-child .signal-row { border-top: none; }
+.nav-list .signal-row a { display: inline; padding: 0; border: none; width: auto; color: var(--pencil); }
 
 /* ---------- TAB BAR → RAIL ---------- */
 .tabbar {

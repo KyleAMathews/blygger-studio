@@ -10,6 +10,7 @@ import { renderMarkdown, plainTextFromHtml } from "./markdown.ts";
 import { clampText } from "./preview.ts";
 import { applyInternalLinks, previewInternalLinks, previewTransclusions, resolveBlockLinks } from "./transclusion.ts";
 import { siteOrigin } from "./protocol.ts";
+import { INTERACTION_KINDS, listInteractions, listThumbs, type InteractionKind } from "./interactions.ts";
 import { normalizeMount } from "./util.ts";
 import type { Env, SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, MentionInRow, MentionOutRow } from "./types.ts";
 import { itemDetail } from "./item-data.ts";
@@ -80,7 +81,18 @@ readApi.openapi(routes.listMentions, async (c) => {
   const page = await collection<MentionInRow>(c.env.DB, c.req.query(), `SELECT * FROM mentions_in ${where} ORDER BY verified_at DESC, last_seen DESC, id ASC`, `SELECT COUNT(*) AS total FROM mentions_in ${where}`);
   return c.json({ ...page, items: page.items.map(mentionResource), direction });
 });
-readApi.openapi(routes.listReading, async (c) => c.json(await readingData(c.env.DB, Number(c.req.query("offset") ?? 0), Number(c.req.query("limit") ?? 25), c.req.query("sub"))));
+readApi.openapi(routes.listInteractions, async (c) => {
+  const offset = Math.max(0, Number(c.req.query("offset") ?? 0) || 0);
+  const limit = Math.min(100, Math.max(1, Number(c.req.query("limit") ?? 50) || 50));
+  const raw = c.req.query("kind");
+  const kind = INTERACTION_KINDS.includes(raw as InteractionKind) ? (raw as InteractionKind) : undefined;
+  return c.json({ ...(await listInteractions(c.env.DB, offset, limit, kind)), offset, limit });
+});
+readApi.openapi(routes.listThumbs, async (c) => c.json({ items: await listThumbs(c.env.DB) }));
+readApi.openapi(routes.listReading, async (c) => c.json(await readingData(c.env.DB, Number(c.req.query("offset") ?? 0), Number(c.req.query("limit") ?? 25), c.req.query("sub"), readingKind(c.req.query("kind")))));
+function readingKind(raw: string | undefined): "thread" | "fragment" | undefined {
+  return raw === "thread" || raw === "fragment" ? raw : undefined;
+}
 readApi.openapi(routes.getImportedItem, async (c) => {
   const row = await getImportedItem(c.env.DB, c.req.param("sub"), c.req.param("id"));
   return row ? c.json(importedResource({ ...row, content_html: await sanitizeHtml(row.content_html) })) : c.json({ error: "not found" }, 404);

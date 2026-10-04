@@ -182,3 +182,7 @@
 .settings-form .field > label > span, .settings-form .field > span { display: block; font-size: .82rem; color: var(--ink-soft); margin-bottom: 6px; }
 .settings-form .check { margin-bottom: 4px; }
 .settings-form .check-hint { margin: 0 2px 14px 28px; }
+
+/* Reading lenses (0.25.0) */
+.lens-bar .seg { text-decoration: none; }
+.lens-placeholder a { font-weight: 600; }

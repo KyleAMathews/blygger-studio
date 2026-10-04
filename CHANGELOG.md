@@ -18,6 +18,37 @@ not have its own repo until session 26.
 
 ---
 
+## 0.25.0 — 2026-10-04
+
+**Migrations: 0019** (the `interactions` table, with a backfill). Apply it before
+deploying: `npx wrangler d1 migrations apply DB --remote`. `/api` changes, all
+additive: `GET /api/reading` takes `kind=thread|fragment`; new `GET /api/interactions`
+(paged, filterable by `kind`) and `GET /api/thumbs`.
+
+**Scaffolding for better reading.** This release telegraphs where reading is
+going: a feed your own AI agent sorts and filters from a prompt you write. The
+agent is not designed or built yet. What ships is the record it will need.
+
+- **Reading lenses.** Every reading screen has a lens bar: All, Threads,
+  Fragments, Background and Smart Feed. Threads and Fragments filter whatever is
+  open, a source, a hopper or everything, and the sources list counts follow the
+  lens. Background and Smart Feed are placeholders, marked with dashed outlines:
+  Background is for procedural staleness updates once the `ignyr` changelog
+  directive is designed into the protocol; Smart Feed is for the agent-ranked feed.
+- **Interaction log.** A private, append-only record of what you do with other
+  people's items: thumbs up, down and cleared, hopper adds and removals, and the
+  stubs, forks and quotes you publish. Each act is logged when it becomes real on
+  the server, never on a click you abandon, and is keyed by origin and id so it
+  survives an unsubscribe. The migration backfills it from current thumbs, hopper
+  memberships and your published versions. It is never published.
+- **more → signals.** Your current likes and dislikes, and the activity log,
+  newest first.
+
+Protocol: implements 0.3, unchanged. Nothing in this release is on the wire
+(decisions #11 and #12: AI, identity and editorial convenience never are).
+
+---
+
 ## 0.24.0 — 2026-10-04
 
 **Migrations: 0018** (adds `hoppers.description`). Apply it before deploying:

@@ -13,7 +13,7 @@
  */
 import { readingPage } from '../paging.ts';
 import type { ReactNode } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from '@tanstack/react-db';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type {
@@ -25,7 +25,8 @@ import type {
   Subscription,
 } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
-import type { Reading } from './data.ts';
+import type { Lens, Reading } from './data.ts';
+import { LENSES, lensKind, readingKey } from './data.ts';
 import {
   readingView,
   subscriptions,
@@ -859,6 +860,80 @@ function SubscribeSheet({
   );
 }
 
+/* ---------------- lenses (0.25.0) ---------------- */
+
+const LensContext = createContext<Lens>('all');
+/** The current lens as search params, for links that should keep it. */
+function useLensSearch(): { lens?: Lens } {
+  const lens = useContext(LensContext);
+  return lens === 'all' ? {} : { lens };
+}
+const LENS_LABELS: Record<Lens, string> = {
+  all: 'All',
+  threads: 'Threads',
+  fragments: 'Fragments',
+  background: 'Background',
+  smart: 'Smart Feed',
+};
+/**
+ * The lens bar at the top of every reading screen. All, Threads and Fragments
+ * filter whatever is open (the sources list's counts too); Background and
+ * Smart Feed are placeholders that telegraph where reading is going.
+ */
+function LensBar({ sub, hopper }: { sub?: string; hopper?: string }) {
+  const lens = useContext(LensContext);
+  const navigate = useNavigate();
+  const bar = useRef<HTMLDivElement>(null);
+  // On a phone the bar scrolls sideways; keep the chosen lens in view.
+  useEffect(() => {
+    const el = bar.current?.querySelector<HTMLElement>('[aria-pressed=true]');
+    const box = bar.current;
+    if (!el || !box) return;
+    // Scroll only the bar, never the page.
+    if (el.offsetLeft + el.offsetWidth > box.scrollLeft + box.clientWidth) box.scrollLeft = el.offsetLeft + el.offsetWidth - box.clientWidth;
+    else if (el.offsetLeft < box.scrollLeft) box.scrollLeft = el.offsetLeft;
+  }, [lens]);
+  const place = hopper ? { hopper, offset: 0 } : sub ? { sub, offset: 0 } : {};
+  // Buttons, not router Links: a Link to /reading counts as "current" under
+  // every lens, which would mark All active alongside the real choice.
+  return (
+    <div ref={bar} className="segmented lens-bar" role="group" aria-label="reading lens">
+      {LENSES.map((value) => (
+        <Button
+          key={value}
+          className={`seg${lens === value ? ' is-active' : ''}${value === 'background' || value === 'smart' ? ' seg-dashed' : ''}`}
+          aria-pressed={lens === value}
+          onClick={() =>
+            void navigate({ to: '/reading', search: { ...place, ...(value === 'all' ? {} : { lens: value }) } })
+          }
+        >
+          {LENS_LABELS[value]}
+        </Button>
+      ))}
+    </div>
+  );
+}
+export const BACKGROUND_NOTE =
+  'Procedural version updates for managing staleness, with ignyr in the changelog, will appear here once the feature is designed and incorporated into the protocol.';
+export const SMART_FEED_NOTE = 'Feed sorted and filtered by your AI agent. Set a prompt in Settings.';
+function LensPlaceholder({ lens }: { lens: 'background' | 'smart' }) {
+  return (
+    <div className="empty lens-placeholder">
+      <span className="em" aria-hidden="true">
+        {lens === 'smart' ? '✦' : '↻'}
+      </span>
+      {lens === 'smart' ? (
+        <>
+          Feed sorted and filtered by your AI agent. Set a prompt in{' '}
+          <Link to="/settings">Settings</Link>.
+        </>
+      ) : (
+        BACKGROUND_NOTE
+      )}
+    </div>
+  );
+}
+
 /* ---------------- the sources list ---------------- */
 
 function SubscriptionRow({
@@ -872,6 +947,7 @@ function SubscriptionRow({
   onInspect: () => void;
   onToggle: () => void;
 }) {
+  const lensSearch = useLensSearch();
   const settings = useSettings();
   const swipe = useSwipe<HTMLLIElement>({
     onLeft: onInspect,
@@ -893,7 +969,7 @@ function SubscriptionRow({
       <div className="feed-in">
         <Link
           to="/reading"
-          search={{ sub: source.id, offset: 0 }}
+          search={{ sub: source.id, offset: 0, ...lensSearch }}
           draggable={false}
         >
           <span className="fi" aria-hidden="true">
@@ -920,6 +996,7 @@ function SubscriptionRow({
   );
 }
 function HopperSource({ id, name }: { id: string; name: string }) {
+  const lensSearch = useLensSearch();
   const collection = useMemo(() => hopperPreview(id), [id]);
   usePoll(`hopper-preview:${id}`, collection.utils.refetch);
   const row = useLiveQuery({ query: (q) => q.from({ hopper: collection }) })
@@ -927,7 +1004,7 @@ function HopperSource({ id, name }: { id: string; name: string }) {
   return (
     <li className="feed">
       <div className="feed-in">
-        <Link to="/reading" search={{ hopper: id, offset: 0 }}>
+        <Link to="/reading" search={{ hopper: id, offset: 0, ...lensSearch }}>
           <span className="fi" aria-hidden="true">
             ▤
           </span>
@@ -960,10 +1037,11 @@ function SmartSource({
   title: string;
   count: number | undefined;
 }) {
+  const lensSearch = useLensSearch();
   return (
     <li className="feed">
       <div className="feed-in">
-        <Link to="/reading" search={{ sub, offset: 0 }}>
+        <Link to="/reading" search={{ sub, offset: 0, ...lensSearch }}>
           <span className="fi smart" aria-hidden="true">
             {icon}
           </span>
@@ -987,9 +1065,11 @@ function Sources() {
   const [adding, setAdding] = useState(false);
   // The first page of "all" carries the counts for every source; it is also
   // what tapping "all" shows, so it is warm when that happens.
-  useLiveQuery(readingView('all', 0));
-  const refresh = useMemo(() => () => refreshReading('all', 0), []);
-  usePoll('reading:all:0', refresh);
+  const lens = useContext(LensContext);
+  const allKey = readingKey('all', lens);
+  useLiveQuery(readingView(allKey, 0));
+  const refresh = useMemo(() => () => refreshReading(allKey, 0), [allKey]);
+  usePoll(`reading:${allKey}:0`, refresh);
   usePoll('subscriptions', subscriptions.utils.refetch);
   usePoll('hoppers', hoppers.utils.refetch);
   const sources =
@@ -997,7 +1077,7 @@ function Sources() {
     [];
   const buckets =
     useLiveQuery({ query: (q) => q.from({ hopper: hoppers }) }).data ?? [];
-  const counts = readingMeta('all', 0)?.counts;
+  const counts = readingMeta(allKey, 0)?.counts;
   const inspected = sources.find((source) => source.id === inspect);
   return (
     <>
@@ -1012,6 +1092,7 @@ function Sources() {
           ＋
         </Button>
       </div>
+      <LensBar />
       <Failure error={actions.error} />
       <div className="list-h">
         <span>sources</span>
@@ -1084,9 +1165,10 @@ function TimelineHead({
   count: number | undefined;
   children?: ReactNode;
 }) {
+  const lensSearch = useLensSearch();
   return (
     <>
-      <Link className="back-link" to="/reading" search={{}}>
+      <Link className="back-link" to="/reading" search={{ ...lensSearch }}>
         ← sources
       </Link>
       <div className="view-head">
@@ -1100,22 +1182,24 @@ function TimelineHead({
   );
 }
 function Timeline({ sub, offset }: { sub: string; offset: number }) {
+  const lensSearch = useLensSearch();
   useChrome({ framed: false, wide: false });
   const actions = useReadingActions();
   const [inspecting, setInspecting] = useState(false);
-  const entries = useLiveQuery(readingView(sub, offset));
+  const key = readingKey(sub, useContext(LensContext));
+  const entries = useLiveQuery(readingView(key, offset));
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
   const refresh = useMemo(
-    () => () => refreshReading(sub, offset),
-    [sub, offset],
+    () => () => refreshReading(key, offset),
+    [key, offset],
   );
-  usePoll(`reading:${sub}:${offset}`, refresh);
+  usePoll(`reading:${key}:${offset}`, refresh);
   usePoll('subscriptions', subscriptions.utils.refetch);
   usePoll('hoppers', hoppers.utils.refetch);
   usePoll('signals', signals.utils.refetch);
-  const metadata = readingMeta(sub, offset);
+  const metadata = readingMeta(key, offset);
   const selected = sources.find((source) => source.id === sub);
   const title =
     sub === 'all'
@@ -1138,6 +1222,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
           </Button>
         ) : null}
       </TimelineHead>
+      <LensBar sub={sub} />
       <Failure error={actions.error} />
       {selected?.status === 'paused' ? (
         <div className="banner banner-warn" role="note">
@@ -1163,7 +1248,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
         go={(next) =>
           void actions.navigate({
             to: '/reading',
-            search: { sub, offset: next },
+            search: { sub, offset: next, ...lensSearch },
           })
         }
       />
@@ -1218,6 +1303,7 @@ function hopperEntry(
   };
 }
 function HopperTimeline({ id, offset }: { id: string; offset: number }) {
+  const lensSearch = useLensSearch();
   useChrome({ framed: false, wide: false });
   const actions = useReadingActions();
   const collection = useMemo(() => hopperDetail(id), [id]);
@@ -1229,22 +1315,25 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
+  const kind = lensKind(useContext(LensContext));
   const entries = useMemo(
     () =>
-      (row?.items ?? []).map((item, i) =>
-        hopperEntry(
-          item,
-          sources.find((source) => source.id === item.subscription_id),
-          i,
+      (row?.items ?? [])
+        .filter((item) => !kind || item.kind === kind)
+        .map((item, i) =>
+          hopperEntry(
+            item,
+            sources.find((source) => source.id === item.subscription_id),
+            i,
+          ),
         ),
-      ),
-    [row, sources],
+    [row, sources, kind],
   );
   if (!row) return <p className="view-sub">Loading hopper…</p>;
   const start = offset < entries.length ? offset : 0;
   return (
     <>
-      <TimelineHead title={row.hopper.name} count={row.total}>
+      <TimelineHead title={row.hopper.name} count={kind ? entries.length : row.total}>
         <Link
           className="btn btn-ghost btn-mini"
           to="/hoppers/$id"
@@ -1253,6 +1342,7 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
           manage
         </Link>
       </TimelineHead>
+      <LensBar hopper={id} />
       <Failure error={actions.error} />
       <EntryList
         entries={entries.slice(start, start + PAGE)}
@@ -1272,7 +1362,7 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
           go={(next) =>
             void actions.navigate({
               to: '/reading',
-              search: { hopper: id, offset: next },
+              search: { hopper: id, offset: next, ...lensSearch },
             })
           }
         />
@@ -1285,14 +1375,36 @@ export function ReadingPage({
   sub,
   hopper,
   offset,
+  lens = 'all',
 }: {
   sub?: string;
   hopper?: string;
   offset?: number;
+  lens?: Lens;
 }) {
+  return (
+    <LensContext.Provider value={lens}>
+      <ReadingScreen sub={sub} hopper={hopper} offset={offset} lens={lens} />
+    </LensContext.Provider>
+  );
+}
+function ReadingScreen({ sub, hopper, offset, lens }: { sub?: string; hopper?: string; offset?: number; lens: Lens }) {
+  if (lens === 'background' || lens === 'smart')
+    return (
+      <>
+        <PlaceholderChrome />
+        <h2 className="view-h">reading</h2>
+        <LensBar sub={sub} hopper={hopper} />
+        <LensPlaceholder lens={lens} />
+      </>
+    );
   if (hopper) return <HopperTimeline id={hopper} offset={offset ?? 0} />;
   if (sub) return <Timeline sub={sub} offset={offset ?? 0} />;
   return <Sources />;
+}
+function PlaceholderChrome() {
+  useChrome({ framed: false, wide: false });
+  return null;
 }
 
 /* ---------------- imported history (#40) ---------------- */

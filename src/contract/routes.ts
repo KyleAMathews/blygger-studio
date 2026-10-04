@@ -31,6 +31,10 @@ const subscribed = SubscriptionSchema;
 const confirmation = z.object({ needsConfirm: z.literal(true), kind: z.enum(["blyg", "rss"]), origin: z.string().optional(), feedUrl: z.string().optional(), title: z.string(), siteMismatch: z.object({ asserted: z.string(), actual: z.string() }).optional() });
 const quoteFreshness = z.object({ id: z.string(), origin: z.string().optional(), baked: z.number().int(), held: z.number().int().nullable(), live: z.number().int().nullable(), partial: z.boolean(), status: z.enum(["current", "refreshable", "behind", "passage-missing", "unresolvable", "retained"]), reason: z.string().optional() }).openapi("QuoteFreshness");
 export const ThreadFreshnessSchema = z.object({ id: z.string(), version: z.number().int(), dirty: z.boolean(), quotes: z.array(quoteFreshness), stale: z.number().int().nonnegative(), blocking: z.number().int().nonnegative(), behind: z.number().int().nonnegative() }).openapi("ThreadFreshness");
+const interactionKind = z.enum(["thumb_up", "thumb_down", "thumb_clear", "hopper_add", "hopper_remove", "stub", "fork", "quote"]);
+/** The owner's private interaction log (0.25.0). Never on the wire. */
+export const InteractionSchema = z.object({ id: z.number().int(), at: z.string(), kind: interactionKind, origin: z.string(), remote_id: z.string(), version: z.number().int().nullable(), own_item_id: z.string().nullable(), own_version: z.number().int().nullable(), hopper_id: z.string().nullable(), hopper_name: z.string().nullable(), backfilled: z.number().int(), subscription_id: z.string().nullable(), label: z.string().nullable() }).openapi("Interaction");
+export const ThumbSchema = z.object({ thumb: z.union([z.literal(1), z.literal(-1)]), at: z.string(), origin: z.string(), remote_id: z.string(), subscription_id: z.string().nullable(), label: z.string().nullable() }).openapi("Thumb");
 const counts = z.object({ all: z.number(), own: z.number(), subscriptions: z.record(z.string(), z.number()) });
 
 function route<P extends string>(id: string, method: RouteConfig["method"], path: P, response: z.ZodType, body?: z.ZodType, status = 200, query?: z.ZodObject, optionalBody = false): RouteConfig & { path: P } {
@@ -76,11 +80,13 @@ export const routes = {
   listHoppers: route("listHoppers", "get", "/hoppers", collection(HopperSchema), undefined, 200, page),
   getHopper: route("getHopper", "get", "/hoppers/{id}", z.object({ hopper: HopperSchema, memberships: z.array(HopperItemRowSchema), items: z.array(ImportedItemSchema), total: z.number().int().nonnegative(), source_count: z.number().int().nonnegative() }), undefined, 200, z.object({ preview: z.literal("true").optional() })),
   listSignals: route("listSignals", "get", "/signals", collection(SignalRowSchema), undefined, 200, page),
+  listInteractions: route("listInteractions", "get", "/interactions", collection(InteractionSchema), undefined, 200, page.extend({ kind: interactionKind.optional() })),
+  listThumbs: route("listThumbs", "get", "/thumbs", z.object({ items: z.array(ThumbSchema) })),
   listMentions: route("listMentions", "get", "/mentions", collection(z.union([MentionSchema, MentionOutRowSchema])).extend({ direction: z.enum(["inbound", "outbound"]) }), undefined, 200, page.extend({ direction: z.enum(["inbound", "outbound"]).optional() })),
   preview: route("preview", "post", "/preview", preview, z.object({ content_md: z.string().optional(), item_id: z.string().optional(), kind: z.enum(["fragment", "thread"]).optional() })),
   search: route("search", "get", "/search", z.object({ items: z.array(z.object({ id: z.string(), excerpt: z.string(), version: z.number(), updated: z.string(), badge: z.string() })), total: z.number(), offset: z.number(), limit: z.number() }), undefined, 200, page.extend({ q: z.string().optional() })),
   getVersion: route("getVersion", "get", "/items/{id}/versions/{v}", VersionSchema),
-  listReading: route("listReading", "get", "/reading", z.object({ items: z.array(ReadingEntrySchema), counts, total: z.number(), offset: z.number(), limit: z.number(), selected: z.string() }), undefined, 200, page.extend({ limit: z.coerce.number().int().min(1).max(50).optional(), sub: z.string().optional() })),
+  listReading: route("listReading", "get", "/reading", z.object({ items: z.array(ReadingEntrySchema), counts, total: z.number(), offset: z.number(), limit: z.number(), selected: z.string() }), undefined, 200, page.extend({ limit: z.coerce.number().int().min(1).max(50).optional(), sub: z.string().optional(), kind: z.enum(["thread", "fragment"]).optional() })),
   getImportedItem: route("getImportedItem", "get", "/imports/{sub}/{id}", ImportedItemSchema),
   getImportedHistory: route("getImportedHistory", "get", "/imports/{sub}/{id}/history", z.object({ current: z.number().int(), withdrawn: z.boolean(), changelog: z.array(z.object({ version: z.number().int(), at: z.string(), note: z.string().nullable(), pinned: z.boolean(), generated: z.boolean() })) })),
   getImportedVersion: route("getImportedVersion", "get", "/imports/{sub}/{id}/versions/{v}", z.object({ version: z.number().int(), content_md: z.string(), note: z.string().nullable(), pinned: z.boolean() })),

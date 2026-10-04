@@ -78,6 +78,20 @@ export function MorePage() {
           </Link>
         </li>
         <li>
+          <Link to="/signals">
+            <span className="mi" aria-hidden="true">
+              ♡
+            </span>
+            <span className="ml">
+              signals
+              <span className="md">your thumbs and activity, kept private</span>
+            </span>
+            <span className="chev" aria-hidden="true">
+              ›
+            </span>
+          </Link>
+        </li>
+        <li>
           <Link to="/syntax">
             <span className="mi" aria-hidden="true">
               ⌗

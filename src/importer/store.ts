@@ -373,25 +373,39 @@ export async function renameHopper(db: D1Database, id: string, name: string, slu
   await db.prepare("UPDATE hoppers SET name = ?, slug = ? WHERE id = ?").bind(name, slug, id).run();
 }
 
+// Interaction log (migration 0019): membership changes and thumb changes are
+// logged here, at the store, so every caller logs them. See src/interactions.ts.
+const LOG_HOPPER = `INSERT INTO interactions (at, kind, origin, remote_id, hopper_id, hopper_name)
+  SELECT ?, ?, s.origin, ?, h.id, h.name FROM hoppers h, subscriptions s WHERE h.id = ? AND s.id = ?`;
+const LOG_THUMB = `INSERT INTO interactions (at, kind, origin, remote_id) SELECT ?, ?, s.origin, ? FROM subscriptions s WHERE s.id = ?`;
+
 export async function deleteHopper(db: D1Database, id: string): Promise<void> {
   await db.batch([
+    // A deleted hopper's members leave it: logged as removals, so the history keeps the curation.
+    db.prepare(`INSERT INTO interactions (at, kind, origin, remote_id, hopper_id, hopper_name)
+      SELECT ?, 'hopper_remove', s.origin, hi.remote_id, h.id, h.name
+      FROM hopper_items hi JOIN hoppers h ON h.id = hi.hopper_id JOIN subscriptions s ON s.id = hi.subscription_id
+      WHERE hi.hopper_id = ?`).bind(nowIso(), id),
     db.prepare("DELETE FROM hopper_items WHERE hopper_id = ?").bind(id),
     db.prepare("DELETE FROM hoppers WHERE id = ?").bind(id),
   ]);
 }
 
 export async function addHopperItem(db: D1Database, hopperId: string, subscriptionId: string, remoteId: string): Promise<void> {
-  await db
+  const at = nowIso();
+  const res = await db
     .prepare("INSERT OR IGNORE INTO hopper_items (hopper_id, subscription_id, remote_id, added_at) VALUES (?, ?, ?, ?)")
-    .bind(hopperId, subscriptionId, remoteId, nowIso())
+    .bind(hopperId, subscriptionId, remoteId, at)
     .run();
+  if (res.meta.changes) await db.prepare(LOG_HOPPER).bind(at, "hopper_add", remoteId, hopperId, subscriptionId).run();
 }
 
 export async function removeHopperItem(db: D1Database, hopperId: string, subscriptionId: string, remoteId: string): Promise<void> {
-  await db
+  const res = await db
     .prepare("DELETE FROM hopper_items WHERE hopper_id = ? AND subscription_id = ? AND remote_id = ?")
     .bind(hopperId, subscriptionId, remoteId)
     .run();
+  if (res.meta.changes) await db.prepare(LOG_HOPPER).bind(nowIso(), "hopper_remove", remoteId, hopperId, subscriptionId).run();
 }
 
 export async function listHopperItems(db: D1Database, hopperId: string): Promise<HopperItemRow[]> {
@@ -415,11 +429,14 @@ export async function listHoppersForItem(db: D1Database, subscriptionId: string,
 }
 
 export async function setSignal(db: D1Database, subscriptionId: string, remoteId: string, thumb: 1 | -1): Promise<void> {
+  const before = await getSignal(db, subscriptionId, remoteId);
+  const at = nowIso();
+  if (before?.thumb !== thumb) await db.prepare(LOG_THUMB).bind(at, thumb === 1 ? "thumb_up" : "thumb_down", remoteId, subscriptionId).run();
   await db
     .prepare(
       "INSERT INTO signals (subscription_id, remote_id, thumb, at) VALUES (?, ?, ?, ?) ON CONFLICT(subscription_id, remote_id) DO UPDATE SET thumb = excluded.thumb, at = excluded.at",
     )
-    .bind(subscriptionId, remoteId, thumb, nowIso())
+    .bind(subscriptionId, remoteId, thumb, at)
     .run();
 }
 
@@ -431,5 +448,6 @@ export async function getSignal(db: D1Database, subscriptionId: string, remoteId
 }
 
 export async function deleteSignal(db: D1Database, subscriptionId: string, remoteId: string): Promise<void> {
-  await db.prepare("DELETE FROM signals WHERE subscription_id = ? AND remote_id = ?").bind(subscriptionId, remoteId).run();
+  const res = await db.prepare("DELETE FROM signals WHERE subscription_id = ? AND remote_id = ?").bind(subscriptionId, remoteId).run();
+  if (res.meta.changes) await db.prepare(LOG_THUMB).bind(nowIso(), "thumb_clear", remoteId, subscriptionId).run();
 }

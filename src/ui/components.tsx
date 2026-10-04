@@ -134,7 +134,7 @@ export function tabFor(path: string): Tab | null {
   if (p === '/hoppers' || p.startsWith('/hoppers/')) return 'hoppers';
   if (p === '/mentions') return 'mentions';
   if (p === '/updates') return 'updates';
-  if (p === '/more' || p === '/settings' || p === '/syntax') return 'more';
+  if (p === '/more' || p === '/settings' || p === '/syntax' || p === '/signals') return 'more';
   return null;
 }
 function relativePath(pathname: string) {

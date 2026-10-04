@@ -3,6 +3,7 @@
 import { renderMarkdown } from "./markdown.ts";
 import { htmlCodeRanges } from "./code-ranges.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, stripToOutput, TkPublishError, unresolvedScopes } from "./tk.ts";
+import { recordPublishInteractions } from "./interactions.ts";
 import { applyVersionAgreement, composeStubCite, composeTransclusionCite, parseStoredStub } from "./stub.ts";
 import {
   applyInternalLinks,
@@ -400,6 +401,9 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
     db.prepare("UPDATE items SET status = 'public', kind = ?, version = ?, dirty = 0, updated = ? WHERE id = ?")
       .bind(kind, version, now, item.id),
   ]);
+  // The owner's private interaction log (src/interactions.ts): stubs, forks and
+  // quotes of other blygs' items that this version newly makes.
+  await recordPublishInteractions(db, item.id, version, normalizedOrigin(origin));
   return version;
 }
 
