@@ -22,8 +22,12 @@ import {
   Html,
   usePoll,
   mount,
+  useChrome,
   useSettings,
 } from './components.tsx';
+import { confirm } from './sheets.tsx';
+import { formatDateIn } from '../dates.ts';
+import './reading.css';
 function useAction() {
   const [error, setError] = useState<unknown>();
   const [busy, setBusy] = useState(false);
@@ -44,7 +48,8 @@ function useAction() {
     },
   };
 }
-export function AddFeedForm() {
+/** Subscribe to a blyg or a feed: the body of reading's ＋ sheet. */
+export function AddFeedForm({ onSubscribed }: { onSubscribed?: () => void }) {
   const action = useAction();
   const [url, setUrl] = useState('');
   const [confirmation, setConfirmation] = useState<{
@@ -63,6 +68,7 @@ export function AddFeedForm() {
       setConfirmation(undefined);
       setUrl('');
       await changed('subscriptions', 'reading');
+      onSubscribed?.();
     }
   };
   return (
@@ -78,6 +84,8 @@ export function AddFeedForm() {
         <input
           id="add-sub-url"
           type="url"
+          inputMode="url"
+          aria-label="feed or blyg URL"
           placeholder="https://example.com/"
           required
           value={url}
@@ -86,127 +94,45 @@ export function AddFeedForm() {
             setConfirmation(undefined);
           }}
         />
-        <Button disabled={action.busy} type="submit">
-          subscribe
-        </Button>
+        {confirmation ? null : (
+          <div className="sheet-actions">
+            <Button
+              className="btn btn-primary"
+              disabled={action.busy}
+              type="submit"
+            >
+              subscribe
+            </Button>
+          </div>
+        )}
       </form>
       {confirmation ? (
-        <div id="add-sub-confirm">
-          <p>Subscribe to {confirmation.title}?</p>
+        <div id="add-sub-confirm" className="add-sub-confirm">
+          <p>
+            <strong>Subscribe to {confirmation.title}?</strong>
+          </p>
           {confirmation.siteMismatch ? (
-            <p>
+            <p className="mismatch">
               Site mismatch: {confirmation.siteMismatch.asserted} /{' '}
               {confirmation.siteMismatch.actual}
             </p>
           ) : null}
-          <Button onClick={() => void action.run(() => add(true))}>
-            confirm subscribe
-          </Button>
+          <div className="sheet-actions">
+            <Button
+              className="btn btn-primary"
+              disabled={action.busy}
+              onClick={() => void action.run(() => add(true))}
+            >
+              confirm subscribe
+            </Button>
+          </div>
         </div>
       ) : null}
     </>
   );
 }
-export function SubscriptionsPage() {
-  const action = useAction();
-  const rows =
-    useLiveQuery({
-      query: (q) => q.from({ sub: subscriptions }),
-    }).data ?? [];
-  usePoll('subscriptions', subscriptions.utils.refetch);
-  return (
-    <>
-      <h2>subscriptions</h2>
-      <AddFeedForm />
-      <Failure error={action.error} />
-      {rows.map((sub) => (
-        <div className="sub-row" key={sub.id}>
-          <div className="title-line">
-            <span className={`status-dot ${sub.status}`}>●</span>
-            <span className="kind-chip">{sub.kind}</span>
-            <strong>{sub.title || sub.origin}</strong>
-          </div>
-          <p className="meta">
-            {sub.origin} ·{' '}
-            {sub.last_poll_at
-              ? `last polled ${sub.last_poll_at}`
-              : 'never polled'}{' '}
-            · {sub.fail_count} failures
-          </p>
-          {sub.flags.length ? (
-            <p className="flags">
-              {sub.flags
-                .map((flag) => `${flag.type}: ${flag.detail || ''}`)
-                .join(' · ')}
-            </p>
-          ) : null}
-          <div className="actions">
-            <Button
-              onClick={() =>
-                void action.run(async () => {
-                  await subscriptions.update(sub.id, (row) => {
-                    row.status = sub.status === 'paused' ? 'active' : 'paused';
-                  }).isPersisted.promise;
-                })
-              }
-            >
-              {sub.status === 'paused' ? 'resume' : 'pause'}
-            </Button>
-            {sub.kind === 'blyg' ? (
-              <Button
-                onClick={() =>
-                  void action.run(async () => {
-                    await unwrap(
-                      BlyggerApi.resyncSubscription({
-                        client,
-                        path: { id: sub.id },
-                      }),
-                    );
-                    await changed('subscriptions', 'reading');
-                  })
-                }
-              >
-                resync
-              </Button>
-            ) : null}
-            <Button
-              className="danger"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    'Delete this subscription and its local imports, hopper memberships, and signals?',
-                  )
-                )
-                  void action.run(async () => {
-                    await subscriptions.delete(sub.id).isPersisted.promise;
-                    await changed('hoppers', 'signals', 'reading');
-                  });
-              }}
-            >
-              delete
-            </Button>
-            <label className="blogroll">
-              <input
-                type="checkbox"
-                checked={sub.in_blogroll}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  void action.run(async () => {
-                    await subscriptions.update(sub.id, (row) => {
-                      row.in_blogroll = checked;
-                    }).isPersisted.promise;
-                  });
-                }}
-              />{' '}
-              in blogroll
-            </label>
-          </div>
-        </div>
-      ))}
-    </>
-  );
-}
 export function HoppersPage() {
+  useChrome({ framed: false });
   const rows =
     useLiveQuery({
       query: (q) => q.from({ hopper: hoppers }),
@@ -223,23 +149,32 @@ export function HoppersPage() {
   };
   return (
     <>
-      <h2>hoppers</h2>
+      <h2 className="view-h">hoppers</h2>
       <Failure error={action.error} />
       <form
+        className="card hopper-create"
         onSubmit={(event) => {
           event.preventDefault();
           void action.run(create);
         }}
       >
-        <input
-          aria-label="hopper name"
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <Button type="submit" disabled={action.busy}>
-          create hopper
-        </Button>
+        <div className="row">
+          <input
+            type="text"
+            aria-label="hopper name"
+            placeholder="hopper name"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <Button
+            className="btn btn-primary"
+            type="submit"
+            disabled={action.busy}
+          >
+            create hopper
+          </Button>
+        </div>
       </form>
       {rows.map((hopper) => (
         <HopperCard key={hopper.id} id={hopper.id} name={hopper.name} />
@@ -256,15 +191,18 @@ function HopperCard({ id, name }: { id: string; name: string }) {
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
   return (
-    <div className="hopper-row">
-      <h3>
+    <div className="card hopper-row">
+      <h3 className="card-h">
         <Link to="/hoppers/$id" params={{ id }}>
           {name}
         </Link>
+        <span className="chev" aria-hidden="true">
+          ›
+        </span>
       </h3>
       {row ? (
         <>
-          <p>
+          <p className="muted small hopper-meta">
             {row.total} items · {row.source_count} sources ·{' '}
             {row.hopper.public ? 'public' : 'private'}
           </p>
@@ -275,7 +213,7 @@ function HopperCard({ id, name }: { id: string; name: string }) {
             );
             return (
               <p
-                className="hopper-preview"
+                className="hopper-prev hopper-preview"
                 key={JSON.stringify([item.subscription_id, item.remote_id])}
               >
                 {preview.title ? <strong>{preview.title} · </strong> : null}
@@ -286,15 +224,18 @@ function HopperCard({ id, name }: { id: string; name: string }) {
               </p>
             );
           })}
-          {row.total > 3 ? <p>+{row.total - 3} more</p> : null}
+          {row.total > 3 ? (
+            <p className="tiny muted hopper-more">+{row.total - 3} more</p>
+          ) : null}
         </>
       ) : (
-        <p>Loading preview…</p>
+        <p className="muted small">Loading preview…</p>
       )}
     </div>
   );
 }
 export function HopperPage({ id }: { id: string }) {
+  useChrome({ framed: false });
   const collection = useMemo(() => hopperDetail(id), [id]);
   const row = useLiveQuery({
     query: (q) => q.from({ hopper: collection }),
@@ -302,11 +243,12 @@ export function HopperPage({ id }: { id: string }) {
   usePoll(`hopper:${id}`, collection.utils.refetch);
   const action = useAction();
   const navigate = useNavigate();
+  const settings = useSettings();
   const [name, setName] = useState<string>();
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
-  if (!row) return <p>Loading hopper…</p>;
+  if (!row) return <p className="view-sub">Loading hopper…</p>;
   const update = async (body: { name?: string; public?: boolean }) => {
     await unwrap(BlyggerApi.updateHopper({ client, path: { id }, body }));
     await changed('hoppers', 'hopper', 'hopper-preview');
@@ -316,55 +258,74 @@ export function HopperPage({ id }: { id: string }) {
     await changed('hoppers');
     await navigate({ to: '/hoppers' });
   };
+  const added = (iso: string) => {
+    const time = Date.parse(iso);
+    return Number.isNaN(time)
+      ? iso
+      : formatDateIn(iso, settings?.timezone || 'UTC');
+  };
   return (
     <>
-      <Link to="/hoppers">← hoppers</Link>
-      <h2>{row.hopper.name}</h2>
+      <Link className="back-link" to="/hoppers">
+        ← hoppers
+      </Link>
+      <h2 className="view-h">{row.hopper.name}</h2>
       <Failure error={action.error} />
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void action.run(() => update({ name: name ?? row.hopper.name }));
-        }}
-      >
-        <input
-          name="name"
-          value={name ?? row.hopper.name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <Button type="submit">rename</Button>
-      </form>
-      <label>
-        <input
-          type="checkbox"
-          checked={row.hopper.public}
-          disabled={action.busy}
-          onChange={(e) => {
-            const checked = e.target.checked;
-            void action.run(() => update({ public: checked }));
+      <div className="card hopper-settings">
+        <form
+          className="row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void action.run(() => update({ name: name ?? row.hopper.name }));
           }}
-        />{' '}
-        public
-      </label>
-      {row.hopper.public && row.hopper.slug ? (
-        <p>
-          Public URL:{' '}
-          <a
-            href={`${mount}/h/${row.hopper.slug}/`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {location.origin}
-            {mount}/h/{row.hopper.slug}/
-          </a>
-        </p>
-      ) : null}
-      {row.hopper.slug_frozen ? (
-        <p>The public URL stays fixed when you rename this hopper.</p>
-      ) : null}
-      <p>
-        {row.total} items from {row.source_count} sources
-      </p>
+        >
+          <input
+            type="text"
+            name="name"
+            aria-label="name"
+            value={name ?? row.hopper.name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <Button className="btn btn-ghost" type="submit">
+            rename
+          </Button>
+        </form>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={row.hopper.public}
+            disabled={action.busy}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              void action.run(() => update({ public: checked }));
+            }}
+          />
+          <span>public</span>
+        </label>
+        {row.hopper.public && row.hopper.slug ? (
+          <p className="hint">
+            Public URL:{' '}
+            <a
+              href={`${mount}/h/${row.hopper.slug}/`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {location.origin}
+              {mount}/h/{row.hopper.slug}/
+            </a>
+          </p>
+        ) : null}
+        {row.hopper.slug_frozen ? (
+          <p className="hint">
+            The public URL stays fixed when you rename this hopper.
+          </p>
+        ) : null}
+      </div>
+      <div className="section-h">
+        <span>
+          {row.total} items from {row.source_count} sources
+        </span>
+      </div>
       {row.memberships.map((member) => {
         const key = JSON.stringify([member.subscription_id, member.remote_id]);
         const item = row.items.find(
@@ -376,91 +337,108 @@ export function HopperPage({ id }: { id: string }) {
           (source) => source.id === member.subscription_id,
         );
         return (
-          <article className="reading-entry" key={key}>
-            <p className="byline">
-              {item?.kind} ·{' '}
-              {source ? (
-                <a href={source.origin}>{source.title || source.origin}</a>
-              ) : (
-                member.subscription_id
-              )}{' '}
-              · added {member.added_at}
-            </p>
-            {item?.state === 'tombstone' ? (
-              <p>
-                withdrawn by origin
-                {item.pinned_version_retained != null
-                  ? ` · retained pinned v${item.pinned_version_retained}`
-                  : ''}
+          <article className="entry reading-entry" key={key}>
+            <div className="entry-in">
+              <p className="byline">
+                {item ? <span className="badge">{item.kind}</span> : null}
+                {source ? (
+                  <a
+                    className="src"
+                    href={source.origin}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {source.title || source.origin}
+                  </a>
+                ) : (
+                  <span className="src">{member.subscription_id}</span>
+                )}
+                <span>· added {added(member.added_at)}</span>
               </p>
-            ) : null}
-            <Html
-              html={
-                row.items.find(
-                  (item) =>
-                    item.subscription_id === member.subscription_id &&
-                    item.remote_id === member.remote_id,
-                )?.content_html || ''
-              }
-            />
-            {item ? (
+              {item?.state === 'tombstone' ? (
+                <p className="tomb">
+                  withdrawn by origin
+                  {item.pinned_version_retained != null
+                    ? ` · retained pinned v${item.pinned_version_retained}`
+                    : ''}
+                </p>
+              ) : null}
+              <div className="entry-body content">
+                <Html html={item?.content_html || ''} />
+              </div>
+            </div>
+            <div className="entry-bar">
+              <span className="spacer" />
+              {item ? (
+                <Button
+                  className="btn btn-ghost btn-mini"
+                  data-action="stub"
+                  onClick={() =>
+                    void action.run(async () => {
+                      const draft = await unwrap(
+                        BlyggerApi.createItem({
+                          client,
+                          body: {
+                            mode: 'response',
+                            source: {
+                              subscription_id: member.subscription_id,
+                              remote_id: member.remote_id,
+                            },
+                          },
+                        }),
+                      );
+                      await changed('items');
+                      await navigate({
+                        to: '/edit/$id',
+                        params: { id: draft.id },
+                      });
+                    })
+                  }
+                >
+                  stub ↗
+                </Button>
+              ) : null}
               <Button
-                className="stub-btn"
+                className="btn btn-ghost btn-mini"
                 onClick={() =>
                   void action.run(async () => {
-                    const draft = await unwrap(
-                      BlyggerApi.createItem({
+                    await unwrap(
+                      BlyggerApi.removeHopperItem({
                         client,
-                        body: {
-                          mode: 'response',
-                          source: {
-                            subscription_id: member.subscription_id,
-                            remote_id: member.remote_id,
-                          },
+                        path: {
+                          id,
+                          sub: member.subscription_id,
+                          remoteId: member.remote_id,
                         },
                       }),
                     );
-                    await changed('items');
-                    await navigate({
-                      to: '/edit/$id',
-                      params: { id: draft.id },
-                    });
+                    await changed('hopper', 'hoppers', 'hopper-preview');
                   })
                 }
               >
-                stub ↗
+                remove
               </Button>
-            ) : null}
-            <Button
-              onClick={() =>
-                void action.run(async () => {
-                  await unwrap(
-                    BlyggerApi.removeHopperItem({
-                      client,
-                      path: {
-                        id,
-                        sub: member.subscription_id,
-                        remoteId: member.remote_id,
-                      },
-                    }),
-                  );
-                  await changed('hopper', 'hoppers', 'hopper-preview');
-                })
-              }
-            >
-              remove
-            </Button>
+            </div>
           </article>
         );
       })}
-      <Button
-        className="danger"
-        onClick={() => {
-          if (window.confirm('Delete this hopper?')) void action.run(remove);
-        }}
-      >
-        delete hopper
-      </Button>
+      <p>
+        <Button
+          className="btn btn-danger"
+          onClick={async () => {
+            if (
+              await confirm({
+                title: 'Delete this hopper?',
+                ok: 'delete hopper',
+                danger: true,
+              })
+            )
+              void action.run(remove);
+          }}
+        >
+          delete hopper
+        </Button>
+      </p>
     </>
   );
 }
@@ -521,24 +499,28 @@ function MentionRow({ mention }: { mention: Mention }) {
   } catch {
     /* Old stored metadata can be invalid. */
   }
+  const gone = mention.status === 'gone';
   return (
-    <article
-      className={`mention-row ${mention.hidden ? 'hidden-row' : ''} ${mention.status === 'gone' ? 'gone' : ''}`}
+    <div
+      className={`mention-row ${mention.hidden ? 'hidden-row' : ''} ${gone ? 'gone' : ''}`}
     >
-      <span className="rel">{mention.relation || 'mention'}</span>{' '}
+      <span className="rel">{mention.relation || 'mention'}</span> ·{' '}
       <a
+        className="who"
         href={mention.source_page || mention.source}
         target="_blank"
         rel="noreferrer"
       >
         {author}
       </a>{' '}
-      · v{mention.source_version ?? '?'} · first seen {mention.first_seen}
-      {mention.status === 'gone' ? (
-        <span> · no longer verifies</span>
-      ) : (
-        <>
+      <span className="muted">
+        · v{mention.source_version ?? '?'} · first seen {mention.first_seen}
+        {gone ? ' · no longer verifies' : ''}
+      </span>
+      {gone ? null : (
+        <div className="actions">
           <Button
+            className="btn btn-ghost btn-mini"
             onClick={() =>
               void action.run(async () => {
                 await unwrap(
@@ -556,7 +538,7 @@ function MentionRow({ mention }: { mention: Mention }) {
           </Button>
           {mention.source_id && source?.holder ? (
             <Button
-              className="stub-btn"
+              className="btn btn-ghost btn-mini"
               onClick={() =>
                 void action.run(async () => {
                   const draft = await unwrap(
@@ -579,20 +561,30 @@ function MentionRow({ mention }: { mention: Mention }) {
               stub back ↗
             </Button>
           ) : mention.source_id ? (
-            <span className="subscribe-first">
-              {' '}
-              —{' '}
-              <Link to="/subs">
-                {source?.subscription
-                  ? 'resync this source to stub back'
-                  : `subscribe to ${mention.source_origin} to stub back`}
+            source?.subscription ? (
+              // Subscribed: its inspector (ⓘ on the timeline) has resync.
+              <Link
+                className="btn btn-ghost btn-mini subscribe-first"
+                to="/reading"
+                search={{ sub: source.subscription.id, offset: 0 }}
+              >
+                resync this source to stub back
               </Link>
-            </span>
+            ) : (
+              // Not subscribed: the sources list, whose ＋ subscribes.
+              <Link
+                className="btn btn-ghost btn-mini subscribe-first"
+                to="/reading"
+                search={{}}
+              >
+                subscribe to {mention.source_origin} to stub back
+              </Link>
+            )
           ) : null}
-        </>
+        </div>
       )}
       <Failure error={action.error} />
-    </article>
+    </div>
   );
 }
 const mentionSource = scoped((id) =>
@@ -618,6 +610,7 @@ const mentionSource = scoped((id) =>
   ),
 );
 export function MentionsPage() {
+  useChrome({ framed: false });
   const incoming =
     useLiveQuery({ query: (q) => q.from({ mention: inbound }) }).data ?? [];
   const outgoing =
@@ -626,6 +619,9 @@ export function MentionsPage() {
     useLiveQuery({ query: (q) => q.from({ item: items }) }).data ?? [];
   const settings = useSettings(),
     action = useAction();
+  const [direction, setDirection] = useState<'inbound' | 'outbound'>(
+    'inbound',
+  );
   usePoll('mentions-in', inbound.utils.refetch);
   usePoll('mentions-out', outbound.utils.refetch);
   usePoll('items', items.utils.refetch);
@@ -637,85 +633,152 @@ export function MentionsPage() {
   }
   return (
     <>
-      <h2>mentions</h2>
+      <h2 className="view-h">mentions</h2>
+      <p className="view-sub mentions-note">
+        Verified responses from other blygs.
+      </p>
       <Failure error={action.error} />
-      <p className="mentions-note">Verified responses from other blygs.</p>
-      {[...groups].map(([id, rows]) => {
-        const item = owned.find((item) => item.id === id),
-          mode = item?.responses || 'default';
-        const showing =
-          mode === 'show' ||
-          (mode === 'default' && settings?.show_responses_default);
-        const visible = rows.filter(
-          (row) => row.status === 'verified' && !row.hidden,
-        ).length;
-        return (
-          <section className="mention-group" key={id}>
-            <h3>
-              <Link to="/edit/$id" params={{ id }}>
-                {item?.content_md.slice(0, 60) || id.slice(0, 8)}
-              </Link>{' '}
-              · {rows.length} responses
-            </h3>
-            <p className="group-controls">
-              <label>
-                Responses on this item's public page:{' '}
-                <select
-                  aria-label="item responses"
-                  value={mode}
-                  disabled={!item || action.busy}
-                  onChange={(event) => {
-                    const responses = event.target.value as
-                      | 'default'
-                      | 'show'
-                      | 'hide';
-                    void action.run(async () => {
-                      await items.update(id, (row) => {
-                        row.responses = responses;
-                      }).isPersisted.promise;
-                    });
-                  }}
-                >
-                  <option value="default">
-                    default (
-                    {settings?.show_responses_default ? 'showing' : 'hidden'})
-                  </option>
-                  <option value="show">show</option>
-                  <option value="hide">hide</option>
-                </select>
-              </label>{' '}
-              · {showing ? visible : 0} on the page now
-            </p>
-            {rows.map((mention) => (
-              <MentionRow key={mention.id} mention={mention} />
-            ))}
-          </section>
-        );
-      })}
-      {!incoming.length ? <p>No verified mentions.</p> : null}
-      <h2>outbound</h2>
-      {!settings?.site_url ? (
-        <p className="mentions-note">
-          No site URL is set. Set it in <Link to="/settings">settings</Link>{' '}
-          before relying on outbound delivery.
-        </p>
-      ) : null}
-      {outgoing.map((mention) => (
-        <p className="out-row" key={mention.id}>
-          <span className={`status ${mention.status}`}>
-            {mention.status.replaceAll('_', ' ')}
-          </span>{' '}
-          <Link to="/edit/$id" params={{ id: mention.item_id }}>
-            v{mention.version} of {mention.item_id.slice(0, 8)}…
-          </Link>{' '}
-          → <a href={mention.target}>{mention.target}</a> · {mention.attempts}{' '}
-          attempts{' '}
-          {mention.next_attempt_at && mention.status === 'pending'
-            ? ` · retrying after ${mention.next_attempt_at}`
-            : ''}{' '}
-          {mention.last_error}
-        </p>
-      ))}
+      <div className="segmented" role="group" aria-label="direction">
+        {(['inbound', 'outbound'] as const).map((value) => (
+          <Button
+            key={value}
+            className={direction === value ? 'seg is-active' : 'seg'}
+            aria-pressed={direction === value}
+            onClick={() => setDirection(value)}
+          >
+            {value}
+            <span className="n">
+              {value === 'inbound' ? incoming.length : outgoing.length}
+            </span>
+          </Button>
+        ))}
+      </div>
+      {direction === 'inbound' ? (
+        <>
+          {[...groups].map(([id, rows]) => {
+            const item = owned.find((item) => item.id === id),
+              mode = item?.responses || 'default';
+            const showing =
+              mode === 'show' ||
+              (mode === 'default' && settings?.show_responses_default);
+            const visible = rows.filter(
+              (row) => row.status === 'verified' && !row.hidden,
+            ).length;
+            return (
+              <section className="card mention-group" key={id}>
+                <h3 className="card-h">
+                  <Link to="/edit/$id" params={{ id }}>
+                    {item?.content_md.slice(0, 60) || id.slice(0, 8)}
+                  </Link>
+                </h3>
+                <p className="muted small group-meta">
+                  {rows.length} responses · {showing ? visible : 0} on the page
+                  now
+                </p>
+                <div className="field">
+                  <span id={`responses-${id}`}>
+                    Responses on this item's public page:
+                  </span>
+                  <div
+                    className="segmented"
+                    role="group"
+                    aria-labelledby={`responses-${id}`}
+                  >
+                    {(
+                      [
+                        [
+                          'default',
+                          `default (${settings?.show_responses_default ? 'showing' : 'hidden'})`,
+                        ],
+                        ['show', 'show'],
+                        ['hide', 'hide'],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <Button
+                        key={value}
+                        className={mode === value ? 'seg is-active' : 'seg'}
+                        aria-pressed={mode === value}
+                        disabled={!item || action.busy}
+                        onClick={() =>
+                          void action.run(async () => {
+                            if (mode === value) return;
+                            await items.update(id, (row) => {
+                              row.responses = value;
+                            }).isPersisted.promise;
+                          })
+                        }
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                {rows.map((mention) => (
+                  <MentionRow key={mention.id} mention={mention} />
+                ))}
+              </section>
+            );
+          })}
+          {!incoming.length ? (
+            <div className="empty">
+              <span className="em" aria-hidden="true">
+                ↩
+              </span>
+              No verified mentions.
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <>
+          {!settings?.site_url ? (
+            <div className="banner banner-warn mentions-note" role="note">
+              <span className="mark" aria-hidden="true">
+                !
+              </span>
+              <div className="body">
+                No site URL is set. Set it in{' '}
+                <Link to="/settings">settings</Link> before relying on outbound
+                delivery.
+              </div>
+            </div>
+          ) : null}
+          {outgoing.length ? (
+            <div className="card">
+              {outgoing.map((mention) => (
+                <div className="out-row" key={mention.id}>
+                  <span
+                    className={`badge ${
+                      mention.status === 'sent'
+                        ? 'badge-ok'
+                        : mention.status === 'pending'
+                          ? 'badge-warn'
+                          : ''
+                    }`}
+                  >
+                    {mention.status.replaceAll('_', ' ')}
+                  </span>{' '}
+                  <Link to="/edit/$id" params={{ id: mention.item_id }}>
+                    v{mention.version} of {mention.item_id.slice(0, 8)}…
+                  </Link>
+                  <div className="small muted">
+                    →{' '}
+                    <a className="target" href={mention.target}>
+                      {mention.target}
+                    </a>{' '}
+                    · {mention.attempts} attempts
+                    {mention.next_attempt_at && mention.status === 'pending'
+                      ? ` · retrying after ${mention.next_attempt_at}`
+                      : ''}
+                  </div>
+                  {mention.last_error ? (
+                    <div className="small err">{mention.last_error}</div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </>
+      )}
     </>
   );
 }
@@ -726,42 +789,56 @@ export function ForkPage({
   id: string;
   options: Awaited<ReturnType<typeof loadForkOptions>>;
 }) {
+  useChrome({ framed: false });
   const action = useAction();
   const navigate = useNavigate();
   return (
     <>
-      <h2>fork {id}</h2>
+      <h2 className="view-h">
+        fork <small className="mono">{id}</small>
+      </h2>
       <Failure error={action.error || options.error} />
-      {options.versions.map((version) => (
-        <p key={version.version}>
-          v{version.version} · {version.at} {version.note}{' '}
-          <Button
-            data-action="fork"
-            disabled={action.busy}
-            onClick={() =>
-              void action.run(async () => {
-                const draft = await unwrap(
-                  BlyggerApi.createItem({
-                    client,
-                    body: {
-                      mode: 'fork',
-                      source: {
-                        origin: options.origin,
-                        id,
-                        version: version.version,
-                      },
-                    },
-                  }),
-                );
-                items.utils.writeUpsert(draft);
-                await navigate({ to: '/edit/$id', params: { id: draft.id } });
-              })
-            }
-          >
-            fork v{version.version}
-          </Button>
-        </p>
-      ))}
+      {options.versions.length ? (
+        <div className="card">
+          {options.versions.map((version) => (
+            <div className="kv" key={version.version}>
+              <span className="vnum">v{version.version}</span>
+              <span className="muted">{version.at}</span>
+              <span>{version.note}</span>
+              <span className="spacer" />
+              <Button
+                className="btn btn-primary btn-mini"
+                data-action="fork"
+                disabled={action.busy}
+                onClick={() =>
+                  void action.run(async () => {
+                    const draft = await unwrap(
+                      BlyggerApi.createItem({
+                        client,
+                        body: {
+                          mode: 'fork',
+                          source: {
+                            origin: options.origin,
+                            id,
+                            version: version.version,
+                          },
+                        },
+                      }),
+                    );
+                    items.utils.writeUpsert(draft);
+                    await navigate({
+                      to: '/edit/$id',
+                      params: { id: draft.id },
+                    });
+                  })
+                }
+              >
+                fork v{version.version}
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </>
   );
 }

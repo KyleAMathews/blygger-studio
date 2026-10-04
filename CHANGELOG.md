@@ -18,6 +18,44 @@ not have its own repo until session 26.
 
 ---
 
+## 0.22.0 — 2026-10-04
+
+**Migrations: none. No API, contract or data changes** — this release touches
+the studio's front end and the static files the Worker serves for it.
+
+**The studio is redesigned for the phone**, after the owner console of
+aneeshsathe.com ("Thicket Console"): a top bar, a bottom tab bar (a left rail
+on wide screens), cards, pill controls and bottom sheets. Every existing
+control and confirmation keeps its wording.
+
+- **It wears your theme.** The reading theme in Settings now paints the studio
+  as well as the public pages — one setting, the same six themes plus Auto.
+- **Five tabs:** reading, compose, hoppers, mentions, more. *More* holds
+  settings, syntax, the public page, log out, and the update notices.
+- **Reading works like NetNewsWire:** a list of sources (all, my blyg, your
+  hoppers, every subscription with its status and count) opens into each
+  source's timeline. A source's ⓘ panel pauses, resyncs, lists in the
+  blogroll or deletes it — `/subs` now redirects to reading. Entries keep every
+  action; the rarer ones live under ⋯. Select text in an entry and a *quote
+  selection* button appears. Swipe a source ← for its panel, → to pause;
+  swipe an entry → for 👍, ← to stub.
+- **Compose and the editor:** filters over your items (drafts, unpublished
+  changes, public, withdrawn); rows that expand to quick edit and act; a
+  *published* banner with **copy + link** (the text plus its permalink, for
+  pasting into other apps) and **share…**; on phones the editor swaps between
+  draft and preview, with its actions in a bottom bar.
+- **New writing tools, all in the browser:** *link from clipboard* strips
+  tracking parameters and links the selected words; pasting a URL over
+  selected text links it; *scan text* points you at your phone's own text
+  scanning (iPhone: long-press → Scan Text; Android: the keyboard's scan or Lens
+  button, or Google Lens). An **optional**, per-device setting adds on-device
+  photo scanning with Tesseract.js, loaded from jsDelivr only when used.
+- **Every browser `confirm`/`prompt`/`alert` is now an in-app sheet.**
+- **Installable:** a web app manifest and a service worker that caches only the
+  app shell (never `/api`), so the studio can live on a phone's home screen.
+
+---
+
 ## 0.21.2 — 2026-10-04
 
 **Migrations: none.**

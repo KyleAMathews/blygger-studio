@@ -20,7 +20,7 @@ test("a forwarded nested Studio runs login, SDK saves, upload, and response crea
   const upload = page.waitForResponse(response => response.url().endsWith("/api/media"));
   await (await chooser).setFiles({ name: "mounted.svg", mimeType: "image/svg+xml", buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>') });
   expect((await upload).status()).toBe(201);
-  await page.goto(`${studio}/reading`);
+  await page.goto(`${studio}/reading?sub=all`);
   const created = page.waitForResponse(response => response.url().endsWith("/api/items") && response.request().method() === "POST");
   await page.locator('[data-action="stub"][data-remote="remote"]').click();
   const response = await created;

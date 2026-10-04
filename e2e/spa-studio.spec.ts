@@ -27,10 +27,12 @@ test('SPA creates, edits, previews and publishes without document navigation', a
   await page.locator('#md-input').fill('React **round trip**');
   await expect(page.locator('#preview-body strong')).toHaveText('round trip');
   await page.locator('#publish-btn').click();
-  await expect(page.locator('[data-action=view-version]')).toBeVisible();
+  await expect(page.locator('[data-action=view-version]')).toHaveCount(1);
   expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ version: 1, content_md: 'React **round trip**' });
-  if (test.info().project.name === 'mobile') await page.getByRole('button', { name: 'Menu', exact: true }).click();
+  // The editor has no tab bar (PWA phase 2A): back to compose, then reading.
+  await page.getByRole('link', { name: '← compose', exact: true }).click();
   await page.getByRole('link', { name: 'reading', exact: true }).click();
+  await page.locator('.feeds a[href*="sub=all"]').click();
   await expect(page.locator('.reading-entry').first()).toBeVisible();
   const entry = page.locator('.reading-entry').filter({ has: page.locator(`a[href$="/edit/${id}"]`) });
   for (let n = 0; n < 6 && !await entry.count(); n++) { await page.getByRole('button', { name: 'older', exact: true }).click(); await expect(page).toHaveURL(new RegExp(`offset=${(n + 1) * 25}`)); }
@@ -67,7 +69,7 @@ test('reading walks real API pages without gaps or repeats', async ({ page }) =>
       await fetch(`/api/items/${item.id}/publish`, { method: 'POST' }); ids.push(item.id);
     } return ids;
   });
-  await page.goto('/studio/reading');
+  await page.goto('/studio/reading?sub=all');
   const observed: string[] = [];
   const total = await page.evaluate(async () => (await (await fetch('/api/reading')).json()).total as number);
   const count = Math.ceil(total / 25);
@@ -88,7 +90,6 @@ test('route intent preloads reading before navigation and reuses the DB cache', 
   await login(page); await seedReading(page, 50);
   const reads: string[] = [];
   page.on('request', request => { if (new URL(request.url()).pathname === '/api/reading') reads.push(request.url()); });
-  if (test.info().project.name === 'mobile') await page.getByRole('button', { name: 'Menu', exact: true }).click();
   const link = page.getByRole('link', { name: 'reading', exact: true });
   const loaded = page.waitForResponse(response => new URL(response.url()).pathname === '/api/reading');
   await link.focus(); await loaded;
@@ -96,7 +97,9 @@ test('route intent preloads reading before navigation and reuses the DB cache', 
   const before = reads.length;
   expect(before).toBe(1);
   await link.click();
-  await expect(page.locator('.reading-entry').first()).toBeVisible();
+  // /reading is the sources list; its counts come from the preloaded page.
+  await expect(page.locator('.feeds').first()).toBeVisible();
+  await expect(page.locator('.feeds a[href*="sub=all"] .fn')).not.toHaveText('');
   expect(reads).toHaveLength(before);
 });
 
