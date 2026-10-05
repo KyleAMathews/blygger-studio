@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - **Studio behaviour unchanged.** The existing suites are the check: `npm run typecheck`, `npm run test:ui`, `npm test`, and `npm run test:e2e` (254 tests at the branch point).
-- **Reuse boundary:** `src/ui/data-core.ts`, `src/ui/host.ts`, `src/ui/primitives.tsx`, `src/ui/text-edit.ts` and `src/ui/composer.tsx`, and everything they import, must never import `src/ui/data.ts`, `src/ui/components.tsx`, `src/ui/app.tsx` or `@tanstack/react-router`. A test enforces this (Task 3).
+- **Reuse boundary:** `src/ui/data-core.ts`, `src/ui/host.ts`, `src/ui/primitives.tsx`, `src/ui/text-edit.ts` and `src/ui/composer.tsx`, and everything they import, must never import `src/ui/data.ts`, `src/ui/components.tsx`, `src/ui/app.tsx` or `@tanstack/react-router`, by any import form (static, side-effect, dynamic, extensionless). A test checks esbuild's resolved bundle graph, with contrast cases (Task 3).
 - **Every existing import keeps working.** `data.ts`, `components.tsx` and `authoring.tsx` re-export what moved, so no other file's imports change.
 - **Moves are verbatim.** Moved code keeps its comments and logic. The only edits are the injected dependencies named in each task.
 - **No new test files.** Add tests to the existing `test-ui/state.test.ts` and `test-ui/links.test.ts`.
@@ -26,7 +26,7 @@
 2. **An image pasted mid-upload, then navigating away**, must still ask before leaving. The leave guard is now injected; `e2e/image-insert.spec.ts` must pass (Task 3).
 3. **The editor's preview** must still debounce, abort stale requests and show errors in place, after it moves into `usePreview`. `e2e/studio.spec.ts` and `e2e/save-oracle.spec.ts` must pass (Task 3).
 4. **Importing a reusable module in a page with no `#studio-root`** must not throw. Task 2's node test imports `host.ts` with no `document`; Task 1's imports `data-core.ts`.
-5. **Two hosts must not share a cache.** Each `createStudioData` call gets its own `QueryClient`. Task 1's test builds data around a host client and checks its reads go to that host only.
+5. **Two hosts must not share a cache, and a replaced instance must stop.** Each `createStudioData` call gets its own `QueryClient`. The clipper replaces its instance when the owner disconnects or switches blygs, so `dispose()` must leave no timers and make no further requests. Task 1 tests both.
 
 ---
 
@@ -56,7 +56,9 @@
 
 **Interfaces:**
 - Produces:
-  - `createStudioData(client: BlyggerClient)`, returning `{ client, queryClient, polling, items, settings, subscriptions, hoppers, signals, itemDetail, reading, readingView, refreshReading, hopperDetail, changed, updates, hopperPreview, authorizations }`. The polling is created but **not started**; the host calls `polling.start(window, document)`.
+  - `createStudioData(client: BlyggerClient)`, returning `{ client, queryClient, polling, items, settings, subscriptions, hoppers, signals, itemDetail, reading, readingView, refreshReading, hopperDetail, changed, updates, hopperPreview, authorizations, dispose }`. The polling is created but **not started**; the host calls `polling.start(window, document)`.
+  - `dispose(): Promise<void>` stops polling, stops every `scoped` registry's sweep timer and cleans up its collections, cleans up the top-level collections, cancels in-flight queries, then clears and unmounts the query client. A disposed instance makes no further requests and leaves no timers.
+  - `scoped()` (`src/ui/scoped.ts`) gains `dispose()` on the function it returns.
   - `type StudioData = ReturnType<typeof createStudioData>`.
   - From `data-core.ts`: `LENSES`, `type Lens`, `lensKind`, `readingKey`, `type Detail`, `type Reading`.
   - `data.ts` exports exactly the names it exports today.
@@ -87,6 +89,27 @@ test('collections read through the client their host supplies, with their own ca
   expect([...data.settings.values()][0]?.site_title).toBe('From the host');
   const other = createStudioData(client);
   expect(other.queryClient, 'each host gets its own cache').not.toBe(data.queryClient);
+  await other.dispose();
+  await data.dispose();
+});
+
+test('a disposed instance leaves no timers and makes no further requests', async () => {
+  vi.useFakeTimers();
+  let requests = 0;
+  const client = createBlyggerClient({
+    baseUrl: 'https://blyg.example',
+    fetch: async () => { requests++; return Response.json({ site_title: 'x' }); },
+  });
+  const data = createStudioData(client);
+  const target = { addEventListener() {}, removeEventListener() {} };
+  data.polling.start(target, target);
+  data.itemDetail('one');
+  expect(vi.getTimerCount(), 'the instance runs timers while alive').toBeGreaterThan(0);
+  await data.dispose();
+  expect(vi.getTimerCount(), 'a disposed instance leaves no timers').toBe(0);
+  await data.changed('settings', 'items');
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(requests, 'a disposed instance makes no further requests').toBe(0);
 });
 ```
 
@@ -116,10 +139,37 @@ Build it from the current `src/ui/data.ts` like this:
    ```ts
    export function createStudioData(client: BlyggerClient) {
      // …moved body…
-     return { client, queryClient, polling, items, settings, subscriptions, hoppers, signals, itemDetail, reading, readingView, refreshReading, hopperDetail, changed, updates, hopperPreview, authorizations };
+     /** Stop everything this instance started, for a host replacing it (disconnect, another blyg). */
+     async function dispose() {
+       polling.stop();
+       for (const registry of [itemDetail, reading, readingViews, hopperDetail, hopperPreview]) await registry.dispose();
+       await queryClient.cancelQueries();
+       for (const collection of [items, settings, subscriptions, hoppers, signals, updates, authorizations]) await collection.cleanup();
+       queryClient.clear();
+       queryClient.unmount();
+     }
+     return { client, queryClient, polling, items, settings, subscriptions, hoppers, signals, itemDetail, reading, readingView, refreshReading, hopperDetail, changed, updates, hopperPreview, authorizations, dispose };
    }
    export type StudioData = ReturnType<typeof createStudioData>;
    ```
+
+5. Give `scoped()` (`src/ui/scoped.ts`) a way to stop. Replace its final `return (key: string) => { … };` with a named function plus a `dispose` property, keeping the function body verbatim:
+
+   ```ts
+   function get(key: string) {
+     // …the existing body, unchanged…
+   }
+   /** Stop the sweep and release every collection, for a host disposing its data. */
+   async function dispose() {
+     clearInterval(timer);
+     const entries = [...cache.values()];
+     cache.clear();
+     await Promise.all(entries.map((entry) => entry.collection.cleanup()));
+   }
+   return Object.assign(get, { dispose });
+   ```
+
+   `test-ui/state.test.ts` already covers `scoped`; it must still pass.
 
 - [ ] **Step 4: Rewrite `src/ui/data.ts`**
 
@@ -167,7 +217,7 @@ Expected: test:ui passes, including the new test; typecheck prints no errors; th
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/ui/data-core.ts src/ui/data.ts test-ui/state.test.ts
+git add src/ui/data-core.ts src/ui/data.ts src/ui/scoped.ts test-ui/state.test.ts
 git commit -m "Build the Studio's collections around a client the host supplies"
 ```
 
@@ -315,32 +365,43 @@ test('imageCommandAt finds only a /image line ending at the caret', () => {
 Append to `test-ui/state.test.ts`:
 
 ```ts
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
+import { build, type BuildOptions } from 'esbuild';
 
-test('reusable modules never reach the Studio instance or the router', () => {
-  const forbidden = [/\/src\/ui\/data\.ts$/, /\/src\/ui\/components\.tsx$/, /\/src\/ui\/app\.tsx$/, /^@tanstack\/react-router$/];
+// The resolved bundle graph, as the extension's own build would see it:
+// side-effect imports, dynamic import() and extensionless paths all count.
+async function studioReach(options: Pick<BuildOptions, 'entryPoints' | 'stdin'>) {
+  const result = await build({
+    ...options, bundle: true, write: false, metafile: true, platform: 'browser', format: 'esm',
+    packages: 'external', jsx: 'automatic', loader: { '.css': 'empty' }, outdir: 'reach-out', logLevel: 'silent',
+  });
+  const inputs = result.metafile!.inputs;
+  return [
+    ...Object.keys(inputs).filter((file) => /(^|\/)src\/ui\/(data\.ts|components\.tsx|app\.tsx)$/.test(file)),
+    ...Object.values(inputs).flatMap((input) => input.imports).filter((i) => i.path === '@tanstack/react-router').map((i) => i.path),
+  ];
+}
+
+test('reusable modules never reach the Studio instance or the router', async () => {
   const roots = ['data-core.ts', 'host.ts', 'primitives.tsx', 'text-edit.ts', 'composer.tsx'].map((f) => resolve('src/ui', f));
-  const seen = new Set<string>(), stack = [...roots], violations: string[] = [];
-  while (stack.length) {
-    const file = stack.pop()!;
-    if (seen.has(file)) continue;
-    seen.add(file);
-    for (const [, spec] of readFileSync(file, 'utf8').matchAll(/^\s*(?:import|export)\b[^'"]*?from\s*['"]([^'"]+)['"]/gm)) {
-      const target = spec.startsWith('.') ? resolve(dirname(file), spec) : spec;
-      if (forbidden.some((f) => f.test(target))) violations.push(`${file} -> ${spec}`);
-      else if (spec.startsWith('.') && /\.tsx?$/.test(target)) stack.push(target);
-    }
-  }
-  expect(seen.size, 'the walk reached every reusable module').toBeGreaterThanOrEqual(roots.length);
-  expect(violations, 'a reusable module imports the Studio instance or the router').toEqual([]);
+  expect(await studioReach({ entryPoints: roots }), 'a reusable module imports the Studio instance or the router').toEqual([]);
+});
+
+test('contrast: the reach check catches every import form', async () => {
+  const resolveDir = resolve('src/ui');
+  for (const contents of [
+    "import './data.ts';",
+    "void import('./data');",
+    "export * from './components';",
+    "import { Link } from '@tanstack/react-router'; console.log(Link);",
+  ]) expect((await studioReach({ stdin: { contents, resolveDir, loader: 'ts' } })).length, contents).toBeGreaterThan(0);
 });
 ```
 
 - [ ] **Step 2: Run them to see them fail**
 
 Run: `PATH=/usr/local/bin:$PATH npm run test:ui`
-Expected: FAIL, `Failed to load url ../src/ui/text-edit.ts`. The reuse test fails with `ENOENT` for `primitives.tsx`.
+Expected: FAIL, `Failed to load url ../src/ui/text-edit.ts`. The reach test fails because esbuild cannot resolve `primitives.tsx`; the contrast test passes already, which proves the check can fail.
 
 - [ ] **Step 3: Create `src/ui/text-edit.ts`**
 
