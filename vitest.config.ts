@@ -25,6 +25,11 @@ export default defineConfig({
             // Pin the default mount explicitly (matches wrangler.jsonc vars);
             // mount.test.ts exercises other mounts via makeApp() directly.
             MOUNT: "/blyg",
+            // The owner's per-minute API budget (0.28) is a production guard.
+            // Property tests issue far more than 120 writes a minute and failed
+            // about one run in six on it; tests of the budget set their own.
+            API_READ_LIMIT: "100000",
+            API_WRITE_LIMIT: "100000",
           },
         },
       };
