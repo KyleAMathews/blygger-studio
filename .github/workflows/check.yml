@@ -23,6 +23,7 @@ jobs:
       - run: npm run release:verify
       - run: npm run openapi && git diff --exit-code -- openapi.json
       - run: npm run test:ui -- --maxWorkers=2
+      - run: npm run test:ext
       - run: npm test -- --maxWorkers=2
       - run: npm run test:upgrade
       - run: npm run test:mutations

@@ -64,3 +64,14 @@ Resetting the owner password or cookie secret also invalidates owner login cooki
 Upgrading to 0.28.0 invalidates owner cookies from earlier releases. Log in again in Studio and refresh the cookies used by owner tools. SDK 0.2.0 changes owner credential configuration: replace a plain `auth` session string with `headers.Cookie` in Node.js or the cookie scheme callback shown in the SDK README. Browser Studio sessions use their HttpOnly cookie without an `auth` option.
 
 Protected Studio and API routes refuse plain HTTP outside loopback. For LAN testing from a phone, use an HTTPS tunnel or an HTTPS development proxy. Configure HTTPS at the ingress before deploying; the Worker refuses cleartext auth requests rather than redirecting credentials that have already arrived over HTTP.
+
+## Blygger Clipper
+
+The Chrome extension in `extension/` is a public OAuth client. It discovers
+the authorization server from `/api`'s 401 challenge and the metadata under
+the mount, registers a `https://<extension-id>.chromiumapp.org/` redirect, and
+requests every owner scope with `offline_access`. The owner can untick any
+scope at consent; the clipper adapts. It keeps tokens only in its service
+worker, refreshes one at a time, and asks the owner to reconnect when a grant
+ends. Owners can instead paste a manual token (the clipper needs
+`owner:draft`; with `owner:read` it also shows the blyg's title).
