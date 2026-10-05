@@ -9,14 +9,14 @@ const ok = z.object({ ok: z.boolean() });
 const created = ItemSchema;
 const ref = VersionReferenceSchema;
 const stub = StubSchema;
-export const ItemEditSchema = z.object({ content_md: z.string().optional(), kind: z.enum(["fragment", "thread"]).optional(), stub_of: z.union([stub, z.null()]).optional(), responses: z.enum(["default", "show", "hide"]).optional() }).strict();
+export const ItemEditSchema = z.object({ content_md: z.string().optional(), kind: z.enum(["fragment", "thread"]).optional(), stub_of: z.union([stub, z.null()]).optional(), responses: z.enum(["default", "show", "hide"]).optional(), highlight: z.enum(["default", "show", "hide"]).optional() }).strict();
 export const ItemCreateSchema = z.union([
-  ItemEditSchema.omit({ responses: true }).extend({ mode: z.literal("blank").optional() }).strict(),
+  ItemEditSchema.omit({ responses: true, highlight: true }).extend({ mode: z.literal("blank").optional() }).strict(),
   z.object({ mode: z.literal("fork"), source: ref }).strict(),
   z.object({ mode: z.literal("response"), source: z.object({ subscription_id: z.string().min(1), remote_id: z.string().min(1) }).strict(), selection: z.string().optional() }).strict(),
 ]);
 const toggle = z.boolean();
-const settingsBody = SettingsSchema.partial().extend({ accept_mentions: toggle.optional(), update_check: toggle.optional(), show_responses_default: toggle.optional(), auto_change_notes: toggle.optional(), update_notice_ack: toggle.optional() }).strict();
+const settingsBody = SettingsSchema.partial().extend({ accept_mentions: toggle.optional(), update_check: toggle.optional(), show_responses_default: toggle.optional(), highlight_generated_default: toggle.optional(), auto_change_notes: toggle.optional(), update_notice_ack: toggle.optional() }).strict();
 const note = z.object({ note: z.string().optional() });
 const version = z.object({ version: z.number().int().positive() });
 const page = z.object({ offset: z.coerce.number().int().min(0).optional(), limit: z.coerce.number().int().min(1).max(100).optional() });

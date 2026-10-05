@@ -13,7 +13,7 @@ import { publicHopperPage } from "./importer/pages.ts";
 import { runScheduledPoll } from "./importer/schedule.ts";
 import { getHopperBySlug, getImportedItem, getSubscription, listBlogrollSubscriptions, listHopperItems } from "./importer/store.ts";
 import { authoredKind, getItem, getMedia, getSettings, getVersion, listPublic } from "./model.ts";
-import { archivePage, feedPage, permalinkPage, pinnedVersionPage, STYLE_CSS, themeCss, threadPage } from "./pages.ts";
+import { archivePage, feedPage, generatedHighlightCss, permalinkPage, pinnedVersionPage, STYLE_CSS, themeCss, threadPage } from "./pages.ts";
 import { buildArchiveIndex, buildFeedXml, buildItemJson, buildManifest, buildPinnedVersionJson, siteOrigin } from "./protocol.ts";
 import { mentionFetch } from "./mentions/http.ts";
 import { receiveMention, verifyMention } from "./mentions/receive.ts";
@@ -60,7 +60,7 @@ export function makeApp(mount: string) {
   // up by fetching this route like any other.
   pub.get("/style.css", async (c) => {
     const settings = await getSettings(c.env.DB);
-    return c.text(STYLE_CSS + themeCss(settings.theme), 200, { "Content-Type": "text/css; charset=utf-8" });
+    return c.text(STYLE_CSS + themeCss(settings.theme) + generatedHighlightCss(settings.highlight_generated_default), 200, { "Content-Type": "text/css; charset=utf-8" });
   });
 
   pub.get("/feed.xml", async (c) => {

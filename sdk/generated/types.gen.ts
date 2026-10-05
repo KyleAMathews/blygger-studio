@@ -14,6 +14,7 @@ export type Item = {
     content_md: string;
     dirty: boolean;
     responses: 'default' | 'show' | 'hide';
+    highlight: 'default' | 'show' | 'hide';
     provenance: Array<GenerationProvenance | null>;
     stub_of: VersionReference | {
         url: string;
@@ -86,6 +87,7 @@ export type Settings = {
     accept_mentions: boolean;
     update_check: boolean;
     show_responses_default: boolean;
+    highlight_generated_default: boolean;
     auto_change_notes: boolean;
     update_feed_url: string;
     update_notice_ack: boolean;
@@ -613,6 +615,7 @@ export type GetItemResponses = {
         content_md: string;
         dirty: boolean;
         responses: 'default' | 'show' | 'hide';
+        highlight: 'default' | 'show' | 'hide';
         provenance: Array<GenerationProvenance | null>;
         stub_of: VersionReference | {
             url: string;
@@ -638,6 +641,7 @@ export type UpdateItemData = {
             cited?: Citation;
         } | null;
         responses?: 'default' | 'show' | 'hide';
+        highlight?: 'default' | 'show' | 'hide';
     };
     path: {
         id: string;
@@ -1329,6 +1333,7 @@ export type UpdateSettingsData = {
         accept_mentions?: boolean;
         update_check?: boolean;
         show_responses_default?: boolean;
+        highlight_generated_default?: boolean;
         auto_change_notes?: boolean;
         update_feed_url?: string;
         update_notice_ack?: boolean;

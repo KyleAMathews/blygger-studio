@@ -56,7 +56,9 @@ export function themeCss(name: string): string {
   --ink: ${t.ink};
   --ink-soft: ${t.inkSoft};
   --rule: ${t.rule};
-  --pencil: ${t.pencil};`;
+  --pencil: ${t.pencil};
+  --gen-bg: ${t.genBg};
+  --gen-rule: ${t.genRule};`;
   return `
 /* theme: ${t.label} — author-chosen, so it overrides the reader's light/dark
    preference rather than being overridden by it. */
@@ -70,6 +72,10 @@ ${vars}
 }
 `;
 }
+
+/** Lucide's "bot" icon (ISC licence), used only as a mask, so its stroke colour is irrelevant. Declared before STYLE_CSS,
+ * which calls generatedHighlightRules while the module loads. */
+const ROBOT = `url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%221.8%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M12 8V4H8%22/%3E%3Crect width=%2216%22 height=%2212%22 x=%224%22 y=%228%22 rx=%222%22/%3E%3Cpath d=%22M2 14h2M20 14h2M15 13v2M9 13v2%22/%3E%3C/svg%3E")`;
 
 export const STYLE_CSS = `/* blyg — one hand-written stylesheet, no build step, no web fonts.
  *
@@ -103,6 +109,9 @@ export const STYLE_CSS = `/* blyg — one hand-written stylesheet, no build step
   --ink-soft: #5c686b;
   --rule: #dde3e5;
   --pencil: #23608c;
+  /* Highlighted generated spans: a tint and a hairline, quiet enough to read through. */
+  --gen-bg: #eef3f7;
+  --gen-rule: #c9d8e4;
   --block-pad: 0rem;
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Charter, Georgia, "Times New Roman", serif;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -118,6 +127,8 @@ export const STYLE_CSS = `/* blyg — one hand-written stylesheet, no build step
     --ink-soft: #95a2a5;
     --rule: #2b3436;
     --pencil: #8cc0e4;
+    --gen-bg: #1a2429;
+    --gen-rule: #2f4552;
   }
 }
 * { box-sizing: border-box; }
@@ -394,7 +405,38 @@ article.fragment, article.thread, .thread-card { overflow-wrap: break-word; }
   .version-line .vnav { gap: 0.3rem; }
   .version-line .vstep { padding: 0.45rem 0.6rem; }
 }
+${generatedHighlightRules(".gen-on")}`;
+
+/**
+ * Generated spans ([TK], §5.7) drawn as a tinted, hairline-outlined box. The
+ * markup is the protocol's own `blyg-tk-gen` and is never changed; whether a
+ * page highlights it is presentation. `scope` selects the articles it applies
+ * to: `.gen-on` (an item's own override) always, and every article not
+ * opted out when the blyg's default is on.
+ *
+ * A generated block wears a small robot badge on its bottom edge, near the
+ * left: Brady Dale's convention on bradydale.com, adopted so the mark reads
+ * the same across blygs. The badge is two layers, a paper-coloured square and
+ * the icon as a mask filled with --ink-soft, so it follows the theme. An
+ * inline span, which can wrap, gets the icon inline before its first word.
+ */
+function generatedHighlightRules(scope: string): string {
+  return `${scope} .blyg-tk-gen { background: var(--gen-bg); box-shadow: inset 0 0 0 1px var(--gen-rule); border-radius: 4px; }
+${scope} div.blyg-tk-gen { position: relative; padding: 0.5rem 0.75rem 1.15rem; margin: 0.75rem 0 1.5rem; }
+${scope} div.blyg-tk-gen > :first-child { margin-top: 0; }
+${scope} div.blyg-tk-gen > :last-child { margin-bottom: 0; }
+${scope} div.blyg-tk-gen::before { content: ""; position: absolute; left: 0.65rem; bottom: -13px; box-sizing: border-box; width: 30px; height: 26px; border: 1px solid color-mix(in srgb, var(--ink-soft) 55%, var(--gen-rule)); border-radius: 6px; background: var(--paper); }
+${scope} div.blyg-tk-gen::after { content: ""; position: absolute; left: calc(0.65rem + 6px); bottom: -10px; width: 18px; height: 18px; background: var(--ink-soft); -webkit-mask: ${ROBOT} center / contain no-repeat; mask: ${ROBOT} center / contain no-repeat; }
+/* An inline span that wraps keeps its box on every line it touches. */
+${scope} span.blyg-tk-gen { padding: 0.05rem 0.2rem; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+${scope} span.blyg-tk-gen::before { content: ""; display: inline-block; width: 0.9em; height: 0.9em; margin-right: 0.2em; vertical-align: -0.1em; background: var(--ink-soft); -webkit-mask: ${ROBOT} center / contain no-repeat; mask: ${ROBOT} center / contain no-repeat; }
 `;
+}
+
+/** Appended to style.css: the blyg-wide default, which an item's gen-off overrides. */
+export function generatedHighlightCss(on: boolean): string {
+  return on ? `\n/* generated spans highlighted by default */\n${generatedHighlightRules("article:not(.gen-off)")}` : "";
+}
 
 /**
  * Per-page head extras. Grouped into one object rather than growing `layout`'s
@@ -824,7 +866,7 @@ export function renderFragment(
   compactCitations = false,
   tz: string,
 ): string {
-  return `<article class="fragment">
+  return `<article class="fragment${highlightClass(item)}">
 ${forkLineage(item, tz, { compact: compactCitations })}
 <div class="item-content">
 ${contentHtml}
@@ -992,7 +1034,7 @@ async function threadCard(db: D1Database, item: FeedItem, mount: string, tz: str
   // the card may be cutting off.
   const quoted = transclusions.length;
   const kindLine = `<p class="card-kind">thread${quoted ? ` <span class="quote-count">· ${quoted} quoted</span>` : ""}</p>`;
-  return `<article class="fragment thread-card">
+  return `<article class="fragment thread-card${highlightClass(item)}">
 ${stubCitation(latest, tz, { compact: true })}
 ${forkLineage(item, tz, { compact: true })}
 ${kindLine}
@@ -1010,7 +1052,7 @@ async function threadBlock(db: D1Database, item: ItemRow, mount: string, tz: str
   const transclusions = parseTransclusions(latest?.transclusions);
   const html = injectProvenance(latest?.content_html ?? "", await transclusionProvenance(db, transclusions, mount));
   const media = await listMediaForItem(db, item.id);
-  return `<article class="thread">
+  return `<article class="thread${highlightClass(item)}">
 ${stubCitation(latest, tz)}
 ${forkLineage(item, tz)}
 <div class="item-content">
@@ -1068,6 +1110,16 @@ export function stubCitation(row: Pick<VersionRow, "stub_of" | "stub_cite"> | nu
  * which is the only kind of URL a lineage pointer is allowed to name, because
  * it is the only one somebody promised to keep serving.
  */
+/**
+ * An item's own decision about highlighting its generated spans, as a class on
+ * its <article>. No class means it follows the blyg's default, which lives in
+ * style.css (`generatedHighlightCss`), so a page never needs the settings to
+ * render an item and the default changes every page at once.
+ */
+function highlightClass(item: { highlight_override?: number | null }): string {
+  return item.highlight_override === 1 ? " gen-on" : item.highlight_override === 0 ? " gen-off" : "";
+}
+
 export function forkLineage(item: Pick<ItemRow, "forked_from" | "fork_cite">, tz: string, opts: { compact?: boolean } = {}): string {
   const fork = parseStoredFork(item.forked_from);
   if (!fork) return "";
@@ -1510,7 +1562,7 @@ export async function pinnedVersionPage(
 ${await pageTop(db, settings, mount)}
 <p class="pinned-banner">📌 Pinned v${row.version} — a frozen snapshot from ${formatDate(row.published_at, tz)}.
 <a href="${live}">latest version</a> &middot; <a href="${mount}/items/${item.id}/v${row.version}.json">citable JSON</a></p>
-<article class="${isThread ? "thread" : "fragment"}">
+<article class="${isThread ? "thread" : "fragment"}${highlightClass(item)}">
 ${cite}
 ${forkLineage(item, tz)}
 ${html}

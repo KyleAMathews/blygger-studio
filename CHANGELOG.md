@@ -18,6 +18,31 @@ not have its own repo until session 26.
 
 ---
 
+## 0.27.0 — 2026-10-05
+
+**Migrations: 0020** (`items.highlight_override`, nullable). Apply it before
+deploying. `/api` changes, both additive: settings gain
+`highlight_generated_default`, and items gain `highlight`
+(`default` | `show` | `hide`) on read and on `PATCH /api/items/{id}`.
+
+**Highlight generated portions on public pages.**
+
+- **Setting.** Settings → theme has a checkbox: *Highlight generated portions
+  by default*. It is off by default, so upgrading changes nothing anyone sees.
+- **Look.** When it's on, text written by `[TK]` generation (`blyg-tk-gen`)
+  shows in a lightly tinted box with a thin outline. A generated block wears a
+  small robot badge on its bottom-left edge, following Brady Dale's convention
+  on bradydale.com, and an inline span gets the robot before its first word.
+- **Themes.** Every theme names its own tint and outline colour (`genBg`,
+  `genRule`), and the automatic light and dark defaults have their own pair.
+- **Per post.** A post can override the default from its editor's TK card:
+  default, on or off.
+- **Presentation only.** The default lives in `style.css`, and a post's own
+  choice is a `gen-on` or `gen-off` class on its `<article>`. `content_html`,
+  the item document and the feed are unchanged.
+
+---
+
 ## 0.26.1 — 2026-10-04
 
 **Migrations: none.** `POST /api/subscriptions` with `confirm: true` now replies

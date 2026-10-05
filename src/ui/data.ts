@@ -83,7 +83,7 @@ export const items = createCollection(
       for (const mutation of transaction.mutations) {
         const changes = mutation.changes;
         const body: UpdateItemData['body'] = {};
-        for (const field of ['content_md', 'responses', 'stub_of'] as const)
+        for (const field of ['content_md', 'responses', 'highlight', 'stub_of'] as const)
           if (field in changes)
             Object.assign(body, { [field]: changes[field] });
         if (changes.kind === 'fragment' || changes.kind === 'thread')

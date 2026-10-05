@@ -1,10 +1,10 @@
 import type { ItemRow, MediaRow, VersionRow, Transclusion } from "./types.ts";
 
-export type FeedItem = Pick<ItemRow, "id" | "kind" | "created" | "updated" | "version" | "forked_from" | "fork_cite">;
+export type FeedItem = Pick<ItemRow, "id" | "kind" | "created" | "updated" | "version" | "forked_from" | "fork_cite" | "highlight_override">;
 
 /** Public presentation needs item metadata, never the working draft. */
 export async function listFeedItems(db: D1Database, limit: number): Promise<FeedItem[]> {
-  return (await db.prepare(`SELECT id, kind, created, updated, version, forked_from, fork_cite
+  return (await db.prepare(`SELECT id, kind, created, updated, version, forked_from, fork_cite, highlight_override
     FROM items WHERE status IN ('public','withdrawn') ORDER BY updated DESC, rowid DESC LIMIT ?`)
     .bind(limit).all<FeedItem>()).results;
 }
