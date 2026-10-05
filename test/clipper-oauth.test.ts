@@ -102,6 +102,9 @@ describe('claim store', () => {
   });
 });
 
+import { normalizeBlygUrl } from '../extension/lib/url.ts';
+import { discover } from '../extension/lib/discovery.ts';
+import type { FetchLike } from '../extension/lib/types.ts';
 import { flow } from './oauth-flow-driver.ts';
 
 describe('advertised support and CORS', () => {
@@ -317,5 +320,40 @@ describe('a keyed publish is tied to the frozen working copy under concurrency',
     await expect(publish(env.DB, stale, null, 'https://example.test/', false, keyedPublishGuard(env.DB, run, stale, { contentMd: 'frozen', stubJson: null }))).rejects.toBeInstanceOf(PublishGuardLost);
     expect((await current(env.DB, 'grant-c', 'k-pub', 'fp')).kind, 'a concurrent Studio publish is not recorded as ours').toBe('busy');
     expect(await versionCount(stale.id)).toBe(1);
+  });
+});
+
+type Flow = Awaited<ReturnType<typeof flow>>;
+/** The extension's fetch, served by the real Worker. `hook` can drop a request before it is sent, or its response after the server answered. */
+function workerFetch(f: Flow, hook?: (url: string, init?: RequestInit) => 'pass' | 'drop-before' | 'drop-after'): FetchLike {
+  return async (input, init) => {
+    const action = hook?.(input, init) ?? 'pass';
+    if (action === 'drop-before') throw new TypeError('network down before the request was sent');
+    const response = await f.request(input, init);
+    if (action === 'drop-after') throw new TypeError('network down after the server answered');
+    return response;
+  };
+}
+
+describe('clipper discovery (L9)', () => {
+  it('discovers a mounted blyg through its 401 challenge and metadata under the mount', async () => {
+    const f = await flow(), seen: string[] = [];
+    const d = await discover(normalizeBlygUrl(f.base + '/blyg/'), workerFetch(f, (url) => { seen.push(url); return 'pass'; }));
+    expect(d.issuer).toBe(f.issuer);
+    expect(d.resource).toBe(f.base + '/api');
+    for (const endpoint of [d.authorize, d.token, d.register]) expect(endpoint.startsWith(f.issuer + '/')).toBe(true);
+    expect(d.idempotency).toEqual(['createItem', 'publishItem']);
+    expect(d.preconditions).toEqual(['expected']);
+    expect(seen.filter((url) => new URL(url).pathname.startsWith('/.well-known')), 'discovery never asks the host root').toEqual([]);
+  });
+
+  it('refuses an authorization server off the blyg', async () => {
+    const f = await flow(), real = workerFetch(f);
+    const hostile: FetchLike = async (url, init) => {
+      const response = await real(url, init);
+      if (!url.endsWith('/auth/resources/api')) return response;
+      return Response.json({ ...(await response.json() as object), authorization_servers: ['https://elsewhere.example/auth'] });
+    };
+    await expect(discover(normalizeBlygUrl(f.base + '/blyg/'), hostile), 'an issuer off the blyg is refused').rejects.toMatchObject({ name: 'DiscoveryError', step: 'resource' });
   });
 });
