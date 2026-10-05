@@ -4,7 +4,7 @@
  * production defense at a time without changing the expected result.
  * Model: each isolated baseline passes, then its mutant reaches the named semantic
  * assertion. Nonzero exit alone is insufficient: setup errors and timeouts fail
- * this verifier. The eighteen controls cover claims, at-rest secrets, logs, limiter
+ * this verifier. The nineteen controls cover claims, at-rest secrets, logs, limiter
  * identity, browser framing, cross-isolate revocation and protected transport.
  * Driver: a disposable source copy runs the same Worker, browser or race test.
  * Refinement: exact mutation anchor, baseline exit, failure checkpoint and no runner
@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os';
 
 const root = resolve('.'), temporary = mkdtempSync(join(tmpdir(), 'blygger-security-controls-'));
 const controls = [
+  { name: 'stale native cookies authorize after password reset', changes: [{ file: 'src/oauth-routes.ts', from: "const headers = new Headers(c.req.raw.headers); headers.delete('cookie');", to: 'const headers = new Headers(c.req.raw.headers);' }], kind: 'worker', test: 'test/owner-reset.oracle.test.ts', pattern: 'stale native browser cookies', checkpoint: 'stale browser sessions cannot silently authorize after reset' },
   { name: 'remembered consent survives grant revoke', changes: [{ file: 'src/oauth.ts', from: 'DELETE FROM oauthConsent WHERE userId=? AND clientId IN', to: 'DELETE FROM oauthConsent WHERE 0 AND userId=? AND clientId IN' }], kind: 'worker', test: 'test/oauth-grant-list.oracle.test.ts', pattern: 'new owner consent', checkpoint: 'revocation cannot be bypassed by silent reauthorization' },
   { name: 'unclassified writes fall back to read', changes: [{ file: 'src/owner-api.ts', from: "if (!operation && !['GET', 'HEAD'].includes(c.req.method))", to: 'if (false)' }], kind: 'worker', test: 'test/review-auth-regressions.test.ts', pattern: 'undeclared write', checkpoint: 'unclassified writes must fail closed' },
   { name: 'draft operations accept read scope', changes: [{ file: 'src/permissions.ts', from: "if (draft.has(operation)) return ['owner:draft'];", to: "if (draft.has(operation)) return ['owner:read'];" }], kind: 'worker', test: 'test/rest-permissions.oracle.test.ts', pattern: 'every REST operation', checkpoint: 'createItem:' },
@@ -28,7 +29,7 @@ const controls = [
 
   { name: 'subject guard removed', changes: [{ file: 'src/oauth.ts', from: "validated.sub !== 'owner' || ", to: '' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'invalid subject claims', checkpoint: 'invalid claim must deny protected reads' },
   { name: 'raw credential storage', changes: [{ file: 'src/oauth.ts', from: "const oauth: OAuthOptions<string[]> = {", to: "const oauth: OAuthOptions<string[]> = { storeTokens: { hash: token => token }," }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'does not store recoverable', checkpoint: 'stored auth rows must not contain these plaintext credentials' },
-  { name: 'dependency error logged in full', changes: [{ file: 'src/oauth-routes.ts', from: "error instanceof Error ? error.name : 'unknown'", to: 'String(error)' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'does not leak sentinel', checkpoint: 'dependency logging must not leak credentials' },
+  { name: 'dependency error logged in full', changes: [{ file: 'src/oauth-routes.ts', from: "console.error('OAuth request failed', requestError(error, c));", to: "console.error('OAuth request failed', String(error));" }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'does not leak sentinel', checkpoint: 'dependency logging must not leak credentials' },
   { name: 'unencrypted private signing key', changes: [{ file: 'src/oauth.ts', from: "jwt({ jwks: { keyPairConfig:", to: "jwt({ jwks: { disablePrivateKeyEncryption: true, keyPairConfig:" }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'does not store recoverable', checkpoint: 'private signing key must be encrypted' },
   { name: 'introspection owner revocation omitted', changes: [{ file: 'src/oauth-routes.ts', from: 'if (value.active) {', to: 'if (false) {' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'reports a revoked grant inactive', checkpoint: '"active": false' },
   { name: 'spoofable limiter identity', changes: [{ file: 'src/oauth.ts', from: "ipAddressHeaders: ['cf-connecting-ip']", to: "ipAddressHeaders: ['x-forwarded-for']" }], kind: 'worker', test: 'test/auth-deployment.oracle.test.ts', pattern: 'shares an atomic registration budget', checkpoint: 'AssertionError' },
@@ -41,7 +42,7 @@ const controls = [
   { name: 'Basic replay client classification omitted', changes: [{ file: 'src/oauth-routes.ts', from: 'if (basic) {', to: 'if (false) {' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'authenticated Basic refresh replay', checkpoint: 'authenticated Basic replay revokes the compromised JWT grant' },
 ];
 // Browser controls share Playwright's server port; worker/race controls can run
-// while a separate browser verification owns it. The default still runs all eighteen.
+// while a separate browser verification owns it. The default still runs all nineteen.
 const selector = process.argv[2];
 const selected = selector === '--exclude-browser' ? controls.filter(control => control.kind !== 'browser') : selector ? controls.filter(control => control.name.includes(selector)) : controls;
 assert.ok(selected.length, 'No mutation matches the requested name');

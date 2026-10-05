@@ -1,6 +1,7 @@
 /**
  * Delegation is the intersection of identity, time, resource and explicit scope.
- * Decision #52 and docs/auth-oracles.md supply local lifetimes and reset policy.
+ * Decision #52 supplies capabilities and lifetimes. Decision #31 and the user
+ * ruling separate owner-password reset from delegated token invalidation.
  * RFC6750 §3 supplies the invalid-token/insufficient-scope distinction:
  * https://www.rfc-editor.org/rfc/rfc6750.html#section-3
  * RFC8707 §2 supplies resource binding:
@@ -8,7 +9,7 @@
  *
  * This model stores only facts a later action can distinguish. A revoked flag
  * separates one deleted grant from a live neighbor. A generation counter models
- * global reset without erasing history; it is not a production signing-key ID.
+ * revoke-all/signing-secret reset without erasing history; it is not a production signing-key ID.
  * Scope arrays have no implication: owner:draft does not grant owner:read.
  *
  * OAuthModel is a separate, partial one-use/binding law. It predicts browser

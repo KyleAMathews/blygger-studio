@@ -31,7 +31,8 @@ client authorizations, and revocation state. Enable `nodejs_compat` before deplo
   The owner approves permissions and manages grants from Studio's Client access page.
 - MCP exposes the existing API operations with the same scope checks. The generated
   JavaScript SDK supports owner cookies and bearer tokens in browsers and Node.js.
-- Refresh replay, owner credential changes, and explicit revocation invalidate grants.
+- Refresh replay, signing-secret changes, and explicit revocation invalidate grants.
+  Owner-password reset invalidates browser sessions and preserves delegated tokens.
   Native refresh cleanup can also invalidate another grant's refresh token for the
   same client and owner. Other grants' access tokens retain their own revocation state.
 - Mounted discovery is available. Host-root `.well-known` routes remain deferred.

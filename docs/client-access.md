@@ -39,7 +39,7 @@ A Studio browser uses its HttpOnly cookie through `credentials: 'same-origin'` w
 
 Studio lists each grant, its permissions, resource and expiry. Revoke one authorization to disable its access and refresh credentials, or choose revoke-all. Revoke-all leaves your Studio session active. Revoking one OAuth grant also removes remembered consent for that client. Existing sibling access grants remain valid; a new grant requires a fresh owner decision.
 
-When resetting the owner password, use revoke-all first. Changing either `OWNER_PASSWORD` or `COOKIE_SECRET` also invalidates all delegated grants. Changing either secret also invalidates existing Studio sessions. Set secrets through Wrangler's interactive prompts; do not place them in committed config.
+Changing `OWNER_PASSWORD` invalidates existing Studio sessions and preserves delegated access and refresh credentials. Existing permissions and grant deadlines stay unchanged. Log in again and open **More → Client access** to review the surviving grants. Choose revoke-all when you want to remove their access. Changing `COOKIE_SECRET` invalidates both owner sessions and delegated grants. Set secrets through Wrangler's interactive prompts; do not place them in committed config.
 
 ## OAuth and MCP status
 

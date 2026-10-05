@@ -36,6 +36,7 @@ The [oracle-writing guide](oracle-tests.md) describes how to keep contracts, mod
 | Client | An application that requests or uses delegated access. Its registration is not an approval to access private data. |
 | Client registration | The provider record for client identity, callbacks and authentication metadata. One registered client can receive several distinct grants. |
 | Owner session | The browser's authenticated owner context. The legacy Studio cookie and the native provider session are distinct credentials joined by the owner bridge. |
+| Owner-password reset | Changing `OWNER_PASSWORD`. Existing owner sessions lose access. Delegated access and refresh credentials keep their scopes and deadlines until expiry or explicit revocation. |
 | Owner bridge (owner-session bridge) | Server-side conversion of a verified Studio owner session into the native provider context. Recreating it is not a new password authentication. |
 | Authentication time | When the owner proved their identity. OIDC `auth_time` and `max_age` concern this event, not a wrapper's session creation time. |
 | Consent | The owner's approval or denial of requested client authority. The browser-bound consent handle is single-use and expires. |
@@ -54,7 +55,7 @@ The [oracle-writing guide](oracle-tests.md) describes how to keep contracts, mod
 | Authorization code | A short-lived, single-use intermediate credential bound to the client, callback and PKCE proof. It is exchanged for tokens. |
 | PKCE | Proof Key for Code Exchange. The selected S256 method binds the code to a verifier through its SHA-256 challenge. Syntax and hash binding are separate checks. |
 | Revoke-all epoch | The shared counter advanced by owner revoke-all. It contributes to credential version; it is not a published item version or a signing-key ID. |
-| Credential version | The application validity claim derived from cookie secret, owner password and revoke-all epoch. A change to any invalidates earlier delegated credentials. It is distinct from a signing-key identifier. |
+| Credential version | The application validity claim derived from cookie secret and revoke-all epoch. A change to either invalidates earlier delegated credentials. Owner-password reset preserves them. It is distinct from a signing-key identifier. |
 | Refresh rotation | Consuming a refresh credential and issuing its successor. It does not extend the grant's absolute deadline. |
 | Replay | Reusing a code or refresh credential after consumption. Selected zero-grace refresh reuse revokes the grant family, including signed access tokens. |
 | Revocation | Removing authority before its deadline. Owner grant revocation, revoke-all and native refresh-token revocation have different boundaries. |
@@ -65,7 +66,7 @@ The [oracle-writing guide](oracle-tests.md) describes how to keep contracts, mod
 | Term | Meaning |
 | --- | --- |
 | Origin | The URL's scheme, host and port. Same-site requests can still have different origins; cookie behavior cannot replace an Origin check. |
-| Root invalidation | Loss of delegated authority after password or cookie-secret change, or owner revoke-all. It is not necessarily signing-key rotation. |
+| Root invalidation | Loss of delegated authority after cookie-secret change or owner revoke-all. Owner-password reset instead invalidates owner sessions and preserves delegated tokens. It is not necessarily signing-key rotation. |
 | Protected resource metadata | A document identifying the resource, its authorization servers and supported capabilities. Its URL can appear in a Bearer challenge. |
 | Discovery | A client's retrieval of server metadata. Mounted OIDC discovery works in the selected profile; host-root `.well-known` publication remains deferred. |
 | MCP | Model Context Protocol. Authorized tool calls expose selected API capabilities and must pass receiving authorization on each request. |

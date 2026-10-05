@@ -9,7 +9,8 @@
  * https://www.rfc-editor.org/rfc/rfc6750.html#section-3
  * https://www.rfc-editor.org/rfc/rfc8707.html#section-2
  * Model: AuthorizationModel stores scope, resource, expiry and revocation only.
- * Its generation is a model counter for root invalidation, not a signing-key ID.
+ * Its generation changes on signing-secret rotation or revoke-all. Decision #31
+ * and the user ruling preserve delegated credentials on owner-password reset.
  * History grammar: three slots, all nonempty scope masks, API/MCP audiences,
  * issuance, operations, revocation, password/secret rotation and deadline neighbors.
  * Every history first issues a live credential. Generated histories are bounded;
@@ -32,16 +33,17 @@ import { atCheckpoint, campaign } from './oracle-campaign.ts';
 
 const scopeNames: Scope[] = ['owner:read', 'owner:draft', 'owner:publish', 'owner:manage'];
 const scopes = (mask: number) => scopeNames.filter((_, index) => mask & 1 << index);
-type Instruction = { op: 'mint' | 'read' | 'draft' | 'publish' | 'manage' | 'wrong-resource' | 'revoke' | 'revoke-all' | 'rotate' | 'advance'; slot: number; mask: number; resource: Resource; seconds: number };
+type Instruction = { op: 'mint' | 'read' | 'draft' | 'publish' | 'manage' | 'wrong-resource' | 'revoke' | 'revoke-all' | 'rotate' | 'password-reset' | 'advance'; slot: number; mask: number; resource: Resource; seconds: number };
 // The grammar keeps slot reuse and root reset in one history: a new mint replaces
-// only that slot, while global reset invalidates every earlier generation.
+// only that slot. Signing-secret rotation and revoke-all invalidate earlier
+// generations. Password reset changes the owner session, not credential state.
 // Deadline neighbors distinguish > from >=. The short bounded domain deliberately
 // omits arbitrary malformed scope names, which protocol suites cover separately.
-const instruction = fc.record({ op: fc.constantFrom<Instruction['op']>('mint', 'read', 'draft', 'publish', 'manage', 'wrong-resource', 'revoke', 'revoke-all', 'rotate', 'advance'), slot: fc.integer({ min: 0, max: 2 }), mask: fc.integer({ min: 1, max: 15 }), resource: fc.constantFrom<Resource>('api', 'mcp'), seconds: fc.constantFrom(0, 1, 2591999, 2592000, 2592001) });
+const instruction = fc.record({ op: fc.constantFrom<Instruction['op']>('mint', 'read', 'draft', 'publish', 'manage', 'wrong-resource', 'revoke', 'revoke-all', 'rotate', 'password-reset', 'advance'), slot: fc.integer({ min: 0, max: 2 }), mask: fc.integer({ min: 1, max: 15 }), resource: fc.constantFrom<Resource>('api', 'mcp'), seconds: fc.constantFrom(0, 1, 2591999, 2592000, 2592001) });
 const histories = fc.array(instruction, { minLength: 1, maxLength: 14 });
 
 let browserSequence = 0;
-async function run(instructions: Instruction[], rotationKey: 'COOKIE_SECRET' | 'OWNER_PASSWORD' = 'COOKIE_SECRET') {
+async function run(instructions: Instruction[]) {
   const ip = `2001:db8:${(++browserSequence).toString(16)}::1`;
   const model = new AuthorizationModel();
   let currentEnv: Env = { ...env };
@@ -86,7 +88,8 @@ async function run(instructions: Instruction[], rotationKey: 'COOKIE_SECRET' | '
     for (const action of instructions) {
       if (action.op === 'mint') { await mint(action.slot, action.mask, action.resource); continue; }
       if (action.op === 'advance') { model.advance(action.seconds); continue; }
-      if (action.op === 'rotate') { currentEnv = { ...currentEnv, [rotationKey]: currentEnv[rotationKey] + '-rotated' }; model.revokeAll(); }
+      if (action.op === 'rotate') { currentEnv = { ...currentEnv, COOKIE_SECRET: currentEnv.COOKIE_SECRET + '-rotated' }; model.revokeAll(); }
+      else if (action.op === 'password-reset') { currentEnv = { ...currentEnv, OWNER_PASSWORD: currentEnv.OWNER_PASSWORD + '-reset' }; }
       else if (action.op === 'revoke-all') { expect((await owner('/api/authorizations', 'DELETE')).status).toBe(200); model.revokeAll(); }
       else if (action.op === 'revoke') { const token = tokens.get(action.slot); if (token) expect((await owner('/api/authorizations/' + token.id, 'DELETE')).status).toBe(200); model.revoke(action.slot); }
       if (action.op === 'wrong-resource') {
@@ -120,8 +123,8 @@ describe('delegated authorization oracle', () => {
   it('distinguishes root invalidation, scope denial, and audience denial', async () => {
     await run([{ op: 'mint', slot: 1, mask: 1, resource: 'api', seconds: 0 }, { op: 'draft', slot: 1, mask: 1, resource: 'api', seconds: 0 }, { op: 'mint', slot: 2, mask: 15, resource: 'mcp', seconds: 0 }, { op: 'wrong-resource', slot: 2, mask: 15, resource: 'mcp', seconds: 0 }, { op: 'rotate', slot: 0, mask: 15, resource: 'api', seconds: 0 }]);
   });
-  it('rejects old tokens after password rotation with the signing key unchanged', async () => {
-    await run([{ op: 'rotate', slot: 0, mask: 15, resource: 'api', seconds: 0 }], 'OWNER_PASSWORD');
+  it('preserves delegated tokens after password reset with the signing key unchanged', async () => {
+    await run([{ op: 'password-reset', slot: 0, mask: 15, resource: 'api', seconds: 0 }]);
   });
   it('calibrates the judgment against plausible wrong results', () => {
     const model = new AuthorizationModel(); model.mint(0, ['owner:draft'], 'api', 10);

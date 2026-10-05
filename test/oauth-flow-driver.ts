@@ -20,10 +20,10 @@ export async function flow(options: { redirect?: string; authorize?: Record<stri
   // Each independent browser flow has its own simulated edge IP. Repeated
   // requests within a flow retain it, so limiter bypass is never the oracle.
   const edgeIP = 'fd00:' + crypto.randomUUID().replaceAll('-', '').match(/.{4}/g)!.slice(0, 7).join(':');
-  const request = async (path: string, init: RequestInit = {}) => {
+  const request = async (path: string, init: RequestInit = {}, bindings = env) => {
     const headers = new Headers(init.headers); headers.set('CF-Connecting-IP', edgeIP);
     const ctx = createExecutionContext();
-    const res = await app.fetch(new Request(path.startsWith('https:') ? path : base + path, { ...init, headers }), env, ctx);
+    const res = await app.fetch(new Request(path.startsWith('https:') ? path : base + path, { ...init, headers }), bindings, ctx);
     await waitOnExecutionContext(ctx); return res;
   };
   const login = await request('/blyg/studio/login', { method: 'POST', body: new URLSearchParams({ password: env.OWNER_PASSWORD }) });

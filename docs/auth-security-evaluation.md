@@ -2279,3 +2279,10 @@ the same receiving assertion. Disposition: fixed-now. This supplementary finding
 resolves the Basic replay unknown in the earlier audit record without altering its
 original text or the125-entry ledger.
 Source: [RFC6749 §2.3.1](https://www.rfc-editor.org/rfc/rfc6749.html#section-2.3.1).
+
+
+## Owner-password reset ruling and current authority model
+
+Decision #31 and the user ruling preserve delegated access and refresh credentials after owner-password reset. Prior source snapshots and review claims above retain their original evidence. The current credential version depends on cookie secret and revoke-all epoch, excluding owner password. Owner-session HMAC still binds the owner password. Stale native OAuth cookies cannot silently authorize without a valid owner session.
+
+The owner-reset receiving oracles capture API/MCP token survival, native refresh, stable grant deadlines and listing, explicit revoke-all, and stale-browser login requirements. Password reset is a separate generated-history action that preserves delegated model state. This replaces the earlier password-coupled delegated invalidation rule. It does not weaken signing-secret rotation or grant revocation.

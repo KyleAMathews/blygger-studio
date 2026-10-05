@@ -18,7 +18,9 @@ export async function hashCredential(value: string) {
 }
 export async function credentialVersion(env: Env) {
   const epoch = (await env.DB.prepare('SELECT epoch FROM oauth_state WHERE id = 1').first<{ epoch: number }>())!.epoch;
-  return hashCredential(JSON.stringify([env.COOKIE_SECRET, env.OWNER_PASSWORD, epoch]));
+  // Delegated grants survive owner-password reset (decision #31). Their
+  // authority changes only with signing-secret rotation or explicit revoke-all.
+  return hashCredential(JSON.stringify([env.COOKIE_SECRET, epoch]));
 }
 async function grantReference(env: Env, createdAt: Date = new Date(Date.now()), manual = false) { return await credentialVersion(env) + '.' + (Math.floor(new Date(createdAt).getTime() / 1000) + 30 * 86400) + (manual ? '.' + crypto.randomUUID() : ''); }
 async function grantClaims(env: Env, reference?: string) {

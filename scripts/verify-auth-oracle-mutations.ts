@@ -4,7 +4,7 @@
  * Model: a baseline passes; a selected broken defense fails at the named checkpoint.
  * For captured generated failures, direct seed/path replay must retain that
  * checkpoint and the same reduced counterexample, without normal campaigns first.
- * Driver: disposable source copies with scope enforcement, password invalidation
+ * Driver: disposable source copies with scope enforcement, password-session/token separation
  * or exclusive expiry changed. Repository source paths include untracked candidate
  * files; ignored credentials are not copied by that path inventory.
  * Refinement: distinguish setup/timeout failures from semantic RED, then retain
@@ -23,7 +23,7 @@ import { tmpdir } from 'node:os';
 const root = resolve('.'), temporary = mkdtempSync(join(tmpdir(), 'blygger-auth-mutations-'));
 const controls = [
   { name: 'delegated scope enforcement omitted', file: 'src/owner-api.ts', from: "if (required.some(scope => !delegated.scope.includes(scope)))", to: 'if (false)', test: 'test/authorization.oracle.test.ts', pattern: 'distinguishes root invalidation', target: 'authorization', captureSeed: 20261016, checkpoint: 'authorization API decision' },
-  { name: 'tokens survive password rotation', file: 'src/oauth.ts', from: " || validated.credentialVersion !== await credentialVersion(env)", to: '', test: 'test/authorization.oracle.test.ts', pattern: 'rejects old tokens after password rotation', checkpoint: 'authorization API decision' },
+  { name: 'password reset revokes delegated grants', file: 'src/oauth.ts', from: "return hashCredential(JSON.stringify([env.COOKIE_SECRET, epoch]));", to: "return hashCredential(JSON.stringify([env.COOKIE_SECRET, env.OWNER_PASSWORD, epoch]));", test: 'test/owner-reset.oracle.test.ts', pattern: 'preserves API and MCP grants', checkpoint: 'password reset must preserve delegated access' },
   { name: 'expiry boundary remains readable', file: 'src/oauth-storage.ts', from: 'expires > ?', to: 'expires >= ?', test: 'test/oauth-storage.oracle.test.ts', pattern: 'reconstructs overwrite', target: 'oauth-storage', captureSeed: 20261002, checkpoint: 'OAuth storage prefix pages' },
 ];
 try {

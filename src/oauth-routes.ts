@@ -1,3 +1,4 @@
+import { requestError } from './request-error.ts';
 import { Hono, type Context } from 'hono';
 import { verifyOAuthQueryParams } from '@better-auth/oauth-provider';
 import type { Env } from './types.ts';
@@ -18,7 +19,7 @@ export function oauthRoutes() {
     if (authorization) c.res.headers.delete('Access-Control-Allow-Origin');
   });
   app.onError((error, c) => {
-    console.error('OAuth request failed', error instanceof Error ? error.name : 'unknown');
+    console.error('OAuth request failed', requestError(error, c));
     return c.json({ error: 'internal server error' }, 500);
   });
   app.get('/resources/:resource', c => {
@@ -66,7 +67,13 @@ export function oauthRoutes() {
     const requestParams = new URL(c.req.url).searchParams;
     if (!requestParams.get('response_type')) return invalidAuthorization(c, requestParams);
     if (!await verifySession(c.env, c.req.header('cookie'))) {
-      if ((requestParams.get('prompt') ?? '').split(' ').includes('none')) return (await authorizationServer(c.req.url, c.env)).handler(c.req.raw);
+      if ((requestParams.get('prompt') ?? '').split(' ').includes('none')) {
+        // Native OAuth cookies do not replace the separate password session.
+        // Let the provider validate the client/callback and emit login_required,
+        // but prevent a stale native session from authorizing silently.
+        const headers = new Headers(c.req.raw.headers); headers.delete('cookie');
+        return (await authorizationServer(c.req.url, c.env)).handler(new Request(c.req.raw, { headers }));
+      }
       const { base } = authLocations(c.req.url, c.env), path = new URL(c.req.url);
       return c.redirect(base + '/login?return_to=' + encodeURIComponent(path.pathname + path.search));
     }

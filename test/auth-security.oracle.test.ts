@@ -143,7 +143,7 @@ describe('security release boundaries', () => {
   });
 
   // The sentinel models a dependency exception containing a credential. Capture all
-  // console methods and include Error.message/stack: JSON.stringify(Error) alone
+  // console methods and include Error.name/message/stack: JSON.stringify(Error) alone
   // would hide the leak. OWASP's log-exclusion rule applies even on failure paths.
   // The model observes local logging and HTTP output, not platform-managed sinks.
   it.each(['registration', 'owner-login', 'manual-mint'])('does not leak sentinel credentials through dependency failures or HTTP errors (%s)', async endpoint => {
@@ -156,7 +156,11 @@ describe('security release boundaries', () => {
       // dependency seam, not a claim that D1 currently emits this exact message.
       const database = new Proxy(env.DB, { get(target, key) {
         if (key === 'prepare') return (sql: string) => {
-          if (sql.includes(endpoint === 'owner-login' ? 'rateLimit' : 'oauthClient')) throw new Error('database failed with credential=' + marker);
+          if (sql.includes(endpoint === 'owner-login' ? 'rateLimit' : 'oauthClient')) {
+            const error = new Error('database failed with credential=' + marker);
+            error.name = marker; // Dependency-defined names are untrusted too.
+            throw error;
+          }
           return target.prepare(sql);
         };
         const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
