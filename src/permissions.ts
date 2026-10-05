@@ -13,6 +13,15 @@ export function operationScopes(operation: string): OwnerScope[] {
   if (publish.has(operation)) return ['owner:publish'];
   return ['owner:manage'];
 }
-export function matchOperation(method: string, path: string) {
-  return Object.entries(routes).find(([, route]) => (method === 'HEAD' ? 'get' : method.toLowerCase()) === route.method && new RegExp(`^${route.path.replace(/\{\w+\}/g, '[^/]+')}/?$`).test(path));
+// Use the route patterns Hono actually matched, not a second URL router.
+const registeredOperations = new Map(Object.entries(routes).map(([id, route]) => [
+  `${route.method.toUpperCase()} /api${route.path.replace(/\{(\w+)\}/g, ':$1')}`,
+  [id, route] as const,
+]));
+export function matchOperation(method: string, paths: Iterable<string>) {
+  const verb = method === 'HEAD' ? 'GET' : method.toUpperCase();
+  for (const path of paths) {
+    const operation = registeredOperations.get(`${verb} ${path}`);
+    if (operation) return operation;
+  }
 }

@@ -404,7 +404,12 @@ api.openapi(routes.uploadMedia, async (c) => {
     // The studio sends inline=true for an upload it places in the text
     // (studio#24): shown only where its line is, never appended.
     inline: form?.get("inline") === "true" ? 1 : 0,
-  });
+  }, c.get('draftOnlyMedia') === true);
+  if (!row) {
+    await c.env.MEDIA.delete(r2Key);
+    c.header('WWW-Authenticate', 'Bearer error="insufficient_scope", scope="owner:draft owner:publish"');
+    return c.json({ error: 'owner:publish required to attach media to a published item' }, 403);
+  }
   c.header("Location", `/${normalizeMount(c.env.MOUNT).replace(/^\//, "")}/${row.r2_key}`.replace(/^\/\//, "/"));
   return c.json({ id: row.id, url: row.r2_key, mime: row.mime }, 201);
 });

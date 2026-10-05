@@ -8,7 +8,7 @@ export const authorizationApi = contractApp();
 authorizationApi.use('*', async (c, next) => {
   if (!/^\/api\/authorizations(?:\/|$)/.test(c.req.path)) return next();
   c.header('Cache-Control', 'no-store');
-  if (c.req.header('authorization') || !await verifySession(c.env, c.req.header('cookie'))) return c.json({ error: 'owner session required' }, 401);
+  if (/^Bearer(?:\s|$)/i.test(c.req.header('authorization') ?? '') || !await verifySession(c.env, c.req.header('cookie'))) return c.json({ error: 'owner session required' }, 401);
   const origin = c.req.header('origin');
   if (origin && origin !== new URL(c.req.url).origin || c.req.header('sec-fetch-site') === 'cross-site') return c.json({ error: 'cross-origin owner request denied' }, 403);
   return next();

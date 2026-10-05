@@ -18,7 +18,7 @@ The remaining security gaps were not all RED before this pass. Five public failu
 
 Run `npm run test:auth:security:mutations`. The runner copies only tracked files and repository source/test paths into a disposable directory. It never mutates this checkout. Each baseline must pass before its mutant runs. Setup errors, missing modules, timeout failures and surviving mutants fail the verifier.
 
-The controls remove the subject check, store raw credentials, expose full dependency errors, store unencrypted signing keys, omit introspection revocation, trust a spoofed forwarding header, remove browser frame blocking, omit cross-isolate grant revocation, expose root errors, restore the native raw-error fallback, remove the HTTPS guard remove the uploaded-media sandbox and omit Basic replay client classification. Each must reach its named receiving assertion. The compiled race and real browser controls are part of this runner.
+The controls remove the subject check, store raw credentials, expose full dependency errors, store unencrypted signing keys, omit introspection revocation, trust a spoofed forwarding header, remove browser frame blocking, omit cross-isolate grant revocation, expose root errors, restore the native raw-error fallback, remove the HTTPS guard, remove the uploaded-media sandbox and omit Basic replay client classification. Five added controls preserve remembered consent after revocation, allow unclassified writes, grant draft operations to read-only credentials, bypass the publication commit check in a controlled upload race, or bypass the same check through MCP. Each must reach its named receiving assertion. The compiled race and real browser controls are part of this runner.
 
 Run `npm run test:auth:security` for the security oracle and the controlled compiled race. Run `npx playwright test e2e/client-access.spec.ts` for browser lifecycle, framing and inert SVG uploads. The full Worker suite includes the new security oracle.
 
@@ -32,8 +32,14 @@ The maintainer deferred host-root `.well-known` publication. Mounted OIDC discov
 
 ## Verified result
 
-The full Worker suite passes: 98 files, 1,052 tests passed and five existing skips. All thirteen security mutations reach their named failure assertions. Eight browser tests pass on desktop and mobile. The controlled two-isolate replay probe and Worker/UI typechecks pass. The new security file has28 cases. Five public failure witnesses were captured before repair; the other controls use deliberate mutations for RED evidence. Deployment-only facts remain unverified.
+The full Worker suite passes: 101 files, 1,097 tests passed and five existing skips. The final focused auth receiving file passes ten tests, including the later dependency-name boundary. All eighteen security mutations reach their named failure assertions. Eight browser tests pass on desktop and mobile. The controlled two-isolate replay probe and Worker/UI typechecks pass. The new security file has28 cases. Five public failure witnesses were captured before repair; the other controls use deliberate mutations for RED evidence. Deployment-only facts remain unverified.
 
 ## Family scope limit
 
 Application tombstones use `grantId`; Better Auth1.7.7 native refresh-family cleanup uses client/user identity. These boundaries differ. The replay oracle checks denial of the compromised grant, and the independent-grant oracle checks another access credential after owner revocation. Neither establishes that refresh replay leaves another same-client grant’s refresh credential usable. The [glossary](glossary.md) names both families explicitly.
+
+## Permission-class follow-up
+
+The independent REST inventory checks every operation against every scope subset. It also covers public response visibility. Same-client silent reauthorization, published media and a controlled upload/publish race have separate receiving laws. See [the expanded oracle map](auth-oracles.md#complete-rest-permission-inventory). These tests preserve the separation of drafting and publication across REST and MCP. They cover the named boundaries and one controlled concurrent schedule, not all authorization defects.
+
+A password reset must invalidate old owner sessions. Decision #31 also says existing delegated tokens survive. The current implementation revokes those tokens, so this policy conflict remains a review blocker pending the user's delegated-token ruling. The owner-session oracle now cites the session rule accurately and makes no claim about existing client tokens.

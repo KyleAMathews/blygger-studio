@@ -4,7 +4,7 @@
  * production defense at a time without changing the expected result.
  * Model: each isolated baseline passes, then its mutant reaches the named semantic
  * assertion. Nonzero exit alone is insufficient: setup errors and timeouts fail
- * this verifier. The thirteen controls cover claims, at-rest secrets, logs, limiter
+ * this verifier. The eighteen controls cover claims, at-rest secrets, logs, limiter
  * identity, browser framing, cross-isolate revocation and protected transport.
  * Driver: a disposable source copy runs the same Worker, browser or race test.
  * Refinement: exact mutation anchor, baseline exit, failure checkpoint and no runner
@@ -20,6 +20,12 @@ import { tmpdir } from 'node:os';
 
 const root = resolve('.'), temporary = mkdtempSync(join(tmpdir(), 'blygger-security-controls-'));
 const controls = [
+  { name: 'remembered consent survives grant revoke', changes: [{ file: 'src/oauth.ts', from: 'DELETE FROM oauthConsent WHERE userId=? AND clientId IN', to: 'DELETE FROM oauthConsent WHERE 0 AND userId=? AND clientId IN' }], kind: 'worker', test: 'test/oauth-grant-list.oracle.test.ts', pattern: 'new owner consent', checkpoint: 'revocation cannot be bypassed by silent reauthorization' },
+  { name: 'unclassified writes fall back to read', changes: [{ file: 'src/owner-api.ts', from: "if (!operation && !['GET', 'HEAD'].includes(c.req.method))", to: 'if (false)' }], kind: 'worker', test: 'test/review-auth-regressions.test.ts', pattern: 'undeclared write', checkpoint: 'unclassified writes must fail closed' },
+  { name: 'draft operations accept read scope', changes: [{ file: 'src/permissions.ts', from: "if (draft.has(operation)) return ['owner:draft'];", to: "if (draft.has(operation)) return ['owner:read'];" }], kind: 'worker', test: 'test/rest-permissions.oracle.test.ts', pattern: 'every REST operation', checkpoint: 'createItem:' },
+  { name: 'media publication commit guard removed', changes: [{ file: 'src/model.ts', from: 'WHERE ? = 0 OR ? IS NULL OR EXISTS', to: 'WHERE ? >= 0 OR ? IS NULL OR EXISTS' }], kind: 'worker', test: 'test/review-auth-regressions.test.ts', pattern: 'publication races', checkpoint: 'publication racing upload must deny draft-only attachment' },
+  { name: 'MCP media publication gate removed', changes: [{ file: 'src/model.ts', from: 'WHERE ? = 0 OR ? IS NULL OR EXISTS', to: 'WHERE ? >= 0 OR ? IS NULL OR EXISTS' }], kind: 'worker', test: 'test/mcp-media.oracle.test.ts', pattern: 'published attachments', checkpoint: 'MCP drafting cannot publish an attachment' },
+
   { name: 'subject guard removed', changes: [{ file: 'src/oauth.ts', from: "validated.sub !== 'owner' || ", to: '' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'invalid subject claims', checkpoint: 'invalid claim must deny protected reads' },
   { name: 'raw credential storage', changes: [{ file: 'src/oauth.ts', from: "const oauth: OAuthOptions<string[]> = {", to: "const oauth: OAuthOptions<string[]> = { storeTokens: { hash: token => token }," }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'does not store recoverable', checkpoint: 'stored auth rows must not contain these plaintext credentials' },
   { name: 'dependency error logged in full', changes: [{ file: 'src/oauth-routes.ts', from: "error instanceof Error ? error.name : 'unknown'", to: 'String(error)' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'does not leak sentinel', checkpoint: 'dependency logging must not leak credentials' },
@@ -28,14 +34,14 @@ const controls = [
   { name: 'spoofable limiter identity', changes: [{ file: 'src/oauth.ts', from: "ipAddressHeaders: ['cf-connecting-ip']", to: "ipAddressHeaders: ['x-forwarded-for']" }], kind: 'worker', test: 'test/auth-deployment.oracle.test.ts', pattern: 'shares an atomic registration budget', checkpoint: 'AssertionError' },
   { name: 'frame blocking removed', changes: [{ file: 'src/spa.ts', from: "c.header('Content-Security-Policy', \"frame-ancestors 'none'\");", to: '' }, { file: 'src/spa.ts', from: "c.header('X-Frame-Options', 'DENY');", to: '' }, { file: 'src/oauth-routes.ts', from: "'Content-Security-Policy': \"frame-ancestors 'none'\", 'X-Frame-Options': 'DENY', ", to: '' }], kind: 'browser', test: 'e2e/client-access.spec.ts', pattern: 'hostile ancestor', checkpoint: 'Expected value: "net::ERR_BLOCKED_BY_RESPONSE"' },
   { name: 'cross-isolate family tombstone omitted', changes: [{ file: 'src/oauth-routes.ts', from: "if (seen && seen.client === clientId", to: "if (false && seen.client === clientId" }], kind: 'race', test: 'scripts/verify-auth-security-race.ts', pattern: '', checkpoint: 'Cross-isolate replay must revoke the existing signed access token' },
-  { name: 'root and contract errors logged in full', changes: [{ file: 'src/index.ts', from: "console.error('Worker request failed');", to: 'console.error(_error);' }, { file: 'src/contract/app.ts', from: "console.error('API request failed');", to: 'console.error(error);' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'does not leak sentinel', checkpoint: 'dependency logging must not leak credentials' },
+  { name: 'root and contract errors logged in full', changes: [{ file: 'src/index.ts', from: "console.error('Worker request failed', requestError(_error, c));", to: 'console.error(_error);' }, { file: 'src/contract/app.ts', from: "console.error('API request failed', requestError(error, c));", to: 'console.error(error);' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'does not leak sentinel', checkpoint: 'dependency logging must not leak credentials' },
   { name: 'native raw fallback logging restored', changes: [{ file: 'src/oauth.ts', from: 'onAPIError: { throw: true }', to: 'onAPIError: { throw: false }' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'does not leak sentinel', checkpoint: 'dependency logging must not leak credentials' },
   { name: 'cleartext transport guard removed', changes: [{ file: 'src/index.ts', from: "if (url.protocol !== 'https:' && !loopback)", to: 'if (false)' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'cleartext auth transport', checkpoint: 'cleartext protected transport must fail closed' },
   { name: 'uploaded media sandbox removed', changes: [{ file: 'src/index.ts', from: '"Content-Security-Policy": "sandbox; script-src \'none\'",', to: '' }], kind: 'browser', test: 'e2e/client-access.spec.ts', pattern: 'SVG uploads', checkpoint: 'data-script-ran="yes"' },
   { name: 'Basic replay client classification omitted', changes: [{ file: 'src/oauth-routes.ts', from: 'if (basic) {', to: 'if (false) {' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'authenticated Basic refresh replay', checkpoint: 'authenticated Basic replay revokes the compromised JWT grant' },
 ];
 // Browser controls share Playwright's server port; worker/race controls can run
-// while a separate browser verification owns it. The default still runs all thirteen.
+// while a separate browser verification owns it. The default still runs all eighteen.
 const selector = process.argv[2];
 const selected = selector === '--exclude-browser' ? controls.filter(control => control.kind !== 'browser') : selector ? controls.filter(control => control.name.includes(selector)) : controls;
 assert.ok(selected.length, 'No mutation matches the requested name');

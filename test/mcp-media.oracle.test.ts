@@ -3,7 +3,9 @@
  * Base64 expansion must not silently reduce the inclusive five-MiB file limit.
  *
  * Contract: the existing REST media contract and decision #52 define types, sizes,
- * attachment metadata and owner:draft capability. MCP tools use structured inputs:
+ * attachment metadata and separate drafting/publication capabilities. Draft
+ * attachment is permitted; attachment to an already published item also needs
+ * owner:publish. Discovery describes base capabilities; REST checks item state. MCP tools use structured inputs:
  * https://modelcontextprotocol.io/specification/2025-11-25/server/tools
  * These exact size limits are Blygger policy, not MCP requirements.
  * Model: literal bytes/types/limits and expected storage absence; no production
@@ -61,6 +63,19 @@ async function storedCount() {
   return { r2: (await env.MEDIA.list()).objects.length, rows: (await env.DB.prepare('SELECT count(*) AS n FROM media').first<{ n: number }>())!.n };
 }
 describe('MCP multipart media transport parity', () => {
+  it('cannot use the draft upload tool to change published attachments', async () => {
+    const d = await driver(), token = await d.credential(['owner:draft']);
+    const item = await (await d.owner('/api/items', { content_md: 'Published MCP boundary' })).json() as { id: string };
+    expect((await d.owner('/api/items/' + item.id + '/publish', {})).status).toBe(200);
+    const before = await (await d.fetch('/blyg/items/' + item.id + '.json')).json();
+    const denied = await result(await d.upload(token, { file: { filename: 'boundary.png', contentType: 'image/png', dataBase64: 'aW1hZ2U=' }, item_id: item.id }));
+    expect(denied.error, 'MCP drafting cannot publish an attachment').toBe(true);
+    expect(await (await d.fetch('/blyg/items/' + item.id + '.json')).json()).toEqual(before);
+    expect(await storedCount()).toEqual({ r2: 0, rows: 0 });
+    const permitted = await d.credential(['owner:draft', 'owner:publish']);
+    expect((await result(await d.upload(permitted, { file: { filename: 'boundary.png', contentType: 'image/png', dataBase64: 'aW1hZ2U=' }, item_id: item.id }))).error).toBe(false);
+  });
+
   it('discovers uploadMedia for draft scopes', async () => {
     const d = await driver(), token = await d.credential(['owner:draft']);
     const response = await d.mcp(token, 'tools/list', {});

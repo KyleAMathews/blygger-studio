@@ -62,3 +62,26 @@ The [oracle map](auth-oracles.md), [security map](auth-security-oracles.md),
 [glossary](glossary.md) and [merged oracle guide](oracle-tests.md) define the laws,
 sources, driver limits and terms. This review does not claim complete guide or
 protocol conformance.
+
+## External review follow-up against e689b63
+
+The ten-item review produced two direct security failures and an adversarial fail-open classifier witness. The receiving tests reached RED before those fixes. Broader independent permission laws and deliberate mutations now check the surrounding class.
+
+| Item | Disposition and retained value |
+| --- | --- |
+| 1. Silent authorization after grant revoke | Fixed. Revocation clears client consent. The same `prompt=none` path now requires a fresh decision. Sibling access-token isolation stays tested. |
+| 2. Draft-only attachment changes a published item | Fixed. SQL checks publication at the media-row commit. REST, direct MCP and a controlled R2/publish race preserve the public projection. |
+| 3. Existing owner cookies fail after upgrade | Confirmed intentional compatibility change. The release notes now require one-time login again. Password-reset session invalidation follows the user's ruling. |
+| 4. SDK session strings select both schemes | Confirmed. SDK 0.2.0 already includes a pre-1.0 version change. Release notes now show the native cookie or scheme-specific callback migration. No generator workaround was added. |
+| 5. Basic header overrides owner cookies | Fixed. Only Bearer selects delegated credentials. An invalid Bearer still cannot fall back to a cookie. |
+| 6. Remote/LAN HTTP gets400 | Confirmed deliberate transport rule. The prior Worker redirect premise was not established. Document HTTPS ingress and LAN testing with TLS. |
+| 7. Password reset also revokes client tokens | Open design decision. Decision #31 says tokens survive. Old owner sessions must fail after reset. The owner-reset oracle citation now distinguishes those rules. |
+| 8. Unclassified write falls back to read | Fixed. Use Hono's matched route metadata and deny unclassified writes. The literal model checks 49 operations across 16 scope subsets. |
+| 9. Error logs lose diagnostics | Fixed with bounded error kind, method and route template. Messages, stacks and path values remain excluded. The credential-leak control still fails when raw logs return. |
+| 10. Repeated provider/schema construction | Fixed. Cache provider configuration and immutable MCP schemas. Live authority checks and per-request handlers remain separate. Work counters prove reuse. |
+
+The concluding priority advice is also retained: security repairs came first, compatibility changes gained release notes, and item 7 remains held for a ruling. No finding was dropped. The scratch ledger contains ten findings plus this prose item: nine fixed-now dispositions, one design decision and one duplicate priority entry.
+
+The full Worker run passed 101 files and 1,097 tests with five existing skips. The final focused auth receiving file passed ten tests after adding the dependency-name boundary. Worker/UI types passed. All 18 security controls reached their named assertions. Eight auth browser tests and the four upstream CI-failing browser cases passed on desktop/mobile. The CI screenshot fixture now uses Playwright's output directory and restores shared settings on failure.
+
+Recommend this reviewer for bug discovery, with a required verification pass. The two security holes and fail-open classifier claim reproduced. The review needs sharper distinctions between a deliberate security policy, a compatibility change and a missing version note. Caching credential-bound MCP servers would be unsafe; only immutable metadata is shared here.

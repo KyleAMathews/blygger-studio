@@ -55,7 +55,7 @@ export async function betterAuthOptions(url: string, env: Env, manual = false) {
     } } }],
   };
   const owner = async (headers?: Headers) => {
-    if (headers?.has('authorization') || !await verifySession(env, headers?.get('cookie') ?? undefined)) throw new APIError('UNAUTHORIZED');
+    if (/^Bearer(?:\s|$)/i.test(headers?.get('authorization') ?? '') || !await verifySession(env, headers?.get('cookie') ?? undefined)) throw new APIError('UNAUTHORIZED');
     const origin = headers?.get('origin');
     if (origin && origin !== new URL(url).origin || headers?.get('sec-fetch-site') === 'cross-site') throw new APIError('FORBIDDEN');
   };
@@ -108,7 +108,7 @@ export async function betterAuthOptions(url: string, env: Env, manual = false) {
     }],
   };
 }
-export async function authorizationServer(url: string, env: Env, manual = false) {
+async function createAuthorizationServer(url: string, env: Env, manual: boolean) {
   const secretVersion = await hashCredential(env.COOKIE_SECRET);
   // D1 batch is atomic: rotate encrypted signing keys when their wrapping secret
   // changes. Native cookies rotate too; credential version rejects old credentials.
@@ -117,6 +117,29 @@ export async function authorizationServer(url: string, env: Env, manual = false)
     env.DB.prepare('UPDATE oauth_state SET secret_version = ? WHERE id=1 AND (secret_version IS NULL OR secret_version <> ?)').bind(secretVersion, secretVersion),
   ]);
   return betterAuth(await betterAuthOptions(url, env, manual));
+}
+// Cache provider configuration, never credentials or authorization decisions.
+// Each DB binding owns an isolated, bounded cache. Live epoch/revocation checks
+// remain in grantClaims/verifyBearer so cache hits cannot resurrect a grant.
+type AuthorizationServer = Awaited<ReturnType<typeof createAuthorizationServer>>;
+const servers = new WeakMap<Env['DB'], { secret: string; configurations: Map<string, Promise<AuthorizationServer>> }>();
+export async function authorizationServer(url: string, env: Env, manual = false) {
+  const secret = await hashCredential(env.COOKIE_SECRET);
+  const key = JSON.stringify([authLocations(url, env).issuer, await hashCredential(env.OWNER_PASSWORD), manual]);
+  let cache = servers.get(env.DB);
+  if (!cache || cache.secret !== secret) {
+    cache = { secret, configurations: new Map() };
+    servers.set(env.DB, cache);
+  }
+  let server = cache.configurations.get(key);
+  if (!server) {
+    if (cache.configurations.size >= 16) cache.configurations.delete(cache.configurations.keys().next().value!);
+    server = createAuthorizationServer(url, env, manual);
+    cache.configurations.set(key, server);
+    const entry = cache;
+    server.catch(() => { if (entry.configurations.get(key) === server) entry.configurations.delete(key); });
+  }
+  return server;
 }
 /** Enter the native HTTP limiter before checking the separate owner password.
  * This endpoint is never forwarded by oauth-routes; direct auth.api calls
@@ -162,6 +185,9 @@ export async function verifyBearer(request: Request, env: Env, resource: 'api' |
 export async function revokeGrant(_url: string, env: Env, id: string) {
   await env.DB.batch([
     env.DB.prepare('INSERT OR IGNORE INTO oauth_revocations(grant_id) SELECT grant_id FROM oauth_authorizations WHERE grant_id=?').bind(id),
+    // Remove the owner's remembered approval before deleting its lookup row.
+    // Other same-client access grants remain valid, but a new grant needs consent.
+    env.DB.prepare('DELETE FROM oauthConsent WHERE userId=? AND clientId IN (SELECT client_id FROM oauth_authorizations WHERE grant_id=?)').bind('owner', id),
     env.DB.prepare('DELETE FROM oauth_authorizations WHERE grant_id=?').bind(id),
   ]);
 }

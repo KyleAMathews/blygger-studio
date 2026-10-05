@@ -1,3 +1,4 @@
+import { requestError } from './request-error.ts';
 import { listFeedItems } from "./public-feed.ts";
 import { studioSpa } from "./spa.ts";
 import { authorizationApi } from './authorization-api.ts';
@@ -36,7 +37,7 @@ export function makeApp(mount: string) {
   app.onError((_error, c) => {
     // Authentication driver failures can contain SQL parameters and secrets.
     // Keep a bounded event rather than Hono's default raw Error/stack output.
-    console.error('Worker request failed');
+    console.error('Worker request failed', requestError(_error, c));
     return c.json({ error: 'internal server error' }, 500, { 'Cache-Control': 'no-store' });
   });
   app.use('*', async (c, next) => {

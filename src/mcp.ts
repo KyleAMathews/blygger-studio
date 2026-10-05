@@ -26,6 +26,22 @@ function mediaForm(body: unknown) {
   return form;
 }
 
+// Only immutable schema metadata is shared. Servers, handlers and access stay
+// request-local so one client cannot inherit another client's capabilities.
+const toolDefinitions = Object.entries(routes).map(([name, definition]) => {
+  const route: RouteConfig = definition;
+  const body = (route.request?.body?.content['application/json'] as { schema?: z.ZodType } | undefined)?.schema as z.ZodType | undefined;
+  const fields: Record<string, z.ZodType> = {};
+  if (route.request?.params) fields.path = route.request.params as z.ZodType;
+  if (route.request?.query) fields.query = (route.request.query as z.ZodObject).optional();
+  if (name === 'uploadMedia') fields.body = z.object({ file: z.object({ filename: z.string(), contentType: z.string(), dataBase64: z.string().describe('Canonical padded Base64. Decoded image file limit: 5 MiB.') }).strict(), item_id: z.string().optional(), alt: z.string().optional(), inline: z.enum(['true', 'false']).optional() }).strict();
+  else if (body) fields.body = route.request!.body!.required ? body : body.optional();
+  const inputSchema = z.object(fields).strict();
+  const description = `${route.method.toUpperCase()} /api${route.path}. Required scopes: ${operationScopes(name).join(', ')}.${name === 'createItem' || name === 'updateItem' ? ' For generated text, record provenance alongside TK scopes; provenance is client-asserted.' : ''}`;
+  const annotations = { readOnlyHint: route.method === 'get', destructiveHint: route.method !== 'get', openWorldHint: true };
+  return { name, route, inputSchema, description, annotations, scopes: operationScopes(name), wireSchema: z.toJSONSchema(inputSchema, { io: 'input' }) as Tool['inputSchema'] };
+});
+
 /** MCP dispatches in-process through the REST handlers and their Zod validators.
  * Media uses a Base64-to-multipart transport adapter; REST owns media policy. */
 export async function serveMcp(request: Request, env: Env, ctx: Context['executionCtx']) {
@@ -42,22 +58,12 @@ export async function serveAuthorizedMcp(request: Request, env: Env, ctx: Contex
   const handler = createMcpHandler(() => {
     const server = new McpServer({ name: 'blygger-studio', version: '1.0.0' });
     const visibleTools: Tool[] = [];
-    for (const [name, definition] of Object.entries(routes)) {
-      const route: RouteConfig = definition;
-      const body = (route.request?.body?.content['application/json'] as { schema?: z.ZodType } | undefined)?.schema as z.ZodType | undefined;
-      const fields: Record<string, z.ZodType> = {};
-      if (route.request?.params) fields.path = route.request.params as z.ZodType;
-      if (route.request?.query) fields.query = (route.request.query as z.ZodObject).optional();
-      if (name === 'uploadMedia') fields.body = z.object({ file: z.object({ filename: z.string(), contentType: z.string(), dataBase64: z.string().describe('Canonical padded Base64. Decoded image file limit: 5 MiB.') }).strict(), item_id: z.string().optional(), alt: z.string().optional(), inline: z.enum(['true', 'false']).optional() }).strict();
-      else if (body) fields.body = route.request!.body!.required ? body : body.optional();
-      const inputSchema = z.object(fields).strict();
-      const description = `${route.method.toUpperCase()} /api${route.path}. Required scopes: ${operationScopes(name).join(', ')}.${name === 'createItem' || name === 'updateItem' ? ' For generated text, record provenance alongside TK scopes; provenance is client-asserted.' : ''}`;
-      const annotations = { readOnlyHint: route.method === 'get', destructiveHint: route.method !== 'get', openWorldHint: true };
-      if (operationScopes(name).every(scope => access.scope.includes(scope))) {
-        visibleTools.push({ name, description, inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }) as Tool['inputSchema'], annotations });
+    for (const { name, route, inputSchema, description, annotations, scopes, wireSchema } of toolDefinitions) {
+      if (scopes.every(scope => access.scope.includes(scope))) {
+        visibleTools.push({ name, description, inputSchema: wireSchema, annotations });
       }
       server.registerTool(name, { description, inputSchema, annotations, scopeChallenge: context => {
-        const required = operationScopes(name);
+        const required = [...scopes];
         const args = context.request.params?.arguments as { body?: { responses?: unknown } } | undefined;
         // Editing response display changes the public page, just as in REST.
         if (name === 'updateItem' && args?.body?.responses !== undefined) required.push('owner:publish');

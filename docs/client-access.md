@@ -15,7 +15,7 @@ The REST API remains at `/api`. MCP is at `{mount}/studio/mcp`, such as `https:/
 | `owner:publish` | Publication, withdrawal, refresh, permanent pins, public response display, and media deletion |
 | `owner:manage` | Settings, subscriptions, signals, collections and response moderation, including their public effects |
 
-Scopes do not imply each other. Choose each permission the client needs. Editing an item's `responses` field requires both drafting and publishing permission because the public page changes immediately.
+Scopes do not imply each other. Choose each permission the client needs. Uploading media attached to an item that has been published requires both drafting and publishing permission, including after withdrawal. Draft-only clients can upload unattached media or attach it to a never-published draft. Editing an item's `responses` field requires both drafting and publishing permission because the public page changes immediately.
 
 ## JavaScript clients
 
@@ -37,7 +37,7 @@ A Studio browser uses its HttpOnly cookie through `credentials: 'same-origin'` w
 
 ## Revocation and password reset
 
-Studio lists each grant, its permissions, resource and expiry. Revoke one authorization to disable its access and refresh credentials, or choose revoke-all. Revoke-all leaves your Studio session active.
+Studio lists each grant, its permissions, resource and expiry. Revoke one authorization to disable its access and refresh credentials, or choose revoke-all. Revoke-all leaves your Studio session active. Revoking one OAuth grant also removes remembered consent for that client. Existing sibling access grants remain valid; a new grant requires a fresh owner decision.
 
 When resetting the owner password, use revoke-all first. Changing either `OWNER_PASSWORD` or `COOKIE_SECRET` also invalidates all delegated grants. Changing either secret also invalidates existing Studio sessions. Set secrets through Wrangler's interactive prompts; do not place them in committed config.
 
@@ -58,3 +58,9 @@ For generated text, clients submit `provenance` with one entry per TK scope, usi
 Apply D1 migration `0020_oauth.sql` and enable `nodejs_compat` before deploying this branch. Source installs use `npm run upgrade`; Worker archives use the release's D1 migration instructions. OAuth records use the existing DB binding, so no KV namespace or new deployment secret is needed.
 
 Resetting the owner password or cookie secret also invalidates owner login cookies. Log in again after either change. Rate limits use shared D1 counters and the Cloudflare client address; see [deployment boundaries](auth-deployment-hardening.md) for the ingress and rollout checks.
+
+## Upgrade compatibility
+
+Upgrading to 0.27.0 invalidates owner cookies from earlier releases. Log in again in Studio and refresh the cookies used by owner tools. SDK 0.2.0 changes owner credential configuration: replace a plain `auth` session string with `headers.Cookie` in Node.js or the cookie scheme callback shown in the SDK README. Browser Studio sessions use their HttpOnly cookie without an `auth` option.
+
+Protected Studio and API routes refuse plain HTTP outside loopback. For LAN testing from a phone, use an HTTPS tunnel or an HTTPS development proxy. Configure HTTPS at the ingress before deploying; the Worker refuses cleartext auth requests rather than redirecting credentials that have already arrived over HTTP.

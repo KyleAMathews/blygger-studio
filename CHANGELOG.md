@@ -23,6 +23,10 @@ not have its own repo until session 26.
 **Migrations: 0020_oauth.sql.** Adds OAuth provider tables, a shared rate limiter,
 client authorizations, and revocation state. Enable `nodejs_compat` before deployment.
 
+- Upgrade compatibility: existing owner login cookies are invalidated once. Log in
+  again after upgrading. SDK 0.2.0 owner clients must replace a plain `auth` string
+  with `headers.Cookie` or a scheme-specific auth callback; bearer clients also use
+  a scheme-specific callback. Protected routes require HTTPS except on loopback.
 - Clients can use scoped OAuth grants or named manual bearer tokens for REST and MCP.
   The owner approves permissions and manages grants from Studio's Client access page.
 - MCP exposes the existing API operations with the same scope checks. The generated

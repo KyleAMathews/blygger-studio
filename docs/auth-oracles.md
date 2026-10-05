@@ -86,3 +86,15 @@ The mutation runner captures authorization and storage failures and replays thei
 The full Worker suite passed 98 files: 1,052 tests and five existing skips. The auth/MCP prose rerun passed192 tests across15 files. Eight owner-auth browser cases, all thirteen security mutations, the controlled two-isolate race and Worker/UI typechecks passed. The term-scan rerun passed58 tests across five affected files. These runs have different scopes; their counts are not combined.
 
 Logs and exact-source manifests are kept in the audit evidence. No local run establishes production TLS, database/operator access, external log secrecy or every distributed schedule. The implementation is committed on the review branch. No deployment or upstream merge is claimed. The PR records the reviewed commit and final check results.
+
+## Complete REST permission inventory
+
+`test/rest-permissions.oracle.test.ts` names all 49 operations in four independent capability groups. It checks all 16 scope subsets, including an empty injected access set. The contract supplies receiving paths, not expected permissions. An inventory equality assertion requires a model update when a route changes. Authorized requests must return a listed handler or validation result. A server error does not count as authorization success.
+
+Every subset also checks the draft-plus-publish rule for response visibility. An adversarial registered write without scope metadata must return403 before its handler runs. The guard uses Hono's matched route templates and denies unclassified writes. Mutations remove that default denial and misclassify draft operations as private reads. Both must fail their named assertions.
+
+`test/oauth-grant-list.oracle.test.ts` exercises the same client's `prompt=none` path before and after individual revocation. Revocation must remove remembered consent. Existing sibling access tokens retain their own grant state.
+
+`test/review-auth-regressions.test.ts` checks the public attachment projection and pauses R2 upload until another request publishes the item. The media insert must check publication in the same SQL statement. A denied upload must remove its own R2 object. `test/mcp-media.oracle.test.ts` applies the same publication boundary through a direct tool call, with a draft-plus-publish permitted neighbor.
+
+These laws cover permission classification, remembered consent and the controlled attachment race. They do not prove absence of every authorization bug or every concurrent schedule. Native token validation and browser credential transport remain separate receiving boundaries.

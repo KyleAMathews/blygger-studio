@@ -54,3 +54,32 @@ it('applies owner grant revocation to the forwarded native UserInfo endpoint', a
   expect((await f.request('/api/authorizations/' + encodeURIComponent(grant.id), { method: 'DELETE', headers: { cookie: f.owner } })).status).toBe(200);
   expect((await read()).status).toBe(401);
 });
+
+// Revocation withdraws stored approval, not just one access credential. OIDC
+// prompt=none must report consent_required rather than silently minting another
+// grant. An explicit new owner decision can grant access again. RFC9700 §4.14
+// motivates grant revocation; OIDC Core §3.1.2.1 defines noninteractive consent.
+// https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
+it('requires new owner consent after individually revoking a grant', async () => {
+  const f = await flow({ scope: 'owner:read' });
+  const consent = new URL(f.authorize);
+  const approval = await f.request(f.issuer + '/consent', { method: 'POST', headers: { cookie: f.owner + '; ' + f.binding, Origin: f.base }, body: new URLSearchParams({ handle: f.handle, decision: 'allow', scope: 'owner:read' }) });
+  expect(approval.status).toBe(302);
+  const issued = await f.token(new URL(approval.headers.get('location')!).searchParams.get('code')!);
+  expect(issued.status).toBe(200);
+  const token = await issued.json() as { access_token: string };
+  const listing = await (await f.request('/api/authorizations', { headers: { cookie: f.owner } })).json() as { items: { id: string; clientId: string }[] };
+  const grant = listing.items.find(value => value.clientId === f.client.client_id)!;
+  consent.searchParams.set('prompt', 'none');
+  // Establish the same noninteractive path before revocation.
+  const before = await f.request(consent.href, { headers: { cookie: f.owner } });
+  expect(before.status).toBe(302);
+  expect(new URL(before.headers.get('location')!).searchParams.get('code')).toBeTruthy();
+  expect((await f.request('/api/authorizations/' + grant.id, { method: 'DELETE', headers: { cookie: f.owner } })).status).toBe(200);
+  expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + token.access_token } })).status).toBe(401);
+  const after = await f.request(consent.href, { headers: { cookie: f.owner } });
+  expect(after.status).toBe(302);
+  const result = new URL(after.headers.get('location')!).searchParams;
+  expect(result.get('code'), 'revocation cannot be bypassed by silent reauthorization').toBeNull();
+  expect(result.get('error')).toBe('consent_required');
+});

@@ -2,7 +2,9 @@
  * Resetting the owner's password must remove the old browser's power to delegate.
  * Rejecting old bearer tokens alone would leave a stale cookie able to mint new ones.
  *
- * Contract: decision #52 selects password reset as root authority invalidation.
+ * Contract: decision #31 requires an old owner session to lose access after a
+ * password reset. The user confirmed this rule during review. Delegated token
+ * survival is a separate rule; this oracle makes no claim about existing tokens.
  * OWASP recommends session invalidation around credential changes:
  * https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html#renew-the-session-id-after-any-privilege-level-change
  * Model: an old cookie under a changed password cannot issue a grant; a fresh login

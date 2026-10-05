@@ -1,3 +1,4 @@
+import { matchedRoutes } from 'hono/route';
 import { routes } from "./contract/routes.ts";
 import { contractApp } from "./contract/app.ts";
 import { verifySession } from "./auth.ts";
@@ -14,7 +15,8 @@ const ownerApi = contractApp();
 ownerApi.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store");
   const origin = c.req.header('origin');
-  const bearer = c.req.header('authorization');
+  const authorization = c.req.header('authorization');
+  const bearer = authorization && /^Bearer(?:\s|$)/i.test(authorization) ? authorization : undefined;
   const delegated = access ?? (bearer ? await verifyBearer(c.req.raw, c.env, 'api') : null);
   if (!delegated) {
     if (bearer || !await verifySession(c.env, c.req.header('cookie'))) {
@@ -23,7 +25,12 @@ ownerApi.use("*", async (c, next) => {
     }
     if (origin && origin !== new URL(c.req.url).origin || c.req.header('sec-fetch-site') === 'cross-site') return c.json({ error: 'cross-origin owner request denied' }, 403);
   } else {
-    const operation = matchOperation(c.req.method, c.req.path.replace(/^\/api(?=\/|$)/, ''));
+    c.set('draftOnlyMedia', !delegated.scope.includes('owner:publish'));
+    const operation = matchOperation(c.req.method, matchedRoutes(c).map(route => route.path));
+    if (!operation && !['GET', 'HEAD'].includes(c.req.method)) {
+      c.header('WWW-Authenticate', bearerChallenge(c.req.url, c.env, 'api', '', true));
+      return c.json({ error: 'unclassified write denied' }, 403);
+    }
     const required = operation ? operationScopes(operation[0]) : ['owner:read'];
     // Changing response display edits the public page immediately, without publish.
     if (operation?.[0] === 'updateItem') {
