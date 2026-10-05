@@ -13,6 +13,9 @@ export class ManualTokenError extends Error {
 }
 
 const CLIENTS = 'clients';
+/** The server drops never-approved clients after 24 h; reuse one only inside this margin. */
+const UNAPPROVED_REUSE_MS = 23 * 3600_000;
+interface StoredClient { clientId: string; registeredAt: number; approved: boolean }
 const cancelled = (error: unknown) => error instanceof Error && /did not approve|cancel/i.test(error.message);
 
 /**
@@ -23,14 +26,19 @@ const cancelled = (error: unknown) => error instanceof Error && /did not approve
  */
 export async function connectOAuth(
   input: string,
-  deps: { fetchFn: FetchLike; store: TokenStore; local: KeyValue; redirectUri: string; launch: (url: string) => Promise<string | undefined> },
+  deps: { fetchFn: FetchLike; store: TokenStore; local: KeyValue; redirectUri: string; launch: (url: string) => Promise<string | undefined>; now?: () => number },
 ): Promise<Status> {
   const discovery = await discover(normalizeBlygUrl(input), deps.fetchFn);
-  const clients = ((await deps.local.get(CLIENTS)) ?? {}) as Record<string, string>;
-  const known = clients[discovery.issuer];
+  const now = deps.now ?? Date.now, key = `${discovery.issuer} ${deps.redirectUri}`;
+  const remember = async (entry: StoredClient) => {
+    const all = ((await deps.local.get(CLIENTS)) ?? {}) as Record<string, StoredClient>;
+    await deps.local.set({ [CLIENTS]: { ...all, [key]: entry } });
+  };
+  const stored = (((await deps.local.get(CLIENTS)) ?? {}) as Record<string, StoredClient>)[key];
+  const known = stored && (stored.approved || now() - stored.registeredAt < UNAPPROVED_REUSE_MS) ? stored.clientId : undefined;
   for (const reuse of known ? [true, false] : [false]) {
     const clientId = reuse ? known! : await register(discovery, deps.redirectUri, deps.fetchFn);
-    if (!reuse) await deps.local.set({ [CLIENTS]: { ...clients, [discovery.issuer]: clientId } });
+    if (!reuse) await remember({ clientId, registeredAt: now(), approved: false });
     const verifier = randomVerifier(), state = randomVerifier();
     let redirected: string | undefined;
     try {
@@ -44,6 +52,7 @@ export async function connectOAuth(
     const code = codeFromRedirect(redirected, deps.redirectUri, state);
     try {
       await deps.store.saveOAuth(discovery, clientId, await exchangeCode(discovery, { clientId, code, redirectUri: deps.redirectUri, verifier }, deps.fetchFn));
+      await remember({ clientId, registeredAt: reuse ? stored!.registeredAt : now(), approved: true });
       return deps.store.status();
     } catch (error) {
       if (reuse && error instanceof OAuthError && error.code === 'invalid_client') continue;

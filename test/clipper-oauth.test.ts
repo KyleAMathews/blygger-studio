@@ -431,6 +431,10 @@ describe('clipper token store (L4) and connection (L5)', () => {
     const f = await flow();
     let drop = false;
     const c = await connected(f, undefined, (url, init) => (drop && isRefresh(url, init) ? 'drop-after' : 'pass'));
+    const clientId = (await c.restart().connection())?.clientId;
+    expect(clientId).toBeTruthy();
+    const listed = async () => ((await (await f.request('/api/authorizations', { headers: { cookie: f.owner } })).json()) as { items: { clientId: string }[] }).items.filter((g) => g.clientId === clientId);
+    expect(await listed(), 'the grant exists before the lost rotation').toHaveLength(1);
     c.advance(2 * 3600_000);
     drop = true;
     await expect(c.store.accessToken()).rejects.toThrow(TypeError);
@@ -442,10 +446,7 @@ describe('clipper token store (L4) and connection (L5)', () => {
     const counting = new TokenStore(c.local, c.session, async (url, init) => { sent++; return c.fetchFn(url, init); });
     await expect(counting.accessToken()).rejects.toBeInstanceOf(ReconnectError);
     expect(sent, 'reconnect state asks the owner, not the server').toBe(0);
-    const clientId = (await restarted.connection())?.clientId;
-    expect(clientId).toBeTruthy();
-    const grants = await (await f.request('/api/authorizations', { headers: { cookie: f.owner } })).json() as { items: { name: string; clientId: string }[] };
-    expect(grants.items.filter((g) => g.clientId === clientId), 'the reused refresh token revoked the grant').toEqual([]);
+    expect(await listed(), 'the reused refresh token revoked the grant').toEqual([]);
   });
 
   it('a refresh that never reached the server is retried from the stored token', async () => {

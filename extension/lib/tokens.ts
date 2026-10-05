@@ -62,12 +62,14 @@ export class TokenStore {
   }
 
   async saveOAuth(discovery: Discovery, clientId: string, tokens: TokenSet) {
+    await this.inflight?.catch(() => {});
     const conn: Connection = { discovery, mode: 'oauth', clientId, refreshToken: tokens.refreshToken, scope: tokens.scope };
     await this.local.set({ [CONNECTION]: conn });
     await this.session.set({ [ACCESS]: { token: tokens.accessToken, expiresAt: tokens.expiresAt } });
   }
 
   async saveManual(discovery: Discovery, token: string, scope: string[], expiresAt?: number) {
+    await this.inflight?.catch(() => {});
     const conn: Connection = { discovery, mode: 'manual', manualToken: token, scope, ...(expiresAt === undefined ? {} : { manualExpiresAt: expiresAt }) };
     await this.session.remove([ACCESS]);
     await this.local.set({ [CONNECTION]: conn });
@@ -87,7 +89,9 @@ export class TokenStore {
     return this.inflight;
   }
 
+  /** Manual tokens are not revoked on purpose: the owner minted them and manages them in Studio → Client access. */
   async disconnect() {
+    await this.inflight?.catch(() => {});
     const conn = await this.connection();
     if (conn?.mode === 'oauth' && conn.clientId && conn.refreshToken)
       await revokeToken(conn.discovery, { clientId: conn.clientId, token: conn.refreshToken }, this.fetchFn).catch(() => {});
@@ -95,7 +99,13 @@ export class TokenStore {
     await this.local.remove([CONNECTION]);
   }
 
+  private async stillHolds(conn: Connection): Promise<boolean> {
+    const stored = await this.connection();
+    return !!stored && stored.refreshToken === conn.refreshToken && stored.clientId === conn.clientId && stored.manualToken === conn.manualToken && stored.mode === conn.mode;
+  }
+
   private async endAccess(conn: Connection, reason: string) {
+    if (!(await this.stillHolds(conn))) return new ReconnectError(reason);
     await this.session.remove([ACCESS]);
     const ended: Connection = { ...conn, refreshToken: undefined, manualToken: undefined, reconnect: reason };
     await this.local.set({ [CONNECTION]: ended });
@@ -103,6 +113,8 @@ export class TokenStore {
   }
 
   private async refresh(conn: Connection): Promise<string> {
+    const fresh = (await this.session.get(ACCESS)) as { token: string; expiresAt: number } | undefined;
+    if (fresh && fresh.expiresAt - SKEW_MS > this.now()) return fresh.token;
     if (!conn.refreshToken || !conn.clientId) throw await this.endAccess(conn, ENDED);
     let tokens: TokenSet;
     try {
@@ -111,6 +123,7 @@ export class TokenStore {
       if (error instanceof OAuthError && ['invalid_grant', 'invalid_client', 'unauthorized_client'].includes(error.code)) throw await this.endAccess(conn, ENDED);
       throw error;
     }
+    if (!(await this.stillHolds(conn))) throw new ReconnectError('The connection changed while refreshing.');
     // The rotated refresh token is stored before any caller is released (spec §3.4).
     const next: Connection = { ...conn, refreshToken: tokens.refreshToken ?? conn.refreshToken, scope: tokens.scope.length ? tokens.scope : conn.scope };
     await this.local.set({ [CONNECTION]: next });
