@@ -61,8 +61,8 @@ export function makeApp(mount: string) {
     if (c.req.header('authorization') || c.req.method === 'OPTIONS') {
       c.header('Access-Control-Allow-Origin', '*');
       c.header('Access-Control-Allow-Methods', 'GET, HEAD, POST, PATCH, PUT, DELETE, OPTIONS');
-      c.header('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-      c.header('Access-Control-Expose-Headers', 'WWW-Authenticate, Location');
+      c.header('Access-Control-Allow-Headers', 'Authorization, Content-Type, Idempotency-Key');
+      c.header('Access-Control-Expose-Headers', 'WWW-Authenticate, Location, Idempotency-Key, Idempotent-Replayed, Retry-After');
       if (c.req.method === 'OPTIONS') return c.body(null, 204);
     }
     await next();

@@ -655,6 +655,12 @@ export type CreateItemData = {
         };
         selection?: string;
     };
+    headers?: {
+        /**
+         * Retry key: 1-255 printable ASCII characters, scoped to the caller, kept 24 hours. A repeat with the same body replays the first response.
+         */
+        'idempotency-key'?: string;
+    };
     path?: never;
     query?: never;
     url: '/api/items';
@@ -974,6 +980,19 @@ export type PublishItemData = {
     body?: {
         note?: string;
         note_generated?: boolean;
+        expected?: {
+            content_md: string;
+            stub_of: VersionReference | {
+                url: string;
+                cited?: Citation;
+            } | null;
+        };
+    };
+    headers?: {
+        /**
+         * Retry key: 1-255 printable ASCII characters, scoped to the caller, kept 24 hours. A repeat with the same body replays the first response.
+         */
+        'idempotency-key'?: string;
     };
     path: {
         id: string;

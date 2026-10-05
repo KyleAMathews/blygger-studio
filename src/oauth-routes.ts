@@ -29,7 +29,12 @@ app.use('*', (c, next) => bodyLimit({ maxSize: 1024 * 1024, onError: c => c.json
     const resource = c.req.param('resource');
     if (resource !== 'api' && resource !== 'mcp') return c.notFound();
     const locations = authLocations(c.req.url, c.env);
-    return c.json({ resource: locations[resource], authorization_servers: [locations.issuer], scopes_supported: OWNER_SCOPES, bearer_methods_supported: ['header'] });
+    return c.json({
+      resource: locations[resource], authorization_servers: [locations.issuer], scopes_supported: OWNER_SCOPES, bearer_methods_supported: ['header'],
+      // Extension members (RFC 9728 §2): clients send the Idempotency-Key header
+      // and the publish `expected` field only to nodes that list them.
+      ...(resource === 'api' ? { idempotency_key_operations: ['createItem', 'publishItem'], publish_preconditions: ['expected'] } : {}),
+    });
   });
   app.options('*', c => {
     c.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');

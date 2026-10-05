@@ -56,7 +56,7 @@ function route<P extends string>(id: string, method: RouteConfig["method"], path
 export const routes = {
   createItem: route("createItem", "post", "/items", created, ItemCreateSchema, 201, undefined, true),
   updateItem: route("updateItem", "patch", "/items/{id}", ItemSchema, ItemEditSchema),
-  publishItem: route("publishItem", "post", "/items/{id}/publish", ok.extend({ version: z.number(), warning: z.string().optional() }), note.extend({ note_generated: z.boolean().optional() }), 200, undefined, true),
+  publishItem: route("publishItem", "post", "/items/{id}/publish", ok.extend({ version: z.number(), warning: z.string().optional() }), note.extend({ note_generated: z.boolean().optional(), expected: z.object({ content_md: z.string(), stub_of: z.union([stub, z.null()]) }).strict().optional() }), 200, undefined, true),
   draftNote: route("draftNote", "post", "/items/{id}/note-draft", z.object({ note: z.string(), model: z.string(), pinned_prior: z.boolean() })),
   generateItem: route("generateItem", "post", "/items/{id}/generate", z.object({ text: z.string(), model: z.string(), content_md: z.string() }), z.object({ scope: z.number().int().min(0) })),
   withdrawItem: route("withdrawItem", "post", "/items/{id}/withdraw", ok.extend({ version: z.number() }), note, 200, undefined, true),
@@ -106,3 +106,8 @@ export const routes = {
 };
 // The resolve/confirm operation has two successful response shapes and statuses.
 routes.createSubscription.responses[201] = { description: "Subscribed", content: json(subscribed) };
+// Clipper spec §9: retry-safe creates and publishes. Format checks live in
+// src/idempotency.ts so a malformed key gets one clear 400.
+const idempotencyHeader = z.object({ "idempotency-key": z.string().optional().openapi({ description: "Retry key: 1-255 printable ASCII characters, scoped to the caller, kept 24 hours. A repeat with the same body replays the first response." }) });
+routes.createItem.request!.headers = idempotencyHeader;
+routes.publishItem.request!.headers = idempotencyHeader;

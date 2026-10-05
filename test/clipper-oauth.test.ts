@@ -100,3 +100,26 @@ describe('claim store', () => {
     expect(canonicalJson({ b: 1, a: { d: [2, { z: 1, y: undefined }], c: null } })).toBe('{"a":{"c":null,"d":[2,{"z":1}]},"b":1}');
   });
 });
+
+import { flow } from './oauth-flow-driver.ts';
+
+describe('advertised support and CORS', () => {
+  it('the api resource metadata advertises keys and the publish precondition; mcp does not', async () => {
+    const f = await flow();
+    const api = await (await f.request('/blyg/studio/auth/resources/api')).json() as Record<string, unknown>;
+    expect(api.idempotency_key_operations).toEqual(['createItem', 'publishItem']);
+    expect(api.publish_preconditions).toEqual(['expected']);
+    const mcp = await (await f.request('/blyg/studio/auth/resources/mcp')).json() as Record<string, unknown>;
+    expect(mcp.idempotency_key_operations).toBeUndefined();
+  });
+
+  it('a preflight allows Idempotency-Key and keyed responses expose the replay headers', async () => {
+    const f = await flow();
+    const preflight = await f.request('/api/items', { method: 'OPTIONS', headers: { Origin: 'chrome-extension://abc', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, content-type, idempotency-key' } });
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('access-control-allow-headers')?.toLowerCase(), 'a keyed request passes preflight').toContain('idempotency-key');
+    const res = await f.request('/api/items', { method: 'POST', headers: { Authorization: 'Bearer not-a-token', 'Content-Type': 'application/json' }, body: '{}' });
+    const exposed = res.headers.get('access-control-expose-headers')?.toLowerCase() ?? '';
+    for (const header of ['idempotency-key', 'idempotent-replayed', 'retry-after', 'location', 'www-authenticate']) expect(exposed, 'exposes ' + header).toContain(header);
+  });
+});

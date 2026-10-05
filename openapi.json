@@ -2087,6 +2087,18 @@
             ]
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Retry key: 1-255 printable ASCII characters, scoped to the caller, kept 24 hours. A repeat with the same body replays the first response."
+            },
+            "required": false,
+            "description": "Retry key: 1-255 printable ASCII characters, scoped to the caller, kept 24 hours. A repeat with the same body replays the first response.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
         "requestBody": {
           "required": false,
           "content": {
@@ -3333,6 +3345,16 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Retry key: 1-255 printable ASCII characters, scoped to the caller, kept 24 hours. A repeat with the same body replays the first response."
+            },
+            "required": false,
+            "description": "Retry key: 1-255 printable ASCII characters, scoped to the caller, kept 24 hours. A repeat with the same body replays the first response.",
+            "name": "idempotency-key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -3347,6 +3369,45 @@
                   },
                   "note_generated": {
                     "type": "boolean"
+                  },
+                  "expected": {
+                    "type": "object",
+                    "properties": {
+                      "content_md": {
+                        "type": "string"
+                      },
+                      "stub_of": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/VersionReference"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "url": {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              "cited": {
+                                "$ref": "#/components/schemas/Citation"
+                              }
+                            },
+                            "required": [
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "content_md",
+                      "stub_of"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "additionalProperties": false
