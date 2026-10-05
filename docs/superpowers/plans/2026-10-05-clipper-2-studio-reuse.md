@@ -106,10 +106,11 @@ test('a disposed instance leaves no timers and makes no further requests', async
   data.itemDetail('one');
   expect(vi.getTimerCount(), 'the instance runs timers while alive').toBeGreaterThan(0);
   await data.dispose();
+  const before = requests;
   expect(vi.getTimerCount(), 'a disposed instance leaves no timers').toBe(0);
   await data.changed('settings', 'items');
   await vi.advanceTimersByTimeAsync(120_000);
-  expect(requests, 'a disposed instance makes no further requests').toBe(0);
+  expect(requests - before, 'a disposed instance makes no further requests').toBe(0);
 });
 ```
 
