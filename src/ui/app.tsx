@@ -97,15 +97,16 @@ function readingOffset(search: Record<string, unknown>) {
   return 0;
 }
 /**
- * /reading is the sources list; ?sub=X is one source's timeline and
- * ?hopper=H a hopper's. A bookmark from before the sources list existed that
- * pages without naming a source (?page=2, ?offset=25) still means "all".
+ * /reading is the feed (every source); ?view=sources is the sources list,
+ * ?sub=X one source's timeline and ?hopper=H a hopper's. A bookmark that pages
+ * without naming a source (?page=2, ?offset=25) still means "all".
  */
 function readingSearch(search: Record<string, unknown>): {
   sub?: string;
   hopper?: string;
   offset?: number;
   lens?: Lens;
+  view?: 'sources';
 } {
   const offset = readingOffset(search);
   const lens =
@@ -113,6 +114,7 @@ function readingSearch(search: Record<string, unknown>): {
       ? (search.lens as Lens)
       : undefined;
   const withLens = lens ? { lens } : {};
+  if (search.view === 'sources') return { view: 'sources', ...withLens };
   if (typeof search.hopper === 'string' && search.hopper)
     return { hopper: search.hopper, offset, ...withLens };
   if (typeof search.sub === 'string') return { sub: search.sub, offset, ...withLens };
@@ -128,6 +130,7 @@ const reading = createRoute({
     hopper: search.hopper,
     offset: search.offset ?? 0,
     lens: search.lens,
+    view: search.view,
   }),
   loader: async ({ deps }) => {
     if (deps.hopper) {
@@ -139,11 +142,11 @@ const reading = createRoute({
       ]);
       return;
     }
-    // The sources list reads its counts from the first page of "all".
+    // The feed and the sources list (whose counts come from the first page
+    // of "all") both read "all". The placeholder lenses read the unfiltered
+    // key too, for the count in their header.
     const sub = deps.sub ?? 'all';
-    const offset = deps.sub === undefined ? 0 : deps.offset;
-    // The placeholder lenses read nothing.
-    if (deps.lens === 'background' || deps.lens === 'smart') return;
+    const offset = deps.view === 'sources' ? 0 : deps.offset;
     const key = readingKey(sub, deps.lens);
     await Promise.all([
       readingView(key, offset).preload(),
@@ -151,7 +154,7 @@ const reading = createRoute({
       hopperCollection.preload(),
       signals.preload(),
     ]);
-    if (deps.sub === undefined) return;
+    if (deps.sub === undefined || deps.lens === 'background' || deps.lens === 'smart') return;
     const page = queryClient
       .getQueriesData<
         import('../../sdk/dist/browser.js').ListReadingResponses[200]
@@ -192,7 +195,7 @@ const subs = createRoute({
   getParentRoute: () => rootRoute,
   path: '/subs',
   beforeLoad: () => {
-    throw redirect({ to: '/reading', search: {}, replace: true });
+    throw redirect({ to: '/reading', search: { view: 'sources' }, replace: true });
   },
 });
 const hoppers = createRoute({

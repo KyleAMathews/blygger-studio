@@ -34,6 +34,14 @@ been polled yet.
 - The sheet's buttons say `checking…` and `subscribing…` while they wait, and
   the sheet closes as soon as the subscription exists.
 
+**Reading opens on the feed.** Feed and Sources are peer tabs at the top of
+reading, where `← sources` used to be: `/reading` is now every source's
+timeline, and the sources list moved to `/reading?view=sources` (`/subs` still
+redirects there). Every reading screen has the same head under every lens:
+the tabs, a title with its count, its own actions and ＋ subscribe. Before,
+Background and Smart Feed dropped the back link and the count, so the page
+jumped when you switched to them, and ＋ was only on the sources list.
+
 **Subscribing twice to the same source is refused.** A second subscription
 imported every item again, and a stub of any of those items then failed with
 "ambiguous id imported from multiple sources". `POST /api/subscriptions` now

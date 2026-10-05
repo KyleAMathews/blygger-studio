@@ -36,8 +36,17 @@ const nativeEntry = (page: Page) => page.locator('.reading-entry').filter({ hasT
 test('the sources list groups sources, hoppers and subscriptions, and opens a timeline', async ({ page }) => {
   await login(page);
   await page.getByRole('navigation', { name: 'studio' }).getByRole('link', { name: 'reading', exact: true }).click();
+  // Reading lands on the feed; Sources is its peer tab.
   await expect(page).toHaveURL(/\/studio\/reading$/);
-  await expect(page.getByRole('heading', { name: 'reading', exact: true })).toBeVisible();
+  const tabs = page.getByRole('group', { name: 'reading view' });
+  await expect(tabs.getByRole('button')).toHaveText(['Feed', 'Sources']);
+  await expect(tabs.locator('[aria-pressed=true]')).toHaveText('Feed');
+  await expect(page.getByRole('heading', { name: /^all/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'subscribe', exact: true })).toBeVisible();
+  await tabs.getByRole('button', { name: 'Sources', exact: true }).click();
+  await expect(page).toHaveURL(/\/studio\/reading\?view=sources$/);
+  await expect(page.getByRole('heading', { name: /^sources/ })).toContainText('2 subscriptions');
+  await expect(page.getByRole('button', { name: 'subscribe', exact: true })).toBeVisible();
   await expect(page.locator('.list-h > span:first-child')).toHaveText(['sources', /^hoppers · \d+$/, /^subscriptions · 2$/]);
   const sources = page.getByRole('list', { name: 'sources' });
   await expect(sources.locator('.ft')).toHaveText(['all', 'my blyg']);
@@ -56,8 +65,8 @@ test('the sources list groups sources, hoppers and subscriptions, and opens a ti
   await expect(page.locator('.reading-entry')).toHaveCount(2);
   await expect(page.getByRole('button', { name: 'about this source', exact: true })).toBeVisible();
   await expect(page.locator('.pager')).toContainText('page 1 of 1');
-  await page.getByRole('link', { name: '← sources', exact: true }).click();
-  await expect(page).toHaveURL(/\/studio\/reading$/);
+  await tabs.getByRole('button', { name: 'Sources', exact: true }).click();
+  await expect(page).toHaveURL(/\/studio\/reading\?view=sources$/);
   // "all" and "my blyg" are timelines too, with no inspector.
   await page.locator('.feeds a[href*="sub=own"]').click();
   await expect(page.getByRole('heading', { name: /^my blyg/ })).toBeVisible();
@@ -66,7 +75,7 @@ test('the sources list groups sources, hoppers and subscriptions, and opens a ti
 
 test('/subs redirects to reading, where the subscribe sheet lives', async ({ page }) => {
   await login(page); await page.goto('/studio/subs');
-  await expect(page).toHaveURL(/\/studio\/reading$/);
+  await expect(page).toHaveURL(/\/studio\/reading\?view=sources$/);
   await page.getByRole('button', { name: 'subscribe', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'subscribe' });
   await expect(sheet.locator('#add-sub-url')).toBeFocused();
@@ -135,7 +144,7 @@ test('confirm subscribe shows progress and closes the sheet on the reply', async
 });
 
 test('the source inspector toggles the blogroll, pauses and resumes, and confirms a delete', async ({ page }) => {
-  await login(page); await page.goto('/studio/reading');
+  await login(page); await page.goto('/studio/reading?view=sources');
   const row = page.locator('.feed[data-id="parity-rss"]');
   const inspector = page.getByRole('dialog', { name: 'Legacy source' });
   const inspect = async () => { await row.getByRole('button', { name: 'about Legacy source', exact: true }).click(); await expect(inspector).toBeVisible(); };
@@ -164,7 +173,7 @@ test('the source inspector toggles the blogroll, pauses and resumes, and confirm
   await expect(page.getByRole('note')).toHaveCount(0);
   expect((await api(page, 'GET', '/subscriptions/parity-rss')).json.status).not.toBe('paused');
   // delete asks first; cancelling deletes nothing
-  await page.getByRole('link', { name: '← sources', exact: true }).click();
+  await page.getByRole('group', { name: 'reading view' }).getByRole('button', { name: 'Sources', exact: true }).click();
   await inspect();
   const deletes: string[] = [];
   await page.route('**/api/subscriptions/parity-rss', route => {
@@ -183,7 +192,7 @@ test('the source inspector toggles the blogroll, pauses and resumes, and confirm
 });
 
 test('a hopper reads as a timeline from the sources list', async ({ page }) => {
-  await login(page); await page.goto('/studio/reading');
+  await login(page); await page.goto('/studio/reading?view=sources');
   await page.getByRole('list', { name: 'hoppers' }).getByRole('link', { name: /Frozen hopper/ }).click();
   await expect(page).toHaveURL(/\/reading\?hopper=parity-hopper&offset=0$/);
   await expect(page.getByRole('heading', { name: /^Frozen hopper/ })).toContainText(/\d+ items/);
@@ -281,7 +290,7 @@ test('selecting text in an entry shows the quote pill, which starts a partial-qu
 });
 
 test('swipes: a source ← opens its inspector, an entry → thumbs it, and the next tap still lands', async ({ page }) => {
-  await login(page); await page.goto('/studio/reading');
+  await login(page); await page.goto('/studio/reading?view=sources');
   const native = page.locator('.feed[data-id="parity-native"]');
   const legacy = page.locator('.feed[data-id="parity-rss"]');
   // Hopper rows above fill in their counts asynchronously; let the list settle.
@@ -289,7 +298,7 @@ test('swipes: a source ← opens its inspector, an entry → thumbs it, and the 
   // ← on a source: its inspector; a short drag does nothing.
   await swipe(page, native.getByRole('link'), -40);
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page).toHaveURL(/\/studio\/reading$/);
+  await expect(page).toHaveURL(/\/studio\/reading\?view=sources$/);
   await swipe(page, native.getByRole('link'), -140);
   await expect(page.getByRole('dialog', { name: 'Native source' })).toBeVisible();
   await page.keyboard.press('Escape');
@@ -297,7 +306,7 @@ test('swipes: a source ← opens its inspector, an entry → thumbs it, and the 
   // → on a source pauses it; the release does not open the source under it…
   await swipe(page, legacy.getByRole('link'), 140);
   await expect(legacy.locator('.fs')).toHaveText('paused');
-  await expect(page).toHaveURL(/\/studio\/reading$/);
+  await expect(page).toHaveURL(/\/studio\/reading\?view=sources$/);
   // …but a tap on another row right after the swipe goes through.
   await native.getByRole('link').click();
   await expect(page).toHaveURL(/sub=parity-native/);

@@ -882,7 +882,7 @@ const LENS_LABELS: Record<Lens, string> = {
  * filter whatever is open (the sources list's counts too); Background and
  * Smart Feed are placeholders that telegraph where reading is going.
  */
-function LensBar({ sub, hopper }: { sub?: string; hopper?: string }) {
+function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sources?: boolean }) {
   const lens = useContext(LensContext);
   const navigate = useNavigate();
   const bar = useRef<HTMLDivElement>(null);
@@ -895,7 +895,13 @@ function LensBar({ sub, hopper }: { sub?: string; hopper?: string }) {
     if (el.offsetLeft + el.offsetWidth > box.scrollLeft + box.clientWidth) box.scrollLeft = el.offsetLeft + el.offsetWidth - box.clientWidth;
     else if (el.offsetLeft < box.scrollLeft) box.scrollLeft = el.offsetLeft;
   }, [lens]);
-  const place = hopper ? { hopper, offset: 0 } : sub ? { sub, offset: 0 } : {};
+  const place = sources
+    ? { view: 'sources' as const }
+    : hopper
+      ? { hopper, offset: 0 }
+      : sub && sub !== 'all'
+        ? { sub, offset: 0 }
+        : {};
   // Buttons, not router Links: a Link to /reading counts as "current" under
   // every lens, which would mark All active alongside the real choice.
   return (
@@ -918,6 +924,8 @@ function LensBar({ sub, hopper }: { sub?: string; hopper?: string }) {
 export const BACKGROUND_NOTE =
   'Procedural version updates for managing staleness, with ignyr in the changelog, will appear here once the feature is designed and incorporated into the protocol.';
 export const SMART_FEED_NOTE = 'Coming soon. Feed sorted and filtered by your AI agent. You can already set its prompt in Settings.';
+const isPlaceholder = (lens: Lens): lens is 'background' | 'smart' =>
+  lens === 'background' || lens === 'smart';
 function LensPlaceholder({ lens }: { lens: 'background' | 'smart' }) {
   return (
     <div className="empty lens-placeholder">
@@ -1065,7 +1073,6 @@ function Sources() {
   const actions = useReadingActions();
   const { toggle } = useSubscriptionActions(actions);
   const [inspect, setInspect] = useState<string>();
-  const [adding, setAdding] = useState(false);
   // The first page of "all" carries the counts for every source; it is also
   // what tapping "all" shows, so it is warm when that happens.
   const lens = useContext(LensContext);
@@ -1084,19 +1091,18 @@ function Sources() {
   const inspected = sources.find((source) => source.id === inspect);
   return (
     <>
-      <div className="view-head">
-        <h2 className="view-h">reading</h2>
-        <Button
-          className="icon-btn"
-          aria-label="subscribe"
-          title="subscribe"
-          onClick={() => setAdding(true)}
-        >
-          ＋
-        </Button>
-      </div>
-      <LensBar />
+      <ReadingHead
+        active="sources"
+        title="sources"
+        count={sources.length}
+        unit="subscriptions"
+      />
+      <LensBar sources />
       <Failure error={actions.error} />
+      {isPlaceholder(lens) ? (
+        <LensPlaceholder lens={lens} />
+      ) : (
+        <>
       <div className="list-h">
         <span>sources</span>
       </div>
@@ -1146,41 +1152,84 @@ function Sources() {
           No subscriptions yet — tap ＋ to subscribe to a blyg or a feed.
         </div>
       )}
+        </>
+      )}
       <Inspector
         source={inspected}
         count={inspected ? counts?.subscriptions[inspected.id] : undefined}
         onClose={() => setInspect(undefined)}
         actions={actions}
       />
-      <SubscribeSheet open={adding} onClose={() => setAdding(false)} />
     </>
   );
 }
 
 /* ---------------- timelines ---------------- */
 
-function TimelineHead({
-  title,
-  count,
-  children,
-}: {
-  title: string;
-  count: number | undefined;
-  children?: ReactNode;
-}) {
+/** Feed and Sources: reading's two screens, peers, Feed first. */
+function ReadingTabs({ active }: { active: 'feed' | 'sources' }) {
+  const navigate = useNavigate();
   const lensSearch = useLensSearch();
   return (
+    <div className="segmented reading-tabs" role="group" aria-label="reading view">
+      {(['feed', 'sources'] as const).map((value) => (
+        <Button
+          key={value}
+          className={`seg${active === value ? ' is-active' : ''}`}
+          aria-pressed={active === value}
+          onClick={() =>
+            void navigate({
+              to: '/reading',
+              search: { ...(value === 'sources' ? { view: 'sources' as const } : {}), ...lensSearch },
+            })
+          }
+        >
+          {value === 'feed' ? 'Feed' : 'Sources'}
+        </Button>
+      ))}
+    </div>
+  );
+}
+/**
+ * The head of every reading screen, the same under every lens so nothing
+ * jumps: the Feed/Sources tabs, a title with its count, the screen's own
+ * actions, and ＋ subscribe.
+ */
+function ReadingHead({
+  active = 'feed',
+  title,
+  count,
+  unit = 'items',
+  children,
+}: {
+  active?: 'feed' | 'sources';
+  title: string;
+  count: number | undefined;
+  unit?: string;
+  children?: ReactNode;
+}) {
+  const [adding, setAdding] = useState(false);
+  return (
     <>
-      <Link className="back-link" to="/reading" search={{ ...lensSearch }}>
-        ← sources
-      </Link>
+      <ReadingTabs active={active} />
       <div className="view-head">
         <h2 className="view-h">
           {title}
-          {count !== undefined ? <small>{count} items</small> : null}
+          <small>{count !== undefined ? `${count} ${unit}` : '\u00a0'}</small>
         </h2>
-        {children}
+        <div className="view-actions">
+          {children}
+          <Button
+            className="icon-btn"
+            aria-label="subscribe"
+            title="subscribe"
+            onClick={() => setAdding(true)}
+          >
+            ＋
+          </Button>
+        </div>
       </div>
+      <SubscribeSheet open={adding} onClose={() => setAdding(false)} />
     </>
   );
 }
@@ -1189,7 +1238,8 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
   useChrome({ framed: false, wide: false });
   const actions = useReadingActions();
   const [inspecting, setInspecting] = useState(false);
-  const key = readingKey(sub, useContext(LensContext));
+  const lens = useContext(LensContext);
+  const key = readingKey(sub, lens);
   const entries = useLiveQuery(readingView(key, offset));
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
@@ -1214,7 +1264,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
           : 'all';
   return (
     <>
-      <TimelineHead title={title} count={metadata?.total}>
+      <ReadingHead title={title} count={metadata?.total}>
         {selected ? (
           <Button
             className="icon-btn"
@@ -1224,7 +1274,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
             ⓘ
           </Button>
         ) : null}
-      </TimelineHead>
+      </ReadingHead>
       <LensBar sub={sub} />
       <Failure error={actions.error} />
       {selected?.status === 'paused' ? (
@@ -1235,33 +1285,39 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
           <div className="body">Paused — not polled until you resume it.</div>
         </div>
       ) : null}
-      {entries.isLoading ? <p className="view-sub">Loading reading…</p> : null}
-      <EntryList entries={entries.data ?? []} actions={actions} />
-      {!entries.isLoading && !entries.data?.length ? (
-        <div className="empty">
-          <span className="em" aria-hidden="true">
-            ◫
-          </span>
-          No items yet.
-        </div>
-      ) : null}
-      <Pager
-        offset={offset}
-        total={metadata?.total}
-        go={(next) =>
-          void actions.navigate({
-            to: '/reading',
-            search: { sub, offset: next, ...lensSearch },
-          })
-        }
-      />
+      {isPlaceholder(lens) ? (
+        <LensPlaceholder lens={lens} />
+      ) : (
+        <>
+          {entries.isLoading ? <p className="view-sub">Loading reading…</p> : null}
+          <EntryList entries={entries.data ?? []} actions={actions} />
+          {!entries.isLoading && !entries.data?.length ? (
+            <div className="empty">
+              <span className="em" aria-hidden="true">
+                ◫
+              </span>
+              No items yet.
+            </div>
+          ) : null}
+          <Pager
+            offset={offset}
+            total={metadata?.total}
+            go={(next) =>
+              void actions.navigate({
+                to: '/reading',
+                search: { sub, offset: next, ...lensSearch },
+              })
+            }
+          />
+        </>
+      )}
       <Inspector
         source={inspecting ? selected : undefined}
         count={metadata?.total}
         onClose={() => setInspecting(false)}
         actions={actions}
         onDeleted={() =>
-          void actions.navigate({ to: '/reading', search: {} })
+          void actions.navigate({ to: '/reading', search: { view: 'sources' } })
         }
       />
     </>
@@ -1318,7 +1374,8 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
-  const kind = lensKind(useContext(LensContext));
+  const lens = useContext(LensContext);
+  const kind = lensKind(lens);
   const entries = useMemo(
     () =>
       (row?.items ?? [])
@@ -1332,11 +1389,18 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
         ),
     [row, sources, kind],
   );
-  if (!row) return <p className="view-sub">Loading hopper…</p>;
+  if (!row)
+    return (
+      <>
+        <ReadingHead title="hopper" count={undefined} />
+        <LensBar hopper={id} />
+        <p className="view-sub">Loading hopper…</p>
+      </>
+    );
   const start = offset < entries.length ? offset : 0;
   return (
     <>
-      <TimelineHead title={row.hopper.name} count={kind ? entries.length : row.total}>
+      <ReadingHead title={row.hopper.name} count={kind ? entries.length : row.total}>
         <Link
           className="btn btn-ghost btn-mini"
           to="/hoppers/$id"
@@ -1344,9 +1408,13 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
         >
           manage
         </Link>
-      </TimelineHead>
+      </ReadingHead>
       <LensBar hopper={id} />
       <Failure error={actions.error} />
+      {isPlaceholder(lens) ? (
+        <LensPlaceholder lens={lens} />
+      ) : (
+        <>
       <EntryList
         entries={entries.slice(start, start + PAGE)}
         actions={actions}
@@ -1370,6 +1438,8 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
           }
         />
       )}
+        </>
+      )}
     </>
   );
 }
@@ -1379,35 +1449,25 @@ export function ReadingPage({
   hopper,
   offset,
   lens = 'all',
+  view,
 }: {
   sub?: string;
   hopper?: string;
   offset?: number;
   lens?: Lens;
+  view?: 'sources';
 }) {
   return (
     <LensContext.Provider value={lens}>
-      <ReadingScreen sub={sub} hopper={hopper} offset={offset} lens={lens} />
+      {view === 'sources' ? (
+        <Sources />
+      ) : hopper ? (
+        <HopperTimeline id={hopper} offset={offset ?? 0} />
+      ) : (
+        <Timeline sub={sub ?? 'all'} offset={offset ?? 0} />
+      )}
     </LensContext.Provider>
   );
-}
-function ReadingScreen({ sub, hopper, offset, lens }: { sub?: string; hopper?: string; offset?: number; lens: Lens }) {
-  if (lens === 'background' || lens === 'smart')
-    return (
-      <>
-        <PlaceholderChrome />
-        <h2 className="view-h">reading</h2>
-        <LensBar sub={sub} hopper={hopper} />
-        <LensPlaceholder lens={lens} />
-      </>
-    );
-  if (hopper) return <HopperTimeline id={hopper} offset={offset ?? 0} />;
-  if (sub) return <Timeline sub={sub} offset={offset ?? 0} />;
-  return <Sources />;
-}
-function PlaceholderChrome() {
-  useChrome({ framed: false, wide: false });
-  return null;
 }
 
 /* ---------------- imported history (#40) ---------------- */
