@@ -106,7 +106,7 @@ are single-account and the personal one has no D1 scope, so the migration prefli
 cannot run from either; an env token silently overrides the OAuth session, so **unset it**
 before deploying. One OAuth session reaches both accounts.
 
-## `/api` is a documented contract with owner and delegated access
+## `/api` is a documented contract with owner and delegated access (OAuth/MCP merged 0.28.0, session 36)
 
 **Since 0.10.0** (#21, Kyle Mathews): 39 operations defined once in `src/contract/` (Zod →
 OpenAPI 3.1 → `openapi.json`, served to the owner at `/api/openapi.json`), resource-shaped
@@ -154,6 +154,14 @@ Fable. Do not harden it in a way that breaks the tools now depending on it witho
 saying so.
 
 ## Status
+
+**0.30.0** (session 36, 2026-10-05): subscription names follow their source (**migration 0023**, `subscriptions.title_auto`; manifest title at the daily sync, RSS channel title every poll, owner names protected); resync all feeds (`POST /api/subscriptions/poll`); "Draft discarded" toast; long stubs quote their opening; thread counter without the limit; quote-only compose rows resolved. The first release after 0.28.2: 0.28.3 and 0.29.0 were deployed but their tags failed `release:check` and were deleted.
+
+**0.29.0** (session 36): the `[[`/`![[` picker is a panel with full-text SQL search (`source`, `sub`, `sort`), and the `picker_typing` setting (automatic / editor / picker). No migration.
+
+**0.28.3** (session 36): the outbound DNS check used `redirect: 'error'`, which the Workers runtime rejects, so every poll and Webmention failed on both nodes for ~70 minutes after 0.28 deployed. Now `'manual'`. No migration.
+
+**0.28.0–0.28.2** (session 36): Kyle Mathews' #34 — OAuth grants, manual tokens, MCP, four scopes, the Access page, and a security pass (allowlist sanitizer, SVG sandbox, private draft media, outbound-destination checks, owner/grant work budgets; **migrations 0021, 0022**; needs `nodejs_compat`). 0.28.1 unwraps unlisted tags (0.28.0 deleted their content); 0.28.2 bakes transclusions verbatim again (sanitize at render). **The owner budgets bite in practice:** 120 writes/min throttled live preview (raised in the private config; `fix/preview-budget` moves preview to the read budget) and 20 AI calls/day applied to the owner (interim 200). Follow-ups are on studio#39.
 
 **0.27.2** (session 35, 2026-10-05): the editor's TK generate kept only the scope's output since 0.10.0; the generate route now also returns the spliced `content_md`. No migration.
 
