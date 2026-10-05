@@ -34,6 +34,17 @@ been polled yet.
 - The sheet's buttons say `checking…` and `subscribing…` while they wait, and
   the sheet closes as soon as the subscription exists.
 
+**Subscribing twice to the same source is refused.** A second subscription
+imported every item again, and a stub of any of those items then failed with
+"ambiguous id imported from multiple sources". `POST /api/subscriptions` now
+answers 409 `already subscribed to …` on both the first step and the confirm
+step, matching on the resolved origin or feed URL (so a blyg's `feed.xml` added
+as plain RSS counts too). This does not remove duplicates a node already has:
+delete the extra one from its source inspector.
+
+**The Smart Feed lens says "Coming soon."** It is a placeholder, and it read
+as if it worked.
+
 **Every reading card shows where it lives.** A muted citation line under the
 body (`↗ host/path`, shortened the way the ⋯ sheet shows it) opens the entry's
 source in a new tab. It appears on every card that has a URL, in every

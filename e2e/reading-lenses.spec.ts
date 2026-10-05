@@ -49,7 +49,7 @@ test('lenses filter by kind, keep themselves across screens, and show the two pl
   await bar.getByRole('button', { name: 'Background' }).click();
   await expect(page.locator('.lens-placeholder')).toContainText('with ignyr in the changelog');
   await bar.getByRole('button', { name: 'Smart Feed' }).click();
-  await expect(page.locator('.lens-placeholder')).toContainText('Feed sorted and filtered by your AI agent.');
+  await expect(page.locator('.lens-placeholder')).toContainText('Coming soon. Feed sorted and filtered by your AI agent.');
   await page.locator('.lens-placeholder').getByRole('link', { name: 'Settings' }).click();
   await expect(page).toHaveURL(/\/studio\/settings$/);
 });

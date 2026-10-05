@@ -13,6 +13,7 @@ import {
   addHopperItem,
   createHopper,
   createSubscription,
+  findSubscription,
   deleteHopper,
   deleteSignal,
   deleteSubscription,
@@ -50,6 +51,16 @@ importerApi.openapi(routes.createSubscription, async (c) => {
     return c.json({ error: "could not resolve this URL to a blyg or a feed", tried: result.tried }, 422);
   }
 
+  // One subscription per source: a second one imports every item twice, and
+  // then any reference to those ids is ambiguous between the two (stub refuses).
+  const feedUrl =
+    result.kind === "blyg"
+      ? typeof result.manifest.feed === "string" ? new URL(result.manifest.feed, result.origin).toString() : `${result.origin}feed.xml`
+      : result.feedUrl;
+  const identity = result.kind === "blyg" ? result.origin : result.feedUrl;
+  const existing = await findSubscription(c.env.DB, identity, feedUrl);
+  if (existing) return c.json({ error: `already subscribed to ${existing.title || existing.origin}` }, 409);
+
   if (!body.confirm) {
     if (result.kind === "blyg") {
       return c.json({
@@ -69,7 +80,7 @@ importerApi.openapi(routes.createSubscription, async (c) => {
       ? await createSubscription(c.env.DB, {
           kind: "blyg",
           origin: result.origin,
-          feedUrl: typeof result.manifest.feed === "string" ? new URL(result.manifest.feed, result.origin).toString() : `${result.origin}feed.xml`,
+          feedUrl,
           title: title ?? (typeof result.manifest.title === "string" ? result.manifest.title : titleFromUrl(result.origin)),
         })
       : await createSubscription(c.env.DB, {

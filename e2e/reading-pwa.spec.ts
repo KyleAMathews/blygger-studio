@@ -99,6 +99,19 @@ test('every reading card shows its source URL, opening in a new tab, as the ⋯ 
   await expect(page.locator('.reading-entry .entry-src').first()).toHaveAttribute('target', '_blank');
 });
 
+test('subscribing to a source already subscribed shows the refusal in the sheet', async ({ page }) => {
+  await login(page); await page.goto('/studio/reading');
+  await page.route('**/api/subscriptions', route => route.request().method() === 'POST'
+    ? route.fulfill({ status: 409, json: { error: 'already subscribed to Small Hours' } })
+    : route.continue());
+  await page.getByRole('button', { name: 'subscribe', exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: 'subscribe' });
+  await sheet.locator('#add-sub-url').fill('https://smallhours.example/');
+  await sheet.getByRole('button', { name: 'subscribe', exact: true }).click();
+  await expect(sheet).toContainText('already subscribed to Small Hours');
+  await expect(sheet.getByRole('button', { name: 'confirm subscribe' })).toHaveCount(0);
+});
+
 test('confirm subscribe shows progress and closes the sheet on the reply', async ({ page }) => {
   await login(page); await page.goto('/studio/reading');
   const existing = await page.evaluate(async () => (await (await fetch('/api/subscriptions')).json()).items[0]);

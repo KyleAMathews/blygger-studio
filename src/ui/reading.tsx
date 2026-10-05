@@ -917,7 +917,7 @@ function LensBar({ sub, hopper }: { sub?: string; hopper?: string }) {
 }
 export const BACKGROUND_NOTE =
   'Procedural version updates for managing staleness, with ignyr in the changelog, will appear here once the feature is designed and incorporated into the protocol.';
-export const SMART_FEED_NOTE = 'Feed sorted and filtered by your AI agent. Set a prompt in Settings.';
+export const SMART_FEED_NOTE = 'Coming soon. Feed sorted and filtered by your AI agent. You can already set its prompt in Settings.';
 function LensPlaceholder({ lens }: { lens: 'background' | 'smart' }) {
   return (
     <div className="empty lens-placeholder">
@@ -926,7 +926,8 @@ function LensPlaceholder({ lens }: { lens: 'background' | 'smart' }) {
       </span>
       {lens === 'smart' ? (
         <>
-          Feed sorted and filtered by your AI agent. Set a prompt in{' '}
+          <strong>Coming soon.</strong> Feed sorted and filtered by your AI
+          agent. You can already set its prompt in{' '}
           <Link to="/settings">Settings</Link>.
         </>
       ) : (
