@@ -1,5 +1,5 @@
 import { bodyLimit } from 'hono/body-limit';
-import { securityLimit, admitApi } from './security-budgets.ts';
+import { securityLimit, admitApi, withWorkPrincipal } from './security-budgets.ts';
 import { matchedRoutes } from 'hono/route';
 import { routes } from "./contract/routes.ts";
 import { contractApp } from "./contract/app.ts";
@@ -45,6 +45,7 @@ ownerApi.use("*", async (c, next) => {
       return c.json({ error: 'insufficient scope' }, 403);
     }
   }
+  c.env = withWorkPrincipal(c.env, delegated ?? undefined);
   if (!await admitApi(c.env, ['GET', 'HEAD'].includes(c.req.method))) {
     c.header('Retry-After', '60');
     return c.json({ error: 'API work budget exceeded' }, 429);

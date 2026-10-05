@@ -17,7 +17,7 @@ authorizationApi.use('*', async (c, next) => {
   return bodyLimit({ maxSize: securityLimit(c.env.API_BODY_LIMIT, 8 * 1024 * 1024), onError: c => c.json({ error: 'request body exceeds byte limit' }, 413) })(c, next);
 });
 export async function authorizationResources(env: import('./types.ts').Env) {
-  const { results } = await env.DB.prepare('SELECT * FROM oauth_authorizations WHERE version=? AND expires > ? ORDER BY created,grant_id').bind(await credentialVersion(env), Math.floor(Date.now() / 1000)).all<{ grant_id: string; client_id: string; name: string; manual: number; resource: string; scopes: string; created: number; expires: number }>();
+  const { results } = await env.DB.prepare('SELECT * FROM oauth_authorizations WHERE version=? AND expires > ? AND NOT EXISTS (SELECT 1 FROM oauth_revocations WHERE grant_id=oauth_authorizations.grant_id) ORDER BY created,grant_id').bind(await credentialVersion(env), Math.floor(Date.now() / 1000)).all<{ grant_id: string; client_id: string; name: string; manual: number; resource: string; scopes: string; created: number; expires: number }>();
   return results.map(row => AuthorizationSchema.parse({ id: row.grant_id, clientId: row.client_id, name: row.name, manual: row.manual === 1, resource: row.resource, scope: JSON.parse(row.scopes), createdAt: row.created, expiresAt: row.expires }));
 }
 authorizationApi.openapi(authRoutes.listAuthorizations, async c => c.json({ items: await authorizationResources(c.env) }));

@@ -35,25 +35,51 @@ positive integer strings. Invalid values, including zero, retain the default.
 
 | Variable | Default | Bound |
 |---|---|---|
-| `API_READ_LIMIT` | `1200` | Account-wide authenticated REST/MCP reads per minute |
-| `MCP_REQUEST_LIMIT` | `300` | Authenticated MCP envelopes per minute, including discovery |
-| `API_WRITE_LIMIT` | `120` | Account-wide authenticated REST/MCP writes per minute |
+| `API_READ_LIMIT` | `1200` | Owner reads per minute; separately, reads per grant |
+| `MCP_REQUEST_LIMIT` | `300` | MCP envelopes per grant per minute, including discovery |
+| `API_WRITE_LIMIT` | `120` | Owner writes per minute; separately, writes per grant |
+| `API_DELEGATED_READ_LIMIT` | `600` | Aggregate delegated REST/MCP reads per minute |
+| `API_DELEGATED_WRITE_LIMIT` | `60` | Aggregate delegated REST/MCP writes per minute |
+| `MCP_DELEGATED_REQUEST_LIMIT` | `150` | Aggregate delegated MCP envelopes per minute |
+| `AI_OWNER_RESERVED_CALLS` | `5` | Daily total AI calls reserved for owner/background work |
+| `AI_GRANT_DAILY_CALL_LIMIT` | `5` | AI calls per grant per UTC day |
+| `OAUTH_UNAPPROVED_CLIENT_TTL_SECONDS` | `86400` | Grace before reclaiming abandoned anonymous clients |
 | `API_BODY_LIMIT` | `8388608` | REST and authorization-management body bytes |
 | `AI_DAILY_CALL_LIMIT` | `20` | Actual AI provider calls per UTC day, across purposes |
-| `OAUTH_CLIENT_LIMIT` | `100` | Stored clients plus live anonymous-registration claims |
+| `OAUTH_CLIENT_LIMIT` | `100` | Anonymous clients plus live registration claims |
 
 OAuth request bodies have a fixed 1 MiB cap. MCP keeps its existing 8 MiB cap.
-MCP envelopes also consume their own account-wide request budget. Tool calls
-consume the REST operation budget too. Write admission is atomic across isolates. Denied scopes do not consume API
-budgets. Admitted failures consume their budget, including failed AI calls.
-REST quota refusals return 429 with `Retry-After: 60`. AI refusals return 429.
-An AI call cap does not bound money per call. Fixed windows permit bursts across
-window boundaries and do not limit active concurrency or work within one call.
-The anonymous cap counts all stored clients, including owner-created clients.
-Owner creation stays authenticated and write-budgeted. Live clients do not
-expire automatically. Operators must review unused clients and native auth-record
-retention. Temporary claims expire after five minutes and are removed on the
-next registration attempt.
+MCP envelopes consume both a grant quota and a delegated aggregate quota. Tool
+calls also consume that grant's REST operation quota. Owner API quotas are
+separate, so a delegated grant cannot spend the owner's request capacity. Every
+counter admits work atomically across isolates. A later aggregate refusal can
+consume a grant's attempt quota; refused work never reaches its handler/provider.
+Denied scopes consume no API quota. REST and MCP quota refusals return 429 with
+`Retry-After: 60`. AI refusals return 429.
+
+AI retains the total daily ceiling across owner, background and delegated calls.
+Delegated calls also have per-grant and aggregate limits. The aggregate ceiling
+is total minus the owner reserve; a reserve at least as large as total refuses
+all delegated AI. Failed provider calls count. A call cap does not bound money
+per call. Fixed windows permit boundary bursts and do not limit active concurrency
+or CPU within an admitted call.
+
+Owner-created manual clients do not occupy the anonymous registration pool.
+Registration reclaims anonymous clients older than the grace only if they have
+no consent, grant, token, live authorization code or live pending consent record.
+Approved clients remain intact. Abandoned clients must register again after
+expiry. Active bot traffic can still hold the bounded pool; this is recovery from
+abandonment, not a guarantee of public registration availability under attack.
+Native auth records for approved clients still need operator retention review.
+Temporary registration claims expire after five minutes.
+
+Unpublished media returns 404 anonymously. Owner cookies and API tokens with
+`owner:read` can read it with `Cache-Control: no-store`. Private reads require
+HTTPS, with exact loopback development exceptions. Publication of an image,
+visible appended attachments and avatar selection make bytes public. Published
+snapshot references keep their images available, including pins and withdrawal,
+without changing stored snapshots. Already-cached public bytes cannot be recalled.
+Unused inline uploads remain private.
 
 Outbound subscriptions, forks, freshness reads and Webmentions accept public
 HTTP(S) destinations by default. Every redirect undergoes the same address and

@@ -112,12 +112,26 @@ describe('security release boundaries', () => {
   // The confidential introspection client must authenticate before either observation.
   // The same token is active before deletion and exactly {active:false} afterward;
   // a permanently-inactive implementation cannot satisfy the positive checkpoint.
-  it('reports a revoked grant inactive through authenticated native introspection', async () => {
+  it.each(['access_token', 'refresh_token'] as const)('reports a revoked %s inactive through authenticated native introspection', async tokenKind => {
     const f = await issued();
     const registration = await f.request(f.issuer + '/oauth2/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ redirect_uris: [f.redirect], token_endpoint_auth_method: 'client_secret_basic' }) });
     expect(registration.status).toBe(201);
     const client = await registration.json() as { client_id: string; client_secret: string };
-    const introspect = () => f.request(f.issuer + '/oauth2/introspect', { method: 'POST', headers: { Authorization: 'Basic ' + btoa(client.client_id + ':' + client.client_secret) }, body: new URLSearchParams({ token: f.tokens.access_token, token_type_hint: 'access_token' }) });
+    // Native refresh introspection is restricted to the issuing client. Issue
+    // through the confidential client first; another client's inactive response
+    // would be a setup failure, not evidence that revocation works.
+    if (tokenKind === 'refresh_token') {
+      const authorize = new URL(f.authorize); authorize.searchParams.set('client_id', client.client_id);
+      const consent = await f.request(authorize.href, { headers: { cookie: f.owner } }); expect(consent.status).toBe(200);
+      const handle = (await consent.text()).match(/name="handle" value="([^"]+)"/)![1];
+      const binding = consent.headers.getSetCookie().map(cookie => cookie.split(';')[0]).join('; ');
+      const approval = await f.request(f.issuer + '/consent', { method: 'POST', headers: { cookie: f.owner + '; ' + binding, Origin: f.base }, body: new URLSearchParams([['handle', handle], ['decision', 'allow'], ['scope', 'owner:read'], ['scope', 'owner:draft']]) });
+      const code = new URL(approval.headers.get('location')!).searchParams.get('code')!;
+      const exchange = await f.request(f.issuer + '/oauth2/token', { method: 'POST', headers: { Authorization: 'Basic ' + btoa(client.client_id + ':' + client.client_secret) }, body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: f.redirect, code_verifier: f.verifier, resource: f.base + '/api' }) });
+      expect(exchange.status).toBe(200); f.tokens = await exchange.json() as typeof f.tokens;
+      f.client.client_id = client.client_id;
+    }
+    const introspect = () => f.request(f.issuer + '/oauth2/introspect', { method: 'POST', headers: { Authorization: 'Basic ' + btoa(client.client_id + ':' + client.client_secret) }, body: new URLSearchParams({ token: f.tokens[tokenKind], token_type_hint: tokenKind }) });
     const before = await introspect(); expect(before.status).toBe(200); expect(await before.json()).toMatchObject({ active: true });
     const listing = await (await f.request('/api/authorizations', { headers: { cookie: f.owner } })).json() as { items: { id: string; clientId: string }[] };
     const grant = listing.items.find(value => value.clientId === f.client.client_id)!;
@@ -157,7 +171,7 @@ describe('security release boundaries', () => {
       // dependency seam, not a claim that D1 currently emits this exact message.
       const database = new Proxy(env.DB, { get(target, key) {
         if (key === 'prepare') return (sql: string) => {
-          if (!sql.includes('security_registrations') && sql.includes(endpoint === 'owner-login' ? 'rateLimit' : 'oauthClient')) {
+          if (!sql.includes('security_registrations') && !sql.startsWith('DELETE FROM oauthClient WHERE userId IS NULL') && sql.includes(endpoint === 'owner-login' ? 'rateLimit' : 'oauthClient')) {
             nativeFaultReached = true;
             const error = new Error('database failed with credential=' + marker);
             error.name = marker; // Dependency-defined names are untrusted too.
@@ -272,4 +286,51 @@ describe('security release boundaries', () => {
     expect((await read(f, next.access_token)).status, 'authenticated Basic replay revokes the compromised JWT grant').toBe(401);
   });
 
+});
+
+// A remembered grant is not new authority. Pause the real persistence write
+// after native token validation, revoke through the owner API, then resume.
+// The owner listing must never resurrect a tombstoned grant (RFC7009 §2.1).
+it('a revoke between token validation and grant persistence cannot resurrect its listing', async () => {
+  const f = await issued();
+  const list = async () => (await (await f.request('/api/authorizations', { headers: { cookie: f.owner } })).json() as {items:{id:string;clientId:string}[]}).items;
+  const grant = (await list()).find(row => row.clientId === f.client.client_id)!; expect(grant).toBeDefined();
+  let reached!:()=>void, release!:()=>void;
+  const paused = new Promise<void>(resolve=>{reached=resolve;}), resume = new Promise<void>(resolve=>{release=resolve;});
+  const database = new Proxy(env.DB, { get(target,key) {
+    if(key==='prepare') return (sql:string) => {
+      const wrap = (statement:D1PreparedStatement):D1PreparedStatement => new Proxy(statement,{get(statement,key){
+        if(key==='bind') return (...values:unknown[])=>wrap(statement.bind(...values));
+        if(key==='run' && /INSERT INTO oauth_authorizations/.test(sql)) return async()=>{reached();await resume;return statement.run();};
+        const value=Reflect.get(statement,key);return typeof value==='function'?value.bind(statement):value;
+      }});
+      return wrap(target.prepare(sql));
+    };
+    const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
+  }});
+  const { rememberAuthorization } = await import('../src/oauth.ts');
+  const pending=rememberAuthorization(f.issuer, {...env,DB:database},f.tokens.access_token);
+  try {
+    await paused;
+    expect((await f.request('/api/authorizations/'+grant.id,{method:'DELETE',headers:{cookie:f.owner}})).status).toBe(200);
+  } finally { release(); }
+  await pending;
+  expect(await env.DB.prepare('SELECT grant_id FROM oauth_authorizations WHERE grant_id=?').bind(grant.id).first(),'revocation tombstone must block late grant persistence').toBeNull();
+  expect((await list()).some(row=>row.id===grant.id),'a completed revoke cannot be undone by a late recording write').toBe(false);
+  expect((await read(f,f.tokens.access_token)).status).toBe(401);
+});
+
+// Legacy or interrupted deployments can leave a stale row beside a tombstone.
+// The list is a receiving authority display and must fail closed independently
+// of the write guard. This fixture does not simulate a new grant or clear revoke.
+it('the owner listing excludes stale persisted rows for revoked grants', async () => {
+  const f = await issued();
+  const row = await env.DB.prepare('SELECT * FROM oauth_authorizations WHERE client_id=?').bind(f.client.client_id).first<Record<string, unknown>>();
+  expect(row).not.toBeNull();
+  expect((await f.request('/api/authorizations/'+row!.grant_id,{method:'DELETE',headers:{cookie:f.owner}})).status).toBe(200);
+  await env.DB.prepare('INSERT INTO oauth_authorizations(grant_id,client_id,name,manual,resource,scopes,created,expires,version) VALUES (?,?,?,?,?,?,?,?,?)')
+    .bind(...['grant_id','client_id','name','manual','resource','scopes','created','expires','version'].map(key=>row![key])).run();
+  const list = await (await f.request('/api/authorizations',{headers:{cookie:f.owner}})).json() as {items:{id:string}[]};
+  expect(list.items.some(entry=>entry.id===row!.grant_id),'stored stale grant rows cannot appear active').toBe(false);
+  expect((await read(f,f.tokens.access_token)).status).toBe(401);
 });

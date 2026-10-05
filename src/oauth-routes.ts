@@ -61,7 +61,7 @@ app.use('*', (c, next) => bodyLimit({ maxSize: 1024 * 1024, onError: c => c.json
     const { base, issuer } = authLocations(c.req.url, c.env);
     const offline = scope.includes('offline_access') ? '<p>This client requests offline access: it can renew its access while you are away, until this grant expires within 30 days or you revoke it.</p>' : '';
     const scopeList = OWNER_SCOPES.filter(value => scope.includes(value)).map(value => `<p><label><input type="checkbox" name="scope" value="${value}" checked> ${escapeHtml(SCOPE_DESCRIPTIONS[value])}</label></p>`).join('');
-    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Authorize client</title><link rel="stylesheet" href="${escapeHtml(base)}/app.css"></head><body><main><h1>Allow ${escapeHtml(client.client_name ?? clientId)}?</h1><p>This client name is self-asserted. Access returns to <strong>${escapeHtml(new URL(params.get('redirect_uri')!).host)}</strong>.</p><p>Resource: <code>${escapeHtml(params.get('resource') ?? '')}</code></p><form method="post" action="${escapeHtml(issuer)}/consent"><input type="hidden" name="handle" value="${handle}">${scopeList}${offline}<p>Access tokens last one hour. You can revoke this grant in Studio.</p><button name="decision" value="allow">allow access</button> <button name="decision" value="deny">deny</button></form></main></body></html>`;
+    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Authorize client</title><link rel="stylesheet" href="${escapeHtml(base)}/app.css"></head><body><main><h1>Allow ${escapeHtml(client.client_name ?? clientId)}?</h1><p>This client name is self-asserted. Access returns to <strong>${escapeHtml(params.get('redirect_uri')!)}</strong>.</p><p>Resource: <code>${escapeHtml(params.get('resource') ?? '')}</code></p><form method="post" action="${escapeHtml(issuer)}/consent"><input type="hidden" name="handle" value="${handle}">${scopeList}${offline}<p>Access tokens last one hour. You can revoke this grant in Studio.</p><button name="decision" value="allow">allow access</button> <button name="decision" value="deny">deny</button></form></main></body></html>`;
     const response = new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Pragma': 'no-cache', 'Content-Security-Policy': "frame-ancestors 'none'", 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'same-origin' } });
     for (const cookie of cookies) response.headers.append('Set-Cookie', cookie);
     return response;
@@ -137,7 +137,7 @@ app.use('*', (c, next) => bodyLimit({ maxSize: 1024 * 1024, onError: c => c.json
       // Check shared owner revocation before returning the issued credentials.
       const credential = new Request(c.req.url, { headers: { Authorization: 'Bearer ' + value.access_token } });
       if (!await verifyBearer(credential, c.env, 'api') && !await verifyBearer(credential, c.env, 'mcp')) return c.json({ error: 'invalid_grant' }, 400);
-      await rememberAuthorization(c.req.url, c.env, value.access_token);
+      if (!await rememberAuthorization(c.req.url, c.env, value.access_token)) return c.json({ error: 'invalid_grant' }, 400);
       if (codeHash || value.refresh_token) {
         const payload = await server.api.delegatedAccess({ body: { token: value.access_token } });
         const family = JSON.stringify({ client: payload.client_id, family: payload.grantId });
@@ -190,6 +190,16 @@ app.use('*', (c, next) => bodyLimit({ maxSize: 1024 * 1024, onError: c => c.json
       if (token && token.split('.').length === 3) {
         const request = new Request(c.req.url, { headers: { Authorization: 'Bearer ' + token } });
         if (!await verifyBearer(request, c.env, 'api') && !await verifyBearer(request, c.env, 'mcp')) return c.json({ active: false });
+      } else {
+        // Native introspection authenticates the issuing client and checks token
+        // lifetime. Owner revocation/epoch is an additional boundary for opaque
+        // refresh credentials. Unrecorded opaque profiles are not supported.
+        const record = token ? await new OAuthStorage(c.env.DB).get('refresh:' + await hashCredential(token), 'json') as { client: string; family: string } | null : null;
+        const grant = record ? await c.env.DB.prepare(`SELECT 1 FROM oauth_authorizations
+          WHERE grant_id=? AND client_id=? AND version=? AND expires>?
+          AND NOT EXISTS (SELECT 1 FROM oauth_revocations WHERE grant_id=?)`)
+          .bind(record.family, record.client, await credentialVersion(c.env), Math.floor(Date.now() / 1000), record.family).first() : null;
+        if (!grant) return c.json({ active: false });
       }
     }
     return response;

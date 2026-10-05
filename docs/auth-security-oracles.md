@@ -6,7 +6,7 @@ The remaining security gaps were not all RED before this pass. Five public failu
 
 | Security area | Oracle and required observation | Evidence limit |
 |---|---|---|
-| Refresh replay and revocation | `test/auth-security.oracle.test.ts`: live successor access works before replay, then returns401 after ancestor replay. Authenticated native introspection returns active before owner revocation and inactive afterward. Invalid client, scope and resource requests leave the legitimate grant usable. A native-authenticated Basic replay returns `invalid_grant` and revokes the successor JWT; a wrong Basic secret returns `invalid_client` and leaves it usable. | A public replay failure was repaired. Introspection was already secure and receives a mutation control. |
+| Refresh replay and revocation | `test/auth-security.oracle.test.ts`: live successor access works before replay, then returns401 after ancestor replay. Authenticated native introspection returns active before owner revocation and inactive afterward. Invalid client, scope and resource requests leave the legitimate grant usable. A native-authenticated Basic replay returns `invalid_grant` and revokes the successor JWT; a wrong Basic secret returns `invalid_client` and leaves it usable. | A public replay failure was repaired. Access-token introspection was already secure; the follow-up reproduced and repaired refresh-token introspection after individual revocation. Both require a live-token positive checkpoint. |
 | Cross-isolate refresh race | `scripts/verify-auth-security-race.ts`: two compiled workerd isolates share D1. A service gate pauses the completed native rotation claim. The other isolate detects replay. Prior access becomes401 and paused issuance returns400 without credentials. | The gate controls one dangerous native interleaving. It does not prove every distributed schedule. Test-only scheduler code stays outside the production entrypoint. |
 | Storage and error secrecy | `test/auth-security.oracle.test.ts`: no plaintext owner password, code, refresh token or access JWT in the inspected app/provider tables. Private signing keys remain encrypted. Error-aware serialization captures Error names, messages and stacks at registration, owner login and manual minting. Injected credential markers stay out of responses and console sinks. | Native session bearer tokens remain in D1 by the provider's design. Real database permissions, backups, platform request logs and external sinks still need operator evidence. |
 | Hostile token claims | The security oracle uses the native server-only signing API on disposable fixture keys. A valid signed neighbor works. Wrong issuer, owner, audience, expiry, not-before, missing grant, credential version or unsupported sender constraint fails401 before REST or MCP reads and writes. Substituted keys and ID tokens also fail. | This is receiving behavior, not a proof of cryptographic entropy or every algorithm/header combination. No host credentials or private key material enter the test. |
@@ -74,3 +74,42 @@ and access. This does not strengthen the native replay-family isolation claim.
 The defaults and deployment caveats live in [work and outbound limits](auth-deployment-hardening.md#work-and-outbound-limits).
 In particular, DNS preflight does not prove connection-time enforcement. No
 whole-security or every-possible-attack coverage claim follows from these tests.
+
+## Content, resource and grant follow-up
+
+The review follow-up starts at `4a34d11`. Six new literate oracle files cover
+transclusion and attribution rendering, media visibility, delegated budgets,
+registration retention, native callback disclosure and read-only fork fetching.
+The native security oracle adds refresh introspection and a controlled late grant
+recording race. Each confirmed failure was captured before its repair; fixture
+errors are excluded from RED evidence.
+
+`review-content-security.oracle.test.ts` covers preview, fresh publication and
+history, plus old stored bakes on public, pinned, detail, history and reading
+surfaces. Browser version navigation reads sanitized pinned-page HTML instead of
+raw protocol JSON. A request observer catches authority calls before async minting
+finishes; a negative DOM-marker check alone could race the callback. Presentation is inert while frozen stored snapshots remain unchanged.
+`media-visibility-security.oracle.test.ts` checks anonymous refusal, owner preview,
+no-store, publication, unused inline attachments and pin retention. Read tokens
+work, draft-only and revoked tokens refuse, and non-loopback HTTP private reads
+refuse both cookie and bearer credentials.
+`delegated-budget-security.oracle.test.ts` separates owner, per-grant and delegated
+aggregate quotas and counts provider calls against an AI reserve and total cap,
+including AI work reached through an MCP tool.
+`registration-retention-security.oracle.test.ts` checks abandoned-client recovery
+beside an approved client that remains usable. It ages rows in better-auth's own
+ISO text format; an earlier version wrote numbers, which hid a cleanup that never
+matched a real row. Consent checks display the full
+registered native URI. Fork checks preserve one bounded public fetch, refuse
+private transport and suppress a dependency secret marker.
+
+Native refresh introspection must authenticate the issuing confidential client.
+An unrelated client's inactive response is not revocation evidence. Grant
+recording uses one SQL statement to check tombstones and epoch before insertion;
+a controlled pause before that statement proves revocation cannot resurrect the
+owner listing. Browser fixtures try to mint a named disposable full-scope grant
+from imported native content and inspect both DOM execution and the grant list.
+
+The isolated mutation verifier adds controls for each repair, the AI reserve and
+both browser authority paths. Sensitivity to these controls does not certify
+arbitrary HTML, distributed schedules or deployed network/ingress behavior.

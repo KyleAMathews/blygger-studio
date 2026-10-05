@@ -7,7 +7,7 @@
 // against the wire API is the natural fit here, not the Node-oriented
 // `@anthropic-ai/sdk`.
 
-import { admit, securityLimit } from "../security-budgets.ts";
+import { admitAi } from "../security-budgets.ts";
 import { getSettings } from "../model.ts";
 import type { Env, Settings } from "../types.ts";
 import { providerFor, type AiPurpose } from "./models.ts";
@@ -130,7 +130,7 @@ export async function complete(
   if (!provider) throw new ProviderError(`no provider is known for model "${model}": add it to models.json (or models.local.json)`);
   const apiKey = (env as unknown as Record<string, unknown>)[provider.spec.key_secret];
   if (typeof apiKey !== "string" || !apiKey) throw new ProviderError(`${provider.spec.key_secret} is not configured (the ${provider.spec.label} API key)`);
-  if (!await admit(env.DB, 'ai-daily', securityLimit(env.AI_DAILY_CALL_LIMIT, 20), 86400)) throw new AiBudgetError('daily AI call budget exceeded');
+  if (!await admitAi(env)) throw new AiBudgetError('daily AI call budget exceeded');
   switch (provider.spec.api) {
     case "anthropic-messages":
       return anthropic(apiKey, model, system, user, fetchImpl);

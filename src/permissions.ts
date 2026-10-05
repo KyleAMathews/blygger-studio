@@ -2,7 +2,7 @@ import { routes } from './contract/routes.ts';
 
 import type { OwnerScope } from './auth-scopes.ts';
 export { OWNER_SCOPES, SCOPE_DESCRIPTIONS } from './auth-scopes.ts';
-export interface OwnerAccess { scope: string[]; clientId: string; userId: string }
+export interface OwnerAccess { scope: string[]; clientId: string; userId: string; grantId?: string }
 const draft = new Set(['createItem', 'updateItem', 'deleteItem', 'restoreItem', 'uploadMedia', 'generateItem', 'draftNote', 'preview']);
 const publish = new Set(['publishItem', 'withdrawItem', 'pinItem', 'refreshItem', 'deleteMedia']);
 export function operationScopes(operation: string): OwnerScope[] {

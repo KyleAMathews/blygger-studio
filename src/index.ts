@@ -1,3 +1,5 @@
+import { verifySession } from "./auth.ts";
+import { verifyBearer } from "./oauth.ts";
 import { requestError } from './request-error.ts';
 import { listFeedItems } from "./public-feed.ts";
 import { studioSpa } from "./spa.ts";
@@ -265,6 +267,24 @@ export function makeApp(mount: string) {
     const file = c.req.param("file");
     const media = await getMedia(c.env.DB, file.split(".")[0]);
     if (!media || media.r2_key !== `media/${file}`) return c.notFound();
+    // Version rows are published snapshots, including retained pins. Their media
+    // promises survive withdrawal. Unplaced non-inline attachments and the avatar
+    // are also public uses; an unused inline upload is never an anonymous use.
+    // Indexed checks run first; the scan of every version is the last resort.
+    const publicUse = await c.env.DB.prepare(`SELECT 1 WHERE
+      EXISTS (SELECT 1 FROM settings WHERE key='avatar_media_id' AND value=?)
+      OR EXISTS (SELECT 1 FROM items WHERE id=? AND status='public' AND version>0 AND ?<>1)
+      OR EXISTS (SELECT 1 FROM versions WHERE item_id=? AND instr(content_html, ?) > 0)
+      OR EXISTS (SELECT 1 FROM versions WHERE instr(content_html, ?) > 0)`)
+      .bind(media.id, media.item_id, media.inline ?? 0, media.item_id, media.r2_key, media.r2_key).first();
+    if (!publicUse) {
+      c.header('Cache-Control', 'no-store');
+      const url = new URL(c.req.url);
+      if (url.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) return c.notFound();
+      const bearer = /^Bearer(?:\s|$)/i.test(c.req.header('authorization') ?? '');
+      const access = bearer ? await verifyBearer(c.req.raw, c.env, 'api') : null;
+      if (bearer ? !access?.scope.includes('owner:read') : !await verifySession(c.env, c.req.header('cookie'))) return c.notFound();
+    }
     const object = await c.env.MEDIA.get(media.r2_key);
     if (!object) return c.notFound();
     return c.body(object.body as ReadableStream, 200, {
@@ -272,7 +292,7 @@ export function makeApp(mount: string) {
       // Uploaded SVG can be opened as a document. Keep it inert and give it an
       // opaque origin so delegated uploads cannot inherit an owner's authority.
       "Content-Security-Policy": "sandbox; script-src 'none'",
-      "Cache-Control": "public, max-age=31536000, immutable",
+      "Cache-Control": publicUse ? "public, max-age=31536000, immutable" : "no-store",
       "X-Content-Type-Options": "nosniff",
     });
   });

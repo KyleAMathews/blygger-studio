@@ -38,6 +38,19 @@ await securityDb.prepare("INSERT INTO subscriptions(id,kind,origin,feed_url,titl
 for (const attack of importedHtmlAttacks) await securityDb.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at,content_md,content_html,l0,page) VALUES ('security-html',?,'fragment','current',1,'2020-01-01','Security fixture',?,1,'https://security-publisher.example/post')").bind(attack.id, '<h2>Security ' + attack.id + '</h2>' + attack.html).run();
 await securityDb.prepare("INSERT INTO hoppers(id,name,slug,public,created) VALUES ('security-imports','Security imports','security-imports',1,'2020-01-01')").run();
 await securityDb.prepare("INSERT INTO hopper_items(hopper_id,subscription_id,remote_id,added_at) VALUES ('security-imports','security-html','svg-event','2020-01-01')").run();
+// Native imports exercise bake/provenance paths as well as the legacy reader.
+// Harmless local attack tries to mint a named fixture grant. No live service,
+// exfiltration destination or real credential is involved.
+const authorityAttack = "fetch('/api/authorizations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'XSS authority marker',scope:['owner:read','owner:draft','owner:publish','owner:manage'],resource:'api'})}).then(r=>{if(r.ok)document.documentElement.dataset.importScript='yes'})";
+await securityDb.prepare("INSERT INTO subscriptions(id,kind,origin,feed_url,title,created) VALUES ('security-native','blyg','https://native-publisher.example/','https://native-publisher.example/feed','Native security','2020-01-01')").run();
+await securityDb.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at,content_html,l0,page) VALUES ('security-native','00000000000000000000000001','fragment','current',1,'2020-01-01',?,0,?)")
+  .bind('<p>Native quoted safety marker</p><img src="/missing" onerror="' + authorityAttack + '">', 'post"><img src="/missing" onerror="' + authorityAttack + '">').run();
+await securityDb.prepare("INSERT INTO hoppers(id,name,slug,public,created) VALUES ('security-native-hopper','Native security collection','security-native',1,'2020-01-01')").run();
+await securityDb.prepare("INSERT INTO hopper_items(hopper_id,subscription_id,remote_id,added_at) VALUES ('security-native-hopper','security-native','00000000000000000000000001','2020-01-01')").run();
+// A pre-upgrade pinned bake remains raw on the immutable protocol JSON path.
+await securityDb.prepare("INSERT INTO items(id,kind,status,created,updated,version,content_md) VALUES ('00000000000000000000000003','thread','public','2020-01-01','2020-01-02',2,'Safe latest')").run();
+for (const version of [1,2]) await securityDb.prepare("INSERT INTO versions(item_id,version,content_md,content_hash,published_at,content_html,transclusions,pinned,note) VALUES ('00000000000000000000000003',?,'Snapshot','fixture','2020-01-01',?,'[]',?,?)")
+  .bind(version, version===1 ? '<p>Legacy pin safety marker</p><img src="/missing" onerror="'+authorityAttack+'">' : '<p>Safe latest safety marker</p>', version===1?1:0,version===1?'Old pin note':'Latest note').run();
 await security.ready;
 // A separate mounted instance behind the documented forwarding ranges. The
 // proxy rejects host-root assets rather than letting a permissive fixture hide

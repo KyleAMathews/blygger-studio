@@ -95,6 +95,14 @@ export function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+/** Untrusted link data needs URL validation as well as HTML attribute escaping. */
+export function escapeHref(value: string): string {
+  try {
+    if (!['http:', 'https:'].includes(new URL(value, 'https://link.invalid/').protocol)) return '#';
+    return escapeHtml(value);
+  } catch { return '#'; }
+}
+
 // ── Text that must survive the trip to other people's readers (studio#15) ──
 
 /**

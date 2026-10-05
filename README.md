@@ -38,6 +38,10 @@ The Worker limits API work, AI calls and stored OAuth clients. Outbound fetches
 allow public destinations by default. See [security configuration](docs/auth-deployment-hardening.md#work-and-outbound-limits)
 for defaults and the explicit LAN opt-in.
 
+Draft uploads require an owner cookie or an API token with `owner:read`.
+Studio sends the cookie for previews. Publication makes used images public and
+keeps images needed by published snapshots and pins available.
+
 Contributors: see [tests and their limits](docs/testing.md) for verification
 commands, oracle replay, and the upgrade test.
 

@@ -181,7 +181,7 @@ export async function verifyBearer(request: Request, env: Env, resource: 'api' |
     if (typeof validated.grantId !== 'string' || await env.DB.prepare('SELECT grant_id FROM oauth_revocations WHERE grant_id = ?').bind(validated.grantId).first()) return null;
     if (typeof validated.authorizationCodeId === 'string' && await env.DB.prepare('SELECT grant_id FROM oauth_revocations WHERE grant_id = ?').bind(validated.authorizationCodeId).first()) return null;
     if (typeof validated.client_id !== 'string' || typeof validated.scope !== 'string') return null;
-    return { scope: validated.scope.split(' '), clientId: validated.client_id, userId: 'owner' };
+    return { scope: validated.scope.split(' '), clientId: validated.client_id, userId: 'owner', grantId: validated.grantId };
   } catch { return null; }
 }
 export async function revokeGrant(_url: string, env: Env, id: string) {
@@ -203,6 +203,11 @@ export async function rememberAuthorization(url: string, env: Env, accessToken: 
   const client = await (await server.$context).adapter.findOne<{ name?: string }>({ model: 'oauthClient', where: [{ field: 'clientId', value: value.client_id }] });
   const locations = authLocations(url, env), audiences = Array.isArray(value.aud) ? value.aud : [value.aud];
   const resource = [locations.api, locations.mcp].filter(audience => audiences.includes(audience)).join(' ');
-  await env.DB.prepare('INSERT INTO oauth_authorizations(grant_id,client_id,name,manual,resource,scopes,created,expires,version) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(grant_id) DO UPDATE SET resource=excluded.resource, scopes=excluded.scopes, expires=excluded.expires, version=excluded.version')
-    .bind(value.grantId, value.client_id, client?.name ?? value.client_id, manual ? 1 : 0, resource, JSON.stringify(String(value.scope).split(' ').filter(scope => OWNER_SCOPES.includes(scope as typeof OWNER_SCOPES[number]))), Math.floor(Date.now() / 1000), value.grantExpires, value.credentialVersion).run();
+  const epoch = (await env.DB.prepare('SELECT epoch FROM oauth_state WHERE id=1').first<{epoch:number}>())!.epoch;
+  if (value.credentialVersion !== await credentialVersion(env)) return false;
+  // Recording and the tombstone check share one SQL statement. A completed
+  // revoke must win even when issuance already validated the access credential.
+  const result = await env.DB.prepare('INSERT INTO oauth_authorizations(grant_id,client_id,name,manual,resource,scopes,created,expires,version) SELECT ?,?,?,?,?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM oauth_revocations WHERE grant_id=?) AND (SELECT epoch FROM oauth_state WHERE id=1)=? ON CONFLICT(grant_id) DO UPDATE SET resource=excluded.resource, scopes=excluded.scopes, expires=excluded.expires, version=excluded.version')
+    .bind(value.grantId, value.client_id, client?.name ?? value.client_id, manual ? 1 : 0, resource, JSON.stringify(String(value.scope).split(' ').filter(scope => OWNER_SCOPES.includes(scope as typeof OWNER_SCOPES[number]))), Math.floor(Date.now() / 1000), value.grantExpires, value.credentialVersion, value.grantId, epoch).run();
+  return result.meta.changes > 0;
 }

@@ -111,7 +111,10 @@ Survey claim OS05-C004 notes that resource indicators and audience identifiers n
 | Term | Meaning here |
 |---|---|
 | Admission | The atomic decision to admit work before its handler or provider call starts. |
-| Work budget | An account-wide call count within a fixed minute or UTC day. It is separate from owner permissions and the per-IP OAuth limiter. |
+| Work budget | A call count for a named principal or aggregate within a fixed minute or UTC day. Owner request quotas, per-grant quotas and delegated aggregate quotas are separate; AI also has a total ceiling. It is separate from owner permissions and the per-IP OAuth limiter. |
+| Owner reserve | Daily AI capacity that delegated calls cannot consume. Owner request quotas are separate from delegated quotas. |
+| Abandoned registration | An anonymous client older than the configured grace with no approval, token or live authorization work. It can be reclaimed. |
+| Private media | Uploaded bytes not yet used by publication or an owner-managed public avatar. Reading them requires an owner cookie or API read token. |
 | Registration claim | A temporary D1 slot held while anonymous OAuth client creation runs. It expires after five minutes and does not confer authorization. |
 | Editorial allowlist | The tags, attributes and URL schemes imported rendering permits. It does not change raw stored publisher content. |
 | SSRF | Server-side request forgery: a caller makes the Worker contact a destination the installation should refuse. |

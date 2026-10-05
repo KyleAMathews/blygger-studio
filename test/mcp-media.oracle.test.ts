@@ -46,7 +46,7 @@ async function driver() {
     for (const [name, value] of Object.entries(extra)) form.set(name, value);
     return fetch('/api/media', { method: 'POST', headers: { cookie }, body: form });
   };
-  return { fetch, owner, credential, mcp, upload, restUpload };
+  return { cookie, fetch, owner, credential, mcp, upload, restUpload };
 }
 function base64(bytes: Uint8Array) {
   let text = ''; for (let i = 0; i < bytes.length; i += 8192) text += String.fromCharCode(...bytes.subarray(i, i + 8192));
@@ -94,7 +94,8 @@ describe('MCP multipart media transport parity', () => {
       expect(observed.error).toBe(false); expect(observed.value.mime).toBe(expected.mime);
       expect(observed.value.url.split('.').pop()).toBe(expected.url.split('.').pop());
       for (const value of [expected, observed.value]) {
-        const publicBytes = await d.fetch('/blyg/' + value.url); expect(publicBytes.status).toBe(200);
+        expect((await d.fetch('/blyg/' + value.url)).status).toBe(404);
+        const publicBytes = await d.fetch('/blyg/' + value.url, { headers: { cookie: d.cookie } }); expect(publicBytes.status).toBe(200);
         expect(publicBytes.headers.get('content-type')).toBe(contentType);
         expect(new Uint8Array(await publicBytes.arrayBuffer())).toEqual(bytes);
         expect(await env.DB.prepare('SELECT item_id, mime, alt, inline FROM media WHERE id = ?').bind(value.id).first()).toEqual({ item_id: item.id, mime: contentType, alt: 'a diagram', inline: 1 });
@@ -107,7 +108,7 @@ describe('MCP multipart media transport parity', () => {
     const rest = await d.restUpload(bytes, 'image/png'); expect(rest.status).toBe(201);
     const observed = await result(await d.upload(token, { file: { filename: 'big.png', contentType: 'image/png', dataBase64: base64(bytes) } }));
     expect(observed.error).toBe(false);
-    const observedBytes = await (await d.fetch('/blyg/' + observed.value.url)).arrayBuffer();
+    const observedBytes = await (await d.fetch('/blyg/' + observed.value.url, { headers: { cookie: d.cookie } })).arrayBuffer();
     expect(observedBytes.byteLength).toBe(bytes.byteLength);
     expect(new Uint8Array(await crypto.subtle.digest('SHA-256', observedBytes))).toEqual(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)));
   });

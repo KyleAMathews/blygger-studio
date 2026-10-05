@@ -5,7 +5,7 @@
  * https://cheatsheetseries.owasp.org/cheatsheets/Denial_of_Service_Cheat_Sheet.html
  * Model: an explicit budget of two admits two actions, then refuses before work;
  * concurrent requests cannot overspend it. Owner and delegated API/MCP paths
- * share work budgets; AI counts actual provider calls, not a UI button or route.
+ * have separate budgets; REST/MCP for one grant share its quota. AI counts actual provider calls, not a UI button or route.
  * Driver: actual OAuth/owner API and shared provider transport with disposable D1.
  * Refinement: statuses and item/client rows or provider-call counters, not time.
  * Limits: fixed windows and concurrency witnesses, not deployed spend/throughput.
@@ -84,18 +84,18 @@ it('concurrent registration claims cannot exceed the client storage cap', async 
   expect((await env.DB.prepare('SELECT id FROM security_registrations').all()).results).toHaveLength(0);
 });
 
-it('REST and MCP consume the same account read budget', async () => {
+it('MCP tools consume their grant read budget independently of owner reads', async () => {
   const f = await flow(), bindings = { ...env, API_READ_LIMIT: '2' };
   const minted = await f.request('/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'budget MCP', scope: ['owner:read'], resource: 'mcp' }) }, bindings);
   expect(minted.status).toBe(200);
   const { access_token } = await minted.json() as { access_token: string };
   expect((await f.request('/api/settings', { headers: { cookie: f.owner } }, bindings)).status).toBe(200);
-  for (let index = 0; index < 2; index++) {
+  for (let index = 0; index < 3; index++) {
     const response = await f.request('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + access_token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/call', 'mcp-name': 'getSettings' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'getSettings', arguments: {}, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) }, bindings);
     expect(response.status).toBe(200);
     const value = await response.json() as { result: { isError?: boolean; content: { text: string }[] } };
-    expect(Boolean(value.result.isError), 'MCP cannot evade a REST-spent account budget').toBe(index === 1);
-    if (index === 1) expect(value.result.content[0].text).toContain('budget exceeded');
+    expect(Boolean(value.result.isError), 'MCP tools cannot evade the grant read budget').toBe(index === 2);
+    if (index === 2) expect(value.result.content[0].text).toContain('budget exceeded');
   }
 });
 it('concurrent AI purposes cannot overspend the daily provider budget', async () => {

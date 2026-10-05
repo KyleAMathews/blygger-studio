@@ -8,6 +8,7 @@
 
 import { listBlogrollSubscriptions, listPublicHoppers } from "./importer/store.ts";
 import { listPublicResponses } from "./mentions/store.ts";
+import { sanitizeHtml } from "./importer/sanitize.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
 import { excerptFromHtml } from "./markdown.ts";
@@ -16,7 +17,7 @@ import { authoredKind, getMedia, itemShowsResponses, listMediaForItem, published
 import type { ItemRow, MediaRow, Settings, SubscriptionRow, Transclusion, VersionRow } from "./types.ts";
 import { loadFeedData, sourceKey, type FeedCardData, type FeedProvenance, type FeedItem } from "./public-feed.ts";
 import { WEBMENTION_PATH } from "./types.ts";
-import { escapeHtml, formatDateIn, unplacedMedia, visibleMedia } from "./util.ts";
+import { escapeHtml, escapeHref, formatDateIn, unplacedMedia, visibleMedia } from "./util.ts";
 import { graphemePrefix } from "./text.ts";
 
 
@@ -586,12 +587,16 @@ export const VERSION_NAV_SCRIPT = `
       at = versions.indexOf(v);
       if (cache[v] !== undefined) { content.innerHTML = cache[v].html; render(); return; }
       content.setAttribute("aria-busy", "true");
-      fetch(mount + "/items/" + id + "/v" + v + ".json")
-        .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
-        .then(function (data) {
-          // The quotes are the server's rendering of a note, reproduced here
-          // so a swapped-in note looks like the one that was there before it.
-          cache[v] = { html: data.content_html || "", note: data.note ? "“" + data.note + "”" : "" };
+      // Protocol snapshots stay immutable. Read the server's safe presentation
+      // instead of inserting legacy content_html from public JSON into the DOM.
+      fetch(mount + "/" + kind + "/" + id + "/v" + v + "/")
+        .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.text(); })
+        .then(function (html) {
+          var page = new DOMParser().parseFromString(html, "text/html");
+          var body = page.querySelector("article .item-content");
+          if (!body) throw new Error("Missing version presentation");
+          var note = page.querySelector("article .version-note");
+          cache[v] = { html: body.innerHTML, note: note ? note.textContent : "" };
           content.innerHTML = cache[v].html;
           content.removeAttribute("aria-busy");
           render();
@@ -908,7 +913,7 @@ export async function transclusionProvenance(db: D1Database, transclusions: Tran
     // transclusion are the same blockquote to a reader, differing only in
     // being shorter — which is indistinguishable from the source being short.
     const what = t.selector ? "excerpt of" : "snapshot of";
-    out.push(`<p class="provenance"><a href="${link.href}">${link.label}</a> · ${what} v${t.version}</p>`);
+    out.push(`<p class="provenance"><a href="${escapeHref(link.href)}">${link.label}</a> · ${what} v${t.version}</p>`);
   }
   return out;
 }
@@ -985,7 +990,7 @@ async function threadCard(db: D1Database, item: FeedItem, mount: string, tz: str
   const latest = loaded ? loaded.latest : await publishedVersion(db, item);
   const href = `${mount}/t/${item.id}/`;
   const transclusions = parseTransclusions(latest?.transclusions);
-  const html = injectProvenance(latest?.content_html ?? "", await transclusionProvenance(db, transclusions, mount, provenance));
+  const html = injectProvenance(await sanitizeHtml(latest?.content_html ?? ""), await transclusionProvenance(db, transclusions, mount, provenance));
   const media = loaded ? loaded.media : await listMediaForItem(db, item.id);
   // The kind line is apparatus, on its own line above the item, never inline
   // with the author's first sentence (session 30). The quote count says what
@@ -1008,7 +1013,7 @@ ${itemMeta(item, latest?.note ?? null, loaded ? loaded.pins : await pinnedVersio
 async function threadBlock(db: D1Database, item: ItemRow, mount: string, tz: string): Promise<string> {
   const latest = await publishedVersion(db, item);
   const transclusions = parseTransclusions(latest?.transclusions);
-  const html = injectProvenance(latest?.content_html ?? "", await transclusionProvenance(db, transclusions, mount));
+  const html = injectProvenance(await sanitizeHtml(latest?.content_html ?? ""), await transclusionProvenance(db, transclusions, mount));
   const media = await listMediaForItem(db, item.id);
   return `<article class="thread">
 ${stubCitation(latest, tz)}
@@ -1500,7 +1505,7 @@ export async function pinnedVersionPage(
   const tz = settings.timezone;
   const live = `${mount}/${isThread ? "t" : "f"}/${item.id}/`;
   const html = isThread
-    ? injectProvenance(row.content_html, await transclusionProvenance(db, parseTransclusions(row.transclusions), mount))
+    ? injectProvenance(await sanitizeHtml(row.content_html), await transclusionProvenance(db, parseTransclusions(row.transclusions), mount))
     : row.content_html;
   const noteHtml = row.note ? `<p class="version-note">&ldquo;${escapeHtml(row.note)}&rdquo;</p>` : "";
   // A pin is a frozen artifact of a response, so it carries the citation that
@@ -1513,7 +1518,7 @@ ${await pageTop(db, settings, mount)}
 <article class="${isThread ? "thread" : "fragment"}">
 ${cite}
 ${forkLineage(item, tz)}
-${html}
+<div class="item-content">${html}</div>
 ${noteHtml}
 <p class="timestamps"><span>Published: ${formatDate(row.published_at, tz)}</span></p>
 </article>
