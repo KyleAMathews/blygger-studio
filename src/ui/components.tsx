@@ -16,6 +16,7 @@ import {
   updates,
 } from './data.ts';
 import { readState } from '../versions.ts';
+import { displayUrl } from '../importer/util.ts';
 import { Sheet } from './sheets.tsx';
 import { applyTheme } from './theme.ts';
 export { Button };
@@ -42,6 +43,15 @@ export function useUpdateState() {
         update_checked_at: row.update_checked_at || '',
       })
     : undefined;
+}
+/** Every reading card's citation line: where the entry lives, in a new tab. */
+export function SourceLink({ url }: { url?: string | null }) {
+  return url ? (
+    <a className="entry-src" href={url} target="_blank" rel="noreferrer">
+      <span aria-hidden="true">↗ </span>
+      {displayUrl(url)}
+    </a>
+  ) : null;
 }
 export function Html({ html, id }: { html: string; id?: string }) {
   return <div id={id} dangerouslySetInnerHTML={{ __html: html }} />;

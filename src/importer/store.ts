@@ -22,6 +22,14 @@ export async function createSubscription(
   return (await getSubscription(db, id))!;
 }
 
+/** An existing subscription to the same source: same origin, or the same feed reached another way. */
+export async function findSubscription(db: D1Database, origin: string, feedUrl: string): Promise<SubscriptionRow | null> {
+  return db
+    .prepare("SELECT * FROM subscriptions WHERE origin = ? OR feed_url = ? OR origin = ? LIMIT 1")
+    .bind(origin, feedUrl, feedUrl)
+    .first<SubscriptionRow>();
+}
+
 export async function getSubscription(db: D1Database, id: string): Promise<SubscriptionRow | null> {
   return db.prepare("SELECT * FROM subscriptions WHERE id = ?").bind(id).first<SubscriptionRow>();
 }

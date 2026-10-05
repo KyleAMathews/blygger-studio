@@ -32,6 +32,7 @@ const fields = [
   'accept_mentions',
   'update_check',
   'show_responses_default',
+  'highlight_generated_default',
   'auto_change_notes',
   'update_feed_url',
 ] as const;
@@ -135,6 +136,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
     key:
       | 'update_check'
       | 'show_responses_default'
+      | 'highlight_generated_default'
       | 'accept_mentions'
       | 'auto_change_notes',
     label: string,
@@ -308,6 +310,15 @@ function SettingsForm({ initial }: { initial: Settings }) {
             })}
           </div>
         </div>
+        {toggle(
+          'highlight_generated_default',
+          'Highlight generated portions by default',
+          <>
+            Text written by <code>[TK]</code> generation shows on your public
+            pages in a lightly tinted, outlined box, in every theme. A post can
+            override this in its editor's TK card.
+          </>,
+        )}
       </section>
       <section className="card">
         <h3 className="card-h">site</h3>

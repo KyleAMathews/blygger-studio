@@ -152,6 +152,7 @@ api.openapi(routes.updateItem, async (c) => {
   if (body.kind !== undefined) { assignments.push("kind = ?"); values.push(body.kind); }
   if ("stub_of" in body) { assignments.push("stub_of = ?"); values.push(stubJson); }
   if (body.responses !== undefined) { assignments.push("responses_override = ?"); values.push(body.responses === "default" ? null : Number(body.responses === "show")); }
+  if (body.highlight !== undefined) { assignments.push("highlight_override = ?"); values.push(body.highlight === "default" ? null : Number(body.highlight === "show")); }
   if (changesDraft) { assignments.push("dirty = 1", "updated = CASE WHEN version = 0 THEN ? ELSE updated END"); values.push(nowIso()); }
   if (!assignments.length) return c.json(itemResource(item));
   // Write only requested fields. Guard the state used for validation, so a
@@ -315,7 +316,7 @@ api.openapi(routes.generateItem, async (c) => {
 
   const result = await runGenerateScope(c.env, item, body.scope);
   if (!result.ok) return c.json(result.body, result.status as 400 | 404 | 502);
-  return c.json({ text: result.text, model: result.model });
+  return c.json({ text: result.text, model: result.model, content_md: result.content_md });
 });
 
 api.openapi(routes.withdrawItem, async (c) => {
@@ -464,7 +465,7 @@ api.openapi(routes.updateSettings, async (c) => {
   for (const key of SETTINGS_KEYS) {
     if (typeof body[key] === "string") patch[key] = body[key] as string;
   }
-  for (const key of ["accept_mentions", "update_check", "show_responses_default", "auto_change_notes", "update_notice_ack"] as const) {
+  for (const key of ["accept_mentions", "update_check", "show_responses_default", "highlight_generated_default", "auto_change_notes", "update_notice_ack"] as const) {
     if (typeof body[key] === "boolean") patch[key] = body[key] ? "on" : "off";
   }
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return c.json({ error: `unknown timezone: ${patch.timezone}` }, 400);

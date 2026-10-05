@@ -36,9 +36,10 @@ ownerApi.use("*", async (c, next) => {
     }
     const required = operation ? operationScopes(operation[0]) : ['owner:read'];
     // Changing response display edits the public page immediately, without publish.
+    // Changing response display or generated highlighting does the same.
     if (operation?.[0] === 'updateItem') {
-      const body = await c.req.raw.clone().json().catch(() => ({})) as { responses?: unknown };
-      if (body.responses !== undefined) required.push('owner:publish');
+      const body = await c.req.raw.clone().json().catch(() => ({})) as { responses?: unknown; highlight?: unknown };
+      if (body.responses !== undefined || body.highlight !== undefined) required.push('owner:publish');
     }
     // The avatar shows on every public page: choosing it publishes its bytes.
     if (operation?.[0] === 'updateSettings') {

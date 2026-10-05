@@ -34,8 +34,8 @@ test('reading preserves retained snapshots and restricts legacy actions', async 
   await expect(menu.getByRole('button', { name: 'history' })).toHaveCount(0);
   await expect(menu).toContainText('https://legacy.example/post');
   await page.keyboard.press('Escape');
-  // The timeline leads back to the sources list, where the source is listed.
-  await page.getByRole('link', { name: '← sources', exact: true }).click();
+  // The Sources tab leads to the sources list, where the source is listed.
+  await page.getByRole('group', { name: 'reading view' }).getByRole('button', { name: 'Sources', exact: true }).click();
   await expect(page.locator('.feed[data-id="parity-rss"]')).toContainText('Legacy source');
 });
 test('hopper uses stored HTML instead of re-previewing remote markdown', async ({ page }) => {
@@ -268,7 +268,7 @@ test('mentions group verified pointers, retain hidden rows and show source guida
 test('subscription changes roll back on failure and stay durable on success', async ({ page }) => {
   // /subs is gone: each source's inspector sheet in reading manages it.
   await login(page); await page.goto('/studio/subs');
-  await expect(page).toHaveURL(/\/studio\/reading$/);
+  await expect(page).toHaveURL(/\/studio\/reading\?view=sources$/);
   const row = page.locator('.feed[data-id="parity-native"]');
   const inspector = page.getByRole('dialog', { name: 'Native source' });
   const inspect = async () => { await row.getByRole('button', { name: 'about Native source', exact: true }).click(); await expect(inspector).toBeVisible(); };

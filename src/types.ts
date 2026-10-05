@@ -74,6 +74,8 @@ export interface ItemRow {
    * about should not.
    */
   responses_override: number | null;
+  /** Highlight generated spans on public pages: NULL inherits `highlight_generated_default` (migration 0020). */
+  highlight_override: number | null;
   /**
    * Working-copy stub citation (migration 0007, v0.3-plan §2.2) — JSON `StubOf`
    * or null. Threads only. Carried onto the published version by publish(),
@@ -438,6 +440,7 @@ export interface Settings {
    * from per-item to once — it does not reverse it.
    */
   show_responses_default: boolean;
+  highlight_generated_default: boolean;
   /**
    * Draft a changelog note with the configured model whenever a new version is
    * published with an empty note (#40). The draft is shown for editing before

@@ -18,15 +18,15 @@ not have its own repo until session 26.
 
 ---
 
-## 0.27.0 — 2026-10-04
+## 0.28.0 — 2026-10-05
 
-- Bound owner/per-grant REST/MCP work, delegated aggregate work, AI calls with an owner reserve, anonymous client storage and request bodies (migration 0021). Reclaim abandoned unapproved registrations after a configurable grace.
+- Bound owner/per-grant REST/MCP work, delegated aggregate work, AI calls with an owner reserve, anonymous client storage and request bodies (migration 0022). Reclaim abandoned unapproved registrations after a configurable grace.
 - Keep unused draft uploads private with authenticated no-store previews; published media keeps serving the same bytes through later versions and withdrawal (§5.4). Choosing the avatar needs `owner:publish`. Stub and fork citation links accept only http(s), on write and on render; author links accept http(s) or mailto, and `site_url` only http(s), with stored rows filtered on read. Sanitize remote transclusion bakes and legacy displays, and validate/escape attribution links.
 - Check revocation during refresh-token introspection and atomic grant recording. Show full native callback destinations on consent and suppress remote fetch exception text.
 - Restrict outbound fetches to public destinations unless explicitly enabled for LAN use; cap streamed bodies and recheck redirects. DNS rebinding remains a deployment gap.
 - Sanitize imported editorial HTML at private/public rendering boundaries, prevent stale draft deletion after publication, and patch quadratic Markdown linkification.
 
-**Migrations: 0020_oauth.sql, 0021_security_budgets.sql.** Adds OAuth provider tables, a shared rate limiter,
+**Migrations: 0021_oauth.sql, 0022_security_budgets.sql.** Apply after 0.27.0's 0020. Adds OAuth provider tables, a shared rate limiter,
 client authorizations, and revocation state. Enable `nodejs_compat` before deployment.
 
 - Upgrade compatibility: existing owner login cookies are invalidated once. Log in
@@ -44,6 +44,125 @@ client authorizations, and revocation state. Enable `nodejs_compat` before deplo
 - Mounted discovery is available. Host-root `.well-known` routes remain deferred.
 - Security oracles include source-linked laws, model checks, browser probes, a
   controlled two-isolate race, and mutations that verify the enforcement checks.
+
+---
+
+## 0.27.2 — 2026-10-05
+
+**Migrations: none.** `/api` change, additive: `POST /api/items/{id}/generate`
+also returns `content_md`, the whole working copy with the scope's new output
+spliced in, as saved.
+
+**Generating a TK scope no longer throws away the rest of the draft.** Since
+0.10.0, pressing *generate* in the editor replaced the whole draft with just
+the scope's output. The server had spliced and saved the full text correctly,
+but the editor then autosaved its truncated copy over it. The editor now uses
+the returned `content_md`. The studio keeps no history of draft saves, so text
+lost this way can come back only from a published version: if the post had
+been published before the generate, *discard changes* (or restoring from its
+history) brings back the published text. An unpublished draft's surrounding
+text is gone.
+
+---
+
+## 0.27.1 — 2026-10-05
+
+**Migrations: none.** The same program as 0.27.0, released.
+
+The release workflow had failed on every tag since 0.21.2, so 0.21.2 through
+0.27.0 have no release downloads. The cause was two problems in the test
+plumbing, not in what ships. A browser test wrote a screenshot to a path that
+exists only on the maintainer's machine. And since 0.26.0, the mutation check
+built its temporary tree without `build/models.json`. Both are fixed. Operators
+upgrading by tag should take this release; the notes for 0.21.2 to 0.27.0
+below still describe what changed.
+
+---
+
+## 0.27.0 — 2026-10-05
+
+**Migrations: 0020** (`items.highlight_override`, nullable). Apply it before
+deploying. `/api` changes, both additive: settings gain
+`highlight_generated_default`, and items gain `highlight`
+(`default` | `show` | `hide`) on read and on `PATCH /api/items/{id}`.
+
+**Highlight generated portions on public pages.**
+
+- **Setting.** Settings → theme has a checkbox: *Highlight generated portions
+  by default*. It is off by default, so upgrading changes nothing anyone sees.
+- **Look.** When it's on, text written by `[TK]` generation (`blyg-tk-gen`)
+  shows in a lightly tinted box with a thin outline. A generated block wears a
+  small robot badge on its bottom-left edge, following Brady Dale's convention
+  on bradydale.com, and an inline span gets the robot before its first word.
+- **Themes.** Every theme names its own tint and outline colour (`genBg`,
+  `genRule`), and the automatic light and dark defaults have their own pair.
+- **Per post.** A post can override the default from its editor's TK card:
+  default, on or off.
+- **Presentation only.** The default lives in `style.css`, and a post's own
+  choice is a `gen-on` or `gen-off` class on its `<article>`. `content_html`,
+  the item document and the feed are unchanged.
+
+**The robot says what the author disclosed.** Hover over the robot badge, or
+tap or click it, and a small box opens. It says the author marked the text as
+machine-generated, and that this is self-reported and not verified. Under that
+it lists the model or models, when the text was generated, and how many of the
+blyg's own items it drew on, all taken from the version's `generated[]`.
+
+- **Version-level details.** The details cover the whole version, as §5.7
+  does, so a post with several generated passages says the details cover all
+  of them.
+- **Quoted text.** A generated span inside a quoted item points to that item
+  instead.
+- **Version carousel.** It carries each version's disclosure along with its
+  text, so the box stays accurate after a swap.
+- **Mechanics.** The box is one fixed-position element per page, so a feed
+  card can't clip it. Escape or a click elsewhere closes it. With scripts off,
+  the robot is still drawn, it just doesn't open anything.
+
+---
+
+## 0.26.1 — 2026-10-04
+
+**Migrations: none.** `POST /api/subscriptions` with `confirm: true` now replies
+before the initial backfill finishes, so the subscription it returns has not
+been polled yet.
+
+**Subscribing no longer hangs on confirm.**
+
+- Confirming a subscription used to copy the source's whole archive, one item at
+  a time, before replying. On a large blyg the button sat there for a long time
+  and gave no sign that anything was happening. The archive is now copied in the
+  background, and its items show up in reading as they arrive. If the copy is
+  cut short, the next scheduled poll (within 15 minutes) finishes it.
+- The sheet's buttons say `checking…` and `subscribing…` while they wait, and
+  the sheet closes as soon as the subscription exists.
+
+**Reading opens on the feed.** Feed and Sources are peer tabs at the top of
+reading, where `← sources` used to be: `/reading` is now every source's
+timeline, and the sources list moved to `/reading?view=sources` (`/subs` still
+redirects there). Every reading screen has the same head under every lens:
+the tabs, a title with its count, its own actions and ＋ subscribe. Before,
+Background and Smart Feed dropped the back link and the count, so the page
+jumped when you switched to them, and ＋ was only on the sources list.
+
+**Subscribing twice to the same source is refused.** A second subscription
+imported every item again, and a stub of any of those items then failed with
+"ambiguous id imported from multiple sources". `POST /api/subscriptions` now
+answers 409 `already subscribed to …` on both the first step and the confirm
+step, matching on the resolved origin or feed URL (so a blyg's `feed.xml` added
+as plain RSS counts too). This does not remove duplicates a node already has:
+delete the extra one from its source inspector.
+
+**The Smart Feed lens says "Coming soon."** It is a placeholder, and it read
+as if it worked.
+
+**Every reading card shows where it lives.** A muted citation line under the
+body (`↗ host/path`, shortened the way the ⋯ sheet shows it) opens the entry's
+source in a new tab. It appears on every card that has a URL, in every
+timeline and on the hopper page. Before this, the link was only in the ⋯ sheet,
+or on the title when the entry opened with a heading.
+
+---
 
 ## 0.26.0 — 2026-10-04
 

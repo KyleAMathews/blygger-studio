@@ -187,6 +187,14 @@
               "hide"
             ]
           },
+          "highlight": {
+            "type": "string",
+            "enum": [
+              "default",
+              "show",
+              "hide"
+            ]
+          },
           "provenance": {
             "type": "array",
             "items": {
@@ -257,6 +265,7 @@
           "content_md",
           "dirty",
           "responses",
+          "highlight",
           "provenance",
           "stub_of",
           "forked_from",
@@ -417,6 +426,9 @@
           "show_responses_default": {
             "type": "boolean"
           },
+          "highlight_generated_default": {
+            "type": "boolean"
+          },
           "auto_change_notes": {
             "type": "boolean"
           },
@@ -445,6 +457,7 @@
           "accept_mentions",
           "update_check",
           "show_responses_default",
+          "highlight_generated_default",
           "auto_change_notes",
           "update_feed_url",
           "update_notice_ack"
@@ -2653,6 +2666,14 @@
                       "show",
                       "hide"
                     ]
+                  },
+                  "highlight": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "show",
+                      "hide"
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -3043,6 +3064,14 @@
                         "hide"
                       ]
                     },
+                    "highlight": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "show",
+                        "hide"
+                      ]
+                    },
                     "provenance": {
                       "type": "array",
                       "items": {
@@ -3142,6 +3171,7 @@
                     "content_md",
                     "dirty",
                     "responses",
+                    "highlight",
                     "provenance",
                     "stub_of",
                     "forked_from",
@@ -3710,11 +3740,15 @@
                     },
                     "model": {
                       "type": "string"
+                    },
+                    "content_md": {
+                      "type": "string"
                     }
                   },
                   "required": [
                     "text",
-                    "model"
+                    "model",
+                    "content_md"
                   ]
                 }
               }
@@ -4877,6 +4911,9 @@
                     "type": "boolean"
                   },
                   "show_responses_default": {
+                    "type": "boolean"
+                  },
+                  "highlight_generated_default": {
                     "type": "boolean"
                   },
                   "auto_change_notes": {

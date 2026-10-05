@@ -1579,7 +1579,10 @@ function Editor({ item }: { item: Detail }) {
         }),
       ),
     );
-    if (draft.current!.revision === revision) edit(result.text);
+    // `text` is the scope's output alone; the draft is the whole document with
+    // it spliced in, which the server has already saved. Replacing the draft
+    // with `text` threw away everything around the scope (0.10.0–0.27.1).
+    if (draft.current!.revision === revision) edit(result.content_md);
   };
   const pin = async (version: number) => {
     if (
@@ -1931,6 +1934,49 @@ function Editor({ item }: { item: Detail }) {
               </Button>
             </div>
           ) : null}
+          <div className="field tk-highlight">
+            <span id="tk-highlight-label">
+              Highlight generated portions on the public page:
+            </span>
+            <div
+              className="segmented"
+              role="group"
+              aria-labelledby="tk-highlight-label"
+            >
+              {(
+                [
+                  [
+                    'default',
+                    `default (${settings?.highlight_generated_default ? 'on' : 'off'})`,
+                  ],
+                  ['show', 'on'],
+                  ['hide', 'off'],
+                ] as const
+              ).map(([value, label]) => (
+                <Button
+                  key={value}
+                  className={item.highlight === value ? 'seg is-active' : 'seg'}
+                  aria-pressed={item.highlight === value}
+                  disabled={action.busy}
+                  onClick={() =>
+                    item.highlight === value
+                      ? undefined
+                      : operation(() =>
+                          unwrap(
+                            BlyggerApi.updateItem({
+                              client,
+                              path: { id: item.id },
+                              body: { highlight: value },
+                            }),
+                          ),
+                        )
+                  }
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </div>
         </Card>
         <Card
           id="attachments"

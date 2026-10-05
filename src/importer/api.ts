@@ -14,6 +14,7 @@ import {
   addHopperItem,
   createHopper,
   createSubscription,
+  findSubscription,
   deleteHopper,
   deleteSignal,
   deleteSubscription,
@@ -38,7 +39,9 @@ function titleFromUrl(url: string): string {
  * Two-phase add-by-URL (§2.1/§4.2): without `confirm`, resolves and returns
  * the identity for the owner to confirm (surfacing any site-vs-origin
  * mismatch); with `confirm: true`, actually creates the subscription and
- * runs an initial backfill so the first read isn't empty.
+ * starts an initial backfill so the first read isn't empty. The backfill runs
+ * after the response: it fetches the whole archive item by item, which held
+ * the confirm button for many seconds on a large blyg.
  */
 importerApi.openapi(routes.createSubscription, async (c) => {
   const body = await readJson<{ url: string; confirm?: boolean; title?: string }>(c);
@@ -48,6 +51,16 @@ importerApi.openapi(routes.createSubscription, async (c) => {
   if (result.kind === "failure") {
     return c.json({ error: "could not resolve this URL to a blyg or a feed", tried: result.tried }, 422);
   }
+
+  // One subscription per source: a second one imports every item twice, and
+  // then any reference to those ids is ambiguous between the two (stub refuses).
+  const feedUrl =
+    result.kind === "blyg"
+      ? typeof result.manifest.feed === "string" ? new URL(result.manifest.feed, result.origin).toString() : `${result.origin}feed.xml`
+      : result.feedUrl;
+  const identity = result.kind === "blyg" ? result.origin : result.feedUrl;
+  const existing = await findSubscription(c.env.DB, identity, feedUrl);
+  if (existing) return c.json({ error: `already subscribed to ${existing.title || existing.origin}` }, 409);
 
   if (!body.confirm) {
     if (result.kind === "blyg") {
@@ -68,7 +81,7 @@ importerApi.openapi(routes.createSubscription, async (c) => {
       ? await createSubscription(c.env.DB, {
           kind: "blyg",
           origin: result.origin,
-          feedUrl: typeof result.manifest.feed === "string" ? new URL(result.manifest.feed, result.origin).toString() : `${result.origin}feed.xml`,
+          feedUrl,
           title: title ?? (typeof result.manifest.title === "string" ? result.manifest.title : titleFromUrl(result.origin)),
         })
       : await createSubscription(c.env.DB, {
@@ -81,10 +94,12 @@ importerApi.openapi(routes.createSubscription, async (c) => {
   // archive on first subscribe) — a fresh subscription's null
   // last_index_sync_at makes the very first pollSubscription() call reconcile
   // unconditionally, which also bootstraps newest_guid/etag for future gap
-  // detection (§3.2) in one pass, for both kinds uniformly.
-  await pollSubscription(c.env.DB, sub, platformFetchFor(c.env));
+  // detection (§3.2) in one pass, for both kinds uniformly. If waitUntil cuts
+  // it short, the null last_poll_at and last_index_sync_at make the next
+  // scheduled poll due and reconcile again, so the backfill completes there.
+  c.executionCtx.waitUntil(pollSubscription(c.env.DB, sub, platformFetchFor(c.env)).catch(() => {}));
   c.header("Location", `/api/subscriptions/${sub.id}`);
-  return c.json(subscriptionResource((await getSubscription(c.env.DB, sub.id))!), 201);
+  return c.json(subscriptionResource(sub), 201);
 });
 
 importerApi.openapi(routes.updateSubscription, async (c) => {

@@ -146,6 +146,8 @@ describe('MCP contract oracles', () => {
     const responseEdit = await rawMcp(d, credential.access_token, 'tools/call', { name: 'updateItem', arguments: { path: { id: 'not-created' }, body: { responses: [] } } });
     expect(responseEdit.status).toBe(403);
     expect(responseEdit.headers.get('www-authenticate')).toContain('scope="owner:draft owner:publish"');
+    const highlightEdit = await rawMcp(d, credential.access_token, 'tools/call', { name: 'updateItem', arguments: { path: { id: 'not-created' }, body: { highlight: 'hide' } } });
+    expect(highlightEdit.status, 'generated highlighting is a public edit').toBe(403);
     const read = await d.manual(['owner:read']);
     const allowed = await rawMcp(d, read.access_token, 'tools/call', { name: 'getSettings', arguments: {} });
     expect(allowed.status).toBe(200);

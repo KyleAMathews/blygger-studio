@@ -66,9 +66,9 @@ export async function serveAuthorizedMcp(request: Request, env: Env, ctx: Contex
       }
       server.registerTool(name, { description, inputSchema, annotations, scopeChallenge: context => {
         const required = [...scopes];
-        const args = context.request.params?.arguments as { body?: { responses?: unknown; avatar_media_id?: unknown } } | undefined;
+        const args = context.request.params?.arguments as { body?: { responses?: unknown; highlight?: unknown; avatar_media_id?: unknown } } | undefined;
         // Editing response display changes the public page, just as in REST.
-        if (name === 'updateItem' && args?.body?.responses !== undefined) required.push('owner:publish');
+        if (name === 'updateItem' && (args?.body?.responses !== undefined || args?.body?.highlight !== undefined)) required.push('owner:publish');
         if (name === 'updateSettings' && args?.body?.avatar_media_id !== undefined) required.push('owner:publish');
         return requireScopes(...required as [string, ...string[]])(context);
       } }, async input => {
