@@ -538,7 +538,7 @@ branch's security rounds:
 | L2a At most once | Under any fault schedule, a save operation yields at most one item and a publish operation at most one new version | §5, §9; [IETF Idempotency-Key header](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) |
 | L2b Eventual completion | If a valid request can complete before its key expires on a node that advertises keys, the operation reaches `done`; otherwise it ends in `needs-reconciliation`, `needs-review` or `discarded`, never silently | §5.4 |
 | L2c Frozen publish | A publish makes public exactly the frozen payload, or nothing | §5.2, §9 |
-| L3 No unsafe retry | No request is re-sent after dispatch unless the node advertises keys, the grant is unchanged and the key is within its deadline | §5.4 |
+| L3 No unsafe retry | After an **uncertain** outcome (no response, timeout or 5xx), a request is re-sent only if the node advertises keys, the grant is unchanged and the key is within its deadline. A response that proves no work ran (401 and 429 from the `/api` middleware before any handler, `src/owner-api.ts:27,57`; 409 "operation in progress") may be retried on any node | §5.4 |
 | L1b No lost or duplicated work | A save response never removes a capture or edit made after the frozen revision; recovery never appends a capture twice | §4.1, §5.1 |
 | L4 Refresh safety | At most one refresh is in flight; a stored refresh token is reused only by the single post-restart attempt in §3.4 | [RFC 9700 §4.14](https://www.rfc-editor.org/rfc/rfc9700#section-4.14); `src/oauth-routes.ts:162` |
 | L5 Scope fit | The panel offers only actions the granted scope allows, and every request it sends is one that scope permits | §3.3; decision #52 invariant 3 |
