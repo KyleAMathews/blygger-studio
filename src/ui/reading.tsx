@@ -1209,6 +1209,20 @@ function ReadingHead({
   children?: ReactNode;
 }) {
   const [adding, setAdding] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
+  // Polls run in the background on the server; refresh twice as they land.
+  const resyncAll = async () => {
+    setResyncing(true);
+    try {
+      const { polling } = await unwrap(BlyggerApi.pollAllSubscriptions({ client }));
+      toast(`Checking ${polling} feed${polling === 1 ? '' : 's'}…`);
+      for (const wait of [6000, 20000]) setTimeout(() => void changed('reading', 'subscriptions'), wait);
+    } catch {
+      toast('Could not start the resync. Try again in a moment.');
+    } finally {
+      setTimeout(() => setResyncing(false), 6000);
+    }
+  };
   return (
     <>
       <ReadingTabs active={active} />
@@ -1219,6 +1233,15 @@ function ReadingHead({
         </h2>
         <div className="view-actions">
           {children}
+          <Button
+            className="icon-btn"
+            aria-label="resync all feeds"
+            title="resync all feeds"
+            disabled={resyncing}
+            onClick={() => void resyncAll()}
+          >
+            ↻
+          </Button>
           <Button
             className="icon-btn"
             aria-label="subscribe"

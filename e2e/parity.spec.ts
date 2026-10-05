@@ -155,10 +155,10 @@ test('palette pages all candidates and applies bracket grammar in each composer'
   }, token);
   await page.reload();
   await page.locator('#composer-text').fill(`[[${token}`);
-  await expect(page.getByRole('option')).toHaveCount(20);
+  await expect(page.getByRole('listbox', { name: 'items' }).getByRole('option')).toHaveCount(20);
   await page.getByRole('button', { name: 'load more (20 of 23)' }).click();
-  await expect(page.getByRole('option')).toHaveCount(23);
-  await page.getByRole('option').last().click();
+  await expect(page.getByRole('listbox', { name: 'items' }).getByRole('option')).toHaveCount(23);
+  await page.getByRole('listbox', { name: 'items' }).getByRole('option').last().click();
   await expect(page.locator('#composer-text')).toHaveValue(/^\[\[[0-9a-z]{26}\]\]$/);
   await page.locator('#composer-text').fill(`![[${token}`);
   await expect(page.getByRole('listbox')).toHaveCount(0);
@@ -166,8 +166,8 @@ test('palette pages all candidates and applies bracket grammar in each composer'
   await page.getByRole('radio', { name: 'thread', exact: true }).click();
   await page.locator('#composer-full').click();
   await page.locator('#md-input').fill(`![[${token}`);
-  await expect(page.getByRole('option')).toHaveCount(20);
-  await page.getByRole('option').first().click();
+  await expect(page.getByRole('listbox', { name: 'items' }).getByRole('option')).toHaveCount(20);
+  await page.getByRole('listbox', { name: 'items' }).getByRole('option').first().click();
   await expect(page.locator('#md-input')).toHaveValue(/^!\[\[[0-9a-z]{26}\]\]$/);
   await expect(page.locator('#palette-search')).toHaveCount(0);
 });
@@ -376,17 +376,17 @@ test('palette keeps results on failure and rejects late results for an old query
     }
   });
   await page.locator('#composer-text').fill('[[oldquery');
-  await expect(page.getByRole('option')).toHaveCount(20);
+  await expect(page.getByRole('listbox', { name: 'items' }).getByRole('option')).toHaveCount(20);
   await page.getByRole('button', { name: 'load more (20 of 21)' }).click();
   await expect(page.getByRole('alert')).toContainText('search unavailable');
-  await expect(page.getByRole('option')).toHaveCount(20);
+  await expect(page.getByRole('listbox', { name: 'items' }).getByRole('option')).toHaveCount(20);
   reject = false;
   await page.getByRole('button', { name: 'retry search', exact: true }).click();
   await started;
   await page.locator('#composer-text').fill('[[newquery');
-  await expect(page.getByRole('option')).toHaveText(['New result only']);
+  await expect(page.getByRole('listbox', { name: 'items' }).getByRole('option').locator('.picker-excerpt')).toHaveText(['New result only']);
   release();
-  await expect(page.getByRole('option')).toHaveText(['New result only']);
+  await expect(page.getByRole('listbox', { name: 'items' }).getByRole('option').locator('.picker-excerpt')).toHaveText(['New result only']);
 });
 
 test('whole-fragment TK wrapping keeps text and publication warnings remain visible', async ({ page }) => {

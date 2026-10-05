@@ -27,6 +27,7 @@ function sub(overrides: Partial<SubscriptionRow>): SubscriptionRow {
     in_blogroll: 0,
     flags: "[]",
     created: "2026-08-01T00:00:00Z",
+    title_auto: 1,
     ...overrides,
   };
 }

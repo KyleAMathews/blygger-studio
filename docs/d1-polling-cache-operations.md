@@ -1,6 +1,6 @@
 # Deploying trigger revisions and feed caching
 
-Apply migration `0023_change_state.sql` before deploying the new Worker. It
+Apply migration `0024_change_state.sql` before deploying the new Worker. It
 initializes a fixed revision row and 27 triggers over the existing content
 tables. Relevant source writes and counter changes commit or roll back together.
 Missing state and unsafe counter overflow reject writes rather than silently
@@ -29,7 +29,7 @@ write totals separately; these changes do not establish a free-plan capacity.
 ## Database restores
 
 Pause traffic before restoring/replacing D1. Apply any missing migrations if
-the backup predates `0023_change_state.sql`. Then run:
+the backup predates `0024_change_state.sql`. Then run:
 
 ```sh
 npx wrangler d1 execute DB --remote --file scripts/reset-change-epoch.sql

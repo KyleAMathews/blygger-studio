@@ -113,6 +113,7 @@ export type Settings = {
     show_responses_default: boolean;
     highlight_generated_default: boolean;
     auto_change_notes: boolean;
+    picker_typing: 'auto' | 'editor' | 'panel';
     update_feed_url: string;
     update_notice_ack: boolean;
 };
@@ -128,6 +129,7 @@ export type Subscription = {
     fail_count: number;
     last_index_sync_at: string | null;
     created: string;
+    title_follows_source: boolean;
     in_blogroll: boolean;
     flags: Array<{
         type: string;
@@ -1756,6 +1758,7 @@ export type UpdateSettingsData = {
         show_responses_default?: boolean;
         highlight_generated_default?: boolean;
         auto_change_notes?: boolean;
+        picker_typing?: 'auto' | 'editor' | 'panel';
         update_feed_url?: string;
         update_notice_ack?: boolean;
     };
@@ -2137,7 +2140,10 @@ export type GetSubscriptionResponse = GetSubscriptionResponses[keyof GetSubscrip
 export type UpdateSubscriptionData = {
     body: {
         in_blogroll?: boolean;
-        title?: string;
+        /**
+         * A name of your own; null hands the name back to the source, refreshed while polling.
+         */
+        title?: string | null;
         paused?: boolean;
     };
     path: {
@@ -2208,6 +2214,77 @@ export type UpdateSubscriptionResponses = {
 };
 
 export type UpdateSubscriptionResponse = UpdateSubscriptionResponses[keyof UpdateSubscriptionResponses];
+
+export type PollAllSubscriptionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/subscriptions/poll';
+};
+
+export type PollAllSubscriptionsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type PollAllSubscriptionsError = PollAllSubscriptionsErrors[keyof PollAllSubscriptionsErrors];
+
+export type PollAllSubscriptionsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        polling: number;
+    };
+};
+
+export type PollAllSubscriptionsResponse = PollAllSubscriptionsResponses[keyof PollAllSubscriptionsResponses];
 
 export type ResyncSubscriptionData = {
     body?: never;
@@ -3511,6 +3588,9 @@ export type SearchData = {
         offset?: number | null;
         limit?: number;
         q?: string;
+        source?: 'all' | 'mine' | 'imported';
+        sub?: string;
+        sort?: 'newest' | 'oldest';
     };
     url: '/api/search';
 };
@@ -3579,6 +3659,10 @@ export type SearchResponses = {
             version: number;
             updated: string;
             badge: string;
+            source: 'mine' | 'imported';
+            kind: 'fragment' | 'thread';
+            subscription_id: string | null;
+            source_title: string | null;
         }>;
         total: number;
         offset: number;

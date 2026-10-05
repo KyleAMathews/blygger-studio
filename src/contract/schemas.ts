@@ -61,6 +61,7 @@ export const SubscriptionRowSchema = z.object({
   in_blogroll: z.number(),
   flags: z.string(),
   created: z.string(),
+  title_auto: z.number(),
 }).openapi("SubscriptionRow");
 
 export const ImportedItemRowSchema = z.object({
@@ -164,6 +165,7 @@ export const SettingsSchema = z.object({
   show_responses_default: z.boolean(),
   highlight_generated_default: z.boolean(),
   auto_change_notes: z.boolean(),
+  picker_typing: z.enum(["auto", "editor", "panel"]),
   update_feed_url: z.string(),
   update_notice_ack: z.boolean(),
 }).openapi("Settings");

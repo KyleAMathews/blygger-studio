@@ -32,7 +32,7 @@ import {
   useSettings,
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
-import { paletteTrigger, paletteInsert } from '../palette.ts';
+import { BracketPicker } from './picker.tsx';
 import { Draft } from './draft.ts';
 import { stripStaleUploads, uploadToken } from './upload-tokens.ts';
 import { FRAGMENT_MAX_CHARS as MAX } from '../client.ts';
@@ -939,7 +939,8 @@ export function Compose() {
             Full Editor →
           </Button>
           <span className={over ? 'counter over' : 'counter'} id="composer-count">
-            {text.length} / {MAX}
+            {/* Only fragments have a length limit; a thread shows its count alone. */}
+            {kind === 'thread' ? `${text.length} chars` : `${text.length} / ${MAX}`}
           </span>
         </ToolRow>
         {over ? (
@@ -1097,7 +1098,29 @@ function ItemRow({
     parseScopes(withoutDirectives).scopes,
   );
   const html = renderMarkdown(stripped.text);
-  const preview = previewFromHtml(html);
+  const own = previewFromHtml(html);
+  // An item that only quotes or links has no prose of its own, and read
+  // "(empty draft)" here. Ask the preview endpoint once for what the reader
+  // and public pages show (quotes baked, links resolved); until it answers,
+  // say what the item does.
+  const LINK = /(?<!!)\[\[[^\]\n]+\]\]/g;
+  const links = (item.content_md.match(LINK) ?? []).length;
+  // Bare [[id]] tokens are not prose: without them, is anything left?
+  const prose = links ? previewFromHtml(renderMarkdown(stripped.text.replace(LINK, ''))) : own;
+  const ownEmpty = !prose.title && !prose.body;
+  const [resolved, setResolved] = useState<ReturnType<typeof previewFromHtml> | null>(null);
+  useEffect(() => {
+    if (!ownEmpty || !(count || links)) return;
+    let live = true;
+    unwrap(BlyggerApi.preview({ client, body: { content_md: item.content_md, item_id: item.id, kind: item.kind === 'thread' ? 'thread' : 'fragment' } }))
+      .then((r) => live && setResolved(previewFromHtml(r.html)))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [ownEmpty, item.content_md]);
+  const preview = ownEmpty && resolved && (resolved.title || resolved.body) ? resolved : own;
+  const doesOnly = count ? `Only quotes ${count} item${count === 1 ? '' : 's'}` : links ? `Only links ${links} item${links === 1 ? '' : 's'}` : null;
   const mutate = (fn: () => Promise<unknown>) =>
     void action.run(async () => {
       if (draft.current!.dirty && !(await save())) return;
@@ -1136,7 +1159,7 @@ function ItemRow({
         <span className={`dot ${dot}`} title={item.status} />
         <span className="item-main">
           <span className={preview.title || preview.body ? 'item-title' : 'item-title empty'}>
-            {preview.title || preview.body || '(empty draft)'}
+            {preview.title || preview.body || doesOnly || '(empty draft)'}
           </span>
           {preview.title && preview.body ? (
             <span className="item-excerpt">{preview.body}</span>
@@ -1273,7 +1296,13 @@ function ItemRow({
                       danger: true,
                     })
                   )
-                    mutate(() => items.delete(item.id).isPersisted.promise);
+                    // Not mutate(): its follow-up refetch of this item 404s on
+                    // the draft just deleted and showed "not found" as an error.
+                    void action.run(async () => {
+                      await items.delete(item.id).isPersisted.promise;
+                      await changed('items', 'reading');
+                      toast('Draft discarded', { tone: 'ok' });
+                    });
                 }}
               >
                 discard
@@ -1550,6 +1579,7 @@ function Editor({ item }: { item: Detail }) {
       await changed('items');
       leaving.current = true;
       await navigate({ to: '/' });
+      toast('Draft discarded', { tone: 'ok' });
     } finally {
       setReplacing(false);
     }
@@ -2301,176 +2331,3 @@ const getPreview = (
       signal,
     }),
   );
-function BracketPicker({
-  input,
-  text,
-  change,
-  allowTransclude = false,
-}: {
-  input: React.RefObject<HTMLTextAreaElement | null>;
-  text: string;
-  change: (text: string) => void;
-  allowTransclude?: boolean;
-}) {
-  const [hits, setHits] = useState<
-    {
-      id: string;
-      excerpt: string;
-    }[]
-  >([]);
-  const [selected, setSelected] = useState(0);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<unknown>();
-  const request = useRef<AbortController | undefined>(undefined);
-  const [caret, setCaret] = useState(text.length);
-  useEffect(() => {
-    const element = input.current;
-    const update = () => setCaret(element?.selectionStart ?? text.length);
-    element?.addEventListener('selectionchange', update);
-    element?.addEventListener('keyup', update);
-    element?.addEventListener('click', update);
-    update();
-    return () => {
-      element?.removeEventListener('selectionchange', update);
-      element?.removeEventListener('keyup', update);
-      element?.removeEventListener('click', update);
-    };
-  }, [input, text]);
-  const trigger = paletteTrigger(text, caret, allowTransclude);
-  const query = trigger?.query;
-  const loadPage = async (
-    offset: number,
-    controller: AbortController,
-    query: string,
-  ) => {
-    if (controller.signal.aborted) return;
-    setLoading(true);
-    setError(undefined);
-    try {
-      const result = await unwrap(
-        BlyggerApi.search({
-          client,
-          query: { q: query, offset, limit: 20 },
-          signal: controller.signal,
-        }),
-      );
-      if (controller.signal.aborted || request.current !== controller) return;
-      setHits((current) =>
-        offset === 0
-          ? result.items
-          : [
-              ...current,
-              ...result.items.filter(
-                (item) => !current.some((hit) => hit.id === item.id),
-              ),
-            ],
-      );
-      setTotal(result.total);
-    } catch (failure) {
-      if (!controller.signal.aborted && request.current === controller)
-        setError(failure);
-    } finally {
-      if (request.current === controller) setLoading(false);
-    }
-  };
-  useEffect(() => {
-    setSelected(0);
-    setHits([]);
-    setTotal(0);
-    setError(undefined);
-    setLoading(false);
-    if (query === undefined) return;
-    const controller = new AbortController();
-    request.current = controller;
-    const timer = setTimeout(() => void loadPage(0, controller, query), 150);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-      if (request.current === controller) request.current = undefined;
-    };
-  }, [query]);
-  const loadMore = () => {
-    const controller = request.current;
-    if (controller && query !== undefined)
-      void loadPage(hits.length, controller, query);
-  };
-  const pick = (id: string) => {
-    if (!trigger) return;
-    const next = paletteInsert(text, caret, trigger, id);
-    change(next.text);
-    request.current?.abort();
-    setHits([]);
-    requestAnimationFrame(() => {
-      input.current?.focus();
-      input.current?.setSelectionRange(next.caret, next.caret);
-    });
-  };
-  useEffect(() => {
-    const element = input.current;
-    if (!element) return;
-    const key = (event: KeyboardEvent) => {
-      if (!hits.length) return;
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        setSelected((i) => Math.min(i + 1, hits.length - 1));
-      }
-      if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        setSelected((i) => Math.max(i - 1, 0));
-      }
-      if (event.key === 'Escape') {
-        request.current?.abort();
-        setHits([]);
-        setError(undefined);
-      }
-      if (event.key === 'Enter' && hits[selected]) {
-        event.preventDefault();
-        pick(hits[selected].id);
-      }
-    };
-    element.addEventListener('keydown', key);
-    return () => element.removeEventListener('keydown', key);
-  });
-  return trigger && (hits.length || error) ? (
-    <div className="palette">
-      <Failure error={error} />
-      <ul role="listbox" aria-label="items">
-        {hits.map((hit, i) => (
-          <li
-            role="option"
-            aria-selected={i === selected}
-            className={i === selected ? 'sel' : ''}
-            key={hit.id}
-            onMouseDown={(event) => {
-              event.preventDefault();
-              pick(hit.id);
-            }}
-          >
-            {hit.excerpt}
-          </li>
-        ))}
-      </ul>
-      {error ? (
-        <Button
-          className="btn btn-ghost btn-mini"
-          disabled={loading}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={loadMore}
-        >
-          retry search
-        </Button>
-      ) : null}
-      {hits.length < total ? (
-        <Button
-          className="btn btn-ghost btn-mini"
-          disabled={loading}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={loadMore}
-        >
-          load more ({hits.length} of {total})
-        </Button>
-      ) : null}
-    </div>
-  ) : null;
-}

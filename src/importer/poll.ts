@@ -10,7 +10,7 @@ import { parseFeed } from "./feed.ts";
 import type { FetchLike, FetchResult } from "./http.ts";
 import { platformFetch } from "./http.ts";
 import { pollL0Subscription } from "./l0.ts";
-import { appendFlag, applyEffect, getImportedItem, listHoppersForItem, recordIndexSync, recordPollFailure, recordPollSuccess, toLocalState } from "./store.ts";
+import { appendFlag, applyEffect, getImportedItem, listHoppersForItem, recordIndexSync, recordPollFailure, recordPollSuccess, refreshSourceTitle, toLocalState } from "./store.ts";
 import { transition } from "./transition.ts";
 import { mapLimit } from "./util.ts";
 import type { SubscriptionRow } from "../types.ts";
@@ -148,6 +148,18 @@ export interface PollResult {
 }
 
 /** One §3.2 poll cycle for a single subscription. `sub.kind === "rss"` defers entirely to the L0 wrapper (§3.5). */
+async function refreshManifestTitle(db: D1Database, sub: SubscriptionRow, fetchFn: FetchLike): Promise<void> {
+  if (sub.title_auto === 0) return;
+  try {
+    const res = await fetchFn(sub.origin + "blyg.json", { headers: { Accept: "application/json" } });
+    if (!res.ok) return;
+    const manifest = JSON.parse(await res.text()) as { title?: unknown };
+    if (typeof manifest.title === "string") await refreshSourceTitle(db, sub.id, manifest.title);
+  } catch {
+    // A missing or malformed manifest leaves the name as it was; the poll goes on.
+  }
+}
+
 export async function pollSubscription(db: D1Database, sub: SubscriptionRow, fetchFn: FetchLike = platformFetch): Promise<PollResult> {
   if (sub.kind !== "blyg") {
     const r = await pollL0Subscription(db, sub, fetchFn);
@@ -210,6 +222,10 @@ export async function pollSubscription(db: D1Database, sub: SubscriptionRow, fet
   const gap = !!sub.newest_guid && parsed.ok && !parsed.entries.some((e) => e.guid === sub.newest_guid);
   const periodicOrFirstSync = !sub.last_index_sync_at || Date.now() - Date.parse(sub.last_index_sync_at) >= INDEX_SYNC_PERIOD_MS;
   const shouldReconcile = !parsed.ok || gap || periodicOrFirstSync || wasDegraded;
+
+  // A blyg's name lives in its manifest. Re-read it with the daily sync: one
+  // small request a day, and a rename shows up within a day.
+  if (periodicOrFirstSync) await refreshManifestTitle(db, sub, fetchFn);
 
   let reconciled = false;
   if (shouldReconcile) {

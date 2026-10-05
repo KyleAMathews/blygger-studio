@@ -23,6 +23,7 @@ const fields = [
   'author_links',
   'site_url',
   'timezone',
+  'picker_typing',
   'avatar_media_id',
   'ai_model_tk',
   'ai_model_changelog',
@@ -319,6 +320,34 @@ function SettingsForm({ initial }: { initial: Settings }) {
             override this in its editor's TK card.
           </>,
         )}
+      </section>
+      <section className="card">
+        <h3 className="card-h">writing</h3>
+        <div className="field" role="radiogroup" aria-labelledby="picker_typing-label">
+          <span id="picker_typing-label">
+            When you type <code>[[</code> or <code>![[</code>, search by typing in
+          </span>
+          {(
+            [
+              ['auto', 'Automatic', 'the editor with a mouse, the picker on a touch screen, where it fills the screen'],
+              ['editor', 'The editor', 'keep typing after the brackets; arrow keys and Enter pick'],
+              ['panel', 'The picker', 'the picker opens with its own search box'],
+            ] as const
+          ).map(([value, label, hint]) => (
+            <label className="check" key={value}>
+              <input
+                type="radio"
+                name="picker_typing"
+                value={value}
+                checked={form.picker_typing === value}
+                onChange={() => change('picker_typing', value)}
+              />
+              <span>
+                {label} <span className="hint">{hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
       </section>
       <section className="card">
         <h3 className="card-h">site</h3>

@@ -18,6 +18,7 @@ export const triggerFamilies = [
 // beyond its named examples. Keep these explicit so removing a field from the
 // production effect classification cannot silently weaken its own test oracle.
 export const triggerFields = [
+  { family: 4, field: 'title_auto', value: 0, domains: ['subscriptions'] },
   ...['created','updated','forked_from','fork_cite','id','kind','version'].map(field => ({ family: 0, field, value: field === 'kind' ? 'thread' : field === 'version' ? 2 : field === 'id' ? 'renamed' : 'changed', domains: ['items','reading','feed'] })),
   ...['id','origin','title'].map(field => ({ family: 4, field, value: 'changed', domains: ['subscriptions','reading','hoppers','feed'] })),
   ...['subscription_id','remote_id','kind','page'].map(field => ({ family: 5, field, value: field === 'kind' ? 'thread' : 'changed', domains: ['reading','hoppers','feed'] })),
