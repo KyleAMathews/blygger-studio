@@ -15,7 +15,7 @@ The REST API remains at `/api`. MCP is at `{mount}/studio/mcp`, such as `https:/
 | `owner:publish` | Publication, withdrawal, refresh, permanent pins, public response display, and media deletion |
 | `owner:manage` | Settings, subscriptions, signals, collections and response moderation, including their public effects |
 
-Scopes do not imply each other. Choose each permission the client needs. Uploading media attached to an item that has been published requires both drafting and publishing permission, including after withdrawal. Draft-only clients can upload unattached media or attach it to a never-published draft. Editing an item's `responses` field requires both drafting and publishing permission because the public page changes immediately.
+Scopes do not imply each other. Choose each permission the client needs. Uploading media attached to an item that has been published requires both drafting and publishing permission, including after withdrawal. Draft-only clients can upload unattached media or attach it to a never-published draft. Editing an item's `responses` field requires both drafting and publishing permission because the public page changes immediately. Choosing the avatar (`avatar_media_id`) requires both managing and publishing permission for the same reason.
 
 ## JavaScript clients
 

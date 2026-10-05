@@ -1,10 +1,13 @@
 /**
- * Owner ruling: uploads are private until publication uses them; public pins keep
- * their images. Draft permission cannot create anonymous publication authority.
+ * Owner ruling: uploads are private until publication uses them. Protocol §5.4:
+ * a published media URL MUST always serve the same bytes, and §9 withdrawal does
+ * not cascade, so withdrawal never retracts published media. Draft permission
+ * cannot create anonymous publication authority.
  * OWASP requires authorization at every resource endpoint, including static bytes:
  * https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html
  * Model: draft/unattached -> owner-only; referenced publication -> anonymous;
- * retained pin -> anonymous even when the current draft drops the image. Private
+ * later versions and withdrawal -> still anonymous; an upload no publication ever
+ * showed -> owner-only, even on a withdrawn item. Private
  * responses cannot enter a shared cache. Attachment append and inline placement
  * are distinct publication paths. Avatar selection is an owner-managed public use.
  * Driver: actual multipart upload, owner publish/pin and anonymous R2-serving
@@ -54,10 +57,10 @@ it.each([false, true])('publication releases its actually visible media (inline=
   expect((await f.owner('/api/items/' + id + '/publish', 'POST')).status).toBe(200);
   expect((await receive(path)).status, 'a public pin keeps its required media available').toBe(200);
   expect((await f.owner('/api/items/' + id + '/withdraw', 'POST', {})).status).toBe(200);
-  expect((await receive(path)).status, inline ? 'a retained pin keeps its media after withdrawal' : 'withdrawal retracts live attachments a pin never showed').toBe(inline ? 200 : 404);
+  expect((await receive(path)).status, 'published media survives withdrawal (§5.4)').toBe(200);
 });
-// Owner ruling: withdrawal retracts. Only a retained pin keeps a promise alive.
-it.each([false, true])('withdrawal without a pin retracts published media (inline=%s)', async inline => {
+// §9: withdrawal does not cascade. Snapshots elsewhere still hold these URLs.
+it.each([false, true])('withdrawal keeps published media and leaves later uploads private (inline=%s)', async inline => {
   const f = await fixture();
   const created = await f.owner('/api/items', 'POST', { content_md: 'Withdrawn media' }); expect(created.status).toBe(201);
   const { id } = await created.json() as {id:string}, media = await f.upload(id, inline);
@@ -67,10 +70,14 @@ it.each([false, true])('withdrawal without a pin retracts published media (inlin
   expect((await receive(path)).status).toBe(200);
   expect((await f.owner('/api/items/' + id + '/withdraw', 'POST', {})).status).toBe(200);
   const after = await receive(path);
-  expect(after.status, 'withdrawn media is no longer an anonymous publication').toBe(404);
-  const preview = await receive(path, { headers: { cookie: f.cookie } });
-  expect(preview.status, 'the owner can still see withdrawn media').toBe(200);
-  expect(preview.headers.get('cache-control')).toBe('no-store');
+  expect(after.status, 'a published media URL keeps serving after withdrawal').toBe(200);
+  expect(await after.text(), 'the same bytes').toBe('private fixture bytes');
+  // Attaching to an ever-published item is itself a publish act (publish scope);
+  // an inline upload is public only once published text shows it.
+  if (inline) {
+    const later = await f.upload(id, true);
+    expect((await receive('/blyg/' + later.url)).status, 'an inline upload no published text showed stays private on a withdrawn item').toBe(404);
+  }
 });
 it('an inline upload not placed in published text remains private', async () => {
   const f = await fixture(); const created = await f.owner('/api/items', 'POST', { content_md: 'No image' });
@@ -98,9 +105,9 @@ it('private bytes require live read authority, not merely a draft token', async 
   expect((await f.owner('/api/authorizations/'+credentials[0].authorization.id,'DELETE')).status).toBe(200);
   expect((await receive(path,{headers:{Authorization:'Bearer '+credentials[0].access_token}})).status,'revocation also denies private media bytes').toBe(404);
 });
-// Clause by clause: bytes owned by one item but shown in another live item stay
-// public through the owner's withdrawal, and retract once no live page shows them.
-it('withdrawal retracts media only when no other live item shows it', async () => {
+// Bytes owned by one item and shown in another stay public through both
+// withdrawals: each published version holds the URL.
+it('media shown by two items survives both withdrawals', async () => {
   const f = await fixture();
   const owner = await f.owner('/api/items', 'POST', { content_md: 'Owner of the bytes' }); expect(owner.status).toBe(201);
   const { id: ownerId } = await owner.json() as {id:string}, media = await f.upload(ownerId, true);
@@ -113,5 +120,31 @@ it('withdrawal retracts media only when no other live item shows it', async () =
   expect((await f.owner('/api/items/' + ownerId + '/withdraw', 'POST', {})).status).toBe(200);
   expect((await receive(path)).status, 'another live page still shows the bytes').toBe(200);
   expect((await f.owner('/api/items/' + borrowerId + '/withdraw', 'POST', {})).status).toBe(200);
-  expect((await receive(path)).status, 'no live page shows the bytes after both withdrawals').toBe(404);
+  expect((await receive(path)).status, 'published bytes survive every withdrawal').toBe(200);
+});
+// Owner ruling: the avatar is public on every page, so choosing it is a publish
+// act. A draft+manage token can upload but cannot publish bytes through it.
+it('choosing the avatar requires publish scope over REST and MCP', async () => {
+  const { flow } = await import('./oauth-flow-driver.ts');
+  const f = await flow();
+  const mint = async (scope: string[], resource: string) => {
+    const minted = await f.request('/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'avatar ' + scope.join('+') + ' ' + resource, scope, resource }) });
+    expect(minted.status).toBe(200); return (await minted.json() as { access_token: string }).access_token;
+  };
+  const without = await mint(['owner:draft', 'owner:manage'], 'api'), withPublish = await mint(['owner:draft', 'owner:manage', 'owner:publish'], 'api');
+  const form = new FormData(); form.set('file', new File(['avatar fixture bytes'], 'avatar.png', { type: 'image/png' }));
+  const uploaded = await f.request('/api/media', { method: 'POST', headers: { Authorization: 'Bearer ' + without }, body: form });
+  expect(uploaded.status).toBe(201);
+  const { id, url } = await uploaded.json() as { id: string; url: string };
+  const choose = (token: string, value: string) => f.request('/api/settings', { method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ avatar_media_id: value }) });
+  expect((await choose(without, id)).status, 'draft+manage cannot publish bytes as the avatar').toBe(403);
+  expect((await f.request('/blyg/' + url)).status, 'the refused avatar stays private').toBe(404);
+  expect((await f.request('/api/settings', { method: 'PATCH', headers: { Authorization: 'Bearer ' + without, 'Content-Type': 'application/json' }, body: JSON.stringify({ site_title: 'Still manageable' }) })).status, 'other settings stay manage-only').toBe(200);
+  const mcp = await mint(['owner:draft', 'owner:manage'], 'mcp');
+  const viaMcp = await f.request('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + mcp, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/call', 'mcp-name': 'updateSettings' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'updateSettings', arguments: { body: { avatar_media_id: id } }, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) });
+  const mcpText = JSON.stringify(await viaMcp.json());
+  expect((await f.request('/blyg/' + url)).status, 'MCP cannot publish bytes as the avatar without publish scope: ' + mcpText.slice(0, 200)).toBe(404);
+  expect((await choose(withPublish, id)).status, 'publish scope may choose the avatar').toBe(200);
+  expect((await f.request('/blyg/' + url)).status, 'the chosen avatar is public').toBe(200);
+  expect((await f.request('/api/settings', { method: 'PATCH', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ avatar_media_id: '' }) })).status).toBe(200);
 });

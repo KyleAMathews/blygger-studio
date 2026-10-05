@@ -40,6 +40,11 @@ ownerApi.use("*", async (c, next) => {
       const body = await c.req.raw.clone().json().catch(() => ({})) as { responses?: unknown };
       if (body.responses !== undefined) required.push('owner:publish');
     }
+    // The avatar shows on every public page: choosing it publishes its bytes.
+    if (operation?.[0] === 'updateSettings') {
+      const body = await c.req.raw.clone().json().catch(() => ({})) as { avatar_media_id?: unknown };
+      if (body.avatar_media_id !== undefined) required.push('owner:publish');
+    }
     if (required.some(scope => !delegated.scope.includes(scope))) {
       c.header('WWW-Authenticate', bearerChallenge(c.req.url, c.env, 'api', required.join(' '), true));
       return c.json({ error: 'insufficient scope' }, 403);
