@@ -24,7 +24,7 @@ export function scoped<
   const timer = setInterval(sweep, 30_000);
   // Node tests may import the pure registry without keeping the process alive.
   if (typeof timer === 'object' && 'unref' in timer) timer.unref();
-  return (key: string) => {
+  function get(key: string) {
     let entry = cache.get(key);
     if (!entry) {
       entry = { collection: factory(key), touched: Date.now() };
@@ -36,5 +36,13 @@ export function scoped<
     cache.set(key, entry);
     sweep(key);
     return entry.collection;
-  };
+  }
+  /** Stop the sweep and release every collection, for a host disposing its data. */
+  async function dispose() {
+    clearInterval(timer);
+    const entries = [...cache.values()];
+    cache.clear();
+    await Promise.all(entries.map((entry) => entry.collection.cleanup()));
+  }
+  return Object.assign(get, { dispose });
 }

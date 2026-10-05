@@ -2,8 +2,10 @@ import { afterEach, expect, test, vi } from 'vitest';
 import { scoped } from '../src/ui/scoped.ts';
 import { Draft } from '../src/ui/draft.ts';
 import { Polling } from '../src/ui/polling.ts';
+import { createBlyggerClient } from '../sdk/dist/browser.js';
+import { createStudioData } from '../src/ui/data-core.ts';
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
-afterEach(() => vi.useRealTimers());
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 test('draft saves remain ordered and old acknowledgements cannot mark newer text saved', async () => {
   const gate = deferred(), stored: string[] = [];
@@ -73,4 +75,48 @@ test('resource cache evicts an old idle view without disposing the requested vie
   expect(created[0].cleanup).toHaveBeenCalledOnce();
   expect(created[100].cleanup).not.toHaveBeenCalled();
   expect(created.filter(value => value.cleanup.mock.calls.length)).toHaveLength(1);
+});
+
+test('collections read through the client their host supplies, with their own cache', async () => {
+  const seen: Request[] = [];
+  const client = createBlyggerClient({
+    baseUrl: 'https://blyg.example',
+    headers: { Authorization: 'Bearer host-token' },
+    fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      seen.push(request);
+      return Response.json({ site_title: 'From the host' });
+    },
+  });
+  const data = createStudioData(client);
+  await data.settings.preload();
+  expect(seen.map((r) => r.url), 'reads go to the host the client names').toEqual(['https://blyg.example/api/settings']);
+  expect(seen[0].headers.get('authorization')).toBe('Bearer host-token');
+  expect([...data.settings.values()][0]?.site_title).toBe('From the host');
+  const other = createStudioData(client);
+  expect(other.queryClient, 'each host gets its own cache').not.toBe(data.queryClient);
+  await other.dispose();
+  await data.dispose();
+});
+
+test('a disposed instance leaves no timers and makes no further requests', async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal('document', { visibilityState: 'visible' });
+  vi.stubGlobal('window', { dispatchEvent() { return true; } });
+  let requests = 0;
+  const client = createBlyggerClient({
+    baseUrl: 'https://blyg.example',
+    fetch: async () => { requests++; return Response.json({ site_title: 'x' }); },
+  });
+  const data = createStudioData(client);
+  const target = { addEventListener() {}, removeEventListener() {} };
+  data.polling.start(target, target);
+  data.itemDetail('one');
+  expect(vi.getTimerCount(), 'the instance runs timers while alive').toBeGreaterThan(0);
+  await data.dispose();
+  const before = requests;
+  expect(vi.getTimerCount(), 'a disposed instance leaves no timers').toBe(0);
+  await data.changed('settings', 'items');
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(requests - before, 'a disposed instance makes no further requests').toBe(0);
 });

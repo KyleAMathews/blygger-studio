@@ -1,0 +1,424 @@
+// The Studio's collections, built around whichever SDK client a host passes
+// in: the Studio's cookie client, or the clipper's bearer client. Nothing
+// here reads the page or starts work at import time; the host decides.
+
+import {
+  createCollection,
+  createLiveQueryCollection,
+  and,
+  gte,
+  lt,
+} from '@tanstack/react-db';
+import {
+  parseLoadSubsetOptions,
+  queryCollectionOptions,
+} from '@tanstack/query-db-collection';
+import { QueryClient } from '@tanstack/query-core';
+import type {
+  ListItemsResponses,
+  GetItemResponses,
+  Settings,
+  Subscription,
+  Hopper,
+  SignalRow,
+  ListReadingResponses,
+  UpdateItemData,
+  GetHopperResponses,
+} from '../../sdk/dist/browser.js';
+import {
+  BlyggerApi,
+  unwrap,
+} from '../../sdk/dist/browser.js';
+import { Polling } from './polling.ts';
+import { scoped } from './scoped.ts';
+import type { BlyggerClient } from '../../sdk/dist/browser.js';
+
+export type Detail = GetItemResponses[200];
+
+export type Reading = ListReadingResponses[200]['items'][number] & {
+  rank: number;
+};
+/**
+ * Reading lenses (0.25.0). "threads" and "fragments" narrow a timeline and its
+ * counts by kind; "background" and "smart" are placeholders for features that
+ * are not built yet (procedural updates with ignyr; the AI-ranked feed).
+ */
+export const LENSES = ['all', 'threads', 'fragments', 'background', 'smart'] as const;
+export type Lens = (typeof LENSES)[number];
+export const lensKind = (lens: Lens | undefined): 'thread' | 'fragment' | undefined =>
+  lens === 'threads' ? 'thread' : lens === 'fragments' ? 'fragment' : undefined;
+/**
+ * The cache key for one source under one lens: the source alone for the
+ * unfiltered view (so every existing key is unchanged), `sub~kind` otherwise.
+ */
+export const readingKey = (sub: string, lens?: Lens) => {
+  const kind = lensKind(lens);
+  return kind ? `${sub}~${kind}` : sub;
+};
+
+export function createStudioData(client: BlyggerClient) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        staleTime: Infinity,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+      },
+    },
+  });
+  queryClient.mount();
+  // Poll errors are view state, not replacements for cached rows or local drafts.
+  const polling = new Polling(
+    () => document.visibilityState === 'visible',
+    (error) =>
+      window.dispatchEvent(
+        new CustomEvent('studio-read-error', { detail: error }),
+      ),
+  );
+  async function pages<T>(
+    read: (offset: number) => Promise<{ items: T[]; total: number }>,
+  ) {
+    const rows: T[] = [];
+    for (let offset = 0; ; offset += 100) {
+      const page = await read(offset);
+      rows.push(...page.items);
+      if (offset + page.items.length >= page.total) return rows;
+      if (!page.items.length)
+        throw new Error('Collection ended before its declared total');
+    }
+  }
+  const items = createCollection(
+    queryCollectionOptions<ListItemsResponses[200]['items'][number]>({
+      id: 'items',
+      queryKey: ['items'],
+      queryClient,
+      getKey: (row) => row.id,
+      queryFn: ({ signal }) =>
+        pages((offset) =>
+          unwrap(
+            BlyggerApi.listItems({
+              client,
+              query: { offset, limit: 100 },
+              signal,
+            }),
+          ),
+        ),
+      onUpdate: async ({ transaction }) => {
+        for (const mutation of transaction.mutations) {
+          const changes = mutation.changes;
+          const body: UpdateItemData['body'] = {};
+          for (const field of ['content_md', 'responses', 'highlight', 'stub_of'] as const)
+            if (field in changes)
+              Object.assign(body, { [field]: changes[field] });
+          if (changes.kind === 'fragment' || changes.kind === 'thread')
+            body.kind = changes.kind;
+          await unwrap(
+            BlyggerApi.updateItem({
+              client,
+              path: { id: mutation.key as string },
+              body,
+            }),
+          );
+        }
+      },
+      onDelete: async ({ transaction }) => {
+        for (const mutation of transaction.mutations)
+          await unwrap(
+            BlyggerApi.deleteItem({
+              client,
+              path: { id: mutation.key as string },
+            }),
+          );
+      },
+    }),
+  );
+  const settings = createCollection(
+    queryCollectionOptions<Settings & { key: string }>({
+      id: 'settings',
+      queryKey: ['settings'],
+      queryClient,
+      getKey: (row) => row.key,
+      queryFn: async ({ signal }) => [
+        {
+          ...(await unwrap(BlyggerApi.getSettings({ client, signal }))),
+          key: 'settings',
+        },
+      ],
+      onUpdate: async ({ transaction }) => {
+        for (const { changes } of transaction.mutations) {
+          const { key: _key, ...body } = changes;
+          await unwrap(BlyggerApi.updateSettings({ client, body }));
+        }
+      },
+    }),
+  );
+  const subscriptions = createCollection(
+    queryCollectionOptions<Subscription>({
+      id: 'subscriptions',
+      queryKey: ['subscriptions'],
+      queryClient,
+      getKey: (row) => row.id,
+      queryFn: ({ signal }) =>
+        pages((offset) =>
+          unwrap(
+            BlyggerApi.listSubscriptions({
+              client,
+              query: { offset, limit: 100 },
+              signal,
+            }),
+          ),
+        ),
+      onUpdate: async ({ transaction }) => {
+        for (const { key, changes } of transaction.mutations)
+          await unwrap(
+            BlyggerApi.updateSubscription({
+              client,
+              path: { id: key as string },
+              body: {
+                ...(changes.title !== undefined ? { title: changes.title } : {}),
+                ...(changes.in_blogroll !== undefined
+                  ? { in_blogroll: changes.in_blogroll }
+                  : {}),
+                ...(changes.status !== undefined
+                  ? { paused: changes.status === 'paused' }
+                  : {}),
+              },
+            }),
+          );
+      },
+      onDelete: async ({ transaction }) => {
+        for (const { key } of transaction.mutations)
+          await unwrap(
+            BlyggerApi.deleteSubscription({
+              client,
+              path: { id: key as string },
+            }),
+          );
+      },
+    }),
+  );
+  const hoppers = createCollection(
+    queryCollectionOptions<Hopper>({
+      id: 'hoppers',
+      queryKey: ['hoppers'],
+      queryClient,
+      getKey: (row) => row.id,
+      queryFn: ({ signal }) =>
+        pages((offset) =>
+          unwrap(
+            BlyggerApi.listHoppers({
+              client,
+              query: { offset, limit: 100 },
+              signal,
+            }),
+          ),
+        ),
+      onUpdate: async ({ transaction }) => {
+        for (const { key, changes } of transaction.mutations)
+          await unwrap(
+            BlyggerApi.updateHopper({
+              client,
+              path: { id: String(key) },
+              body: {
+                ...(changes.name !== undefined ? { name: changes.name } : {}),
+                ...(changes.public !== undefined
+                  ? { public: changes.public }
+                  : {}),
+              },
+            }),
+          );
+      },
+      onDelete: async ({ transaction }) => {
+        for (const { key } of transaction.mutations)
+          await unwrap(
+            BlyggerApi.deleteHopper({ client, path: { id: String(key) } }),
+          );
+      },
+    }),
+  );
+  const signals = createCollection(
+    queryCollectionOptions<SignalRow>({
+      id: 'signals',
+      queryKey: ['signals'],
+      queryClient,
+      getKey: (row) => JSON.stringify([row.subscription_id, row.remote_id]),
+      queryFn: ({ signal }) =>
+        pages((offset) =>
+          unwrap(
+            BlyggerApi.listSignals({
+              client,
+              query: { offset, limit: 100 },
+              signal,
+            }),
+          ),
+        ),
+    }),
+  );
+
+  function detailCollection(id: string) {
+    return createCollection(
+      queryCollectionOptions<Detail>({
+        id: `item:${id}`,
+        queryKey: ['item', id],
+        queryClient,
+        getKey: (row) => row.id,
+        queryFn: async ({ signal }) => [
+          await unwrap(BlyggerApi.getItem({ client, path: { id }, signal })),
+        ],
+        onUpdate: async ({ transaction }) => {
+          for (const { changes } of transaction.mutations)
+            await unwrap(
+              BlyggerApi.updateItem({
+                client,
+                path: { id },
+                body: { content_md: changes.content_md },
+              }),
+            );
+        },
+      }),
+    );
+  }
+  const itemDetail = scoped(detailCollection);
+  function readingCollection(key: string) {
+    const [sub, kind] = key.split('~') as [string, 'thread' | 'fragment' | undefined];
+    return createCollection(
+      queryCollectionOptions({
+        id: `reading:${key}`,
+        syncMode: 'on-demand',
+        queryKey: ['reading', key],
+        queryClient,
+        getKey: (row: Reading) => row.key,
+        queryFn: async ({ signal, meta }) => {
+          const subset = parseLoadSubsetOptions(meta?.loadSubsetOptions);
+          const start = subset.filters.find(
+            (filter) =>
+              filter.field.join('.') === 'rank' && filter.operator === 'gte',
+          );
+          const offset = typeof start?.value === 'number' ? start.value : 0;
+          const limit = 25;
+          return unwrap(
+            BlyggerApi.listReading({
+              client,
+              query: { sub, offset, limit, ...(kind ? { kind } : {}) },
+              signal,
+            }),
+          );
+        },
+        select: (page) =>
+          page.items.map((row, i) => ({ ...row, rank: page.offset + i })),
+      }),
+    );
+  }
+  const reading = scoped(readingCollection);
+  function readingViewCollection(sub: string, offset: number) {
+    const collection = reading(sub);
+    return createLiveQueryCollection({
+      id: `reading-view:${sub}:${offset}`,
+      gcTime: 1_000,
+      query: (q) =>
+        q
+          .from({ entry: collection })
+          .where(({ entry }) =>
+            and(gte(entry.rank, offset), lt(entry.rank, offset + 25)),
+          )
+          .orderBy(({ entry }) => entry.rank, 'asc'),
+    });
+  }
+  const readingViews = scoped((key) => {
+    const [sub, offset] = JSON.parse(key) as [string, number];
+    return readingViewCollection(sub, offset);
+  });
+  const readingView = (sub: string, offset: number) =>
+    readingViews(JSON.stringify([sub, offset]));
+  function refreshReading(sub: string, offset: number) {
+    return queryClient.refetchQueries(
+      {
+        predicate: (query) =>
+          query.queryKey[0] === 'reading' &&
+          query.queryKey[1] === sub &&
+          (query.state.data as ListReadingResponses[200] | undefined)?.offset ===
+            offset,
+      },
+      { throwOnError: true },
+    );
+  }
+  function hopperDetailCollection(id: string) {
+    return createCollection(
+      queryCollectionOptions({
+        id: `hopper:${id}`,
+        queryKey: ['hopper', id],
+        queryClient,
+        getKey: (row: GetHopperResponses[200]) => row.hopper.id,
+        queryFn: async ({ signal }) => [
+          await unwrap(BlyggerApi.getHopper({ client, path: { id }, signal })),
+        ],
+      }),
+    );
+  }
+  const hopperDetail = scoped(hopperDetailCollection);
+  // Cancel pending reads before invalidation, so earlier responses cannot replace
+  // acknowledged writes. Query collection mutation handlers own rollback on failure.
+  async function changed(...keys: string[]) {
+    await Promise.all(
+      keys.map((key) => queryClient.cancelQueries({ queryKey: [key] })),
+    );
+    await Promise.all(
+      keys.map((key) =>
+        queryClient.invalidateQueries({ queryKey: [key], refetchType: 'all' }),
+      ),
+    );
+  }
+
+  const updates = createCollection(
+    queryCollectionOptions<Record<string, string>>({
+      id: 'updates',
+      queryKey: ['updates'],
+      queryClient,
+      getKey: (row) => row.key,
+      queryFn: async ({ signal }) => [
+        {
+          ...(await unwrap(BlyggerApi.getUpdateState({ client, signal }))),
+          key: 'updates',
+        },
+      ],
+    }),
+  );
+
+  const hopperPreview = scoped((id) =>
+    createCollection(
+      queryCollectionOptions({
+        id: `hopper-preview:${id}`,
+        queryKey: ['hopper-preview', id],
+        queryClient,
+        getKey: (row: GetHopperResponses[200]) => row.hopper.id,
+        queryFn: async ({ signal }) => [
+          await unwrap(
+            BlyggerApi.getHopper({
+              client,
+              path: { id },
+              query: { preview: 'true' },
+              signal,
+            }),
+          ),
+        ],
+      }),
+    ),
+  );
+
+  const authorizations = createCollection(queryCollectionOptions<import('../../sdk/dist/browser.js').Authorization>({
+    id: 'authorizations', queryKey: ['authorizations'], queryClient, getKey: row => row.id,
+    queryFn: async ({ signal }) => (await unwrap(BlyggerApi.listAuthorizations({ client, signal }))).items,
+  }));
+  /** Stop everything this instance started, for a host replacing it (disconnect, another blyg). */
+  async function dispose() {
+    polling.stop();
+    for (const registry of [itemDetail, reading, readingViews, hopperDetail, hopperPreview]) await registry.dispose();
+    await queryClient.cancelQueries();
+    for (const collection of [items, settings, subscriptions, hoppers, signals, updates, authorizations]) await collection.cleanup();
+    queryClient.clear();
+    queryClient.unmount();
+  }
+  return { client, queryClient, polling, items, settings, subscriptions, hoppers, signals, itemDetail, reading, readingView, refreshReading, hopperDetail, changed, updates, hopperPreview, authorizations, dispose };
+}
+export type StudioData = ReturnType<typeof createStudioData>;
