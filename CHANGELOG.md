@@ -18,6 +18,24 @@ not have its own repo until session 26.
 
 ---
 
+## 0.26.1 — 2026-10-04
+
+**Migrations: none.** `POST /api/subscriptions` with `confirm: true` now replies
+before the initial backfill finishes, so the subscription it returns has not
+been polled yet.
+
+**Subscribing no longer hangs on confirm.**
+
+- Confirming a subscription used to copy the source's whole archive, one item at
+  a time, before replying. On a large blyg the button sat there for a long time
+  and gave no sign that anything was happening. The archive is now copied in the
+  background, and its items show up in reading as they arrive. If the copy is
+  cut short, the next scheduled poll (within 15 minutes) finishes it.
+- The sheet's buttons say `checking…` and `subscribing…` while they wait, and
+  the sheet closes as soon as the subscription exists.
+
+---
+
 ## 0.26.0 — 2026-10-04
 
 **Migrations: none.** `/api` changes, all additive: settings gain `ai_model_tk`,

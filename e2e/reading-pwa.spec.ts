@@ -83,6 +83,28 @@ test('/subs redirects to reading, where the subscribe sheet lives', async ({ pag
   await expect(sheet).toHaveCount(0);
 });
 
+test('confirm subscribe shows progress and closes the sheet on the reply', async ({ page }) => {
+  await login(page); await page.goto('/studio/reading');
+  const existing = await page.evaluate(async () => (await (await fetch('/api/subscriptions')).json()).items[0]);
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/subscriptions', async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    if (!route.request().postDataJSON().confirm) return route.fulfill({ json: { needsConfirm: true, kind: 'blyg', title: 'Small Hours' } });
+    await held;
+    return route.fulfill({ status: 201, json: existing });
+  });
+  await page.getByRole('button', { name: 'subscribe', exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: 'subscribe' });
+  await sheet.locator('#add-sub-url').fill('https://smallhours.example/');
+  await sheet.getByRole('button', { name: 'subscribe', exact: true }).click();
+  await sheet.getByRole('button', { name: 'confirm subscribe', exact: true }).click();
+  await expect(sheet.getByRole('button', { name: 'subscribing…' })).toBeDisabled();
+  release();
+  await expect(sheet).toHaveCount(0);
+  await expect(page.getByText('subscribed', { exact: true })).toBeVisible();
+});
+
 test('the source inspector toggles the blogroll, pauses and resumes, and confirms a delete', async ({ page }) => {
   await login(page); await page.goto('/studio/reading');
   const row = page.locator('.feed[data-id="parity-rss"]');

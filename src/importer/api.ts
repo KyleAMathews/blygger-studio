@@ -37,7 +37,9 @@ function titleFromUrl(url: string): string {
  * Two-phase add-by-URL (§2.1/§4.2): without `confirm`, resolves and returns
  * the identity for the owner to confirm (surfacing any site-vs-origin
  * mismatch); with `confirm: true`, actually creates the subscription and
- * runs an initial backfill so the first read isn't empty.
+ * starts an initial backfill so the first read isn't empty. The backfill runs
+ * after the response: it fetches the whole archive item by item, which held
+ * the confirm button for many seconds on a large blyg.
  */
 importerApi.openapi(routes.createSubscription, async (c) => {
   const body = await readJson<{ url: string; confirm?: boolean; title?: string }>(c);
@@ -80,10 +82,12 @@ importerApi.openapi(routes.createSubscription, async (c) => {
   // archive on first subscribe) — a fresh subscription's null
   // last_index_sync_at makes the very first pollSubscription() call reconcile
   // unconditionally, which also bootstraps newest_guid/etag for future gap
-  // detection (§3.2) in one pass, for both kinds uniformly.
-  await pollSubscription(c.env.DB, sub);
+  // detection (§3.2) in one pass, for both kinds uniformly. If waitUntil cuts
+  // it short, the null last_poll_at and last_index_sync_at make the next
+  // scheduled poll due and reconcile again, so the backfill completes there.
+  c.executionCtx.waitUntil(pollSubscription(c.env.DB, sub).catch(() => {}));
   c.header("Location", `/api/subscriptions/${sub.id}`);
-  return c.json(subscriptionResource((await getSubscription(c.env.DB, sub.id))!), 201);
+  return c.json(subscriptionResource(sub), 201);
 });
 
 importerApi.openapi(routes.updateSubscription, async (c) => {
