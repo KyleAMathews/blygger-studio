@@ -66,6 +66,8 @@
 .entry-body pre { overflow-x: auto; background: var(--sunk); border-radius: 8px; padding: 8px 10px; font-size: .85rem; }
 .entry-body.clamped { max-height: 9.5em; overflow: hidden; position: relative; }
 .entry-body.clamped.overflowing::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3em; background: linear-gradient(transparent, var(--card)); pointer-events: none; }
+.entry-src { display: block; margin: 2px 0 8px; font-size: .78rem; color: var(--ink-soft); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.entry-src:hover { color: var(--pencil); text-decoration: underline; }
 .more { background: none; border: none; border-radius: 0; color: var(--pencil); font-size: .82rem; font-weight: 600; padding: 0 0 8px; cursor: pointer; min-height: 0; }
 .entry-bar { display: flex; align-items: center; gap: 4px; padding: 6px 8px 8px; border-top: 1px solid var(--rule); flex-wrap: wrap; }
 .entry-bar .btn-mini { padding: 6px 9px; }

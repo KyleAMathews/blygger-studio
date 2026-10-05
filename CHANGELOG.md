@@ -34,6 +34,12 @@ been polled yet.
 - The sheet's buttons say `checking…` and `subscribing…` while they wait, and
   the sheet closes as soon as the subscription exists.
 
+**Every reading card shows where it lives.** A muted citation line under the
+body (`↗ host/path`, shortened the way the ⋯ sheet shows it) opens the entry's
+source in a new tab. It appears on every card that has a URL, in every
+timeline and on the hopper page. Before this, the link was only in the ⋯ sheet,
+or on the title when the entry opened with a heading.
+
 ---
 
 ## 0.26.0 — 2026-10-04

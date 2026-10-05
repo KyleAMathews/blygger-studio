@@ -83,6 +83,22 @@ test('/subs redirects to reading, where the subscribe sheet lives', async ({ pag
   await expect(sheet).toHaveCount(0);
 });
 
+test('every reading card shows its source URL, opening in a new tab, as the ⋯ sheet names it', async ({ page }) => {
+  await login(page); await page.goto('/studio/reading?sub=all');
+  const cards = page.locator('.reading-entry');
+  await expect(cards.first()).toBeVisible();
+  const count = await cards.count();
+  await expect(page.locator('.reading-entry .entry-src')).toHaveCount(count);
+  for (const link of await page.locator('.entry-src').all()) await expect(link).toHaveAttribute('target', '_blank');
+  await page.goto('/studio/reading?sub=parity-native');
+  const link = nativeEntry(page).locator('.entry-src');
+  const sheet = await entryMenu(page, nativeEntry(page));
+  await expect(sheet.getByRole('button', { name: `${(await link.textContent())!.replace('↗ ', '')} ↗` })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.goto('/studio/hoppers/parity-hopper');
+  await expect(page.locator('.reading-entry .entry-src').first()).toHaveAttribute('target', '_blank');
+});
+
 test('confirm subscribe shows progress and closes the sheet on the reply', async ({ page }) => {
   await login(page); await page.goto('/studio/reading');
   const existing = await page.evaluate(async () => (await (await fetch('/api/subscriptions')).json()).items[0]);

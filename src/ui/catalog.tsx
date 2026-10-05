@@ -24,7 +24,9 @@ import {
   mount,
   useChrome,
   useSettings,
+  SourceLink,
 } from './components.tsx';
+import { sourceTitleAndUrl } from '../importer/util.ts';
 import { confirm } from './sheets.tsx';
 import { formatDateIn } from '../dates.ts';
 import './reading.css';
@@ -395,6 +397,13 @@ export function HopperPage({ id }: { id: string }) {
               <div className="entry-body content">
                 <Html html={item?.content_html || ''} />
               </div>
+              <SourceLink
+                url={
+                  item && source
+                    ? sourceTitleAndUrl({ ...item, l0: item.l0 ? 1 : 0 }, source.origin).url
+                    : undefined
+                }
+              />
             </div>
             <div className="entry-bar">
               <span className="spacer" />

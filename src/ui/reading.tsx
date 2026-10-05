@@ -46,6 +46,7 @@ import {
   useChrome,
   usePoll,
   useSettings,
+  SourceLink,
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { displayUrl, sourceTitleAndUrl } from '../importer/util.ts';
@@ -465,6 +466,7 @@ function Entry({
             </p>
           ) : null}
           <Body html={entry.contentHtml} url={url} l0={entry.l0} />
+          <SourceLink url={url} />
         </div>
         {imported && !entry.l0 && historyOpen ? (
           <History sub={imported.subscriptionId} id={id} />
