@@ -738,7 +738,7 @@ async function masthead(db: D1Database, settings: Settings, mount: string, loade
   if (settings.author_links.length) {
     lines.push(
       `<p class="author-links">${settings.author_links
-        .map((l) => `<a href="${escapeHtml(l.url)}" rel="me">${escapeHtml(l.label)}</a>`)
+        .map((l) => `<a href="${escapeHref(l.url)}" rel="me">${escapeHtml(l.label)}</a>`)
         .join(" &middot; ")}</p>`,
     );
   }

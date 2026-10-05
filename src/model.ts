@@ -15,7 +15,7 @@ import {
 } from "./transclusion.ts";
 import type { ForkedFrom, ItemRow, MediaRow, ScopeProvenance, Settings, StubCite, StubOf, Transclusion, VersionRow } from "./types.ts";
 import { FRAGMENT_MAX_CHARS } from "./types.ts";
-import { absolutizeHtml, authoredText, contentHash, newId, nowIso } from "./util.ts";
+import { absolutizeHtml, authoredText, contentHash, isFollowableUrl, newId, nowIso } from "./util.ts";
 
 export { TkPublishError, TransclusionResolveError };
 
@@ -76,7 +76,8 @@ export async function getSettings(db: D1Database): Promise<Settings> {
   let links: Settings["author_links"] = [];
   try {
     const parsed = JSON.parse(map.author_links ?? "[]");
-    if (Array.isArray(parsed)) links = parsed;
+    // Rows stored before 0.27 may hold any scheme; only followable links leave.
+    if (Array.isArray(parsed)) links = parsed.filter((l) => typeof l?.label === "string" && typeof l?.url === "string" && isFollowableUrl(l.url));
   } catch {
     // ignore malformed settings JSON; treat as no links
   }

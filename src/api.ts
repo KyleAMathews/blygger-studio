@@ -40,7 +40,7 @@ import { BLOCKING, staleThreads, threadFreshness } from "./freshness.ts";
 import { draftChangeNote } from "./change-note.ts";
 import { platformFetchFor } from "./importer/http.ts";
 import { reconcileIndex } from "./importer/poll.ts";
-import { isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
+import { isFollowableUrl, isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
 
 const MEDIA_TYPES: Record<string, string> = {
   "image/png": "png",
@@ -468,7 +468,12 @@ api.openapi(routes.updateSettings, async (c) => {
     if (typeof body[key] === "boolean") patch[key] = body[key] ? "on" : "off";
   }
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return c.json({ error: `unknown timezone: ${patch.timezone}` }, 400);
-  if (Array.isArray(body.author_links)) patch.author_links = JSON.stringify(body.author_links);
+  if (patch.site_url && !(URL.canParse(patch.site_url) && ["http:", "https:"].includes(new URL(patch.site_url).protocol))) return c.json({ error: "site_url must be an absolute http(s) URL" }, 400);
+  if (Array.isArray(body.author_links)) {
+    const links = body.author_links as { label?: unknown; url?: unknown }[];
+    if (!links.every((l) => typeof l?.label === "string" && typeof l?.url === "string" && isFollowableUrl(l.url))) return c.json({ error: "author_links need a label and an absolute http(s) or mailto url" }, 400);
+    patch.author_links = JSON.stringify(links);
+  }
   await putSettings(c.env.DB, patch);
   return c.json(await getSettings(c.env.DB));
 });

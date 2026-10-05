@@ -90,8 +90,15 @@ surfaces. Browser version navigation reads sanitized pinned-page HTML instead of
 raw protocol JSON. A request observer catches authority calls before async minting
 finishes; a negative DOM-marker check alone could race the callback. Presentation is inert while frozen stored snapshots remain unchanged.
 Citation links are checked twice: a draft token cannot store an active-scheme
-`cited.url` or `stub_of.url`, and stored stub and fork citations, including
-lineage kept verbatim from imports, render as inert links on public pages.
+`cited.url` or `stub_of.url`, and stored citations render as inert links on
+public pages while a stored https citation keeps its exact link. Author links
+and `site_url` follow the same rule on write and on read.
+Two inventory sweeps write hostile text into every setting a manage token can
+store, and into delegated item text, citation captions, collection names and
+blogroll titles. They then crawl every public HTML page. Link attributes are
+judged across the whole page, with entities decoded as a browser would; script
+elements are judged inside the article and counted against a clean baseline
+elsewhere. A sink is caught wherever it renders, not only where a test expected it.
 `media-visibility-security.oracle.test.ts` checks anonymous refusal, owner preview,
 no-store, publication, unused inline attachments and pin retention. Read tokens
 work, draft-only and revoked tokens refuse, and non-loopback HTTP private reads

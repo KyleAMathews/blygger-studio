@@ -21,7 +21,7 @@ not have its own repo until session 26.
 ## 0.27.0 — 2026-10-04
 
 - Bound owner/per-grant REST/MCP work, delegated aggregate work, AI calls with an owner reserve, anonymous client storage and request bodies (migration 0021). Reclaim abandoned unapproved registrations after a configurable grace.
-- Keep unused draft uploads private with authenticated no-store previews; withdrawal retracts an item's media except what a retained pin uses. Stub and fork citation links accept only http(s), on write and on render. Sanitize remote transclusion bakes and legacy displays, and validate/escape attribution links.
+- Keep unused draft uploads private with authenticated no-store previews; withdrawal retracts an item's media except what a retained pin uses. Stub and fork citation links accept only http(s), on write and on render; author links accept http(s) or mailto, and `site_url` only http(s), with stored rows filtered on read. Sanitize remote transclusion bakes and legacy displays, and validate/escape attribution links.
 - Check revocation during refresh-token introspection and atomic grant recording. Show full native callback destinations on consent and suppress remote fetch exception text.
 - Restrict outbound fetches to public destinations unless explicitly enabled for LAN use; cap streamed bodies and recheck redirects. DNS rebinding remains a deployment gap.
 - Sanitize imported editorial HTML at private/public rendering boundaries, prevent stale draft deletion after publication, and patch quadratic Markdown linkification.

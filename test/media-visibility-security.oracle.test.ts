@@ -98,3 +98,20 @@ it('private bytes require live read authority, not merely a draft token', async 
   expect((await f.owner('/api/authorizations/'+credentials[0].authorization.id,'DELETE')).status).toBe(200);
   expect((await receive(path,{headers:{Authorization:'Bearer '+credentials[0].access_token}})).status,'revocation also denies private media bytes').toBe(404);
 });
+// Clause by clause: bytes owned by one item but shown in another live item stay
+// public through the owner's withdrawal, and retract once no live page shows them.
+it('withdrawal retracts media only when no other live item shows it', async () => {
+  const f = await fixture();
+  const owner = await f.owner('/api/items', 'POST', { content_md: 'Owner of the bytes' }); expect(owner.status).toBe(201);
+  const { id: ownerId } = await owner.json() as {id:string}, media = await f.upload(ownerId, true);
+  const path = '/blyg/' + media.url;
+  expect((await f.owner('/api/items/' + ownerId, 'PATCH', { content_md: `![image](/blyg/${media.url})` })).status).toBe(200);
+  expect((await f.owner('/api/items/' + ownerId + '/publish', 'POST')).status).toBe(200);
+  const borrower = await f.owner('/api/items', 'POST', { content_md: `Borrowed ![image](/blyg/${media.url})` }); expect(borrower.status).toBe(201);
+  const { id: borrowerId } = await borrower.json() as {id:string};
+  expect((await f.owner('/api/items/' + borrowerId + '/publish', 'POST')).status).toBe(200);
+  expect((await f.owner('/api/items/' + ownerId + '/withdraw', 'POST', {})).status).toBe(200);
+  expect((await receive(path)).status, 'another live page still shows the bytes').toBe(200);
+  expect((await f.owner('/api/items/' + borrowerId + '/withdraw', 'POST', {})).status).toBe(200);
+  expect((await receive(path)).status, 'no live page shows the bytes after both withdrawals').toBe(404);
+});

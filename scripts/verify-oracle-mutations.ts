@@ -39,6 +39,7 @@ try {
   for (const control of [controls[0], controls[2]]) {
     const result = execute(control.test, control.pattern);
     assert.equal(result.status, 0, `Baseline failed: ${result.stdout}\n${result.stderr}`);
+    assert.ok(/\b[1-9]\d* passed\b/.test(result.stdout + result.stderr), `Baseline ran no tests: ${control.name}`);
   }
   for (const control of controls) {
     const file = join(temp, control.file), original = readFileSync(file, "utf8");

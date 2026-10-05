@@ -95,10 +95,15 @@ export function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+const FOLLOWABLE = ['http:', 'https:', 'mailto:'];
+/** An absolute link a reader can follow without running anything. */
+export function isFollowableUrl(value: string): boolean {
+  return URL.canParse(value) && FOLLOWABLE.includes(new URL(value).protocol);
+}
 /** Untrusted link data needs URL validation as well as HTML attribute escaping. */
 export function escapeHref(value: string): string {
   try {
-    if (!['http:', 'https:'].includes(new URL(value, 'https://link.invalid/').protocol)) return '#';
+    if (!FOLLOWABLE.includes(new URL(value, 'https://link.invalid/').protocol)) return '#';
     return escapeHtml(value);
   } catch { return '#'; }
 }
