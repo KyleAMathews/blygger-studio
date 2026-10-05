@@ -12,6 +12,7 @@ import { useLiveQuery } from '@tanstack/react-db';
 import {
   settings as settingsCollection,
   polling,
+  pollRefresh,
   queryClient,
   updates,
 } from './data.ts';
@@ -24,7 +25,7 @@ export const mount =
   document.getElementById('studio-root')!.dataset.mount ?? '';
 export const basepath = `${mount}/studio`;
 export function usePoll(key: string, refresh: () => Promise<unknown>) {
-  useEffect(() => polling.watch(key, refresh), [key, refresh]);
+  useEffect(() => polling.watch(key, () => pollRefresh(key, refresh)), [key, refresh]);
 }
 export function useSettings() {
   usePoll('settings', settingsCollection.utils.refetch);

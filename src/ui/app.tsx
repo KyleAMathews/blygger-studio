@@ -150,8 +150,12 @@ const reading = createRoute({
     const sub = deps.sub ?? 'all';
     const offset = deps.view === 'sources' ? 0 : deps.offset;
     const key = readingKey(sub, deps.lens);
+    const view = readingView(key, offset);
+    // A failed startup leaves the derived view in its error state even after
+    // resetQueries reloads the source. Restart that failed sync on route retry.
+    if (view.status === 'error') await view.cleanup();
     await Promise.all([
-      readingView(key, offset).preload(),
+      view.preload(),
       subscriptions.preload(),
       hopperCollection.preload(),
       signals.preload(),

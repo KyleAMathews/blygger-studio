@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 
 const oracleTarget = process.env.ORACLE_TARGET, oracleSeed = process.env.ORACLE_SEED;
 if (process.env.ORACLE_PATH !== undefined && oracleSeed === undefined) throw new Error("ORACLE_PATH requires ORACLE_SEED");
-if (oracleSeed !== undefined && (!oracleTarget || !["item-lifecycle", "pagination", "patch-atomicity", "authorization", "oauth-storage"].includes(oracleTarget) || !Number.isInteger(Number(oracleSeed)))) throw new Error("Replay requires a known ORACLE_TARGET and integer ORACLE_SEED");
+if (oracleSeed !== undefined && (!oracleTarget || !["item-lifecycle", "pagination", "patch-atomicity", "authorization", "oauth-storage", "polling-cache"].includes(oracleTarget) || !Number.isInteger(Number(oracleSeed)))) throw new Error("Replay requires a known ORACLE_TARGET and integer ORACLE_SEED");
 
 export default defineConfig({
   define: {

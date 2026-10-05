@@ -27,6 +27,7 @@ import {
   unwrap,
 } from '../../sdk/dist/browser.js';
 import { Polling } from './polling.ts';
+import { collectionCanAcknowledge, confirmedRefresh } from './poll-refresh.ts';
 import { scoped } from './scoped.ts';
 
 export const client = createBlyggerClient({ baseUrl: location.origin });
@@ -48,8 +49,28 @@ export const polling = new Polling(
     window.dispatchEvent(
       new CustomEvent('studio-read-error', { detail: error }),
     ),
+  15_000,
+  () => unwrap(BlyggerApi.getChanges({ client })),
 );
 polling.start(window, document);
+function pollCollection(kind: string, id: string) {
+  switch (kind) {
+    case 'items': return items;
+    case 'item': return itemDetail(id);
+    case 'settings': return settings;
+    case 'subscriptions': return subscriptions;
+    case 'hoppers': return hoppers;
+    case 'hopper': return hopperDetail(id);
+    case 'hopper-preview': return hopperPreview(id);
+    case 'signals': return signals;
+    case 'reading': return reading(id);
+  }
+}
+export function pollRefresh(key: string, refresh: () => Promise<unknown>) {
+  const [kind, id] = key.split(':');
+  const collection = pollCollection(kind, id);
+  return confirmedRefresh(queryClient, key, refresh, () => !collection || collectionCanAcknowledge(collection));
+}
 
 async function pages<T>(
   read: (offset: number) => Promise<{ items: T[]; total: number }>,
@@ -328,16 +349,11 @@ const readingViews = scoped((key) => {
 export const readingView = (sub: string, offset: number) =>
   readingViews(JSON.stringify([sub, offset]));
 export function refreshReading(sub: string, offset: number) {
-  return queryClient.refetchQueries(
-    {
-      predicate: (query) =>
-        query.queryKey[0] === 'reading' &&
-        query.queryKey[1] === sub &&
-        (query.state.data as ListReadingResponses[200] | undefined)?.offset ===
-          offset,
-    },
-    { throwOnError: true },
-  );
+  // The adapter owns both startup-error retry and collection application.
+  // QueryClient.refetchQueries skips disabled failed-startup observers. Tracked
+  // subsets refresh together so their shared rank rows cannot stay mismatched.
+  void offset;
+  return reading(sub).utils.refetch({ throwOnError: true });
 }
 function hopperDetailCollection(id: string) {
   return createCollection(

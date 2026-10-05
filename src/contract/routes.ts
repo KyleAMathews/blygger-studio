@@ -2,6 +2,7 @@ import { ItemSchema, VersionSchema, MediaSchema, SubscriptionSchema, HopperSchem
 import { optionalJsonBody } from "./app.ts";
 import { createRoute, z, type RouteConfig } from "@hono/zod-openapi";
 import { SettingsSchema, HopperItemRowSchema, SignalRowSchema, MentionOutRowSchema } from "./schemas.ts";
+import { CHANGE_DOMAINS } from '../change-state.ts';
 
 const json = (schema: z.ZodType) => ({ "application/json": { schema } });
 export const ErrorSchema = z.object({ error: z.string(), errors: z.array(z.object({ reason: z.string().optional(), at: z.number().optional(), id: z.string().optional(), directive: z.string().optional() }).passthrough()).optional(), tried: z.array(z.string()).optional(), issues: z.array(z.object({ path: z.array(z.union([z.string(), z.number()])), message: z.string() })).optional() }).passthrough().openapi("ApiError");
@@ -54,6 +55,7 @@ function route<P extends string>(id: string, method: RouteConfig["method"], path
 }
 
 export const routes = {
+  getChanges: route('getChanges', 'get', '/changes', z.object({ epoch: z.string().min(1), domains: z.object(Object.fromEntries(CHANGE_DOMAINS.map(domain => [domain, z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)])) as Record<typeof CHANGE_DOMAINS[number], z.ZodNumber>) }).openapi('ChangeState')),
   createItem: route("createItem", "post", "/items", created, ItemCreateSchema, 201, undefined, true),
   updateItem: route("updateItem", "patch", "/items/{id}", ItemSchema, ItemEditSchema),
   publishItem: route("publishItem", "post", "/items/{id}/publish", ok.extend({ version: z.number(), warning: z.string().optional() }), note.extend({ note_generated: z.boolean().optional() }), 200, undefined, true),

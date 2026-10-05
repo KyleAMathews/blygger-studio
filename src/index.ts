@@ -20,7 +20,8 @@ import { runScheduledPoll } from "./importer/schedule.ts";
 import { getHopperBySlug, getImportedItem, getSubscription, listBlogrollSubscriptions, listHopperItems } from "./importer/store.ts";
 import { authoredKind, getItem, getMedia, getSettings, getVersion, listPublic } from "./model.ts";
 import { archivePage, feedPage, generatedHighlightCss, permalinkPage, pinnedVersionPage, STYLE_CSS, themeCss, threadPage } from "./pages.ts";
-import { buildArchiveIndex, buildFeedXml, buildItemJson, buildManifest, buildPinnedVersionJson, siteOrigin } from "./protocol.ts";
+import { buildArchiveIndex, buildItemJson, buildManifest, buildPinnedVersionJson, siteOrigin } from "./protocol.ts";
+import { cachedFeed } from './feed-cache.ts';
 import { platformFetchFor } from "./importer/http.ts";
 import { mentionFetchFor } from "./mentions/http.ts";
 import { receiveMention, verifyMention } from "./mentions/receive.ts";
@@ -99,10 +100,7 @@ export function makeApp(mount: string) {
   });
 
   pub.get("/feed.xml", async (c) => {
-    const settings = await getSettings(c.env.DB);
-    const xml = await buildFeedXml(c.env.DB, settings, siteOrigin(settings, c.req.url, mount));
-    cors(c);
-    return c.body(xml, 200, { "Content-Type": "application/rss+xml; charset=utf-8" });
+    return cachedFeed(c.req.raw, c.env, mount, work => c.executionCtx.waitUntil(work));
   });
 
   pub.get("/blyg.json", async (c) => {
