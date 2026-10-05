@@ -106,6 +106,7 @@ import { normalizeBlygUrl } from '../extension/lib/url.ts';
 import { discover } from '../extension/lib/discovery.ts';
 import type { FetchLike } from '../extension/lib/types.ts';
 import { flow } from './oauth-flow-driver.ts';
+import { authorizeUrl, challengeFor, codeFromRedirect, exchangeCode, randomVerifier, register, REQUESTED_SCOPE } from '../extension/lib/oauth.ts';
 
 describe('advertised support and CORS', () => {
   it('the api resource metadata advertises keys and the publish precondition; mcp does not', async () => {
@@ -355,5 +356,39 @@ describe('clipper discovery (L9)', () => {
       return Response.json({ ...(await response.json() as object), authorization_servers: ['https://elsewhere.example/auth'] });
     };
     await expect(discover(normalizeBlygUrl(f.base + '/blyg/'), hostile), 'an issuer off the blyg is refused').rejects.toMatchObject({ name: 'DiscoveryError', step: 'resource' });
+  });
+});
+
+const REDIRECT = 'https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/';
+/** The owner approving in the sign-in window: the consent page, the boxes left ticked, then the redirect. */
+async function approve(f: Flow, url: string, scopes: string[]) {
+  const page = await f.request(url, { headers: { cookie: f.owner } });
+  expect(page.status).toBe(200);
+  const html = await page.text();
+  const handle = html.match(/name="handle" value="([^"]+)"/)![1];
+  const binding = page.headers.getSetCookie().map((cookie) => cookie.split(';')[0]).join('; ');
+  const decided = await f.request(f.issuer + '/consent', {
+    method: 'POST',
+    headers: { cookie: `${f.owner}; ${binding}`, Origin: f.base },
+    body: new URLSearchParams([['handle', handle], ['decision', 'allow'], ...scopes.map((s) => ['scope', s])]),
+  });
+  expect(decided.status).toBe(302);
+  return decided.headers.get('location')!;
+}
+
+describe('clipper OAuth client against the real server', () => {
+  it('registers a chromiumapp.org redirect, completes PKCE, and gets the scope the owner left ticked', async () => {
+    const f = await flow(), fetchFn = workerFetch(f);
+    const d = await discover(normalizeBlygUrl(f.base + '/blyg/'), fetchFn);
+    const clientId = await register(d, REDIRECT, fetchFn);
+    const verifier = randomVerifier(), state = randomVerifier();
+    const url = authorizeUrl(d, { clientId, redirectUri: REDIRECT, state, challenge: await challengeFor(verifier) });
+    expect(new URL(url).searchParams.get('scope')).toBe(REQUESTED_SCOPE);
+    const code = codeFromRedirect(await approve(f, url, ['owner:read', 'owner:draft']), REDIRECT, state);
+    const tokens = await exchangeCode(d, { clientId, code, redirectUri: REDIRECT, verifier }, fetchFn);
+    expect(tokens.refreshToken, 'offline_access yields a refresh token').toBeTruthy();
+    expect(tokens.scope).toContain('owner:draft');
+    expect(tokens.scope, 'unticked scopes are not granted').not.toContain('owner:publish');
+    expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + tokens.accessToken } })).status).toBe(200);
   });
 });
