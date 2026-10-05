@@ -18,11 +18,24 @@ not have its own repo until session 26.
 
 ---
 
+## 0.30.0 — 2026-10-05
+
+The first release since 0.28.2: 0.28.3 and 0.29.0 were deployed but never released, so their entries below ship here too.
+
+- **Subscription names follow their source.** A blyg's manifest title is re-read with the daily index sync, and an RSS feed's channel title on every poll; a name the owner gave is never overwritten (`PATCH` with a `title` makes it the owner's, `title: null` hands it back). Existing blyg subscriptions follow their source; existing RSS ones keep their names. The subscription resource gains `title_follows_source`.
+- **Resync all feeds**: a button in the reading header, and `POST /api/subscriptions/poll`, polls every subscription that is not paused, now, degraded ones included.
+- Discarding a draft confirms with a green "Draft discarded" toast instead of a red "not found" (the compose list refetched the deleted item). Toasts can be dismissed.
+- Stubbing a long item quotes its opening passage instead of starting from an empty quote line that the preview reported as an error.
+- The composer counts a thread's characters without the fragment limit, and a compose-list row that only quotes or links shows what it quotes.
+- **Migrations: 0023_subscription_title_source.sql.** Adds `subscriptions.title_auto`. Apply before deploying.
+
 ## 0.29.0 — 2026-10-05
 
 - **The `[[` / `![[` picker is a panel with real search.** It searched only a 70-character excerpt and the id, so on a node with ~1,400 candidates almost nothing was findable. `GET /api/search` now matches every word anywhere in an item's text, in SQL, with `source=all|mine|imported`, `sub=<subscription>`, `sort=newest|oldest`, paging and a total; rows gain `source`, `kind`, `subscription_id` and `source_title` (`badge` is kept for older clients). What it offers is unchanged: only what publish will accept.
 - The picker opens as a non-modal panel at the right (docked at the bottom on a phone, with the draft scrolled into view above it): link or quote named in its header, a source radio, sort, a subscription menu under *imported*, and rows with excerpt, source, kind, age and version. Where you type to search is a new setting, Settings → writing: *automatic* (the default) keeps typing in the editor with a mouse and gives the picker its own search box on a touch screen, where it fills the screen until you pick or cancel; or always *the editor*; or always *the picker*. Source and sort are remembered per device.
 - The reading list's swipe hint is hidden on mouse devices (#36, Aneesh Sathe).
+- Migrations: none.
+
 ## 0.28.3 — 2026-10-05
 
 - **Feed polling and Webmentions work again.** 0.28.0's outbound DNS check called `fetch` with `redirect: 'error'`, which the Workers runtime rejects outright, so on a deployed node every check threw: every subscription poll failed, outgoing mentions stayed queued and incoming ones went unverified. The tests stubbed `fetch` and accepted the mode. The check now uses `redirect: 'manual'` and still fails closed on anything but a 200; a new test refuses `'error'` the way the edge does. Polls, queued mentions and verification resume on their own at the next cron tick after upgrading.
