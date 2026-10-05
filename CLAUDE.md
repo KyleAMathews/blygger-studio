@@ -153,6 +153,12 @@ saying so.
 
 ## Status
 
+**0.27.1** (session 35, 2026-10-05): 0.27.0 released. Every Release run since v0.21.2 had failed (an e2e screenshot to a machine-local path; the mutation tree missing `build/models.json`), so 0.21.2–0.27.0 have no downloads. No migration.
+
+**0.27.0** (session 35, 2026-10-05): highlight generated portions on public pages. A `highlight_generated_default` setting and a per-item `highlight` override (**migration 0020**, `items.highlight_override`). The default lives in `style.css` and an override is a `gen-on`/`gen-off` class on the `<article>`. Themes have `genBg`/`genRule`. Robot badge (Brady Dale's convention); `GEN_INFO_SCRIPT` opens a version-level disclosure box from `data-generated`.
+
+**0.26.1** (session 35, 2026-10-05): subscribe backfills under `waitUntil`; duplicate subscriptions 409; a source-URL citation line on every reading card; reading lands on the feed, with Feed/Sources tabs and one `ReadingHead` under every lens; Smart Feed "Coming soon". No migration.
+
 **0.26.0** (session 34, 2026-10-04): one model per AI function (`ai_model_tk`/`_changelog`/`_feed`, falling back to the pre-0.26 `ai_model`, kept one release as a write alias) from an editable **`models.json`** (gitignored `models.local.json` overrides, merged at build into `build/models.json`; releases ship the base list only); OpenAI Responses and Gemini generateContent adapters beside Anthropic, all raw HTTP (`src/ai/provider.ts`, `src/ai/models.ts`); secrets `AI_PROVIDER_KEY`/`OPENAI_API_KEY`/`GOOGLE_AI_KEY`; `GET /api/ai/models`; the `feed_prompt` setting (stored, unused until the smart feed's agent). No migration.
 
 **0.25.0** (session 34, 2026-10-04): reading lenses (All/Threads/Fragments filter by kind, `kind` on `/api/reading`; Background and Smart Feed placeholders); the private **interaction log** (**migration 0019**, backfilled; `src/interactions.ts`, logged at the store and at publish, never on the wire); `GET /api/interactions`, `GET /api/thumbs`; more → signals.
