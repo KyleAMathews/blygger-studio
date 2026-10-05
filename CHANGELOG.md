@@ -21,6 +21,7 @@ not have its own repo until session 26.
 ## 0.28.2 — 2026-10-05
 
 - A thread's published `content_html` bakes each transcluded item's HTML verbatim again, as §5.2 and §10.2 specify. 0.28.0 ran the bake through the import sanitizer, which put sanitizer output into the protocol bytes other origins import. Sanitizing stays at every render instead: the public thread pages and version history already sanitize the stored HTML, and the editor's transclusion preview now sanitizes its own output. Threads published under 0.28.0–0.28.1 keep their bytes (published versions are immutable).
+- The client access page described a password change as revoking every client authorization. Since 0.28.0 it only logs out Studio sessions; rotating the cookie secret is what revokes them. The page now says so.
 - Migrations: none.
 
 ## 0.28.1 — 2026-10-05
