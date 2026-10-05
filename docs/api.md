@@ -4,7 +4,7 @@ The owner API lives at `/api`, including installations with a mounted Studio.
 The public Blygger protocol remains separate.
 Sign into Studio before calling the API from a browser on the same origin.
 Server clients must send the owner session cookie.
-OAuth and cross-origin clients belong to the next compatibility phase.
+OAuth clients and cross-origin bearer requests are supported; see [client access](client-access.md).
 
 Shared Zod definitions validate JSON bodies, path parameters, and query parameters.
 They also define resource responses and generate the OpenAPI 3.1 contract.
@@ -187,3 +187,25 @@ Run `npm run sdk:generate` after changing the shared contract.
 Commit `openapi.json` and `sdk/generated/` with the server changes.
 CI validates generation drift, Worker behavior, browser flows, and packaged release artifacts.
 See [SDK usage](../sdk/README.md) for browser and server transports.
+
+## Retry-safe writes
+
+`POST /api/items` (blank creates) and `POST /api/items/{id}/publish` accept an
+`Idempotency-Key` header: 1–255 printable ASCII characters, scoped to the
+caller (the grant for a token, the owner for the cookie) and kept 24 hours.
+
+- Repeating a request with the same key and the same body replays the first
+  response with `Idempotent-Replayed: true`, and does no new work.
+- The same key with a different body answers 422.
+- A repeat while the first is still running answers 409 with `Retry-After: 1`.
+- Keyed responses echo `Idempotency-Key`. The work and its replay record
+  commit together, so a lost response never means the work happened twice.
+
+Publish also accepts `expected: { content_md, stub_of }`. When present, it
+publishes only if the item's working copy still equals it, and otherwise
+answers 409 `{ "error": "changed" }` without publishing.
+
+Support is advertised in the protected resource metadata at
+`{mount}/studio/auth/resources/api`: `idempotency_key_operations` and
+`publish_preconditions`. Send the header and the field only to nodes that
+list them; older nodes reject both.

@@ -18,6 +18,22 @@ not have its own repo until session 26.
 
 ---
 
+## Unreleased
+
+**Migrations: 0023_idempotency_keys.sql.** Apply after 0.28.0's 0021 and 0022.
+
+- `POST /api/items` (blank creates) and `POST /api/items/{id}/publish` accept
+  an `Idempotency-Key` header. A repeat with the same body replays the first
+  response, so clients can retry after a lost response without duplicating
+  an item or a version.
+- Publish accepts `expected: { content_md, stub_of }` and refuses with 409
+  `changed` if the working copy moved. Studio publishes are unchanged.
+- The `api` resource metadata advertises both, and `/api` CORS allows the
+  header and exposes `Idempotency-Key`, `Idempotent-Replayed` and
+  `Retry-After`.
+
+---
+
 ## 0.28.0 — 2026-10-05
 
 - Bound owner/per-grant REST/MCP work, delegated aggregate work, AI calls with an owner reserve, anonymous client storage and request bodies (migration 0022). Reclaim abandoned unapproved registrations after a configurable grace.
