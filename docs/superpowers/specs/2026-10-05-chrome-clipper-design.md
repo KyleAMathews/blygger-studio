@@ -336,10 +336,23 @@ a revision number. Panels never write it; they send mutations to the worker
 (`appendCapture`, `setBody { baseRevision, text }`, `editCitation`), which
 applies them one at a time and persists them.
 
+- **One sequencer for the body.** While a panel holds the editing lease
+  (below), every change to the body goes through that panel, including
+  captures: the worker hands a new capture to the lease holder, which inserts
+  its quote into the text itself. Only when no panel holds the lease does the
+  worker append a capture to the stored body directly. So the worker never
+  changes body text underneath a panel that is typing.
+- **Edit queue.** The panel keeps at most one `setBody` in flight. Input that
+  arrives meanwhile updates a single pending value, the latest full text. When
+  the in-flight call is acknowledged with revision N+1, the panel sends the
+  pending text with `baseRevision: N+1`. Normal typing therefore never sends a
+  stale base. A refusal (lease lost to another window) stops sending, keeps
+  the panel's text on screen, and offers "Edit here" to take the lease back
+  and resend it.
 - **Durability boundary:** a mutation is durable when the worker's
   `storage.local.set` has resolved and it has replied with the new revision.
-  The panel sends `setBody` on every input event, with no timer, and shows
-  "saved locally" only after that reply. Closing the panel before a reply can
+  The panel queues `setBody` on every input event, with no timer, and shows
+  "saved locally" only when nothing is pending. Closing the panel before a reply can
   lose the input sent after the last reply, and never anything before it. The
   draft is never torn or rolled back past an acknowledged revision.
 - **Several panels** (one per window): one panel instance holds the editing
@@ -362,7 +375,24 @@ status. The payload never changes after that. A clip that arrives while the
 save is in flight starts a new draft, so a response can never erase newer
 work. `POST /api/items` carries `Idempotency-Key: {uuid}:create` (§9).
 
-On 201 the operation is marked done and joins recent clips, a toast offers
+Each operation moves through persisted phases. Every phase change, including
+the created item's id, is written to storage before the next request is sent:
+
+| Phase | Meaning | Next |
+|---|---|---|
+| `creating` | Create may be in flight | `created` on 201 (id stored) |
+| `created` | Item exists; a publish was requested | `publishing` |
+| `publishing` | Publish may be in flight | `done` on success |
+| `done` | Finished | joins recent clips |
+| `needs-reconciliation` | Uncertain past key validity (§5.4) | owner resolves |
+| `needs-review` | The item changed in Studio before publish (§5.2) | owner resolves |
+| `discarded` | Owner discarded it | removed after display |
+
+A Save-draft operation goes `creating` → `done`. A worker that wakes with an
+operation in `created` sends the publish; the operation is never forgotten
+between the two requests.
+
+On 201 a Save-draft operation is marked done and joins recent clips, a toast offers
 "Open in Studio" (`{blyg}/studio/edit/{id}`), and the panel shows the draft
 slot: empty, or the clip that arrived meanwhile. If the request was refused
 without being dispatched, or with a 400, 403 or 413 (§5.4), the payload
@@ -372,7 +402,12 @@ draft in the queue list.
 ### 5.2 Publish
 
 Create as above, then `POST /api/items/{id}/publish` with
-`Idempotency-Key: {uuid}:publish`. The server makes a new version on every
+`Idempotency-Key: {uuid}:publish` and the frozen payload's expected working
+copy (§9, "Publish precondition"). If the owner edited the item in Studio
+after it was created, the publish refuses with 409 `changed`, nothing is
+published, and the operation moves to `needs-review`: the panel says the item
+changed since the clip and offers "Open in Studio". The extension never
+publishes text the owner did not freeze. The server makes a new version on every
 publish call, so a blind retry would publish twice, and could publish edits
 made in Studio meanwhile. With the key, a retry replays the first response
 instead. If creation succeeds and publish fails, the clip is a saved draft and
@@ -480,8 +515,10 @@ branch's security rounds:
 
 | Law | Statement | Source |
 |---|---|---|
-| L1 Capture durability | Every capture the worker accepted is, after any sequence of panel closes, worker terminations and browser restarts, in exactly one place: the inbox, the draft or a saved item | §1 success criteria; [Chrome worker lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) |
-| L2 Exactly-once save | Each save operation yields exactly one item, and each publish operation at most one new version, under any fault schedule, while retries stay within L3's bounds on a node that advertises keys | §5, §9; [IETF Idempotency-Key header](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) |
+| L1 Capture durability | Every capture the worker accepted is, after any sequence of panel closes, worker terminations and browser restarts, in exactly one place: the inbox, the draft, a save operation (in any phase), a saved item, or explicitly discarded by the owner | §1 success criteria; [Chrome worker lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) |
+| L2a At most once | Under any fault schedule, a save operation yields at most one item and a publish operation at most one new version | §5, §9; [IETF Idempotency-Key header](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) |
+| L2b Eventual completion | If a valid request can complete before its key expires on a node that advertises keys, the operation reaches `done`; otherwise it ends in `needs-reconciliation`, `needs-review` or `discarded`, never silently | §5.4 |
+| L2c Frozen publish | A publish makes public exactly the frozen payload, or nothing | §5.2, §9 |
 | L3 No unsafe retry | No request is re-sent after dispatch unless the node advertises keys, the grant is unchanged and the key is within its deadline | §5.4 |
 | L1b No lost or duplicated work | A save response never removes a capture or edit made after the frozen revision; recovery never appends a capture twice | §4.1, §5.1 |
 | L4 Refresh safety | At most one refresh is in flight; a stored refresh token is reused only by the single post-restart attempt in §3.4 | [RFC 9700 §4.14](https://www.rfc-editor.org/rfc/rfc9700#section-4.14); `src/oauth-routes.ts:162` |
@@ -521,7 +558,18 @@ branch's security rounds:
   - two panels editing (the non-holder is refused; nothing lost);
   - panel closed after a keystroke's acknowledgement (kept) and before it
     (at most the unacknowledged input lost, never earlier text);
-  - a node that does not advertise keys (header never sent; preflight passes).
+  - a node that does not advertise keys (header never sent; preflight passes);
+  - worker restart after the create's 201, before the publish is sent
+    (publishes on wake);
+  - create succeeds, publish fails before commit, the owner edits in Studio,
+    then the queued publish runs (409 `changed`, nothing published,
+    `needs-review`);
+  - attempt A running, reclaimed by B, B fails and deletes its claim, C
+    claims fresh, then A tries to commit (A's token matches nothing);
+  - fast typing: several inputs before the first acknowledgement (none
+    refused, final text kept);
+  - a capture arriving while the owner types (quote and typed text both
+    kept).
 - **Fault driver** (control the event, not the Promise): a transport that
   forwards to the real Worker and then, on schedule, drops the response after
   the server committed. "Commit then drop" is the case the reviewer found a
@@ -572,11 +620,16 @@ Each control reproduces a realistic regression:
 | Non-holder or stale-base `setBody` accepted | L1b |
 | "Saved locally" shown before the storage write resolves | L1 (close after keystroke) |
 | Retry after the key deadline or under a new grant | L3 |
-| Replay record written outside the work batch | L2 (crash after commit) |
-| Attempt guard missing on reclaim | L2 (older attempt commits) |
-| CORS allowlist lacks `Idempotency-Key` | L2 (browser preflight) |
-| Create or publish sent without `Idempotency-Key` | L2 |
-| Server ignores the key, or keys are not per principal | L2, idempotency tests |
+| Replay record written outside the work batch | L2a (crash after commit) |
+| Attempt guard missing on reclaim | L2a (older attempt commits) |
+| Attempt token reused after a delete (counter instead of token) | L2a (reclaim, fail, reinsert) |
+| Publish without the working-copy precondition | L2c (Studio edit before queued publish) |
+| Phase `created` not persisted before publish | L2b (restart after 201) |
+| Panel sends a second `setBody` while one is in flight | L1b (fast typing) |
+| Worker appends a capture to the body while a panel holds the lease | L1b (capture during typing) |
+| CORS allowlist lacks `Idempotency-Key` | L2a (browser preflight) |
+| Create or publish sent without `Idempotency-Key` | L2a |
+| Server ignores the key, or keys are not per principal | L2a, idempotency tests |
 | Uncertain failure retried against a node that does not advertise keys | L3 |
 | Refresh without single-flight; refresh mark not stored | L4 |
 | Publish button shown without `owner:publish` | L5 |
@@ -627,15 +680,24 @@ idempotency in its direction), not to the protocol. Shape follows the IETF
   the replay write joins it. Create changes from its standalone `INSERT` to a
   batch. A crash before the batch commits leaves nothing done; a crash after
   it leaves the replay ready.
-- **Attempt generation:** the claim row carries an `attempt` number. Every
-  write in the work batch is guarded by `EXISTS (… WHERE principal=? AND
-  key=? AND attempt=? AND state='pending')`, and the replay write sets
-  `state='done'` under the same guard. A pending row older than 60 seconds may
-  be reclaimed, which increments `attempt`. An older attempt that is still
-  running then commits nothing: it sees zero changes and answers with the
-  winner's replay, or 409 if the winner is still running.
+- **Attempt token:** every claim, first or reclaimed, writes a fresh random
+  `attempt` token (a UUID), never a counter, so a token is never reused even
+  after a row is deleted and claimed again. Every write in the work batch is
+  guarded by `EXISTS (… WHERE principal=? AND key=? AND attempt=? AND
+  state='pending')`, and the replay write sets `state='done'` under the same
+  guard. A pending row older than 60 seconds may be reclaimed with a new
+  token. An older attempt that is still running then commits nothing: it sees
+  zero changes and answers with the winner's replay, or 409 if the winner is
+  still running.
 - **Failure:** a 4xx, or an exception before the batch, deletes the pending
-  row if `attempt` still matches, so a retry runs again.
+  row if its token still matches, so a retry runs again.
+- **Publish precondition:** `POST /api/items/{id}/publish` accepts
+  `expected: { content_md, stub_of }`. When present, the handler compares it
+  with the item's working copy and the publish batch is guarded by the same
+  values (`… WHERE id=? AND content_md=? AND stub_of IS ?`), so a concurrent
+  edit cannot slip between check and commit. A mismatch answers 409
+  `{ error: "changed" }` and publishes nothing. Without `expected`, publish
+  behaves as today, so the Studio is unaffected.
 - **Echo:** every keyed response echoes `Idempotency-Key`.
 - **Advertised support:** the protected resource metadata at
   `{base}/auth/resources/api` gains `"idempotency_key_operations":
