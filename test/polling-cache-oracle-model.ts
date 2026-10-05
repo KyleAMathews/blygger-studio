@@ -15,19 +15,18 @@ export type OracleToken = { epoch: string; domains: Record<OracleDomain, number>
 export function changedDomains(before: OracleToken, after: OracleToken) {
   return oracleDomains.filter(d => before.epoch !== after.epoch || before.domains[d] !== after.domains[d]);
 }
-export class StudioReference {
-  readonly installed = new Map<string, number>();
-  readonly applied = new Map<string, { epoch: string; revision: number }>();
-  acknowledge(view: string, target: { epoch: string; revision: number }, installed: number | null, source = installed) {
-    if (installed === null) return;
-    if (installed < target.revision) throw new Error('acknowledged data older than target');
-    if (source === null || installed > source) throw new Error('installed data absent from source');
-    this.installed.set(view, installed);
-    this.applied.set(view, { ...target });
+/** The query cache owns fetched responses. Collection publication and local
+ * overlays are receiving-adapter behavior, not a second application cursor. */
+export class StudioQueryReference {
+  readonly fetched = new Map<string, { epoch: string; revision: number; value: number }>();
+  needsFetch(key: string, source: { epoch: string; revision: number }) {
+    const cached = this.fetched.get(key);
+    return !cached || cached.epoch !== source.epoch || cached.revision !== source.revision;
   }
-  dirty(view: string, source: { epoch: string; revision: number }) {
-    const applied = this.applied.get(view);
-    return !applied || applied.epoch !== source.epoch || applied.revision !== source.revision;
+  receive(key: string, target: { epoch: string; revision: number }, value: number, source: number) {
+    if (target.revision > value) throw new Error('cached token outruns fetched data');
+    if (value > source) throw new Error('cached data absent from source');
+    this.fetched.set(key, { ...target, value });
   }
 }
 export type FeedFacts = { title: string; bio: string; body: string };

@@ -1,10 +1,11 @@
 # Trigger revisions, Studio change checks, and R2 feed revalidation
 
-Working design v2, 2026-10-05, upstream `f32519b`. This incorporates the
-[stress-round findings](d1-polling-cache-review.md). The tested
-[v1 specimen](../models/d1-polling-cache/design-specimen-v1.md) is preserved.
-This is not an installed migration or production cache. It replaces the
-scope of the earlier general cache coordinator, not its files or implementation.
+Working design v3, 2026-10-05, upstream `3192d37`. The user selected ordinary
+Query Collection caching inside `queryFn`: fetch new data when its revision
+changes, otherwise return its existing cached response. Feed rules retain the
+[stress-round fixes](d1-polling-cache-review.md). The frozen
+[v1 specimen](../models/d1-polling-cache/design-specimen-v1.md) and original
+Studio model remain historical evidence; `StudioQuery.tla` models this revision.
 
 ## Source and success standard
 
@@ -13,11 +14,11 @@ application write points. The selected narrow surfaces are Studio polling and
 `feed.xml`. The user accepts stale-while-revalidate for XML. No maximum stale
 age or withdrawal exception has been selected.
 
-The working plan uses trigger-maintained domain counters, successful per-view
-cursor acknowledgment, stable feed renders and generation-bound conditional
-replacement. Pure data reads can skip unchanged polls; time-driven reads keep
-their existing scheduling behavior. Dependency coverage, restore integration,
-cold creation and real-provider receiving checks remain implementation work.
+The implementation uses trigger-maintained domain counters, revision-bearing
+Query responses, stable feed renders and generation-bound conditional feed
+replacement. The existing poller calls refetch; each `queryFn` checks a domain
+revision and returns its cached response or fetches new data. Query Collection
+owns materialization and optimistic state. Timed reads keep their scheduling.
 
 Current source:
 
@@ -40,8 +41,9 @@ P2 user-required: record ordinary content changes without adding invalidation
 calls at every write site. SQL migrations and reader/client code still change.
 P3 source-established: inserts, edits, withdrawals and deletes remain visible;
 unchanged item timestamps cannot be used as a complete change cursor.
-P4 proposed: a Studio cursor means successfully installed local data through
-that revision, not merely a revision that the server has reported.
+P4 user-required: revision tracking belongs to the ordinary Query response
+cache. Store fetched data and its pre-fetch revision together. Query Collection
+owns publication, which can lag fetch completion during local edits.
 P5 proposed: warm unchanged Studio polls skip watched collection SQL; cached
 XML responses do not wait for a full render. Cheap checks remain D1 work.
 P6 user-accepted: saved XML may be older than D1 while revalidation runs. It must
@@ -65,12 +67,13 @@ One trigger may advance several counters in one UPDATE. No append-only journal
 is needed for change detection plus full refresh; that would be a later delta
 sync feature. Counter movement is per relevant row effect, not per user command.
 
-M2 dependency relation: source table/column effects -> domain counters -> watched
-queries/feed. This is two small explicit maps, not automatic semantic inference.
+M2 dependency relation: source table/column effects -> domain counters ->
+collection query functions/feed. Collection configs declare their domain.
 
-M3 applied Studio state: per watched view's dependency revision token and its
-installed collection result. Failed or unmounted views do not become applied
-merely because another view completed or a changes response arrived.
+M3 fetched Studio state: each exact TanStack Query key stores a response and
+its epoch/domain revision. Query Collection selects rows from that response.
+There is no application publication cursor or transaction inspection. Failure
+or cancellation cannot record a new revision without its accepted response.
 
 M4 reusable feed artifact: XML, its source revision, epoch, renderer identity,
 and a conditional replacement token. ETag/HTTP validation names saved XML, not
@@ -94,32 +97,32 @@ matches zero state rows is invalid. Do not recreate missing state during normal
 writes with an old/default epoch. Review the dependency matrix whenever schema
 or response fields change, including migration backfills.
 
-R2 Studio initially loads a view, then polls one fixed revision row for mounted
-data views. Gate only explicitly registered data-only queries with known
-dependencies. On change, refresh only affected views. Unclassified or effectful
-views keep their existing polling behavior. In particular, keep the update-state
-timed poll so crossing its 24-hour deadline still schedules a release check.
-Reuse existing refetch machinery; no optimistic-draft merge algorithm or row
-delta API is introduced here.
+R2 keep ordinary Query Collection configs and the existing 15-second,
+visibility-aware refetch timer. Each actual `queryFn` invocation reads the fixed
+revision row afresh. If its exact-key cached response has the same epoch and
+domain revision, return it; otherwise fetch complete data for that collection
+or on-demand subset. Timed update-state and security reads remain live.
 
-R3 sample a target revision BEFORE refreshing. Mark only successful views
-applied through that target, never a newer token sampled after the load. Tie
-results to at least that target with authoritative primary reads or a shared
-D1 session/bookmark. Serialize/coalesce polls and retain failed dirty views.
-Coalesce revision checks and each view's own load; a stalled view must not
-serialize every other view or delay timed reads. An initial request that started
-before the sampled token cannot satisfy that target: let it settle, then issue
-a fresh refetch. Failed initial Reading pages must remain addressable by their
-subset metadata even when no response data is cached yet. If startup fails
-before a view mounts, the existing Retry control restarts the failed derived
-Reading view; the unmounted view has no timer watcher.
-When a view mounts later it loads independently; unknown epochs force reload.
-Successful means the intended collection/page actually installed its result;
-a canceled or skipped refetch is not acknowledgment. A pending local write
-can defer collection publication even after fetch success; leave its token
-dirty until a later unblocked refresh completes. Keep local mutation
-cancellation/invalidation and optimistic draft protections. One view succeeding
-does not advance another view's token.
+R3 store `{ data, generation }` in the existing Query cache and use the adapter's
+`select` to extract rows. Capture the generation BEFORE loading data, using
+primary D1 reads; never label the result with a later revision. Query's accepted
+response owns both fields, so canceled/failed fetches cannot advance a separate
+token. Query Collection owns cancellation, materialization, subset ownership
+and optimistic edits. A fresh content response can be cached while collection
+publication waits behind a local edit; the application need not inspect that
+queue or refetch solely because publication lags.
+
+Do not share a cached revision check across query functions: a mutation refetch
+must not join a check that began before the write. Each query function performs
+its own cheap check. Mounted views can therefore make several cheap row reads
+per timer tick; there is no one-check-per-tick guarantee. An old in-flight Query
+may be joined according to normal Query behavior, but its response keeps its
+old pre-fetch token, so a later invocation will still fetch a changed revision.
+
+Reading remains on-demand. Its cached page retains counts and offset alongside
+the rows. Use the real Query Collection refetch utility to refresh tracked
+subsets. If startup fails before mount, the existing Retry control restarts the
+failed derived view. No custom adapter or new row-delta protocol is introduced.
 
 R4 cached feed is served immediately; unconditional and conditional requests
 both schedule a revision check. If source token equals artifact token, do not
@@ -199,7 +202,9 @@ detectable. Check schema additions and backfills against the dependency map.
 Studio tests must hold a refresh while another mutation commits, fail one of
 several view refreshes, cancel a refresh, mount a previously unmounted view and
 cross the daily update-check deadline without a database change. Observe
-installed data, applied cursors and scheduled effects, not promise resolution alone.
+accepted cached responses, their pre-fetch tokens, adapter-published data and
+scheduled effects. Include canceled loads, failed revisions, a mutation racing
+an older revision check, and overlapping subset ownership.
 
 Feed tests must cover body repetition across generations, mutations between
 render reads, simultaneous builders, conditional 304 revalidation, interrupted

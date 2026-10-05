@@ -1,178 +1,247 @@
-/** Independent cursor/work reference: test/polling-cache-oracle-model.ts.
- * Driver is the production Polling class. Controlled refreshes record installed
- * generations; failures/cancellation never install data. Assertions compare
- * installed values, executed work and retries, not only internal cursors.
- * The real QueryClient receiving tests in this file distinguish a fulfilled
- * cancellation/skipped refetch from installed data. Fixed and random histories
- * use the same bounded grammar; explicit replay bypasses normal campaigns.
- * Limits: no browser clock scheduling or optimistic-editor algorithm replaced.
+/** Query-cache contract: design v3. readIfChanged runs inside the real Query
+ * Collection queryFn. Independent source history predicts fetches and cached
+ * generation/payload pairs. Adapter receiving checks cover cancellation,
+ * overlapping subsets, initial flights and optimistic edits without inspecting
+ * DB internals. Fixed/random histories share grammar, budget and replay.
+ * Limits: local QueryClient/Collection witnesses, not an atomic paginated SQL
+ * snapshot or a claim about the time deferred collection publication completes.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import fc from 'fast-check';
+import { QueryClient, type QueryFunction } from '@tanstack/query-core';
+import { createCollection, createLiveQueryCollection, and, gte, lt } from '@tanstack/react-db';
+import { queryCollectionOptions, parseLoadSubsetOptions } from '@tanstack/query-db-collection';
+import { readIfChanged, type CachedResponse } from '../src/ui/revision-query.ts';
 import { Polling } from '../src/ui/polling.ts';
-import { collectionCanAcknowledge, confirmedRefresh } from '../src/ui/poll-refresh.ts';
-import { QueryClient } from '@tanstack/query-core';
-import { createCollection } from '@tanstack/react-db';
-import { queryCollectionOptions } from '@tanstack/query-db-collection';
-import { StudioReference, type OracleToken } from '../test/polling-cache-oracle-model.ts';
+import { StudioQueryReference, type OracleToken } from '../test/polling-cache-oracle-model.ts';
 import { campaign, atCheckpoint } from '../test/oracle-campaign.ts';
 import { withOracleCleanup } from '../test/oracle-cleanup.ts';
 
 const token = (revision = 0, epoch = 'e'): OracleToken => ({ epoch, domains: { items: revision, reading: revision, subscriptions: revision, hoppers: revision, signals: revision, settings: revision, feed: revision } });
+const makeClient = () => new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
-afterEach(() => vi.useRealTimers());
+function rowsCollection(client: QueryClient, read: QueryFunction<OracleToken>, load: QueryFunction<{ id: string; revision: number }[]>) {
+  return createCollection(queryCollectionOptions({
+    queryKey: ['items'], queryClient: client, getKey: (row: { id: string; revision: number }) => row.id,
+    queryFn: context => readIfChanged(context, 'items', read, load),
+    select: (response: CachedResponse<{ id: string; revision: number }[]>) => response.data,
+  }));
+}
 
-describe('Studio applied-cursor oracle', () => {
-  it('unchanged checks skip data loads but retain timed and unknown reads', async () => {
-    let source = token(); const read = vi.fn(async () => source), data = vi.fn(async () => true), timed = vi.fn(async () => true);
-    const poll = new Polling(() => true, error => { throw error; }, 15_000, read);
-    poll.watch('items', data); poll.watch('updates', timed);
-    await poll.refresh(); await poll.refresh(); await poll.refresh();
-    expect(read).toHaveBeenCalledTimes(3); expect(data).toHaveBeenCalledTimes(1); expect(timed).toHaveBeenCalledTimes(3);
-    source = token(1); await poll.refresh(); expect(data).toHaveBeenCalledTimes(2);
+describe('Studio query-cache oracle', () => {
+  it('returns cached rows on unchanged revisions and loads new data only when the source changes', async () => {
+    const client = makeClient(); let source = token();
+    const read = vi.fn(async () => source), load = vi.fn(async () => [{ id: 'a', revision: source.domains.items }]);
+    const collection = rowsCollection(client, read, load);
+    await withOracleCleanup(async () => {
+      await collection.preload(); const cached = client.getQueryData(['items']);
+      await collection.utils.refetch({ throwOnError: true }); await collection.utils.refetch({ throwOnError: true });
+      atCheckpoint('Studio unchanged query work', () => { expect(read).toHaveBeenCalledTimes(3); expect(load).toHaveBeenCalledTimes(1); expect(client.getQueryData(['items'])).toBe(cached); });
+      source = token(1); await collection.utils.refetch({ throwOnError: true });
+      expect(collection.get('a')!.revision).toBe(1); expect(load).toHaveBeenCalledTimes(2);
+    }, [() => collection.cleanup(), async () => { client.clear(); }]);
   });
-  it('acknowledges the sampled target rather than a newer source after the load', async () => {
-    let source = token(1), installed = 0, loads = 0;
-    const reference = new StudioReference(), gate = deferred(), entered = deferred();
-    const poll = new Polling(() => true, error => { throw error; }, 15_000, async () => structuredClone(source));
-    poll.watch('items', async () => { loads++; const captured = source.domains.items; entered.resolve(); await gate.promise; installed = captured; return true; });
-    const pending = poll.refresh(); await entered.promise; source = token(2); gate.resolve(); await pending;
-    reference.acknowledge('items', { epoch: 'e', revision: 1 }, installed);
-    expect(reference.dirty('items', { epoch: 'e', revision: 2 })).toBe(true);
-    await poll.refresh(); atCheckpoint('Studio sampled target', () => { expect(installed).toBe(2); expect(loads).toBe(2); });
+  it('stores the pre-fetch token rather than a newer revision sampled after the load', async () => {
+    const client = makeClient(), entered = deferred(), release = deferred(); let source = token(), first = true;
+    const load = vi.fn(async () => { const revision = source.domains.items; if (first) { first = false; entered.resolve(); await release.promise; } return [{ id: 'a', revision }]; });
+    const collection = rowsCollection(client, async () => structuredClone(source), load);
+    const initial = collection.preload();
+    await withOracleCleanup(async () => {
+      await entered.promise; source = token(1); release.resolve(); await initial;
+      const cached = client.getQueryData<CachedResponse<{ id: string; revision: number }[]>>(['items'])!;
+      atCheckpoint('Studio pre-fetch revision', () => expect(cached.generation.revision).toBe(0));
+      await collection.utils.refetch({ throwOnError: true });
+      expect(collection.get('a')!.revision).toBe(1); expect(load).toHaveBeenCalledTimes(2);
+    }, [async () => { release.resolve(); await initial.catch(() => {}); await collection.cleanup(); }, async () => { client.clear(); }]);
   });
-  it('failed and canceled views retry independently of successful neighbors', async () => {
-    const report = vi.fn(); let cancel = true, fail = true, source = token(1);
-    const item = vi.fn(async () => !cancel), reading = vi.fn(async () => { if (fail) throw new Error('offline'); return true; }), subscriptions = vi.fn(async () => true);
-    const poll = new Polling(() => true, report, 15_000, async () => source);
-    poll.watch('items', item); poll.watch('reading:all:0', reading); poll.watch('subscriptions', subscriptions);
-    await poll.refresh(); expect(report).toHaveBeenCalledTimes(1);
-    cancel = false; fail = false; await poll.refresh();
-    atCheckpoint('Studio failed-view retry', () => { expect(item).toHaveBeenCalledTimes(2); expect(reading).toHaveBeenCalledTimes(2); expect(subscriptions).toHaveBeenCalledTimes(1); });
-    source = token(2); await poll.refresh(); expect(subscriptions).toHaveBeenCalledTimes(2);
+  it('failed content loads retain the cached generation and retry at the same target', async () => {
+    const client = makeClient(); let source = token(), fail = false;
+    const load = vi.fn(async () => { if (fail) throw new Error('controlled content failure'); return [{ id: 'a', revision: source.domains.items }]; });
+    const collection = rowsCollection(client, async () => source, load);
+    await withOracleCleanup(async () => {
+      await collection.preload(); const old = client.getQueryData(['items']); source = token(1); fail = true;
+      await expect(collection.utils.refetch({ throwOnError: true })).rejects.toThrow('controlled content failure');
+      atCheckpoint('Studio failed-query retry', () => expect(client.getQueryData(['items'])).toBe(old)); expect(collection.get('a')!.revision).toBe(0);
+      fail = false; await collection.utils.refetch({ throwOnError: true });
+      atCheckpoint('Studio failed-query retry', () => { expect(collection.get('a')!.revision).toBe(1); expect(load).toHaveBeenCalledTimes(3); });
+    }, [() => collection.cleanup(), async () => { client.clear(); }]);
   });
-  it('diagnostics refresh subscriptions without loading Reading or hopper detail', async () => {
-    let source = token(), reading = 0, hopper = 0, subscriptions = 0;
-    const poll = new Polling(() => true, error => { throw error; }, 15_000, async () => source);
-    poll.watch('reading:all:0', async () => { reading++; return true; });
-    poll.watch('hopper:h', async () => { hopper++; return true; });
-    poll.watch('subscriptions', async () => { subscriptions++; return true; });
-    await poll.refresh(); source = { ...source, domains: { ...source.domains, subscriptions: 1 } }; await poll.refresh();
-    expect([reading, hopper, subscriptions]).toEqual([1, 1, 2]);
+  it('failed revision reads retain rows and cannot reuse a stale changes-query result', async () => {
+    const client = makeClient(); let source = token(), fail = false;
+    const load = vi.fn(async () => [{ id: 'a', revision: source.domains.items }]);
+    const collection = rowsCollection(client, async () => { if (fail) throw new Error('controlled revision failure'); return source; }, load);
+    await withOracleCleanup(async () => {
+      await collection.preload(); const old = client.getQueryData(['items']); source = token(1); fail = true;
+      await expect(collection.utils.refetch({ throwOnError: true })).rejects.toThrow('controlled revision failure');
+      expect(client.getQueryData(['items'])).toBe(old); expect(load).toHaveBeenCalledTimes(1);
+      fail = false; await collection.utils.refetch({ throwOnError: true }); expect(collection.get('a')!.revision).toBe(1);
+    }, [() => collection.cleanup(), async () => { client.clear(); }]);
   });
-  it('coalesces overlapping checks, reloads remounts and reused counters after epoch change', async () => {
-    let source = token(1); const gate = deferred(), entered = deferred(), read = vi.fn(async () => { entered.resolve(); await gate.promise; return source; }), refresh = vi.fn(async () => true);
-    const poll = new Polling(() => true, error => { throw error; }, 15_000, read);
-    const unmount = poll.watch('items', refresh); const a = poll.refresh(), b = poll.refresh(); await entered.promise;
-    expect(read).toHaveBeenCalledTimes(1); gate.resolve(); await Promise.all([a, b]); expect(refresh).toHaveBeenCalledTimes(1);
-    unmount(); source = token(1, 'restored'); poll.watch('items', refresh); await poll.refresh(); expect(refresh).toHaveBeenCalledTimes(2);
-    source = token(1, 'another-restore'); await poll.refresh(); expect(refresh).toHaveBeenCalledTimes(3);
+  it('canceled content reads cannot stamp a generation without its accepted response', async () => {
+    const client = makeClient(), entered = deferred(), release = deferred(); let source = token(), hold = false;
+    const queryFn = (context: Parameters<QueryFunction>[0]) => readIfChanged(context, 'items', async () => source, async () => {
+      const revision = source.domains.items; if (hold) { entered.resolve(); await release.promise; } return revision;
+    });
+    await client.fetchQuery({ queryKey: ['items'], queryFn }); const old = client.getQueryData(['items']); source = token(1); hold = true;
+    const pending = client.fetchQuery({ queryKey: ['items'], queryFn, staleTime: 0 });
+    // Register the rejection before cancelQueries rejects the fetching promise.
+    const canceled = pending.catch(() => undefined);
+    await withOracleCleanup(async () => {
+      await entered.promise; await client.cancelQueries({ queryKey: ['items'] }); release.resolve(); await canceled;
+      expect(client.getQueryData(['items'])).toBe(old); hold = false;
+      const next = await client.fetchQuery({ queryKey: ['items'], queryFn, staleTime: 0 });
+      atCheckpoint('Studio canceled-query retry', () => expect(next).toEqual({ data: 1, generation: { epoch: 'e', revision: 1 } }));
+    }, [async () => { release.resolve(); await canceled; client.clear(); }]);
   });
-  it('hidden tabs issue no revision reads and recover after a failed revision read', async () => {
-    let visible = false, fail = true; const report = vi.fn(), read = vi.fn(async () => { if (fail) throw new Error('check failed'); return token(); }), refresh = vi.fn(async () => true);
-    const poll = new Polling(() => visible, report, 15_000, read); poll.watch('items', refresh);
-    await poll.refresh(); expect(read).not.toHaveBeenCalled(); visible = true; await poll.refresh(); expect(refresh).not.toHaveBeenCalled();
-    fail = false; await poll.refresh(); expect(refresh).toHaveBeenCalledTimes(1); expect(report).toHaveBeenCalledTimes(1);
+  it('newer source data is labelled conservatively and epoch changes invalidate reused counters', async () => {
+    const client = makeClient(); let source = token(1), newer = true;
+    const load = vi.fn(async () => { if (newer) { newer = false; source = token(2); } return [{ id: 'a', revision: source.domains.items }]; });
+    const collection = rowsCollection(client, async () => structuredClone(source), load);
+    await withOracleCleanup(async () => {
+      await collection.preload(); expect(collection.get('a')!.revision).toBe(2);
+      expect(client.getQueryData<CachedResponse<unknown>>(['items'])!.generation.revision).toBe(1);
+      await collection.utils.refetch({ throwOnError: true }); expect(load).toHaveBeenCalledTimes(2);
+      source = token(2, 'restore'); await collection.utils.refetch({ throwOnError: true }); expect(load).toHaveBeenCalledTimes(3);
+      client.removeQueries({ queryKey: ['items'], exact: true }); await collection.utils.refetch({ throwOnError: true }); expect(load).toHaveBeenCalledTimes(4);
+    }, [() => collection.cleanup(), async () => { client.clear(); }]);
   });
-  it('real QueryClient cancellation and empty refetch do not acknowledge installation', async () => {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } }), entered = deferred(), release = deferred();
-    client.setQueryData(['items'], [{ id: 'a', text: 'old' }]);
-    const loading = confirmedRefresh(client, 'items', () => client.fetchQuery({ queryKey: ['items'], queryFn: async () => { entered.resolve(); await release.promise; return [{ id: 'a', text: 'new' }]; } }));
-    await entered.promise; await client.cancelQueries({ queryKey: ['items'] }); release.resolve();
-    expect(await loading.catch(() => false)).toBe(false);
-    expect(client.getQueryData(['items'])).toEqual([{ id: 'a', text: 'old' }]);
-    expect(await confirmedRefresh(client, 'items', async () => {})).toBe(false);
-    expect(await confirmedRefresh(client, 'items', () => client.fetchQuery({ queryKey: ['items'], queryFn: async () => [{ id: 'a', text: 'new' }] }))).toBe(true);
-    expect(client.getQueryData(['items'])).toEqual([{ id: 'a', text: 'new' }]); client.clear();
+  it('each queryFn makes a fresh revision check without another query cache', async () => {
+    const client = makeClient(), release = deferred(), entered = deferred();
+    const read = vi.fn(async () => { entered.resolve(); await release.promise; return token(); });
+    const queryFn = (context: Parameters<QueryFunction>[0]) => readIfChanged(context, 'items', read, async () => ['row']);
+    const a = client.fetchQuery({ queryKey: ['items', 'a'], queryFn }), b = client.fetchQuery({ queryKey: ['items', 'b'], queryFn });
+    await withOracleCleanup(async () => {
+      await entered.promise; expect(read).toHaveBeenCalledTimes(2); release.resolve(); await Promise.all([a, b]);
+      expect(client.getQueriesData({ queryKey: ['items'] })).toHaveLength(2);
+      expect(client.getQueryCache().findAll()).toHaveLength(2);
+    }, [async () => { release.resolve(); await Promise.allSettled([a, b]); client.clear(); }]);
   });
-  it('real query collection installs refreshed data while preserving a pending local edit', async () => {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } }), gate = deferred();
-    let text = 'initial', revision = 0;
-    const collection = createCollection(queryCollectionOptions<{ id: string; text: string }>({
-      id: 'polling-oracle-items', queryKey: ['items'], queryClient: client, getKey: row => row.id,
-      queryFn: async () => [{ id: 'a', text }],
-      onUpdate: async () => { await gate.promise; text = 'local edit'; },
+  it('Query Collection preserves a local edit while its cached remote response is refreshed', async () => {
+    const client = makeClient(), release = deferred(); let source = token(), text = 'initial';
+    const load = vi.fn(async () => [{ id: 'a', text }]);
+    const collection = createCollection(queryCollectionOptions({
+      queryKey: ['items'], queryClient: client, getKey: (row: { id: string; text: string }) => row.id,
+      queryFn: context => readIfChanged(context, 'items', async () => source, load),
+      select: (response: CachedResponse<{ id: string; text: string }[]>) => response.data,
+      onUpdate: async () => { await release.promise; text = 'local edit'; source = token(2); },
     }));
     await withOracleCleanup(async () => {
-      await collection.preload(); expect(collection.get('a')!.text).toBe('initial');
-      const poll = new Polling(() => true, error => { throw error; }, 15_000, async () => token(revision));
-      let loads = 0;
-      poll.watch('items', () => { loads++; return confirmedRefresh(client, 'items', () => collection.utils.refetch({ throwOnError: true }), () => collectionCanAcknowledge(collection)); });
-      await poll.refresh(); const mutation = collection.update('a', draft => { draft.text = 'local edit'; });
-      text = 'remote change'; revision++; await poll.refresh();
-      expect(client.getQueryData(['items'])).toEqual([{ id: 'a', text: 'remote change' }]);
-      expect(collection.get('a')!.text).toBe('local edit');
-      gate.resolve(); await mutation.isPersisted.promise; expect(collection.get('a')!.text).toBe('local edit');
-      const before = loads; await poll.refresh();
-      atCheckpoint('Studio deferred application retry', () => expect(loads).toBe(before + 1));
-      await poll.refresh(); expect(loads).toBe(before + 1);
-    }, [async () => { gate.resolve(); await collection.cleanup(); }, async () => { client.clear(); }]);
-  });
-  it('rejects a cursor outrunning installed data', () => {
-    const reference = new StudioReference(); expect(() => reference.acknowledge('items', { epoch: 'e', revision: 2 }, 1)).toThrow('acknowledged data older than target');
-    reference.acknowledge('items', { epoch: 'e', revision: 1 }, null); expect(reference.dirty('items', { epoch: 'e', revision: 1 })).toBe(true);
-    expect(() => reference.acknowledge('items', { epoch: 'e', revision: 1 }, 2, 1)).toThrow('installed data absent from source');
-  });
-  it('newer load results still acknowledge only the pre-load target', async () => {
-    let source = token(1), installed = 0, loads = 0; const entered = deferred(), release = deferred();
-    const poll = new Polling(() => true, error => { throw error; }, 15_000, async () => structuredClone(source));
-    poll.watch('items', async () => { loads++; entered.resolve(); await release.promise; installed = source.domains.items; return true; });
-    const pending = poll.refresh(); await entered.promise; source = token(2); release.resolve(); await pending;
-    expect(installed).toBe(2); await poll.refresh(); expect(loads).toBe(2);
-  });
-  it('an initial request started before the sampled target cannot satisfy its refresh', async () => {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } }), entered = deferred(), release = deferred(), refreshStarted = deferred();
-    let source = 0, first = true;
-    const queryFn = async () => { const revision = source; if (first) { first = false; entered.resolve(); await release.promise; } return [{ id: 'a', revision }]; };
-    const initial = client.fetchQuery({ queryKey: ['items'], queryFn }); await entered.promise; source = 1;
-    const poll = new Polling(() => true, error => { throw error; }, 15_000, async () => token(source));
-    poll.watch('items', () => { refreshStarted.resolve(); return confirmedRefresh(client, 'items', () => client.fetchQuery({ queryKey: ['items'], queryFn })); });
-    const pending = poll.refresh(); await refreshStarted.promise; release.resolve(); await Promise.all([initial, pending]);
-    atCheckpoint('Studio pre-target flight', () => expect(client.getQueryData(['items'])).toEqual([{ id: 'a', revision: 1 }])); client.clear();
-  });
-  it('a real collection refetch after an older initial flight installs current data', async () => {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } }), entered = deferred(), release = deferred(), refreshing = deferred();
-    let source = 0, first = true;
-    const collection = createCollection(queryCollectionOptions<{ id: string; revision: number }>({ id: 'initial-flight-oracle', queryKey: ['items'], queryClient: client, getKey: row => row.id,
-      queryFn: async () => { const revision = source; if (first) { first = false; entered.resolve(); await release.promise; } return [{ id: 'a', revision }]; },
-    }));
-    const initial = collection.preload(); await entered.promise; source = 1;
-    const poll = new Polling(() => true, error => { throw error; }, 15_000, async () => token(source));
-    poll.watch('items', () => { refreshing.resolve(); return confirmedRefresh(client, 'items', () => collection.utils.refetch({ throwOnError: true })); });
-    const pending = poll.refresh();
-    await withOracleCleanup(async () => {
-      await refreshing.promise; release.resolve(); await Promise.all([initial, pending]);
-      atCheckpoint('Studio pre-target flight', () => expect(collection.get('a')!.revision).toBe(1));
+      await collection.preload(); const mutation = collection.update('a', draft => { draft.text = 'local edit'; });
+      source = token(1); text = 'remote change'; await collection.utils.refetch({ throwOnError: true });
+      expect(client.getQueryData<CachedResponse<{ text: string }[]>>(['items'])!.data[0].text).toBe('remote change');
+      expect(collection.get('a')!.text).toBe('local edit'); const before = load.mock.calls.length;
+      await collection.utils.refetch({ throwOnError: true }); expect(load).toHaveBeenCalledTimes(before);
+      release.resolve(); await mutation.isPersisted.promise; expect(collection.get('a')!.text).toBe('local edit');
+      expect(client.getQueryData<CachedResponse<unknown>>(['items'])!.generation.revision).toBe(2);
     }, [async () => { release.resolve(); await collection.cleanup(); }, async () => { client.clear(); }]);
   });
-  it('a stalled data view does not stop a healthy view or timed read from polling', async () => {
-    const gate = deferred(); let source = token(), healthy = 0, timed = 0;
-    const poll = new Polling(() => true, error => { throw error; }, 15_000, async () => source);
-    poll.watch('items', async () => { await gate.promise; return true; });
-    poll.watch('settings', async () => { healthy++; return true; });
-    poll.watch('updates', async () => { timed++; return true; });
-    const first = poll.refresh(); await new Promise(resolve => setTimeout(resolve, 0)); source = token(1);
-    const second = poll.refresh();
-    try {
-      await new Promise(resolve => setTimeout(resolve, 0));
-      atCheckpoint('Studio independent views', () => { expect(healthy).toBe(2); expect(timed).toBe(2); });
-    } finally { gate.resolve(); await Promise.all([first, second]); }
+  it('on-demand Reading pages cache their exact subsets', async () => {
+    const client = makeClient(); let source = token(); const calls: number[] = [];
+    const collection = createCollection(queryCollectionOptions({
+      queryKey: ['reading', 'all'], queryClient: client, syncMode: 'on-demand', getKey: (row: { id: string; rank: number; revision: number }) => row.id,
+      queryFn: context => readIfChanged(context, 'reading', async () => source, async ({ meta }) => {
+        const { filters } = parseLoadSubsetOptions(meta?.loadSubsetOptions);
+        const start = filters.find(filter => filter.field[0] === 'rank' && filter.operator === 'gte');
+        const offset = Number(start?.value ?? 0); calls.push(offset);
+        return { offset, items: [{ id: `r${offset}`, rank: offset, revision: source.domains.reading }] };
+      }),
+      select: (response: CachedResponse<{ offset: number; items: { id: string; rank: number; revision: number }[] }>) => response.data.items,
+    }));
+    const views = [0, 25].map(offset => createLiveQueryCollection({ query: q => q.from({ row: collection }).where(({ row }) => and(gte(row.rank, offset), lt(row.rank, offset + 25))).orderBy(({ row }) => row.rank) }));
+    await withOracleCleanup(async () => {
+      await Promise.all(views.map(view => view.preload())); expect(calls.sort()).toEqual([0, 25]);
+      await collection.utils.refetch({ throwOnError: true }); expect(calls).toHaveLength(2);
+      source = token(1); await collection.utils.refetch({ throwOnError: true }); expect(calls).toHaveLength(4);
+      expect([...collection.values()].map(row => row.revision)).toEqual([1, 1]);
+    }, [...views.map(view => () => view.cleanup()), () => collection.cleanup(), async () => { client.clear(); }]);
   });
-  campaign('studio-polling', fc.array(fc.constantFrom('write', 'poll', 'fail', 'restore'), { minLength: 1, maxLength: 20 }), async actions => {
-      let revision = 0, epoch = 'e', fail = false, installed = 0, loads = 0;
-      const reference = new StudioReference();
-      const poll = new Polling(() => true, () => {}, 15_000, async () => token(revision, epoch));
-      poll.watch('items', async () => { loads++; if (fail) throw new Error('controlled'); installed = revision; return true; });
+  it('overlapping subsets retain a shared row until its last fetched owner releases it', async () => {
+    const client = makeClient(); let revision = 0;
+    const collection = createCollection(queryCollectionOptions({
+      queryKey: ['reading', 'overlap'], queryClient: client, syncMode: 'on-demand',
+      getKey: (row: { id: string; rank: number }) => row.id,
+      queryFn: context => readIfChanged(context, 'reading', async () => token(revision), async ({ meta }) => {
+        const { filters } = parseLoadSubsetOptions(meta?.loadSubsetOptions);
+        const end = filters.find(filter => filter.field[0] === 'rank' && filter.operator === 'lt');
+        return revision === 0 || (revision === 1 && end?.value === 50) ? [{ id: 'shared', rank: 0 }] : [];
+      }),
+      select: (response: CachedResponse<{ id: string; rank: number }[]>) => response.data,
+    }));
+    const views = [25, 50].map(end => createLiveQueryCollection({ query: q => q.from({ row: collection }).where(({ row }) => and(gte(row.rank, 0), lt(row.rank, end))).orderBy(({ row }) => row.rank) }));
+    await withOracleCleanup(async () => {
+      await Promise.all(views.map(view => view.preload())); expect(collection.has('shared')).toBe(true);
+      revision = 1; await collection.utils.refetch({ throwOnError: true });
+      atCheckpoint('Studio subset ownership', () => expect(collection.has('shared')).toBe(true));
+      revision = 2; await collection.utils.refetch({ throwOnError: true });
+      atCheckpoint('Studio subset ownership', () => expect(collection.has('shared')).toBe(false));
+    }, [...views.map(view => () => view.cleanup()), () => collection.cleanup(), async () => { client.clear(); }]);
+  });
+  it('mutation refetch starts a fresh revision check even while an older check is pending', async () => {
+    const client = makeClient(), entered = deferred(), release = deferred(); let revision = 0, hold = false, reads = 0;
+    const read: QueryFunction<OracleToken> = async () => {
+      reads++; const observed = token(revision);
+      if (hold) { hold = false; entered.resolve(); await release.promise; }
+      return observed;
+    };
+    const collection = createCollection(queryCollectionOptions({
+      queryKey: ['items'], queryClient: client, getKey: (row: { id: string; revision: number }) => row.id,
+      queryFn: context => readIfChanged(context, 'items', read, async () => [{ id: 'a', revision }]),
+      select: (response: CachedResponse<{ id: string; revision: number }[]>) => response.data,
+      onUpdate: async () => { revision = 1; },
+    }));
+    await collection.preload(); hold = true;
+    const earlier = collection.utils.refetch({ throwOnError: true }).catch(() => undefined);
+    await withOracleCleanup(async () => {
+      await entered.promise; const mutation = collection.update('a', draft => { draft.revision = 1; });
+      await mutation.isPersisted.promise;
+      atCheckpoint('Studio post-write fresh check', () => {
+        expect(reads).toBe(3); expect(collection.get('a')!.revision).toBe(1);
+        expect(client.getQueryData<CachedResponse<unknown>>(['items'])!.generation.revision).toBe(1);
+      });
+      release.resolve(); await earlier;
+      expect(collection.get('a')!.revision).toBe(1);
+    }, [async () => { release.resolve(); await earlier; await collection.cleanup(); }, async () => { client.clear(); }]);
+  });
+  it('diagnostic-only changes do not fetch Reading and timed reads still run', async () => {
+    const client = makeClient(); let source = token(); const load = vi.fn(async () => 0), timed = vi.fn(async () => {});
+    const queryFn = (context: Parameters<QueryFunction>[0]) => readIfChanged(context, 'reading', async () => source, load);
+    const poll = new Polling(() => true, error => { throw error; });
+    poll.watch('reading:all:0', () => client.fetchQuery({ queryKey: ['reading', 'all', 0], queryFn, staleTime: 0 })); poll.watch('updates', timed);
+    await poll.refresh(); source = { ...source, domains: { ...source.domains, subscriptions: 1 } }; await poll.refresh();
+    expect(load).toHaveBeenCalledTimes(1); expect(timed).toHaveBeenCalledTimes(2); client.clear();
+  });
+  it('a stalled view does not stop another query or a timed read from polling', async () => {
+    const release = deferred(); let healthy = 0, timed = 0;
+    const poll = new Polling(() => true, error => { throw error; });
+    poll.watch('items', async () => { await release.promise; }); poll.watch('settings', async () => { healthy++; }); poll.watch('updates', async () => { timed++; });
+    const first = poll.refresh(); await new Promise(resolve => setTimeout(resolve, 0)); const second = poll.refresh();
+    await withOracleCleanup(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0)); expect([healthy, timed]).toEqual([2, 2]);
+    }, [async () => { release.resolve(); await Promise.all([first, second]); }]);
+  });
+  it('the independent checker rejects a token newer than its fetched source data', () => {
+    const reference = new StudioQueryReference();
+    expect(() => reference.receive('items', { epoch: 'e', revision: 2 }, 1, 2)).toThrow('cached token outruns fetched data');
+    expect(() => reference.receive('items', { epoch: 'e', revision: 1 }, 2, 1)).toThrow('cached data absent from source');
+  });
+  campaign('studio-polling', fc.array(fc.constantFrom('write', 'poll', 'fail', 'restore', 'evict'), { minLength: 1, maxLength: 20 }), async actions => {
+    const client = makeClient(), reference = new StudioQueryReference(); let revision = 0, epoch = 'e', fail = false, loads = 0;
+    const queryFn = (context: Parameters<QueryFunction>[0]) => readIfChanged(context, 'items', async () => token(revision, epoch), async () => { loads++; if (fail) throw new Error('controlled'); return revision; });
+    await withOracleCleanup(async () => {
       for (const action of [...actions, 'poll'] as const) {
         if (action === 'write') revision++;
         if (action === 'restore') { epoch += 'r'; revision = 0; }
         if (action === 'fail') fail = !fail;
+        if (action === 'evict') { client.removeQueries({ queryKey: ['items'], exact: true }); reference.fetched.delete('items'); }
         if (action === 'poll') {
-          const dirty = reference.dirty('items', { epoch, revision }), before = loads;
-          await poll.refresh(); atCheckpoint('Studio unchanged work and retry', () => expect(loads - before).toBe(dirty ? 1 : 0));
-          if (dirty && !fail) reference.acknowledge('items', { epoch, revision }, revision, revision);
-          atCheckpoint('Studio installed values', () => expect(installed).toBe(reference.installed.get('items') ?? 0));
+          const target = { epoch, revision }, dirty = reference.needsFetch('items', target), before = loads;
+          await client.fetchQuery({ queryKey: ['items'], queryFn, staleTime: 0 }).catch(() => {});
+          atCheckpoint('Studio query work and retry', () => expect(loads - before).toBe(dirty ? 1 : 0));
+          if (dirty && !fail) reference.receive('items', target, revision, revision);
+          const expected = reference.fetched.get('items');
+          atCheckpoint('Studio cached generation and values', () => expect(client.getQueryData(['items'])).toEqual(expected ? { data: expected.value, generation: { epoch: expected.epoch, revision: expected.revision } } : undefined));
         }
       }
+    }, [async () => { client.clear(); }]);
   }, 50);
 });

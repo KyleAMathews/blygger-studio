@@ -1,8 +1,12 @@
 # Polling/cache oracle and loss audit
 
-Contract: [working design v2](d1-polling-cache-design.md). This record owns the
+Contract: [working design v3](d1-polling-cache-design.md). This record owns the
 loss comparison and receiving boundary; it does not claim deployed-provider
 proof, maximum stale age, global single-flight or actual quota capacity.
+
+The original loss ledgers and v2 audit below describe their named historical
+commits. The v3 review at the end supersedes Studio publication-cursor claims.
+Feed and trigger evidence retains its original scope.
 
 ## Frozen reduction and source isolation
 
@@ -89,7 +93,7 @@ distribution. No production connection or deployment is authorized or needed
 for this implementation stage. Implementation must pass the receiving suite;
 final execution and numbered ORC outcomes are recorded at closeout.
 
-## Numbered guide review
+## Numbered guide review (v2, historical)
 
 Reviewed implementation head: `9a9a6ab8e23fc48685986685d2070539110a4942`.
 This record identifies the immutable source used for the final review. Later
@@ -180,3 +184,69 @@ and replay receipts. With `FORCE_COLOR=1`, all seven controls again fail at thei
 named laws and the generated failure replays at seed `20261001`, path `0:0`.
 This repair changes output parsing only. The proposed TanStack integration
 redesign remains a separate design question.
+
+## Query Collection correction (v3)
+
+Authority: the user requires ordinary Query Collection configs whose `queryFn`
+fetches changed data or returns its existing cached response. The poller is
+restored to upstream and the publication wrapper is deleted. There is no
+application cursor, `_state` access, query-update counter, collection registry,
+or second revision-query cache. Each invocation checks D1 afresh and uses the
+exact Query key's `{ data, generation }` response. `select` materializes rows.
+
+This changes the Studio contract, rather than merely renaming the former
+`applied` variable. Fetched cache state can lead adapter publication. The old
+TLA+ Studio model and loss rows T4/T5 remain historical; `StudioQuery.tla` now
+protects the pre-fetch cache label and accepted response. The distinction
+between fetched state and published state is explicit, not a new app-level
+acknowledgment algorithm. Original feed and SQL trigger premises are unchanged.
+
+| Guide requirement | Current Studio outcome / evidence |
+| --- | --- |
+| ORC-001 | Pass within v3: user-approved queryFn cache boundary and design v3. No publication deadline or atomic pagination claim. |
+| ORC-002 | Pass: scalar source histories and `StudioQueryReference` predict work/data separately from Query cache and adapter. The revision-match rule is the explicit contract. The reference uses no production imports. |
+| ORC-003 | Pass: oracle header names contract, reference, serial grammar, real Query/Collection driver and cache/public-value checks. |
+| ORC-004 | Pass in declared serial grammar: 1–20 write/poll/fail/restore/evict actions plus final poll. Examples reconstruct each axis. Dropping write loses invalidation, fail loses retry, restore loses equal-counter epochs, evict loses empty-cache reload, and poll loses observation. Unknown actions/empty supplied histories are excluded. Controlled races and subset ownership are fixed receiving witnesses, not generated claims. |
+| ORC-005 | Pass: actual Query Collection queryFns run the production cache-read helper. Cached envelopes, content-load counts, real collection rows and browser requests are observed. |
+| ORC-006 | Pass: post-fetch-label, premature failed-label and stale cache-hit controls target the queryFn. Existing five feed controls remain. Model controls reject those three wrong cache designs. Encoding/setup failures are recorded separately. |
+| ORC-007 | Pass: fixed seed 20261001 and random lanes share a 50-history budget. Direct UI replay runs the same property. The generated stale-hit mutant captures and replays its seed/shrink path, in addition to the feed replay. No command replayPath applies. |
+| ORC-008 | Pass: label vs fetched payload differs during a racing source write; cached vs published differs during local persistence. Present/absent differs on eviction. Epoch differs on counter reuse. One unchanged cached response needs no separate application cursor. |
+| ORC-009 | Pass: `label` maps to cached generation, `cached` to accepted response, and `published` to adapter materialization. Old `applied` terminology does not describe current code. |
+| ORC-010 | Pass: withOracleCleanup preserves initial mismatch and every cleanup failure. Held reads release and canceled promises receive rejection handlers. Mutation parsing normalizes terminal formatting without weakening checkpoint detection. |
+| ORC-011 | Pass: model/TLA and actual adapter distinguish shared-fault hypotheses of latest-token stamping, premature failure stamping, cached-hit counter omission and fetch/publication conflation. A receiving mutation test rejects reuse of a pre-write revision check. |
+| ORC-012 | Pass: this versioned delta names all guide outcomes and retains the original loss ledger. No blanket closure claim extends to deployed lifetime, arbitrary pagination snapshots or bounded publication delay. |
+| ORC-013 | Pass for retained laws: equal vs changed revision, changed epoch with equal counter, empty cache after eviction, failed/canceled response, source advancing during load, and one-vs-last subset owner all have distinguishing receiving witnesses. |
+| ORC-014 | Pass within local receiving scope: real QueryClient and Query Collection supply cancellation, mutation refetch and on-demand ownership behavior. Desktop/mobile HTTP buffering supplies the old-response premise. Server trigger and primary-read premises retain native local D1 evidence. Deployment behavior remains outside these claims. |
+
+The overlapping subset witness now includes a row owned by both queries. It
+survives one owner's empty result and disappears after the last owner releases
+it. The post-write witness holds an old revision check while mutation refetch
+makes a fresh one. Ordinary adapter cancellation prevents the late old result
+from replacing the accepted new response.
+
+TLC checks 193602 distinct safe states, with delayed publication permitted.
+Latest-label and failed-label controls violate `CacheLabelSound`; ignoring a
+changed revision violates `NoStaleHit`. An earlier malformed hostile action is
+an encoding/setup failure, not a semantic kill. Final logs and model mapping
+live in `models/d1-polling-cache/README.md`.
+
+V3 acceptance receipts (2026-10-05): 39 UI tests pass across five files, including
+16 normal cache-oracle cases. All six desktop/mobile cache browser checks pass.
+Eight semantic mutation controls pass with forced ANSI color enabled. Both
+feed and Studio generated wrong answers replay directly: feed seed `20261001`,
+path `0:0`; Studio seed `20261001`, path `0:1:0:0:2`. Type checks and SDK/SPA build
+pass. The prior full Worker/upgrade receipts still cover the unchanged backend;
+this revision changes frontend query fetching and its reference/model boundary.
+
+Fresh correctness review found no runtime defect. Its only additional receiving
+gap was the disjoint-subset fixture, now repaired with the shared-row witness.
+Readability review retained ordinary configs and the small stateless helper.
+The upstream poller is byte-for-byte restored, and the obsolete publication
+wrapper is removed. The one-cheap-check-per-tick claim is intentionally retired:
+each queryFn must check afresh to avoid reusing a pre-write observation.
+
+All nine existing desktop SPA regressions also pass: creation/edit/publication,
+failed-save rollback, polling without replacing editor text, paginated Reading,
+route preload/cache reuse, requested-page reload, settings persistence, item
+read retry and navigation-save flushing. These are receiving checks for the
+unchanged optimistic/lifecycle behavior around the new query function.

@@ -19,8 +19,9 @@ generation-bearing XML bytes. Cold creation blocks for an initial valid artifact
 Interrupted work can retry on later requests; no idle-time refresh or maximum
 stale age is guaranteed. XML can remain stale after withdrawal during this window.
 
-Studio keeps its 15-second visibility-aware timer. Known data views use the
-change endpoint and refresh only changed dependencies. Timed update-state and
+Studio keeps its 15-second visibility-aware timer and ordinary Query Collections.
+Each query function makes a fresh change check, then returns its cached response
+or fetches changed data. Several mounted queries can each read the revision row. Timed update-state and
 unclassified/security views retain their existing polls. Authentication and
 admission still execute on private requests. Counters add one state-row write
 per changed source row, even when multiple domains advance. Measure read and
@@ -50,7 +51,7 @@ policy. Apply a separate stale-age/withdrawal policy if that contract is needed.
 ## Schema changes
 
 Keep the migration's null-safe changed-column guards and table/column-to-domain
-map current when adding response fields. Keep the UI's view-to-domain map current
-when adding gated views. Unknown views keep polling. The receiving oracle
+map current when adding response fields. Keep each collection's query-to-domain choice current
+when adding revision-aware query functions. Unknown views keep polling. The receiving oracle
 checks current column guards, direct effects, joined response dependencies,
-failed/canceled installation, generation races and matching work observations.
+failed/canceled Query responses, generation races and matching work observations.

@@ -56,6 +56,8 @@ import { diffText, type DiffOp } from '../word-diff.ts';
 import { useSwipe } from './swipe.ts';
 import './reading.css';
 
+import type { CachedResponse } from './revision-query.ts';
+
 const PAGE = 25;
 
 /* ---------------- small helpers ---------------- */
@@ -63,8 +65,8 @@ const PAGE = 25;
 /** The cached page metadata (counts, total) for one reading view. */
 function readingMeta(sub: string, offset: number) {
   return queryClient
-    .getQueriesData<ListReadingResponses[200]>({ queryKey: ['reading', sub] })
-    .map(([, value]) => value)
+    .getQueriesData<CachedResponse<ListReadingResponses[200]>>({ queryKey: ['reading', sub] })
+    .map(([, value]) => value?.data)
     .find((value) => value?.offset === offset);
 }
 /** A poll time, to the minute, in the owner's timezone. */

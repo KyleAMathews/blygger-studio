@@ -1,6 +1,6 @@
 # Bounded feed and Studio controls
 
-These models check the frozen candidate in `design-specimen-v1.md`. The working
+`Feed.*` and `Studio.*` check the frozen candidate in `design-specimen-v1.md`. The working
 design in `docs/d1-polling-cache-design.md` now incorporates the review fixes;
 new lifecycle and receiving-test obligations are not additional model results. They do
 not model the installed application or prove Cloudflare behavior. The safe
@@ -155,3 +155,52 @@ losses of scale. Saturated work counters do not establish a numerical work bound
 There is no cross-isolate single flight, lease, maximum stale time, unconditional
 liveness, eventual retry after traffic stops, billing proof, or deployed D1/R2
 proof. Further requests, fairness and provider success are not silently assumed.
+
+## Query Collection revision (design v3)
+
+`StudioQuery.tla` replaces the application-cursor boundary for current Studio
+code. The old `Studio.tla` remains a frozen historical control, not the current
+Query Collection implementation. A query samples a primary source revision,
+returns its exact-key cached response on a match, or reads source data and
+returns it with the pre-fetch label. TanStack Query accepts the response and
+label together. Failure/cancellation leaves the prior cache intact. Query
+Collection can publish the fetched response later; `published` can lag `cached`.
+There is no application cursor claiming that publication has finished.
+
+`CacheLabelSound` requires the label not to outrun fetched data.
+`CachedIsSource` bounds fetched data by source history.
+`PublishedMayLagCache` permits adapter publication to lag an accepted fetch.
+`NoStaleHit` records whether a fast path ever returned obsolete source data.
+Exact keys represent independently cached subsets or collections. Local edits,
+epoch reset, on-demand ownership and API authorization remain receiving-test
+boundaries. No unconditional liveness or publication deadline is asserted.
+
+Final TLC 2.19 runs use source revisions 0–3, two queries, saturating work counts,
+and the same image/Java as the prior runs. Docker now reports API 1.54, so these
+runs use its default API. Logs retain checker seeds and complete counterexamples.
+
+| Config | Result | Generated | Distinct |
+| --- | --- | ---: | ---: |
+| `StudioQuerySafe.cfg` | Pass, all four invariants | 892740 | 193602 |
+| `StudioQueryLatest.cfg` | `CacheLabelSound` violated | 130 | 96 |
+| `StudioQueryFailure.cfg` | `CacheLabelSound` violated | 92 | 73 |
+| `StudioQueryStaleHit.cfg` | `NoStaleHit` violated | 451 | 285 |
+
+The latest-label witness loads revision 1, then source advances to 2 before
+acceptance: labelling old data 2 breaks the bound. The failed-label witness
+advances a label without accepting new data. The stale-hit witness ignores a
+changed revision and returns prior cached data. Receiving mutations now target
+the corresponding query function boundaries, rather than the removed poller.
+
+`StudioQueryStaleHit-encoding-error.log` is a setup failure: an unparenthesized
+boolean assignment let TLC treat an OR branch as an alternative action that
+left `badHit` unspecified. Parenthesizing the assigned expression repairs the
+model. Only the final invariant failure counts as a semantic control.
+`StudioQueryDockerError.log` records the obsolete API override failing before
+TLC started. It is not a model outcome.
+
+```sh
+docker run --rm \
+  --volume /Users/kylemathews/programs/blygger-studio/models/d1-polling-cache:/work:ro \
+  field-lab-tlc:local -metadir /tmp/tlc -config StudioQuerySafe.cfg StudioQuery
+```

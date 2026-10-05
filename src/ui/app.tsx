@@ -40,6 +40,7 @@ import {
   queryClient,
 } from './data.ts';
 import { Button } from './components.tsx';
+import type { CachedResponse } from './revision-query.ts';
 import { SyntaxPage } from './syntax.tsx';
 import { MorePage } from './more.tsx';
 import { UpdatesPage } from './updates.tsx';
@@ -163,9 +164,9 @@ const reading = createRoute({
     if (deps.sub === undefined || deps.lens === 'background' || deps.lens === 'smart') return;
     const page = queryClient
       .getQueriesData<
-        import('../../sdk/dist/browser.js').ListReadingResponses[200]
+        CachedResponse<import('../../sdk/dist/browser.js').ListReadingResponses[200]>
       >({ queryKey: ['reading', key] })
-      .map(([, data]) => data)
+      .map(([, data]) => data?.data)
       .find((data) => data?.offset === offset);
     if (
       page &&

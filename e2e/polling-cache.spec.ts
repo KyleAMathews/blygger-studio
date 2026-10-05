@@ -5,24 +5,28 @@ test('unchanged Studio polls check revisions without refetching collections, the
   await page.clock.install();
   await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
   await page.getByRole('button', { name: 'log in', exact: true }).click(); await expect(page.locator('#composer-text')).toBeVisible();
-  await page.evaluate(() => fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ update_check: false }) }));
+  await page.evaluate(() => fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ update_check: false, site_title: `Poll settings ${crypto.randomUUID()}` }) }));
   await page.clock.pauseAt(new Date(Date.now() + 10_000));
   async function tick(paths: string[]) {
-    const responses = paths.map(path => page.waitForResponse(response => response.request().method() === 'GET' && new URL(response.url()).pathname === path));
+    const seen = new Set<unknown>();
+    const responses = paths.map(path => page.waitForResponse(response => {
+      if (response.request().method() !== 'GET' || new URL(response.url()).pathname !== path || seen.has(response)) return false;
+      seen.add(response); return true;
+    }));
     await page.clock.runFor(15_000);
     await Promise.all(responses.map(async response => (await response).finished()));
     await page.clock.runFor(1); // Let query-collection application finish before the next tick.
     await page.evaluate(() => Promise.resolve());
   }
-  await tick(['/api/changes', '/api/items', '/api/settings', '/api/update-state']);
+  await tick(['/api/changes', '/api/changes', '/api/settings', '/api/update-state']);
   const requests: string[] = [];
   page.on('request', request => { if (request.method() === 'GET' && new URL(request.url()).pathname.startsWith('/api/')) requests.push(new URL(request.url()).pathname); });
-  await tick(['/api/changes', '/api/update-state']);
-  expect(requests.sort()).toEqual(['/api/changes', '/api/update-state']);
+  await tick(['/api/changes', '/api/changes', '/api/update-state']);
+  expect(requests.sort()).toEqual(['/api/changes', '/api/changes', '/api/update-state']);
   requests.length = 0;
   const marker = `Other client ${Date.now()}`;
   await page.evaluate(content_md => fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md }) }), marker);
-  await tick(['/api/changes', '/api/items', '/api/update-state']);
+  await tick(['/api/changes', '/api/changes', '/api/items', '/api/update-state']);
   expect(requests).toContain('/api/items');
   await expect(page.getByText(marker, { exact: false }).first()).toBeVisible();
 });
@@ -43,10 +47,11 @@ test('a failed initial Reading page recovers through the existing retry control'
   await expect(page.locator('.entry').first()).toBeVisible();
 });
 
-test('a buffered poll response acknowledges its sampled revision and receives a later change next poll', async ({ page }) => {
+test('a buffered query response keeps its pre-fetch revision and receives a later change next poll', async ({ page }) => {
   await page.clock.install();
   await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
   await page.getByRole('button', { name: 'log in', exact: true }).click(); await expect(page.locator('#composer-text')).toBeVisible();
+  await page.evaluate(content_md => fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md }) }), `First buffered client ${Date.now()}`);
   await page.clock.pauseAt(new Date(Date.now() + 10_000));
   let release!: () => void, captured!: () => void;
   const gate = new Promise<void>(done => { release = done; }), ready = new Promise<void>(done => { captured = done; });

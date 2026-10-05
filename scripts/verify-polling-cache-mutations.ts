@@ -16,9 +16,10 @@ const controls = [
   { name: 'body-only ETag ABA', file: 'src/feed-cache.ts', from: 'const body = stamp(xml, target);', to: 'const body = xml;', test: 'test/polling-cache.oracle.test.ts', pattern: 'old builders cannot overwrite', checkpoint: 'feed generation non-regression' },
   { name: 'mixed feed read', file: 'src/feed-cache.ts', from: 'if (!same(target, await readFeedRevision(env.DB))) continue;', to: 'await readFeedRevision(env.DB);', test: 'test/polling-cache.oracle.test.ts', pattern: 'discards a render interrupted', checkpoint: 'feed legal snapshot' },
   { name: '304 skips check', file: 'src/feed-cache.ts', from: 'waitUntil(revalidate(request, env, mount, key, artifact)', to: "if (!request.headers.has('If-None-Match')) waitUntil(revalidate(request, env, mount, key, artifact)", test: 'test/polling-cache.oracle.test.ts', pattern: 'serves saved legal XML', checkpoint: 'feed unchanged work' },
-  { name: 'latest Studio acknowledgment', file: 'src/ui/polling.ts', from: '.then(installed => {', to: '.then(async installed => {', second: ['view.applied = target;', 'view.applied = await this.readChanges!();'], test: 'test-ui/polling-cache.oracle.test.ts', pattern: 'acknowledges the sampled target', checkpoint: 'Studio sampled target' },
+  { name: 'latest Studio cache token', file: 'src/ui/revision-query.ts', from: 'return { data, generation };', to: 'const latest = await readChanges(context); return { data, generation: { epoch: latest.epoch, revision: latest.domains[domain] } };', test: 'test-ui/polling-cache.oracle.test.ts', pattern: 'stores the pre-fetch token', checkpoint: 'Studio pre-fetch revision' },
   { name: 'unchanged token skips changed feed', file: 'src/feed-cache.ts', from: '=> artifact?.generation?.epoch === target.epoch && artifact.generation.revision >= target.revision;', to: '=> !!artifact;', test: 'test/polling-cache.oracle.test.ts', pattern: 'polling-cache: fixed', checkpoint: 'feed settled values', replay: true },
-  { name: 'failed Studio acknowledgment', file: 'src/ui/polling.ts', from: '.catch(this.report)', to: '.catch(error => { if (domains) view.applied = target; this.report(error); })', test: 'test-ui/polling-cache.oracle.test.ts', pattern: 'failed and canceled views retry', checkpoint: 'Studio failed-view retry' },
+  { name: 'Studio cache ignores changed revision', file: 'src/ui/revision-query.ts', from: 'cached?.generation.epoch === generation.epoch &&\n      cached.generation.revision === generation.revision', to: 'cached?.generation.epoch === generation.epoch', test: 'test-ui/polling-cache.oracle.test.ts', pattern: 'studio-polling: fixed', checkpoint: 'Studio query work and retry', replay: true },
+  { name: 'failed Studio cache token', file: 'src/ui/revision-query.ts', from: 'const data = await load(context);', to: 'if (cached) context.client.setQueryData(context.queryKey, { data: cached.data, generation }); const data = await load(context);', test: 'test-ui/polling-cache.oracle.test.ts', pattern: 'failed content loads retain', checkpoint: 'Studio failed-query retry' },
 ] as const;
 let primary: unknown;
 try {
@@ -27,9 +28,10 @@ try {
   symlinkSync(join(root, 'node_modules'), join(temp, 'node_modules'), 'dir');
   const run = (control: typeof controls[number], replay?: { seed: string; path: string }) => {
     const ui = control.test.startsWith('test-ui/');
-    const result = spawnSync(process.execPath, [join(root, 'node_modules/vitest/vitest.mjs'), 'run', '--maxWorkers=2', ...(ui ? ['--config', 'vitest.ui.config.ts'] : []), control.test, '-t', replay ? 'polling-cache: replay' : control.pattern], {
+    const target = ui ? 'studio-polling' : 'polling-cache';
+    const result = spawnSync(process.execPath, [join(root, 'node_modules/vitest/vitest.mjs'), 'run', '--maxWorkers=2', ...(ui ? ['--config', 'vitest.ui.config.ts'] : []), control.test, '-t', replay ? `${target}: replay` : control.pattern], {
       cwd: temp, encoding: 'utf8', timeout: 90_000,
-      env: { ...process.env, WRANGLER_LOG_PATH: join(temp, 'wrangler.log'), ORACLE_TARGET: replay ? 'polling-cache' : undefined, ORACLE_SEED: replay?.seed, ORACLE_PATH: replay?.path },
+      env: { ...process.env, WRANGLER_LOG_PATH: join(temp, 'wrangler.log'), ORACLE_TARGET: replay ? target : undefined, ORACLE_SEED: replay?.seed, ORACLE_PATH: replay?.path },
     });
     // CI enables ANSI styling between the count and "passed". Formatting must
     // not change execution witnesses, checkpoint matching, or replay parsing.
@@ -41,7 +43,6 @@ try {
     const path = join(temp, control.file), original = readFileSync(path, 'utf8');
     assert.equal(original.split(control.from).length, 2, `${control.name}: ambiguous mutation anchor`);
     let mutant = original.replace(control.from, control.to);
-    if ('second' in control) { assert.equal(mutant.split(control.second[0]).length, 2); mutant = mutant.replace(control.second[0], control.second[1]); }
     writeFileSync(path, mutant);
     try {
       const result = run(control), log = result.stdout + '\n' + result.stderr;
