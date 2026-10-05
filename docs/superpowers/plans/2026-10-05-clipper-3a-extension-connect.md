@@ -31,7 +31,8 @@
 - **Ruling, recorded:** the spec's "refresh in-flight mark" is not persisted. In the final spec its only effect is "on wake, refresh from the stored token", and a restarted worker does exactly that with no mark. A mark with no behaviour would be dead state. The lost-rotation case is still tested (Task 4).
 - **Manual token** (spec §3.5):
   - Read the scope from the JWT payload.
-  - Probe with `GET /api/settings` when the token has `owner:read`, else with `POST /api/preview {kind:"thread",content_md:""}` when it has `owner:draft`, else refuse with "This token cannot clip. Mint one with the draft permission."
+  - A token without `owner:draft` is refused first: "This token cannot clip. Mint one with the draft permission." (spec §3.3: without drafting the clipper cannot clip).
+  - Then probe with `GET /api/settings` when the token also has `owner:read`, else with `POST /api/preview {kind:"thread",content_md:""}`.
   - A 401 on the probe means "This token is not valid here, or it has expired." There is no refresh; at expiry the panel asks for a new token.
 - **Blyg URL normalisation:**
   - Add `https://` when no scheme is given. Upgrade `http` to `https` except on loopback (`localhost`, `127.0.0.1`, `[::1]`).
@@ -913,6 +914,16 @@ describe('clipper token store (L4) and connection (L5)', () => {
       expect((await f.request('/api/authorizations/' + revoked.authorization.id, { method: 'DELETE', headers: { cookie: f.owner } })).status).toBe(200);
       await expect(connectManual(f.base + '/blyg/', revoked.access_token, { fetchFn: workerFetch(f), store: store(f) }), 'a revoked token is refused').rejects.toThrow('This token is not valid here, or it has expired.');
     });
+
+    it('an expired manual token asks for a new one', async () => {
+      const f = await flow(), { access_token } = await mint(f, ['owner:draft']);
+      let clock = Date.now();
+      const s = new TokenStore(memoryArea(), memoryArea(), workerFetch(f), () => clock);
+      await connectManual(f.base + '/blyg/', access_token, { fetchFn: workerFetch(f), store: s });
+      clock += 31 * 24 * 3600_000;
+      await expect(s.accessToken(), 'an expired manual token is not served').rejects.toThrow('The token expired.');
+      expect(await s.status()).toMatchObject({ state: 'reconnect' });
+    });
   });
 });
 ```
@@ -1141,11 +1152,10 @@ export async function connectManual(input: string, token: string, deps: { fetchF
   const discovery = await discover(location, deps.fetchFn);
   const bearer = token.trim(), scope = scopeOfJwt(bearer) ?? [];
   const headers = { Authorization: `Bearer ${bearer}` };
-  let probe: Response;
-  if (scope.includes('owner:read')) probe = await deps.fetchFn(`${location.origin}/api/settings`, { headers });
-  else if (scope.includes('owner:draft'))
-    probe = await deps.fetchFn(`${location.origin}/api/preview`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'thread', content_md: '' }) });
-  else throw new ManualTokenError('This token cannot clip. Mint one with the draft permission.');
+  if (!scope.includes('owner:draft')) throw new ManualTokenError('This token cannot clip. Mint one with the draft permission.');
+  const probe = scope.includes('owner:read')
+    ? await deps.fetchFn(`${location.origin}/api/settings`, { headers })
+    : await deps.fetchFn(`${location.origin}/api/preview`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'thread', content_md: '' }) });
   if (probe.status === 401) throw new ManualTokenError('This token is not valid here, or it has expired.');
   if (!probe.ok) throw new ManualTokenError(`This token was refused (${probe.status}).`);
   await deps.store.saveManual(discovery, bearer, scope, expiryOfJwt(bearer));
@@ -1615,7 +1625,6 @@ Append these to the `controls` array in `scripts/verify-auth-security-mutations.
   { name: 'clipper refresh without single-flight', changes: [{ file: 'extension/lib/tokens.ts', from: 'this.inflight ??= this.refresh(conn).finally(() => { this.inflight = undefined; });\n    return this.inflight;', to: 'return this.refresh(conn);' }], kind: 'worker', test: 'test/clipper-oauth.test.ts', pattern: 'concurrent callers share one refresh', checkpoint: 'concurrent callers share one refresh' },
   { name: 'clipper discovery trusts an issuer off the blyg', changes: [{ file: 'extension/lib/discovery.ts', from: "if (typeof issuer !== 'string' || !underMount(location, issuer))", to: "if (typeof issuer !== 'string')" }], kind: 'worker', test: 'test/clipper-oauth.test.ts', pattern: 'refuses an authorization server off the blyg', checkpoint: 'an issuer off the blyg is refused' },
   { name: 'clipper manual connect skips the probe', changes: [{ file: 'extension/lib/connect.ts', from: "if (probe.status === 401) throw new ManualTokenError('This token is not valid here, or it has expired.');", to: '' }, { file: 'extension/lib/connect.ts', from: "if (!probe.ok) throw new ManualTokenError(`This token was refused (${probe.status}).`);", to: '' }], kind: 'worker', test: 'test/clipper-oauth.test.ts', pattern: 'refuses a token that cannot clip', checkpoint: 'a revoked token is refused' },
-  { name: 'clipper ignores the reconnect state', changes: [{ file: 'extension/lib/tokens.ts', from: '    if (conn.reconnect) throw new ReconnectError(conn.reconnect);\n', to: '' }], kind: 'worker', test: 'test/clipper-oauth.test.ts', pattern: 'a refresh lost after the server rotated', checkpoint: 'reconnect state asks the owner, not the server' },
 ```
 
 The runner copies `src`, `test`, `e2e`, `scripts`, `migrations` and `docs` into its sandbox. Extend that `git ls-files … -- src test e2e scripts migrations docs` list with `extension`, or the sandbox will lack `extension/lib`. Make that change in the runner, and record it in the report.
@@ -1623,12 +1632,12 @@ The runner copies `src`, `test`, `e2e`, `scripts`, `migrations` and `docs` into 
 Run each control:
 
 ```bash
-for n in "clipper refresh without single-flight" "clipper discovery trusts" "clipper manual connect skips" "clipper ignores the reconnect"; do
+for n in "clipper refresh without single-flight" "clipper discovery trusts" "clipper manual connect skips"; do
   PATH=/usr/local/bin:$PATH node --import tsx scripts/verify-auth-security-mutations.ts "$n" 2>&1 | grep -E "Caught|Survived|Assertion"
 done
 ```
 
-Expected: four `Caught:` lines.
+Expected: three `Caught:` lines. (`accessToken`'s `reconnect` check is defence in depth: `endAccess` already clears the tokens, so removing it changes nothing observable and has no control.)
 
 - [ ] **Step 2: CI**
 
