@@ -69,3 +69,18 @@ test('the robot opens what the author disclosed: hover peeks, a click keeps it, 
   await page.locator('article p').last().click();
   await expect(pop).toBeHidden();
 });
+
+test('generating a TK scope in the editor keeps the text around it', async ({ page }) => {
+  await login(page);
+  const md = 'Before the scope.\n\n[TK]write one line[/TK]\n\nAfter the scope.';
+  const id = await page.evaluate(async (md) => (await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: md }) })).json()).id as string, md);
+  // The fixture has no provider; answer as the server does: the scope's output
+  // alone in `text`, the whole working copy with it spliced in as `content_md`.
+  const spliced = 'Before the scope.\n\n[TK]write one line[=]A generated line.[/TK]\n\nAfter the scope.';
+  await page.route(`**/api/items/${id}/generate`, route => route.fulfill({ json: { text: 'A generated line.', model: 'test-model', content_md: spliced } }));
+  await page.goto(`/studio/edit/${id}`);
+  const card = page.locator('details#tk');
+  await expect(card.getByRole('button', { name: 'generate', exact: true })).toBeVisible();
+  await card.getByRole('button', { name: 'generate', exact: true }).click();
+  await expect(page.locator('#md-input')).toHaveValue(spliced);
+});

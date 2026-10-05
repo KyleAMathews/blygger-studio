@@ -18,6 +18,24 @@ not have its own repo until session 26.
 
 ---
 
+## 0.27.2 — 2026-10-05
+
+**Migrations: none.** `/api` change, additive: `POST /api/items/{id}/generate`
+also returns `content_md`, the whole working copy with the scope's new output
+spliced in, as saved.
+
+**Generating a TK scope no longer throws away the rest of the draft.** Since
+0.10.0, pressing *generate* in the editor replaced the whole draft with just
+the scope's output. The server had spliced and saved the full text correctly,
+but the editor then autosaved its truncated copy over it. The editor now uses
+the returned `content_md`. The studio keeps no history of draft saves, so text
+lost this way can come back only from a published version: if the post had
+been published before the generate, *discard changes* (or restoring from its
+history) brings back the published text. An unpublished draft's surrounding
+text is gone.
+
+---
+
 ## 0.27.1 — 2026-10-05
 
 **Migrations: none.** The same program as 0.27.0, released.

@@ -1579,7 +1579,10 @@ function Editor({ item }: { item: Detail }) {
         }),
       ),
     );
-    if (draft.current!.revision === revision) edit(result.text);
+    // `text` is the scope's output alone; the draft is the whole document with
+    // it spliced in, which the server has already saved. Replacing the draft
+    // with `text` threw away everything around the scope (0.10.0–0.27.1).
+    if (draft.current!.revision === revision) edit(result.content_md);
   };
   const pin = async (version: number) => {
     if (

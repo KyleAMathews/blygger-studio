@@ -10,7 +10,8 @@ import type { Env, ItemRow } from "./types.ts";
 import { nowIso } from "./util.ts";
 
 export type GenerateScopeResult =
-  | { ok: true; text: string; model: string }
+  /** `text` is the scope's new output alone; `content_md` is the whole working copy with it spliced in, as saved. */
+  | { ok: true; text: string; model: string; content_md: string }
   | { ok: false; status: number; body: Record<string, unknown> };
 
 export async function runGenerateScope(
@@ -71,5 +72,5 @@ export async function runGenerateScope(
     at: nowIso(),
   });
 
-  return { ok: true, text: result.text, model: result.model };
+  return { ok: true, text: result.text, model: result.model, content_md: updatedMd };
 }

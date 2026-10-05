@@ -904,6 +904,7 @@ export type GenerateItemResponses = {
     200: {
         text: string;
         model: string;
+        content_md: string;
     };
 };
 

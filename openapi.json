@@ -2998,11 +2998,15 @@
                     },
                     "model": {
                       "type": "string"
+                    },
+                    "content_md": {
+                      "type": "string"
                     }
                   },
                   "required": [
                     "text",
-                    "model"
+                    "model",
+                    "content_md"
                   ]
                 }
               }

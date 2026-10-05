@@ -306,7 +306,7 @@ api.openapi(routes.generateItem, async (c) => {
 
   const result = await runGenerateScope(c.env, item, body.scope);
   if (!result.ok) return c.json(result.body, result.status as 400 | 404 | 502);
-  return c.json({ text: result.text, model: result.model });
+  return c.json({ text: result.text, model: result.model, content_md: result.content_md });
 });
 
 api.openapi(routes.withdrawItem, async (c) => {
