@@ -91,6 +91,10 @@ final execution and numbered ORC outcomes are recorded at closeout.
 
 ## Numbered guide review
 
+Reviewed implementation head: `9a9a6ab8e23fc48685986685d2070539110a4942`.
+This record identifies the immutable source used for the final review. Later
+commits that only add this evidence or PR prose do not change that source.
+
 The evidence applies to the selected narrow contract. “Pass” below is bounded by
 that contract and the stated receiving environments; it is not proof of all
 cache behavior or a claim that the original design was lossless.
