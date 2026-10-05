@@ -22,8 +22,8 @@
     "openapi": "node --import tsx scripts/openapi.ts",
     "sdk:generate": "npm run openapi && node --import tsx scripts/generate-sdk.ts && npm run build",
     "build": "node --import tsx scripts/build-models.ts && node --import tsx scripts/build-sdk.ts && node --import tsx scripts/build-spa.ts",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.ui.json",
-    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.ui.json && wxt prepare extension && tsc -p extension/tsconfig.json",
+    "test:e2e": "npm run ext:build && playwright test",
     "test:upgrade": "node --import tsx scripts/verify-upgrade.ts",
     "check:template": "node --import tsx scripts/check-template.ts",
     "predev": "npm run build",
@@ -39,7 +39,12 @@
     "test:mutations": "node --import tsx scripts/verify-oracle-mutations.ts",
     "test:ui": "vitest run --config vitest.ui.config.ts",
     "test:auth:security": "vitest run test/auth-security.oracle.test.ts && node --import tsx scripts/verify-auth-security-race.ts",
-    "test:auth:security:mutations": "node --import tsx scripts/verify-auth-security-mutations.ts"
+    "test:auth:security:mutations": "node --import tsx scripts/verify-auth-security-mutations.ts",
+    "ext:prepare": "wxt prepare extension",
+    "ext:dev": "wxt extension",
+    "ext:build": "wxt build extension",
+    "ext:zip": "wxt zip extension",
+    "test:ext": "vitest run --config extension/vitest.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -70,6 +75,7 @@
     "@types/node": "^26.1.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@wxt-dev/module-react": "^1.2.2",
     "esbuild": "^0.28.2",
     "fast-check": "^4.10.2",
     "jose": "6.2.12",
@@ -77,7 +83,8 @@
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^4.1.0",
-    "wrangler": "^4"
+    "wrangler": "^4",
+    "wxt": "^0.21.4"
   },
   "engines": {
     "node": ">=22.18.0"

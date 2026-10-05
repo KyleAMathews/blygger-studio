@@ -27,3 +27,5 @@ sdk/dist/
 playwright-report/
 test-results/
 sdk/LICENSE
+extension/.output
+extension/.wxt
