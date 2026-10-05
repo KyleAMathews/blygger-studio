@@ -42,7 +42,14 @@ export function scoped<
     clearInterval(timer);
     const entries = [...cache.values()];
     cache.clear();
-    await Promise.all(entries.map((entry) => entry.collection.cleanup()));
+    const results = await Promise.allSettled(
+      entries.map((entry) => entry.collection.cleanup()),
+    );
+    const failures = results.flatMap((result) =>
+      result.status === 'rejected' ? [result.reason] : [],
+    );
+    if (failures.length === 1) throw failures[0];
+    if (failures.length) throw new AggregateError(failures, 'Collections failed to clean up');
   }
   return Object.assign(get, { dispose });
 }

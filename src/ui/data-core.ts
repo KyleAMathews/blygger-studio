@@ -27,6 +27,7 @@ import type {
 } from '../../sdk/dist/browser.js';
 import {
   BlyggerApi,
+  createBlyggerClient,
   unwrap,
 } from '../../sdk/dist/browser.js';
 import { Polling } from './polling.ts';
@@ -56,7 +57,17 @@ export const readingKey = (sub: string, lens?: Lens) => {
   return kind ? `${sub}~${kind}` : sub;
 };
 
-export function createStudioData(client: BlyggerClient) {
+export function createStudioData(host: BlyggerClient) {
+  // Each instance owns its client, so a disposed instance can never fetch
+  // again, even if a consumer touches it after dispose. Hosts pass auth and
+  // fetch through the client's config; interceptors on the passed client are
+  // not carried over.
+  let disposed = false;
+  const client = createBlyggerClient(host.getConfig());
+  client.interceptors.request.use((request) => {
+    if (disposed) throw new Error('Studio data was disposed');
+    return request;
+  });
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -410,14 +421,29 @@ export function createStudioData(client: BlyggerClient) {
     id: 'authorizations', queryKey: ['authorizations'], queryClient, getKey: row => row.id,
     queryFn: async ({ signal }) => (await unwrap(BlyggerApi.listAuthorizations({ client, signal }))).items,
   }));
-  /** Stop everything this instance started, for a host replacing it (disconnect, another blyg). */
+  /**
+   * Stop everything this instance started, for a host replacing it (disconnect, another blyg).
+   * Unmount every consumer first (key the React tree on the instance); a disposed instance refuses all requests.
+   */
   async function dispose() {
+    disposed = true;
     polling.stop();
-    for (const registry of [itemDetail, reading, readingViews, hopperDetail, hopperPreview]) await registry.dispose();
-    await queryClient.cancelQueries();
-    for (const collection of [items, settings, subscriptions, hoppers, signals, updates, authorizations]) await collection.cleanup();
+    const failures: unknown[] = [];
+    const attempt = async (step: () => unknown) => {
+      try {
+        await step();
+      } catch (error) {
+        failures.push(error);
+      }
+    };
+    for (const registry of [itemDetail, readingViews, reading, hopperDetail, hopperPreview])
+      await attempt(() => registry.dispose());
+    await attempt(() => queryClient.cancelQueries());
+    for (const collection of [items, settings, subscriptions, hoppers, signals, updates, authorizations])
+      await attempt(() => collection.cleanup());
     queryClient.clear();
     queryClient.unmount();
+    if (failures.length) throw new AggregateError(failures, 'Studio data disposed with errors');
   }
   return { client, queryClient, polling, items, settings, subscriptions, hoppers, signals, itemDetail, reading, readingView, refreshReading, hopperDetail, changed, updates, hopperPreview, authorizations, dispose };
 }

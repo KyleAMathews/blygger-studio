@@ -9,7 +9,7 @@ export let basepath = `${mount}/studio`;
 
 export function configureHost(next: { origin: string; mount: string }) {
   origin = next.origin;
-  mount = next.mount;
+  mount = next.mount.replace(/\/+$/, '');
   basepath = `${mount}/studio`;
 }
 

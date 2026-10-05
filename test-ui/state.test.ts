@@ -98,6 +98,7 @@ test('collections read through the client their host supplies, with their own ca
   expect([...data.settings.values()][0]?.site_title).toBe('From the host');
   const other = createStudioData(client);
   expect(other.queryClient, 'each host gets its own cache').not.toBe(data.queryClient);
+  expect([...other.settings.values()], 'another instance shares no cached rows').toEqual([]);
   await other.dispose();
   await data.dispose();
 });
@@ -108,6 +109,9 @@ test('a host with no studio root sets where its links point', () => {
   expect(host.mount).toBe('/blyg');
   expect(host.basepath).toBe('/blyg/studio');
   expect(host.onBlyg('/studio/edit/abc')).toBe('https://example.com/blyg/studio/edit/abc');
+  host.configureHost({ origin: 'https://example.com', mount: '/blyg/' });
+  expect(host.basepath).toBe('/blyg/studio');
+  host.configureHost({ origin: '', mount: '' });
 });
 
 test('a disposed instance leaves no timers and makes no further requests', async () => {
@@ -124,19 +128,37 @@ test('a disposed instance leaves no timers and makes no further requests', async
   data.polling.start(target, target);
   data.itemDetail('one');
   await data.settings.preload();
-  const stopWatch = data.polling.watch('settings', () => data.settings.utils.refetch());
+  data.polling.watch('settings', () => data.settings.utils.refetch());
   expect(requests, 'the instance makes requests while alive').toBeGreaterThan(0);
   expect(vi.getTimerCount(), 'the instance runs timers while alive').toBeGreaterThan(0);
   const alive = requests;
   await vi.advanceTimersByTimeAsync(16_000);
   expect(requests, 'polling makes requests while alive').toBeGreaterThan(alive);
-  void stopWatch;
   await data.dispose();
   const before = requests;
   expect(vi.getTimerCount(), 'a disposed instance leaves no timers').toBe(0);
   await data.changed('settings', 'items');
   await vi.advanceTimersByTimeAsync(120_000);
   expect(requests - before, 'a disposed instance makes no further requests').toBe(0);
+  await data.settings.preload().catch(() => {});
+  await data.itemDetail('x').preload().catch(() => {});
+  expect(requests - before, 'touching a disposed instance makes no request').toBe(0);
+});
+
+test('disposing with a subscribed reading view logs no live-query error', async () => {
+  const client = createBlyggerClient({
+    baseUrl: 'https://blyg.example',
+    fetch: async () => Response.json({ items: [], total: 0, offset: 0, limit: 25 }),
+  });
+  const data = createStudioData(client);
+  const stop = data.readingView('all', 0).subscribeChanges(() => {});
+  await new Promise((done) => setTimeout(done, 20));
+  const logged = [vi.spyOn(console, 'error').mockImplementation(() => {}), vi.spyOn(console, 'warn').mockImplementation(() => {})];
+  await data.dispose();
+  stop.unsubscribe();
+  const messages = logged.flatMap((spy) => spy.mock.calls.map((call) => call.map(String).join(' ')));
+  expect(messages.filter((m) => m.includes('was manually cleaned up')), 'views are disposed before their sources').toEqual([]);
+  vi.restoreAllMocks();
 });
 
 // The resolved bundle graph, as the extension's own build would see it:
