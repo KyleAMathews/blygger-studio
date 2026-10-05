@@ -18,14 +18,19 @@ import {
   getSettings,
   getVersion,
   insertMedia,
+  matchesWorkingCopy,
   pinVersion,
   publish,
+  PublishGuardLost,
+  type PublishGuard,
   putSettings,
   RestoreVersionError,
   restoreVersion,
   TkPublishError,
   TransclusionResolveError,
+  type WorkingCopy,
   withdraw,
+  workingCopyGuard,
 } from "./model.ts";
 import { claim, claimGuard, completeClaim, current, fingerprintOf, INVALID_KEY, keyFrom, releaseClaim, settledResponse, type SettledClaim } from "./idempotency.ts";
 import { workPrincipal } from "./security-budgets.ts";
@@ -228,7 +233,7 @@ async function sendMentionsFor(
  * `refresh` take, so a refresh gets exactly a publish's checks and error
  * mapping. Returns the response to send.
  */
-async function publishAndNotify(c: Context<{ Bindings: Env }>, item: ItemRow, note: string | null, extra: Record<string, unknown> = {}, noteGenerated = false) {
+async function publishAndNotify(c: Context<{ Bindings: Env }>, item: ItemRow, note: string | null, extra: Record<string, unknown> = {}, noteGenerated = false, guard?: PublishGuard) {
   const origin = siteOrigin(await getSettings(c.env.DB), c.req.url, normalizeMount(c.env.MOUNT));
   // §2.4's publish-time check. It lives here rather than inside publish()
   // deliberately: publish() is network-free by design (#26 — quoting follows
@@ -244,7 +249,7 @@ async function publishAndNotify(c: Context<{ Bindings: Env }>, item: ItemRow, no
     lineageNote = check.skipped;
   }
   try {
-    const version = await publish(c.env.DB, item, note, origin, noteGenerated);
+    const version = await publish(c.env.DB, item, note, origin, noteGenerated, guard);
     await sendMentionsFor(c, item.id, version);
     return c.json({ ok: true, version, ...extra, ...(lineageNote ? { warning: lineageNote } : {}) });
   } catch (e) {
@@ -271,10 +276,53 @@ api.openapi(routes.publishItem, async (c) => {
   // TK-stripped (published) length, not the raw working copy — see FragmentTooLongError.
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await readJson<{ note?: string; note_generated?: boolean }>(c);
+  const body = await readJson<{ note?: string; note_generated?: boolean; expected?: { content_md: string; stub_of: unknown } }>(c);
+  const key = keyFrom(c.req.header("idempotency-key"));
+  if (key === false) return c.json({ error: INVALID_KEY }, 400);
+  let expected: WorkingCopy | null = null;
+  if (body.expected) {
+    const parsed = body.expected.stub_of === null ? null : parseStubOf(body.expected.stub_of);
+    if (parsed && !parsed.ok) return c.json({ error: parsed.reason }, 400);
+    expected = { contentMd: body.expected.content_md, stubJson: parsed ? JSON.stringify(parsed.stub) : null };
+  }
+  const note = body.note?.trim() || null;
   // note_generated is the studio's own assertion that the note is the drafted
   // text, unedited (#40) — self-asserted, like every provenance member.
-  return publishAndNotify(c, item, body.note?.trim() || null, {}, body.note_generated === true);
+  const noteGenerated = body.note_generated === true;
+  if (!key) {
+    if (expected && !matchesWorkingCopy(item, expected)) return c.json({ error: "changed" }, 409);
+    try {
+      return await publishAndNotify(c, item, note, {}, noteGenerated, expected ? { where: [workingCopyGuard(item.id, expected)], also: [] } : undefined);
+    } catch (e) {
+      if (e instanceof PublishGuardLost) return c.json({ error: "changed" }, 409);
+      throw e;
+    }
+  }
+  // Claim before the precondition (clipper spec §9): a retry whose first
+  // attempt already published must replay, even if the owner edited since.
+  const principal = workPrincipal(c.env) ?? "owner";
+  const fingerprint = await fingerprintOf("POST", `/api/items/${item.id}/publish`, body);
+  const state = await claim(c.env.DB, principal, key, fingerprint);
+  if (state.kind !== "run") return settledResponse(c, key, state);
+  try {
+    if (expected && !matchesWorkingCopy(item, expected)) return c.json({ error: "changed" }, 409);
+    c.header("Idempotency-Key", key);
+    const guard: PublishGuard = {
+      where: [...(expected ? [workingCopyGuard(item.id, expected)] : []), claimGuard(state)],
+      also: [completeClaim(c.env.DB, state, { status: 200, body: JSON.stringify({ ok: true, version: item.version + 1 }), location: null })],
+    };
+    return await publishAndNotify(c, item, note, {}, noteGenerated, guard);
+  } catch (e) {
+    if (e instanceof PublishGuardLost) {
+      const after = await current(c.env.DB, principal, key, fingerprint);
+      if (after.kind === "replay") return settledResponse(c, key, after);
+      const now = await getItem(c.env.DB, item.id);
+      return now && expected && !matchesWorkingCopy(now, expected) ? c.json({ error: "changed" }, 409) : settledResponse(c, key, after);
+    }
+    throw e;
+  } finally {
+    await releaseClaim(c.env.DB, state);
+  }
 });
 
 /** Draft a changelog note from the local diff (#40). Never publishes; the author edits and decides. */

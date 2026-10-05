@@ -206,3 +206,73 @@ describe('retry-safe create (L2a)', () => {
     expect(await f.items() - before).toBe(1);
   });
 });
+
+describe('retry-safe publish and the frozen working copy (L2a, L2c)', () => {
+  const versions = async (id: string) => (await env.DB.prepare('SELECT COUNT(*) AS n FROM versions WHERE item_id = ?').bind(id).first<{ n: number }>())!.n;
+  const stubOf = { url: 'https://source.example/post', cited: { source: 'Source', url: 'https://source.example/post#:~:text=quoted', retrieved: '2026-10-05T00:00:00Z', excerpt: 'quoted' } };
+  async function created(f: Awaited<ReturnType<typeof fixture>>, content_md = '> quoted\n\nmine') {
+    const res = await f.call('/api/items', { body: { kind: 'thread', content_md, stub_of: stubOf } });
+    expect(res.status).toBe(201);
+    return (await res.json() as { id: string }).id;
+  }
+  const expected = (content_md = '> quoted\n\nmine') => ({ content_md, stub_of: stubOf });
+
+  it('a retried publish with the same key makes one version and replays', async () => {
+    const f = await fixture(), id = await created(f);
+    const first = await f.call(`/api/items/${id}/publish`, { key: 'clip-1:publish', body: { expected: expected() } });
+    expect(first.status).toBe(200);
+    expect(await first.json()).toMatchObject({ ok: true, version: 1 });
+    const again = await f.call(`/api/items/${id}/publish`, { key: 'clip-1:publish', body: { expected: expected() } });
+    expect(again.status).toBe(200);
+    expect(again.headers.get('idempotent-replayed')).toBe('true');
+    expect(await versions(id), 'one version for one publish operation').toBe(1);
+  });
+
+  it('a Studio edit before the queued publish stops it; nothing is published (L2c)', async () => {
+    const f = await fixture(), id = await created(f);
+    expect((await f.call(`/api/items/${id}`, { method: 'PATCH', cookie: true, body: { content_md: 'edited in Studio' } })).status).toBe(200);
+    const res = await f.call(`/api/items/${id}/publish`, { key: 'clip-2:publish', body: { expected: expected() } });
+    expect(res.status, 'a Studio edit stops a frozen publish').toBe(409);
+    expect(await res.json()).toEqual({ error: 'changed' });
+    expect(await versions(id)).toBe(0);
+  });
+
+  it('contrast: an unchanged working copy publishes', async () => {
+    const f = await fixture(), id = await created(f);
+    expect((await f.call(`/api/items/${id}/publish`, { body: { expected: expected() } })).status).toBe(200);
+    expect(await versions(id)).toBe(1);
+  });
+
+  it('a retry after success replays even if the owner edited since (Review Focus 1)', async () => {
+    const f = await fixture(), id = await created(f);
+    expect((await f.call(`/api/items/${id}/publish`, { key: 'clip-3:publish', body: { expected: expected() } })).status).toBe(200);
+    expect((await f.call(`/api/items/${id}`, { method: 'PATCH', cookie: true, body: { content_md: 'edited after publish' } })).status).toBe(200);
+    const retry = await f.call(`/api/items/${id}/publish`, { key: 'clip-3:publish', body: { expected: expected() } });
+    expect(retry.status, 'the first attempt published; the retry must replay, not refuse').toBe(200);
+    expect(retry.headers.get('idempotent-replayed')).toBe('true');
+    expect(await versions(id)).toBe(1);
+  });
+
+  it('an equivalent stub_of with a different key order matches (Review Focus 3)', async () => {
+    const f = await fixture(), id = await created(f);
+    const reordered = { stub_of: { cited: { excerpt: 'quoted', retrieved: '2026-10-05T00:00:00Z', url: 'https://source.example/post#:~:text=quoted', source: 'Source' }, url: 'https://source.example/post' }, content_md: '> quoted\n\nmine' };
+    expect((await f.call(`/api/items/${id}/publish`, { body: { expected: reordered } })).status).toBe(200);
+  });
+
+  it('the Studio publish without key or expected is unchanged (Review Focus 4)', async () => {
+    const f = await fixture(), id = await created(f);
+    const res = await f.call(`/api/items/${id}/publish`, { cookie: true, body: {} });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('idempotency-key')).toBeNull();
+    expect(await versions(id)).toBe(1);
+  });
+
+  it('a refused publish releases its key, so the same key works once the draft is fixed', async () => {
+    const f = await fixture();
+    const res = await f.call('/api/items', { body: { kind: 'thread', content_md: '![[zzzzzzzzzzzzzzzzzzzzzzzzzz]]' } });
+    const { id } = await res.json() as { id: string };
+    expect((await f.call(`/api/items/${id}/publish`, { key: 'clip-4:publish', body: {} })).status).toBe(400);
+    expect((await f.call(`/api/items/${id}`, { method: 'PATCH', body: { content_md: 'fixed' } })).status).toBe(200);
+    expect((await f.call(`/api/items/${id}/publish`, { key: 'clip-4:publish', body: {} })).status, 'a released key runs again').toBe(200);
+  });
+});

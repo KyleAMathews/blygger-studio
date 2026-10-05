@@ -289,6 +289,18 @@ export async function setTkProvenance(
   await db.prepare("UPDATE items SET tk_provenance_json = ? WHERE id = ?").bind(JSON.stringify(arr), itemId).run();
 }
 
+export interface PublishGuard { where: Guard[]; also: D1PreparedStatement[] }
+/** The guarded publish committed nothing: the claim or the working copy moved. */
+export class PublishGuardLost extends Error {}
+
+export interface WorkingCopy { contentMd: string; stubJson: string | null }
+export function matchesWorkingCopy(item: ItemRow, w: WorkingCopy): boolean {
+  return item.content_md === w.contentMd && (item.stub_of ?? null) === w.stubJson;
+}
+export function workingCopyGuard(id: string, w: WorkingCopy): Guard {
+  return { sql: "EXISTS (SELECT 1 FROM items WHERE id = ? AND content_md = ? AND stub_of IS ?)", binds: [id, w.contentMd, w.stubJson] };
+}
+
 /**
  * Publish the working copy as version N+1. First strips every TK scope (§2.4)
  * down to its bare output — content_md and the hash cover exactly that
@@ -303,7 +315,7 @@ export async function setTkProvenance(
  * if the published fragment exceeds the studio cap, or TransclusionResolveError
  * if a thread directive fails to resolve — nothing is written in any case.
  */
-export async function publish(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string, noteGenerated = false): Promise<number> {
+export async function publish(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string, noteGenerated = false, guard?: PublishGuard): Promise<number> {
   const now = nowIso();
   const version = item.version + 1;
   const kind = await authoredKind(db, item);
@@ -413,13 +425,20 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   const citeJson = agreed ? JSON.stringify(await composeStubCite(db, agreed, normalizedOrigin(origin), settings.site_title, now)) : null;
 
   const hash = await contentHash(strippedMd);
-  await db.batch([
+  const where = guard?.where ?? [];
+  const guardSql = where.map((w) => ` AND ${w.sql}`).join("");
+  const guardBinds = where.flatMap((w) => w.binds);
+  const [inserted] = await db.batch([
     db.prepare(
-      "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0),
-    db.prepare("UPDATE items SET status = 'public', kind = ?, version = ?, dirty = 0, updated = ? WHERE id = ?")
-      .bind(kind, version, now, item.id),
+      `INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE 1${guardSql}`,
+    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0, ...guardBinds),
+    db.prepare(`UPDATE items SET status = 'public', kind = ?, version = ?, dirty = 0, updated = ? WHERE id = ?${guardSql}`)
+      .bind(kind, version, now, item.id, ...guardBinds),
+    // The replay record goes last: it flips the claim to done, which would
+    // fail the guard for any statement after it.
+    ...(guard?.also ?? []),
   ]);
+  if (inserted.meta.changes === 0) throw new PublishGuardLost();
   // The owner's private interaction log (src/interactions.ts): stubs, forks and
   // quotes of other blygs' items that this version newly makes.
   await recordPublishInteractions(db, item.id, version, normalizedOrigin(origin));
