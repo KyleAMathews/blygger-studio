@@ -8,7 +8,7 @@ export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) =>
     for (;;) {
       const i = next++;
       if (i >= items.length) return;
-      results[i] = await fn(items[i]);
+      results[i] = await fn(items[i]!);
     }
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
@@ -47,7 +47,7 @@ export function sourceTitleAndUrl(
 ): { title: string | null; url: string } {
   if (row.l0) {
     const m = /<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/i.exec(row.content_html);
-    if (m) return { title: decodeEntities(stripTags(m[2])).trim() || null, url: m[1] };
+    if (m) return { title: decodeEntities(stripTags(m[2]!)).trim() || null, url: m[1]! };
     return { title: null, url: origin };
   }
   return { title: null, url: blygItemUrl(origin, row.kind, row.remote_id, row.page) };

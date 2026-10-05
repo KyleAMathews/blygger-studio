@@ -382,7 +382,7 @@ export function createStudioData(host: BlyggerClient) {
   }
 
   const updates = createCollection(
-    queryCollectionOptions<Record<string, string>>({
+    queryCollectionOptions<Record<string, string> & { key: string }>({
       id: 'updates',
       queryKey: ['updates'],
       queryClient,

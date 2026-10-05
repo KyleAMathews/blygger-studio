@@ -1,0 +1,14 @@
+/* Panel-only styles. 3b extracts the Studio's tokens for shared components. */
+:root { color-scheme: light dark; font: 15px/1.5 system-ui, sans-serif; }
+body { margin: 0; }
+.panel { padding: 16px; display: grid; gap: 12px; }
+.panel-head h1 { font-size: 1.1rem; margin: 0; }
+.panel form { display: grid; gap: 8px; }
+.panel input, .panel textarea { font: inherit; padding: 6px 8px; border: 1px solid #8888; border-radius: 6px; background: transparent; color: inherit; }
+.btn { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid #8888; background: transparent; color: inherit; cursor: pointer; }
+.btn-primary { background: #2f5fd0; border-color: #2f5fd0; color: white; }
+.btn-ghost { border-color: transparent; justify-self: start; }
+.hint { color: #8a8a8a; margin: 0; font-size: 0.9rem; }
+.notice { margin: 0; padding: 8px; border-radius: 6px; background: #f3c14b33; }
+.error-banner { margin: 0; padding: 8px; border-radius: 6px; background: #e0484833; }
+.advanced summary { cursor: pointer; color: #8a8a8a; }

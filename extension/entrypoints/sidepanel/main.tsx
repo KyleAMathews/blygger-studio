@@ -1,2 +1,11 @@
 import { createRoot } from 'react-dom/client';
-createRoot(document.getElementById('root')!).render(<p>Blygger Clipper</p>);
+import { SheetHost } from '../../../src/ui/sheets.tsx';
+import { App } from '../../panel/App.tsx';
+import '../../panel/panel.css';
+
+createRoot(document.getElementById('root')!).render(
+  <>
+    <App />
+    <SheetHost />
+  </>,
+);

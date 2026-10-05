@@ -122,6 +122,15 @@ describe('advertised support and CORS', () => {
     expect(mcp.publish_preconditions).toBeUndefined();
   });
 
+  it('discovery documents are CORS-readable, as a browser client needs them', async () => {
+    const f = await flow();
+    for (const path of ['/blyg/studio/auth/resources/api', '/blyg/studio/auth/.well-known/oauth-authorization-server']) {
+      const response = await f.request(path, { headers: { Origin: 'chrome-extension://abc' } });
+      expect(response.status, path).toBe(200);
+      expect(response.headers.get('access-control-allow-origin'), path).toBe('*');
+    }
+  });
+
   it('a preflight allows Idempotency-Key and keyed responses expose the replay headers', async () => {
     const f = await flow();
     const preflight = await f.request('/api/items', { method: 'OPTIONS', headers: { Origin: 'chrome-extension://abc', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, content-type, idempotency-key' } });

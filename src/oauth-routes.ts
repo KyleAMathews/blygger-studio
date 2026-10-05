@@ -20,6 +20,8 @@ app.use('*', (c, next) => bodyLimit({ maxSize: 1024 * 1024, onError: c => c.json
     if (!authorization) c.header('Access-Control-Allow-Origin', '*');
     await next();
     if (authorization) c.res.headers.delete('Access-Control-Allow-Origin');
+    // A raw Response (the forwarded better-auth endpoints) does not carry c.header().
+    else c.res.headers.set('Access-Control-Allow-Origin', '*');
   });
   app.onError((error, c) => {
     console.error('OAuth request failed', requestError(error, c));
