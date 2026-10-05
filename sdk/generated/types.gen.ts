@@ -116,6 +116,7 @@ export type Subscription = {
     fail_count: number;
     last_index_sync_at: string | null;
     created: string;
+    title_follows_source: boolean;
     in_blogroll: boolean;
     flags: Array<{
         type: string;
@@ -2057,7 +2058,10 @@ export type GetSubscriptionResponse = GetSubscriptionResponses[keyof GetSubscrip
 export type UpdateSubscriptionData = {
     body: {
         in_blogroll?: boolean;
-        title?: string;
+        /**
+         * A name of your own; null hands the name back to the source, refreshed while polling.
+         */
+        title?: string | null;
         paused?: boolean;
     };
     path: {

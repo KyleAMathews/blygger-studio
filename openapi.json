@@ -520,6 +520,9 @@
           "created": {
             "type": "string"
           },
+          "title_follows_source": {
+            "type": "boolean"
+          },
           "in_blogroll": {
             "type": "boolean"
           },
@@ -556,6 +559,7 @@
           "fail_count",
           "last_index_sync_at",
           "created",
+          "title_follows_source",
           "in_blogroll",
           "flags"
         ]
@@ -5695,8 +5699,12 @@
                     "type": "boolean"
                   },
                   "title": {
-                    "type": "string",
-                    "minLength": 1
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "description": "A name of your own; null hands the name back to the source, refreshed while polling."
                   },
                   "paused": {
                     "type": "boolean"

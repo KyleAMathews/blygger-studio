@@ -61,6 +61,7 @@ export const SubscriptionRowSchema = z.object({
   in_blogroll: z.number(),
   flags: z.string(),
   created: z.string(),
+  title_auto: z.number(),
 }).openapi("SubscriptionRow");
 
 export const ImportedItemRowSchema = z.object({

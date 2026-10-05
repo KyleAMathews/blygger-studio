@@ -251,6 +251,8 @@ export interface SubscriptionRow {
   /** JSON array of ImporterFlag strings — the discrepancy log surfaced in the subs UI. */
   flags: string;
   created: string;
+  /** 1 = the title follows the source (manifest or channel title); 0 = the owner named it. */
+  title_auto: number;
 }
 
 export interface ImportedItemRow {

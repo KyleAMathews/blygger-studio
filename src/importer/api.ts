@@ -76,20 +76,14 @@ importerApi.openapi(routes.createSubscription, async (c) => {
   }
 
   const title = body.title?.trim() || undefined;
+  // The confirm dialog offers the source's own name; sending it back unchanged
+  // keeps the subscription following the source. Anything else is the owner's.
+  const sourceTitle = result.kind === "blyg" ? (typeof result.manifest.title === "string" ? result.manifest.title : titleFromUrl(result.origin)) : titleFromUrl(result.feedUrl);
+  const titleAuto = title === undefined || title === sourceTitle.trim();
   const sub =
     result.kind === "blyg"
-      ? await createSubscription(c.env.DB, {
-          kind: "blyg",
-          origin: result.origin,
-          feedUrl,
-          title: title ?? (typeof result.manifest.title === "string" ? result.manifest.title : titleFromUrl(result.origin)),
-        })
-      : await createSubscription(c.env.DB, {
-          kind: "rss",
-          origin: result.feedUrl,
-          feedUrl: result.feedUrl,
-          title: title ?? titleFromUrl(result.feedUrl),
-        });
+      ? await createSubscription(c.env.DB, { kind: "blyg", origin: result.origin, feedUrl, title: title ?? sourceTitle, titleAuto })
+      : await createSubscription(c.env.DB, { kind: "rss", origin: result.feedUrl, feedUrl: result.feedUrl, title: title ?? sourceTitle, titleAuto });
   // Initial backfill (§3.2 step 4 / plan §7 open decision #2: import the full
   // archive on first subscribe) — a fresh subscription's null
   // last_index_sync_at makes the very first pollSubscription() call reconcile
@@ -105,9 +99,11 @@ importerApi.openapi(routes.createSubscription, async (c) => {
 importerApi.openapi(routes.updateSubscription, async (c) => {
   const sub = await getSubscription(c.env.DB, c.req.param("id"));
   if (!sub) return c.json({ error: "not found" }, 404);
-  const body = await readJson<{ in_blogroll?: boolean; title?: string; paused?: boolean }>(c);
+  const body = await readJson<{ in_blogroll?: boolean; title?: string | null; paused?: boolean }>(c);
   const assignments: string[] = [], values: (string | number)[] = [];
-  if (body.title !== undefined) { assignments.push("title = ?"); values.push(body.title); }
+  // A name of the owner's own stops the refresh; null hands it back to the source.
+  if (typeof body.title === "string") { assignments.push("title = ?", "title_auto = 0"); values.push(body.title); }
+  if (body.title === null) assignments.push("title_auto = 1", "last_index_sync_at = NULL");
   if (body.in_blogroll !== undefined) { assignments.push("in_blogroll = ?"); values.push(body.in_blogroll ? 1 : 0); }
   if (body.paused !== undefined) { assignments.push("status = ?"); values.push(body.paused ? "paused" : "active"); }
   if (!assignments.length) return c.json(subscriptionResource(sub));
