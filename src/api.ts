@@ -451,6 +451,7 @@ const SETTINGS_KEYS = [
   "ai_model_feed",
   "feed_prompt",
   "ai_style_prompt",
+  "picker_typing",
 ] as const;
 
 api.openapi(routes.updateSettings, async (c) => {
@@ -468,6 +469,7 @@ api.openapi(routes.updateSettings, async (c) => {
   for (const key of ["accept_mentions", "update_check", "show_responses_default", "highlight_generated_default", "auto_change_notes", "update_notice_ack"] as const) {
     if (typeof body[key] === "boolean") patch[key] = body[key] ? "on" : "off";
   }
+  if (typeof patch.picker_typing === "string" && !["auto", "editor", "panel"].includes(patch.picker_typing)) return c.json({ error: "picker_typing must be auto, editor or panel" }, 400);
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return c.json({ error: `unknown timezone: ${patch.timezone}` }, 400);
   if (patch.site_url && !(URL.canParse(patch.site_url) && ["http:", "https:"].includes(new URL(patch.site_url).protocol))) return c.json({ error: "site_url must be an absolute http(s) URL" }, 400);
   if (Array.isArray(body.author_links)) {

@@ -100,6 +100,7 @@ export type Settings = {
     show_responses_default: boolean;
     highlight_generated_default: boolean;
     auto_change_notes: boolean;
+    picker_typing: 'auto' | 'editor' | 'panel';
     update_feed_url: string;
     update_notice_ack: boolean;
 };
@@ -1674,6 +1675,7 @@ export type UpdateSettingsData = {
         show_responses_default?: boolean;
         highlight_generated_default?: boolean;
         auto_change_notes?: boolean;
+        picker_typing?: 'auto' | 'editor' | 'panel';
         update_feed_url?: string;
         update_notice_ack?: boolean;
     };

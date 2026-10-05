@@ -21,7 +21,7 @@ not have its own repo until session 26.
 ## 0.29.0 — 2026-10-05
 
 - **The `[[` / `![[` picker is a panel with real search.** It searched only a 70-character excerpt and the id, so on a node with ~1,400 candidates almost nothing was findable. `GET /api/search` now matches every word anywhere in an item's text, in SQL, with `source=all|mine|imported`, `sub=<subscription>`, `sort=newest|oldest`, paging and a total; rows gain `source`, `kind`, `subscription_id` and `source_title` (`badge` is kept for older clients). What it offers is unchanged: only what publish will accept.
-- The picker opens as a non-modal panel at the right (docked at the bottom on a phone, with the draft scrolled into view above it): link or quote named in its header, a source radio, sort, a subscription menu under *imported*, and rows with excerpt, source, kind, age and version. Where you type is a per-device choice, the editor (as before) or the panel's own search box; source and sort are remembered too.
+- The picker opens as a non-modal panel at the right (docked at the bottom on a phone, with the draft scrolled into view above it): link or quote named in its header, a source radio, sort, a subscription menu under *imported*, and rows with excerpt, source, kind, age and version. Where you type to search is a new setting, Settings → writing: *automatic* (the default) keeps typing in the editor with a mouse and gives the picker its own search box on a touch screen, where it fills the screen until you pick or cancel; or always *the editor*; or always *the picker*. Source and sort are remembered per device.
 - The reading list's swipe hint is hidden on mouse devices (#36, Aneesh Sathe).
 - Migrations: none.
 

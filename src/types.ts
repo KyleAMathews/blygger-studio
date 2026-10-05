@@ -447,6 +447,8 @@ export interface Settings {
    * anything is published; off by default, because it spends the operator's key.
    */
   auto_change_notes: boolean;
+  /** Where you type to search in the [[ / ![[ picker (0.29): auto = the editor with a mouse, the panel on touch. */
+  picker_typing: "auto" | "editor" | "panel";
   /** Where to ask. Configurable so a fork checks its own releases, not ours. */
   update_feed_url: string;
   /**

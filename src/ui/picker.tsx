@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { SearchResponses } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import { client } from './data.ts';
-import { Button, Failure } from './components.tsx';
+import { Button, Failure, useSettings } from './components.tsx';
 import { paletteTrigger, paletteInsert } from '../palette.ts';
 import './picker.css';
 
@@ -12,16 +12,22 @@ import './picker.css';
  * form can name: own published items and imported blyg items, by every word
  * anywhere in their text, filtered by source and sorted newest or oldest first.
  *
- * Where the typing goes is deliberately a per-device preference, not a
- * decision baked in (Venkat, session 36: "that will take testing"): in
- * `editor` mode the query is whatever follows the brackets and the keyboard
+ * Where the typing goes is the `picker_typing` setting (Settings → writing):
+ * in `editor` mode the query is whatever follows the brackets and the keyboard
  * stays in the textarea, as before 0.29; in `panel` mode focus moves to the
- * panel's own search box when it opens. Both share every other part.
+ * panel's own search box. `auto`, the default, is the editor with a mouse and
+ * the panel on a touch screen (Venkat, session 36, after trying both). In
+ * panel mode on a phone the picker takes the whole screen: there is nothing
+ * to type in the editor meanwhile, and a half-height dock under the keyboard
+ * was the awkward part. Both modes share every other part.
  */
 type Hit = SearchResponses[200]['items'][number];
 type Source = 'all' | 'mine' | 'imported';
 type Sort = 'newest' | 'oldest';
 type Focus = 'editor' | 'panel';
+// Touch without hover, the same test as the reading list's swipe hint (#36).
+const touch = () => matchMedia('(hover: none) and (pointer: coarse)').matches;
+const narrow = () => matchMedia('(max-width: 640px)').matches;
 const PAGE = 20;
 
 function stored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
@@ -67,7 +73,8 @@ export function BracketPicker({
   const [error, setError] = useState<unknown>();
   const [source, setSource] = useState<Source>(() => stored('blyg.picker.source', ['all', 'mine', 'imported'] as const, 'all'));
   const [sort, setSort] = useState<Sort>(() => stored('blyg.picker.sort', ['newest', 'oldest'] as const, 'newest'));
-  const [focusMode, setFocusMode] = useState<Focus>(() => stored('blyg.picker.focus', ['editor', 'panel'] as const, 'editor'));
+  const setting = useSettings()?.picker_typing ?? 'auto';
+  const focusMode: Focus = setting === 'auto' ? (touch() ? 'panel' : 'editor') : setting;
   const [sub, setSub] = useState('');
   const [subs, setSubs] = useState<{ id: string; title: string }[]>([]);
   const [panelQuery, setPanelQuery] = useState('');
@@ -97,9 +104,10 @@ export function BracketPicker({
 
   // On a phone the panel docks over the bottom half: bring the text being
   // typed into the half that stays visible.
+  const full = open && focusMode === 'panel' && narrow();
   useEffect(() => {
-    if (open && matchMedia('(max-width: 640px)').matches) input.current?.scrollIntoView({ block: 'start' });
-  }, [open, triggerKey]);
+    if (open && !full && narrow()) input.current?.scrollIntoView({ block: 'start' });
+  }, [open, triggerKey, full]);
   // Panel mode: the search box takes the keyboard when the panel opens.
   useEffect(() => {
     if (open && focusMode === 'panel') requestAnimationFrame(() => search.current?.focus());
@@ -209,7 +217,7 @@ export function BracketPicker({
   if (!open || !trigger) return null;
   const link = trigger.form === 'link';
   return (
-    <aside className="picker" role="complementary" aria-label={link ? 'link picker' : 'quote picker'}>
+    <aside className={full ? 'picker picker-full' : 'picker'} role="complementary" aria-label={link ? 'link picker' : 'quote picker'}>
       <header className="picker-head">
         <div>
           <strong>{link ? 'link' : 'quote'}</strong> <code>{link ? '[[…]]' : '![[…]]'}</code>
@@ -326,22 +334,6 @@ export function BracketPicker({
         </Button>
       ) : null}
       <footer className="picker-foot">
-        <label>
-          type in{' '}
-          <select
-            aria-label="type in"
-            value={focusMode}
-            onChange={(e) => {
-              const next = e.target.value as Focus;
-              setFocusMode(next);
-              store('blyg.picker.focus', next);
-              if (next === 'editor') backToEditor(caret);
-            }}
-          >
-            <option value="editor">the editor</option>
-            <option value="panel">this panel</option>
-          </select>
-        </label>
         <span className="hint">↑↓ to move · Enter to insert · Esc to close</span>
       </footer>
     </aside>

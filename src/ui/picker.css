@@ -16,6 +16,10 @@
 }
 /* Clears the sticky top bar when the picker scrolls the draft into view. */
 #composer-text, #md-input { scroll-margin-top: 72px; }
+/* Panel mode on a phone: the picker is the whole screen until you pick or cancel. */
+@media (max-width: 640px) {
+  .picker.picker-full { top: 0; height: auto; border-top: none; border-radius: 0; padding-top: calc(14px + env(safe-area-inset-top)); }
+}
 @media (prefers-reduced-motion: reduce) { .picker { animation: none; } }
 .picker-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .picker-sub { font-size: .78rem; color: var(--ink-soft); margin-top: 2px; }
@@ -41,5 +45,5 @@
 .picker-mine { color: var(--pencil); font-weight: 600; }
 .picker-foot { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; font-size: .78rem; color: var(--ink-soft); border-top: 1px solid var(--rule); padding-top: 8px; }
 .picker-foot .hint { margin: 0; }
-@media (hover: none) { .picker-foot .hint { display: none; } }
+@media (hover: none) { .picker-foot { display: none; } }
 .picker-foot select { font-size: .78rem; padding: 2px 4px; }

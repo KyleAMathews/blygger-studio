@@ -432,6 +432,14 @@
           "auto_change_notes": {
             "type": "boolean"
           },
+          "picker_typing": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "editor",
+              "panel"
+            ]
+          },
           "update_feed_url": {
             "type": "string"
           },
@@ -459,6 +467,7 @@
           "show_responses_default",
           "highlight_generated_default",
           "auto_change_notes",
+          "picker_typing",
           "update_feed_url",
           "update_notice_ack"
         ]
@@ -4918,6 +4927,14 @@
                   },
                   "auto_change_notes": {
                     "type": "boolean"
+                  },
+                  "picker_typing": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "editor",
+                      "panel"
+                    ]
                   },
                   "update_feed_url": {
                     "type": "string"
