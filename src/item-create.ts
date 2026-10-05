@@ -46,6 +46,26 @@ import { nowIso } from "./util.ts";
  */
 const LONG_TARGET_CHARS = 600;
 
+/**
+ * The default quote for a long target (session 36, Venkat): its opening block,
+ * cut at a sentence end (else a word) to at most OPENING_MAX characters. A
+ * prefix of one block is always a substring of the text publish checks, and is
+ * checked anyway; null falls back to the whole-item form.
+ */
+const OPENING_MAX = 280;
+function openingPassage(html: string): string | null {
+  const first = selectionText(html).split("\n").map((line) => line.trim()).find(Boolean);
+  if (!first) return null;
+  let passage = first;
+  if (passage.length > OPENING_MAX) {
+    const cut = passage.slice(0, OPENING_MAX);
+    const sentence = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
+    passage = sentence >= 80 ? cut.slice(0, sentence + 1) : cut.slice(0, Math.max(cut.lastIndexOf(" "), 1)).trimEnd();
+  }
+  const normalized = normalizeSelection(passage);
+  return normalized && locateSelection(html, normalized) ? normalized : null;
+}
+
 /** A normalized selection as an attached markdown blockquote: one `>` block per line. */
 function quoteLines(selection: string): string {
   return selection
@@ -94,9 +114,13 @@ export async function createResponseDraft(c: Context<{ Bindings: Env }>, body: {
       }
       contentMd = `![[${remoteId}]]\n${quoteLines(selection)}\n\n`;
     } else if (selectionText(row.content_html).length > LONG_TARGET_CHARS) {
-      // An empty quote line, focused by the caller: the grammar is already
-      // there, and the author types or pastes the passage into it.
-      contentMd = `![[${remoteId}]]\n> \n\n`;
+      // The opening passage, quoted: a valid partial quote from the start, so
+      // the draft never opens on an error. Before 0.29 this was an empty quote
+      // line, which the preview reported as "the attached blockquote is empty"
+      // until a passage was pasted (session 36). The author replaces it with
+      // any passage, or deletes it to quote the whole item.
+      const opening = openingPassage(row.content_html);
+      contentMd = opening ? `![[${remoteId}]]\n${quoteLines(opening)}\n\n` : `![[${remoteId}]]\n\n`;
     } else {
       contentMd = `![[${remoteId}]]\n\n`;
     }

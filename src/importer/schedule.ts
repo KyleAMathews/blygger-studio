@@ -76,6 +76,17 @@ export async function repairImportedUrls(db: D1Database, limit = 200): Promise<n
   return repaired;
 }
 
+/**
+ * "Resync all feeds" (0.29): poll every subscription that is not paused, now,
+ * whatever its schedule or backoff says. Degraded ones included: after an
+ * outage this is the way back without waiting out hours of backoff.
+ */
+export async function pollAll(db: D1Database, fetchFn: FetchLike = platformFetch): Promise<number> {
+  const subs = (await listSubscriptions(db)).filter((s) => s.status !== "paused");
+  await mapLimit(subs, POLL_CONCURRENCY, (sub) => pollSubscription(db, sub, fetchFn));
+  return subs.length;
+}
+
 export async function runScheduledPoll(db: D1Database, fetchFn: FetchLike = platformFetch, now: number = Date.now()): Promise<ScheduledPollResult> {
   await repairImportedUrls(db);
   const subs = await listSubscriptions(db);

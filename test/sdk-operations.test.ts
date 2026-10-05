@@ -31,6 +31,7 @@ it("exercises every declared operation through its named SDK method, including a
     ["createSubscription", 422, client => api.createSubscription({ client, body: { url: "not a url" } })],
     ["updateSubscription", 200, client => api.updateSubscription({ client, path: { id: sub.id }, body: { paused: true, title: "Renamed" } })],
     ["resyncSubscription", 409, client => api.resyncSubscription({ client, path: { id: sub.id } })],
+    ["pollAllSubscriptions", 200, client => api.pollAllSubscriptions({ client })],
     ["createHopper", 201, client => api.createHopper({ client, body: { name: "Other matrix" } })],
     ["updateHopper", 200, client => api.updateHopper({ client, path: { id: hopper.id }, body: { public: true } })],
     ["addHopperItem", 200, client => api.addHopperItem({ client, path: member })],

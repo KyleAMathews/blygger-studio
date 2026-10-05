@@ -68,6 +68,7 @@ export const routes = {
   updateSettings: route("updateSettings", "patch", "/settings", SettingsSchema, settingsBody),
   createSubscription: route("createSubscription", "post", "/subscriptions", confirmation, z.object({ url: z.string(), confirm: z.boolean().optional(), title: z.string().optional() })),
   updateSubscription: route("updateSubscription", "patch", "/subscriptions/{id}", SubscriptionSchema, z.object({ in_blogroll: z.boolean().optional(), title: z.string().trim().min(1).optional(), paused: z.boolean().optional() }).strict()),
+  pollAllSubscriptions: route("pollAllSubscriptions", "post", "/subscriptions/poll", z.object({ polling: z.number().int().nonnegative() })),
   resyncSubscription: route("resyncSubscription", "post", "/subscriptions/{id}/resync", ok.extend({ changed: z.number() })),
   deleteSubscription: route("deleteSubscription", "delete", "/subscriptions/{id}", ok),
   createHopper: route("createHopper", "post", "/hoppers", HopperSchema, z.object({ name: z.string() }), 201),
