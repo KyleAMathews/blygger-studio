@@ -33,6 +33,7 @@ Success means:
 | Scopes | Request all of `owner:read owner:draft owner:publish owner:manage offline_access` up front; adapt to what consent grants |
 | Manual token | "Advanced: use a token" on the connect screen (useful beyond tests) |
 | New test files | Approved: unit tests under `extension/`, `test/clipper-oauth.test.ts`, `e2e/clipper.spec.ts` |
+| Retry safety | Server `Idempotency-Key` on create and publish (§9); no automatic retry against a node that does not echo it |
 
 ### Out of scope for v1
 
@@ -41,7 +42,8 @@ Success means:
 - Firefox and Safari builds.
 - Image clipping, full-page article capture, highlights that persist on the
   page, tags.
-- Any server change beyond the shared-UI refactor and stale doc fixes.
+- Any server change beyond the shared-UI refactor, the `Idempotency-Key`
+  support in §9, and stale doc fixes.
 
 ## 2. Architecture
 
@@ -151,14 +153,34 @@ the owner out.
 - The panel asks the worker for an access token by message. The worker
   refreshes when the token is within 60 seconds of expiry, with one
   in-flight refresh shared by all callers.
+- The worker can be terminated at any moment (Chrome stops idle workers).
+  Refresh state lives in storage, never only in memory: a refresh marks
+  itself in flight, writes the new refresh token before it releases waiting
+  callers, then clears the mark. If the worker dies after the server rotated
+  the token but before the new one was stored, the stored token is spent, and
+  this server treats reuse as replay and revokes the grant
+  (`src/oauth-routes.ts:162`). A worker that wakes to find the mark set tries
+  the stored token once: if the earlier request never reached the server it
+  succeeds; if it did, the grant was already unusable to us and its
+  revocation is the clean outcome. On failure it shows Reconnect, and queued
+  clips wait. The queue and inbox are likewise read from storage on every wake.
 - Grants end 30 days after the owner's Studio session began. When refresh
   fails with `invalid_grant`, the panel shows Reconnect; queued clips wait.
 
 ### 3.5 Manual token
 
 "Advanced: use a token" accepts a token the owner mints in Studio → Client
-access. The extension verifies it with `GET /api/settings` and reads its granted
-scope from the token's JWT payload, for display only (the server enforces). No refresh: when it expires, the panel asks for a
+access. The extension reads the granted scope from the token's JWT payload (for
+choosing a probe and for display; the server enforces) and verifies the token
+with a request that scope allows and that changes nothing:
+
+- with `owner:read`: `GET /api/settings`;
+- else with `owner:draft`: `POST /api/preview` with `{ kind: "thread", content_md: "" }`;
+- else: refuse, saying the token cannot clip (it needs `owner:draft`).
+
+A 401 means the token is invalid or expired. A 403 on the chosen probe means
+the payload's scope claim is wrong; the extension trusts the server and
+refuses. No refresh: when it expires, the panel asks for a
 new one. Playwright uses this path, since it cannot drive Chrome's OAuth
 window.
 
@@ -179,8 +201,23 @@ state. The grant also appears in Studio → Client access for revocation there.
 
 On a trigger the worker calls `sidePanel.open({ tabId })` before any `await`
 (the call needs the user gesture), then injects the capture script into
-`info.frameId` and writes the capture record to `storage.session` under the
-tab id. The panel listens for that key.
+`info.frameId`.
+
+**Capture inbox.** Captures are durable before anything else sees them:
+
+1. The worker validates the record (§6), gives it a UUID and a capture time,
+   and appends it to an **inbox** in `storage.local`. Rapid captures queue in
+   order; none overwrites another.
+2. Only after that write resolves does the worker notify the panel.
+3. The panel takes inbox entries into its draft (§4.6) and acknowledges each
+   UUID only after the draft revision containing it is written. The worker
+   deletes an entry only on acknowledgement.
+4. On load, the panel drains any unacknowledged entries in order. So a capture
+   survives a panel that never opened, closed at once, or a browser restart.
+
+If the worker is terminated between steps, the inbox write either happened or
+did not: a capture is never half-delivered. A capture lost before step 1 is
+one the owner sees fail (the panel shows "Clip failed, try again").
 
 ### 4.2 Capture record
 
@@ -246,6 +283,12 @@ Saved as a thread:
 The Studio renders `stub_of` as the "In response to" citation, so the body
 carries no attribution line.
 
+**Page-only clip** ("Clip this page", no selection): `quote` is absent. The
+body starts empty and may be saved empty. The item is the same thread with
+`stub_of: { url: canonical, cited: { source, author?, url: canonical,
+retrieved } }`. There is no `excerpt`, and `cited.url` is the canonical URL,
+not a fragment link.
+
 ### 4.4 Blyg-aware transclusion
 
 When the capture has `blyg`, the body is `![[id]]` followed directly by the
@@ -253,7 +296,17 @@ quote as an attached blockquote (the partial grammar), with
 `stub_of: { origin, id, version }`. At clip time the panel calls
 `POST /api/preview` with that body:
 
-- **No errors:** compose continues in transclusion mode.
+- **No errors, and the right item:** preview's `transclusions[0]` must name
+  the captured item. If the captured origin is the connected blyg, expect a
+  local entry (no `origin`) with the captured `id`. Otherwise expect `origin`
+  equal to the captured origin and the captured `id`. The resolver matches on
+  `id` alone and prefers local items (`src/transclusion.ts:206`), so anything
+  else falls back to a URL quote and says why.
+- **Versions:** the bake uses the snapshot we hold, which may be older or
+  newer than the page the owner is reading. A different version is accepted
+  when the selection validates against the held snapshot. The panel says
+  "quoting v{held}; this page shows v{captured}", and `stub_of.version` is the
+  held version, the one actually quoted.
 - **Unknown target, and the blyg is not subscribed:** if `owner:manage` was
   granted, offer "Subscribe to {site} to quote it as a transclusion". This is
   an explicit button, since subscribing changes the owner's reading list. After
@@ -274,23 +327,31 @@ instead of replacing it:
 
 ### 4.6 Local draft
 
-The panel writes its draft (capture, body, mode) to `storage.local` on every
-change, debounced 500 ms. Closing the panel or the browser keeps it. The
-server draft is created only on Save draft or Publish.
+The draft (captures, body, mode, citation edits) lives in `storage.local`
+with a monotonically increasing revision. The panel writes it on every input
+event, coalesced to at most one write per animation frame, with no debounce
+window to lose. On load the highest revision wins. Closing the panel or the
+browser keeps the latest write. The server draft is created only on Save
+draft or Publish.
 
 ## 5. Saving, recent clips and the queue
 
 ### 5.1 Save draft
 
-`POST /api/items` with the body from §4. On 201 the local draft is cleared, a
+Pressing Save draft creates a **save operation** with a UUID, stored with the
+draft before any request is sent. `POST /api/items` carries
+`Idempotency-Key: {uuid}:create` (§9). On 201 the local draft is cleared, a
 toast offers "Open in Studio" (`{blyg}/studio/edit/{id}`), and the panel
 returns to its home view: a "Clip something" hint and the recent clips list.
 
 ### 5.2 Publish
 
-Create, then `POST /api/items/{id}/publish`. If creation succeeds and publish
-fails, the clip is a saved draft and only the publish step is queued (a
-repeat publish of the same item changes nothing). The toast links to the
+Create as above, then `POST /api/items/{id}/publish` with
+`Idempotency-Key: {uuid}:publish`. The server makes a new version on every
+publish call, so a blind retry would publish twice, and could publish edits
+made in Studio meanwhile. With the key, a retry replays the first response
+instead. If creation succeeds and publish fails, the clip is a saved draft and
+only the publish step is queued, with the same key. The toast links to the
 public page.
 
 ### 5.3 Recent clips
@@ -307,13 +368,21 @@ Owned by the service worker (it holds the tokens), stored in `storage.local`,
 retried with `chrome.alarms` at 1 minute, backing off to 30 minutes. The
 toolbar badge shows the count.
 
-| Failure | Action |
-|---|---|
-| Network error before any response | Queue |
-| 429 | Queue, honouring `Retry-After` |
-| 401 after refresh fails | Queue and show Reconnect |
-| Timeout after sending, or 5xx | Before retrying, search `GET /api/items` for the same body created after the clip; if found, mark done. Without `owner:read`, stop and ask the owner to retry. |
-| 400, 403, 413 | Not queued; inline error, draft kept |
+Any failure after a request was dispatched is **uncertain**: the server may
+have committed even if no response arrived. Retries are safe only because
+they reuse the operation's key.
+
+| Failure | Node echoes `Idempotency-Key` | Node does not |
+|---|---|---|
+| Request never dispatched (offline at send) | Queue | Queue |
+| Network error, timeout or 5xx after dispatch | Queue; retry with the same key | Do not retry. Mark "may have saved" and show the owner recent drafts (with `owner:read`) to confirm, or retry by hand |
+| 409 "operation in progress" (§9) | Queue; retry after `Retry-After` | n/a |
+| 429 | Queue, honouring `Retry-After` | Queue, honouring `Retry-After` |
+| 401 after refresh fails | Queue and show Reconnect | Same |
+| 400, 403, 413, 422 | Not queued; inline error, draft kept | Same |
+
+Whether a node echoes the key is learned from its first keyed response and
+stored per blyg; until then the node is treated as not echoing.
 
 Queued clips can be opened, edited or discarded from the badge list.
 
@@ -341,26 +410,113 @@ drafts. Rules:
 - Tokens never reach the capture script or the page, and are never logged.
 - No remote code; Content Security Policy is the MV3 default.
 
-## 7. Testing
+## 7. Oracles and tests
 
-- **Unit (vitest, `extension/`):** Markdown conversion, metadata extraction
-  from fixture HTML, selector and fragment-link building, blyg detection,
-  discovery client against recorded responses, single-flight refresh (two
-  concurrent requests make one refresh call), queue classification for every
-  status in §5.4, and body builders checked against the Zod schemas in
-  `src/contract/`.
-- **Integration (`test/clipper-oauth.test.ts`, Workers pool):** the real flow
-  against the Worker, reusing `test/oauth-flow-driver.ts`: discovery through
-  the 401 header, registration with a chromiumapp.org redirect, PKCE,
-  consent with unticked scopes, token exchange, create, publish and refresh
-  rotation.
-- **Browser (`e2e/clipper.spec.ts`, Playwright):** load the unpacked
-  extension in Chromium, connect with a minted token (§3.5), select text on a
-  fixture page, run the command, drive the panel page, and check the saved
-  item through the API. Includes a hostile fixture page (script-laden
-  selection, `javascript:` links, hostile title, author and meta) that must
-  leave the panel DOM and the saved item inert.
-- CI: the existing `check` job builds and tests the extension.
+Tests follow the repo's oracle contract (`docs/oracle-tests.md`, ORC-001 to
+ORC-014): each oracle leads with a sourced law, judges with an independent
+model rather than production helpers, drives production code paths, and
+proves its sensitivity with mutation controls. These rules come from this
+branch's security rounds:
+
+- A mutation control's baseline must run at least one test, and its
+  checkpoint is the law's own assertion message.
+- A law about absence ("no active markup") gets a contrast case showing that
+  safe input survives unchanged.
+- Fixtures hold only states production can produce, in the formats
+  production stores. Storage fakes serialize like `chrome.storage` (JSON
+  values only, so `Date` becomes text); server truth comes from the real
+  Worker, never a stub.
+- Laws about hostile input are inventory sweeps over every input field, not
+  lists of known sinks.
+
+### 7.1 Laws
+
+| Law | Statement | Source |
+|---|---|---|
+| L1 Capture durability | Every capture the worker accepted is, after any sequence of panel closes, worker terminations and browser restarts, in exactly one place: the inbox, the draft or a saved item | §1 success criteria; [Chrome worker lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) |
+| L2 Exactly-once save | Each save operation yields exactly one item, and each publish operation at most one new version, under any fault schedule against a node that echoes `Idempotency-Key` | §5, §9; [IETF Idempotency-Key header](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) |
+| L3 No uncertain retry without a key | Against a node that does not echo the key, no request is sent twice after dispatch | §5.4 |
+| L4 Refresh safety | At most one refresh is in flight; a stored refresh token is reused only by the single post-restart attempt in §3.4 | [RFC 9700 §4.14](https://www.rfc-editor.org/rfc/rfc9700#section-4.14); `src/oauth-routes.ts:162` |
+| L5 Scope fit | The panel offers only actions the granted scope allows, and every request it sends is one that scope permits | §3.3; decision #52 invariant 3 |
+| L6 Inert page content | No page-sourced value activates markup in the panel DOM, the saved item or any public page; safe formatting and links survive | §6; OWASP XSS prevention |
+| L7 Citation fidelity | Saved `stub_of` matches the capture, validates against the contract's Zod schemas, and its fragment link selects the quoted text | §4.3; [WICG text fragments](https://wicg.github.io/scroll-to-text-fragment/) |
+| L8 Transclusion identity | Transclusion mode is used only when preview resolves the captured origin and id; otherwise a URL quote | §4.4; decision #26 |
+| L9 Discovery | Connection uses only the RFC 9728 → RFC 8414 chain under the mount; nothing host-rooted | §3.1; invariant 2 |
+
+### 7.2 Models and campaigns
+
+- **Clip lifecycle model** (ORC-008: only state that can matter): inbox
+  entries, draft revision, save operations (`pending`, `dispatched`, `done`,
+  `uncertain`) and the expected server items. The commands are capture,
+  edit, close panel, open panel, kill worker, restart browser, save, publish,
+  fault before dispatch, fault after commit, and respond. L1–L3 are checked
+  after every command.
+- **Token model:** stored token generation, in-flight mark, waiting callers.
+  The commands are request token, kill worker, server rotates, response lost.
+  L4 is checked after every command.
+- **Campaigns** (ORC-007): a fixed lane with one named history per row of the
+  §5.4 table, and per §3.4 restart case; and a random lane (fast-check) with
+  printed seed and shrink path, replayable from those values alone.
+- **Fault driver** (control the event, not the Promise): a transport that
+  forwards to the real Worker and then, on schedule, drops the response after
+  the server committed. "Commit then drop" is the case the reviewer found a
+  body-search could not resolve.
+
+### 7.3 Harnesses
+
+- **Unit (vitest, `extension/`):** worker modules with storage fakes that
+  serialize like Chrome, against the real Worker in the Workers pool for
+  every law about server state (L2, L3, L5, L7, L8). Also covers Markdown
+  conversion, metadata extraction from saved real-page fixtures, selector and
+  fragment-link building, blyg detection and discovery.
+- **Integration (`test/clipper-oauth.test.ts`):** the real OAuth flow (L9,
+  L4): discovery through the 401 header, registration with a chromiumapp.org
+  redirect, PKCE, consent with unticked scopes, token exchange, refresh
+  rotation, and replay revocation after a simulated lost rotation.
+- **Server idempotency (in the same file):** replay returns the same status,
+  body and `Location` with `Idempotent-Replayed: true`; same key with a
+  different body gives 422; a duplicate held at the commit point gives 409
+  (controlled premise, ORC-014); keys are isolated per principal; expiry
+  after 24 hours.
+- **Browser (`e2e/clipper.spec.ts`, Playwright with the unpacked extension):**
+  real Chrome lifecycle for L1: close the panel immediately after a capture
+  and after a keystroke, stop the worker via CDP `ServiceWorker.stopWorker`,
+  restart the browser context, and fire rapid repeated captures. Also: a
+  page-only clip saved without typing, a manual draft-only token connection,
+  and the hostile page sweep (L6).
+- **L6 inventory sweep:** every `Capture` field set to each hostile payload
+  from the server sweeps (attribute breakouts, `javascript:` and `data:`
+  URLs, script and SVG tags, entity-encoded schemes), checked in the panel
+  DOM, the saved item and every public page. Contrast: a fixture with
+  emphasis, code and an https link keeps them exactly.
+- **Contrast cases** for the other laws: the right transclusion is accepted
+  (L8); a valid draft-only token connects (L5); two clips with identical text
+  and different citations both save as separate items (L2).
+
+### 7.4 Mutation controls
+
+`scripts/verify-clipper-mutations.ts` follows the auth runner's rules
+(baseline ran tests, exact anchor, semantic checkpoint, restore after each).
+Each control reproduces a realistic regression:
+
+| Control | Must be caught by |
+|---|---|
+| Inbox entry deleted before acknowledgement | L1 |
+| Draft writes debounced instead of per input | L1 (close after keystroke) |
+| Create or publish sent without `Idempotency-Key` | L2 |
+| Server ignores the key, or keys are not per principal | L2, idempotency tests |
+| Uncertain failure retried against a non-echoing node | L3 |
+| Refresh without single-flight; refresh mark not stored | L4 |
+| Publish button shown without `owner:publish` | L5 |
+| Page title or quote rendered as HTML in the panel | L6 |
+| Favicon or link scheme not checked | L6 |
+| Excerpt not capped, or fragment link built from unescaped text | L7 |
+| Preview identity check skipped | L8 |
+| Discovery falls back to host-root `/.well-known` | L9 |
+
+CI runs the extension unit tests, the integration file and the browser spec
+in the existing `check` job, and the mutation runner beside the existing
+ones.
 
 ## 8. Packaging and docs
 
@@ -376,7 +532,40 @@ drafts. Rules:
 - Web Store: the developer account and listing are the owner's to set up; the
   repo carries the listing copy, screenshots and icon.
 
-## 9. Open questions
+## 9. Server change: `Idempotency-Key`
+
+A change to this client's own `/api` contract (decision #31 lists
+idempotency in its direction), not to the protocol. Shape follows the IETF
+`Idempotency-Key` header draft.
+
+- **Where:** `POST /api/items` and `POST /api/items/{id}/publish`. Other
+  routes ignore the header for now.
+- **Key:** the header value, 1–255 printable ASCII characters. Scoped per
+  principal: the grant id for a bearer token, `owner` for the cookie. One
+  token cannot read another's replays.
+- **Fingerprint:** SHA-256 of method, path and canonical JSON body.
+- **Claim before work:** an atomic insert of `(principal, key, fingerprint,
+  'pending')`.
+  - Existing row, same fingerprint, completed: replay the stored status, body
+    and `Location`, with `Idempotent-Replayed: true`.
+  - Existing row, same fingerprint, pending: 409 with `Retry-After: 1`.
+  - Existing row, different fingerprint: 422.
+- **Completion:** store status, body and `Location` on the row. Every keyed
+  response echoes `Idempotency-Key`, which is how clients learn support.
+- **Failure:** a 4xx or an exception before the work commits deletes the
+  pending row, so a retry runs again. A pending row older than 60 seconds is
+  treated as abandoned and may be claimed again. Known limit: a Worker crash
+  after the work committed but before the response was stored leaves a
+  60-second window in which a retry can repeat the work. Storing the
+  response in the same D1 batch as the work closes it where the handler
+  allows, which `publish()` does (it already writes in one batch).
+- **Retention:** 24 hours; expired rows are deleted on write.
+- **Storage:** migration `0023_idempotency_keys.sql` (after this branch's
+  0021 and 0022).
+- **Contract:** the header and the 409/422 responses go into `src/contract/`,
+  so `openapi.json` and the SDK carry them.
+
+## 10. Open questions
 
 None blocking. Two to watch during implementation:
 
