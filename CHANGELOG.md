@@ -41,6 +41,23 @@ deploying. `/api` changes, both additive: settings gain
   choice is a `gen-on` or `gen-off` class on its `<article>`. `content_html`,
   the item document and the feed are unchanged.
 
+**The robot says what the author disclosed.** Hover over the robot badge, or
+tap or click it, and a small box opens. It says the author marked the text as
+machine-generated, and that this is self-reported and not verified. Under that
+it lists the model or models, when the text was generated, and how many of the
+blyg's own items it drew on, all taken from the version's `generated[]`.
+
+- **Version-level details.** The details cover the whole version, as §5.7
+  does, so a post with several generated passages says the details cover all
+  of them.
+- **Quoted text.** A generated span inside a quoted item points to that item
+  instead.
+- **Version carousel.** It carries each version's disclosure along with its
+  text, so the box stays accurate after a swap.
+- **Mechanics.** The box is one fixed-position element per page, so a feed
+  card can't clip it. Escape or a click elsewhere closes it. With scripts off,
+  the robot is still drawn, it just doesn't open anything.
+
 ---
 
 ## 0.26.1 — 2026-10-04

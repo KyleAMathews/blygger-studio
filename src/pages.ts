@@ -405,6 +405,18 @@ article.fragment, article.thread, .thread-card { overflow-wrap: break-word; }
   .version-line .vnav { gap: 0.3rem; }
   .version-line .vstep { padding: 0.45rem 0.6rem; }
 }
+/* The robot badge is a button only where highlighting is on (see
+   generatedHighlightRules); elsewhere it is not rendered at all. */
+.gen-badge { display: none; }
+/* The disclosure box the robot opens (GEN_INFO_SCRIPT): one per page, fixed
+   to the viewport so a clipped feed card cannot cut it off. */
+.gen-pop { position: fixed; z-index: 50; box-sizing: border-box; width: max-content; max-width: min(20rem, calc(100vw - 1rem)); padding: 0.6rem 0.75rem; background: var(--paper); color: var(--ink); border: 1px solid var(--rule); border-radius: 8px; box-shadow: 0 6px 24px rgb(0 0 0 / 0.18); font: var(--apparatus); }
+.gen-pop[hidden] { display: none; }
+.gen-pop .gen-pop-h { margin: 0 0 0.25rem; font-weight: 600; color: var(--pencil); }
+.gen-pop p { margin: 0 0 0.4rem; }
+.gen-pop dl { display: grid; grid-template-columns: auto 1fr; gap: 0.1rem 0.6rem; margin: 0; }
+.gen-pop dt { color: var(--ink-soft); }
+.gen-pop dd { margin: 0; overflow-wrap: anywhere; }
 ${generatedHighlightRules(".gen-on")}`;
 
 /**
@@ -416,20 +428,31 @@ ${generatedHighlightRules(".gen-on")}`;
  *
  * A generated block wears a small robot badge on its bottom edge, near the
  * left: Brady Dale's convention on bradydale.com, adopted so the mark reads
- * the same across blygs. The badge is two layers, a paper-coloured square and
- * the icon as a mask filled with --ink-soft, so it follows the theme. An
- * inline span, which can wrap, gets the icon inline before its first word.
+ * the same across blygs. An inline span, which can wrap, gets the robot
+ * before its first word. GEN_INFO_SCRIPT makes the badge a button (hover or
+ * tap for the disclosure) and marks the span .gen-ready; until then, or with
+ * scripts off, the same robot is drawn by pseudo-elements. Either way the
+ * icon is a mask filled with --ink-soft, so it follows the theme.
  */
 function generatedHighlightRules(scope: string): string {
+  const icon = `background: var(--ink-soft); -webkit-mask: ${ROBOT} center / contain no-repeat; mask: ${ROBOT} center / contain no-repeat;`;
+  const square = `box-sizing: border-box; width: 30px; height: 26px; border: 1px solid color-mix(in srgb, var(--ink-soft) 55%, var(--gen-rule)); border-radius: 6px; background: var(--paper);`;
   return `${scope} .blyg-tk-gen { background: var(--gen-bg); box-shadow: inset 0 0 0 1px var(--gen-rule); border-radius: 4px; }
 ${scope} div.blyg-tk-gen { position: relative; padding: 0.5rem 0.75rem 1.15rem; margin: 0.75rem 0 1.5rem; }
-${scope} div.blyg-tk-gen > :first-child { margin-top: 0; }
+${scope} div.blyg-tk-gen > :first-child:not(.gen-badge), ${scope} div.blyg-tk-gen > .gen-badge + * { margin-top: 0; }
 ${scope} div.blyg-tk-gen > :last-child { margin-bottom: 0; }
-${scope} div.blyg-tk-gen::before { content: ""; position: absolute; left: 0.65rem; bottom: -13px; box-sizing: border-box; width: 30px; height: 26px; border: 1px solid color-mix(in srgb, var(--ink-soft) 55%, var(--gen-rule)); border-radius: 6px; background: var(--paper); }
-${scope} div.blyg-tk-gen::after { content: ""; position: absolute; left: calc(0.65rem + 6px); bottom: -10px; width: 18px; height: 18px; background: var(--ink-soft); -webkit-mask: ${ROBOT} center / contain no-repeat; mask: ${ROBOT} center / contain no-repeat; }
+${scope} div.blyg-tk-gen:not(.gen-ready)::before { content: ""; position: absolute; left: 0.65rem; bottom: -13px; ${square} }
+${scope} div.blyg-tk-gen:not(.gen-ready)::after { content: ""; position: absolute; left: calc(0.65rem + 6px); bottom: -10px; width: 18px; height: 18px; ${icon} }
 /* An inline span that wraps keeps its box on every line it touches. */
 ${scope} span.blyg-tk-gen { padding: 0.05rem 0.2rem; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
-${scope} span.blyg-tk-gen::before { content: ""; display: inline-block; width: 0.9em; height: 0.9em; margin-right: 0.2em; vertical-align: -0.1em; background: var(--ink-soft); -webkit-mask: ${ROBOT} center / contain no-repeat; mask: ${ROBOT} center / contain no-repeat; }
+${scope} span.blyg-tk-gen:not(.gen-ready)::before { content: ""; display: inline-block; width: 0.9em; height: 0.9em; margin-right: 0.2em; vertical-align: -0.1em; ${icon} }
+${scope} .gen-badge { display: inline-block; position: relative; margin: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+${scope} .gen-badge::after { content: ""; position: absolute; ${icon} }
+${scope} div.blyg-tk-gen > .gen-badge { position: absolute; left: 0.65rem; bottom: -13px; ${square} }
+${scope} div.blyg-tk-gen > .gen-badge::after { inset: 3px 5px; }
+${scope} span.blyg-tk-gen > .gen-badge { width: 0.9em; height: 0.9em; margin-right: 0.2em; vertical-align: -0.1em; }
+${scope} span.blyg-tk-gen > .gen-badge::after { inset: 0; }
+${scope} .gen-badge:focus-visible { outline: 2px solid var(--pencil); outline-offset: 2px; }
 `;
 }
 
@@ -504,6 +527,157 @@ function metaTags(meta: PageMeta): string {
   push("twitter:card", meta.image ? "summary_large_image" : "summary");
   return tags.length ? tags.join("\n") + "\n" : "";
 }
+
+/**
+ * The robot badge on a generated span opens a small box saying what the
+ * author disclosed about it (0.27.0): hover for a peek, tap or click to keep
+ * it open, Escape or a click elsewhere to close. Same three properties as
+ * VERSION_NAV_SCRIPT: an enhancement (scripts off, the CSS still draws the
+ * robot), dumb-host safe (it reads only data-generated, already on the page),
+ * and it invents nothing (every line comes from the version's generated[]).
+ *
+ * The details are version-level, as §5.7 is: a version that generated three
+ * passages discloses one array for all three, and the box says so rather than
+ * pretending to know which passage came from which model. A span inside a
+ * quoted item belongs to that item's disclosure, not this one's, so the box
+ * says only that.
+ *
+ * The wording is "the author marked this", never "this is": generated[] is
+ * self-asserted (§5.7 rule 6), and a badge must not read as verification.
+ */
+export const GEN_INFO_SCRIPT = `
+(function () {
+  // A page with no generated text yet may gain some when a version swaps in.
+  if (!document.querySelector(".blyg-tk-gen, .version-line")) return;
+  var pop = null, current = null, pinned = false, timer = 0;
+
+  function decorate(el) {
+    if (el.classList.contains("gen-ready")) return;
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "gen-badge";
+    b.setAttribute("aria-label", "AI-generated text: what the author disclosed");
+    b.setAttribute("aria-expanded", "false");
+    el.insertBefore(b, el.firstChild);
+    el.classList.add("gen-ready");
+  }
+  function decorateIn(root) {
+    if (root.classList && root.classList.contains("blyg-tk-gen")) decorate(root);
+    var found = root.querySelectorAll ? root.querySelectorAll(".blyg-tk-gen") : [];
+    for (var i = 0; i < found.length; i++) decorate(found[i]);
+  }
+
+  function add(parent, tag, text, cls) {
+    var el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (text) el.textContent = text;
+    parent.appendChild(el);
+    return el;
+  }
+  function day(iso) {
+    var d = new Date(iso);
+    return isNaN(d) ? iso : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  }
+  function fill(badge) {
+    pop.textContent = "";
+    add(pop, "p", "AI-generated", "gen-pop-h");
+    var span = badge.parentNode;
+    if (span.closest("blockquote.blyg-transclusion")) {
+      add(pop, "p", "The quoted author marked this text as machine-generated. Its details are in the quoted item.");
+      return;
+    }
+    add(pop, "p", "The author marked this text as machine-generated. Self-reported, not verified.");
+    var holder = span.closest("[data-generated]"), list = [];
+    try { list = holder ? JSON.parse(holder.getAttribute("data-generated")) || [] : []; } catch (e) { list = []; }
+    var models = [], dates = [], sources = {};
+    for (var i = 0; i < list.length; i++) {
+      var g = list[i];
+      if (!g) continue;
+      if (g.model && models.indexOf(g.model) === -1) models.push(g.model);
+      if (g.at) dates.push(g.at);
+      for (var j = 0; g.sources && j < g.sources.length; j++) sources[g.sources[j].id] = true;
+    }
+    dates.sort();
+    var dl = add(pop, "dl");
+    add(dl, "dt", models.length > 1 ? "Models" : "Model");
+    add(dl, "dd", models.length ? models.join(", ") : "not stated");
+    if (dates.length) {
+      add(dl, "dt", "Generated");
+      var first = day(dates[0]), last = day(dates[dates.length - 1]);
+      add(dl, "dd", first === last ? first : first + " to " + last);
+    }
+    var n = Object.keys(sources).length;
+    if (n) {
+      add(dl, "dt", "Drew on");
+      add(dl, "dd", n + (n === 1 ? " item" : " items") + " from this blyg");
+    }
+    if (list.length > 1) add(pop, "p", "These details cover all " + list.length + " generated passages in this version.").style.marginTop = "0.4rem";
+  }
+  function place(badge) {
+    var r = badge.getBoundingClientRect();
+    var w = pop.offsetWidth, h = pop.offsetHeight;
+    var left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
+    var top = r.bottom + 6;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
+    pop.style.left = left + "px";
+    pop.style.top = top + "px";
+  }
+  function open(badge, keep) {
+    clearTimeout(timer);
+    if (!pop) {
+      pop = document.createElement("div");
+      pop.className = "gen-pop";
+      pop.id = "gen-pop";
+      pop.setAttribute("role", "tooltip");
+      pop.hidden = true;
+      document.body.appendChild(pop);
+      pop.addEventListener("mouseenter", function () { clearTimeout(timer); });
+      pop.addEventListener("mouseleave", function () { if (!pinned) later(); });
+    }
+    if (current && current !== badge) current.setAttribute("aria-expanded", "false");
+    current = badge;
+    pinned = keep;
+    fill(badge);
+    pop.hidden = false;
+    place(badge);
+    badge.setAttribute("aria-expanded", "true");
+    badge.setAttribute("aria-describedby", "gen-pop");
+  }
+  function close() {
+    clearTimeout(timer);
+    if (pop) pop.hidden = true;
+    if (current) current.setAttribute("aria-expanded", "false");
+    current = null;
+    pinned = false;
+  }
+  function later() { clearTimeout(timer); timer = setTimeout(close, 200); }
+  function badgeAt(e) { return e.target.closest ? e.target.closest(".gen-badge") : null; }
+
+  document.addEventListener("click", function (e) {
+    var b = badgeAt(e);
+    if (b) { e.preventDefault(); if (pinned && current === b) close(); else open(b, true); return; }
+    if (pop && !pop.hidden && !pop.contains(e.target)) close();
+  });
+  document.addEventListener("mouseover", function (e) { var b = badgeAt(e); if (b && !pinned) open(b, false); });
+  document.addEventListener("mouseout", function (e) { if (badgeAt(e) && !pinned) later(); });
+  document.addEventListener("focusin", function (e) { var b = badgeAt(e); if (b && !pinned) open(b, false); });
+  document.addEventListener("focusout", function (e) { if (badgeAt(e) && !pinned) later(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+  window.addEventListener("scroll", function () { if (current && pop && !pop.hidden) place(current); }, { passive: true });
+  window.addEventListener("resize", function () { if (current && pop && !pop.hidden) place(current); });
+
+  decorateIn(document);
+  // The version carousel swaps a version's body in place; decorate it too.
+  if (window.MutationObserver) {
+    new MutationObserver(function (records) {
+      for (var i = 0; i < records.length; i++)
+        for (var j = 0; j < records[i].addedNodes.length; j++)
+          if (records[i].addedNodes[j].nodeType === 1) decorateIn(records[i].addedNodes[j]);
+      if (current && !document.contains(current)) close();
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+})();
+`;
 
 export const VERSION_NAV_SCRIPT = `
 /**
@@ -580,7 +754,14 @@ export const VERSION_NAV_SCRIPT = `
     // each version's own note, and it is already being fetched.
     var noteEl = article.querySelector(".version-note");
     var cache = {};
-    cache[live] = { html: content.innerHTML, note: noteEl ? noteEl.textContent : "" };
+    // Each version's generated[] travels with its body too: the robot badge's
+    // info box reads it from data-generated (GEN_INFO_SCRIPT).
+    cache[live] = { html: content.innerHTML, note: noteEl ? noteEl.textContent : "", gen: content.getAttribute("data-generated") };
+    function setBody(entry) {
+      content.innerHTML = entry.html;
+      if (entry.gen) content.setAttribute("data-generated", entry.gen);
+      else content.removeAttribute("data-generated");
+    }
     var at = versions.indexOf(live);
 
     function setNote(text) {
@@ -626,15 +807,15 @@ export const VERSION_NAV_SCRIPT = `
 
     function show(v) {
       at = versions.indexOf(v);
-      if (cache[v] !== undefined) { content.innerHTML = cache[v].html; render(); return; }
+      if (cache[v] !== undefined) { setBody(cache[v]); render(); return; }
       content.setAttribute("aria-busy", "true");
       fetch(mount + "/items/" + id + "/v" + v + ".json")
         .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
         .then(function (data) {
           // The quotes are the server's rendering of a note, reproduced here
           // so a swapped-in note looks like the one that was there before it.
-          cache[v] = { html: data.content_html || "", note: data.note ? "“" + data.note + "”" : "" };
-          content.innerHTML = cache[v].html;
+          cache[v] = { html: data.content_html || "", note: data.note ? "“" + data.note + "”" : "", gen: data.generated ? JSON.stringify(data.generated) : null };
+          setBody(cache[v]);
           content.removeAttribute("aria-busy");
           render();
         })
@@ -687,7 +868,7 @@ ${metaTags({ ...meta, ogTitle: meta.ogTitle ?? title })}<link rel="stylesheet" h
 ${meta.webmention ? `<link rel="webmention" href="${meta.webmention}">\n` : ""}${meta.alternateJson ? `<link rel="alternate" type="application/json" href="${meta.alternateJson}">\n` : ""}${meta.canonical ? `<link rel="canonical" href="${meta.canonical}">\n` : ""}${meta.hasBlogroll ? `<link rel="blogroll" href="${mount}/blogroll.opml">\n` : ""}</head>
 <body>
 ${body}
-</body>
+${body.includes("blyg-tk-gen") || body.includes("version-line") ? `<script>${GEN_INFO_SCRIPT}</script>\n` : ""}</body>
 </html>
 `;
 }
@@ -865,10 +1046,11 @@ export function renderFragment(
   // lines of apparatus over a one-line fragment inverts that.
   compactCitations = false,
   tz: string,
+  generatedJson: string | null = null,
 ): string {
   return `<article class="fragment${highlightClass(item)}">
 ${forkLineage(item, tz, { compact: compactCitations })}
-<div class="item-content">
+<div class="item-content"${generatedAttr(generatedJson)}>
 ${contentHtml}
 </div>
 ${mediaHtml(media, mount, contentHtml)}
@@ -894,6 +1076,7 @@ async function fragmentBlock(db: D1Database, item: FeedItem, mount: string, tz: 
     loaded ? loaded.pins : await pinnedVersions(db, item.id),
     titleLink,
     tz,
+    latest?.generated_json ?? null,
   );
 }
 
@@ -1038,7 +1221,7 @@ async function threadCard(db: D1Database, item: FeedItem, mount: string, tz: str
 ${stubCitation(latest, tz, { compact: true })}
 ${forkLineage(item, tz, { compact: true })}
 ${kindLine}
-<div class="item-content card-clip">
+<div class="item-content card-clip"${generatedAttr(latest?.generated_json)}>
 ${linkLeadingTitle(html, href)}
 </div>
 ${mediaHtml(media, mount, html)}
@@ -1055,7 +1238,7 @@ async function threadBlock(db: D1Database, item: ItemRow, mount: string, tz: str
   return `<article class="thread${highlightClass(item)}">
 ${stubCitation(latest, tz)}
 ${forkLineage(item, tz)}
-<div class="item-content">
+<div class="item-content"${generatedAttr(latest?.generated_json)}>
 ${html}
 </div>
 ${mediaHtml(media, mount, html)}
@@ -1116,6 +1299,16 @@ export function stubCitation(row: Pick<VersionRow, "stub_of" | "stub_cite"> | nu
  * style.css (`generatedHighlightCss`), so a page never needs the settings to
  * render an item and the default changes every page at once.
  */
+/**
+ * The version's generated[] disclosure (§5.7) on the element holding its
+ * content, for the robot badge's info box (GEN_INFO_SCRIPT). Version-level by
+ * design: the spec promises no span-level mapping. The version carousel
+ * replaces it with the swapped-in version's own array.
+ */
+function generatedAttr(json: string | null | undefined): string {
+  return json ? ` data-generated="${escapeHtml(json)}"` : "";
+}
+
 function highlightClass(item: { highlight_override?: number | null }): string {
   return item.highlight_override === 1 ? " gen-on" : item.highlight_override === 0 ? " gen-off" : "";
 }
@@ -1562,7 +1755,7 @@ export async function pinnedVersionPage(
 ${await pageTop(db, settings, mount)}
 <p class="pinned-banner">📌 Pinned v${row.version} — a frozen snapshot from ${formatDate(row.published_at, tz)}.
 <a href="${live}">latest version</a> &middot; <a href="${mount}/items/${item.id}/v${row.version}.json">citable JSON</a></p>
-<article class="${isThread ? "thread" : "fragment"}${highlightClass(item)}">
+<article class="${isThread ? "thread" : "fragment"}${highlightClass(item)}"${generatedAttr(row.generated_json)}>
 ${cite}
 ${forkLineage(item, tz)}
 ${html}

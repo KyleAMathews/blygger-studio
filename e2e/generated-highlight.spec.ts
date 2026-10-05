@@ -33,3 +33,39 @@ test('the default is a settings checkbox, and an item overrides it from its TK c
   // Leave the shared fixture as found.
   await page.evaluate(async () => fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ highlight_generated_default: false }) }));
 });
+
+test('the robot opens what the author disclosed: hover peeks, a click keeps it, Escape closes', async ({ page }) => {
+  await login(page);
+  const md = 'Mine, then [TK]impyrt gpt-5=an inline generated clause[/TK].\n\n[TK]impyrt claude-sonnet-5-5=A generated paragraph.[/TK]\n\nMine again.';
+  const id = await page.evaluate(async (md) => {
+    const json = { 'content-type': 'application/json' };
+    const item = await (await fetch('/api/items', { method: 'POST', headers: json, body: JSON.stringify({ content_md: md }) })).json();
+    await fetch(`/api/items/${item.id}/publish`, { method: 'POST' });
+    await fetch(`/api/items/${item.id}`, { method: 'PATCH', headers: json, body: JSON.stringify({ highlight: 'show' }) });
+    return item.id as string;
+  }, md);
+  await page.goto(`/f/${id}/`);
+  const badges = page.locator('article .blyg-tk-gen > .gen-badge');
+  await expect(badges).toHaveCount(2);
+  const pop = page.locator('.gen-pop');
+  // Version-level, as §5.7 is: both models, for either passage.
+  await badges.nth(1).hover();
+  await expect(pop).toBeVisible();
+  await expect(pop).toContainText('AI-generated');
+  await expect(pop).toContainText('The author marked this text as machine-generated. Self-reported, not verified.');
+  await expect(pop).toContainText('gpt-5, claude-sonnet-5-5');
+  await expect(pop).toContainText('These details cover all 2 generated passages in this version.');
+  await page.mouse.move(0, 0);
+  await expect(pop).toBeHidden();
+  await badges.first().click();
+  await expect(pop).toBeVisible();
+  await expect(badges.first()).toHaveAttribute('aria-expanded', 'true');
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(300);
+  await expect(pop).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(pop).toBeHidden();
+  await badges.first().click();
+  await page.locator('article p').last().click();
+  await expect(pop).toBeHidden();
+});
