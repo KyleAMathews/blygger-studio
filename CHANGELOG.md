@@ -20,7 +20,11 @@ not have its own repo until session 26.
 
 ## 0.27.0 — 2026-10-04
 
-**Migrations: 0020_oauth.sql.** Adds OAuth provider tables, a shared rate limiter,
+- Bound account-wide REST/MCP work, AI calls, OAuth client storage and request bodies with conservative limits (migration 0021).
+- Restrict outbound fetches to public destinations unless explicitly enabled for LAN use; cap streamed bodies and recheck redirects. DNS rebinding remains a deployment gap.
+- Sanitize imported editorial HTML at private/public rendering boundaries, prevent stale draft deletion after publication, and patch quadratic Markdown linkification.
+
+**Migrations: 0020_oauth.sql, 0021_security_budgets.sql.** Adds OAuth provider tables, a shared rate limiter,
 client authorizations, and revocation state. Enable `nodejs_compat` before deployment.
 
 - Upgrade compatibility: existing owner login cookies are invalidated once. Log in

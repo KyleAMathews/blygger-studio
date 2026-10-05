@@ -19,7 +19,8 @@ import { getHopperBySlug, getImportedItem, getSubscription, listBlogrollSubscrip
 import { authoredKind, getItem, getMedia, getSettings, getVersion, listPublic } from "./model.ts";
 import { archivePage, feedPage, permalinkPage, pinnedVersionPage, STYLE_CSS, themeCss, threadPage } from "./pages.ts";
 import { buildArchiveIndex, buildFeedXml, buildItemJson, buildManifest, buildPinnedVersionJson, siteOrigin } from "./protocol.ts";
-import { mentionFetch } from "./mentions/http.ts";
+import { platformFetchFor } from "./importer/http.ts";
+import { mentionFetchFor } from "./mentions/http.ts";
 import { receiveMention, verifyMention } from "./mentions/receive.ts";
 
 import { drainOutbound } from "./mentions/send.ts";
@@ -205,7 +206,7 @@ export function makeApp(mount: string) {
       .target_item_id;
     // Verification runs after the response and can never fail the response:
     // an error here leaves the row `pending` for a later re-send to re-verify.
-    c.executionCtx.waitUntil(verifyMention(c.env.DB, mentionId, source, itemId, origin, mentionFetch).catch(() => {}));
+    c.executionCtx.waitUntil(verifyMention(c.env.DB, mentionId, source, itemId, origin, mentionFetchFor(c.env)).catch(() => {}));
     return c.json({ ok: true, status: "accepted, pending verification" }, 202);
   });
 
@@ -301,10 +302,10 @@ export default {
   // Cron trigger (§4.2): poll every due subscription. Due-selection + backoff
   // logic lives in importer/schedule.ts, fake-clock testable in isolation.
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runScheduledPoll(env.DB));
+    ctx.waitUntil(runScheduledPoll(env.DB, platformFetchFor(env)));
     // Outbound mentions retry here (§2.3.4): the publish path tries once
     // immediately, and a receiver that was down gets it on a later tick.
-    ctx.waitUntil(drainOutbound(env.DB, mentionFetch).catch(() => {}));
+    ctx.waitUntil(drainOutbound(env.DB, mentionFetchFor(env)).catch(() => {}));
     // Housekeeping (§9.1 gap 3): `failed` inbound claims are kept for 30 days
     // and then dropped. Here rather than on the endpoint, because the request
     // path must not do work that a flood would multiply.

@@ -1,3 +1,5 @@
+import { bodyLimit } from 'hono/body-limit';
+import { securityLimit, admitApi } from './security-budgets.ts';
 import { contractApp, readJson } from './contract/app.ts';
 import { authRoutes, AuthorizationSchema } from './contract/auth-routes.ts';
 import type { OwnerScope } from './auth-scopes.ts';
@@ -11,7 +13,8 @@ authorizationApi.use('*', async (c, next) => {
   if (/^Bearer(?:\s|$)/i.test(c.req.header('authorization') ?? '') || !await verifySession(c.env, c.req.header('cookie'))) return c.json({ error: 'owner session required' }, 401);
   const origin = c.req.header('origin');
   if (origin && origin !== new URL(c.req.url).origin || c.req.header('sec-fetch-site') === 'cross-site') return c.json({ error: 'cross-origin owner request denied' }, 403);
-  return next();
+  if (!await admitApi(c.env, ['GET', 'HEAD'].includes(c.req.method))) return c.json({ error: 'API work budget exceeded' }, 429, { 'Retry-After': '60' });
+  return bodyLimit({ maxSize: securityLimit(c.env.API_BODY_LIMIT, 8 * 1024 * 1024), onError: c => c.json({ error: 'request body exceeds byte limit' }, 413) })(c, next);
 });
 export async function authorizationResources(env: import('./types.ts').Env) {
   const { results } = await env.DB.prepare('SELECT * FROM oauth_authorizations WHERE version=? AND expires > ? ORDER BY created,grant_id').bind(await credentialVersion(env), Math.floor(Date.now() / 1000)).all<{ grant_id: string; client_id: string; name: string; manual: number; resource: string; scopes: string; created: number; expires: number }>();

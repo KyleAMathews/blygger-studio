@@ -4,7 +4,7 @@
  * production defense at a time without changing the expected result.
  * Model: each isolated baseline passes, then its mutant reaches the named semantic
  * assertion. Nonzero exit alone is insufficient: setup errors and timeouts fail
- * this verifier. The nineteen controls cover claims, at-rest secrets, logs, limiter
+ * this verifier. The controls cover claims, at-rest secrets, logs, limiter
  * identity, browser framing, cross-isolate revocation and protected transport.
  * Driver: a disposable source copy runs the same Worker, browser or race test.
  * Refinement: exact mutation anchor, baseline exit, failure checkpoint and no runner
@@ -20,6 +20,13 @@ import { tmpdir } from 'node:os';
 
 const root = resolve('.'), temporary = mkdtempSync(join(tmpdir(), 'blygger-security-controls-'));
 const controls = [
+  { name: 'admission MCP discovery bypasses envelope budget', changes: [{ file: 'src/mcp.ts', from: "if (!await admit(env.DB, 'mcp-request', securityLimit(env.MCP_REQUEST_LIMIT, 300), 60))", to: 'if (false)' }], kind: 'worker', test: 'test/work-admission-security.oracle.test.ts', pattern: 'MCP discovery', checkpoint: 'MCP control work requires admission too' },
+  { name: 'admission counter ignores its ceiling', changes: [{ file: 'src/security-budgets.ts', from: 'WHERE security_budgets.window <> excluded.window OR security_budgets.used < ? RETURNING used', to: 'WHERE ? > 0 RETURNING used' }], kind: 'worker', test: 'test/work-admission-security.oracle.test.ts', pattern: 'atomic admission', checkpoint: 'concurrent writes share one atomic budget' },
+  { name: 'admission AI bypasses daily calls', changes: [{ file: 'src/ai/provider.ts', from: "if (!await admit(env.DB, 'ai-daily', securityLimit(env.AI_DAILY_CALL_LIMIT, 20), 86400))", to: 'if (false)' }], kind: 'worker', test: 'test/work-admission-security.oracle.test.ts', pattern: 'daily AI budget counts', checkpoint: 'promise resolved' },
+  { name: 'admission anonymous storage ignores cap', changes: [{ file: 'src/security-budgets.ts', from: '(SELECT COUNT(*) FROM security_registrations WHERE expires > ?) < ? RETURNING id', to: '(SELECT COUNT(*) FROM security_registrations WHERE expires > ?) >= 0 AND ? > 0 RETURNING id' }], kind: 'worker', test: 'test/work-admission-security.oracle.test.ts', pattern: 'bounds anonymous registration storage', checkpoint: 'registration cannot exceed the stored-client cap' },
+  { name: 'admission REST body ignores operator cap', changes: [{ file: 'src/owner-api.ts', from: 'securityLimit(c.env.API_BODY_LIMIT, 8 * 1024 * 1024)', to: '64 * 1024 * 1024' }], kind: 'worker', test: 'test/request-body-security.oracle.test.ts', pattern: 'REST refuses', checkpoint: 'byte admission must precede write work' },
+  { name: 'admission outbound private destinations accepted', changes: [{ file: 'src/outbound-policy.ts', from: 'if (allowPrivate) return;', to: 'if (true) return;' }], kind: 'worker', test: 'test/outbound-destination-security.oracle.test.ts', pattern: 'restricted destination', checkpoint: 'promise resolved' },
+
   { name: 'stale native cookies authorize after password reset', changes: [{ file: 'src/oauth-routes.ts', from: "const headers = new Headers(c.req.raw.headers); headers.delete('cookie');", to: 'const headers = new Headers(c.req.raw.headers);' }], kind: 'worker', test: 'test/owner-reset.oracle.test.ts', pattern: 'stale native browser cookies', checkpoint: 'stale browser sessions cannot silently authorize after reset' },
   { name: 'remembered consent survives grant revoke', changes: [{ file: 'src/oauth.ts', from: 'DELETE FROM oauthConsent WHERE userId=? AND clientId IN', to: 'DELETE FROM oauthConsent WHERE 0 AND userId=? AND clientId IN' }], kind: 'worker', test: 'test/oauth-grant-list.oracle.test.ts', pattern: 'new owner consent', checkpoint: 'revocation cannot be bypassed by silent reauthorization' },
   { name: 'unclassified writes fall back to read', changes: [{ file: 'src/owner-api.ts', from: "if (!operation && !['GET', 'HEAD'].includes(c.req.method))", to: 'if (false)' }], kind: 'worker', test: 'test/review-auth-regressions.test.ts', pattern: 'undeclared write', checkpoint: 'unclassified writes must fail closed' },
@@ -42,9 +49,9 @@ const controls = [
   { name: 'Basic replay client classification omitted', changes: [{ file: 'src/oauth-routes.ts', from: 'if (basic) {', to: 'if (false) {' }], kind: 'worker', test: 'test/auth-security.oracle.test.ts', pattern: 'authenticated Basic refresh replay', checkpoint: 'authenticated Basic replay revokes the compromised JWT grant' },
 ];
 // Browser controls share Playwright's server port; worker/race controls can run
-// while a separate browser verification owns it. The default still runs all nineteen.
+// while a separate browser verification owns it. The default still runs all controls.
 const selector = process.argv[2];
-const selected = selector === '--exclude-browser' ? controls.filter(control => control.kind !== 'browser') : selector ? controls.filter(control => control.name.includes(selector)) : controls;
+const selected = selector === '--existing-worker' ? controls.filter(control => control.kind !== 'browser' && !control.name.startsWith('admission ')) : selector === '--browser' ? controls.filter(control => control.kind === 'browser') : selector === '--exclude-browser' ? controls.filter(control => control.kind !== 'browser') : selector ? controls.filter(control => control.name.includes(selector)) : controls;
 assert.ok(selected.length, 'No mutation matches the requested name');
 try {
   const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);

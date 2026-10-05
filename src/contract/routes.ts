@@ -49,7 +49,7 @@ function route<P extends string>(id: string, method: RouteConfig["method"], path
   return createRoute({
     operationId: id, method, path, ...(body ? { middleware: optionalBody ? optionalJsonBody : undefined } : {}), tags: ["studio"], security: [{ ownerSession: [] }],
     request: { ...(Object.keys(params).length ? { params: z.object(params) } : {}), ...(query ? { query } : {}), ...(body ? { body: { required: !optionalBody, content: json(body) } } : {}) },
-    responses: { [status]: { description: "Success", content: json(response) }, ...Object.fromEntries([400, 401, 403, 404, 405, 409, 413, 415, 422, 500, 502].map((s) => [s, { description: "Request failed", content: json(ErrorSchema) }])) },
+    responses: { [status]: { description: "Success", content: json(response) }, ...Object.fromEntries([400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 500, 502].map((s) => [s, { description: "Request failed", content: json(ErrorSchema) }])) },
   });
 }
 

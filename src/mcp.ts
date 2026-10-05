@@ -1,3 +1,4 @@
+import { admit, securityLimit } from './security-budgets.ts';
 import { createMcpHandler, McpServer, requireScopes, type Tool } from '@modelcontextprotocol/server';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -49,6 +50,7 @@ export async function serveMcp(request: Request, env: Env, ctx: Context['executi
   if (origin && origin !== new URL(request.url).origin) return Response.json({ error: 'cross-origin MCP request denied' }, { status: 403 });
   const access = await verifyBearer(request, env, 'mcp');
   if (!access) return Response.json({ error: 'unauthorized' }, { status: 401, headers: { 'WWW-Authenticate': bearerChallenge(request.url, env, 'mcp'), 'Cache-Control': 'no-store' } });
+  if (!await admit(env.DB, 'mcp-request', securityLimit(env.MCP_REQUEST_LIMIT, 300), 60)) return Response.json({ error: 'MCP request budget exceeded' }, { status: 429, headers: { 'Retry-After': '60', 'Cache-Control': 'no-store' } });
   return serveAuthorizedMcp(request, env, ctx, access);
 }
 

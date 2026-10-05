@@ -6,7 +6,7 @@ export const AuthorizationSchema = z.object({ id: z.string(), clientId: z.string
 function route(method: 'get' | 'post' | 'delete', path: string, operationId: string, response: z.ZodType, body?: z.ZodType) {
   return createRoute({ method, path, operationId, tags: ['authorization'], security: [{ ownerSession: [] }],
     request: { ...(path.includes('{id}') ? { params: z.object({ id: z.string().min(1) }) } : {}), ...(body ? { body: { required: true, content: json(body) } } : {}) },
-    responses: { 200: { description: 'Success', content: json(response) }, ...Object.fromEntries([400, 401, 403, 404, 500].map(status => [status, { description: 'Request failed', content: json(ErrorSchema) }])) },
+    responses: { 200: { description: 'Success', content: json(response) }, ...Object.fromEntries([400, 401, 403, 404, 413, 429, 500].map(status => [status, { description: 'Request failed', content: json(ErrorSchema) }])) },
   });
 }
 export const authRoutes = {

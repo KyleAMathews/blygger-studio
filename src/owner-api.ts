@@ -1,3 +1,5 @@
+import { bodyLimit } from 'hono/body-limit';
+import { securityLimit, admitApi } from './security-budgets.ts';
 import { matchedRoutes } from 'hono/route';
 import { routes } from "./contract/routes.ts";
 import { contractApp } from "./contract/app.ts";
@@ -12,6 +14,7 @@ import { readApi } from "./read-api.ts";
 
 export function createOwnerApi(access?: OwnerAccess) {
 const ownerApi = contractApp();
+ownerApi.use('*', (c, next) => bodyLimit({ maxSize: securityLimit(c.env.API_BODY_LIMIT, 8 * 1024 * 1024), onError: c => c.json({ error: 'request body exceeds byte limit' }, 413) })(c, next));
 ownerApi.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store");
   const origin = c.req.header('origin');
@@ -41,6 +44,10 @@ ownerApi.use("*", async (c, next) => {
       c.header('WWW-Authenticate', bearerChallenge(c.req.url, c.env, 'api', required.join(' '), true));
       return c.json({ error: 'insufficient scope' }, 403);
     }
+  }
+  if (!await admitApi(c.env, ['GET', 'HEAD'].includes(c.req.method))) {
+    c.header('Retry-After', '60');
+    return c.json({ error: 'API work budget exceeded' }, 429);
   }
   return next();
 });

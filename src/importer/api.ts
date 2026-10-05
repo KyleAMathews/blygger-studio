@@ -1,3 +1,4 @@
+import { platformFetchFor } from "./http.ts";
 import type { SubscriptionRow, HopperRow } from "../types.ts";
 import { subscriptionResource, hopperResource } from "../contract/resources.ts";
 import { contractApp, readJson } from "../contract/app.ts";
@@ -43,7 +44,7 @@ importerApi.openapi(routes.createSubscription, async (c) => {
   const body = await readJson<{ url: string; confirm?: boolean; title?: string }>(c);
   if (!body.url.trim()) return c.json({ error: "url required" }, 400);
 
-  const result = await resolve(body.url.trim());
+  const result = await resolve(body.url.trim(), platformFetchFor(c.env));
   if (result.kind === "failure") {
     return c.json({ error: "could not resolve this URL to a blyg or a feed", tried: result.tried }, 422);
   }
@@ -81,7 +82,7 @@ importerApi.openapi(routes.createSubscription, async (c) => {
   // last_index_sync_at makes the very first pollSubscription() call reconcile
   // unconditionally, which also bootstraps newest_guid/etag for future gap
   // detection (§3.2) in one pass, for both kinds uniformly.
-  await pollSubscription(c.env.DB, sub);
+  await pollSubscription(c.env.DB, sub, platformFetchFor(c.env));
   c.header("Location", `/api/subscriptions/${sub.id}`);
   return c.json(subscriptionResource((await getSubscription(c.env.DB, sub.id))!), 201);
 });
@@ -104,7 +105,7 @@ importerApi.openapi(routes.resyncSubscription, async (c) => {
   const sub = await getSubscription(c.env.DB, c.req.param("id"));
   if (!sub) return c.json({ error: "not found" }, 404);
   if (sub.kind !== "blyg") return c.json({ error: "resync only applies to blyg subscriptions" }, 409);
-  const result = await reconcileIndex(c.env.DB, sub);
+  const result = await reconcileIndex(c.env.DB, sub, platformFetchFor(c.env));
   return c.json({ ok: result.ok, changed: result.changed });
 });
 

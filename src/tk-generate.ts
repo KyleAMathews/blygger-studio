@@ -2,7 +2,7 @@
 // factored out of the Hono route so tests can inject a fixture provider
 // fetch, the same DI pattern importer/schedule.ts uses for runScheduledPoll.
 
-import { generate, markDocument, platformProviderFetch, ProviderError, type ProviderFetchLike } from "./ai/provider.ts";
+import { generate, markDocument, platformProviderFetch, ProviderError, AiBudgetError, type ProviderFetchLike } from "./ai/provider.ts";
 import { getSettings, saveWorkingCopy, setTkProvenance } from "./model.ts";
 import { parseScopes, setScopeOutput } from "./tk.ts";
 import { resolveFragment } from "./transclusion.ts";
@@ -59,6 +59,7 @@ export async function runGenerateScope(
       fetchImpl,
     );
   } catch (e) {
+    if (e instanceof AiBudgetError) return { ok: false, status: 429, body: { error: e.message } };
     if (e instanceof ProviderError) return { ok: false, status: 502, body: { error: e.message } };
     throw e;
   }

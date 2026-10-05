@@ -32,7 +32,13 @@ The maintainer deferred host-root `.well-known` publication. Mounted OIDC discov
 
 ## Verified result
 
-The full Worker suite passes: 101 files, 1,101 tests passed and five existing skips. The final focused auth receiving file passes ten tests, including the later dependency-name boundary. All nineteen security mutations reach their named failure assertions. Eight browser tests pass on desktop and mobile. The controlled two-isolate replay probe and Worker/UI typechecks pass. The new security file has28 cases. Five public failure witnesses were captured before repair; the other controls use deliberate mutations for RED evidence. Deployment-only facts remain unverified.
+The full Worker suite passes: 109 files, 1,169 tests passed and five existing
+skips. All 25 security mutations reach their named failure assertions. The
+complete desktop/mobile browser suite passes 236 tests, including imported HTML,
+framing and inert SVG uploads. The UI suite passes 23 tests. Worker/UI typechecks
+pass. Two-isolate replay, individual revoke and revoke-all schedules pass. New
+captured failures and coverage limits live in the attack inventory below.
+Deployment-only facts remain unverified.
 
 ## Family scope limit
 
@@ -46,3 +52,25 @@ A password reset invalidates old owner sessions and preserves existing delegated
 
 
 The final dependency probe also makes `Error.name` contain the sentinel. Raw names are not safe diagnostic fields. OAuth, API and Worker handlers use the same whitelisted error kinds and registered route templates. The registration probe reached RED before this repair. All three dependency profiles and the raw-logging mutation pass their required checks afterward.
+
+## Wider attack campaign
+
+The [attack inventory](security-attack-inventory.md) records source-linked laws,
+captured pre-fix failures, all fourteen oracle audit outcomes and unresolved
+cells. New Worker/browser oracles cover imported HTML, draft deletion races,
+JWT headers, streaming/destination guards, work/AI/client quotas, body limits
+and Markdown work growth. The mutation runner adds six receiving controls for
+counter, AI, storage, REST bytes, outbound destinations and MCP discovery.
+
+The native error-secrecy injection explicitly checks that it reached provider
+work. The registration reservation SQL also mentions `oauthClient`; refusing
+there would test the application error handler while missing the native fallback.
+The unsafe native logging mutation now reaches its named assertion again.
+
+The race driver accepts `revoke` and `revoke-all` as well as its default replay
+schedule. Individual revoke preserves a separate same-client grant’s refresh
+and access. This does not strengthen the native replay-family isolation claim.
+
+The defaults and deployment caveats live in [work and outbound limits](auth-deployment-hardening.md#work-and-outbound-limits).
+In particular, DNS preflight does not prove connection-time enforcement. No
+whole-security or every-possible-attack coverage claim follows from these tests.

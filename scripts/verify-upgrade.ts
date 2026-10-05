@@ -81,7 +81,7 @@ const result = spawnSync(cmd, forwarded, { stdio: 'inherit' }); process.exit(res
   assert.deepEqual(schema[0].results, ["items_public_order", "media_item_created", "signals_poll_order", "subscriptions_origin", "versions_public_pins"].map(name => ({ name })));
   // The old install must acquire the native provider schema and shared limiter,
   // not merely the unrelated content indexes checked above.
-  const authTables = ["user", "session", "account", "verification", "jwks", "oauthClient", "oauthResource", "oauthClientResource", "oauthRefreshToken", "oauthAccessToken", "oauthConsent", "oauthClientAssertion", "rateLimit", "oauth_records", "oauth_revocations", "oauth_state", "oauth_authorizations"];
+  const authTables = ["user", "session", "account", "verification", "jwks", "oauthClient", "oauthResource", "oauthClientResource", "oauthRefreshToken", "oauthAccessToken", "oauthConsent", "oauthClientAssertion", "rateLimit", "oauth_records", "oauth_revocations", "oauth_state", "oauth_authorizations", "security_budgets", "security_registrations"];
   const executeLocal = (command: string) => JSON.parse(execFileSync(process.execPath, [wranglerCli, "d1", "execute", "DB", "--local", "--persist-to", localD1, "--command", command, "--json"], { cwd: installed, encoding: "utf8", env: { ...process.env, WRANGLER_LOG_PATH: join(temp, "wrangler.log") } }))[0].results;
   const upgradedAuth = executeLocal(`SELECT name FROM sqlite_master WHERE type='table' AND name IN (${authTables.map(name => `'${name}'`).join(",")}) ORDER BY name`);
   assert.deepEqual(upgradedAuth, [...authTables].sort().map(name => ({ name })));

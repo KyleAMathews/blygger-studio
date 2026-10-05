@@ -2,8 +2,9 @@ import { build } from "esbuild";
 import { Miniflare } from "miniflare";
 import { readD1Migrations } from "@cloudflare/vitest-pool-workers";
 import { createServer } from "node:http";
+import { importedHtmlAttacks } from "../test/fixtures/imported-html-attacks.ts";
 const output = await build({ entryPoints: ["src/index.ts"], bundle: true, platform: "neutral", conditions: ["workerd"], external: ["cloudflare:*", "node:*"], mainFields: ["module", "main"], format: "esm", target: "es2022", loader: { ".txt": "text" }, write: false });
-const mf = new Miniflare({ modules: [{ type: "ESModule", path: "worker.mjs", contents: output.outputFiles[0].text }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], host: "127.0.0.1", port: 8787, bindings: { OWNER_PASSWORD: "test-password", COOKIE_SECRET: "browser-test-cookie-secret", MOUNT: "" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"], outboundService: () => new Response(null, { status: 503 }) });
+const mf = new Miniflare({ modules: [{ type: "ESModule", path: "worker.mjs", contents: output.outputFiles[0].text }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], host: "127.0.0.1", port: 8787, bindings: { OWNER_PASSWORD: "test-password", COOKIE_SECRET: "browser-test-cookie-secret", MOUNT: "", API_READ_LIMIT: "10000", API_WRITE_LIMIT: "10000" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"], outboundService: () => new Response(null, { status: 503 }) });
 const db = await mf.getD1Database("DB");
 for (const migration of await readD1Migrations("./migrations")) {
   await db.batch(migration.queries.map((sql) => db.prepare(sql)));
@@ -28,6 +29,16 @@ for (const [id, origin, remoteId, hidden] of [['parity-held', 'https://source.ex
   await db.prepare("INSERT INTO mentions_in (id, source, target, target_item_id, status, relation, source_origin, source_id, source_kind, source_version, source_author_json, source_page, first_seen, last_seen, verified_at, hidden) VALUES (?, ?, ?, ?, 'verified', 'stub', ?, ?, 'fragment', 1, ?, ?, '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z', ?)").bind(id, origin + remoteId, `http://localhost/t/${target.id}/`, target.id, origin, remoteId, JSON.stringify({ name: 'Source author' }), origin + 'post', hidden).run();
 }
 await db.prepare("INSERT INTO mentions_out (id, item_id, version, target, status, attempts, next_attempt_at, created) VALUES ('parity-outbound', ?, 1, 'https://recipient.example/post', 'pending', 1, '2026-10-02T00:00:00Z', '2026-10-01T00:00:00Z')").bind(target.id).run();
+// Hostile raw imports belong to a separate disposable receiving database.
+// Functional UI counts and pagination fixtures must not absorb the attack corpus.
+const security = new Miniflare({ modules: [{ type: "ESModule", path: "worker.mjs", contents: output.outputFiles[0].text }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], host: "127.0.0.1", port: 8791, bindings: { OWNER_PASSWORD: "test-password", COOKIE_SECRET: "security-browser-test-cookie-secret", MOUNT: "" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"], outboundService: () => new Response(null, { status: 503 }) });
+const securityDb = await security.getD1Database("DB");
+for (const migration of await readD1Migrations("./migrations")) await securityDb.batch(migration.queries.map(sql => securityDb.prepare(sql)));
+await securityDb.prepare("INSERT INTO subscriptions(id,kind,origin,feed_url,title,created) VALUES ('security-html','rss','https://security-publisher.example/','https://security-publisher.example/feed','Security HTML','2020-01-01')").run();
+for (const attack of importedHtmlAttacks) await securityDb.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at,content_md,content_html,l0,page) VALUES ('security-html',?,'fragment','current',1,'2020-01-01','Security fixture',?,1,'https://security-publisher.example/post')").bind(attack.id, '<h2>Security ' + attack.id + '</h2>' + attack.html).run();
+await securityDb.prepare("INSERT INTO hoppers(id,name,slug,public,created) VALUES ('security-imports','Security imports','security-imports',1,'2020-01-01')").run();
+await securityDb.prepare("INSERT INTO hopper_items(hopper_id,subscription_id,remote_id,added_at) VALUES ('security-imports','security-html','svg-event','2020-01-01')").run();
+await security.ready;
 // A separate mounted instance behind the documented forwarding ranges. The
 // proxy rejects host-root assets rather than letting a permissive fixture hide
 // a deployment dependency. Its database and cookies belong to this host only.
@@ -62,4 +73,4 @@ const proxy = createServer(async (request, response) => {
 });
 await new Promise<void>(resolve => proxy.listen(8789, "127.0.0.1", resolve));
 console.log("Browser fixture ready at http://127.0.0.1:8787");
-process.on("SIGTERM", async () => { proxy.close(); await Promise.all([mf.dispose(), mounted.dispose()]); process.exit(0); });
+process.on("SIGTERM", async () => { proxy.close(); await Promise.all([mf.dispose(), mounted.dispose(), security.dispose()]); process.exit(0); });

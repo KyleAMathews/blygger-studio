@@ -364,6 +364,14 @@ export type RevokeAllAuthorizationsErrors = {
     /**
      * Request failed
      */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
 };
 
@@ -404,6 +412,14 @@ export type ListAuthorizationsErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -454,6 +470,14 @@ export type CreateAuthorizationErrors = {
     /**
      * Request failed
      */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
 };
 
@@ -499,6 +523,14 @@ export type RevokeAuthorizationErrors = {
      * Request failed
      */
     404: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -565,6 +597,10 @@ export type ListItemsErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -662,6 +698,10 @@ export type CreateItemErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -726,6 +766,10 @@ export type DeleteItemErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -796,6 +840,10 @@ export type GetItemErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -896,6 +944,10 @@ export type UpdateItemErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -963,6 +1015,10 @@ export type PublishItemErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -1034,6 +1090,10 @@ export type DraftNoteErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -1110,6 +1170,10 @@ export type GenerateItemErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -1179,6 +1243,10 @@ export type WithdrawItemErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -1253,6 +1321,10 @@ export type PinItemErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -1323,6 +1395,10 @@ export type RestoreItemErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -1400,6 +1476,10 @@ export type UploadMediaErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -1471,6 +1551,10 @@ export type DeleteMediaErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -1536,6 +1620,10 @@ export type GetSettingsErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -1628,6 +1716,10 @@ export type UpdateSettingsErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -1693,6 +1785,10 @@ export type ListSubscriptionsErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -1767,6 +1863,10 @@ export type CreateSubscriptionErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -1851,6 +1951,10 @@ export type DeleteSubscriptionErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -1917,6 +2021,10 @@ export type GetSubscriptionErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -1991,6 +2099,10 @@ export type UpdateSubscriptionErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -2055,6 +2167,10 @@ export type ResyncSubscriptionErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -2126,6 +2242,10 @@ export type ListHoppersErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -2201,6 +2321,10 @@ export type CreateHopperErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -2265,6 +2389,10 @@ export type DeleteHopperErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -2336,6 +2464,10 @@ export type GetHopperErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -2416,6 +2548,10 @@ export type UpdateHopperErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -2482,6 +2618,10 @@ export type RemoveHopperItemErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -2556,6 +2696,10 @@ export type AddHopperItemErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -2623,6 +2767,10 @@ export type DeleteSignalErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -2698,6 +2846,10 @@ export type SetSignalErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -2769,6 +2921,10 @@ export type UpdateMentionErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -2837,6 +2993,10 @@ export type ListSignalsErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -2914,6 +3074,10 @@ export type ListInteractionsErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -2984,6 +3148,10 @@ export type ListThumbsErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -3048,6 +3216,10 @@ export type GetAiModelsErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -3117,6 +3289,10 @@ export type ListMentionsErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -3192,6 +3368,10 @@ export type PreviewErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -3287,6 +3467,10 @@ export type SearchErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -3366,6 +3550,10 @@ export type GetVersionErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -3433,6 +3621,10 @@ export type ListReadingErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -3517,6 +3709,10 @@ export type GetImportedItemErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -3582,6 +3778,10 @@ export type GetImportedHistoryErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -3664,6 +3864,10 @@ export type GetImportedVersionErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -3731,6 +3935,10 @@ export type GetUpdateStateErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -3803,6 +4011,10 @@ export type GetMentionSourceErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -3868,6 +4080,10 @@ export type ListStaleThreadsErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -3942,6 +4158,10 @@ export type GetItemFreshnessErrors = {
     /**
      * Request failed
      */
+    429: ApiError;
+    /**
+     * Request failed
+     */
     500: ApiError;
     /**
      * Request failed
@@ -4008,6 +4228,10 @@ export type RefreshItemErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */
@@ -4083,6 +4307,10 @@ export type GetForkOptionsErrors = {
      * Request failed
      */
     422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
     /**
      * Request failed
      */

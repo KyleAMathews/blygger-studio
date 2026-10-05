@@ -26,7 +26,7 @@ import {
   TransclusionResolveError,
   withdraw,
 } from "./model.ts";
-import { mentionFetch } from "./mentions/http.ts";
+import { mentionFetchFor } from "./mentions/http.ts";
 import { drainOutbound, enqueueForVersion } from "./mentions/send.ts";
 import { checkForkTarget, resolveForkSource } from "./fork.ts";
 import { flattenFork } from "./fork-flatten.ts";
@@ -38,7 +38,7 @@ import { runGenerateScope } from "./tk-generate.ts";
 import type { Env, ItemRow, SubscriptionRow } from "./types.ts";
 import { BLOCKING, staleThreads, threadFreshness } from "./freshness.ts";
 import { draftChangeNote } from "./change-note.ts";
-import { platformFetch } from "./importer/http.ts";
+import { platformFetchFor } from "./importer/http.ts";
 import { reconcileIndex } from "./importer/poll.ts";
 import { isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
 
@@ -110,7 +110,7 @@ async function createForkResponse(c: Context<{ Bindings: Env }>, body: { origin:
   if (!parsed.ok) return c.json({ error: parsed.reason }, 400);
   const settings = await getSettings(c.env.DB);
   const origin = siteOrigin(settings, c.req.url, normalizeMount(c.env.MOUNT));
-  const resolved = await resolveForkSource(c.env.DB, parsed.ref, origin, settings.site_title, mentionFetch, nowIso());
+  const resolved = await resolveForkSource(c.env.DB, parsed.ref, origin, settings.site_title, mentionFetchFor(c.env), nowIso());
   if (!resolved.ok) return c.json({ error: resolved.reason }, 400);
   // #57: the fork starts from the pinned document, flattened — baked quotes as
   // plain blockquotes with attribution, generated spans as impyrt.
@@ -182,7 +182,7 @@ async function sendMentionsFor(
   if (!refs.length) return;
   // Fire-and-forget in the strong sense: a delivery error is a row status,
   // never an uncaught rejection in the worker that just published.
-  c.executionCtx.waitUntil(drainOutbound(c.env.DB, mentionFetch, { origin }).catch(() => {}));
+  c.executionCtx.waitUntil(drainOutbound(c.env.DB, mentionFetchFor(c.env), { origin }).catch(() => {}));
 }
 
 /**
@@ -201,7 +201,7 @@ async function publishAndNotify(c: Context<{ Bindings: Env }>, item: ItemRow, no
   const fork = parseStoredFork(item.forked_from);
   let lineageNote: string | undefined;
   if (fork) {
-    const check = await checkForkTarget(c.env.DB, fork, origin, mentionFetch);
+    const check = await checkForkTarget(c.env.DB, fork, origin, mentionFetchFor(c.env));
     if (!check.ok) return c.json({ error: check.reason }, 400);
     lineageNote = check.skipped;
   }
@@ -258,7 +258,7 @@ api.openapi(routes.getItemFreshness, async (c) => {
   if (!item) return c.json({ error: "not found" }, 404);
   if (item.kind !== "thread" || item.status !== "public") return c.json({ error: "only a published thread has quoted snapshots" }, 409);
   const probe = c.req.query("probe") !== "false";
-  return c.json(await threadFreshness(c.env.DB, item, probe ? platformFetch : undefined));
+  return c.json(await threadFreshness(c.env.DB, item, probe ? platformFetchFor(c.env) : undefined));
 });
 
 /**
@@ -277,7 +277,7 @@ api.openapi(routes.refreshItem, async (c) => {
   if (!item) return c.json({ error: "not found" }, 404);
   if (item.kind !== "thread" || item.status !== "public") return c.json({ error: "only a published thread has quoted snapshots" }, 409);
   const body = await readJson<{ note?: string }>(c);
-  let report = await threadFreshness(db, item, platformFetch);
+  let report = await threadFreshness(db, item, platformFetchFor(c.env));
   if (report.dirty) return c.json({ error: "this thread has unpublished edits; publish or discard them before refreshing its quotes" }, 409);
   let resynced = 0;
   const behind = new Set(report.quotes.filter((q) => q.status === "behind" && q.origin).map((q) => q.origin!));
@@ -376,7 +376,7 @@ api.openapi(routes.deleteItem, async (c) => {
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
   if (item.version > 0) return c.json({ error: "published items are withdrawn, not deleted" }, 409);
-  await discardDraft(c.env.DB, item);
+  if (!await discardDraft(c.env.DB, item)) return c.json({ error: "item changed while discarding; reload and try again" }, 409);
   return c.json({ ok: true, outcome: "discarded" });
 });
 

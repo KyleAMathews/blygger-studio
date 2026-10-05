@@ -34,6 +34,10 @@ Older releases only have GitHub's source archives. You need:
 
 SDK generation uses a pinned Hey API npm package.
 
+The Worker limits API work, AI calls and stored OAuth clients. Outbound fetches
+allow public destinations by default. See [security configuration](docs/auth-deployment-hardening.md#work-and-outbound-limits)
+for defaults and the explicit LAN opt-in.
+
 Contributors: see [tests and their limits](docs/testing.md) for verification
 commands, oracle replay, and the upgrade test.
 

@@ -19,8 +19,8 @@ import { readingData } from "./reading-data.ts";
 import { getInbound } from "./mentions/store.ts";
 import { maybeCheckForUpdate } from "./update-check.ts";
 import { normalizeOrigin } from "./stub.ts";
-import { mentionFetch } from "./mentions/http.ts";
-import { platformFetch } from "./importer/http.ts";
+import { mentionFetchFor } from "./mentions/http.ts";
+import { platformFetchFor } from "./importer/http.ts";
 import { fetchImportedHistory, fetchPublicVersion } from "./imported-history.ts";
 
 export const readApi = contractApp();
@@ -115,13 +115,13 @@ async function blygSubscription(db: D1Database, id: string) {
 readApi.openapi(routes.getImportedHistory, async (c) => {
   const sub = await blygSubscription(c.env.DB, c.req.param("sub"));
   if (!sub) return c.json({ error: "not a blyg subscription" }, 404);
-  const got = await fetchImportedHistory(platformFetch, sub, c.req.param("id"));
+  const got = await fetchImportedHistory(platformFetchFor(c.env), sub, c.req.param("id"));
   return got.ok ? c.json(got.value) : c.json({ error: got.error }, got.status);
 });
 readApi.openapi(routes.getImportedVersion, async (c) => {
   const sub = await blygSubscription(c.env.DB, c.req.param("sub"));
   if (!sub) return c.json({ error: "not a blyg subscription" }, 404);
-  const got = await fetchPublicVersion(platformFetch, sub, c.req.param("id"), Number(c.req.param("v")));
+  const got = await fetchPublicVersion(platformFetchFor(c.env), sub, c.req.param("id"), Number(c.req.param("v")));
   return got.ok ? c.json(got.value) : c.json({ error: got.error }, got.status);
 });
 readApi.openapi(routes.getUpdateState, async (c) => {
@@ -142,7 +142,7 @@ readApi.openapi(routes.getForkOptions, async (c) => {
   const sub = c.req.query("sub");
   const fromSub = sub ? (await listSubscriptions(c.env.DB)).find((s) => s.id === sub)?.origin : undefined;
   const origin = normalizeOrigin(fromSub ?? c.req.query("origin")) ?? ourOrigin;
-  const result = await forkablePins(c.env.DB, origin, c.req.query("id") ?? "", ourOrigin);
+  const result = await forkablePins(c.env.DB, origin, c.req.query("id") ?? "", ourOrigin, mentionFetchFor(c.env));
   return c.json({ ...result, origin, ourOrigin });
 });
 readApi.openapi(routes.preview, async (c) => {
@@ -259,6 +259,7 @@ async function forkablePins(
   origin: string,
   id: string,
   ourOrigin: string,
+  fetchFn: import("./importer/http.ts").FetchLike,
 ): Promise<{ versions: { version: number; at: string; note: string | null }[]; error?: string }> {
   if (!id) return { versions: [], error: "no item named" };
   if (origin === ourOrigin) {
@@ -271,7 +272,7 @@ async function forkablePins(
   }
   let res;
   try {
-    res = await mentionFetch(`${origin}items/${id}.json`);
+    res = await fetchFn(`${origin}items/${id}.json`);
   } catch (e) {
     return { versions: [], error: `could not reach ${origin}: ${(e as Error).message}` };
   }

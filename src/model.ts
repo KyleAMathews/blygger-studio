@@ -442,11 +442,14 @@ export async function withdraw(db: D1Database, item: ItemRow, note: string | nul
 }
 
 /** Hard-delete a never-published draft. Published items are withdrawn, never deleted. */
-export async function discardDraft(db: D1Database, item: ItemRow): Promise<void> {
-  await db.batch([
-    db.prepare("DELETE FROM items WHERE id = ?").bind(item.id),
-    db.prepare("DELETE FROM media WHERE item_id = ?").bind(item.id),
+export async function discardDraft(db: D1Database, item: ItemRow): Promise<boolean> {
+  // Authorize at the atomic write boundary. A publication after the caller's
+  // read must preserve both the public item and its media.
+  const results = await db.batch([
+    db.prepare("DELETE FROM media WHERE item_id = ? AND EXISTS (SELECT 1 FROM items WHERE id = ? AND version = 0)").bind(item.id, item.id),
+    db.prepare("DELETE FROM items WHERE id = ? AND version = 0").bind(item.id),
   ]);
+  return results[1].meta.changes > 0;
 }
 
 /** Thrown by restoreVersion() when the target version can't serve as a working copy. */

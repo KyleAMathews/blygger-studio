@@ -10,7 +10,9 @@
  * outside the completed native atomic claim, before successor insertion.
  * Refinement: assert the gate was reached, replay invalid_grant, API401 in both
  * isolates and resumed issuance invalid_grant. A timeout is not a security failure.
- * Limits: one controlled schedule, not all distributed schedules or a proof that
+ * Modes add individual/all owner revocation at the same native claim checkpoint.
+ * Both must invalidate prior access and refuse paused successor issuance.
+ * Limits: one controlled checkpoint per mode, not all distributed schedules or a proof that
  * native multi-call cleanup is transactional. No second same-client grant is
  * present, so this witness makes no cross-grant refresh isolation claim.
  * No gate enters the release Worker.
@@ -23,6 +25,8 @@ import { URLSearchParams } from 'node:url';
 
 // Two real workerd isolates share D1. A test-only service binding controls the
 // native rotation checkpoint. No production deployment, credentials or sleeps.
+const mode = process.argv[2] ?? 'replay';
+if (!['replay', 'revoke', 'revoke-all'].includes(mode)) throw new Error('Unknown race mode');
 let reached!: () => void, release!: () => void;
 const claimed = new Promise<void>(resolve => { reached = resolve; });
 const resume = new Promise<void>(resolve => { release = resolve; });
@@ -69,8 +73,19 @@ try {
   // Fail on an absent seam rather than inventing evidence from a timeout.
   await Promise.race([claimed, rotation.then(() => { throw new Error('Rotation did not reach its controlled checkpoint'); })]);
   console.log('Reached native rotation claim in isolate A');
-  const replay = await refresh(b); assert.equal(replay.status, 400);
-  assert.equal((await replay.json() as { error: string }).error, 'invalid_grant');
+  if (mode === 'replay') {
+    const replay = await refresh(b); assert.equal(replay.status, 400);
+    assert.equal((await replay.json() as { error: string }).error, 'invalid_grant');
+  } else {
+    const listing = await request(b, '/api/authorizations', { headers: { cookie: owner } });
+    assert.equal(listing.status, 200);
+    const grants = await listing.json() as { items: { id: string; clientId: string }[] };
+    const grant = grants.items.find(value => value.clientId === client_id);
+    assert.ok(grant, 'Issued grant must be listed before owner revocation');
+    const path = '/api/authorizations' + (mode === 'revoke' ? '/' + encodeURIComponent(grant.id) : '');
+    const revoked = await request(b, path, { method: 'DELETE', headers: { cookie: owner } });
+    assert.equal(revoked.status, 200);
+  }
   const dead = await request(b, '/api/settings', { headers: { Authorization: 'Bearer ' + tokens.access_token } });
   assert.equal(dead.status, 401, 'Cross-isolate replay must revoke the existing signed access token');
   release(); const winner = await rotation;
@@ -78,7 +93,7 @@ try {
   assert.equal((await winner.json() as { error: string }).error, 'invalid_grant');
   const observer = await request(a, '/api/settings', { headers: { Authorization: 'Bearer ' + tokens.access_token } });
   assert.equal(observer.status, 401);
-  console.log('Controlled cross-isolate replay denies prior access and pending issuance');
+  console.log('Controlled cross-isolate ' + mode + ' denies prior access and pending issuance');
 } finally {
   release();
   if (pending) await pending.catch(() => undefined);

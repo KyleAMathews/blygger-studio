@@ -150,13 +150,15 @@ describe('security release boundaries', () => {
     const f = await issued();
     const marker = 'security-oracle-secret-' + crypto.randomUUID();
     const captured: unknown[][] = [];
+    let nativeFaultReached = false;
     const spies = (['error', 'warn', 'info', 'log', 'debug'] as const).map(method => vi.spyOn(console, method).mockImplementation((...args: unknown[]) => { captured.push(args); }));
     try {
       // A driver failure can contain parameter values. This is an adversarial
       // dependency seam, not a claim that D1 currently emits this exact message.
       const database = new Proxy(env.DB, { get(target, key) {
         if (key === 'prepare') return (sql: string) => {
-          if (sql.includes(endpoint === 'owner-login' ? 'rateLimit' : 'oauthClient')) {
+          if (!sql.includes('security_registrations') && sql.includes(endpoint === 'owner-login' ? 'rateLimit' : 'oauthClient')) {
+            nativeFaultReached = true;
             const error = new Error('database failed with credential=' + marker);
             error.name = marker; // Dependency-defined names are untrusted too.
             throw error;
@@ -170,6 +172,7 @@ describe('security release boundaries', () => {
       const body = endpoint === 'registration' ? JSON.stringify({ client_name: marker, redirect_uris: [f.redirect], token_endpoint_auth_method: 'none' }) : endpoint === 'owner-login' ? new URLSearchParams({ password: marker }) : JSON.stringify({ name: marker, resource: 'api', scope: ['owner:read'] });
       const response = await makeApp('/blyg').fetch(new Request(path, { method: 'POST', headers: { ...(endpoint === 'owner-login' ? {} : { 'content-type': 'application/json' }), ...(endpoint === 'manual-mint' ? { cookie: f.owner } : {}), 'CF-Connecting-IP': '198.51.100.230' }, body }), { ...env, DB: database }, ctx);
       await waitOnExecutionContext(ctx);
+      expect(nativeFaultReached, 'dependency failure must reach native provider work, not admission').toBe(true);
       expect(response.status).toBe(500);
       expect((await response.text()).includes(marker), 'HTTP error must not leak credentials').toBe(false);
       const logs = JSON.stringify(captured, (_key, value) => value instanceof Error ? { name: value.name, message: value.message, stack: value.stack } : value);

@@ -105,3 +105,15 @@ The [research survey](auth-security-survey.md) supplies protocol claims; applica
 Survey claim OS05-C004 notes that resource indicators and audience identifiers need not be identical in every implementation. This installation uses its API/MCP URLs as accepted resource audiences. OIDC [§2](https://openid.net/specs/openid-connect-core-1_0.html#IDToken) defines authentication time; token issuance time is a different claim. Survey claims OS09-C003/C008/C037 preserve that distinction.
 
 `src/oauth.ts` defines credential version and revoke-all epoch. Its grant tombstones are application-scoped. The pinned provider’s `invalidateRefreshFamily` filters refresh rows by `clientId` and `userId`, not `grantId`; the audit records this native boundary. The independent-grant oracle proves owner revocation leaves another grant’s access usable. It does not prove that native replay preserves another same-client grant’s refresh credential. Do not infer that stronger isolation claim from the word “family.”
+
+## Resource and network security
+
+| Term | Meaning here |
+|---|---|
+| Admission | The atomic decision to admit work before its handler or provider call starts. |
+| Work budget | An account-wide call count within a fixed minute or UTC day. It is separate from owner permissions and the per-IP OAuth limiter. |
+| Registration claim | A temporary D1 slot held while anonymous OAuth client creation runs. It expires after five minutes and does not confer authorization. |
+| Editorial allowlist | The tags, attributes and URL schemes imported rendering permits. It does not change raw stored publisher content. |
+| SSRF | Server-side request forgery: a caller makes the Worker contact a destination the installation should refuse. |
+| DNS rebinding | DNS answers change between validation and connection. A DNS preflight cannot establish connection-time destination enforcement. |
+| LAN opt-in | `ALLOW_PRIVATE_FETCH="true"`, which permits private network destinations for the installation’s outbound adapters. It does not grant new API scopes. |

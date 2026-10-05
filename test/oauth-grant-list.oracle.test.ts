@@ -29,7 +29,7 @@ it('lists both grants and preserves neighboring access after owner grant revocat
   const binding = consent.headers.getSetCookie().map(value => value.split(';')[0]).join('; ');
   const decision = await f.request(f.issuer + '/consent', { method: 'POST', headers: { cookie: f.owner + '; ' + binding, Origin: f.base }, body: new URLSearchParams({ handle, decision: 'allow', scope: 'owner:read' }) });
   expect(decision.status).toBe(302);
-  const narrowed = await (await f.token(new URL(decision.headers.get('location')!).searchParams.get('code')!)).json() as { access_token: string };
+  const narrowed = await (await f.token(new URL(decision.headers.get('location')!).searchParams.get('code')!)).json() as { access_token: string; refresh_token: string };
   expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + original.access_token } })).status).toBe(200);
   const listing = await (await f.request('/api/authorizations', { headers: { cookie: f.owner } })).json() as { items: { id: string; clientId: string; scope: string[] }[] };
   const grants = listing.items.filter(item => item.clientId === f.client.client_id);
@@ -39,6 +39,8 @@ it('lists both grants and preserves neighboring access after owner grant revocat
   expect((await f.request('/api/authorizations/' + encodeURIComponent(old.id), { method: 'DELETE', headers: { cookie: f.owner } })).status).toBe(200);
   expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + original.access_token } })).status).toBe(401);
   expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + narrowed.access_token } })).status).toBe(200);
+  const renewal = await f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: narrowed.refresh_token, resource: f.base + '/api' }) });
+  expect(renewal.status, 'individual owner revocation preserves neighboring refresh authority').toBe(200);
 });
 
 it('applies owner grant revocation to the forwarded native UserInfo endpoint', async () => {

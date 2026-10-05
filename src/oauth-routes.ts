@@ -1,3 +1,5 @@
+import { bodyLimit } from 'hono/body-limit';
+import { reserveClient, releaseClient } from './security-budgets.ts';
 import { requestError } from './request-error.ts';
 import { Hono, type Context } from 'hono';
 import { verifyOAuthQueryParams } from '@better-auth/oauth-provider';
@@ -10,6 +12,7 @@ import { escapeHtml } from './util.ts';
 
 export function oauthRoutes() {
   const app = new Hono<{ Bindings: Env }>({ strict: false });
+app.use('*', (c, next) => bodyLimit({ maxSize: 1024 * 1024, onError: c => c.json({ error: 'request body exceeds byte limit' }, 413) })(c, next));
   app.use('*', async (c, next) => {
     c.header('Cache-Control', 'no-store');
     // RFC 9700 forbids CORS at the authorization endpoint, including preflight.
@@ -163,7 +166,11 @@ export function oauthRoutes() {
     return response;
   });
   app.post('/oauth2/register', async c => {
-    const response = await (await authorizationServer(c.req.url, c.env)).handler(c.req.raw);
+    const reservation = await reserveClient(c.env);
+    if (!reservation) return c.json({ error: 'temporarily_unavailable', error_description: 'OAuth client storage limit reached' }, 429, { 'Retry-After': '300' });
+    let response: Response;
+    try { response = await (await authorizationServer(c.req.url, c.env)).handler(c.req.raw); }
+    finally { await releaseClient(c.env, reservation); }
     if (response.status === 400) {
       const error = await response.clone().json().catch(() => ({})) as { error?: string };
       if (error.error === 'invalid_scope') return c.json({ ...error, error: 'invalid_client_metadata' }, 400);

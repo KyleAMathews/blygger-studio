@@ -1651,6 +1651,26 @@
               }
             }
           },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -1790,6 +1810,26 @@
               }
             }
           },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -1862,6 +1902,26 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -1956,6 +2016,26 @@
             }
           },
           "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -2223,6 +2303,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -2431,6 +2521,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -2661,6 +2761,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -2816,6 +2926,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -3125,6 +3245,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -3310,6 +3440,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -3468,6 +3608,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -3660,6 +3810,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -3839,6 +3999,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -4006,6 +4176,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -4193,6 +4373,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -4390,6 +4580,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -4548,6 +4748,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -4785,6 +4995,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -4914,6 +5134,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -5142,6 +5372,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -5330,6 +5570,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -5504,6 +5754,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -5661,6 +5921,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -5801,6 +6071,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -5973,6 +6253,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -6123,6 +6413,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -6320,6 +6620,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -6495,6 +6805,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -6643,6 +6963,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -6844,6 +7174,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -7021,6 +7361,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -7187,6 +7537,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -7396,6 +7756,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -7553,6 +7923,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -7744,6 +8124,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -7925,6 +8315,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -8142,6 +8542,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -8293,6 +8703,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -8424,6 +8844,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -8641,6 +9071,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -8904,6 +9344,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -9123,6 +9573,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -9274,6 +9734,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -9517,6 +9987,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -9668,6 +10148,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -9883,6 +10373,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -10075,6 +10575,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -10209,6 +10719,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -10391,6 +10911,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -10533,6 +11063,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -10696,6 +11236,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -10890,6 +11440,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -11097,6 +11657,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {

@@ -25,7 +25,7 @@ export async function publicHopperPage(db: D1Database, settings: Settings, hoppe
 </article>`);
       continue;
     }
-    const html = row.l0 ? row.content_html : await sanitizeHtml(row.content_html);
+    const html = await sanitizeHtml(row.content_html);
     // L0 content already embeds its own source link inline; blyg imports get a constructed permalink on the origin.
     const sourceLink = row.l0 ? "" : blygItemUrl(sub.origin, row.kind, row.remote_id, row.page);
     const pinNote = withdrawn

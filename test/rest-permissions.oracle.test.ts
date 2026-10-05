@@ -37,7 +37,7 @@ async function receive(app: Hono<any>, method: string, path: string, body?: unkn
   const ctx = createExecutionContext();
   const response = await app.fetch(new Request('https://permissions.example.test/api' + path, {
     method, ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
-  }), env, ctx);
+  }), { ...env, API_READ_LIMIT: '10000', API_WRITE_LIMIT: '10000' }, ctx);
   await waitOnExecutionContext(ctx); return response;
 }
 it('the independent permission model accounts for every contract operation exactly once', () => {
