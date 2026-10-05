@@ -4,7 +4,7 @@
  * manually minted token (spec §3.5); the OAuth path is covered against the
  * real server in test/clipper-oauth.test.ts.
  */
-import { test as base, expect, chromium, type BrowserContext, type Page } from '@playwright/test';
+import { test as base, expect, chromium, request, type APIRequestContext, type BrowserContext, type Page } from '@playwright/test';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -12,7 +12,7 @@ import { join, resolve } from 'node:path';
 const EXTENSION = resolve('extension/.output/chrome-mv3');
 const BLYG = 'http://127.0.0.1:8787';
 
-const test = base.extend<{ context: BrowserContext; panel: Page; mint: (scope: string[]) => Promise<string> }>({
+const test = base.extend<{ context: BrowserContext; panel: Page; owner: APIRequestContext; mint: (scope: string[]) => Promise<string> }>({
   context: async ({}, use) => {
     const context = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), 'clipper-')), {
       channel: 'chromium',
@@ -28,20 +28,26 @@ const test = base.extend<{ context: BrowserContext; panel: Page; mint: (scope: s
     await page.goto(`chrome-extension://${new URL(worker.url()).host}/sidepanel.html`);
     await use(page);
   },
-  mint: async ({ context }, use) => {
+  // The owner cookie lives in this separate request context, never in the
+  // extension's browser context.
+  owner: async ({}, use) => {
+    const api = await request.newContext();
     // Its own edge identity, as e2e/fixture.ts gives each test: login is rate limited per client.
     const ip = 'fd00:' + crypto.randomUUID().replaceAll('-', '').match(/.{4}/g)!.slice(0, 7).join(':');
-    const login = await context.request.post(`${BLYG}/studio/login`, { form: { password: 'test-password' }, headers: { 'CF-Connecting-IP': ip }, maxRedirects: 0 });
+    const login = await api.post(`${BLYG}/studio/login`, { form: { password: 'test-password' }, headers: { 'CF-Connecting-IP': ip }, maxRedirects: 0 });
     expect([302, 303]).toContain(login.status());
     // The owner cookie is Secure, and Playwright's request client neither stores
-    // nor sends a Secure cookie over http. Store it unsecured so context.request
-    // carries it; the panel and worker fetch from chrome-extension:// with
-    // credentials 'same-origin', so they never send it.
+    // nor sends a Secure cookie over http. Re-add it unsecured to a second context.
     const [pair] = login.headers()['set-cookie'].split(';');
     const [name, value] = pair.split(/=(.*)/s);
-    await context.addCookies([{ name, value, url: BLYG }]);
+    await api.dispose();
+    const owner = await request.newContext({ storageState: { cookies: [{ name, value, domain: '127.0.0.1', path: '/', expires: -1, httpOnly: true, secure: false, sameSite: 'Lax' }], origins: [] } });
+    await use(owner);
+    await owner.dispose();
+  },
+  mint: async ({ owner }, use) => {
     await use(async (scope) => {
-      const res = await context.request.post(`${BLYG}/api/authorizations`, { data: { name: 'Clipper e2e ' + scope.join('+'), scope, resource: 'api' } });
+      const res = await owner.post(`${BLYG}/api/authorizations`, { data: { name: 'Clipper e2e ' + scope.join('+'), scope, resource: 'api' } });
       expect(res.status()).toBe(200);
       return ((await res.json()) as { access_token: string }).access_token;
     });
@@ -56,9 +62,9 @@ async function connectWithToken(panel: Page, token: string) {
   await panel.getByRole('button', { name: 'Connect with token' }).click();
 }
 
-test('a manual token connects, survives reopening the panel, and disconnects (Review Focus 5)', async ({ panel, mint, context }) => {
+test('a manual token connects, survives reopening the panel, and disconnects (Review Focus 5)', async ({ panel, mint, owner }) => {
   const token = await mint(['owner:read', 'owner:draft', 'owner:publish']);
-  const title = ((await (await context.request.get(`${BLYG}/api/settings`)).json()) as { site_title: string }).site_title;
+  const title = ((await (await owner.get(`${BLYG}/api/settings`)).json()) as { site_title: string }).site_title;
   await connectWithToken(panel, token);
   await expect(panel.getByText(`Connected to ${title}`)).toBeVisible();
   await expect(panel.getByText('Quote in Blygger')).toBeVisible();

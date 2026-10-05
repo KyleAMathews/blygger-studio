@@ -15,8 +15,9 @@ export function oauthRoutes() {
 app.use('*', (c, next) => bodyLimit({ maxSize: 1024 * 1024, onError: c => c.json({ error: 'request body exceeds byte limit' }, 413) })(c, next));
   app.use('*', async (c, next) => {
     c.header('Cache-Control', 'no-store');
-    // RFC 9700 forbids CORS at the authorization endpoint, including preflight.
-    const authorization = new URL(c.req.url).pathname.endsWith('/oauth2/authorize');
+    // RFC 9700 forbids CORS at the authorization endpoint, including preflight; the consent page is the same browser-only step.
+    const path = new URL(c.req.url).pathname;
+    const authorization = path.endsWith('/oauth2/authorize') || path.endsWith('/consent');
     if (!authorization) c.header('Access-Control-Allow-Origin', '*');
     await next();
     if (authorization) c.res.headers.delete('Access-Control-Allow-Origin');

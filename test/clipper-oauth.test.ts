@@ -124,11 +124,24 @@ describe('advertised support and CORS', () => {
 
   it('discovery documents are CORS-readable, as a browser client needs them', async () => {
     const f = await flow();
-    for (const path of ['/blyg/studio/auth/resources/api', '/blyg/studio/auth/.well-known/oauth-authorization-server']) {
-      const response = await f.request(path, { headers: { Origin: 'chrome-extension://abc' } });
+    const origin = { Origin: 'chrome-extension://abc' };
+    const responses: [string, Response][] = [];
+    for (const path of ['/blyg/studio/auth/resources/api', '/blyg/studio/auth/.well-known/oauth-authorization-server', '/blyg/studio/auth/jwks']) {
+      const response = await f.request(path, { headers: origin });
       expect(response.status, path).toBe(200);
-      expect(response.headers.get('access-control-allow-origin'), path).toBe('*');
+      responses.push([path, response]);
     }
+    const registration = await f.request('/blyg/studio/auth/oauth2/register', { method: 'POST', headers: { ...origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ client_name: 'cors probe', redirect_uris: ['https://abc.chromiumapp.org/'], token_endpoint_auth_method: 'none', grant_types: ['authorization_code'], response_types: ['code'] }) });
+    expect(registration.status).toBe(201);
+    responses.push(['register', registration]);
+    responses.push(['token', await f.request('/blyg/studio/auth/oauth2/token', { method: 'POST', headers: origin, body: new URLSearchParams({ grant_type: 'authorization_code' }) })]);
+    for (const [path, response] of responses) expect(response.headers.get('access-control-allow-origin'), path).toBe('*');
+    const closed: [string, Response][] = [
+      ['authorize', await f.request('/blyg/studio/auth/oauth2/authorize', { headers: origin })],
+      ['consent', await f.request('/blyg/studio/auth/consent', { headers: origin })],
+    ];
+    for (const [path, response] of closed) expect(response.headers.get('access-control-allow-origin'), path).toBeNull();
+    for (const [path, response] of [...responses, ...closed]) expect(response.headers.get('access-control-allow-credentials'), path).toBeNull();
   });
 
   it('a preflight allows Idempotency-Key and keyed responses expose the replay headers', async () => {
@@ -495,7 +508,8 @@ describe('clipper token store (L4) and connection (L5)', () => {
       await expect(connectManual(f.base + '/blyg/', readOnly.access_token, { fetchFn: workerFetch(f), store: store(f) })).rejects.toThrow('This token cannot clip.');
       const revoked = await mint(f, ['owner:read', 'owner:draft']);
       expect((await f.request('/api/authorizations/' + revoked.authorization.id, { method: 'DELETE', headers: { cookie: f.owner } })).status).toBe(200);
-      await expect(connectManual(f.base + '/blyg/', revoked.access_token, { fetchFn: workerFetch(f), store: store(f) }), 'a revoked token is refused').rejects.toThrow('This token is not valid here, or it has expired.');
+      const outcome = await connectManual(f.base + '/blyg/', revoked.access_token, { fetchFn: workerFetch(f), store: store(f) }).then(() => 'a revoked token is refused: it connected instead', (error: Error) => error.message);
+      expect(outcome).toBe('This token is not valid here, or it has expired.');
     });
 
     it('an expired manual token asks for a new one', async () => {
