@@ -346,9 +346,13 @@ applies them one at a time and persists them.
   arrives meanwhile updates a single pending value, the latest full text. When
   the in-flight call is acknowledged with revision N+1, the panel sends the
   pending text with `baseRevision: N+1`. Normal typing therefore never sends a
-  stale base. A refusal (lease lost to another window) stops sending, keeps
-  the panel's text on screen, and offers "Edit here" to take the lease back
-  and resend it.
+  stale base. A refusal (lease lost to another window) stops sending and keeps
+  the panel's unsent text on screen, marked unsent. "Edit here" takes the
+  lease back and **reloads the current draft**; it never resends the unsent
+  text as a replacement, because the other window may have saved edits or
+  captures since. If the unsent text differs from the reloaded draft, the
+  panel shows it beside the draft as a conflict, with "Copy" and "Append to
+  draft". Appending goes through the edit queue like any input.
 - **Durability boundary:** a mutation is durable when the worker's
   `storage.local.set` has resolved and it has replied with the new revision.
   The panel queues `setBody` on every input event, with no timer, and shows
@@ -367,7 +371,15 @@ The server draft is created only on Save draft or Publish.
 
 ### 5.1 Save draft
 
-Pressing Save draft asks the worker to **freeze** the current revision. In
+Pressing Save draft (or Publish) first **flushes the edit queue**: the
+button shows "saving…" until the in-flight `setBody` and the pending text are
+both acknowledged, giving revision N. The panel then asks the worker to
+freeze exactly revision N, and the worker refuses if the draft is no longer at
+N. Since only the lease holder changes the body, that refusal means the lease
+moved, and the panel follows the lease rules above. So pressing Save straight
+after typing submits the text as typed.
+
+Freezing asks the worker to take revision N. In
 one storage write, the worker moves the draft's payload into a new **save
 operation** and empties the draft slot. The operation holds a UUID, the
 payload, the capture UUIDs, the grant id it will be sent under, and its
@@ -401,7 +413,14 @@ draft in the queue list.
 
 ### 5.2 Publish
 
-Create as above, then `POST /api/items/{id}/publish` with
+**Only on nodes that advertise the publish precondition** (§9). Older nodes
+refuse the `expected` field, because publish bodies are strict
+(`src/contract/routes.ts:47`), and a publish without it could make later
+Studio edits public. On those nodes, Publish saves the draft and the toast
+says "Saved. Publish it in Studio", linking there; the extension does not
+publish.
+
+Where it is advertised: create as above, then `POST /api/items/{id}/publish` with
 `Idempotency-Key: {uuid}:publish` and the frozen payload's expected working
 copy (§9, "Publish precondition"). If the owner edited the item in Studio
 after it was created, the publish refuses with 409 `changed`, nothing is
@@ -569,7 +588,13 @@ branch's security rounds:
   - fast typing: several inputs before the first acknowledgement (none
     refused, final text kept);
   - a capture arriving while the owner types (quote and typed text both
-    kept).
+    kept);
+  - several keystrokes then Save before the first acknowledgement (the
+    frozen payload holds the last keystroke);
+  - lease to window B, B makes an acknowledged edit, lease back to A (A
+    reloads B's text; A's unsent text appears as a conflict, never replaces);
+  - a node without the publish precondition (Publish saves a draft and points
+    to Studio; no publish request is sent).
 - **Fault driver** (control the event, not the Promise): a transport that
   forwards to the real Worker and then, on schedule, drops the response after
   the server committed. "Commit then drop" is the case the reviewer found a
@@ -626,6 +651,9 @@ Each control reproduces a realistic regression:
 | Publish without the working-copy precondition | L2c (Studio edit before queued publish) |
 | Phase `created` not persisted before publish | L2b (restart after 201) |
 | Panel sends a second `setBody` while one is in flight | L1b (fast typing) |
+| Save freezes without flushing the edit queue | L1b (type then Save) |
+| "Edit here" resends unsent text as a replacement | L1b (lease round trip) |
+| `expected` sent to a node that does not advertise it | L2c, L5 (older node) |
 | Worker appends a capture to the body while a panel holds the lease | L1b (capture during typing) |
 | CORS allowlist lacks `Idempotency-Key` | L2a (browser preflight) |
 | Create or publish sent without `Idempotency-Key` | L2a |
@@ -700,9 +728,11 @@ idempotency in its direction), not to the protocol. Shape follows the IETF
   behaves as today, so the Studio is unaffected.
 - **Echo:** every keyed response echoes `Idempotency-Key`.
 - **Advertised support:** the protected resource metadata at
-  `{base}/auth/resources/api` gains `"idempotency_key_operations":
-  ["createItem", "publishItem"]` (an extension member, as RFC 9728 allows).
-  Clients send the header only to nodes that list the operation.
+  `{base}/auth/resources/api` gains two extension members (RFC 9728 allows
+  them): `"idempotency_key_operations": ["createItem", "publishItem"]` and
+  `"publish_preconditions": ["expected"]`. Clients send the header and the
+  `expected` field only to nodes that list them. Both ship in the same
+  release, but clients check each separately.
 - **CORS:** `/api` preflight allows `Idempotency-Key` beside `Authorization`
   and `Content-Type`, and responses expose `Idempotency-Key`,
   `Idempotent-Replayed` and `Retry-After` beside `WWW-Authenticate` and
