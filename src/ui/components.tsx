@@ -19,10 +19,9 @@ import { readState } from '../versions.ts';
 import { displayUrl } from '../importer/util.ts';
 import { Sheet } from './sheets.tsx';
 import { applyTheme } from './theme.ts';
+import { basepath, mount } from './host.ts';
 export { Button };
-export const mount =
-  document.getElementById('studio-root')!.dataset.mount ?? '';
-export const basepath = `${mount}/studio`;
+export { basepath, mount };
 export function usePoll(key: string, refresh: () => Promise<unknown>) {
   useEffect(() => polling.watch(key, refresh), [key, refresh]);
 }

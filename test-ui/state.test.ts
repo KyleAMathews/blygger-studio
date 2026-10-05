@@ -4,6 +4,7 @@ import { Draft } from '../src/ui/draft.ts';
 import { Polling } from '../src/ui/polling.ts';
 import { createBlyggerClient } from '../sdk/dist/browser.js';
 import { createStudioData } from '../src/ui/data-core.ts';
+import * as host from '../src/ui/host.ts';
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -97,6 +98,14 @@ test('collections read through the client their host supplies, with their own ca
   expect(other.queryClient, 'each host gets its own cache').not.toBe(data.queryClient);
   await other.dispose();
   await data.dispose();
+});
+
+test('a host with no studio root sets where its links point', () => {
+  expect(host.mount, 'no #studio-root: an empty mount, not a crash').toBe('');
+  host.configureHost({ origin: 'https://example.com', mount: '/blyg' });
+  expect(host.mount).toBe('/blyg');
+  expect(host.basepath).toBe('/blyg/studio');
+  expect(host.onBlyg('/studio/edit/abc')).toBe('https://example.com/blyg/studio/edit/abc');
 });
 
 test('a disposed instance leaves no timers and makes no further requests', async () => {
