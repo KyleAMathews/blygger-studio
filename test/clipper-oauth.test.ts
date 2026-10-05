@@ -107,6 +107,9 @@ import { discover } from '../extension/lib/discovery.ts';
 import type { FetchLike } from '../extension/lib/types.ts';
 import { flow } from './oauth-flow-driver.ts';
 import { authorizeUrl, challengeFor, codeFromRedirect, exchangeCode, randomVerifier, register, REQUESTED_SCOPE } from '../extension/lib/oauth.ts';
+import { connectManual, connectOAuth } from '../extension/lib/connect.ts';
+import { memoryArea } from '../extension/lib/storage.ts';
+import { ReconnectError, TokenStore } from '../extension/lib/tokens.ts';
 
 describe('advertised support and CORS', () => {
   it('the api resource metadata advertises keys and the publish precondition; mcp does not', async () => {
@@ -390,5 +393,109 @@ describe('clipper OAuth client against the real server', () => {
     expect(tokens.scope).toContain('owner:draft');
     expect(tokens.scope, 'unticked scopes are not granted').not.toContain('owner:publish');
     expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + tokens.accessToken } })).status).toBe(200);
+  });
+});
+
+const isRefresh = (url: string, init?: RequestInit) => url.endsWith('/oauth2/token') && String(init?.body).includes('grant_type=refresh_token');
+
+/** A connected clipper on fake time: local/session survive a "restart" by building a new store over them. */
+async function connected(f: Flow, scopes = ['owner:read', 'owner:draft', 'owner:publish'], hook?: Parameters<typeof workerFetch>[1]) {
+  let clock = Date.now();
+  const local = memoryArea(), session = memoryArea(), fetchFn = workerFetch(f, hook);
+  const store = new TokenStore(local, session, fetchFn, () => clock);
+  const status = await connectOAuth(f.base + '/blyg/', { fetchFn, store, local, redirectUri: REDIRECT, launch: (url) => approve(f, url, scopes) });
+  return { status, store, local, session, fetchFn, advance: (ms: number) => { clock += ms; }, restart: () => new TokenStore(local, session, fetchFn, () => clock) };
+}
+
+describe('clipper token store (L4) and connection (L5)', () => {
+  it('records the scope consent left, so the panel can adapt (Review Focus 4)', async () => {
+    const c = await connected(await flow(), ['owner:read', 'owner:draft']);
+    expect(c.status).toMatchObject({ state: 'connected', mode: 'oauth', idempotency: ['createItem', 'publishItem'] });
+    if (c.status.state !== 'connected') throw new Error('fixture');
+    expect(c.status.scope).toEqual(expect.arrayContaining(['owner:read', 'owner:draft']));
+    expect(c.status.scope).not.toContain('owner:publish');
+  });
+
+  it('concurrent callers share one refresh, and the refreshed token works', async () => {
+    const f = await flow();
+    let refreshes = 0;
+    const c = await connected(f, undefined, (url, init) => { if (isRefresh(url, init)) refreshes++; return 'pass'; });
+    c.advance(2 * 3600_000);
+    const [a, b] = await Promise.all([c.store.accessToken(), c.store.accessToken()]);
+    expect(refreshes, 'concurrent callers share one refresh').toBe(1);
+    expect(a).toBe(b);
+    expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + a } })).status).toBe(200);
+  });
+
+  it('a refresh lost after the server rotated ends access, and the grant, cleanly', async () => {
+    const f = await flow();
+    let drop = false;
+    const c = await connected(f, undefined, (url, init) => (drop && isRefresh(url, init) ? 'drop-after' : 'pass'));
+    c.advance(2 * 3600_000);
+    drop = true;
+    await expect(c.store.accessToken()).rejects.toThrow(TypeError);
+    drop = false;
+    const restarted = c.restart();
+    await expect(restarted.accessToken(), 'the spent token is refused and access ends').rejects.toBeInstanceOf(ReconnectError);
+    expect(await restarted.status()).toMatchObject({ state: 'reconnect' });
+    let sent = 0;
+    const counting = new TokenStore(c.local, c.session, async (url, init) => { sent++; return c.fetchFn(url, init); });
+    await expect(counting.accessToken()).rejects.toBeInstanceOf(ReconnectError);
+    expect(sent, 'reconnect state asks the owner, not the server').toBe(0);
+    const clientId = (await restarted.connection())?.clientId;
+    expect(clientId).toBeTruthy();
+    const grants = await (await f.request('/api/authorizations', { headers: { cookie: f.owner } })).json() as { items: { name: string; clientId: string }[] };
+    expect(grants.items.filter((g) => g.clientId === clientId), 'the reused refresh token revoked the grant').toEqual([]);
+  });
+
+  it('a refresh that never reached the server is retried from the stored token', async () => {
+    const f = await flow();
+    let drop = false;
+    const c = await connected(f, undefined, (url, init) => (drop && isRefresh(url, init) ? 'drop-before' : 'pass'));
+    c.advance(2 * 3600_000);
+    drop = true;
+    await expect(c.store.accessToken()).rejects.toThrow(TypeError);
+    drop = false;
+    const token = await c.restart().accessToken();
+    expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + token } })).status, 'the stored token still works').toBe(200);
+  });
+
+  describe('manual token', () => {
+    const mint = async (f: Flow, scope: string[]) => {
+      const res = await f.request('/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'manual ' + scope.join('+'), scope, resource: 'api' }) });
+      expect(res.status).toBe(200);
+      return await res.json() as { access_token: string; authorization: { id: string } };
+    };
+    const store = (f: Flow) => new TokenStore(memoryArea(), memoryArea(), workerFetch(f));
+
+    it('connects a read+draft token and serves it', async () => {
+      const f = await flow(), { access_token } = await mint(f, ['owner:read', 'owner:draft']), s = store(f);
+      expect(await connectManual(f.base + '/blyg/', access_token, { fetchFn: workerFetch(f), store: s })).toMatchObject({ state: 'connected', mode: 'manual' });
+      expect(await s.accessToken()).toBe(access_token);
+    });
+
+    it('contrast: a draft-only token connects (L5)', async () => {
+      const f = await flow(), { access_token } = await mint(f, ['owner:draft']);
+      expect(await connectManual(f.base + '/blyg/', access_token, { fetchFn: workerFetch(f), store: store(f) }), 'a valid draft-only token connects').toMatchObject({ state: 'connected', scope: ['owner:draft'] });
+    });
+
+    it('refuses a token that cannot clip, and a revoked one', async () => {
+      const f = await flow();
+      const readOnly = await mint(f, ['owner:read']);
+      await expect(connectManual(f.base + '/blyg/', readOnly.access_token, { fetchFn: workerFetch(f), store: store(f) })).rejects.toThrow('This token cannot clip.');
+      const revoked = await mint(f, ['owner:read', 'owner:draft']);
+      expect((await f.request('/api/authorizations/' + revoked.authorization.id, { method: 'DELETE', headers: { cookie: f.owner } })).status).toBe(200);
+      await expect(connectManual(f.base + '/blyg/', revoked.access_token, { fetchFn: workerFetch(f), store: store(f) }), 'a revoked token is refused').rejects.toThrow('This token is not valid here, or it has expired.');
+    });
+
+    it('an expired manual token asks for a new one', async () => {
+      const f = await flow(), { access_token } = await mint(f, ['owner:draft']);
+      let clock = Date.now();
+      const s = new TokenStore(memoryArea(), memoryArea(), workerFetch(f), () => clock);
+      await connectManual(f.base + '/blyg/', access_token, { fetchFn: workerFetch(f), store: s });
+      clock += 31 * 24 * 3600_000;
+      await expect(s.accessToken(), 'an expired manual token is not served').rejects.toThrow('The token expired.');
+      expect(await s.status()).toMatchObject({ state: 'reconnect' });
+    });
   });
 });
