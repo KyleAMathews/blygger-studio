@@ -32,7 +32,7 @@ import {
   withdraw,
   workingCopyGuard,
 } from "./model.ts";
-import { claim, claimGuard, completeClaim, current, fingerprintOf, INVALID_KEY, keyFrom, publishCompletion, releaseClaim, settledResponse, type SettledClaim } from "./idempotency.ts";
+import { claim, claimGuard, completeClaim, current, fingerprintOf, INVALID_KEY, keyFrom, keyedPublishGuard, releaseClaim, settledResponse, type SettledClaim } from "./idempotency.ts";
 import { workPrincipal } from "./security-budgets.ts";
 import { mentionFetchFor } from "./mentions/http.ts";
 import { drainOutbound, enqueueForVersion } from "./mentions/send.ts";
@@ -307,10 +307,7 @@ api.openapi(routes.publishItem, async (c) => {
   try {
     if (expected && !matchesWorkingCopy(item, expected)) return c.json({ error: "changed" }, 409);
     c.header("Idempotency-Key", key);
-    const guard: PublishGuard = {
-      where: [...(expected ? [workingCopyGuard(item.id, expected)] : []), claimGuard(state)],
-      also: [publishCompletion(c.env.DB, state, item.id, item.version + 1)],
-    };
+    const guard = keyedPublishGuard(c.env.DB, state, item, expected);
     return await publishAndNotify(c, item, note, {}, noteGenerated, guard);
   } catch (e) {
     if (e instanceof PublishGuardLost) {

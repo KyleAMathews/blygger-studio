@@ -198,7 +198,7 @@ caller (the grant for a token, the owner for the cookie) and kept 24 hours.
   response with `Idempotent-Replayed: true`, and does no new work.
 - The same key with a different body answers 422.
 - A repeat while the first is still running answers 409 with `Retry-After: 1`.
-- Keyed responses echo `Idempotency-Key`. The work and its replay record
+- Responses from the retry machinery (a first run, a replay, busy, mismatch) echo `Idempotency-Key`. The work and its replay record
   commit together, so a lost response never means the work happened twice.
 
 Publish also accepts `expected: { content_md, stub_of }`. When present, it
@@ -208,4 +208,4 @@ answers 409 `{ "error": "changed" }` without publishing.
 Support is advertised in the protected resource metadata at
 `{mount}/studio/auth/resources/api`: `idempotency_key_operations` and
 `publish_preconditions`. Send the header and the field only to nodes that
-list them; older nodes reject both.
+list them. An older node ignores the header, so a retry there would repeat the work, and rejects the `expected` field, so check the advertisement first.

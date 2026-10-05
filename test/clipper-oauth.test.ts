@@ -17,8 +17,8 @@
  */
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { claim, claimGuard, completeClaim, current, publishCompletion, releaseClaim, keyFrom, canonicalJson } from '../src/idempotency.ts';
-import { createDraft, publish, PublishGuardLost, workingCopyGuard } from '../src/model.ts';
+import { claim, claimGuard, completeClaim, current, keyedPublishGuard, publishCompletion, releaseClaim, keyFrom, canonicalJson } from '../src/idempotency.ts';
+import { createDraft, getItem, publish, PublishGuardLost, workingCopyGuard } from '../src/model.ts';
 
 beforeEach(async () => {
   await env.DB.prepare('DELETE FROM idempotency_keys').run();
@@ -112,6 +112,7 @@ describe('advertised support and CORS', () => {
     expect(api.publish_preconditions).toEqual(['expected']);
     const mcp = await (await f.request('/blyg/studio/auth/resources/mcp')).json() as Record<string, unknown>;
     expect(mcp.idempotency_key_operations).toBeUndefined();
+    expect(mcp.publish_preconditions).toBeUndefined();
   });
 
   it('a preflight allows Idempotency-Key and keyed responses expose the replay headers', async () => {
@@ -290,5 +291,31 @@ describe('publish replay record is tied to the version insert', () => {
     })).rejects.toBeInstanceOf(PublishGuardLost);
     expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM versions WHERE item_id = ?').bind(item.id).first<{ n: number }>())!.n).toBe(0);
     expect((await current(env.DB, 'grant-x', 'k-race', 'fp')).kind, 'a lost guard leaves the claim pending, not a false success').toBe('busy');
+  });
+});
+
+describe('a keyed publish is tied to the frozen working copy under concurrency', () => {
+  const versionCount = async (id: string) => (await env.DB.prepare('SELECT COUNT(*) AS n FROM versions WHERE item_id = ?').bind(id).first<{ n: number }>())!.n;
+  const edit = (id: string, md: string) => env.DB.prepare('UPDATE items SET content_md = ?, dirty = 1 WHERE id = ?').bind(md, id).run();
+
+  it('a concurrent edit publishes nothing', async () => {
+    const stale = await createDraft(env.DB, 'frozen', 'thread');
+    const run = await claim(env.DB, 'grant-c', 'k-edit', 'fp');
+    if (run.kind !== 'run') throw new Error('fixture');
+    await edit(stale.id, 'edited');
+    await expect(publish(env.DB, stale, null, 'https://example.test/', false, keyedPublishGuard(env.DB, run, stale, { contentMd: 'frozen', stubJson: null }))).rejects.toBeInstanceOf(PublishGuardLost);
+    expect(await versionCount(stale.id), 'a concurrent edit publishes nothing').toBe(0);
+    expect((await current(env.DB, 'grant-c', 'k-edit', 'fp')).kind).toBe('busy');
+  });
+
+  it('a concurrent Studio publish is not recorded as ours', async () => {
+    const stale = await createDraft(env.DB, 'frozen', 'thread');
+    const run = await claim(env.DB, 'grant-c', 'k-pub', 'fp');
+    if (run.kind !== 'run') throw new Error('fixture');
+    await edit(stale.id, 'edited');
+    await publish(env.DB, (await getItem(env.DB, stale.id))!, null, 'https://example.test/');
+    await expect(publish(env.DB, stale, null, 'https://example.test/', false, keyedPublishGuard(env.DB, run, stale, { contentMd: 'frozen', stubJson: null }))).rejects.toBeInstanceOf(PublishGuardLost);
+    expect((await current(env.DB, 'grant-c', 'k-pub', 'fp')).kind, 'a concurrent Studio publish is not recorded as ours').toBe('busy');
+    expect(await versionCount(stale.id)).toBe(1);
   });
 });

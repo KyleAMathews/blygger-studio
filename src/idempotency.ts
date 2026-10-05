@@ -5,7 +5,7 @@
 // last statement in the same batch.
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import type { Guard } from "./model.ts";
+import { workingCopyGuard, type Guard, type PublishGuard, type WorkingCopy } from "./model.ts";
 import { contentHash } from "./util.ts";
 
 export type RunClaim = { kind: "run"; principal: string; key: string; attempt: string; fingerprint: string };
@@ -73,8 +73,14 @@ export function completeClaim(db: D1Database, c: RunClaim, r: { status: number; 
 }
 
 /** A publish's replay record, which commits only if the version insert in the same batch did. */
-export function publishCompletion(db: D1Database, c: RunClaim, itemId: string, version: number): D1PreparedStatement {
-  return completeClaim(db, c, { status: 200, body: JSON.stringify({ ok: true, version }), location: null }, [{ sql: "EXISTS (SELECT 1 FROM versions WHERE item_id = ? AND version = ?)", binds: [itemId, version] }]);
+export function publishCompletion(db: D1Database, c: RunClaim, itemId: string, version: number, extra: Guard[] = []): D1PreparedStatement {
+  return completeClaim(db, c, { status: 200, body: JSON.stringify({ ok: true, version }), location: null }, [{ sql: "EXISTS (SELECT 1 FROM versions WHERE item_id = ? AND version = ?)", binds: [itemId, version] }, ...extra]);
+}
+
+/** The guards for a keyed publish: the work and its replay record both require the frozen working copy, so a concurrent edit commits neither. */
+export function keyedPublishGuard(db: D1Database, state: RunClaim, item: { id: string; version: number }, expected: WorkingCopy | null): PublishGuard {
+  const working = expected ? [workingCopyGuard(item.id, expected)] : [];
+  return { where: [...working, claimGuard(state)], also: [publishCompletion(db, state, item.id, item.version + 1, working)] };
 }
 
 /** Frees a claim this attempt still holds. A completed claim is never touched. */
