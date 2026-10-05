@@ -10,6 +10,7 @@ import {
   authoredKind,
   createDraft,
   createFork,
+  draftInsert,
   discardDraft,
   FragmentTooLongError,
   getItem,
@@ -26,6 +27,8 @@ import {
   TransclusionResolveError,
   withdraw,
 } from "./model.ts";
+import { claim, claimGuard, completeClaim, current, fingerprintOf, INVALID_KEY, keyFrom, releaseClaim, settledResponse, type SettledClaim } from "./idempotency.ts";
+import { workPrincipal } from "./security-budgets.ts";
 import { mentionFetchFor } from "./mentions/http.ts";
 import { drainOutbound, enqueueForVersion } from "./mentions/send.ts";
 import { checkForkTarget, resolveForkSource } from "./fork.ts";
@@ -40,7 +43,7 @@ import { BLOCKING, staleThreads, threadFreshness } from "./freshness.ts";
 import { draftChangeNote } from "./change-note.ts";
 import { platformFetchFor } from "./importer/http.ts";
 import { reconcileIndex } from "./importer/poll.ts";
-import { isFollowableUrl, isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
+import { isFollowableUrl, isValidTimeZone, newId, newMediaId, normalizeMount, nowIso } from "./util.ts";
 
 const MEDIA_TYPES: Record<string, string> = {
   "image/png": "png",
@@ -57,6 +60,9 @@ type ItemBody = z.infer<typeof ItemEditSchema>;
 
 api.openapi(routes.createItem, async (c) => {
   const body = await readJson<z.infer<typeof ItemCreateSchema>>(c);
+  const key = keyFrom(c.req.header("idempotency-key"));
+  if (key === false) return c.json({ error: INVALID_KEY }, 400);
+  if (key && body.mode && body.mode !== "blank") return c.json({ error: "Idempotency-Key is supported for blank creates only" }, 400);
   if (body.mode === "fork") return createForkResponse(c, body.source);
   if (body.mode === "response") {
     const item = await createResponseDraft(c, { ...body.source, selection: body.selection });
@@ -77,10 +83,41 @@ api.openapi(routes.createItem, async (c) => {
     const parsed = parseScopes(body.content_md ?? '');
     if (parsed.errors.length || parsed.scopes.length !== body.provenance.length) return c.json({ error: 'provenance must have one entry per TK scope' }, 400);
   }
-  const item = await createDraft(c.env.DB, body.content_md ?? "", kind, stub, body.provenance);
-  c.header("Location", `/api/items/${item.id}`);
-  return c.json(itemResource(item), 201);
+  if (!key) {
+    const item = await createDraft(c.env.DB, body.content_md ?? "", kind, stub, body.provenance);
+    c.header("Location", `/api/items/${item.id}`);
+    return c.json(itemResource(item), 201);
+  }
+  // Clipper spec §9: the insert and its replay record commit together, and
+  // only while this attempt still holds the claim.
+  const principal = workPrincipal(c.env) ?? "owner";
+  const fingerprint = await fingerprintOf("POST", "/api/items", body);
+  const state = await claim(c.env.DB, principal, key, fingerprint);
+  if (state.kind !== "run") return settledResponse(c, key, state, await createdReplayBody(c.env.DB, state));
+  try {
+    const id = newId(), location = `/api/items/${id}`;
+    const [inserted] = await c.env.DB.batch([
+      draftInsert(c.env.DB, { id, now: nowIso(), contentMd: body.content_md ?? "", kind, stub, provenance: body.provenance }, [claimGuard(state)]),
+      completeClaim(c.env.DB, state, { status: 201, body: JSON.stringify({ id }), location }),
+    ]);
+    if (inserted.meta.changes === 0) {
+      const after = await current(c.env.DB, principal, key, fingerprint);
+      return settledResponse(c, key, after, await createdReplayBody(c.env.DB, after));
+    }
+    c.header("Idempotency-Key", key);
+    c.header("Location", location);
+    return c.json(itemResource((await getItem(c.env.DB, id))!), 201);
+  } finally {
+    await releaseClaim(c.env.DB, state);
+  }
 });
+
+/** A replayed create answers with the item as it is now; the stored body holds only its id. */
+async function createdReplayBody(db: D1Database, state: SettledClaim): Promise<string | undefined> {
+  if (state.kind !== "replay") return undefined;
+  const item = await getItem(db, (JSON.parse(state.body) as { id: string }).id);
+  return item ? JSON.stringify(itemResource(item)) : undefined;
+}
 
 /**
  * The fork action (§2.4): start a new draft from a pinned version, own or

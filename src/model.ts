@@ -133,6 +133,17 @@ export async function getItem(db: D1Database, id: string): Promise<ItemRow | nul
   return db.prepare("SELECT * FROM items WHERE id = ?").bind(id).first<ItemRow>();
 }
 
+/** The draft INSERT as a statement, so callers can batch it with guards (clipper spec §9). */
+export function draftInsert(
+  db: D1Database,
+  d: { id: string; now: string; contentMd: string; kind: "fragment" | "thread"; stub: StubOf | null; provenance?: (ScopeProvenance | null)[] },
+  where: Guard[] = [],
+): D1PreparedStatement {
+  return db
+    .prepare(`INSERT INTO items (id, kind, status, created, updated, version, content_md, dirty, stub_of, tk_provenance_json) SELECT ?, ?, 'draft', ?, ?, 0, ?, 1, ?, ? WHERE 1${where.map((w) => ` AND ${w.sql}`).join("")}`)
+    .bind(d.id, d.kind, d.now, d.now, d.contentMd, d.stub ? JSON.stringify(d.stub) : null, d.provenance === undefined ? null : JSON.stringify(d.provenance), ...where.flatMap((w) => w.binds));
+}
+
 export async function createDraft(
   db: D1Database,
   contentMd: string,
@@ -141,11 +152,7 @@ export async function createDraft(
   provenance: (ScopeProvenance | null)[] | undefined = undefined,
 ): Promise<ItemRow> {
   const id = newId();
-  const now = nowIso();
-  await db
-    .prepare("INSERT INTO items (id, kind, status, created, updated, version, content_md, dirty, stub_of, tk_provenance_json) VALUES (?, ?, 'draft', ?, ?, 0, ?, 1, ?, ?)")
-    .bind(id, kind, now, now, contentMd, stub ? JSON.stringify(stub) : null, provenance === undefined ? null : JSON.stringify(provenance))
-    .run();
+  await draftInsert(db, { id, now: nowIso(), contentMd, kind, stub, provenance }).run();
   return (await getItem(db, id))!;
 }
 

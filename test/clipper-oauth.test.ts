@@ -123,3 +123,86 @@ describe('advertised support and CORS', () => {
     for (const header of ['idempotency-key', 'idempotent-replayed', 'retry-after', 'location', 'www-authenticate']) expect(exposed, 'exposes ' + header).toContain(header);
   });
 });
+
+async function fixture(scope = ['owner:read', 'owner:draft', 'owner:publish']) {
+  const f = await flow();
+  const minted = await f.request('/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'clipper oracle', scope, resource: 'api' }) });
+  expect(minted.status).toBe(200);
+  const { access_token } = await minted.json() as { access_token: string };
+  const call = (path: string, o: { method?: string; body?: unknown; key?: string; cookie?: boolean } = {}) => f.request(path, {
+    method: o.method ?? 'POST',
+    headers: { ...(o.cookie ? { cookie: f.owner } : { Authorization: 'Bearer ' + access_token }), 'Content-Type': 'application/json', ...(o.key === undefined ? {} : { 'Idempotency-Key': o.key }) },
+    ...(o.body === undefined ? {} : { body: JSON.stringify(o.body) }),
+  });
+  const items = async () => (await env.DB.prepare('SELECT COUNT(*) AS n FROM items').first<{ n: number }>())!.n;
+  return { ...f, call, items };
+}
+
+describe('retry-safe create (L2a)', () => {
+  it('a retried create with the same key makes one item and replays the first response', async () => {
+    const f = await fixture(), before = await f.items();
+    const first = await f.call('/api/items', { key: 'clip-1:create', body: { kind: 'thread', content_md: 'Quoted' } });
+    const again = await f.call('/api/items', { key: 'clip-1:create', body: { kind: 'thread', content_md: 'Quoted' } });
+    // The law first, so a mutant that ignores the key fails at this checkpoint.
+    expect(await f.items() - before, 'one item for one key').toBe(1);
+    expect(first.status).toBe(201);
+    expect(first.headers.get('idempotency-key')).toBe('clip-1:create');
+    const { id } = await first.json() as { id: string };
+    expect(again.status).toBe(201);
+    expect(again.headers.get('idempotent-replayed')).toBe('true');
+    expect(again.headers.get('location')).toBe(`/api/items/${id}`);
+    expect((await again.json() as { id: string }).id).toBe(id);
+  });
+
+  it('contrast: identical text under two keys is two items', async () => {
+    const f = await fixture(), before = await f.items();
+    for (const key of ['clip-a:create', 'clip-b:create']) expect((await f.call('/api/items', { key, body: { kind: 'thread', content_md: 'Same words' } })).status).toBe(201);
+    expect(await f.items() - before).toBe(2);
+  });
+
+  it('key order in the body does not change the request (Review Focus 2)', async () => {
+    const f = await fixture();
+    expect((await f.call('/api/items', { key: 'clip-2:create', body: { kind: 'thread', content_md: 'x' } })).status).toBe(201);
+    const reordered = await f.call('/api/items', { key: 'clip-2:create', body: { content_md: 'x', kind: 'thread' } });
+    expect(reordered.status, 'same request, different key order, replays').toBe(201);
+    expect(reordered.headers.get('idempotent-replayed')).toBe('true');
+  });
+
+  it('a different body under the same key is refused and creates nothing', async () => {
+    const f = await fixture();
+    expect((await f.call('/api/items', { key: 'clip-3:create', body: { kind: 'thread', content_md: 'one' } })).status).toBe(201);
+    const before = await f.items();
+    expect((await f.call('/api/items', { key: 'clip-3:create', body: { kind: 'thread', content_md: 'two' } })).status).toBe(422);
+    expect(await f.items()).toBe(before);
+  });
+
+  it('the cookie owner and a token using the same key are separate operations', async () => {
+    const f = await fixture(), before = await f.items();
+    expect((await f.call('/api/items', { key: 'shared:create', body: { content_md: 'a' } })).status).toBe(201);
+    expect((await f.call('/api/items', { key: 'shared:create', body: { content_md: 'a' }, cookie: true })).status).toBe(201);
+    expect(await f.items() - before).toBe(2);
+  });
+
+  it('malformed keys are refused before any work (Review Focus 5)', async () => {
+    const f = await fixture(), before = await f.items();
+    for (const key of ['', 'has space', 'x'.repeat(256), 'ü']) {
+      const res = await f.call('/api/items', { key, body: { content_md: 'never' } });
+      expect(res.status, JSON.stringify(key)).toBe(400);
+    }
+    expect(await f.items()).toBe(before);
+  });
+
+  it('a key on a fork or response create is refused', async () => {
+    const f = await fixture();
+    const res = await f.call('/api/items', { key: 'fork:create', body: { mode: 'fork', source: { origin: 'https://other.example/', id: '00000000000000000000000001', version: 1 } } });
+    expect(res.status).toBe(400);
+  });
+
+  it('a create without a key is unchanged', async () => {
+    const f = await fixture(), before = await f.items();
+    const res = await f.call('/api/items', { body: { content_md: 'plain' } });
+    expect(res.status).toBe(201);
+    expect(res.headers.get('idempotency-key')).toBeNull();
+    expect(await f.items() - before).toBe(1);
+  });
+});
