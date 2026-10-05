@@ -152,3 +152,20 @@ its failure logs. Source guard controls and replay are permanent, not one-time
 review claims. Prep review found no new runtime defect. Three small readability
 edits were accepted: explicit collection dispatch, readable cursor control flow,
 and one HTTP ETag field. Broader design and coordination policies did not change.
+
+## Upstream integration receipt
+
+Upstream advanced to `3192d37` while this branch was under review. Reviewed merged
+implementation: `812cc759f702c3e18d0a6dc4f52521d4b0fcf5f3`. The cache migration
+is now `0024_change_state.sql`, after upstream's subscription-name migration.
+Its added `title_auto` column participates in the null-safe guard and has an
+independent subscriptions-only event witness. Actual title changes still affect
+Reading, hoppers and feed. No new feed dependency or cache policy resulted.
+SDK regeneration retained both upstream API additions and `getChanges`.
+
+After this merge, type checks, template check and SDK/SPA build pass. All 38 UI
+tests and all six desktop/mobile browser checks pass. The seven mutation controls
+and direct failure replay pass again. The 0.8.3 upgrade acceptance script passes,
+including local migrations and Worker/SDK smoke checks. Prep integration review
+found no new correctness or design issue. The expanded Worker suite passed 121 files, with 1343 tests passed and 5 skipped.
+Its cache oracle now has 74 tests, including the new field witness.
