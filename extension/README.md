@@ -1,6 +1,8 @@
 # Blygger Clipper
 
-A Chrome extension that quotes what you read into a draft on your own blyg.
+A Chrome extension that will quote what you read into a draft on your own blyg.
+This release connects the extension to your blyg; clipping arrives in the next
+release.
 
 ## Develop
 
@@ -25,10 +27,14 @@ there instead, for tools and tests that cannot open a sign-in window.
 ## Permissions
 
 `contextMenus`, `sidePanel`, `activeTab`, `scripting`, `identity`, `storage`,
-`alarms`. No host permissions: the clipper reaches your blyg over CORS with
-its token, and reads a page only when you clip it.
+`alarms`. Today the extension uses `identity`, `storage` and the side panel to
+connect. `contextMenus`, `sidePanel`, `activeTab` and `scripting` are reserved
+for clipping. No host permissions: the extension reaches your blyg over CORS
+with its token.
 
 ## Privacy
 
-Clipped text and the page's title, address and author go only to the blyg
-you connect. Nothing else is collected or sent anywhere.
+Today the extension sends only your blyg's address to your blyg, to discover and
+connect. Once clipping lands, clipped text and the page's title, address and
+author will go only to the blyg you connect. Nothing else is collected or sent
+anywhere.
