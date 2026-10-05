@@ -309,7 +309,7 @@ api.openapi(routes.publishItem, async (c) => {
     c.header("Idempotency-Key", key);
     const guard: PublishGuard = {
       where: [...(expected ? [workingCopyGuard(item.id, expected)] : []), claimGuard(state)],
-      also: [completeClaim(c.env.DB, state, { status: 200, body: JSON.stringify({ ok: true, version: item.version + 1 }), location: null })],
+      also: [completeClaim(c.env.DB, state, { status: 200, body: JSON.stringify({ ok: true, version: item.version + 1 }), location: null }, [{ sql: "EXISTS (SELECT 1 FROM versions WHERE item_id = ? AND version = ?)", binds: [item.id, item.version + 1] }])],
     };
     return await publishAndNotify(c, item, note, {}, noteGenerated, guard);
   } catch (e) {

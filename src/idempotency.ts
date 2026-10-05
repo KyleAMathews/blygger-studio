@@ -67,9 +67,9 @@ export function claimGuard(c: RunClaim): Guard {
   return { sql: "EXISTS (SELECT 1 FROM idempotency_keys WHERE principal = ? AND key = ? AND attempt = ? AND state = 'pending')", binds: [c.principal, c.key, c.attempt] };
 }
 
-export function completeClaim(db: D1Database, c: RunClaim, r: { status: number; body: string; location: string | null }): D1PreparedStatement {
-  return db.prepare("UPDATE idempotency_keys SET state = 'done', status = ?, body = ?, location = ? WHERE principal = ? AND key = ? AND attempt = ? AND state = 'pending'")
-    .bind(r.status, r.body, r.location, c.principal, c.key, c.attempt);
+export function completeClaim(db: D1Database, c: RunClaim, r: { status: number; body: string; location: string | null }, where: Guard[] = []): D1PreparedStatement {
+  return db.prepare("UPDATE idempotency_keys SET state = 'done', status = ?, body = ?, location = ? WHERE principal = ? AND key = ? AND attempt = ? AND state = 'pending'" + where.map((w) => ` AND ${w.sql}`).join(""))
+    .bind(r.status, r.body, r.location, c.principal, c.key, c.attempt, ...where.flatMap((w) => w.binds));
 }
 
 /** Frees a claim this attempt still holds. A completed claim is never touched. */
