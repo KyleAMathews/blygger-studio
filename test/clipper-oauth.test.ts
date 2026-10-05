@@ -17,7 +17,7 @@
  */
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { claim, claimGuard, completeClaim, current, releaseClaim, keyFrom, canonicalJson } from '../src/idempotency.ts';
+import { claim, claimGuard, completeClaim, current, publishCompletion, releaseClaim, keyFrom, canonicalJson } from '../src/idempotency.ts';
 import { createDraft, publish, PublishGuardLost, workingCopyGuard } from '../src/model.ts';
 
 beforeEach(async () => {
@@ -286,7 +286,7 @@ describe('publish replay record is tied to the version insert', () => {
     if (run.kind !== 'run') return;
     await expect(publish(env.DB, item, null, 'https://example.test/', false, {
       where: [workingCopyGuard(item.id, { contentMd: 'different text', stubJson: null }), claimGuard(run)],
-      also: [completeClaim(env.DB, run, { status: 200, body: '{"ok":true,"version":1}', location: null }, [{ sql: 'EXISTS (SELECT 1 FROM versions WHERE item_id = ? AND version = ?)', binds: [item.id, 1] }])],
+      also: [publishCompletion(env.DB, run, item.id, 1)],
     })).rejects.toBeInstanceOf(PublishGuardLost);
     expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM versions WHERE item_id = ?').bind(item.id).first<{ n: number }>())!.n).toBe(0);
     expect((await current(env.DB, 'grant-x', 'k-race', 'fp')).kind, 'a lost guard leaves the claim pending, not a false success').toBe('busy');

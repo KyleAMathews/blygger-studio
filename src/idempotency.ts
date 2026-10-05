@@ -72,6 +72,11 @@ export function completeClaim(db: D1Database, c: RunClaim, r: { status: number; 
     .bind(r.status, r.body, r.location, c.principal, c.key, c.attempt, ...where.flatMap((w) => w.binds));
 }
 
+/** A publish's replay record, which commits only if the version insert in the same batch did. */
+export function publishCompletion(db: D1Database, c: RunClaim, itemId: string, version: number): D1PreparedStatement {
+  return completeClaim(db, c, { status: 200, body: JSON.stringify({ ok: true, version }), location: null }, [{ sql: "EXISTS (SELECT 1 FROM versions WHERE item_id = ? AND version = ?)", binds: [itemId, version] }]);
+}
+
 /** Frees a claim this attempt still holds. A completed claim is never touched. */
 export async function releaseClaim(db: D1Database, c: RunClaim): Promise<void> {
   await db.prepare("DELETE FROM idempotency_keys WHERE principal = ? AND key = ? AND attempt = ? AND state = 'pending'")

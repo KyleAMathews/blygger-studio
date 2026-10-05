@@ -32,7 +32,7 @@ import {
   withdraw,
   workingCopyGuard,
 } from "./model.ts";
-import { claim, claimGuard, completeClaim, current, fingerprintOf, INVALID_KEY, keyFrom, releaseClaim, settledResponse, type SettledClaim } from "./idempotency.ts";
+import { claim, claimGuard, completeClaim, current, fingerprintOf, INVALID_KEY, keyFrom, publishCompletion, releaseClaim, settledResponse, type SettledClaim } from "./idempotency.ts";
 import { workPrincipal } from "./security-budgets.ts";
 import { mentionFetchFor } from "./mentions/http.ts";
 import { drainOutbound, enqueueForVersion } from "./mentions/send.ts";
@@ -309,7 +309,7 @@ api.openapi(routes.publishItem, async (c) => {
     c.header("Idempotency-Key", key);
     const guard: PublishGuard = {
       where: [...(expected ? [workingCopyGuard(item.id, expected)] : []), claimGuard(state)],
-      also: [completeClaim(c.env.DB, state, { status: 200, body: JSON.stringify({ ok: true, version: item.version + 1 }), location: null }, [{ sql: "EXISTS (SELECT 1 FROM versions WHERE item_id = ? AND version = ?)", binds: [item.id, item.version + 1] }])],
+      also: [publishCompletion(c.env.DB, state, item.id, item.version + 1)],
     };
     return await publishAndNotify(c, item, note, {}, noteGenerated, guard);
   } catch (e) {
