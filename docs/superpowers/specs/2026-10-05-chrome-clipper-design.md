@@ -33,7 +33,7 @@ Success means:
 | Scopes | Request all of `owner:read owner:draft owner:publish owner:manage offline_access` up front; adapt to what consent grants |
 | Manual token | "Advanced: use a token" on the connect screen (useful beyond tests) |
 | New test files | Approved: unit tests under `extension/`, `test/clipper-oauth.test.ts`, `e2e/clipper.spec.ts` |
-| Retry safety | Server `Idempotency-Key` on create and publish (§9); no automatic retry against a node that does not echo it |
+| Retry safety | Server `Idempotency-Key` on create and publish (§9); no automatic retry after dispatch against a node that does not advertise it, past the key's deadline, or under a new grant |
 
 ### Out of scope for v1
 
@@ -209,11 +209,14 @@ On a trigger the worker calls `sidePanel.open({ tabId })` before any `await`
    and appends it to an **inbox** in `storage.local`. Rapid captures queue in
    order; none overwrites another.
 2. Only after that write resolves does the worker notify the panel.
-3. The panel takes inbox entries into its draft (§4.6) and acknowledges each
-   UUID only after the draft revision containing it is written. The worker
-   deletes an entry only on acknowledgement.
-4. On load, the panel drains any unacknowledged entries in order. So a capture
-   survives a panel that never opened, closed at once, or a browser restart.
+3. The worker, which owns the draft (§4.6), moves each entry into the draft
+   and records the capture's UUID in the draft. The draft write and the inbox
+   deletion are one `storage.local.set` call, so they land together.
+4. On every wake the worker drains the inbox in order. An entry whose UUID is
+   already in the draft, in a save operation or in recent clips is deleted
+   without being appended again, so recovery never duplicates a quote. A
+   capture survives a panel that never opened, closed at once, or a browser
+   restart.
 
 If the worker is terminated between steps, the inbox write either happened or
 did not: a capture is never half-delivered. A capture lost before step 1 is
@@ -327,22 +330,44 @@ instead of replacing it:
 
 ### 4.6 Local draft
 
-The draft (captures, body, mode, citation edits) lives in `storage.local`
-with a monotonically increasing revision. The panel writes it on every input
-event, coalesced to at most one write per animation frame, with no debounce
-window to lose. On load the highest revision wins. Closing the panel or the
-browser keeps the latest write. The server draft is created only on Save
-draft or Publish.
+**The worker is the single authority for the draft.** The draft (capture
+UUIDs and records, body, mode, citation edits) lives in `storage.local` with
+a revision number. Panels never write it; they send mutations to the worker
+(`appendCapture`, `setBody { baseRevision, text }`, `editCitation`), which
+applies them one at a time and persists them.
+
+- **Durability boundary:** a mutation is durable when the worker's
+  `storage.local.set` has resolved and it has replied with the new revision.
+  The panel sends `setBody` on every input event, with no timer, and shows
+  "saved locally" only after that reply. Closing the panel before a reply can
+  lose the input sent after the last reply, and never anything before it. The
+  draft is never torn or rolled back past an acknowledged revision.
+- **Several panels** (one per window): one panel instance holds the editing
+  lease for the draft. Others show it read-only with "Edit here", which takes
+  the lease. A `setBody` from a non-holder, or with a stale `baseRevision`, is
+  refused, so concurrent windows cannot overwrite each other. The lease is
+  released when the holder's port disconnects.
+
+The server draft is created only on Save draft or Publish.
 
 ## 5. Saving, recent clips and the queue
 
 ### 5.1 Save draft
 
-Pressing Save draft creates a **save operation** with a UUID, stored with the
-draft before any request is sent. `POST /api/items` carries
-`Idempotency-Key: {uuid}:create` (§9). On 201 the local draft is cleared, a
-toast offers "Open in Studio" (`{blyg}/studio/edit/{id}`), and the panel
-returns to its home view: a "Clip something" hint and the recent clips list.
+Pressing Save draft asks the worker to **freeze** the current revision. In
+one storage write, the worker moves the draft's payload into a new **save
+operation** and empties the draft slot. The operation holds a UUID, the
+payload, the capture UUIDs, the grant id it will be sent under, and its
+status. The payload never changes after that. A clip that arrives while the
+save is in flight starts a new draft, so a response can never erase newer
+work. `POST /api/items` carries `Idempotency-Key: {uuid}:create` (§9).
+
+On 201 the operation is marked done and joins recent clips, a toast offers
+"Open in Studio" (`{blyg}/studio/edit/{id}`), and the panel shows the draft
+slot: empty, or the clip that arrived meanwhile. If the request was refused
+without being dispatched, or with a 400, 403 or 413 (§5.4), the payload
+returns to the draft slot if it is empty, and otherwise becomes a separate
+draft in the queue list.
 
 ### 5.2 Publish
 
@@ -372,19 +397,41 @@ Any failure after a request was dispatched is **uncertain**: the server may
 have committed even if no response arrived. Retries are safe only because
 they reuse the operation's key.
 
-| Failure | Node echoes `Idempotency-Key` | Node does not |
+| Failure | Node supports keys (§9) | Node does not |
 |---|---|---|
 | Request never dispatched (offline at send) | Queue | Queue |
-| Network error, timeout or 5xx after dispatch | Queue; retry with the same key | Do not retry. Mark "may have saved" and show the owner recent drafts (with `owner:read`) to confirm, or retry by hand |
+| Network error, timeout or 5xx after dispatch | Queue; retry with the same key while the key is valid (below) | Do not retry; needs reconciliation |
 | 409 "operation in progress" (§9) | Queue; retry after `Retry-After` | n/a |
 | 429 | Queue, honouring `Retry-After` | Queue, honouring `Retry-After` |
 | 401 after refresh fails | Queue and show Reconnect | Same |
-| 400, 403, 413, 422 | Not queued; inline error, draft kept | Same |
+| 400, 403, 413, 422 | Not queued; inline error, payload back to a draft | Same |
 
-Whether a node echoes the key is learned from its first keyed response and
-stored per blyg; until then the node is treated as not echoing.
+Support is read from the resource metadata at connect (§9), never guessed:
+sending the header to a node that does not allow it fails CORS preflight.
 
-Queued clips can be opened, edited or discarded from the badge list.
+**A key is valid** only under the grant the operation was first dispatched
+with, and until 23 hours after that first dispatch (the server keeps keys 24
+hours). Past either boundary (expiry, or Reconnect under a new grant) an
+uncertain operation stops retrying and **needs reconciliation**. The panel
+shows the owner recent drafts from the blyg (with `owner:read`). The owner
+either marks one as this clip, which completes the operation, or chooses
+"Save again", which starts a new operation with a new key. An operation that
+was never dispatched has no such boundary and is simply sent under the
+current grant.
+
+**Queued operations are immutable once dispatched.** From the badge list the
+owner can:
+
+- open a never-dispatched operation back into a draft, to edit it;
+- retry or reconcile an uncertain one, but not edit it, because a changed
+  body under the same key is refused (§9) and a new key could duplicate the
+  save;
+- discard any operation. Discarding an uncertain one warns that it may
+  already be saved.
+
+Once an operation is resolved as saved, further edits happen in Studio.
+
+
 
 ### 5.5 Errors
 
@@ -434,8 +481,9 @@ branch's security rounds:
 | Law | Statement | Source |
 |---|---|---|
 | L1 Capture durability | Every capture the worker accepted is, after any sequence of panel closes, worker terminations and browser restarts, in exactly one place: the inbox, the draft or a saved item | §1 success criteria; [Chrome worker lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle) |
-| L2 Exactly-once save | Each save operation yields exactly one item, and each publish operation at most one new version, under any fault schedule against a node that echoes `Idempotency-Key` | §5, §9; [IETF Idempotency-Key header](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) |
-| L3 No uncertain retry without a key | Against a node that does not echo the key, no request is sent twice after dispatch | §5.4 |
+| L2 Exactly-once save | Each save operation yields exactly one item, and each publish operation at most one new version, under any fault schedule, while retries stay within L3's bounds on a node that advertises keys | §5, §9; [IETF Idempotency-Key header](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) |
+| L3 No unsafe retry | No request is re-sent after dispatch unless the node advertises keys, the grant is unchanged and the key is within its deadline | §5.4 |
+| L1b No lost or duplicated work | A save response never removes a capture or edit made after the frozen revision; recovery never appends a capture twice | §4.1, §5.1 |
 | L4 Refresh safety | At most one refresh is in flight; a stored refresh token is reused only by the single post-restart attempt in §3.4 | [RFC 9700 §4.14](https://www.rfc-editor.org/rfc/rfc9700#section-4.14); `src/oauth-routes.ts:162` |
 | L5 Scope fit | The panel offers only actions the granted scope allows, and every request it sends is one that scope permits | §3.3; decision #52 invariant 3 |
 | L6 Inert page content | No page-sourced value activates markup in the panel DOM, the saved item or any public page; safe formatting and links survive | §6; OWASP XSS prevention |
@@ -446,17 +494,34 @@ branch's security rounds:
 ### 7.2 Models and campaigns
 
 - **Clip lifecycle model** (ORC-008: only state that can matter): inbox
-  entries, draft revision, save operations (`pending`, `dispatched`, `done`,
-  `uncertain`) and the expected server items. The commands are capture,
+  entries, draft revision and lease holder, save operations (`pending`,
+  `dispatched`, `done`, `uncertain`, `needs-reconciliation`) with their grant
+  and key deadline, and the expected server items. The commands are capture,
   edit, close panel, open panel, kill worker, restart browser, save, publish,
-  fault before dispatch, fault after commit, and respond. L1–L3 are checked
-  after every command.
+  fault before dispatch, fault after commit, advance clock, reconnect, and
+  respond. L1–L3 are checked after every command.
 - **Token model:** stored token generation, in-flight mark, waiting callers.
   The commands are request token, kill worker, server rotates, response lost.
   L4 is checked after every command.
 - **Campaigns** (ORC-007): a fixed lane with one named history per row of the
   §5.4 table, and per §3.4 restart case; and a random lane (fast-check) with
-  printed seed and shrink path, replayable from those values alone.
+  printed seed and shrink path, replayable from those values alone. The
+  fixed lane names these histories in particular:
+  - commit, then the response is lost, then retry (replays, no second item);
+  - crash after the work batch commits, before the response is sent;
+  - a reclaimed key while the older attempt is still running (the older one
+    commits nothing);
+  - retry 24 hours after the first dispatch (stops; needs reconciliation);
+  - Reconnect under a new grant with an uncertain operation queued (stops;
+    needs reconciliation; a never-dispatched one is sent);
+  - worker terminated between the draft write and the inbox deletion (one
+    storage call, so neither or both), and recovery draining an inbox entry
+    whose UUID is already in the draft or a save operation (no duplicate);
+  - an edit or a new clip arriving while a save is in flight (kept);
+  - two panels editing (the non-holder is refused; nothing lost);
+  - panel closed after a keystroke's acknowledgement (kept) and before it
+    (at most the unacknowledged input lost, never earlier text);
+  - a node that does not advertise keys (header never sent; preflight passes).
 - **Fault driver** (control the event, not the Promise): a transport that
   forwards to the real Worker and then, on schedule, drops the response after
   the server committed. "Commit then drop" is the case the reviewer found a
@@ -501,11 +566,18 @@ Each control reproduces a realistic regression:
 
 | Control | Must be caught by |
 |---|---|
-| Inbox entry deleted before acknowledgement | L1 |
-| Draft writes debounced instead of per input | L1 (close after keystroke) |
+| Inbox entry deleted before the draft write lands | L1 |
+| Recovery appends without checking existing UUIDs | L1b |
+| Save clears the draft slot instead of freezing a revision | L1b |
+| Non-holder or stale-base `setBody` accepted | L1b |
+| "Saved locally" shown before the storage write resolves | L1 (close after keystroke) |
+| Retry after the key deadline or under a new grant | L3 |
+| Replay record written outside the work batch | L2 (crash after commit) |
+| Attempt guard missing on reclaim | L2 (older attempt commits) |
+| CORS allowlist lacks `Idempotency-Key` | L2 (browser preflight) |
 | Create or publish sent without `Idempotency-Key` | L2 |
 | Server ignores the key, or keys are not per principal | L2, idempotency tests |
-| Uncertain failure retried against a non-echoing node | L3 |
+| Uncertain failure retried against a node that does not advertise keys | L3 |
 | Refresh without single-flight; refresh mark not stored | L4 |
 | Publish button shown without `owner:publish` | L5 |
 | Page title or quote rendered as HTML in the panel | L6 |
@@ -550,15 +622,30 @@ idempotency in its direction), not to the protocol. Shape follows the IETF
     and `Location`, with `Idempotent-Replayed: true`.
   - Existing row, same fingerprint, pending: 409 with `Retry-After: 1`.
   - Existing row, different fingerprint: 422.
-- **Completion:** store status, body and `Location` on the row. Every keyed
-  response echoes `Idempotency-Key`, which is how clients learn support.
-- **Failure:** a 4xx or an exception before the work commits deletes the
-  pending row, so a retry runs again. A pending row older than 60 seconds is
-  treated as abandoned and may be claimed again. Known limit: a Worker crash
-  after the work committed but before the response was stored leaves a
-  60-second window in which a retry can repeat the work. Storing the
-  response in the same D1 batch as the work closes it where the handler
-  allows, which `publish()` does (it already writes in one batch).
+- **Atomic completion:** the work and its replay record commit in one D1
+  batch, for both operations. `publish()` already writes in one batch, and
+  the replay write joins it. Create changes from its standalone `INSERT` to a
+  batch. A crash before the batch commits leaves nothing done; a crash after
+  it leaves the replay ready.
+- **Attempt generation:** the claim row carries an `attempt` number. Every
+  write in the work batch is guarded by `EXISTS (… WHERE principal=? AND
+  key=? AND attempt=? AND state='pending')`, and the replay write sets
+  `state='done'` under the same guard. A pending row older than 60 seconds may
+  be reclaimed, which increments `attempt`. An older attempt that is still
+  running then commits nothing: it sees zero changes and answers with the
+  winner's replay, or 409 if the winner is still running.
+- **Failure:** a 4xx, or an exception before the batch, deletes the pending
+  row if `attempt` still matches, so a retry runs again.
+- **Echo:** every keyed response echoes `Idempotency-Key`.
+- **Advertised support:** the protected resource metadata at
+  `{base}/auth/resources/api` gains `"idempotency_key_operations":
+  ["createItem", "publishItem"]` (an extension member, as RFC 9728 allows).
+  Clients send the header only to nodes that list the operation.
+- **CORS:** `/api` preflight allows `Idempotency-Key` beside `Authorization`
+  and `Content-Type`, and responses expose `Idempotency-Key`,
+  `Idempotent-Replayed` and `Retry-After` beside `WWW-Authenticate` and
+  `Location`. Older nodes keep the old lists and don't advertise support, so
+  clients never send them the header.
 - **Retention:** 24 hours; expired rows are deleted on write.
 - **Storage:** migration `0023_idempotency_keys.sql` (after this branch's
   0021 and 0022).
