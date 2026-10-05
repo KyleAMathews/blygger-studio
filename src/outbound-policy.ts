@@ -22,8 +22,11 @@ export async function checkDestination(raw: string, allowPrivate = false, signal
   // egress boundary must also block private addresses at connection time.
   const answers = await Promise.all([1, 28].map(async type => {
     const query = new URL(DNS_ORIGIN); query.search = new URLSearchParams({ name: host, type: String(type) }).toString();
-    const response = await fetch(query, { headers: { Accept: 'application/dns-json' }, signal: signal ?? AbortSignal.timeout(5000), redirect: 'error' });
-    if (!response.ok) throw new Error('outbound destination DNS validation failed');
+    // 'manual', never 'error': the Workers runtime rejects redirect: 'error'
+    // outright, which failed every check (and so every poll and mention) in
+    // 0.28.0-0.28.2. A redirect still fails closed: it is not 200.
+    const response = await fetch(query, { headers: { Accept: 'application/dns-json' }, signal: signal ?? AbortSignal.timeout(5000), redirect: 'manual' });
+    if (response.status !== 200) throw new Error('outbound destination DNS validation failed');
     const value = await response.json() as { Status?: number; Answer?: { type: number; data: string }[] };
     if (value.Status !== 0) throw new Error('outbound destination DNS validation failed');
     return (value.Answer ?? []).filter(record => record.type === 1 || record.type === 28).map(record => record.data);
