@@ -5,6 +5,8 @@ import { Polling } from '../src/ui/polling.ts';
 import { createBlyggerClient } from '../sdk/dist/browser.js';
 import { createStudioData } from '../src/ui/data-core.ts';
 import * as host from '../src/ui/host.ts';
+import { resolve } from 'node:path';
+import { build, type BuildOptions } from 'esbuild';
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -135,4 +137,33 @@ test('a disposed instance leaves no timers and makes no further requests', async
   await data.changed('settings', 'items');
   await vi.advanceTimersByTimeAsync(120_000);
   expect(requests - before, 'a disposed instance makes no further requests').toBe(0);
+});
+
+// The resolved bundle graph, as the extension's own build would see it:
+// side-effect imports, dynamic import() and extensionless paths all count.
+async function studioReach(options: Pick<BuildOptions, 'entryPoints' | 'stdin'>) {
+  const result = await build({
+    ...options, bundle: true, write: false, metafile: true, platform: 'browser', format: 'esm',
+    packages: 'external', jsx: 'automatic', loader: { '.css': 'empty' }, outdir: 'reach-out', logLevel: 'silent',
+  });
+  const inputs = result.metafile!.inputs;
+  return [
+    ...Object.keys(inputs).filter((file) => /(^|\/)src\/ui\/(data\.ts|components\.tsx|app\.tsx)$/.test(file)),
+    ...Object.values(inputs).flatMap((input) => input.imports).filter((i) => i.path === '@tanstack/react-router').map((i) => i.path),
+  ];
+}
+
+test('reusable modules never reach the Studio instance or the router', async () => {
+  const roots = ['data-core.ts', 'host.ts', 'primitives.tsx', 'text-edit.ts', 'composer.tsx'].map((f) => resolve('src/ui', f));
+  expect(await studioReach({ entryPoints: roots }), 'a reusable module imports the Studio instance or the router').toEqual([]);
+});
+
+test('contrast: the reach check catches every import form', async () => {
+  const resolveDir = resolve('src/ui');
+  for (const contents of [
+    "import './data.ts';",
+    "void import('./data');",
+    "export * from './components';",
+    "import { Link } from '@tanstack/react-router'; console.log(Link);",
+  ]) expect((await studioReach({ stdin: { contents, resolveDir, loader: 'ts' } })).length, contents).toBeGreaterThan(0);
 });

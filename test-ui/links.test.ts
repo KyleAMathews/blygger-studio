@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import { cleanUrl, insertLink, isUrl, linkMarkdown, linkToast } from '../src/ui/links.ts';
+import { imageCommandAt, insertBlock } from '../src/ui/text-edit.ts';
 
 test('every listed tracker is stripped, and the page-selecting parameters stay', () => {
   const raw =
@@ -46,4 +47,20 @@ test('insertLink replaces the selection and reports what it did', () => {
   expect(bare.text).toBe('See <https://example.com/>');
   expect(linkToast(bare)).toBe('inserted link');
   expect(insertLink('x', 0, 1, 'nope')).toBeNull();
+});
+
+test('insertBlock puts a block on its own paragraph with only the blank lines needed', () => {
+  expect(insertBlock('', 0, 0, 'B')).toEqual({ text: 'B', caret: 1 });
+  expect(insertBlock('a', 1, 1, 'B')).toEqual({ text: 'a\n\nB', caret: 4 });
+  expect(insertBlock('a\n', 2, 2, 'B')).toEqual({ text: 'a\n\nB', caret: 4 });
+  expect(insertBlock('a\n\nc', 3, 3, 'B')).toEqual({ text: 'a\n\nB\n\nc', caret: 4 });
+  expect(insertBlock('a b', 1, 2, 'B'), 'a selection is replaced').toEqual({ text: 'a\n\nB\n\nb', caret: 4 });
+});
+
+test('imageCommandAt finds only a /image line ending at the caret', () => {
+  expect(imageCommandAt('x\n/image', 8)).toEqual({ start: 2, end: 8 });
+  expect(imageCommandAt('/image\nmore', 6)).toEqual({ start: 0, end: 6 });
+  expect(imageCommandAt('see /image', 10)).toBeNull();
+  expect(imageCommandAt('/imagex', 7)).toBeNull();
+  expect(imageCommandAt('/image more', 6)).toBeNull();
 });

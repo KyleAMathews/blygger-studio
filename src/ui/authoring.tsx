@@ -34,13 +34,35 @@ import {
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { paletteTrigger, paletteInsert } from '../palette.ts';
 import { Draft } from './draft.ts';
-import { stripStaleUploads, uploadToken } from './upload-tokens.ts';
+import { stripStaleUploads } from './upload-tokens.ts';
 import { FRAGMENT_MAX_CHARS as MAX } from '../client.ts';
-import { insertLink, isUrl, linkToast } from './links.ts';
+import { isUrl } from './links.ts';
 import type { Resolve } from './plain-text.ts';
 import { itemTitle, permalink, plainText, textWithLink } from './plain-text.ts';
 import { OcrScan } from './ocr.tsx';
 import './authoring.css';
+import { imageCommandAt, insertBlock, linkInto, placeCaret, pourOver, useAction, usePreview, useUpload, type UploadDeps } from './composer.tsx';
+export { imageCommandAt, insertBlock };
+
+/** Leaving mid-upload asks first (studio#24), through the router's blocker. */
+function useRouterLeaveGuard(busy: () => boolean) {
+  useBlocker({
+    enableBeforeUnload: busy,
+    shouldBlockFn: async () =>
+      busy() &&
+      !(await confirm({
+        title: 'An image is still uploading. Leave anyway? It will not be placed in the text.',
+        ok: 'leave',
+        danger: true,
+      })),
+  });
+}
+const studioUpload: UploadDeps = {
+  client,
+  mediaUrl: (url) => `${mount}/${url}`,
+  onUploaded: async () => { await changed('item'); },
+  useLeaveGuard: useRouterLeaveGuard,
+};
 
 type Kind = 'fragment' | 'thread';
 type Row = ListItemsResponses[200]['items'][number];
@@ -55,38 +77,6 @@ interface Published extends Shareable {
   version: number;
 }
 
-function useAction() {
-  const [error, setError] = useState<unknown>();
-  const [busy, setBusy] = useState(false);
-  const [warning, setWarning] = useState<string>();
-  const pending = useRef(0);
-  return {
-    error,
-    warning,
-    busy,
-    run: async (fn: () => Promise<unknown>) => {
-      pending.current++;
-      setBusy(true);
-      setError(undefined);
-      setWarning(undefined);
-      try {
-        const result = await fn();
-        if (
-          result &&
-          typeof result === 'object' &&
-          'warning' in result &&
-          typeof result.warning === 'string'
-        )
-          setWarning(result.warning);
-      } catch (error) {
-        setError(error);
-      } finally {
-        pending.current--;
-        setBusy(pending.current > 0);
-      }
-    },
-  };
-}
 function Help({ thread, className = 'compose-help' }: { thread?: boolean; className?: string }) {
   return thread ? (
     <p className={className}>
@@ -108,69 +98,7 @@ function Help({ thread, className = 'compose-help' }: { thread?: boolean; classN
     </p>
   );
 }
-/**
- * Put `block` on its own paragraph at [start, end) of `text`, adding only the
- * blank lines the surrounding text does not already supply.
- */
-export function insertBlock(text: string, start: number, end: number, block: string) {
-  const before = text.slice(0, start);
-  const after = text.slice(end);
-  const lead = !before || before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n';
-  const trail = !after || after.startsWith('\n\n') ? '' : after.startsWith('\n') ? '\n' : '\n\n';
-  return { text: before + lead + block + trail + after, caret: (before + lead + block).length };
-}
-
-/** A line holding only `/image`, ending at the caret: the slash command. */
-export function imageCommandAt(text: string, caret: number) {
-  const lineStart = text.lastIndexOf('\n', caret - 1) + 1;
-  return text.slice(lineStart, caret).trim() === '/image' &&
-    (caret === text.length || text[caret] === '\n')
-    ? { start: lineStart, end: caret }
-    : null;
-}
-
 /* ---------------- text tools: links, brackets, TK, scan ---------------- */
-
-/** Move the caret once React has written the new value, and tell the palette. */
-function placeCaret(el: HTMLTextAreaElement, start: number, end = start) {
-  requestAnimationFrame(() => {
-    el.focus();
-    el.setSelectionRange(start, end);
-    el.dispatchEvent(new Event('selectionchange'));
-  });
-}
-/** Link `raw` over [start, end) of the textarea: the selected words, or an autolink. */
-function linkInto(
-  el: HTMLTextAreaElement,
-  raw: string,
-  at: { start: number; end: number },
-  change: (text: string) => void,
-) {
-  const result = insertLink(el.value, at.start, at.end, raw);
-  if (!result) {
-    toast('That is not a URL.');
-    return;
-  }
-  change(result.text);
-  placeCaret(el, result.caret);
-  toast(linkToast(result));
-}
-/**
- * Pour-over (Burrow): a lone URL pasted while text is selected links the
- * selection. Anything else — no selection, an image, prose — pastes as usual.
- */
-function pourOver(
-  event: React.ClipboardEvent<HTMLTextAreaElement>,
-  change: (text: string) => void,
-) {
-  const el = event.currentTarget;
-  if (el.selectionStart === el.selectionEnd || event.clipboardData.files.length) return false;
-  const text = event.clipboardData.getData('text/plain');
-  if (!isUrl(text)) return false;
-  event.preventDefault();
-  linkInto(el, text, { start: el.selectionStart, end: el.selectionEnd }, change);
-  return true;
-}
 
 type Platform = 'ios' | 'android' | 'other';
 function platform(): Platform {
@@ -539,121 +467,6 @@ function PublishedBanner({
   );
 }
 
-/**
- * Image uploads for both composers. An image goes where the author is
- * writing, not at the end (session 30, Venkat): at the caret when the attach
- * button is pressed, in place of a `/image` line, or where an image is pasted
- * or dropped. A placeholder holds the spot while the upload runs, so text
- * typed meanwhile cannot shift where the image lands; it is replaced by the
- * real markdown on success and removed on failure.
- */
-function useUpload(
-  id: string | undefined | (() => Promise<string | undefined>),
-  textarea: React.RefObject<HTMLTextAreaElement | null>,
-  setText: (text: string) => void,
-) {
-  const input = useRef<HTMLInputElement>(null);
-  const action = useAction();
-  const [attached, setAttached] = useState('');
-  // Where the next picked file goes; captured when the picker opens, because
-  // the textarea loses its selection while the file dialog has focus.
-  const target = useRef<{ start: number; end: number } | null>(null);
-  const current = () => textarea.current?.value ?? '';
-  const caret = () => {
-    const el = textarea.current;
-    return el ? { start: el.selectionStart, end: el.selectionEnd } : { start: current().length, end: current().length };
-  };
-  const upload = async (file: File, at: { start: number; end: number }) => {
-    const itemId = typeof id === 'function' ? await id() : id;
-    const token = uploadToken(file.name || 'image');
-    const placed = insertBlock(current(), at.start, at.end, token);
-    setText(placed.text);
-    try {
-      const media = await unwrap(
-        BlyggerApi.uploadMedia({
-          client,
-          // inline: placed in the text, so shown only where its line is (studio#24).
-          body: { file, inline: 'true', ...(itemId ? { item_id: itemId } : {}) },
-        }),
-      );
-      setText(current().replace(token, `![](${mount}/${media.url})`));
-      setAttached(media.url);
-      if (itemId) await changed('item');
-    } catch (error) {
-      const now = current();
-      const i = now.indexOf(token);
-      if (i >= 0) setText(now.slice(0, i) + now.slice(i + token.length));
-      throw error;
-    }
-  };
-  const uploadFiles = (files: Iterable<File>, at: { start: number; end: number }) => {
-    const images = [...files].filter((f) => f.type.startsWith('image/'));
-    if (!images.length) return false;
-    void action.run(async () => {
-      for (const file of images) await upload(file, at);
-    });
-    return true;
-  };
-  const pick = (at = caret()) => {
-    target.current = at;
-    input.current?.click();
-  };
-  // Leaving mid-upload strands the placeholder in the saved draft and the
-  // image at the bottom of the page (studio#24), so it asks first.
-  useBlocker({
-    enableBeforeUnload: () => action.busy,
-    shouldBlockFn: async () =>
-      action.busy &&
-      !(await confirm({
-        title: 'An image is still uploading. Leave anyway? It will not be placed in the text.',
-        ok: 'leave',
-        danger: true,
-      })),
-  });
-  return {
-    input,
-    action,
-    attached,
-    pick,
-    /**
-     * Call from the textarea's onChange with the new value. Returns the value
-     * to keep: a completed `/image` line is removed and opens the picker.
-     */
-    command(value: string): string {
-      const el = textarea.current;
-      const at = el ? el.selectionStart : value.length;
-      const hit = imageCommandAt(value, at);
-      if (!hit) return value;
-      const rest = value.slice(0, hit.start) + value.slice(hit.end);
-      pick({ start: hit.start, end: hit.start });
-      return rest;
-    },
-    textareaProps: {
-      onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-        if (uploadFiles(event.clipboardData.files, caret())) event.preventDefault();
-      },
-      onDragOver: (event: React.DragEvent<HTMLTextAreaElement>) => {
-        if ([...event.dataTransfer.items].some((i) => i.kind === 'file')) event.preventDefault();
-      },
-      onDrop: (event: React.DragEvent<HTMLTextAreaElement>) => {
-        if (uploadFiles(event.dataTransfer.files, caret())) event.preventDefault();
-      },
-    },
-    element: (
-      <input
-        ref={input}
-        type="file"
-        accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
-        hidden
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) uploadFiles([file], target.current ?? caret());
-          event.target.value = '';
-        }}
-      />
-    ),
-  };
-}
 /** The upload's textarea handlers with pour-over in front of its paste. */
 function textareaProps(upload: ReturnType<typeof useUpload>, tools: TextTools) {
   return {
@@ -855,7 +668,7 @@ export function Compose() {
     setText(next);
     setSaved(false);
   };
-  const upload = useUpload(save, input, change);
+  const upload = useUpload(save, input, change, studioUpload);
   const tools = useTextTools(input, change);
   const setKindTo = (value: Kind) => {
     setKind(value);
@@ -1408,8 +1221,7 @@ function Editor({ item }: { item: Detail }) {
   // field still holds exactly that text — an edit makes the words the author's.
   const [drafted, setDrafted] = useState<string>();
   const confirmNote = useNoteConfirm();
-  const [preview, setPreview] =
-    useState<Awaited<ReturnType<typeof getPreview>>>();
+  const preview = usePreview(client, text, item.id, item.authored_kind);
   const [version, setVersion] = useState<Version>();
   const [saved, setSaved] = useState(false);
   const [replacing, setReplacing] = useState(false);
@@ -1451,31 +1263,7 @@ function Editor({ item }: { item: Detail }) {
     saveTimer.current = setTimeout(() => void action.run(save), 400);
   };
   useEffect(() => () => clearTimeout(saveTimer.current), []);
-  useEffect(() => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => {
-      void getPreview(text, item.id, item.authored_kind, controller.signal)
-        .then(setPreview)
-        .catch((error) => {
-          if (!controller.signal.aborted)
-            setPreview({
-              html: '',
-              scopes: [],
-              errors: [
-                {
-                  reason:
-                    error instanceof Error ? error.message : String(error),
-                },
-              ],
-            });
-        });
-    }, 150);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [text, item.id, item.authored_kind]);
-  const upload = useUpload(item.id, input, edit);
+  const upload = useUpload(item.id, input, edit, studioUpload);
   const tools = useTextTools(input, edit);
   const operation = (fn: () => Promise<unknown>) =>
     void action.run(async () => {
@@ -2288,19 +2076,6 @@ function QuotedSnapshots({
     </Card>
   );
 }
-const getPreview = (
-  text: string,
-  id: string,
-  kind: 'fragment' | 'thread',
-  signal?: AbortSignal,
-) =>
-  unwrap(
-    BlyggerApi.preview({
-      client,
-      body: { content_md: text, item_id: id, kind },
-      signal,
-    }),
-  );
 function BracketPicker({
   input,
   text,
