@@ -3429,6 +3429,9 @@ export type SearchData = {
         offset?: number | null;
         limit?: number;
         q?: string;
+        source?: 'all' | 'mine' | 'imported';
+        sub?: string;
+        sort?: 'newest' | 'oldest';
     };
     url: '/api/search';
 };
@@ -3497,6 +3500,10 @@ export type SearchResponses = {
             version: number;
             updated: string;
             badge: string;
+            source: 'mine' | 'imported';
+            kind: 'fragment' | 'thread';
+            subscription_id: string | null;
+            source_title: string | null;
         }>;
         total: number;
         offset: number;

@@ -9460,6 +9460,39 @@
             "required": false,
             "name": "q",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "mine",
+                "imported"
+              ]
+            },
+            "required": false,
+            "name": "source",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "sub",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "newest",
+                "oldest"
+              ]
+            },
+            "required": false,
+            "name": "sort",
+            "in": "query"
           }
         ],
         "responses": {
@@ -9489,6 +9522,32 @@
                           },
                           "badge": {
                             "type": "string"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "mine",
+                              "imported"
+                            ]
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "fragment",
+                              "thread"
+                            ]
+                          },
+                          "subscription_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "source_title": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           }
                         },
                         "required": [
@@ -9496,7 +9555,11 @@
                           "excerpt",
                           "version",
                           "updated",
-                          "badge"
+                          "badge",
+                          "source",
+                          "kind",
+                          "subscription_id",
+                          "source_title"
                         ]
                       }
                     },
