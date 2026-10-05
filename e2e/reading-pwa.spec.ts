@@ -289,6 +289,14 @@ test('selecting text in an entry shows the quote pill, which starts a partial-qu
   await expect(page.locator('#md-input')).toHaveValue(`![[${NATIVE}]]\n> Froze\n\n`);
 });
 
+test('the swipe hint is for touch: shown with a finger, hidden with a mouse', async ({ page }) => {
+  await login(page); await page.goto('/studio/reading?view=sources');
+  await expect(page.locator('.feed').first()).toBeVisible();
+  const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+  const hint = page.getByText('Swipe a source ← for its info');
+  if (coarse) await expect(hint).toBeVisible(); else await expect(hint).toBeHidden();
+});
+
 test('swipes: a source ← opens its inspector, an entry → thumbs it, and the next tap still lands', async ({ page }) => {
   await login(page); await page.goto('/studio/reading?view=sources');
   const native = page.locator('.feed[data-id="parity-native"]');

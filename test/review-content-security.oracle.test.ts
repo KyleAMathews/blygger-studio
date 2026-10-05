@@ -69,6 +69,18 @@ it.each(['preview', 'publication', 'history'])('keeps remote HTML inert in trans
   const h = await history.json() as { content_html: string };
   await inert(h.content_html, 'history cannot execute imported HTML');
 });
+// §5.2/§10.2: publish bakes the target's content_html verbatim into the
+// thread's content_html; sanitizing belongs to every render (above), never to
+// the published bytes. The protocol JSON carries the source exactly.
+it('bakes remote HTML verbatim into the published thread document', async () => {
+  const source = '<p>Quoted <a href="https://safe.example/">link</a></p><picture><source srcset="https://publisher.example/a.webp"><img src="https://publisher.example/a.png" onerror="x()"></picture>';
+  const f = await setup(source);
+  const created = await f.owner('/api/items', 'POST', { kind: 'thread', content_md: `![[${sourceId}]]` }); expect(created.status).toBe(201);
+  const { id } = await created.json() as { id: string };
+  expect((await f.owner(`/api/items/${id}/publish`, 'POST')).status).toBe(200);
+  const document = await (await receive(`/blyg/items/${id}.json`)).json() as { content_html: string };
+  expect(document.content_html).toContain(`>\n${source}\n</blockquote>`);
+});
 it('remote attribution cannot inject elements into a public hopper', async () => {
   const f = await setup('<p>Safe quoted text</p>', 'post"><img src="/missing" onerror="document.documentElement.dataset.compromised=1">');
   await env.DB.prepare("INSERT INTO hoppers(id,name,slug,public,created) VALUES ('review-hopper','Review','review',1,'2026-10-01')").run();
@@ -186,7 +198,8 @@ it('author links refuse active schemes on write and render inert from stored row
 // Inventory law, not a list of known sinks: every string a manage-scoped token
 // can store is hostile data on every public HTML page. A baseline crawl fixes
 // the page's own script count, so an injected script anywhere is caught too.
-it('no manage-writable setting can activate markup on any public page', async () => {
+// Crawls every public page several times; load-sensitive under CI (issue #39).
+it('no manage-writable setting can activate markup on any public page', { timeout: 30_000 }, async () => {
   // Sweeps write many times a minute; each starts with fresh work budgets.
   await env.DB.prepare('DELETE FROM security_budgets').run();
   const { flow } = await import('./oauth-flow-driver.ts');
@@ -228,7 +241,8 @@ it('no manage-writable setting can activate markup on any public page', async ()
 });
 // The same inventory law for the other delegated writers: draft-scoped item
 // text and citation captions, and manage-scoped collection and blogroll names.
-it('no delegated item, collection or blogroll text can activate markup on public pages', async () => {
+// Crawls every public page several times; load-sensitive under CI (issue #39).
+it('no delegated item, collection or blogroll text can activate markup on public pages', { timeout: 30_000 }, async () => {
   // Sweeps write many times a minute; each starts with fresh work budgets.
   await env.DB.prepare('DELETE FROM security_budgets').run();
   const { flow } = await import('./oauth-flow-driver.ts');

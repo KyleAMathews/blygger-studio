@@ -37,6 +37,8 @@
 .feed .info { flex: 0 0 auto; background: none; border: none; border-radius: 0; color: var(--pencil); font-size: 1.1rem; padding: 10px 14px 10px 6px; cursor: pointer; min-height: 0; }
 .feed-in > a:only-child { padding-right: 14px; }
 .sources-hint { text-align: center; color: var(--page-ink-soft); }
+/* The hint names a touch gesture; with a mouse the ⓘ button says enough. */
+@media (hover: hover) and (pointer: fine) { .sources-hint { display: none; } }
 
 /* ---------- SWIPE (in addition to the ⓘ / ⋯ buttons) ---------- */
 .swipe, .feed[data-swipe] { position: relative; touch-action: pan-y; }

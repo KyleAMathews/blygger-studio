@@ -31,7 +31,7 @@ export function AuthorizationsPage() {
       <p>Created {new Date(row.createdAt * 1000).toLocaleString()}{row.expiresAt ? ` · expires ${new Date(row.expiresAt * 1000).toLocaleString()}` : ''}</p>
       <Button disabled={busy} onClick={() => setRemove(row.id)}>revoke access</Button></section>) : <p>No authorizations.</p>}
     <p><Button disabled={busy} onClick={() => setRemove('all')}>revoke all client access</Button></p>
-    <p>Use revoke-all when resetting your password. Changing the owner password or cookie secret also invalidates every client authorization.</p>
+    <p>Changing the owner password logs out Studio sessions but keeps client authorizations, so use revoke-all when resetting it. Rotating the cookie secret invalidates them all.</p>
     <h2>Create a manual token</h2><p>For tools that cannot run OAuth. Tokens expire in 30 days. The token appears once; store it in your tool’s credential store.</p>
     <form onSubmit={event => { event.preventDefault(); void run(async () => {
       const result = await unwrap(BlyggerApi.createAuthorization({ client, body: { name, scope, resource } }));

@@ -34,6 +34,20 @@ not have its own repo until session 26.
 
 ---
 
+## 0.28.2 — 2026-10-05
+
+- A thread's published `content_html` bakes each transcluded item's HTML verbatim again, as §5.2 and §10.2 specify. 0.28.0 ran the bake through the import sanitizer, which put sanitizer output into the protocol bytes other origins import. Sanitizing stays at every render instead: the public thread pages and version history already sanitize the stored HTML, and the editor's transclusion preview now sanitizes its own output. Threads published under 0.28.0–0.28.1 keep their bytes (published versions are immutable).
+- The client access page described a password change as revoking every client authorization. Since 0.28.0 it only logs out Studio sessions; rotating the cookie secret is what revokes them. The page now says so.
+- Migrations: none.
+
+## 0.28.1 — 2026-10-05
+
+- Imported HTML keeps the content of tags the 0.28.0 allowlist does not name. 0.28.0 deleted them together with everything inside, so an image inside `<picture>` (Substack's feed markup), text inside `<font>` and `<video>` fallback text all vanished from reading views and transclusion bakes. Unlisted tags are now unwrapped. Active, foreign and raw-text elements (`script`, `style`, `textarea`, `noscript`, `svg`, `math`, `iframe` and the like) are still dropped whole, because unwrapping their content would turn it into live markup.
+- Migrations: none.
+
+
+---
+
 ## 0.28.0 — 2026-10-05
 
 - Bound owner/per-grant REST/MCP work, delegated aggregate work, AI calls with an owner reserve, anonymous client storage and request bodies (migration 0022). Reclaim abandoned unapproved registrations after a configurable grace.

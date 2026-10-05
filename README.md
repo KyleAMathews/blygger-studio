@@ -5,7 +5,7 @@ a Cloudflare Worker that publishes a blyg, subscribes to others, and threads,
 transcludes and responds across them.
 
 **Protocol implemented:** `blyg 0.3`, level 2 · **Client version:** 0.10.0 ·
-`generator: blygger-studio/0.28.0` · [releases + upgrading](#releases-and-upgrading)
+`generator: blygger-studio/0.28.2` · [releases + upgrading](#releases-and-upgrading)
 
 > The [Blygger spec](https://github.com/blygger/blygger-spec) defines the protocol.
 > As of 2026-09-28, at least seven clients publish live blygs. Six are other
