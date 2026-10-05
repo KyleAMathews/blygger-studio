@@ -6,6 +6,7 @@ test('typed addresses normalise to an origin, a mount and a canonical URL (Revie
   expect(normalizeBlygUrl('example.com')).toEqual({ origin: 'https://example.com', mount: '', url: 'https://example.com/' });
   expect(normalizeBlygUrl('  example.com/blyg ')).toEqual({ origin: 'https://example.com', mount: '/blyg', url: 'https://example.com/blyg/' });
   expect(normalizeBlygUrl('https://example.com/blyg/studio/')).toEqual({ origin: 'https://example.com', mount: '/blyg', url: 'https://example.com/blyg/' });
+  expect(normalizeBlygUrl('https://x.com/blyg/studio/items/9'), 'a deep Studio address normalises to its mount').toEqual({ origin: 'https://x.com', mount: '/blyg', url: 'https://x.com/blyg/' });
   expect(normalizeBlygUrl('http://example.com/blyg/?x=1#y').origin, 'plain http is upgraded').toBe('https://example.com');
   expect(normalizeBlygUrl('http://127.0.0.1:8787').origin, 'loopback keeps http').toBe('http://127.0.0.1:8787');
   expect(normalizeBlygUrl('http://localhost:8787/').url).toBe('http://localhost:8787/');

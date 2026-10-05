@@ -24,6 +24,7 @@ export function App() {
 type Connected = Extract<Status, { state: 'connected' }>;
 
 function Connected({ status, onStatus }: { status: Connected; onStatus: (status: Status) => void }) {
+  const [leaveError, setLeaveError] = useState<unknown>();
   // One client and one data instance per connected blyg; the worker supplies tokens.
   const data = useMemo(() => {
     configureHost({ origin: status.origin, mount: status.mount });
@@ -42,7 +43,15 @@ function Connected({ status, onStatus }: { status: Connected; onStatus: (status:
       ) : (
         <Failure error="This connection cannot clip: it lacks the draft permission. Disconnect and connect again, leaving drafting ticked." />
       )}
-      <Button className="btn btn-ghost" onClick={async () => onStatus(await ask({ type: 'disconnect' }))}>Disconnect</Button>
+      <Failure error={leaveError} />
+      <Button className="btn btn-ghost" onClick={async () => {
+        try {
+          setLeaveError(undefined);
+          onStatus(await ask({ type: 'disconnect' }));
+        } catch (error) {
+          setLeaveError(error);
+        }
+      }}>Disconnect</Button>
     </main>
   );
 }

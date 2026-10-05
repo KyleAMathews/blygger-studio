@@ -1,5 +1,6 @@
 import { expect, test, vi } from 'vitest';
 import { connectOAuth } from '../lib/connect.ts';
+import { withTimeout } from '../lib/fetch.ts';
 import { memoryArea } from '../lib/storage.ts';
 import { TokenStore } from '../lib/tokens.ts';
 
@@ -79,4 +80,23 @@ test('an unapproved client older than 23 hours is registered again', async () =>
 test('an approved client is reused however old', async () => {
   const now = 100 * DAY;
   expect(await withStoredClient({ clientId: 'old', registeredAt: now - 30 * DAY, approved: true }, now)).toBe(0);
+});
+
+test('a cancel on a reused client forgets it, so the next connect registers', async () => {
+  const s = studio(), local = memoryArea();
+  await local.set({ clients: { ['https://b.example/studio/auth ' + REDIRECT]: { clientId: 'old', registeredAt: 0, approved: true } } });
+  const store = new TokenStore(local, memoryArea(), s.fetchFn);
+  const launch = vi.fn(async () => { throw new Error('The user did not approve access.'); });
+  const attempt = () => connectOAuth('b.example', { fetchFn: s.fetchFn, store, local, redirectUri: REDIRECT, launch });
+  await expect(attempt()).rejects.toThrow('Sign-in was cancelled.');
+  expect(s.registrations()).toBe(0);
+  await expect(attempt()).rejects.toThrow('Sign-in was cancelled.');
+  expect(s.registrations(), 'the reused client was dropped, so this attempt registered').toBe(1);
+});
+
+test('withTimeout rejects a request that never answers', async () => {
+  const hangs = (_url: string, init?: RequestInit) => new Promise<Response>((_, reject) => {
+    init?.signal?.addEventListener('abort', () => reject(init.signal!.reason));
+  });
+  await expect(withTimeout(hangs, 20)('https://slow.example/api/settings')).rejects.toThrow('https://slow.example did not answer in time.');
 });

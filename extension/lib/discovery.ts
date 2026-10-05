@@ -23,6 +23,8 @@ export class DiscoveryError extends Error {
   }
 }
 
+/** The server's issuer is origin + mount + this (src/oauth.ts authLocations). */
+const ISSUER_SUFFIX = '/studio/auth';
 const onBlyg = (location: BlygLocation, url: string) => URL.canParse(url) && new URL(url).origin === location.origin;
 const underMount = (location: BlygLocation, url: string) => {
   if (!onBlyg(location, url)) return false;
@@ -67,6 +69,9 @@ export async function discover(location: BlygLocation, fetchFn: FetchLike): Prom
   const issuer = Array.isArray(resource.authorization_servers) ? resource.authorization_servers[0] : undefined;
   if (typeof issuer !== 'string' || !underMount(location, issuer)) throw new DiscoveryError('resource', 'The authorization server is not under this blyg.');
   if (typeof resource.resource !== 'string' || !onBlyg(location, resource.resource)) throw new DiscoveryError('resource', 'The API resource is not on this blyg.');
+  const issuerPath = new URL(issuer).pathname.replace(/\/+$/, '');
+  if (!issuerPath.endsWith(ISSUER_SUFFIX)) throw new DiscoveryError('issuer', "The blyg's sign-in address is not where a blyg keeps it.");
+  const mount = issuerPath.slice(0, -ISSUER_SUFFIX.length);
   const meta = await getJson(fetchFn, `${issuer}/.well-known/oauth-authorization-server`, 'issuer');
   const endpoint = (key: string) => {
     const value = meta[key];
@@ -79,7 +84,7 @@ export async function discover(location: BlygLocation, fetchFn: FetchLike): Prom
   };
   return {
     origin: location.origin,
-    mount: location.mount,
+    mount,
     resource: resource.resource,
     issuer,
     authorize: required('authorization_endpoint'),

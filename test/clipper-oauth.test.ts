@@ -355,7 +355,9 @@ function workerFetch(f: Flow, hook?: (url: string, init?: RequestInit) => 'pass'
   return async (input, init) => {
     const action = hook?.(input, init) ?? 'pass';
     if (action === 'drop-before') throw new TypeError('network down before the request was sent');
-    const response = await f.request(input, init);
+    // The Workers runtime has no `redirect: 'error'`; the extension's own use of it is asserted where tokens are requested.
+    const { redirect: _redirect, ...sendable } = init ?? {};
+    const response = await f.request(input, sendable);
     if (action === 'drop-after') throw new TypeError('network down after the server answered');
     return response;
   };
@@ -371,6 +373,24 @@ describe('clipper discovery (L9)', () => {
     expect(d.idempotency).toEqual(['createItem', 'publishItem']);
     expect(d.preconditions).toEqual(['expected']);
     expect(seen.filter((url) => new URL(url).pathname.startsWith('/.well-known')), 'discovery never asks the host root').toEqual([]);
+  });
+
+  it("takes the mount from the server's issuer, not from what was typed", async () => {
+    const f = await flow();
+    const d = await discover(normalizeBlygUrl(f.base + '/studio/items/x'), workerFetch(f));
+    expect(normalizeBlygUrl(f.base + '/studio/items/x').mount, 'the typed address names no mount').toBe('');
+    expect(d.mount, "the server's mount").toBe('/blyg');
+    expect(d.issuer).toBe(f.issuer);
+  });
+
+  it('refuses an issuer that is not at the blyg\'s sign-in address', async () => {
+    const f = await flow(), real = workerFetch(f);
+    const odd: FetchLike = async (url, init) => {
+      const response = await real(url, init);
+      if (!url.endsWith('/auth/resources/api')) return response;
+      return Response.json({ ...(await response.json() as object), authorization_servers: [f.base + '/blyg/elsewhere'] });
+    };
+    await expect(discover(normalizeBlygUrl(f.base + '/blyg/'), odd)).rejects.toMatchObject({ name: 'DiscoveryError', message: "The blyg's sign-in address is not where a blyg keeps it." });
   });
 
   it('refuses an authorization server off the blyg', async () => {
@@ -403,7 +423,8 @@ async function approve(f: Flow, url: string, scopes: string[]) {
 
 describe('clipper OAuth client against the real server', () => {
   it('registers a chromiumapp.org redirect, completes PKCE, and gets the scope the owner left ticked', async () => {
-    const f = await flow(), fetchFn = workerFetch(f);
+    const f = await flow(), redirects: Array<RequestInit['redirect']> = [];
+    const fetchFn = workerFetch(f, (url, init) => { if (url.endsWith('/oauth2/token')) redirects.push(init?.redirect); return 'pass'; });
     const d = await discover(normalizeBlygUrl(f.base + '/blyg/'), fetchFn);
     const clientId = await register(d, REDIRECT, fetchFn);
     const verifier = randomVerifier(), state = randomVerifier();
@@ -411,6 +432,7 @@ describe('clipper OAuth client against the real server', () => {
     expect(new URL(url).searchParams.get('scope')).toBe(REQUESTED_SCOPE);
     const code = codeFromRedirect(await approve(f, url, ['owner:read', 'owner:draft']), REDIRECT, state);
     const tokens = await exchangeCode(d, { clientId, code, redirectUri: REDIRECT, verifier }, fetchFn);
+    expect(redirects, 'a token request never follows a redirect').toEqual(['error']);
     expect(tokens.refreshToken, 'offline_access yields a refresh token').toBeTruthy();
     expect(tokens.scope).toContain('owner:draft');
     expect(tokens.scope, 'unticked scopes are not granted').not.toContain('owner:publish');

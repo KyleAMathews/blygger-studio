@@ -16,6 +16,10 @@ const CLIENTS = 'clients';
 /** The server drops never-approved clients after 24 h; reuse one only inside this margin. */
 const UNAPPROVED_REUSE_MS = 23 * 3600_000;
 interface StoredClient { clientId: string; registeredAt: number; approved: boolean }
+const forget = async (local: KeyValue, key: string) => {
+  const { [key]: _gone, ...rest } = ((await local.get(CLIENTS)) ?? {}) as Record<string, StoredClient>;
+  await local.set({ [CLIENTS]: rest });
+};
 const cancelled = (error: unknown) => error instanceof Error && /did not approve|cancel/i.test(error.message);
 
 /**
@@ -44,11 +48,17 @@ export async function connectOAuth(
     try {
       redirected = await deps.launch(authorizeUrl(discovery, { clientId, redirectUri: deps.redirectUri, state, challenge: await challengeFor(verifier) }));
     } catch (error) {
-      if (cancelled(error)) throw new OAuthError('cancelled', 'Sign-in was cancelled.');
+      if (cancelled(error)) {
+        if (reuse) await forget(deps.local, key);
+        throw new OAuthError('cancelled', 'Sign-in was cancelled.');
+      }
       if (reuse) continue;
       throw error;
     }
-    if (!redirected) throw new OAuthError('cancelled', 'Sign-in was cancelled.');
+    if (!redirected) {
+      if (reuse) await forget(deps.local, key);
+      throw new OAuthError('cancelled', 'Sign-in was cancelled.');
+    }
     const code = codeFromRedirect(redirected, deps.redirectUri, state);
     try {
       await deps.store.saveOAuth(discovery, clientId, await exchangeCode(discovery, { clientId, code, redirectUri: deps.redirectUri, verifier }, deps.fetchFn));

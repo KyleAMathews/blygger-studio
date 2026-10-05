@@ -27,9 +27,9 @@ there instead, for tools and tests that cannot open a sign-in window.
 ## Permissions
 
 `contextMenus`, `sidePanel`, `activeTab`, `scripting`, `identity`, `storage`,
-`alarms`. Today the extension uses `identity`, `storage` and the side panel to
-connect. `contextMenus`, `sidePanel`, `activeTab` and `scripting` are reserved
-for clipping. No host permissions: the extension reaches your blyg over CORS
+`alarms`. Today the extension uses `identity`, `storage` and `sidePanel` (the
+connect screen). `contextMenus`, `activeTab`, `scripting` and `alarms` (the
+retry queue) are reserved for clipping. No host permissions: the extension reaches your blyg over CORS
 with its token.
 
 ## Privacy

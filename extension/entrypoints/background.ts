@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
 import { connectManual, connectOAuth } from '../lib/connect.ts';
+import { withTimeout } from '../lib/fetch.ts';
 import { serve } from '../lib/messages.ts';
 import { storageArea } from '../lib/storage.ts';
 import { TokenStore } from '../lib/tokens.ts';
@@ -8,7 +9,7 @@ import { TokenStore } from '../lib/tokens.ts';
 // synchronously, so a worker woken by a message finds its listener.
 export default defineBackground(() => {
   const local = storageArea(browser.storage.local), session = storageArea(browser.storage.session);
-  const fetchFn = (input: string, init?: RequestInit) => fetch(input, init);
+  const fetchFn = withTimeout((input, init) => fetch(input, init));
   const store = new TokenStore(local, session, fetchFn);
   serve(async (request) => {
     switch (request.type) {

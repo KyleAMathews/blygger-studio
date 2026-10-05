@@ -15,6 +15,7 @@ export function normalizeBlygUrl(input: string): BlygLocation {
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('A blyg address starts with https://');
   if (url.protocol === 'http:' && !LOOPBACK.has(url.hostname)) url.protocol = 'https:';
-  const mount = url.pathname.replace(/\/+$/, '').replace(/\/studio$/, '');
+  const segments = url.pathname.split('/').filter(Boolean), studio = segments.indexOf('studio');
+  const mount = (studio < 0 ? segments : segments.slice(0, studio)).map((segment) => `/${segment}`).join('');
   return { origin: url.origin, mount, url: `${url.origin}${mount}/` };
 }

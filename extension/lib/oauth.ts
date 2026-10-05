@@ -71,6 +71,7 @@ export interface TokenSet { accessToken: string; refreshToken?: string; expiresA
 async function tokenRequest(d: Discovery, params: Record<string, string>, fetchFn: FetchLike, now: number): Promise<TokenSet> {
   const response = await fetchFn(d.token, {
     method: 'POST',
+    redirect: 'error',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ ...params, resource: d.resource }).toString(),
   });
@@ -95,6 +96,7 @@ export async function revokeToken(d: Discovery, p: { clientId: string; token: st
   if (!d.revoke) return;
   await fetchFn(d.revoke, {
     method: 'POST',
+    redirect: 'error',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ token: p.token, client_id: p.clientId, token_type_hint: 'refresh_token' }).toString(),
   });
