@@ -250,3 +250,6 @@ failed-save rollback, polling without replacing editor text, paginated Reading,
 route preload/cache reuse, requested-page reload, settings persistence, item
 read retry and navigation-save flushing. These are receiving checks for the
 unchanged optimistic/lifecycle behavior around the new query function.
+
+Current v3 reviewed implementation head: `03d771db136cc84362cd29cfecc0d06cb5259dde`.
+This source includes the plain Query configs, current model and receiving tests.
