@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { stripVTControlCharacters } from 'node:util';
 
 const root = resolve('.'), temp = mkdtempSync(join(tmpdir(), 'blygger-polling-controls-'));
 const controls = [
@@ -26,10 +27,13 @@ try {
   symlinkSync(join(root, 'node_modules'), join(temp, 'node_modules'), 'dir');
   const run = (control: typeof controls[number], replay?: { seed: string; path: string }) => {
     const ui = control.test.startsWith('test-ui/');
-    return spawnSync(process.execPath, [join(root, 'node_modules/vitest/vitest.mjs'), 'run', '--maxWorkers=2', ...(ui ? ['--config', 'vitest.ui.config.ts'] : []), control.test, '-t', replay ? 'polling-cache: replay' : control.pattern], {
+    const result = spawnSync(process.execPath, [join(root, 'node_modules/vitest/vitest.mjs'), 'run', '--maxWorkers=2', ...(ui ? ['--config', 'vitest.ui.config.ts'] : []), control.test, '-t', replay ? 'polling-cache: replay' : control.pattern], {
       cwd: temp, encoding: 'utf8', timeout: 90_000,
       env: { ...process.env, WRANGLER_LOG_PATH: join(temp, 'wrangler.log'), ORACLE_TARGET: replay ? 'polling-cache' : undefined, ORACLE_SEED: replay?.seed, ORACLE_PATH: replay?.path },
     });
+    // CI enables ANSI styling between the count and "passed". Formatting must
+    // not change execution witnesses, checkpoint matching, or replay parsing.
+    return { ...result, stdout: stripVTControlCharacters(result.stdout ?? ''), stderr: stripVTControlCharacters(result.stderr ?? '') };
   };
   for (const control of controls) {
     const baseline = run(control); assert.equal(baseline.status, 0, `${control.name}: baseline failure\n${baseline.stdout}\n${baseline.stderr}`);

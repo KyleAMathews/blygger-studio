@@ -169,3 +169,14 @@ and direct failure replay pass again. The 0.8.3 upgrade acceptance script passes
 including local migrations and Worker/SDK smoke checks. Prep integration review
 found no new correctness or design issue. The expanded Worker suite passed 121 files, with 1343 tests passed and 5 skipped.
 Its cache oracle now has 74 tests, including the new field witness.
+
+## CI output-format repair
+
+GitHub run `37385879673` passed the mutation baseline but its ANSI color codes
+split the text that the runner used as an execution witness. This was a harness
+setup/reporting failure, not a semantic kill or a cache counterexample. The
+runner now strips terminal control codes before checking counts, checkpoints
+and replay receipts. With `FORCE_COLOR=1`, all seven controls again fail at their
+named laws and the generated failure replays at seed `20261001`, path `0:0`.
+This repair changes output parsing only. The proposed TanStack integration
+redesign remains a separate design question.
