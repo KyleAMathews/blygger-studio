@@ -18,6 +18,13 @@ not have its own repo until session 26.
 
 ---
 
+## 0.29.0 — 2026-10-05
+
+- **The `[[` / `![[` picker is a panel with real search.** It searched only a 70-character excerpt and the id, so on a node with ~1,400 candidates almost nothing was findable. `GET /api/search` now matches every word anywhere in an item's text, in SQL, with `source=all|mine|imported`, `sub=<subscription>`, `sort=newest|oldest`, paging and a total; rows gain `source`, `kind`, `subscription_id` and `source_title` (`badge` is kept for older clients). What it offers is unchanged: only what publish will accept.
+- The picker opens as a non-modal panel at the right (docked at the bottom on a phone, with the draft scrolled into view above it): link or quote named in its header, a source radio, sort, a subscription menu under *imported*, and rows with excerpt, source, kind, age and version. Where you type is a per-device choice, the editor (as before) or the panel's own search box; source and sort are remembered too.
+- The reading list's swipe hint is hidden on mouse devices (#36, Aneesh Sathe).
+- Migrations: none.
+
 ## 0.28.2 — 2026-10-05
 
 - A thread's published `content_html` bakes each transcluded item's HTML verbatim again, as §5.2 and §10.2 specify. 0.28.0 ran the bake through the import sanitizer, which put sanitizer output into the protocol bytes other origins import. Sanitizing stays at every render instead: the public thread pages and version history already sanitize the stored HTML, and the editor's transclusion preview now sanitizes its own output. Threads published under 0.28.0–0.28.1 keep their bytes (published versions are immutable).
