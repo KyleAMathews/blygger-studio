@@ -395,12 +395,15 @@ describe('clipper discovery (L9)', () => {
 
   it('refuses an authorization server off the blyg', async () => {
     const f = await flow(), real = workerFetch(f);
-    const hostile: FetchLike = async (url, init) => {
+    // Both issuers end in /studio/auth, so only the under-the-mount check can refuse them.
+    const hostile = (issuer: string): FetchLike => async (url, init) => {
       const response = await real(url, init);
       if (!url.endsWith('/auth/resources/api')) return response;
-      return Response.json({ ...(await response.json() as object), authorization_servers: ['https://elsewhere.example/auth'] });
+      return Response.json({ ...(await response.json() as object), authorization_servers: [issuer] });
     };
-    await expect(discover(normalizeBlygUrl(f.base + '/blyg/'), hostile), 'an issuer off the blyg is refused').rejects.toMatchObject({ name: 'DiscoveryError', step: 'resource' });
+    const refused = { name: 'DiscoveryError', step: 'resource', message: 'The authorization server is not under this blyg.' };
+    await expect(discover(normalizeBlygUrl(f.base + '/blyg/'), hostile('https://elsewhere.example/blyg/studio/auth')), 'an issuer off the blyg is refused').rejects.toMatchObject(refused);
+    await expect(discover(normalizeBlygUrl(f.base + '/blyg/'), hostile(f.base + '/other/studio/auth')), 'an issuer outside the mount is refused').rejects.toMatchObject(refused);
   });
 });
 
