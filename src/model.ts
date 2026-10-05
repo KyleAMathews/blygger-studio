@@ -17,6 +17,9 @@ import type { ForkedFrom, ItemRow, MediaRow, ScopeProvenance, Settings, StubCite
 import { FRAGMENT_MAX_CHARS } from "./types.ts";
 import { absolutizeHtml, authoredText, contentHash, isFollowableUrl, newId, nowIso } from "./util.ts";
 
+/** An SQL condition ANDed into a write's WHERE clause, with its bind values. */
+export interface Guard { sql: string; binds: unknown[] }
+
 export { TkPublishError, TransclusionResolveError };
 
 /** Thrown by publish() when the *published* (TK-stripped) fragment length exceeds the studio cap (§2.7). */
