@@ -112,7 +112,14 @@ test('a disposed instance leaves no timers and makes no further requests', async
   const target = { addEventListener() {}, removeEventListener() {} };
   data.polling.start(target, target);
   data.itemDetail('one');
+  await data.settings.preload();
+  const stopWatch = data.polling.watch('settings', () => data.settings.utils.refetch());
+  expect(requests, 'the instance makes requests while alive').toBeGreaterThan(0);
   expect(vi.getTimerCount(), 'the instance runs timers while alive').toBeGreaterThan(0);
+  const alive = requests;
+  await vi.advanceTimersByTimeAsync(16_000);
+  expect(requests, 'polling makes requests while alive').toBeGreaterThan(alive);
+  void stopWatch;
   await data.dispose();
   const before = requests;
   expect(vi.getTimerCount(), 'a disposed instance leaves no timers').toBe(0);
