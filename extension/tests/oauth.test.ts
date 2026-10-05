@@ -4,7 +4,7 @@ import { challengeFor, codeFromRedirect, expiryOfJwt, randomVerifier, scopeOfJwt
 const REDIRECT = 'https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/';
 
 test('PKCE matches RFC 7636 appendix B, and verifiers are 64 URL-safe characters', async () => {
-  expect(await challengeFor('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk')).toBe('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGe3IVoM');
+  expect(await challengeFor('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk')).toBe('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
   const verifier = randomVerifier();
   expect(verifier).toMatch(/^[A-Za-z0-9_-]{64}$/);
   expect(randomVerifier()).not.toBe(verifier);
