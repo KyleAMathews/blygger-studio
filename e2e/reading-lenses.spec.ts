@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixture';
 
 // Reading lenses and the signals page (0.25.0). The fixture is shared by both
 // projects, so the test clears the thumb it sets (the log keeps its entries:

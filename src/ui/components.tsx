@@ -87,6 +87,7 @@ export function Modal({
   );
 }
 
+
 /* ---------------- CHROME ----------------
  * A screen tells the Layout how to frame it with useChrome():
  *   tabs   — show the bottom tab bar / left rail (default true). The editor
@@ -134,6 +135,7 @@ const tabs = [
   { label: 'mentions', to: '/mentions', icon: '↩' },
   { label: 'updates', to: '/updates', icon: '↻' },
   { label: 'more', to: '/more', icon: '⋯' },
+
 ] as const;
 type Tab = (typeof tabs)[number]['label'];
 /** Which tab owns a studio path (relative to the basepath). */
@@ -144,7 +146,7 @@ export function tabFor(path: string): Tab | null {
   if (p === '/hoppers' || p.startsWith('/hoppers/')) return 'hoppers';
   if (p === '/mentions') return 'mentions';
   if (p === '/updates') return 'updates';
-  if (p === '/more' || p === '/settings' || p === '/syntax' || p === '/signals') return 'more';
+  if (p === '/more' || p === '/settings' || p === '/syntax' || p === '/signals' || p === '/access') return 'more';
   return null;
 }
 function relativePath(pathname: string) {

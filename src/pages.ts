@@ -8,6 +8,7 @@
 
 import { listBlogrollSubscriptions, listPublicHoppers } from "./importer/store.ts";
 import { listPublicResponses } from "./mentions/store.ts";
+import { sanitizeHtml } from "./importer/sanitize.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
 import { excerptFromHtml } from "./markdown.ts";
@@ -16,7 +17,7 @@ import { authoredKind, getMedia, itemShowsResponses, listMediaForItem, published
 import type { ItemRow, MediaRow, Settings, SubscriptionRow, Transclusion, VersionRow } from "./types.ts";
 import { loadFeedData, sourceKey, type FeedCardData, type FeedProvenance, type FeedItem } from "./public-feed.ts";
 import { WEBMENTION_PATH } from "./types.ts";
-import { escapeHtml, formatDateIn, unplacedMedia, visibleMedia } from "./util.ts";
+import { escapeHtml, escapeHref, formatDateIn, unplacedMedia, visibleMedia } from "./util.ts";
 import { graphemePrefix } from "./text.ts";
 
 
@@ -809,12 +810,17 @@ export const VERSION_NAV_SCRIPT = `
       at = versions.indexOf(v);
       if (cache[v] !== undefined) { setBody(cache[v]); render(); return; }
       content.setAttribute("aria-busy", "true");
-      fetch(mount + "/items/" + id + "/v" + v + ".json")
-        .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
-        .then(function (data) {
-          // The quotes are the server's rendering of a note, reproduced here
-          // so a swapped-in note looks like the one that was there before it.
-          cache[v] = { html: data.content_html || "", note: data.note ? "“" + data.note + "”" : "", gen: data.generated ? JSON.stringify(data.generated) : null };
+      // Protocol snapshots stay immutable. Read the server's safe presentation
+      // instead of inserting legacy content_html from public JSON into the DOM.
+      fetch(mount + "/" + kind + "/" + id + "/v" + v + "/")
+        .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.text(); })
+        .then(function (html) {
+          var page = new DOMParser().parseFromString(html, "text/html");
+          var body = page.querySelector("article .item-content");
+          if (!body) throw new Error("Missing version presentation");
+          var note = page.querySelector("article .version-note");
+          var holder = page.querySelector("article[data-generated]");
+          cache[v] = { html: body.innerHTML, note: note ? note.textContent : "", gen: holder ? holder.getAttribute("data-generated") : null };
           setBody(cache[v]);
           content.removeAttribute("aria-busy");
           render();
@@ -956,7 +962,7 @@ async function masthead(db: D1Database, settings: Settings, mount: string, loade
   if (settings.author_links.length) {
     lines.push(
       `<p class="author-links">${settings.author_links
-        .map((l) => `<a href="${escapeHtml(l.url)}" rel="me">${escapeHtml(l.label)}</a>`)
+        .map((l) => `<a href="${escapeHref(l.url)}" rel="me">${escapeHtml(l.label)}</a>`)
         .join(" &middot; ")}</p>`,
     );
   }
@@ -1133,7 +1139,7 @@ export async function transclusionProvenance(db: D1Database, transclusions: Tran
     // transclusion are the same blockquote to a reader, differing only in
     // being shorter — which is indistinguishable from the source being short.
     const what = t.selector ? "excerpt of" : "snapshot of";
-    out.push(`<p class="provenance"><a href="${link.href}">${link.label}</a> · ${what} v${t.version}</p>`);
+    out.push(`<p class="provenance"><a href="${escapeHref(link.href)}">${link.label}</a> · ${what} v${t.version}</p>`);
   }
   return out;
 }
@@ -1210,7 +1216,7 @@ async function threadCard(db: D1Database, item: FeedItem, mount: string, tz: str
   const latest = loaded ? loaded.latest : await publishedVersion(db, item);
   const href = `${mount}/t/${item.id}/`;
   const transclusions = parseTransclusions(latest?.transclusions);
-  const html = injectProvenance(latest?.content_html ?? "", await transclusionProvenance(db, transclusions, mount, provenance));
+  const html = injectProvenance(await sanitizeHtml(latest?.content_html ?? ""), await transclusionProvenance(db, transclusions, mount, provenance));
   const media = loaded ? loaded.media : await listMediaForItem(db, item.id);
   // The kind line is apparatus, on its own line above the item, never inline
   // with the author's first sentence (session 30). The quote count says what
@@ -1233,7 +1239,7 @@ ${itemMeta(item, latest?.note ?? null, loaded ? loaded.pins : await pinnedVersio
 async function threadBlock(db: D1Database, item: ItemRow, mount: string, tz: string): Promise<string> {
   const latest = await publishedVersion(db, item);
   const transclusions = parseTransclusions(latest?.transclusions);
-  const html = injectProvenance(latest?.content_html ?? "", await transclusionProvenance(db, transclusions, mount));
+  const html = injectProvenance(await sanitizeHtml(latest?.content_html ?? ""), await transclusionProvenance(db, transclusions, mount));
   const media = await listMediaForItem(db, item.id);
   return `<article class="thread${highlightClass(item)}">
 ${stubCitation(latest, tz)}
@@ -1267,14 +1273,14 @@ export function stubCitation(row: Pick<VersionRow, "stub_of" | "stub_cite"> | nu
     // Summary contexts (feed card, RSS description) get the shortest true
     // form: who it answers, linked. The full citation lives on the permalink.
     const who = cite?.source ? `<cite>${escapeHtml(cite.source)}</cite>` : escapeHtml(url);
-    return `<p class="stub-cite compact"><span class="label">In response to</span> <a href="${escapeHtml(url)}">${who} ↗</a></p>`;
+    return `<p class="stub-cite compact"><span class="label">In response to</span> <a href="${escapeHref(url)}">${who} ↗</a></p>`;
   }
   const parts: string[] = [];
   if (cite?.source) parts.push(`<cite>${escapeHtml(cite.source)}</cite>`);
   if (cite?.author) parts.push(escapeHtml(cite.author));
   if (cite?.excerpt) parts.push(`&ldquo;${escapeHtml(cite.excerpt)}&rdquo;`);
   if ("id" in stub) parts.push(`item <code>${escapeHtml(stub.id)}</code>, v${stub.version}`);
-  parts.push(`&lt;<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>&gt;`);
+  parts.push(`&lt;<a href="${escapeHref(url)}">${escapeHtml(url)}</a>&gt;`);
   if (cite?.retrieved) parts.push(`retrieved ${formatDate(cite.retrieved, tz)}`);
   return `<p class="stub-cite"><span class="label">In response to</span><br>${parts.join(" &middot; ")}</p>`;
 }
@@ -1320,14 +1326,14 @@ export function forkLineage(item: Pick<ItemRow, "forked_from" | "fork_cite">, tz
   const url = cite?.url ?? `${fork.origin}items/${fork.id}/v${fork.version}.json`;
   if (opts.compact) {
     const who = cite?.source ? `<cite>${escapeHtml(cite.source)}</cite>` : escapeHtml(url);
-    return `<p class="stub-cite compact"><span class="label">Forked from</span> <a href="${escapeHtml(url)}">${who} ↗</a></p>`;
+    return `<p class="stub-cite compact"><span class="label">Forked from</span> <a href="${escapeHref(url)}">${who} ↗</a></p>`;
   }
   const parts: string[] = [];
   if (cite?.source) parts.push(`<cite>${escapeHtml(cite.source)}</cite>`);
   if (cite?.author) parts.push(escapeHtml(cite.author));
   if (cite?.excerpt) parts.push(`&ldquo;${escapeHtml(cite.excerpt)}&rdquo;`);
   parts.push(`item <code>${escapeHtml(fork.id)}</code>, pinned v${fork.version}`);
-  parts.push(`&lt;<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>&gt;`);
+  parts.push(`&lt;<a href="${escapeHref(url)}">${escapeHtml(url)}</a>&gt;`);
   if (cite?.retrieved) parts.push(`retrieved ${formatDate(cite.retrieved, tz)}`);
   return `<p class="stub-cite"><span class="label">Forked from</span><br>${parts.join(" &middot; ")}</p>`;
 }
@@ -1745,7 +1751,7 @@ export async function pinnedVersionPage(
   const tz = settings.timezone;
   const live = `${mount}/${isThread ? "t" : "f"}/${item.id}/`;
   const html = isThread
-    ? injectProvenance(row.content_html, await transclusionProvenance(db, parseTransclusions(row.transclusions), mount))
+    ? injectProvenance(await sanitizeHtml(row.content_html), await transclusionProvenance(db, parseTransclusions(row.transclusions), mount))
     : row.content_html;
   const noteHtml = row.note ? `<p class="version-note">&ldquo;${escapeHtml(row.note)}&rdquo;</p>` : "";
   // A pin is a frozen artifact of a response, so it carries the citation that
@@ -1758,7 +1764,7 @@ ${await pageTop(db, settings, mount)}
 <article class="${isThread ? "thread" : "fragment"}${highlightClass(item)}"${generatedAttr(row.generated_json)}>
 ${cite}
 ${forkLineage(item, tz)}
-${html}
+<div class="item-content">${html}</div>
 ${noteHtml}
 <p class="timestamps"><span>Published: ${formatDate(row.published_at, tz)}</span></p>
 </article>

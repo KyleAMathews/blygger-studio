@@ -5,10 +5,12 @@ export const BASE = "https://example.com";
 /** Matches vitest.config.ts's default-worker MOUNT binding ("/blyg") — studio is nested under it since session 16. */
 export const STUDIO = "/blyg/studio";
 
-/** Log in as owner, return the Cookie header value. */
-export async function login(password = "test-password"): Promise<string> {
+/** Each call opens an independent test browser, with its own edge address. */
+let ownerBrowserSequence = 0;
+export async function login(password = "test-password", edgeIP = `2001:db8:c001:${(++ownerBrowserSequence).toString(16)}::1`): Promise<string> {
   const res = await SELF.fetch(`${BASE}${STUDIO}/login`, {
     method: "POST",
+    headers: { "cf-connecting-ip": edgeIP },
     body: new URLSearchParams({ password }),
     redirect: "manual",
   });

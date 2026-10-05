@@ -26,20 +26,21 @@ import {
   TransclusionResolveError,
   withdraw,
 } from "./model.ts";
-import { mentionFetch } from "./mentions/http.ts";
+import { mentionFetchFor } from "./mentions/http.ts";
 import { drainOutbound, enqueueForVersion } from "./mentions/send.ts";
 import { checkForkTarget, resolveForkSource } from "./fork.ts";
 import { flattenFork } from "./fork-flatten.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { siteOrigin } from "./protocol.ts";
 import { parseForkedFrom, parseStoredFork, parseStoredStub, parseStubOf } from "./stub.ts";
+import { parseScopes } from './tk.ts';
 import { runGenerateScope } from "./tk-generate.ts";
 import type { Env, ItemRow, SubscriptionRow } from "./types.ts";
 import { BLOCKING, staleThreads, threadFreshness } from "./freshness.ts";
 import { draftChangeNote } from "./change-note.ts";
-import { platformFetch } from "./importer/http.ts";
+import { platformFetchFor } from "./importer/http.ts";
 import { reconcileIndex } from "./importer/poll.ts";
-import { isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
+import { isFollowableUrl, isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
 
 const MEDIA_TYPES: Record<string, string> = {
   "image/png": "png",
@@ -72,7 +73,11 @@ api.openapi(routes.createItem, async (c) => {
     if (!parsed.ok) return c.json({ error: parsed.reason }, 400);
     stub = parsed.stub;
   }
-  const item = await createDraft(c.env.DB, body.content_md ?? "", kind, stub);
+  if (body.provenance !== undefined) {
+    const parsed = parseScopes(body.content_md ?? '');
+    if (parsed.errors.length || parsed.scopes.length !== body.provenance.length) return c.json({ error: 'provenance must have one entry per TK scope' }, 400);
+  }
+  const item = await createDraft(c.env.DB, body.content_md ?? "", kind, stub, body.provenance);
   c.header("Location", `/api/items/${item.id}`);
   return c.json(itemResource(item), 201);
 });
@@ -105,7 +110,7 @@ async function createForkResponse(c: Context<{ Bindings: Env }>, body: { origin:
   if (!parsed.ok) return c.json({ error: parsed.reason }, 400);
   const settings = await getSettings(c.env.DB);
   const origin = siteOrigin(settings, c.req.url, normalizeMount(c.env.MOUNT));
-  const resolved = await resolveForkSource(c.env.DB, parsed.ref, origin, settings.site_title, mentionFetch, nowIso());
+  const resolved = await resolveForkSource(c.env.DB, parsed.ref, origin, settings.site_title, mentionFetchFor(c.env), nowIso());
   if (!resolved.ok) return c.json({ error: resolved.reason }, 400);
   // #57: the fork starts from the pinned document, flattened — baked quotes as
   // plain blockquotes with attribution, generated spans as impyrt.
@@ -136,8 +141,13 @@ api.openapi(routes.updateItem, async (c) => {
       stubJson = JSON.stringify(parsed.stub);
     }
   }
-  const changesDraft = body.content_md !== undefined || body.kind !== undefined || "stub_of" in body;
+  if (body.provenance !== undefined) {
+    const parsed = parseScopes(body.content_md ?? item.content_md);
+    if (parsed.errors.length || parsed.scopes.length !== body.provenance.length) return c.json({ error: 'provenance must have one entry per TK scope' }, 400);
+  }
+  const changesDraft = body.provenance !== undefined || body.content_md !== undefined || body.kind !== undefined || "stub_of" in body;
   const assignments: string[] = [], values: (string | number | null)[] = [];
+  if (body.provenance !== undefined) { assignments.push("tk_provenance_json = ?"); values.push(JSON.stringify(body.provenance)); }
   if (body.content_md !== undefined) { assignments.push("content_md = ?"); values.push(body.content_md); }
   if (body.kind !== undefined) { assignments.push("kind = ?"); values.push(body.kind); }
   if ("stub_of" in body) { assignments.push("stub_of = ?"); values.push(stubJson); }
@@ -147,8 +157,8 @@ api.openapi(routes.updateItem, async (c) => {
   if (!assignments.length) return c.json(itemResource(item));
   // Write only requested fields. Guard the state used for validation, so a
   // concurrent publication or citation edit cannot invalidate that check.
-  const fresh = await c.env.DB.prepare(`UPDATE items SET ${assignments.join(", ")} WHERE id = ? AND version = ? AND kind = ? AND stub_of IS ? RETURNING *`)
-    .bind(...values, item.id, item.version, item.kind, item.stub_of).first<ItemRow>();
+  const fresh = await c.env.DB.prepare(`UPDATE items SET ${assignments.join(", ")} WHERE id = ? AND version = ? AND kind = ? AND stub_of IS ? AND tk_provenance_json IS ? RETURNING *`)
+    .bind(...values, item.id, item.version, item.kind, item.stub_of, item.tk_provenance_json).first<ItemRow>();
   if (!fresh) return c.json({ error: "item changed while applying the patch; reload and try again" }, 409);
   return c.json(itemResource(fresh));
 });
@@ -173,7 +183,7 @@ async function sendMentionsFor(
   if (!refs.length) return;
   // Fire-and-forget in the strong sense: a delivery error is a row status,
   // never an uncaught rejection in the worker that just published.
-  c.executionCtx.waitUntil(drainOutbound(c.env.DB, mentionFetch, { origin }).catch(() => {}));
+  c.executionCtx.waitUntil(drainOutbound(c.env.DB, mentionFetchFor(c.env), { origin }).catch(() => {}));
 }
 
 /**
@@ -192,7 +202,7 @@ async function publishAndNotify(c: Context<{ Bindings: Env }>, item: ItemRow, no
   const fork = parseStoredFork(item.forked_from);
   let lineageNote: string | undefined;
   if (fork) {
-    const check = await checkForkTarget(c.env.DB, fork, origin, mentionFetch);
+    const check = await checkForkTarget(c.env.DB, fork, origin, mentionFetchFor(c.env));
     if (!check.ok) return c.json({ error: check.reason }, 400);
     lineageNote = check.skipped;
   }
@@ -249,7 +259,7 @@ api.openapi(routes.getItemFreshness, async (c) => {
   if (!item) return c.json({ error: "not found" }, 404);
   if (item.kind !== "thread" || item.status !== "public") return c.json({ error: "only a published thread has quoted snapshots" }, 409);
   const probe = c.req.query("probe") !== "false";
-  return c.json(await threadFreshness(c.env.DB, item, probe ? platformFetch : undefined));
+  return c.json(await threadFreshness(c.env.DB, item, probe ? platformFetchFor(c.env) : undefined));
 });
 
 /**
@@ -268,7 +278,7 @@ api.openapi(routes.refreshItem, async (c) => {
   if (!item) return c.json({ error: "not found" }, 404);
   if (item.kind !== "thread" || item.status !== "public") return c.json({ error: "only a published thread has quoted snapshots" }, 409);
   const body = await readJson<{ note?: string }>(c);
-  let report = await threadFreshness(db, item, platformFetch);
+  let report = await threadFreshness(db, item, platformFetchFor(c.env));
   if (report.dirty) return c.json({ error: "this thread has unpublished edits; publish or discard them before refreshing its quotes" }, 409);
   let resynced = 0;
   const behind = new Set(report.quotes.filter((q) => q.status === "behind" && q.origin).map((q) => q.origin!));
@@ -367,7 +377,7 @@ api.openapi(routes.deleteItem, async (c) => {
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
   if (item.version > 0) return c.json({ error: "published items are withdrawn, not deleted" }, 409);
-  await discardDraft(c.env.DB, item);
+  if (!await discardDraft(c.env.DB, item)) return c.json({ error: "item changed while discarding; reload and try again" }, 409);
   return c.json({ ok: true, outcome: "discarded" });
 });
 
@@ -395,7 +405,12 @@ api.openapi(routes.uploadMedia, async (c) => {
     // The studio sends inline=true for an upload it places in the text
     // (studio#24): shown only where its line is, never appended.
     inline: form?.get("inline") === "true" ? 1 : 0,
-  });
+  }, c.get('draftOnlyMedia') === true);
+  if (!row) {
+    await c.env.MEDIA.delete(r2Key);
+    c.header('WWW-Authenticate', 'Bearer error="insufficient_scope", scope="owner:draft owner:publish"');
+    return c.json({ error: 'owner:publish required to attach media to a published item' }, 403);
+  }
   c.header("Location", `/${normalizeMount(c.env.MOUNT).replace(/^\//, "")}/${row.r2_key}`.replace(/^\/\//, "/"));
   return c.json({ id: row.id, url: row.r2_key, mime: row.mime }, 201);
 });
@@ -454,7 +469,12 @@ api.openapi(routes.updateSettings, async (c) => {
     if (typeof body[key] === "boolean") patch[key] = body[key] ? "on" : "off";
   }
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return c.json({ error: `unknown timezone: ${patch.timezone}` }, 400);
-  if (Array.isArray(body.author_links)) patch.author_links = JSON.stringify(body.author_links);
+  if (patch.site_url && !(URL.canParse(patch.site_url) && ["http:", "https:"].includes(new URL(patch.site_url).protocol))) return c.json({ error: "site_url must be an absolute http(s) URL" }, 400);
+  if (Array.isArray(body.author_links)) {
+    const links = body.author_links as { label?: unknown; url?: unknown }[];
+    if (!links.every((l) => typeof l?.label === "string" && typeof l?.url === "string" && isFollowableUrl(l.url))) return c.json({ error: "author_links need a label and an absolute http(s) or mailto url" }, 400);
+    patch.author_links = JSON.stringify(links);
+  }
   await putSettings(c.env.DB, patch);
   return c.json(await getSettings(c.env.DB));
 });

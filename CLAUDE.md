@@ -106,7 +106,7 @@ are single-account and the personal one has no D1 scope, so the migration prefli
 cannot run from either; an env token silently overrides the OAuth session, so **unset it**
 before deploying. One OAuth session reaches both accounts.
 
-## `/api` is a documented contract, still owner-cookie only
+## `/api` is a documented contract with owner and delegated access
 
 **Since 0.10.0** (#21, Kyle Mathews): 39 operations defined once in `src/contract/` (Zod →
 OpenAPI 3.1 → `openapi.json`, served to the owner at `/api/openapi.json`), resource-shaped
@@ -136,9 +136,11 @@ Password reset rides with his auth middleware (#31: after tokens, MUST offer rev
 Upstreaming Blygger Desktop's reading-rows and read-state extensions is fine — studio-private.
 Reasoning: `../blygger-spec/docs/v0.4-plan.md` §8.1.
 
-Auth is unchanged by all of the above: one owner cookie (`verifySession`, a 30-day HMAC over a single shared
-`OWNER_PASSWORD`). There is exactly one principal and no scopes, tokens, revocation or
-audit, and `/api` gets no CORS.
+The owner still signs in with the existing password and 30-day owner cookie.
+Delegated clients use scoped OAuth grants or named manual bearer tokens. Studio
+lists grants and supports individual revocation and revoke-all. REST and MCP
+share the same permission rules. See `docs/client-access.md` for the current
+contract and `docs/auth-security-oracles.md` for its security checks.
 
 **Third-party authoring tools are already writing to it** — a native macOS studio, a
 Drafts action, an Obsidian plugin. Making this a real contract (tokens, scopes,

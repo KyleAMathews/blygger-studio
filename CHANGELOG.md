@@ -18,6 +18,35 @@ not have its own repo until session 26.
 
 ---
 
+## 0.28.0 — 2026-10-05
+
+- Bound owner/per-grant REST/MCP work, delegated aggregate work, AI calls with an owner reserve, anonymous client storage and request bodies (migration 0022). Reclaim abandoned unapproved registrations after a configurable grace.
+- Keep unused draft uploads private with authenticated no-store previews; published media keeps serving the same bytes through later versions and withdrawal (§5.4). Choosing the avatar needs `owner:publish`. Stub and fork citation links accept only http(s), on write and on render; author links accept http(s) or mailto, and `site_url` only http(s), with stored rows filtered on read. Sanitize remote transclusion bakes and legacy displays, and validate/escape attribution links.
+- Check revocation during refresh-token introspection and atomic grant recording. Show full native callback destinations on consent and suppress remote fetch exception text.
+- Restrict outbound fetches to public destinations unless explicitly enabled for LAN use; cap streamed bodies and recheck redirects. DNS rebinding remains a deployment gap.
+- Sanitize imported editorial HTML at private/public rendering boundaries, prevent stale draft deletion after publication, and patch quadratic Markdown linkification.
+
+**Migrations: 0021_oauth.sql, 0022_security_budgets.sql.** Apply after 0.27.0's 0020. Adds OAuth provider tables, a shared rate limiter,
+client authorizations, and revocation state. Enable `nodejs_compat` before deployment.
+
+- Upgrade compatibility: existing owner login cookies are invalidated once. Log in
+  again after upgrading. SDK 0.2.0 owner clients must replace a plain `auth` string
+  with `headers.Cookie` or a scheme-specific auth callback; bearer clients also use
+  a scheme-specific callback. Protected routes require HTTPS except on loopback.
+- Clients can use scoped OAuth grants or named manual bearer tokens for REST and MCP.
+  The owner approves permissions and manages grants from Studio's Client access page.
+- MCP exposes the existing API operations with the same scope checks. The generated
+  JavaScript SDK supports owner cookies and bearer tokens in browsers and Node.js.
+- Refresh replay, signing-secret changes, and explicit revocation invalidate grants.
+  Owner-password reset invalidates browser sessions and preserves delegated tokens.
+  Native refresh cleanup can also invalidate another grant's refresh token for the
+  same client and owner. Other grants' access tokens retain their own revocation state.
+- Mounted discovery is available. Host-root `.well-known` routes remain deferred.
+- Security oracles include source-linked laws, model checks, browser probes, a
+  controlled two-isolate race, and mutations that verify the enforcement checks.
+
+---
+
 ## 0.27.2 — 2026-10-05
 
 **Migrations: none.** `/api` change, additive: `POST /api/items/{id}/generate`

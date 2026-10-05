@@ -10,6 +10,11 @@ class OracleMismatch extends Error {
 export function atCheckpoint(name: string, compare: () => void) {
   try { compare(); } catch (cause) { throw new OracleMismatch(name, cause); }
 }
+// Fixed and unseeded lanes run the same grammar and eight-history budget.
+// Replay selects the target, seed and shrink path instead of running both lanes.
+// A shrink failure at a different checkpoint is not the original fault. Preserve
+// that original fault alongside fast-check's reduced case. This bounded campaign
+// explores histories; it does not claim an exhaustive state space.
 export function campaign<T>(name: string, inputs: fc.Arbitrary<T>, check: (input: T) => Promise<void>) {
   const replay = __ORACLE_REPLAY__;
   if (replay.seed !== undefined && !replay.target) throw new Error("ORACLE_TARGET is required for replay");

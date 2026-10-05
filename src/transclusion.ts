@@ -3,6 +3,7 @@
 
 import { attachedQuote } from "./directives.ts";
 import { codeRanges, htmlCodeRanges, inRanges, lineOffsets, type Range } from "./code-ranges.ts";
+import { sanitizeHtml } from "./importer/sanitize.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { excerptFromHtml, renderMarkdown, selectionText } from "./markdown.ts";
 import type { ImportedItemRow, ItemRow, TextQuoteSelector, Transclusion, VersionRow } from "./types.ts";
@@ -364,7 +365,7 @@ async function walk(
       );
     } else {
       htmlParts.push(
-        `<blockquote class="blyg-transclusion" data-blyg-id="${target.id}" data-blyg-version="${target.version}"${originAttr}>\n${target.contentHtml}\n</blockquote>`,
+        `<blockquote class="blyg-transclusion" data-blyg-id="${target.id}" data-blyg-version="${target.version}"${originAttr}>\n${await sanitizeHtml(target.contentHtml)}\n</blockquote>`,
       );
     }
   }

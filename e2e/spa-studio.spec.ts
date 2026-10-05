@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixture';
 async function login(page: Page) {
   await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
   await page.getByRole('button', { name: 'log in', exact: true }).click();

@@ -18,6 +18,7 @@
   "name": "blyg",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
 
   "vars": {
     // Where the public surface is mounted (decision #14).

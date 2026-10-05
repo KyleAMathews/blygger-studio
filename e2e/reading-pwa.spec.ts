@@ -1,4 +1,4 @@
-import { test, expect, type Locator, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from './fixture';
 import { answerSheet } from './sheets.ts';
 
 // Reading, NetNewsWire-style (PWA redesign phase 2B): the sources list, a

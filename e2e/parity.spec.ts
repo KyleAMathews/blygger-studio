@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixture';
 import { answerSheet } from './sheets.ts';
 import { editorMenu, expandRow, openCard } from './editor.ts';
 // An entry's ⋯ sheet (an untitled menu sheet is named "actions").

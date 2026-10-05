@@ -1,5 +1,11 @@
+import { verifySession } from "./auth.ts";
+import { verifyBearer } from "./oauth.ts";
+import { requestError } from './request-error.ts';
 import { listFeedItems } from "./public-feed.ts";
 import { studioSpa } from "./spa.ts";
+import { authorizationApi } from './authorization-api.ts';
+import { oauthRoutes } from './oauth-routes.ts';
+import { serveMcp } from './mcp.ts';
 import { ownerApi } from "./owner-api.ts";
 // Studio is mounted at {mount}/studio and its assets share that range.
 // The owner API remains host-rooted at /api. Register both before the public
@@ -15,7 +21,8 @@ import { getHopperBySlug, getImportedItem, getSubscription, listBlogrollSubscrip
 import { authoredKind, getItem, getMedia, getSettings, getVersion, listPublic } from "./model.ts";
 import { archivePage, feedPage, generatedHighlightCss, permalinkPage, pinnedVersionPage, STYLE_CSS, themeCss, threadPage } from "./pages.ts";
 import { buildArchiveIndex, buildFeedXml, buildItemJson, buildManifest, buildPinnedVersionJson, siteOrigin } from "./protocol.ts";
-import { mentionFetch } from "./mentions/http.ts";
+import { platformFetchFor } from "./importer/http.ts";
+import { mentionFetchFor } from "./mentions/http.ts";
 import { receiveMention, verifyMention } from "./mentions/receive.ts";
 
 import { drainOutbound } from "./mentions/send.ts";
@@ -30,9 +37,37 @@ const cors = (c: { header: (k: string, v: string) => void }) =>
 /** Build the app for one normalized mount ("" = root, else "/path"). */
 export function makeApp(mount: string) {
   const app = new Hono<{ Bindings: Env }>({ strict: false });
+  app.onError((_error, c) => {
+    // Authentication driver failures can contain SQL parameters and secrets.
+    // Keep a bounded event rather than Hono's default raw Error/stack output.
+    console.error('Worker request failed', requestError(_error, c));
+    return c.json({ error: 'internal server error' }, 500, { 'Cache-Control': 'no-store' });
+  });
+  app.use('*', async (c, next) => {
+    const path = c.req.path, studio = studioPath(mount);
+    if (path === '/api' || path.startsWith('/api/') || path === studio || path.startsWith(studio + '/')) {
+      const url = new URL(c.req.url);
+      const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+      if (url.protocol !== 'https:' && !loopback) return c.json({ error: 'HTTPS required' }, 400, { 'Cache-Control': 'no-store' });
+    }
+    await next();
+  });
 
   // --- Studio: cookie auth, mount-relative (see header note). API: cookie auth, host-rooted. Registered first. ---
 
+  app.route(studioPath(mount) + '/auth', oauthRoutes());
+  app.all(studioPath(mount) + '/mcp', c => serveMcp(c.req.raw, c.env, c.executionCtx));
+  app.use('/api/*', async (c, next) => {
+    if (c.req.header('authorization') || c.req.method === 'OPTIONS') {
+      c.header('Access-Control-Allow-Origin', '*');
+      c.header('Access-Control-Allow-Methods', 'GET, HEAD, POST, PATCH, PUT, DELETE, OPTIONS');
+      c.header('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+      c.header('Access-Control-Expose-Headers', 'WWW-Authenticate, Location');
+      if (c.req.method === 'OPTIONS') return c.body(null, 204);
+    }
+    await next();
+  });
+  app.route('/api', authorizationApi);
   app.route(studioPath(mount), studioSpa(mount));
 
   app.route("/api", ownerApi);
@@ -173,7 +208,7 @@ export function makeApp(mount: string) {
       .target_item_id;
     // Verification runs after the response and can never fail the response:
     // an error here leaves the row `pending` for a later re-send to re-verify.
-    c.executionCtx.waitUntil(verifyMention(c.env.DB, mentionId, source, itemId, origin, mentionFetch).catch(() => {}));
+    c.executionCtx.waitUntil(verifyMention(c.env.DB, mentionId, source, itemId, origin, mentionFetchFor(c.env)).catch(() => {}));
     return c.json({ ok: true, status: "accepted, pending verification" }, 202);
   });
 
@@ -232,11 +267,33 @@ export function makeApp(mount: string) {
     const file = c.req.param("file");
     const media = await getMedia(c.env.DB, file.split(".")[0]);
     if (!media || media.r2_key !== `media/${file}`) return c.notFound();
+    // §5.4: a published media URL MUST always serve the same bytes, and §9
+    // withdrawal does not cascade. Public uses: the avatar, an attachment on an
+    // item ever published (attaching there needs publish scope), and anything
+    // a published version's text shows. Unused uploads stay owner-only.
+    // Indexed checks run first; the scan of every version is the last resort.
+    const publicUse = await c.env.DB.prepare(`SELECT 1 WHERE
+      EXISTS (SELECT 1 FROM settings WHERE key='avatar_media_id' AND value=?)
+      OR EXISTS (SELECT 1 FROM items WHERE id=? AND version>0 AND ?<>1)
+      OR EXISTS (SELECT 1 FROM versions WHERE item_id=? AND instr(content_html, ?) > 0)
+      OR EXISTS (SELECT 1 FROM versions WHERE instr(content_html, ?) > 0)`)
+      .bind(media.id, media.item_id, media.inline ?? 0, media.item_id, media.r2_key, media.r2_key).first();
+    if (!publicUse) {
+      c.header('Cache-Control', 'no-store');
+      const url = new URL(c.req.url);
+      if (url.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) return c.notFound();
+      const bearer = /^Bearer(?:\s|$)/i.test(c.req.header('authorization') ?? '');
+      const access = bearer ? await verifyBearer(c.req.raw, c.env, 'api') : null;
+      if (bearer ? !access?.scope.includes('owner:read') : !await verifySession(c.env, c.req.header('cookie'))) return c.notFound();
+    }
     const object = await c.env.MEDIA.get(media.r2_key);
     if (!object) return c.notFound();
     return c.body(object.body as ReadableStream, 200, {
       "Content-Type": media.mime,
-      "Cache-Control": "public, max-age=31536000, immutable",
+      // Uploaded SVG can be opened as a document. Keep it inert and give it an
+      // opaque origin so delegated uploads cannot inherit an owner's authority.
+      "Content-Security-Policy": "sandbox; script-src 'none'",
+      "Cache-Control": publicUse ? "public, max-age=31536000, immutable" : "no-store",
       "X-Content-Type-Options": "nosniff",
     });
   });
@@ -266,10 +323,10 @@ export default {
   // Cron trigger (§4.2): poll every due subscription. Due-selection + backoff
   // logic lives in importer/schedule.ts, fake-clock testable in isolation.
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runScheduledPoll(env.DB));
+    ctx.waitUntil(runScheduledPoll(env.DB, platformFetchFor(env)));
     // Outbound mentions retry here (§2.3.4): the publish path tries once
     // immediately, and a receiver that was down gets it on a later tick.
-    ctx.waitUntil(drainOutbound(env.DB, mentionFetch).catch(() => {}));
+    ctx.waitUntil(drainOutbound(env.DB, mentionFetchFor(env)).catch(() => {}));
     // Housekeeping (§9.1 gap 3): `failed` inbound claims are kept for 30 days
     // and then dropped. Here rather than on the endpoint, because the request
     // path must not do work that a flood would multiply.

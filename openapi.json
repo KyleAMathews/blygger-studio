@@ -16,9 +16,132 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "blyg_session"
+      },
+      "ownerOAuth": {
+        "type": "oauth2",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "/studio/auth/oauth2/authorize",
+            "tokenUrl": "/studio/auth/oauth2/token",
+            "scopes": {
+              "owner:read": "Read private drafts, reading material, media, and settings",
+              "owner:draft": "Create and edit drafts, upload media, and use configured AI generation",
+              "owner:publish": "Publish, withdraw, refresh, pin, and change public item responses or media",
+              "owner:manage": "Change settings, subscriptions, signals, collections, and response moderation"
+            }
+          }
+        }
       }
     },
     "schemas": {
+      "Authorization": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "manual": {
+            "type": "boolean"
+          },
+          "resource": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "number"
+          },
+          "expiresAt": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "clientId",
+          "name",
+          "manual",
+          "resource",
+          "scope",
+          "createdAt"
+        ]
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "reason": {
+                  "type": "string"
+                },
+                "at": {
+                  "type": "number"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "directive": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": {}
+            }
+          },
+          "tried": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ]
+                  }
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": {}
+      },
       "Item": {
         "type": "object",
         "properties": {
@@ -233,73 +356,6 @@
           "url",
           "retrieved"
         ]
-      },
-      "ApiError": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string"
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "reason": {
-                  "type": "string"
-                },
-                "at": {
-                  "type": "number"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "directive": {
-                  "type": "string"
-                }
-              },
-              "additionalProperties": {}
-            }
-          },
-          "tried": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "issues": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "path": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "number"
-                      }
-                    ]
-                  }
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "path",
-                "message"
-              ]
-            }
-          }
-        },
-        "required": [
-          "error"
-        ],
-        "additionalProperties": {}
       },
       "Settings": {
         "type": "object",
@@ -1535,6 +1591,486 @@
     "parameters": {}
   },
   "paths": {
+    "/api/authorizations": {
+      "get": {
+        "operationId": "listAuthorizations",
+        "tags": [
+          "authorization"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Authorization"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAuthorization",
+        "tags": [
+          "authorization"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "scope": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "owner:read",
+                        "owner:draft",
+                        "owner:publish",
+                        "owner:manage"
+                      ]
+                    },
+                    "minItems": 1
+                  },
+                  "resource": {
+                    "type": "string",
+                    "enum": [
+                      "api",
+                      "mcp"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "scope",
+                  "resource"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authorization": {
+                      "$ref": "#/components/schemas/Authorization"
+                    },
+                    "access_token": {
+                      "type": "string"
+                    },
+                    "token_type": {
+                      "type": "string",
+                      "enum": [
+                        "Bearer"
+                      ]
+                    },
+                    "expires_in": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "authorization",
+                    "access_token",
+                    "token_type",
+                    "expires_in"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "revokeAllAuthorizations",
+        "tags": [
+          "authorization"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/authorizations/{id}": {
+      "delete": {
+        "operationId": "revokeAuthorization",
+        "tags": [
+          "authorization"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/items": {
       "post": {
         "operationId": "createItem",
@@ -1544,6 +2080,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:draft"
+            ]
           }
         ],
         "requestBody": {
@@ -1555,6 +2096,19 @@
                   {
                     "type": "object",
                     "properties": {
+                      "provenance": {
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/components/schemas/GenerationProvenance"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
                       "content_md": {
                         "type": "string"
                       },
@@ -1692,6 +2246,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -1752,6 +2316,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -1782,6 +2356,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -1894,6 +2473,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -1954,6 +2543,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -1986,6 +2585,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:draft"
+            ]
           }
         ],
         "parameters": [
@@ -2006,6 +2610,19 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "provenance": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/GenerationProvenance"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
                   "content_md": {
                     "type": "string"
                   },
@@ -2095,6 +2712,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -2155,6 +2782,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -2185,6 +2822,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:draft"
+            ]
           }
         ],
         "parameters": [
@@ -2244,6 +2886,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -2304,6 +2956,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -2334,6 +2996,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -2538,6 +3205,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -2598,6 +3275,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -2630,6 +3317,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:publish"
+            ]
           }
         ],
         "parameters": [
@@ -2708,6 +3400,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -2768,6 +3470,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -2800,6 +3512,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:draft"
+            ]
           }
         ],
         "parameters": [
@@ -2860,6 +3577,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -2920,6 +3647,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -2952,6 +3689,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:draft"
+            ]
           }
         ],
         "parameters": [
@@ -3032,6 +3774,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -3092,6 +3844,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -3124,6 +3886,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:publish"
+            ]
           }
         ],
         "parameters": [
@@ -3196,6 +3963,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -3256,6 +4033,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -3288,6 +4075,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:publish"
+            ]
           }
         ],
         "parameters": [
@@ -3357,6 +4149,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -3417,6 +4219,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -3449,6 +4261,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:draft"
+            ]
           }
         ],
         "parameters": [
@@ -3529,6 +4346,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -3589,6 +4416,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -3621,6 +4458,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:draft"
+            ]
           }
         ],
         "requestBody": {
@@ -3702,6 +4544,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -3762,6 +4614,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -3794,6 +4656,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:publish"
+            ]
           }
         ],
         "parameters": [
@@ -3854,6 +4721,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -3914,6 +4791,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -3946,6 +4833,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
           }
         ],
         "requestBody": {
@@ -4070,6 +4962,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -4121,6 +5023,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -4160,6 +5072,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "responses": {
@@ -4184,6 +5101,16 @@
             }
           },
           "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -4244,6 +5171,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -4285,6 +5222,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
           }
         ],
         "requestBody": {
@@ -4397,6 +5339,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -4457,6 +5409,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -4487,6 +5449,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -4570,6 +5537,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -4630,6 +5607,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -4662,6 +5649,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
           }
         ],
         "parameters": [
@@ -4729,6 +5721,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -4789,6 +5791,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -4819,6 +5831,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
           }
         ],
         "parameters": [
@@ -4871,6 +5888,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -4931,6 +5958,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -4961,6 +5998,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -5005,6 +6047,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -5065,6 +6117,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -5097,6 +6159,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
           }
         ],
         "parameters": [
@@ -5153,6 +6220,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -5213,6 +6290,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -5245,6 +6332,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
           }
         ],
         "requestBody": {
@@ -5297,6 +6389,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -5357,6 +6459,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -5387,6 +6499,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -5470,6 +6587,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -5530,6 +6657,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -5562,6 +6699,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
           }
         ],
         "parameters": [
@@ -5630,6 +6772,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -5690,6 +6842,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -5720,6 +6882,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
           }
         ],
         "parameters": [
@@ -5772,6 +6939,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -5832,6 +7009,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -5862,6 +7049,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -5949,6 +7141,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -6000,6 +7202,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -6041,6 +7253,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
           }
         ],
         "parameters": [
@@ -6111,6 +7328,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -6162,6 +7389,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -6201,6 +7438,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
           }
         ],
         "parameters": [
@@ -6271,6 +7513,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -6322,6 +7574,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -6363,6 +7625,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
           }
         ],
         "parameters": [
@@ -6456,6 +7723,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -6516,6 +7793,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -6546,6 +7833,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
           }
         ],
         "parameters": [
@@ -6607,6 +7899,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -6667,6 +7969,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -6699,6 +8011,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
           }
         ],
         "parameters": [
@@ -6774,6 +8091,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -6834,6 +8161,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -6866,6 +8203,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -6949,6 +8291,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -7009,6 +8361,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -7041,6 +8403,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -7142,6 +8509,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -7202,6 +8579,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -7234,6 +8621,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "responses": {
@@ -7278,6 +8670,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -7329,6 +8731,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -7370,6 +8782,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "responses": {
@@ -7394,6 +8811,16 @@
             }
           },
           "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -7463,6 +8890,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -7495,6 +8932,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -7605,6 +9047,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -7665,6 +9117,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -7697,6 +9159,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:draft"
+            ]
           }
         ],
         "requestBody": {
@@ -7844,6 +9311,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -7904,6 +9381,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -7936,6 +9423,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -8048,6 +9540,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -8108,6 +9610,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -8140,6 +9652,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -8193,6 +9710,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -8253,6 +9780,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -8285,6 +9822,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -8412,6 +9954,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -8472,6 +10024,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -8504,6 +10066,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -8557,6 +10124,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -8617,6 +10194,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -8649,6 +10236,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -8748,6 +10340,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -8808,6 +10410,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -8840,6 +10452,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -8925,6 +10542,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -8976,6 +10603,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -9017,6 +10654,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "responses": {
@@ -9044,6 +10686,16 @@
             }
           },
           "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "Request failed",
             "content": {
               "application/json": {
@@ -9113,6 +10765,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -9145,6 +10807,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -9211,6 +10878,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -9271,6 +10948,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -9303,6 +10990,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "responses": {
@@ -9347,6 +11039,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -9407,6 +11109,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -9439,6 +11151,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -9495,6 +11212,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -9555,6 +11282,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -9587,6 +11324,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:publish"
+            ]
           }
         ],
         "parameters": [
@@ -9674,6 +11416,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -9734,6 +11486,16 @@
               }
             }
           },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Request failed",
             "content": {
@@ -9766,6 +11528,11 @@
         "security": [
           {
             "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
           }
         ],
         "parameters": [
@@ -9866,6 +11633,16 @@
               }
             }
           },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Request failed",
             "content": {
@@ -9917,6 +11694,16 @@
             }
           },
           "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "Request failed",
             "content": {
               "application/json": {

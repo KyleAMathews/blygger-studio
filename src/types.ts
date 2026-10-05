@@ -11,6 +11,28 @@ export interface Env {
    * protocol vocabulary.
    */
   MOUNT?: string;
+  /** Explicit network exception; unset/false restricts outbound destinations. */
+  ALLOW_PRIVATE_FETCH?: string;
+  /** Owner/per-grant authenticated API calls per minute (default: 1,200 reads and 120 writes). */
+  API_READ_LIMIT?: string;
+  /** Authenticated MCP envelopes per minute, including discovery (default 300). */
+  MCP_REQUEST_LIMIT?: string;
+  API_WRITE_LIMIT?: string;
+  /** Delegated aggregate per-minute API ceilings; owner quotas are separate. */
+  API_DELEGATED_READ_LIMIT?: string;
+  API_DELEGATED_WRITE_LIMIT?: string;
+  MCP_DELEGATED_REQUEST_LIMIT?: string;
+  /** Total AI calls reserved for owner/background work (default 5). */
+  AI_OWNER_RESERVED_CALLS?: string;
+  AI_GRANT_DAILY_CALL_LIMIT?: string;
+  /** REST/authorization request bytes (default 8 MiB). */
+  API_BODY_LIMIT?: string;
+  /** Actual AI provider calls per UTC day (default: 20). */
+  AI_DAILY_CALL_LIMIT?: string;
+  /** Stored OAuth clients plus pending anonymous registrations (default: 100). */
+  OAUTH_CLIENT_LIMIT?: string;
+  /** Grace for abandoned unapproved anonymous clients (default 24 hours). */
+  OAUTH_UNAPPROVED_CLIENT_TTL_SECONDS?: string;
   /** The Anthropic API key (the manifest's anthropic key_secret). Wrangler secret, per security-policy.md — never in code or .dev.vars committed to git. */
   AI_PROVIDER_KEY?: string;
   /** OpenAI API key, when an OpenAI model is chosen in Settings (0.26.0). Wrangler secret. */
