@@ -18,6 +18,20 @@ not have its own repo until session 26.
 
 ---
 
+## 0.27.1 — 2026-10-05
+
+**Migrations: none.** The same program as 0.27.0, released.
+
+The release workflow had failed on every tag since 0.21.2, so 0.21.2 through
+0.27.0 have no release downloads. The cause was two problems in the test
+plumbing, not in what ships. A browser test wrote a screenshot to a path that
+exists only on the maintainer's machine. And since 0.26.0, the mutation check
+built its temporary tree without `build/models.json`. Both are fixed. Operators
+upgrading by tag should take this release; the notes for 0.21.2 to 0.27.0
+below still describe what changed.
+
+---
+
 ## 0.27.0 — 2026-10-05
 
 **Migrations: 0020** (`items.highlight_override`, nullable). Apply it before

@@ -1,6 +1,6 @@
 export const CLIENT = {
   name: "blygger-studio",
-  version: "0.27.0",
+  version: "0.27.1",
   /** Canonical source, for the manifest's `generator_url` (§16.6a, decision #34). */
   url: "https://github.com/blygger/blygger-studio",
 } as const;
