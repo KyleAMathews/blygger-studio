@@ -42,7 +42,7 @@ describe('auth deployment receiving boundaries', () => {
     // Each request constructs the configured provider anew. Its shared D1
     // counter, not factory-local state, must decide the admission race.
     const responses = await Promise.all(Array.from({ length: 9 }, (_, index) => d.register('203.0.113.' + (index + 10))));
-    expect(responses.filter(response => response.status === 201)).toHaveLength(5);
+    expect(responses.filter(response => response.status === 201), 'spoofed forwarded addresses share one edge budget').toHaveLength(5);
     expect(responses.filter(response => response.status === 429)).toHaveLength(4);
     const limited = await d.register('203.0.113.99');
     expect(limited.status).toBe(429);

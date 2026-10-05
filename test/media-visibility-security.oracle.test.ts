@@ -53,6 +53,24 @@ it.each([false, true])('publication releases its actually visible media (inline=
   expect((await f.owner('/api/items/' + id, 'PATCH', { content_md: 'New version without inline image' })).status).toBe(200);
   expect((await f.owner('/api/items/' + id + '/publish', 'POST')).status).toBe(200);
   expect((await receive(path)).status, 'a public pin keeps its required media available').toBe(200);
+  expect((await f.owner('/api/items/' + id + '/withdraw', 'POST', {})).status).toBe(200);
+  expect((await receive(path)).status, inline ? 'a retained pin keeps its media after withdrawal' : 'withdrawal retracts live attachments a pin never showed').toBe(inline ? 200 : 404);
+});
+// Owner ruling: withdrawal retracts. Only a retained pin keeps a promise alive.
+it.each([false, true])('withdrawal without a pin retracts published media (inline=%s)', async inline => {
+  const f = await fixture();
+  const created = await f.owner('/api/items', 'POST', { content_md: 'Withdrawn media' }); expect(created.status).toBe(201);
+  const { id } = await created.json() as {id:string}, media = await f.upload(id, inline);
+  const path = '/blyg/' + media.url;
+  if (inline) expect((await f.owner('/api/items/' + id, 'PATCH', { content_md: `![image](/blyg/${media.url})` })).status).toBe(200);
+  expect((await f.owner('/api/items/' + id + '/publish', 'POST')).status).toBe(200);
+  expect((await receive(path)).status).toBe(200);
+  expect((await f.owner('/api/items/' + id + '/withdraw', 'POST', {})).status).toBe(200);
+  const after = await receive(path);
+  expect(after.status, 'withdrawn media is no longer an anonymous publication').toBe(404);
+  const preview = await receive(path, { headers: { cookie: f.cookie } });
+  expect(preview.status, 'the owner can still see withdrawn media').toBe(200);
+  expect(preview.headers.get('cache-control')).toBe('no-store');
 });
 it('an inline upload not placed in published text remains private', async () => {
   const f = await fixture(); const created = await f.owner('/api/items', 'POST', { content_md: 'No image' });

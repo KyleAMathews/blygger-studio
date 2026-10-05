@@ -1047,14 +1047,14 @@ export function stubCitation(row: Pick<VersionRow, "stub_of" | "stub_cite"> | nu
     // Summary contexts (feed card, RSS description) get the shortest true
     // form: who it answers, linked. The full citation lives on the permalink.
     const who = cite?.source ? `<cite>${escapeHtml(cite.source)}</cite>` : escapeHtml(url);
-    return `<p class="stub-cite compact"><span class="label">In response to</span> <a href="${escapeHtml(url)}">${who} ↗</a></p>`;
+    return `<p class="stub-cite compact"><span class="label">In response to</span> <a href="${escapeHref(url)}">${who} ↗</a></p>`;
   }
   const parts: string[] = [];
   if (cite?.source) parts.push(`<cite>${escapeHtml(cite.source)}</cite>`);
   if (cite?.author) parts.push(escapeHtml(cite.author));
   if (cite?.excerpt) parts.push(`&ldquo;${escapeHtml(cite.excerpt)}&rdquo;`);
   if ("id" in stub) parts.push(`item <code>${escapeHtml(stub.id)}</code>, v${stub.version}`);
-  parts.push(`&lt;<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>&gt;`);
+  parts.push(`&lt;<a href="${escapeHref(url)}">${escapeHtml(url)}</a>&gt;`);
   if (cite?.retrieved) parts.push(`retrieved ${formatDate(cite.retrieved, tz)}`);
   return `<p class="stub-cite"><span class="label">In response to</span><br>${parts.join(" &middot; ")}</p>`;
 }
@@ -1080,14 +1080,14 @@ export function forkLineage(item: Pick<ItemRow, "forked_from" | "fork_cite">, tz
   const url = cite?.url ?? `${fork.origin}items/${fork.id}/v${fork.version}.json`;
   if (opts.compact) {
     const who = cite?.source ? `<cite>${escapeHtml(cite.source)}</cite>` : escapeHtml(url);
-    return `<p class="stub-cite compact"><span class="label">Forked from</span> <a href="${escapeHtml(url)}">${who} ↗</a></p>`;
+    return `<p class="stub-cite compact"><span class="label">Forked from</span> <a href="${escapeHref(url)}">${who} ↗</a></p>`;
   }
   const parts: string[] = [];
   if (cite?.source) parts.push(`<cite>${escapeHtml(cite.source)}</cite>`);
   if (cite?.author) parts.push(escapeHtml(cite.author));
   if (cite?.excerpt) parts.push(`&ldquo;${escapeHtml(cite.excerpt)}&rdquo;`);
   parts.push(`item <code>${escapeHtml(fork.id)}</code>, pinned v${fork.version}`);
-  parts.push(`&lt;<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>&gt;`);
+  parts.push(`&lt;<a href="${escapeHref(url)}">${escapeHtml(url)}</a>&gt;`);
   if (cite?.retrieved) parts.push(`retrieved ${formatDate(cite.retrieved, tz)}`);
   return `<p class="stub-cite"><span class="label">Forked from</span><br>${parts.join(" &middot; ")}</p>`;
 }

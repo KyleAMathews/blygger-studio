@@ -267,15 +267,15 @@ export function makeApp(mount: string) {
     const file = c.req.param("file");
     const media = await getMedia(c.env.DB, file.split(".")[0]);
     if (!media || media.r2_key !== `media/${file}`) return c.notFound();
-    // Version rows are published snapshots, including retained pins. Their media
-    // promises survive withdrawal. Unplaced non-inline attachments and the avatar
-    // are also public uses; an unused inline upload is never an anonymous use.
+    // Media is public while a public page shows it: the avatar, a live item's
+    // unplaced attachments, or a version of a live item. Withdrawal retracts;
+    // only a retained pin keeps its bytes. Pinned pages show no attachments.
     // Indexed checks run first; the scan of every version is the last resort.
     const publicUse = await c.env.DB.prepare(`SELECT 1 WHERE
       EXISTS (SELECT 1 FROM settings WHERE key='avatar_media_id' AND value=?)
       OR EXISTS (SELECT 1 FROM items WHERE id=? AND status='public' AND version>0 AND ?<>1)
-      OR EXISTS (SELECT 1 FROM versions WHERE item_id=? AND instr(content_html, ?) > 0)
-      OR EXISTS (SELECT 1 FROM versions WHERE instr(content_html, ?) > 0)`)
+      OR EXISTS (SELECT 1 FROM versions v JOIN items i ON i.id=v.item_id WHERE v.item_id=? AND (i.status='public' OR v.pinned=1) AND instr(v.content_html, ?) > 0)
+      OR EXISTS (SELECT 1 FROM versions v JOIN items i ON i.id=v.item_id WHERE (i.status='public' OR v.pinned=1) AND instr(v.content_html, ?) > 0)`)
       .bind(media.id, media.item_id, media.inline ?? 0, media.item_id, media.r2_key, media.r2_key).first();
     if (!publicUse) {
       c.header('Cache-Control', 'no-store');

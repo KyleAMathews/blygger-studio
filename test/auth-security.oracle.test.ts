@@ -136,7 +136,7 @@ describe('security release boundaries', () => {
     const listing = await (await f.request('/api/authorizations', { headers: { cookie: f.owner } })).json() as { items: { id: string; clientId: string }[] };
     const grant = listing.items.find(value => value.clientId === f.client.client_id)!;
     expect((await f.request('/api/authorizations/' + grant.id, { method: 'DELETE', headers: { cookie: f.owner } })).status).toBe(200);
-    const after = await introspect(); expect(after.status).toBe(200); expect(await after.json()).toEqual({ active: false });
+    const after = await introspect(); expect(after.status).toBe(200); expect(await after.json(), 'a revoked grant introspects inactive').toEqual({ active: false });
   });
 
   // This is a bounded at-rest exclusion law, not a password-hash strength proof.

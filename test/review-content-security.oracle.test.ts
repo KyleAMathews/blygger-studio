@@ -101,3 +101,42 @@ it.each(['public', 'pin', 'history', 'detail', 'reading'])('renders legacy bakes
   expect((await wire.json() as {content_html:string}).content_html).toBe(legacy);
   expect((await env.DB.prepare('SELECT content_html FROM versions WHERE item_id=? AND version=1').bind(id).first<{content_html:string}>())!.content_html).toBe(legacy);
 });
+// A draft-only token writes the citation. Only http(s) citations are data a
+// reader can follow, so an active scheme is refused before anyone publishes it.
+it.each([
+  ['cited.url', { url: 'https://cited.example/p', cited: { source: 'Cited', url: 'javascript:document.documentElement.dataset.compromised=1', retrieved: '2026-10-01T00:00:00Z' } }],
+  ['stub_of.url', { url: 'javascript:document.documentElement.dataset.compromised=1' }],
+])('a delegated %s with an active scheme is refused', async (_field, stub_of) => {
+  const { flow } = await import('./oauth-flow-driver.ts');
+  const f = await flow();
+  const minted = await f.request('/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'citation drafter', scope: ['owner:draft'], resource: 'api' }) });
+  expect(minted.status).toBe(200);
+  const { access_token } = await minted.json() as { access_token: string };
+  const draft = (path: string, method: string, body: unknown) => f.request(path, { method, headers: { Authorization: 'Bearer ' + access_token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const created = await draft('/api/items', 'POST', { kind: 'thread', content_md: 'A response' });
+  expect(created.status).toBe(201);
+  const { id } = await created.json() as { id: string };
+  expect((await draft('/api/items/' + id, 'PATCH', { stub_of })).status, 'active-scheme citations are refused at write').toBe(400);
+  expect((await draft('/api/items/' + id, 'PATCH', { stub_of: { url: 'https://cited.example/p', cited: { source: 'Cited', url: 'https://cited.example/p', retrieved: '2026-10-01T00:00:00Z' } } })).status, 'an http(s) citation stays writable').toBe(200);
+});
+// Rows stored before the write check, and lineage kept verbatim from imports,
+// reach the same anchors. Rendering must keep them inert on its own.
+it.each([
+  ['stub_cite.url', { stub_of: '{"url":"https://cited.example/p"}', stub_cite: '{"source":"S","url":"javascript:document.documentElement.dataset.compromised=1","retrieved":"2026-10-01T00:00:00Z"}' }, {}],
+  ['stub_of.url', { stub_of: '{"url":"javascript:document.documentElement.dataset.compromised=1"}', stub_cite: null }, {}],
+  ['fork_cite.url', {}, { forked_from: '{"origin":"https://fork.example/","id":"0000000000000000000000000f","version":1}', fork_cite: '{"source":"F","url":"javascript:document.documentElement.dataset.compromised=1","retrieved":"2026-10-01T00:00:00Z"}' }],
+  ['forked_from.origin', {}, { forked_from: '{"origin":"javascript:document.documentElement.dataset.compromised=1//","id":"0000000000000000000000000f","version":1}', fork_cite: null }],
+] as const)('a stored %s cannot become an active link on public pages', async (_field, version, item) => {
+  const f = await setup('<p>unused</p>');
+  const created = await f.owner('/api/items', 'POST', { kind: 'thread', content_md: 'A response' }); expect(created.status).toBe(201);
+  const { id } = await created.json() as { id: string };
+  expect((await f.owner(`/api/items/${id}/publish`, 'POST')).status).toBe(200);
+  for (const [column, value] of Object.entries(version)) expect((await env.DB.prepare(`UPDATE versions SET ${column}=? WHERE item_id=?`).bind(value, id).run()).meta.changes).toBe(1);
+  for (const [column, value] of Object.entries(item)) expect((await env.DB.prepare(`UPDATE items SET ${column}=? WHERE id=?`).bind(value, id).run()).meta.changes).toBe(1);
+  for (const path of [`/blyg/t/${id}/`, '/blyg/']) {
+    const page = await receive(path); expect(page.status).toBe(200);
+    const html = await page.text();
+    expect(html, 'the stored citation reaches ' + path).toMatch(/stub-cite/);
+    await inert(html, 'stored citation cannot create an active link on ' + path, true);
+  }
+});

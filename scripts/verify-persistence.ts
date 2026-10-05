@@ -52,7 +52,10 @@ export async function verifyPersistence(worker: string, temp: string) {
     const retainedPin = await fetch(`${fixture.baseUrl}/items/${published.id}/v1.json`);
     assert.equal(retainedPin.status, 200);
     assert.equal(await retainedPin.text(), pinned);
-    const upload = await fetch(`${fixture.baseUrl}/${media.url}`);
+    // An unpublished upload is private: the owner reads its bytes, anonymous
+    // readers do not, and a restart changes neither.
+    assert.equal((await fetch(`${fixture.baseUrl}/${media.url}`)).status, 404);
+    const upload = await fetch(`${fixture.baseUrl}/${media.url}`, { headers: { cookie: `blyg_session=${token}` } });
     assert.equal(upload.status, 200); assert.equal(upload.headers.get("content-type"), "image/png");
     assert.deepEqual(new Uint8Array(await upload.arrayBuffer()), new Uint8Array([0, 1, 255]));
     console.log("Fresh Worker process retained D1 drafts/history/pins/citations, auth cookie, and R2 upload bytes");

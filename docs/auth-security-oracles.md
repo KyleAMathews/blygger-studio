@@ -89,6 +89,9 @@ history, plus old stored bakes on public, pinned, detail, history and reading
 surfaces. Browser version navigation reads sanitized pinned-page HTML instead of
 raw protocol JSON. A request observer catches authority calls before async minting
 finishes; a negative DOM-marker check alone could race the callback. Presentation is inert while frozen stored snapshots remain unchanged.
+Citation links are checked twice: a draft token cannot store an active-scheme
+`cited.url` or `stub_of.url`, and stored stub and fork citations, including
+lineage kept verbatim from imports, render as inert links on public pages.
 `media-visibility-security.oracle.test.ts` checks anonymous refusal, owner preview,
 no-store, publication, unused inline attachments and pin retention. Read tokens
 work, draft-only and revoked tokens refuse, and non-loopback HTTP private reads
