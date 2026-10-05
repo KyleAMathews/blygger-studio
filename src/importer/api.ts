@@ -9,6 +9,8 @@ import { routes } from "../contract/routes.ts";
 
 
 import { pollSubscription, reconcileIndex } from "./poll.ts";
+import { pollAll } from "./schedule.ts";
+import { listSubscriptions } from "./store.ts";
 import { resolve } from "./resolve.ts";
 import {
   addHopperItem,
@@ -109,6 +111,13 @@ importerApi.openapi(routes.updateSubscription, async (c) => {
   if (!assignments.length) return c.json(subscriptionResource(sub));
   const fresh = await c.env.DB.prepare(`UPDATE subscriptions SET ${assignments.join(", ")} WHERE id = ? RETURNING *`).bind(...values, sub.id).first<SubscriptionRow>();
   return fresh ? c.json(subscriptionResource(fresh)) : c.json({ error: "subscription no longer exists" }, 404);
+});
+
+/** Poll every subscription that is not paused, in the background; answers at once with how many. */
+importerApi.openapi(routes.pollAllSubscriptions, async (c) => {
+  const polling = (await listSubscriptions(c.env.DB)).filter((s) => s.status !== "paused").length;
+  c.executionCtx.waitUntil(pollAll(c.env.DB, platformFetchFor(c.env)).catch(() => {}));
+  return c.json({ polling });
 });
 
 /** Force an index reconciliation right now, regardless of the periodic schedule. */

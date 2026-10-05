@@ -153,12 +153,18 @@ describe("select-to-quote produces a draft that publishes", () => {
 });
 
 describe("the stub prefill adapts to the target's length", () => {
-  it("a long target gets the directive plus an empty quote line", async () => {
+  it("a long target quotes its opening passage, so the draft opens without an error", async () => {
     const cookie = await login();
     const { sub, id } = await importItem({ md: LONG_BODY.repeat(3) });
     const created = await stub(cookie, { subscription_id: sub, remote_id: id });
     expect(created.status).toBe(201);
-    expect(await draftMd(cookie, created.json.id)).toBe(`![[${id}]]\n> \n\n`);
+    const md = await draftMd(cookie, created.json.id);
+    expect(md).toMatch(new RegExp(`^!\\[\\[${id}\\]\\]\\n> \\S`));
+    const quoted = md.split("\n")[1].slice(2);
+    expect(quoted.length).toBeLessThanOrEqual(280);
+    expect(LONG_BODY.repeat(3).replace(/\s+/g, " ")).toContain(quoted);
+    const preview = await apiJson(cookie, "POST", "/api/preview", { kind: "thread", content_md: md, item_id: created.json.id });
+    expect(preview.json.errors).toEqual([]);
   });
 
   it("a short target is unchanged — the whole item, as before", async () => {
@@ -168,7 +174,7 @@ describe("the stub prefill adapts to the target's length", () => {
     expect(await draftMd(cookie, created.json.id)).toBe(`![[${id}]]\n\n`);
   });
 
-  it("the empty quote line is a suggestion: deleting it publishes the whole form", async () => {
+  it("the quote is a suggestion: deleting it publishes the whole form", async () => {
     const cookie = await login();
     const { sub, id } = await importItem({ md: LONG_BODY.repeat(3) });
     const created = await stub(cookie, { subscription_id: sub, remote_id: id });
@@ -179,13 +185,21 @@ describe("the stub prefill adapts to the target's length", () => {
     expect(doc.transclusions[0].selector).toBeUndefined();
   });
 
-  it("an empty quote line left in place is refused rather than published as nothing", async () => {
+  it("the prefill publishes as it stands: a partial quote of the opening", async () => {
     const cookie = await login();
     const { sub, id } = await importItem({ md: LONG_BODY.repeat(3) });
     const created = await stub(cookie, { subscription_id: sub, remote_id: id });
-    // Publishing the prefill untouched: the author was invited to type a
-    // passage and did not. That must not quietly become a whole transclusion,
-    // or an empty quote, or a blockquote of nothing.
+    expect((await apiJson(cookie, "POST", `/api/items/${created.json.id}/publish`, {})).status).toBe(200);
+    const doc = await (await getPublic(`/blyg/items/${created.json.id}.json`)).json<any>();
+    expect(doc.content_html).toContain("blyg-partial");
+    expect(doc.transclusions[0].selector.exact.length).toBeGreaterThan(0);
+  });
+
+  it("an empty quote line typed by hand is still refused rather than published as nothing", async () => {
+    const cookie = await login();
+    const { sub, id } = await importItem({ md: LONG_BODY.repeat(3) });
+    const created = await stub(cookie, { subscription_id: sub, remote_id: id });
+    await apiJson(cookie, "PATCH", `/api/items/${created.json.id}`, { content_md: `![[${id}]]\n> \n\n` });
     const res = await apiJson(cookie, "POST", `/api/items/${created.json.id}/publish`, {});
     expect(res.status).toBe(400);
     expect(JSON.stringify(res.json)).toContain("empty");

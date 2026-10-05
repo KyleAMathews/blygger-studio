@@ -2133,6 +2133,77 @@ export type UpdateSubscriptionResponses = {
 
 export type UpdateSubscriptionResponse = UpdateSubscriptionResponses[keyof UpdateSubscriptionResponses];
 
+export type PollAllSubscriptionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/subscriptions/poll';
+};
+
+export type PollAllSubscriptionsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type PollAllSubscriptionsError = PollAllSubscriptionsErrors[keyof PollAllSubscriptionsErrors];
+
+export type PollAllSubscriptionsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        polling: number;
+    };
+};
+
+export type PollAllSubscriptionsResponse = PollAllSubscriptionsResponses[keyof PollAllSubscriptionsResponses];
+
 export type ResyncSubscriptionData = {
     body?: never;
     path: {

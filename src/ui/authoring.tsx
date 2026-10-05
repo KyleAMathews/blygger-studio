@@ -939,7 +939,8 @@ export function Compose() {
             Full Editor →
           </Button>
           <span className={over ? 'counter over' : 'counter'} id="composer-count">
-            {text.length} / {MAX}
+            {/* Only fragments have a length limit; a thread shows its count alone. */}
+            {kind === 'thread' ? `${text.length} chars` : `${text.length} / ${MAX}`}
           </span>
         </ToolRow>
         {over ? (
@@ -1097,7 +1098,29 @@ function ItemRow({
     parseScopes(withoutDirectives).scopes,
   );
   const html = renderMarkdown(stripped.text);
-  const preview = previewFromHtml(html);
+  const own = previewFromHtml(html);
+  // An item that only quotes or links has no prose of its own, and read
+  // "(empty draft)" here. Ask the preview endpoint once for what the reader
+  // and public pages show (quotes baked, links resolved); until it answers,
+  // say what the item does.
+  const LINK = /(?<!!)\[\[[^\]\n]+\]\]/g;
+  const links = (item.content_md.match(LINK) ?? []).length;
+  // Bare [[id]] tokens are not prose: without them, is anything left?
+  const prose = links ? previewFromHtml(renderMarkdown(stripped.text.replace(LINK, ''))) : own;
+  const ownEmpty = !prose.title && !prose.body;
+  const [resolved, setResolved] = useState<ReturnType<typeof previewFromHtml> | null>(null);
+  useEffect(() => {
+    if (!ownEmpty || !(count || links)) return;
+    let live = true;
+    unwrap(BlyggerApi.preview({ client, body: { content_md: item.content_md, item_id: item.id, kind: item.kind === 'thread' ? 'thread' : 'fragment' } }))
+      .then((r) => live && setResolved(previewFromHtml(r.html)))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [ownEmpty, item.content_md]);
+  const preview = ownEmpty && resolved && (resolved.title || resolved.body) ? resolved : own;
+  const doesOnly = count ? `Only quotes ${count} item${count === 1 ? '' : 's'}` : links ? `Only links ${links} item${links === 1 ? '' : 's'}` : null;
   const mutate = (fn: () => Promise<unknown>) =>
     void action.run(async () => {
       if (draft.current!.dirty && !(await save())) return;
@@ -1136,7 +1159,7 @@ function ItemRow({
         <span className={`dot ${dot}`} title={item.status} />
         <span className="item-main">
           <span className={preview.title || preview.body ? 'item-title' : 'item-title empty'}>
-            {preview.title || preview.body || '(empty draft)'}
+            {preview.title || preview.body || doesOnly || '(empty draft)'}
           </span>
           {preview.title && preview.body ? (
             <span className="item-excerpt">{preview.body}</span>
@@ -1273,7 +1296,13 @@ function ItemRow({
                       danger: true,
                     })
                   )
-                    mutate(() => items.delete(item.id).isPersisted.promise);
+                    // Not mutate(): its follow-up refetch of this item 404s on
+                    // the draft just deleted and showed "not found" as an error.
+                    void action.run(async () => {
+                      await items.delete(item.id).isPersisted.promise;
+                      await changed('items', 'reading');
+                      toast('Draft discarded', { tone: 'ok' });
+                    });
                 }}
               >
                 discard
@@ -1550,6 +1579,7 @@ function Editor({ item }: { item: Detail }) {
       await changed('items');
       leaving.current = true;
       await navigate({ to: '/' });
+      toast('Draft discarded', { tone: 'ok' });
     } finally {
       setReplacing(false);
     }
