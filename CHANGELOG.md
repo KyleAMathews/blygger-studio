@@ -18,6 +18,11 @@ not have its own repo until session 26.
 
 ---
 
+## 0.28.3 — 2026-10-05
+
+- **Feed polling and Webmentions work again.** 0.28.0's outbound DNS check called `fetch` with `redirect: 'error'`, which the Workers runtime rejects outright, so on a deployed node every check threw: every subscription poll failed, outgoing mentions stayed queued and incoming ones went unverified. The tests stubbed `fetch` and accepted the mode. The check now uses `redirect: 'manual'` and still fails closed on anything but a 200; a new test refuses `'error'` the way the edge does. Polls, queued mentions and verification resume on their own at the next cron tick after upgrading.
+- Migrations: none.
+
 ## 0.28.2 — 2026-10-05
 
 - A thread's published `content_html` bakes each transcluded item's HTML verbatim again, as §5.2 and §10.2 specify. 0.28.0 ran the bake through the import sanitizer, which put sanitizer output into the protocol bytes other origins import. Sanitizing stays at every render instead: the public thread pages and version history already sanitize the stored HTML, and the editor's transclusion preview now sanitizes its own output. Threads published under 0.28.0–0.28.1 keep their bytes (published versions are immutable).
