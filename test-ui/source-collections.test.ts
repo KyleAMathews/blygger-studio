@@ -3,6 +3,8 @@ import type { Detail } from '../src/ui/data.ts';
 import { readFileSync, readdirSync } from 'node:fs';
 import ts from 'typescript';
 import { createLiveQueryCollection } from '@tanstack/react-db';
+import { sourceSchemas } from '../src/ui/data-schemas.ts';
+import { ItemListRowSchema, HopperSchema, SubscriptionSchema, AuthorizationSchema } from '../src/contract/resource-schemas.ts';
 
 let db: typeof import('../src/ui/data.ts');
 let revision = 0;
@@ -11,14 +13,15 @@ let missing = false;
 let failWrite = false;
 let failRead = false;
 let orphanMember = false;
+let invalidItem = false;
 let releaseWrite: (() => void) | undefined;
 let writeGate: Promise<void> | undefined;
 const requests: { path: string; params: URLSearchParams }[] = [];
 const views: { cleanup(): Promise<void> | void }[] = [];
-const item = () => ({ id: 'a', content_md: text, kind: 'fragment', updated: '2026-10-06', pins: [] });
-const detail = (): Detail => ({ ...item(), authored_kind: 'fragment', media: [], versions: [], published: null }) as unknown as Detail;
-const hopper = { id: 'h', name: 'Hopper', public: false };
-const contents = () => ({ hopper, items: Array.from({ length: 4 }, (_, i) => ({ subscription_id: 's', remote_id: String(i), content_html: `${text} ${i}` })), memberships: Array.from({ length: 4 }, (_, i) => ({ hopper_id: 'h', subscription_id: 's', remote_id: String(i), added_at: '2026-10-06' })), total: 4, source_count: 1 });
+const item = () => ({ id: 'a', content_md: text, kind: 'fragment' as const, status: 'draft' as const, created: '2026-10-06', updated: '2026-10-06', version: 0, dirty: false, responses: 'default' as const, highlight: 'default' as const, provenance: [], stub_of: null, forked_from: null, fork_cite: null, pins: [] });
+const detail = (): Detail => ({ ...item(), authored_kind: 'fragment', media: [], versions: [], published: null });
+const hopper = { id: 'h', name: 'Hopper', public: false, slug: null, created: '2026-10-06', slug_frozen: false, description: null };
+const contents = () => ({ hopper, items: Array.from({ length: 4 }, (_, i) => ({ subscription_id: 's', remote_id: String(i), content_html: `${text} ${i}`, content_md: text, kind: 'fragment', state: 'current', version: 1, created: null, updated: null, observed_at: '2026-10-06', content_hash: null, author_json: null, media_json: null, transclusions_json: null, l0: false, pinned_version_retained: null, page: null, stub_of_json: null, forked_from_json: null })), memberships: Array.from({ length: 4 }, (_, i) => ({ hopper_id: 'h', subscription_id: 's', remote_id: String(i), added_at: '2026-10-06' })), total: 4, source_count: 1 });
 const entry = (key: string, kind = 'fragment') => ({ key, source: 'own', kind, withdrawn: false, l0: false, contentHtml: text, displayAt: '2026-10-06' });
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
 
@@ -41,7 +44,7 @@ beforeAll(async () => {
       if (failRead) return json({ error: 'read failed' }, 503);
       return missing ? json({ error: 'not found' }, 404) : json(detail());
     }
-    if (url.pathname === '/api/items') return json({ items: missing ? [] : [item()], total: missing ? 0 : 1, offset: 0, limit: 100 });
+    if (url.pathname === '/api/items') return json({ items: missing ? [] : [{ ...item(), ...(invalidItem ? { content_md: 42 } : {}) }], total: missing ? 0 : 1, offset: 0, limit: 100 });
     if (url.pathname === '/api/hoppers') return json({ items: [hopper], total: 1, offset: 0, limit: 100 });
     if (url.pathname === '/api/hoppers/h') {
       if (missing) return json({ error: 'not found' }, 404);
@@ -65,7 +68,7 @@ beforeAll(async () => {
   db = await import('../src/ui/data.ts');
 });
 
-beforeEach(() => { revision = 0; text = 'original'; missing = false; failWrite = false; failRead = false; orphanMember = false; writeGate = undefined; releaseWrite = undefined; requests.length = 0; });
+beforeEach(() => { revision = 0; text = 'original'; missing = false; failWrite = false; failRead = false; orphanMember = false; invalidItem = false; writeGate = undefined; releaseWrite = undefined; requests.length = 0; });
 afterEach(async () => {
   releaseWrite?.();
   await Promise.all(views.splice(0).map((view) => view.cleanup()));
@@ -138,6 +141,34 @@ test('missing detail resources produce a route error while source subsets remain
   expect(editor.toArray).toEqual([]); expect(hopper.toArray).toEqual([]);
 });
 
+test('all sources use shared API schemas or explicit client extensions', () => {
+  for (const [name, schema] of Object.entries(sourceSchemas)) {
+    const source = db[name as keyof typeof sourceSchemas];
+    expect(source.config.schema).toBe(schema);
+  }
+  expect(sourceSchemas.items).toBe(ItemListRowSchema);
+  expect(sourceSchemas.hoppers).toBe(HopperSchema);
+  expect(sourceSchemas.subscriptions).toBe(SubscriptionSchema);
+  expect(sourceSchemas.authorizations).toBe(AuthorizationSchema);
+});
+
+test('invalid synced rows retain the last good state and retry before the same revision is cached', async () => {
+  await db.listViews.items.preload();
+  invalidItem = true; text = 'new version'; revision++;
+  await expect(db.items.utils.refetch({ throwOnError: true })).rejects.toThrow('expected string');
+  expect(db.items.get('a')?.content_md).toBe('original');
+  invalidItem = false;
+  await db.items.utils.refetch({ throwOnError: true });
+  expect(db.items.get('a')?.content_md).toBe('new version');
+});
+
+test('Zod rejects invalid local mutations before sending a write', async () => {
+  await db.listViews.items.preload(); requests.length = 0;
+  expect(() => db.items.update('a', (row) => { Object.assign(row, { kind: 'invalid-kind' }); })).toThrow();
+  expect(db.items.get('a')?.kind).toBe('fragment');
+  expect(requests).toEqual([]);
+});
+
 test('reading feeds, lenses, and pages use one source with independent positions', async () => {
   const all = db.readingView('all', 0), own = db.readingView('own', 0), next = db.readingView('all', 25), threads = db.readingView('all~thread', 0);
   views.push(all, own, next, threads);
@@ -208,6 +239,7 @@ test('backend source collections are top-level singletons with on-demand sync', 
         if (!ts.isObjectLiteralExpression(config)) return;
         const properties = new Map(config.properties.filter(ts.isPropertyAssignment).map((property) => [property.name.getText(file), property.initializer]));
         const id = properties.get('id'), syncMode = properties.get('syncMode');
+        expect(properties.get('schema')?.getText(file)).toMatch(/^sourceSchemas\./);
         expect(id && ts.isStringLiteral(id)).toBe(true);
         expect(syncMode && ts.isStringLiteral(syncMode) && syncMode.text).toBe('on-demand');
         if (id && ts.isStringLiteral(id)) { expect(ids.has(id.text)).toBe(false); ids.add(id.text); }

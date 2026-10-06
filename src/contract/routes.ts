@@ -1,7 +1,7 @@
-import { ItemSchema, VersionSchema, MediaSchema, SubscriptionSchema, HopperSchema, ImportedItemSchema, MentionSchema, VersionReferenceSchema, StubSchema, TransclusionSchema, ProvenanceSchema } from "./resources.ts";
+import { ItemSchema, VersionSchema, SubscriptionSchema, HopperSchema, ImportedItemSchema, MentionSchema, VersionReferenceSchema, StubSchema, TransclusionSchema, ProvenanceSchema, ItemListRowSchema, ItemDetailSchema, HopperDetailSchema, ReadingPageSchema, MentionSourceSchema, UpdateStateSchema } from "./resources.ts";
 import { optionalJsonBody } from "./app.ts";
 import { createRoute, z, type RouteConfig } from "@hono/zod-openapi";
-import { SettingsSchema, HopperItemRowSchema, SignalRowSchema, MentionOutRowSchema } from "./schemas.ts";
+import { SettingsSchema, SignalRowSchema, MentionOutRowSchema } from "./schemas.ts";
 import { CHANGE_DOMAINS } from '../change-state.ts';
 
 const json = (schema: z.ZodType) => ({ "application/json": { schema } });
@@ -25,9 +25,7 @@ const collection = (schema: z.ZodType) => z.object({ items: z.array(schema), tot
 const issue = z.object({ id: z.string().optional(), directive: z.string().optional(), reason: z.string().optional() }).passthrough();
 const scopes = z.array(z.object({ index: z.number(), instruction: z.string(), output: z.string().nullable(), hasOutput: z.boolean(), block: z.boolean(), imported: z.boolean() }));
 const preview = z.object({ html: z.string(), scopes, link_errors: z.array(issue).optional(), errors: z.array(issue).optional(), transclusions: z.array(TransclusionSchema).optional() });
-const ownEntry = z.object({ id: z.string(), kind: z.enum(["fragment", "thread"]), withdrawn: z.boolean(), updated: z.string(), contentHtml: z.string() });
-const importedEntry = z.object({ subscriptionId: z.string(), subscriptionTitle: z.string(), remoteId: z.string(), kind: z.enum(["fragment", "thread"]), withdrawn: z.boolean(), l0: z.boolean(), updated: z.string().nullable(), observedAt: z.string(), contentHtml: z.string(), pinnedVersionRetained: z.number().nullable(), sourceUrl: z.string().nullable() });
-export const ReadingEntrySchema = z.object({ key: z.string(), source: z.enum(["own", "imported"]), kind: z.enum(["fragment", "thread"]), withdrawn: z.boolean(), l0: z.boolean(), contentHtml: z.string(), displayAt: z.string(), own: ownEntry.optional(), imported: importedEntry.optional() }).openapi("ReadingEntry");
+export { ReadingEntrySchema } from './resources.ts';
 const subscribed = SubscriptionSchema;
 const confirmation = z.object({ needsConfirm: z.literal(true), kind: z.enum(["blyg", "rss"]), origin: z.string().optional(), feedUrl: z.string().optional(), title: z.string(), siteMismatch: z.object({ asserted: z.string(), actual: z.string() }).optional() });
 const quoteFreshness = z.object({ id: z.string(), origin: z.string().optional(), baked: z.number().int(), held: z.number().int().nullable(), live: z.number().int().nullable(), partial: z.boolean(), status: z.enum(["current", "refreshable", "behind", "passage-missing", "unresolvable", "retained"]), reason: z.string().optional() }).openapi("QuoteFreshness");
@@ -42,7 +40,6 @@ export const AiModelsSchema = z.object({
   models: z.array(z.object({ id: z.string(), provider: z.string(), label: z.string(), note: z.string().optional() })),
   local: z.boolean(),
 }).openapi("AiModels");
-const counts = z.object({ all: z.number(), own: z.number(), subscriptions: z.record(z.string(), z.number()) });
 
 function route<P extends string>(id: string, method: RouteConfig["method"], path: P, response: z.ZodType, body?: z.ZodType, status = 200, query?: z.ZodObject, optionalBody = false): RouteConfig & { path: P } {
   if (body instanceof z.ZodObject) body = body.strict();
@@ -81,13 +78,13 @@ export const routes = {
   setSignal: route("setSignal", "put", "/signals/{sub}/{remoteId}", ok, z.object({ thumb: z.union([z.literal(1), z.literal(-1)]) })),
   deleteSignal: route("deleteSignal", "delete", "/signals/{sub}/{remoteId}", ok),
   updateMention: route("updateMention", "patch", "/mentions/{id}", ok.extend({ hidden: z.boolean() }), z.object({ hidden: z.boolean() })),
-  listItems: route("listItems", "get", "/items", z.object({ items: z.array(ItemSchema.extend({ pins: z.array(z.object({ version: z.number().int().positive(), kind: z.enum(["fragment", "thread"]) })).optional() })), total: z.number(), offset: z.number(), limit: z.number() }), undefined, 200, page),
-  getItem: route("getItem", "get", "/items/{id}", z.object({ ...ItemSchema.shape, authored_kind: z.enum(["fragment", "thread"]), media: z.array(MediaSchema), versions: z.array(VersionSchema), published: z.union([VersionSchema, z.null()]) })),
+  listItems: route("listItems", "get", "/items", z.object({ items: z.array(ItemListRowSchema), total: z.number(), offset: z.number(), limit: z.number() }), undefined, 200, page),
+  getItem: route("getItem", "get", "/items/{id}", ItemDetailSchema),
   getSettings: route("getSettings", "get", "/settings", SettingsSchema),
   listSubscriptions: route("listSubscriptions", "get", "/subscriptions", collection(SubscriptionSchema), undefined, 200, page),
   getSubscription: route("getSubscription", "get", "/subscriptions/{id}", SubscriptionSchema),
   listHoppers: route("listHoppers", "get", "/hoppers", collection(HopperSchema), undefined, 200, page),
-  getHopper: route("getHopper", "get", "/hoppers/{id}", z.object({ hopper: HopperSchema, memberships: z.array(HopperItemRowSchema), items: z.array(ImportedItemSchema), total: z.number().int().nonnegative(), source_count: z.number().int().nonnegative() }), undefined, 200, z.object({ preview: z.literal("true").optional() })),
+  getHopper: route("getHopper", "get", "/hoppers/{id}", HopperDetailSchema, undefined, 200, z.object({ preview: z.literal("true").optional() })),
   listSignals: route("listSignals", "get", "/signals", collection(SignalRowSchema), undefined, 200, page),
   listInteractions: route("listInteractions", "get", "/interactions", collection(InteractionSchema), undefined, 200, page.extend({ kind: interactionKind.optional() })),
   listThumbs: route("listThumbs", "get", "/thumbs", z.object({ items: z.array(ThumbSchema) })),
@@ -96,12 +93,12 @@ export const routes = {
   preview: route("preview", "post", "/preview", preview, z.object({ content_md: z.string().optional(), item_id: z.string().optional(), kind: z.enum(["fragment", "thread"]).optional() })),
   search: route("search", "get", "/search", z.object({ items: z.array(z.object({ id: z.string(), excerpt: z.string(), version: z.number(), updated: z.string(), badge: z.string(), source: z.enum(["mine", "imported"]), kind: z.enum(["fragment", "thread"]), subscription_id: z.string().nullable(), source_title: z.string().nullable() })), total: z.number(), offset: z.number(), limit: z.number() }), undefined, 200, page.extend({ q: z.string().optional(), source: z.enum(["all", "mine", "imported"]).optional(), sub: z.string().optional(), sort: z.enum(["newest", "oldest"]).optional() })),
   getVersion: route("getVersion", "get", "/items/{id}/versions/{v}", VersionSchema),
-  listReading: route("listReading", "get", "/reading", z.object({ items: z.array(ReadingEntrySchema), counts, total: z.number(), offset: z.number(), limit: z.number(), selected: z.string() }), undefined, 200, page.extend({ limit: z.coerce.number().int().min(1).max(50).optional(), sub: z.string().optional(), kind: z.enum(["thread", "fragment"]).optional() })),
+  listReading: route("listReading", "get", "/reading", ReadingPageSchema, undefined, 200, page.extend({ limit: z.coerce.number().int().min(1).max(50).optional(), sub: z.string().optional(), kind: z.enum(["thread", "fragment"]).optional() })),
   getImportedItem: route("getImportedItem", "get", "/imports/{sub}/{id}", ImportedItemSchema),
   getImportedHistory: route("getImportedHistory", "get", "/imports/{sub}/{id}/history", z.object({ current: z.number().int(), withdrawn: z.boolean(), changelog: z.array(z.object({ version: z.number().int(), at: z.string(), note: z.string().nullable(), pinned: z.boolean(), generated: z.boolean() })) })),
   getImportedVersion: route("getImportedVersion", "get", "/imports/{sub}/{id}/versions/{v}", z.object({ version: z.number().int(), content_md: z.string(), note: z.string().nullable(), pinned: z.boolean() })),
-  getUpdateState: route("getUpdateState", "get", "/update-state", z.record(z.string(), z.string())),
-  getMentionSource: route("getMentionSource", "get", "/mentions/{id}/source", z.object({ holder: z.string().nullable(), subscription: z.union([SubscriptionSchema, z.null()]) })),
+  getUpdateState: route("getUpdateState", "get", "/update-state", UpdateStateSchema),
+  getMentionSource: route("getMentionSource", "get", "/mentions/{id}/source", MentionSourceSchema),
   listStaleThreads: route("listStaleThreads", "get", "/freshness", z.object({ items: z.array(ThreadFreshnessSchema) })),
   getItemFreshness: route("getItemFreshness", "get", "/items/{id}/freshness", ThreadFreshnessSchema, undefined, 200, z.object({ probe: z.enum(["true", "false"]).optional() })),
   refreshItem: route("refreshItem", "post", "/items/{id}/refresh", ok.extend({ version: z.number(), refreshed: z.array(z.string()), resynced: z.number().int().nonnegative(), warning: z.string().optional() }), note, 200, undefined, true),

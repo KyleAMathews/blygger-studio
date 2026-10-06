@@ -1,8 +1,9 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { ErrorSchema } from './routes.ts';
 import { OWNER_SCOPES } from '../permissions.ts';
+import { AuthorizationSchema } from './resources.ts';
+export { AuthorizationSchema };
 const json = (schema: z.ZodType) => ({ 'application/json': { schema } });
-export const AuthorizationSchema = z.object({ id: z.string(), clientId: z.string(), name: z.string(), manual: z.boolean(), resource: z.string(), scope: z.array(z.string()), createdAt: z.number(), expiresAt: z.number().optional() }).openapi('Authorization');
 function route(method: 'get' | 'post' | 'delete', path: string, operationId: string, response: z.ZodType, body?: z.ZodType) {
   return createRoute({ method, path, operationId, tags: ['authorization'], security: [{ ownerSession: [] }],
     request: { ...(path.includes('{id}') ? { params: z.object({ id: z.string().min(1) }) } : {}), ...(body ? { body: { required: true, content: json(body) } } : {}) },

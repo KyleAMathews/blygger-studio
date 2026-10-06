@@ -298,7 +298,7 @@ export function HopperPage({ id }: { id: string }) {
             value={name ?? row.hopper.name}
             onChange={(e) => setName(e.target.value)}
           />
-          <Button className="btn btn-ghost" type="submit">
+          <Button className="btn btn-ghost" type="submit" disabled={action.busy}>
             rename
           </Button>
         </form>
@@ -320,7 +320,7 @@ export function HopperPage({ id }: { id: string }) {
             value={description ?? row.hopper.description ?? ''}
             onChange={(e) => setDescription(e.target.value)}
           />
-          <Button className="btn btn-ghost" type="submit">
+          <Button className="btn btn-ghost" type="submit" disabled={action.busy}>
             save
           </Button>
         </form>

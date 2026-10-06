@@ -5,6 +5,16 @@ Every browser tab has one instance of each source. All sources use TanStack
 Query Collection with `syncMode: 'on-demand'`. Components and route loaders
 reuse those instances.
 
+Every source sets a Zod schema from the API contract. Pure schema definitions
+live in `src/contract/resource-schemas.ts`; the API and browser import the same
+objects. `src/ui/data-schemas.ts` picks or extends those schemas for normalized
+rows and client-only fields. TanStack DB infers collection row types from them.
+
+The schema option validates local mutations. Sync adapters do not validate
+incoming rows through that option, so each query function parses its loaded
+data before caching it. A malformed response fails the read and retains the
+last good rows. It does not cache the new revision, so retry can fetch again.
+
 | Source | Stored rows |
 | --- | --- |
 | `items` | Mutable authored items and pinned-version summaries |
