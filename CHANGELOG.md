@@ -18,6 +18,15 @@ not have its own repo until session 26.
 
 ---
 
+## 0.31.0 — 2026-10-06
+
+- **One response action: `stub`.** A stub is a quote post, a reply, commentary on an excerpt or an inline reply, depending on whether your words go above or below the quote and whether it quotes the whole post or a passage; with no words of your own it is a repost. *Quote selection* is gone from the reading view's ⋯ menu, along with the floating pill and selecting text in an entry to quote it: technically it was always a stub with a passage under the quote.
+- **A stub opens quoting the whole post**, whatever its length. 0.30.0 quoted a long post's opening passage, which was rarely the passage wanted.
+- **Passages are chosen in the stub editor.** A line under the stub header says what the draft is doing, and *quote a passage instead* shows the post: select a passage and press *quote only this*, which writes it under `![[id]]` as `>` lines. *Quote whole post* takes it out again. Once there is a passage, the next one is added after the cursor as its own quote (*add as another quote*), so a stub can be a running commentary with several passages; *replace the first quote* is beside it. Every passage is checked against the same snapshot publish checks.
+- **How stubs work**: an explanation with the four shapes as a table and the `>` syntax opens with a new stub until *don't show this again* is ticked (remembered per device), and from a link on the stub header any time. The syntax page's stub section says the same.
+- `POST /api/items` with `mode: "response"` still accepts `selection`, for other clients. Without one, the draft quotes the whole item.
+- Migrations: none.
+
 ## 0.30.1 — 2026-10-06
 
 - **Live preview no longer throttles editing.** `POST /api/preview` renders a draft and stores nothing, but 0.28 counted it against the owner's write budget (120 a minute); the editor sends one on every pause in typing, so ordinary composing hit "API work budget exceeded" and the preview stalled. It now spends the read budget (1,200 a minute). Real writes stay bounded.

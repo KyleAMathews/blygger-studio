@@ -40,6 +40,7 @@ import { insertLink, isUrl, linkToast } from './links.ts';
 import type { Resolve } from './plain-text.ts';
 import { itemTitle, permalink, plainText, textWithLink } from './plain-text.ts';
 import { OcrScan } from './ocr.tsx';
+import { addStubQuote, passageCount, stubQuoteForm, withStubQuote } from './stub-quote.ts';
 import './authoring.css';
 
 type Kind = 'fragment' | 'thread';
@@ -1775,6 +1776,16 @@ function Editor({ item }: { item: Detail }) {
           </Button>
         </p>
       ) : null}
+      {item.stub_of && 'id' in item.stub_of && isThread ? (
+        <StubQuote
+          itemId={item.id}
+          target={item.stub_of.id}
+          text={text}
+          edit={edit}
+          input={input}
+          fresh={item.version === 0}
+        />
+      ) : null}
       {item.forked_from ? (
         <p className="stub-head">
           fork of {item.forked_from.id} v{item.forked_from.version}
@@ -2316,6 +2327,279 @@ function QuotedSnapshots({
       ) : null}
       <Failure error={action.error} />
     </Card>
+  );
+}
+/** Per device, like the picker's choices: a dismissed explanation stays dismissed here. */
+const STUB_HELP_KEY = 'blygger.stub-help.dismissed';
+function stubHelpDismissed() {
+  try {
+    return localStorage.getItem(STUB_HELP_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function dismissStubHelp() {
+  try {
+    localStorage.setItem(STUB_HELP_KEY, '1');
+  } catch {
+    // Storage blocked: the explanation just shows again next time.
+  }
+}
+/**
+ * The stub's quote, chosen in the editor (session 37). A stub opens quoting
+ * the whole post; selecting text in the quoted post below writes that passage
+ * under the directive (§10.1's partial grammar), and "quote whole post" takes
+ * it out again. Replaces select-to-quote in the reading view, where the
+ * passage had to be chosen before there was a draft to choose it for.
+ *
+ * The post is shown as publish would bake it whole — the preview of a lone
+ * directive — so a passage chosen from it is checked against the same text.
+ */
+function StubQuote({
+  itemId,
+  target,
+  text,
+  edit,
+  input,
+  fresh,
+}: {
+  itemId: string;
+  target: string;
+  text: string;
+  edit: (text: string) => void;
+  input: RefObject<HTMLTextAreaElement | null>;
+  fresh: boolean;
+}) {
+  const form = stubQuoteForm(text, target);
+  // More than one passage is a running commentary; the chooser then adds
+  // rather than replaces, and "quote whole post" would destroy it, so it goes.
+  const passages = passageCount(text, target);
+  const [open, setOpen] = useState(false);
+  const [post, setPost] = useState<{ html: string; error?: string }>();
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [help, setHelp] = useState(() => fresh && !stubHelpDismissed());
+  const [never, setNever] = useState(false);
+  const panel = useRef<HTMLDivElement>(null);
+  const addButton = useRef<HTMLButtonElement>(null);
+  const replaceButton = useRef<HTMLButtonElement>(null);
+  const helpTop = useRef<HTMLParagraphElement>(null);
+  const latest = useRef({ text, chosen });
+  latest.current = { text, chosen };
+  useEffect(() => {
+    if (!open || post) return;
+    getPreview(`![[${target}]]`, itemId, 'thread')
+      .then((result) =>
+        setPost(
+          result.errors?.length
+            ? { html: '', error: result.errors[0].reason }
+            : { html: result.html },
+        ),
+      )
+      .catch((error) =>
+        setPost({ html: '', error: error instanceof Error ? error.message : String(error) }),
+      );
+  }, [open, post, target, itemId]);
+  useEffect(() => {
+    if (!open) return;
+    const inside = (node: Node | null) => !!node && !!panel.current?.contains(node);
+    const check = () => {
+      const selection = window.getSelection();
+      setChosen(
+        selection &&
+          !selection.isCollapsed &&
+          inside(selection.anchorNode) &&
+          inside(selection.focusNode) &&
+          selection.toString().trim()
+          ? selection.toString()
+          : null,
+      );
+    };
+    document.addEventListener('selectionchange', check);
+    return () => document.removeEventListener('selectionchange', check);
+  }, [open]);
+  const quotePassage = (how: 'replace' | 'add') => {
+    const { text, chosen } = latest.current;
+    if (!chosen) return;
+    const caret = input.current?.selectionStart ?? text.length;
+    edit(how === 'add' ? addStubQuote(text, target, chosen, caret) : withStubQuote(text, target, chosen));
+    window.getSelection()?.removeAllRanges();
+    setChosen(null);
+    setOpen(false);
+    toast(how === 'add' ? 'added another quote' : 'quoting the passage');
+  };
+  useEffect(() => {
+    // Pressing a button must not collapse the selection it quotes. React's
+    // touch listeners are passive, so these are native (as the old pill's were).
+    const cleanups = (
+      [
+        [addButton.current, 'add'],
+        [replaceButton.current, 'replace'],
+      ] as const
+    ).map(([element, how]) => {
+      if (!element) return () => {};
+      const touch = (event: TouchEvent) => {
+        event.preventDefault();
+        quotePassage(how);
+      };
+      const mouse = (event: MouseEvent) => event.preventDefault();
+      element.addEventListener('touchstart', touch, { passive: false });
+      element.addEventListener('mousedown', mouse);
+      return () => {
+        element.removeEventListener('touchstart', touch);
+        element.removeEventListener('mousedown', mouse);
+      };
+    });
+    return () => cleanups.forEach((cleanup) => cleanup());
+  });
+  const closeHelp = () => {
+    if (never) dismissStubHelp();
+    setHelp(false);
+  };
+  return (
+    <div className="stub-quote" data-form={form ?? 'none'}>
+      <p className="hint stub-hint">
+        {form === 'whole'
+          ? 'Quoting the whole post. Write above the quote for a quote post, below it for a reply, or nothing for a repost.'
+          : passages > 1
+            ? `Quoting ${passages} passages: a running commentary. Choose another to add it after the cursor.`
+            : form === 'passage'
+              ? 'Quoting a passage: the > lines under the quote. Write above it, below it, or both.'
+              : 'Not quoting the post: this is a response by link.'}{' '}
+        {passages <= 1 && form !== 'whole' ? (
+          <button
+            type="button"
+            className="link-btn"
+            data-action="quote-whole"
+            onClick={() => edit(withStubQuote(text, target, null))}
+          >
+            quote whole post
+          </button>
+        ) : null}{' '}
+        <button
+          type="button"
+          className="link-btn"
+          data-action="choose-passage"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          {open ? 'done choosing' : form === 'passage' ? 'quote another passage' : 'quote a passage instead'}
+        </button>{' '}
+        ·{' '}
+        <button
+          type="button"
+          className="link-btn"
+          data-action="stub-help"
+          onClick={() => setHelp(true)}
+        >
+          how stubs work
+        </button>
+      </p>
+      {open ? (
+        <div className="stub-chooser">
+          <p className="hint">
+            Select the passage to quote in the post below. It must be one
+            unbroken stretch of the original.
+          </p>
+          {post?.error ? (
+            <Failure error={post.error} />
+          ) : post ? (
+            <div ref={panel} className="stub-post preview">
+              <Html html={post.html} />
+            </div>
+          ) : (
+            <p className="hint">loading the post…</p>
+          )}
+          {chosen !== null ? (
+            <div className="quote-pills">
+              {passages > 0 ? (
+                <button
+                  ref={addButton}
+                  type="button"
+                  className="quote-pill"
+                  data-action="add-passage"
+                  onClick={() => quotePassage('add')}
+                >
+                  ❝ add as another quote
+                </button>
+              ) : null}
+              <button
+                ref={replaceButton}
+                type="button"
+                className={passages > 0 ? 'quote-pill quote-pill-alt' : 'quote-pill'}
+                data-action="quote-passage"
+                onClick={() => quotePassage('replace')}
+              >
+                {passages > 0 ? 'replace the first quote' : '❝ quote only this'}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      <Sheet
+        open={help}
+        onClose={closeHelp}
+        title="How stubs work"
+        className="stub-help"
+        initialFocus={helpTop}
+      >
+        <div className="sheet-body prose">
+          <p ref={helpTop} tabIndex={-1}>
+            A stub is your post in response to one other post, and its author
+            is notified. One action covers what other platforms split into
+            four:
+          </p>
+          <table className="stub-grid">
+            <thead>
+              <tr>
+                <th />
+                <th>whole post</th>
+                <th>a passage</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th>your words above</th>
+                <td>quote post</td>
+                <td>commentary on an excerpt</td>
+              </tr>
+              <tr>
+                <th>your words below</th>
+                <td>reply</td>
+                <td>inline reply</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>Leave out your own words and a whole-post stub is a repost.</p>
+          <p>
+            <strong>Quoting part of a post.</strong> Put the passage right
+            under <code>![[id]]</code>, with <code>&gt;</code> at the start of
+            every line, blank ones included:
+          </p>
+          <pre><code>{'![[id]]\n> First paragraph you are quoting.\n>\n> Second paragraph.\n\nYour reply.'}</code></pre>
+          <p>
+            Or choose <em>quote a passage instead</em> and select it in the
+            post. A passage must be one unbroken stretch of the original, and
+            is published as plain text. Quote several passages, each under its
+            own <code>![[id]]</code>, for a running commentary.
+          </p>
+          <p>
+            Stubs are for responding: stubbing everything a source posts with
+            nothing to say about it is a misuse (§10.6).
+          </p>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={never}
+              onChange={(event) => setNever(event.target.checked)}
+            />{' '}
+            don&rsquo;t show this again
+          </label>
+        </div>
+        <div className="sheet-actions">
+          <Sheet.Close className="btn btn-primary">got it</Sheet.Close>
+        </div>
+      </Sheet>
+    </div>
   );
 }
 const getPreview = (

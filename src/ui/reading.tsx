@@ -8,8 +8,9 @@
  * Each subscription has an inspector sheet (ⓘ, or swipe its row left), which
  * replaced the /subs page as the place a feed is managed. Every action an
  * entry had before the redesign is still here — the bar holds the ones used
- * most, the ⋯ sheet the rest — and the swipes and the select-to-quote pill
- * are second ways to the same handlers, never the only way.
+ * most, the ⋯ sheet the rest — and the swipes are second ways to the same
+ * handlers, never the only way. Choosing a passage to quote happens in the
+ * stub editor (session 37), not here.
  */
 import { readingPage } from '../paging.ts';
 import type { ReactNode } from 'react';
@@ -246,19 +247,6 @@ function canLink(entry: Reading) {
 function canQuote(entry: Reading) {
   return !!entry.imported && !entry.l0 && canLink(entry);
 }
-function selectedTextInEntry(key: string) {
-  const selected = window.getSelection();
-  const start = selected?.anchorNode?.parentElement?.closest('.content');
-  const end = selected?.focusNode?.parentElement?.closest('.content');
-  if (
-    !selected?.toString().trim() ||
-    start !== end ||
-    start?.closest('[data-key]')?.getAttribute('data-key') !== key
-  ) {
-    throw new Error('Select text in this entry to quote first.');
-  }
-  return selected.toString();
-}
 function entryParts(entry: Reading) {
   const imported = entry.imported;
   const id = entry.own?.id || imported!.remoteId;
@@ -344,30 +332,8 @@ function Entry({
       toast(`added to ${name}`);
     });
   const openMenu = async () => {
-    // Read the selection now: the sheet takes focus, and "quote selection"
-    // quotes what was selected when ⋯ was pressed.
-    let selection: string | undefined;
-    let selectionError: unknown;
-    if (canQuote(entry))
-      try {
-        selection = selectedTextInEntry(entry.key);
-      } catch (failure) {
-        selectionError = failure;
-      }
     await menu({
       rows: [
-        canQuote(entry) &&
-          source && {
-            icon: '❝',
-            label: 'quote selection',
-            description:
-              'select text in the entry first — a quote selection button appears',
-            onSelect: () =>
-              void run(async () => {
-                if (selection === undefined) throw selectionError;
-                await openDraft({ mode: 'response', source, selection });
-              }),
-          },
         canLink(entry) && {
           icon: '⇢',
           label: 'link post ↗',
@@ -530,71 +496,7 @@ function Entry({
   );
 }
 
-/** "❝ quote selection" while text is selected inside one quotable entry. */
-function QuotePill({
-  quotable,
-  onQuote,
-}: {
-  quotable: (key: string) => boolean;
-  onQuote: (key: string) => void;
-}) {
-  const [key, setKey] = useState<string | null>(null);
-  const latest = useRef({ quotable, onQuote });
-  latest.current = { quotable, onQuote };
-  const button = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    const contentOf = (node: Node | null | undefined) =>
-      (node?.nodeType === Node.ELEMENT_NODE
-        ? (node as Element)
-        : node?.parentElement
-      )?.closest('.content');
-    const check = () => {
-      const selection = window.getSelection();
-      const start = contentOf(selection?.anchorNode);
-      const found =
-        selection &&
-        !selection.isCollapsed &&
-        selection.toString().trim() &&
-        start &&
-        start === contentOf(selection.focusNode)
-          ? start.closest('[data-key]')?.getAttribute('data-key')
-          : null;
-      setKey(found && latest.current.quotable(found) ? found : null);
-    };
-    document.addEventListener('selectionchange', check);
-    return () => document.removeEventListener('selectionchange', check);
-  }, []);
-  useEffect(() => {
-    const element = button.current;
-    if (!element || !key) return;
-    // Pressing the pill must not collapse the selection it quotes. React's
-    // touch listeners are passive, so these are native.
-    const touch = (event: TouchEvent) => {
-      event.preventDefault();
-      latest.current.onQuote(key);
-    };
-    const mouse = (event: MouseEvent) => event.preventDefault();
-    element.addEventListener('touchstart', touch, { passive: false });
-    element.addEventListener('mousedown', mouse);
-    return () => {
-      element.removeEventListener('touchstart', touch);
-      element.removeEventListener('mousedown', mouse);
-    };
-  }, [key]);
-  return key ? (
-    <button
-      ref={button}
-      type="button"
-      className="quote-pill"
-      data-action="quote-pill"
-      onClick={() => latest.current.onQuote(key)}
-    >
-      ❝ quote selection
-    </button>
-  ) : null;
-}
-
-/** Entries, the select-to-quote pill, and the error line above them. */
+/** Entries and the error line above them. */
 function EntryList({
   entries,
   actions,
@@ -606,7 +508,6 @@ function EntryList({
     useLiveQuery({ query: (q) => q.from({ signal: signals }) }).data ?? [];
   const buckets =
     useLiveQuery({ query: (q) => q.from({ hopper: hoppers }) }).data ?? [];
-  const byKey = new Map(entries.map((entry) => [entry.key, entry]));
   return (
     <>
       {entries.map((entry) => (
@@ -618,24 +519,6 @@ function EntryList({
           buckets={buckets}
         />
       ))}
-      <QuotePill
-        quotable={(key) => {
-          const entry = byKey.get(key);
-          return !!entry && canQuote(entry);
-        }}
-        onQuote={(key) => {
-          const entry = byKey.get(key);
-          const { source } = entry ? entryParts(entry) : {};
-          if (!source) return;
-          void actions.run(async () =>
-            actions.openDraft({
-              mode: 'response',
-              source,
-              selection: selectedTextInEntry(key),
-            }),
-          );
-        }}
-      />
     </>
   );
 }

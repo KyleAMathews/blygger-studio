@@ -1,4 +1,6 @@
-// Select-to-quote and the long-target prefill — plan §7.3 P7, spec §16.4.
+// Passage quoting for stubs — spec §10.1–§10.2. Since session 37 the reference
+// client chooses the passage in the stub editor; the API's `selection`
+// parameter, tested here, stays for other clients.
 //
 // These are the two studio affordances for partial transclusion. The house
 // rule applies: assert what the handler *produces*, not that a button rendered
@@ -16,6 +18,8 @@ import { transition } from "../src/importer/transition.ts";
 import { itemDocBody } from "./importer/fixtures.ts";
 import { apiJson, BASE, getPublic, login } from "./helpers.ts";
 import { newId } from "../src/util.ts";
+import { stubQuoteForm, withStubQuote } from "../src/ui/stub-quote.ts";
+import { renderMarkdown } from "../src/markdown.ts";
 
 const ORIGIN = "https://elsewhere.example/blyg/";
 
@@ -152,19 +156,13 @@ describe("select-to-quote produces a draft that publishes", () => {
   });
 });
 
-describe("the stub prefill adapts to the target's length", () => {
-  it("a long target quotes its opening passage, so the draft opens without an error", async () => {
+describe("the stub prefill quotes the whole item, whatever its length (session 37)", () => {
+  it("a long target is quoted whole: the opening passage was rarely the one wanted", async () => {
     const cookie = await login();
     const { sub, id } = await importItem({ md: LONG_BODY.repeat(3) });
     const created = await stub(cookie, { subscription_id: sub, remote_id: id });
     expect(created.status).toBe(201);
-    const md = await draftMd(cookie, created.json.id);
-    expect(md).toMatch(new RegExp(`^!\\[\\[${id}\\]\\]\\n> \\S`));
-    const quoted = md.split("\n")[1].slice(2);
-    expect(quoted.length).toBeLessThanOrEqual(280);
-    expect(LONG_BODY.repeat(3).replace(/\s+/g, " ")).toContain(quoted);
-    const preview = await apiJson(cookie, "POST", "/api/preview", { kind: "thread", content_md: md, item_id: created.json.id });
-    expect(preview.json.errors).toEqual([]);
+    expect(await draftMd(cookie, created.json.id)).toBe(`![[${id}]]\n\n`);
   });
 
   it("a short target is unchanged — the whole item, as before", async () => {
@@ -174,7 +172,25 @@ describe("the stub prefill adapts to the target's length", () => {
     expect(await draftMd(cookie, created.json.id)).toBe(`![[${id}]]\n\n`);
   });
 
-  it("the quote is a suggestion: deleting it publishes the whole form", async () => {
+  it("a passage chosen in the editor, across paragraphs, publishes as a partial quote", async () => {
+    const cookie = await login();
+    const source = "Opening thought.\n\nThe second paragraph.\n\n- a listed point\n- another point\n\nThe end.";
+    const { sub, id } = await importItem({ md: source, html: renderMarkdown(source) });
+    const created = await stub(cookie, { subscription_id: sub, remote_id: id });
+    const md = await draftMd(cookie, created.json.id);
+    // What the browser hands the chooser for a drag from the second paragraph
+    // into the list: blank lines between blocks, no list markers.
+    const chosen = withStubQuote(md, id, "The second paragraph.\n\na listed point\nanother point");
+    expect(stubQuoteForm(chosen, id)).toBe("passage");
+    await apiJson(cookie, "PATCH", `/api/items/${created.json.id}`, { content_md: chosen + "My reply." });
+    const published = await apiJson(cookie, "POST", `/api/items/${created.json.id}/publish`, {});
+    expect(published.status, JSON.stringify(published.json) + "\n" + chosen).toBe(200);
+    const doc = await (await getPublic(`/blyg/items/${created.json.id}.json`)).json<any>();
+    expect(doc.content_html).toContain("blyg-partial");
+    expect(doc.transclusions[0].selector.exact).toBe("The second paragraph.\na listed point\nanother point");
+  });
+
+  it("the whole form publishes with no selector", async () => {
     const cookie = await login();
     const { sub, id } = await importItem({ md: LONG_BODY.repeat(3) });
     const created = await stub(cookie, { subscription_id: sub, remote_id: id });
@@ -183,16 +199,6 @@ describe("the stub prefill adapts to the target's length", () => {
     const doc = await (await getPublic(`/blyg/items/${created.json.id}.json`)).json<any>();
     expect(doc.content_html).not.toContain("blyg-partial");
     expect(doc.transclusions[0].selector).toBeUndefined();
-  });
-
-  it("the prefill publishes as it stands: a partial quote of the opening", async () => {
-    const cookie = await login();
-    const { sub, id } = await importItem({ md: LONG_BODY.repeat(3) });
-    const created = await stub(cookie, { subscription_id: sub, remote_id: id });
-    expect((await apiJson(cookie, "POST", `/api/items/${created.json.id}/publish`, {})).status).toBe(200);
-    const doc = await (await getPublic(`/blyg/items/${created.json.id}.json`)).json<any>();
-    expect(doc.content_html).toContain("blyg-partial");
-    expect(doc.transclusions[0].selector.exact.length).toBeGreaterThan(0);
   });
 
   it("an empty quote line typed by hand is still refused rather than published as nothing", async () => {

@@ -3,7 +3,7 @@ import { answerSheet } from './sheets.ts';
 
 // Reading, NetNewsWire-style (PWA redesign phase 2B): the sources list, a
 // source's timeline, the inspector sheet, an entry's ⋯ sheet, add-to-hopper,
-// the select-to-quote pill and the swipes. Every test leaves the shared
+// the stub editor's passage chooser and the swipes. Every test leaves the shared
 // fixture (e2e-server.ts) as it found it; both projects run against it.
 const NATIVE = '00000000000000000000000001';
 async function login(page: Page) {
@@ -264,29 +264,76 @@ test('+ add to hopper… offers the hoppers and a new one, and adds the entry', 
   await api(page, 'DELETE', `/hoppers/${hopper.id}`);
 });
 
-test('selecting text in an entry shows the quote pill, which starts a partial-quote stub', async ({ page }) => {
-  await login(page); await page.goto('/studio/reading?sub=all');
-  const select = (entry: Locator) => entry.locator('.content').evaluate(node => {
-    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT); const text = walker.nextNode()!;
-    const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, Math.min(5, text.textContent!.length));
+test('a stub opens quoting the whole post, explains itself until dismissed, and quotes a passage chosen in the editor', async ({ page }) => {
+  await login(page); await page.goto('/studio/reading?sub=parity-native');
+  // Select-to-quote left the reading view (session 37): selecting text offers nothing.
+  await nativeEntry(page).locator('.content').evaluate(node => {
+    const range = document.createRange(); range.selectNodeContents(node);
     const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
   });
-  const pill = page.getByRole('button', { name: '❝ quote selection', exact: true });
-  await page.goto('/studio/reading?sub=parity-rss');
-  await select(page.locator('.reading-entry').first());
-  await expect(pill).toHaveCount(0); // a legacy feed has nothing to quote from
-  await page.goto('/studio/reading?sub=parity-native');
+  await expect(page.locator('.quote-pill')).toHaveCount(0);
+  const stubOnce = async () => {
+    await page.goto('/studio/reading?sub=parity-native');
+    await nativeEntry(page).getByRole('button', { name: 'stub ↗', exact: true }).click();
+    await expect(page).toHaveURL(/\/edit\//);
+  };
+  await stubOnce();
+  await expect(page.locator('#md-input')).toHaveValue(`![[${NATIVE}]]\n\n`);
+  const help = page.getByRole('dialog', { name: 'How stubs work' });
+  await expect(help).toContainText('quote post');
+  await expect(help).toContainText('inline reply');
+  await help.getByRole('checkbox', { name: /show this again/ }).check();
+  await help.getByRole('button', { name: 'got it', exact: true }).click();
+  await expect(help).toHaveCount(0);
+  await expect(page.locator('.stub-hint')).toContainText('Quoting the whole post');
+
+  await page.getByRole('button', { name: 'quote a passage instead', exact: true }).click();
+  const post = page.locator('.stub-post');
+  await expect(post).toContainText('Frozen');
+  const pill = page.getByRole('button', { name: '❝ quote only this', exact: true });
   await expect(pill).toHaveCount(0);
-  await select(nativeEntry(page));
-  await expect(pill).toBeVisible();
-  await page.evaluate(() => window.getSelection()!.removeAllRanges());
-  await expect(pill).toHaveCount(0);
-  await select(nativeEntry(page));
-  const created = page.waitForResponse(response => response.url().endsWith('/api/items') && response.request().method() === 'POST');
+  await post.evaluate(node => {
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    let text = walker.nextNode();
+    while (text && !text.textContent!.includes('Frozen')) text = walker.nextNode();
+    const at = text!.textContent!.indexOf('Frozen');
+    const range = document.createRange(); range.setStart(text!, at); range.setEnd(text!, at + 'Frozen'.length);
+    const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
+  });
   await pill.click();
-  expect((await created).request().postDataJSON()).toEqual({ mode: 'response', source: { subscription_id: 'parity-native', remote_id: NATIVE }, selection: 'Froze' });
-  await expect(page).toHaveURL(/\/edit\//);
-  await expect(page.locator('#md-input')).toHaveValue(`![[${NATIVE}]]\n> Froze\n\n`);
+  await expect(page.locator('#md-input')).toHaveValue(`![[${NATIVE}]]\n> Frozen\n\n`);
+  await expect(page.locator('.stub-hint')).toContainText('Quoting a passage');
+  await expect(page.locator('#preview-body .blyg-partial')).toContainText('Frozen');
+
+  // A second passage is added after the cursor, not over the first: a running commentary.
+  await page.locator('#md-input').fill(`![[${NATIVE}]]\n> Frozen\n\nMy point.`);
+  await page.locator('#md-input').evaluate((el: HTMLTextAreaElement) => { el.selectionStart = el.selectionEnd = el.value.length; });
+  await page.getByRole('button', { name: 'quote another passage', exact: true }).click();
+  await expect(post).toContainText('source text');
+  await post.evaluate(node => {
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    let text = walker.nextNode();
+    while (text && !text.textContent!.includes('source text')) text = walker.nextNode();
+    const at = text!.textContent!.indexOf('source text');
+    const range = document.createRange(); range.setStart(text!, at); range.setEnd(text!, at + 'source text'.length);
+    const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
+  });
+  await page.getByRole('button', { name: '❝ add as another quote', exact: true }).click();
+  await expect(page.locator('#md-input')).toHaveValue(`![[${NATIVE}]]\n> Frozen\n\nMy point.\n\n![[${NATIVE}]]\n> source text\n\n`);
+  await expect(page.locator('.stub-hint')).toContainText('Quoting 2 passages');
+  await expect(page.getByRole('button', { name: 'quote whole post', exact: true })).toHaveCount(0);
+  await expect(page.locator('#preview-body .blyg-partial')).toHaveCount(2);
+
+  await page.locator('#md-input').fill(`![[${NATIVE}]]\n> Frozen\n\n`);
+  await page.getByRole('button', { name: 'quote whole post', exact: true }).click();
+  await expect(page.locator('#md-input')).toHaveValue(`![[${NATIVE}]]\n\n`);
+
+  // Dismissed on this device: the next stub opens without it, and the link brings it back.
+  await stubOnce();
+  await expect(page.locator('.stub-hint')).toBeVisible();
+  await expect(help).toHaveCount(0);
+  await page.getByRole('button', { name: 'how stubs work', exact: true }).click();
+  await expect(help).toBeVisible();
 });
 
 test('the swipe hint is for touch: shown with a finger, hidden with a mouse', async ({ page }) => {

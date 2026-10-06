@@ -29,7 +29,6 @@ test('reading preserves retained snapshots and restricts legacy actions', async 
   await expect(legacy.locator('.entry-title a')).toHaveAttribute('href', 'https://legacy.example/post');
   const menu = await entryMenu(page, legacy);
   await expect(menu.getByRole('button', { name: 'copy [[id]]', exact: true })).toHaveCount(0);
-  await expect(menu.getByRole('button', { name: 'quote selection', exact: true })).toHaveCount(0);
   await expect(menu.getByRole('button', { name: 'link post ↗', exact: true })).toHaveCount(0);
   await expect(menu.getByRole('button', { name: 'history' })).toHaveCount(0);
   await expect(menu).toContainText('https://legacy.example/post');
@@ -213,14 +212,10 @@ test('reading copy actions sit in the ⋯ sheet beside copy url, never beside st
   const entry = page.locator('.reading-entry').filter({ hasText: 'Native title' });
   await expect(entry.locator('.entry-bar')).not.toContainText('copy [[id]]');
   await expect(entry.locator('.entry-bar')).not.toContainText(/respond|reply|answer/);
-  let menu = await entryMenu(page, entry);
-  await expect(menu.getByRole('button')).toHaveText([/quote selection/, /link post ↗$/, /fork$/, /copy \[\[id\]\]$/, /copy url$/, /share…$/, /source\.example.*↗/, /history$/]);
-  await expect(menu).not.toContainText(/stub|respond|reply|answer/);
-  await menu.getByRole('button', { name: /quote selection/ }).click();
-  await expect(page.getByRole('alert')).toContainText('Select text');
-  await expect(page).toHaveURL(/\/reading\?/);
+  const menu = await entryMenu(page, entry);
+  await expect(menu.getByRole('button')).toHaveText([/link post ↗$/, /fork$/, /copy \[\[id\]\]$/, /copy url$/, /share…$/, /source\.example.*↗/, /history$/]);
+  await expect(menu).not.toContainText(/stub|quote|respond|reply|answer/);
   const created = page.waitForResponse(response => response.url().endsWith('/api/items') && response.request().method() === 'POST');
-  menu = await entryMenu(page, entry);
   await menu.getByRole('button', { name: 'link post ↗', exact: true }).click();
   const response = await created;
   expect(response.request().postDataJSON()).toEqual({ kind: 'fragment', content_md: '[[00000000000000000000000001]]\n\n' });
@@ -405,25 +400,3 @@ test('whole-fragment TK wrapping keeps text and publication warnings remain visi
   await expect(page.locator('.publish-warning')).toHaveText('Mention delivery is waiting for a site URL.');
 });
 
-test('quote selection rejects cross-entry ranges and accepts an entry excerpt', async ({ page }) => {
-  await login(page); await page.goto('/studio/reading?sub=parity-native');
-  const native = page.locator('.reading-entry').filter({ hasText: 'Native title' });
-  // The range below spans the first two entries' text; wait until both have
-  // rendered, or evaluateAll can run against an empty list (flaked locally).
-  await expect(page.locator('.reading-entry .content').nth(1)).not.toBeEmpty();
-  await page.locator('.reading-entry .content').evaluateAll(nodes => {
-    const texts = nodes.map(node => { const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT); return walker.nextNode()!; });
-    const range = document.createRange(); range.setStart(texts[0], 0); range.setEnd(texts[1], Math.min(5, texts[1].textContent!.length));
-    const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
-  });
-  await (await entryMenu(page, native)).getByRole('button', { name: /quote selection/ }).click();
-  await expect(page.getByRole('alert')).toContainText('Select text in this entry');
-  await native.locator('.content').evaluate(node => {
-    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT); const text = walker.nextNode()!;
-    const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, Math.min(5, text.textContent!.length));
-    const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
-  });
-  await (await entryMenu(page, native)).getByRole('button', { name: /quote selection/ }).click();
-  await expect(page).toHaveURL(/\/edit\//);
-  await expect(page.locator('#md-input')).toHaveValue('![[00000000000000000000000001]]\n> Froze\n\n');
-});
