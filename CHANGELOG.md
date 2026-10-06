@@ -18,6 +18,13 @@ not have its own repo until session 26.
 
 ---
 
+## 0.32.0 — 2026-10-06
+
+- **Fewer D1 reads (#40, Kyle Mathews).** Studio polls `GET /api/changes`, a set of per-domain revision counters kept by database triggers, and reloads a collection only when its counter moved. `feed.xml` is rendered into the `MEDIA` bucket and served from there with an `ETag` and `304`s, rebuilt in the background when the feed's revision changes (stale-while-revalidate: a reader can get the previous feed while the new one builds). Design, operations and the verification record are in `docs/d1-polling-cache-*.md`.
+- **Three crons:** `* * * * *` keeps the saved feed current (it needs **Settings → Canonical site URL**), `*/15 * * * *` polls subscriptions and retries mentions as before, and `0 0 * * *` runs the daily URL repair and mention pruning. A config that still lists only `*/15 * * * *` keeps working: its tick at 00:00 UTC runs the daily work too.
+- Before restoring a database backup, read `docs/d1-polling-cache-operations.md`: run `scripts/reset-change-epoch.sql` after the restore.
+- **Migrations: 0024_change_state.sql.** Adds the `change_state` row and its triggers. Apply before deploying.
+
 ## 0.31.0 — 2026-10-06
 
 - **One response action: `stub`.** A stub is a quote post, a reply, commentary on an excerpt or an inline reply, depending on whether your words go above or below the quote and whether it quotes the whole post or a passage; with no words of your own it is a repost. *Quote selection* is gone from the reading view's ⋯ menu, along with the floating pill and selecting text in an entry to quote it: technically it was always a stub with a passage under the quote.

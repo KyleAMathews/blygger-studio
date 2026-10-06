@@ -555,9 +555,10 @@ describe('daily maintenance dispatch', () => {
   async function html() {
     return (await env.DB.prepare("SELECT content_html FROM imported_items WHERE subscription_id='legacy-cron' AND remote_id='old'").first<{ content_html: string }>())!.content_html;
   }
-  async function scheduled(cron: string, bindings: Env) {
+  // Noon UTC unless given: the quarter-hour tick at 00:00 UTC runs daily work too.
+  async function scheduled(cron: string, bindings: Env, scheduledTime = Date.UTC(2026, 9, 6, 12, 0)) {
     const ctx = createExecutionContext();
-    await worker.scheduled({ cron, scheduledTime: Date.now(), noRetry() {} }, bindings, ctx);
+    await worker.scheduled({ cron, scheduledTime, noRetry() {} }, bindings, ctx);
     await waitOnExecutionContext(ctx);
   }
   it('the quarter-hour subscription poll leaves legacy repair to daily maintenance', async () => {
@@ -566,6 +567,12 @@ describe('daily maintenance dispatch', () => {
     expect(await html()).toBe(before);
     expect(db.statements.some(sql => sql.includes('content_html GLOB'))).toBe(false);
     expect(db.statements.some(sql => /DELETE FROM mentions_in/.test(sql))).toBe(false);
+  });
+  it('a config listing only the quarter-hour cron still gets daily maintenance at 00:00 UTC', async () => {
+    await legacyImport(); const db = observedDB();
+    await scheduled('*/15 * * * *', { ...env, DB: db.db }, Date.UTC(2026, 9, 7, 0, 0));
+    expect(await html()).toBe('<img src="https://old.example/blyg/media/old.png"><a href="https://old.example/blyg/f/old/">old</a>');
+    expect(db.statements.some(sql => /DELETE FROM mentions_in/.test(sql))).toBe(true);
   });
   it('daily maintenance repairs old URLs and prunes claims without polling subscriptions', async () => {
     await legacyImport(); const db = observedDB();

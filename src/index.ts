@@ -327,13 +327,21 @@ export default {
       }));
       return;
     }
-    if (controller.cron === '0 0 * * *') {
+    const daily = () => {
       ctx.waitUntil(repairImportedUrls(env.DB).catch(() => {
         console.warn('Imported URL repair failed');
       }));
       ctx.waitUntil(pruneFailedInbound(env.DB).catch(() => {}));
+    };
+    if (controller.cron === '0 0 * * *') {
+      daily();
       return;
     }
+    // A config from before 0.32 lists only "*/15 * * * *" and would never run
+    // the daily work, so the quarter-hour tick covering 00:00 UTC runs it too.
+    // Both jobs are idempotent: an install with both crons runs them twice.
+    const at = new Date(controller.scheduledTime);
+    if (at.getUTCHours() === 0 && at.getUTCMinutes() < 15) daily();
     ctx.waitUntil(runScheduledPoll(env.DB, platformFetchFor(env)));
     // Outbound mentions retry here (§2.3.4): the publish path tries once
     // immediately, and a receiver that was down gets it on a later tick.
