@@ -5,10 +5,17 @@ Every browser tab has one instance of each source. All sources use TanStack
 Query Collection with `syncMode: 'on-demand'`. Components and route loaders
 reuse those instances.
 
-Every source sets a Zod schema from the API contract. Pure schema definitions
-live in `src/contract/resource-schemas.ts`; the API and browser import the same
-objects. `src/ui/data-schemas.ts` picks or extends those schemas for normalized
-rows and client-only fields. TanStack DB infers collection row types from them.
+Every source sets a Zod schema generated from `openapi.json` by the SDK's Hey
+API Zod plugin. The API contract in `src/contract/` remains the only handwritten
+specification. `npm run sdk:generate` produces OpenAPI, TypeScript, the HTTP
+client, and `sdk/generated/zod.gen.ts` in one pipeline.
+
+The SDK exports validators through `@blygger/sdk/schemas`. Studio imports that
+generated output; it does not import server schema modules. `src/ui/data-schemas.ts`
+picks or extends generated schemas for normalized rows and client-only fields.
+TanStack DB infers collection row types from them. The generator preserves
+explicit `additionalProperties` rules so permissive metadata stays intact and
+strict references still reject unknown fields.
 
 The schema option validates local mutations. Sync adapters do not validate
 incoming rows through that option, so each query function parses its loaded

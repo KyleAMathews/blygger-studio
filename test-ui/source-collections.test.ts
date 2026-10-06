@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import ts from 'typescript';
 import { createLiveQueryCollection } from '@tanstack/react-db';
 import { sourceSchemas } from '../src/ui/data-schemas.ts';
-import { ItemListRowSchema, HopperSchema, SubscriptionSchema, AuthorizationSchema } from '../src/contract/resource-schemas.ts';
+import { zListItemsResponse, zHopper, zSubscription, zAuthorization } from '../sdk/dist/schemas.js';
 
 let db: typeof import('../src/ui/data.ts');
 let revision = 0;
@@ -141,15 +141,15 @@ test('missing detail resources produce a route error while source subsets remain
   expect(editor.toArray).toEqual([]); expect(hopper.toArray).toEqual([]);
 });
 
-test('all sources use shared API schemas or explicit client extensions', () => {
+test('all sources use generated OpenAPI schemas or explicit client extensions', () => {
   for (const [name, schema] of Object.entries(sourceSchemas)) {
     const source = db[name as keyof typeof sourceSchemas];
     expect(source.config.schema).toBe(schema);
   }
-  expect(sourceSchemas.items).toBe(ItemListRowSchema);
-  expect(sourceSchemas.hoppers).toBe(HopperSchema);
-  expect(sourceSchemas.subscriptions).toBe(SubscriptionSchema);
-  expect(sourceSchemas.authorizations).toBe(AuthorizationSchema);
+  expect(sourceSchemas.items).toBe(zListItemsResponse.shape.items.element);
+  expect(sourceSchemas.hoppers).toBe(zHopper);
+  expect(sourceSchemas.subscriptions).toBe(zSubscription);
+  expect(sourceSchemas.authorizations).toBe(zAuthorization);
 });
 
 test('invalid synced rows retain the last good state and retry before the same revision is cached', async () => {

@@ -30,7 +30,7 @@ import { readIfChanged, type CachedResponse } from './revision-query.ts';
 import type { ChangeDomain } from '../change-state.ts';
 import { scoped } from './scoped.ts';
 import { sourceSchemas, readingResponseSchema } from './data-schemas.ts';
-import { ItemDetailSchema } from '../contract/resource-schemas.ts';
+import { zGetItemResponse } from '../../sdk/dist/schemas.js';
 
 export const client = createBlyggerClient({ baseUrl: location.origin });
 export const queryClient = new QueryClient({
@@ -326,7 +326,7 @@ export const signals = createCollection(
     select: (response) => response.data,
   }),
 );
-export type Detail = z.infer<typeof ItemDetailSchema>;
+export type Detail = z.infer<typeof zGetItemResponse>;
 
 // History and attachments have their own row type. Mutable item fields live
 // only in `items`; editor details join them rather than keeping a second copy.
