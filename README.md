@@ -160,6 +160,40 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
+## Public page caching
+
+Public HTML pages use a shared Cloudflare cache for 60 seconds. After expiry,
+Cloudflare can serve the saved page for another 300 seconds while it refreshes
+in the background. Browsers validate their saved HTML with a content ETag.
+Changes, including withdrawals and collection visibility, can appear after
+this cache window. Studio, API, media, and XML routes keep their existing behavior.
+
+New installations and Worker archives include the cache configuration. Existing
+installations must add this block to their deployment config, including any
+ignored private config, and deploy with Wrangler 4.107.0 or later:
+
+```json
+"cache": { "enabled": false },
+"exports": {
+  "PublicHtml": { "type": "worker", "cache": { "enabled": true } }
+}
+```
+
+The default router stays uncached. Only public HTML GET/HEAD requests enter the
+cached `PublicHtml` entrypoint. Its cache key includes the full origin and path,
+so aliases do not share origin-dependent HTML. Browser reloads validate the saved edge copy without forcing another render.
+Query parameters do not change public HTML and do not create separate cache entries. Errors and missing pages
+use `no-store`.
+
+No migration, dashboard cache rule, extra binding, or scheduled job is needed.
+Without the config block, ETags still work but each request renders the page.
+Local Wrangler and native tests exercise routing and validators. Cloudflare's
+production cache supplies shared hits and background refresh.
+
+After deployment, inspect `Cf-Cache-Status` for `HIT` or `UPDATING`. Test repeat
+GET requests. `If-None-Match` with the returned
+ETag should produce a bodyless 304. See [Workers Cache configuration](https://developers.cloudflare.com/workers/cache/configuration/).
+
 ## The public Webmention endpoint
 
 `{mount}/webmention` accepts POST requests without a password. Another blyg uses

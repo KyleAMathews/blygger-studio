@@ -234,6 +234,12 @@ const config = `{
   "name": "blyg-${marker.slug}",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-01",
+
+  // Only public HTML uses the shared 60-second cache. The router stays uncached.
+  "cache": { "enabled": false },
+  "exports": {
+    "PublicHtml": { "type": "worker", "cache": { "enabled": true } }
+  },
   "account_id": "${marker.accountId}",
 
   "vars": {
