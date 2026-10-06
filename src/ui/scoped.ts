@@ -1,4 +1,6 @@
-/** Reuse resource collections, but release inactive entries after a minute. */
+/** Reuse derived views, but release inactive entries after a minute.
+ * Backend source collections belong at module scope, never in this registry.
+ */
 export function scoped<
   T extends {
     subscriberCount: number;

@@ -37,6 +37,7 @@ import {
   changed,
   queryClient,
   refreshReading,
+  refreshHoppers,
   hopperDetail,
   hopperPreview,
 } from './data.ts';
@@ -894,7 +895,7 @@ function SubscriptionRow({
 function HopperSource({ id, name }: { id: string; name: string }) {
   const lensSearch = useLensSearch();
   const collection = useMemo(() => hopperPreview(id), [id]);
-  usePoll(`hopper-preview:${id}`, collection.utils.refetch);
+  usePoll('hoppers', refreshHoppers);
   const row = useLiveQuery({ query: (q) => q.from({ hopper: collection }) })
     .data?.[0];
   return (
@@ -963,10 +964,9 @@ function Sources() {
   const lens = useContext(LensContext);
   const allKey = readingKey('all', lens);
   useLiveQuery(readingView(allKey, 0));
-  const refresh = useMemo(() => () => refreshReading(allKey), [allKey]);
-  usePoll(`reading:${allKey}:0`, refresh);
+  usePoll('reading', refreshReading);
   usePoll('subscriptions', subscriptions.utils.refetch);
-  usePoll('hoppers', hoppers.utils.refetch);
+  usePoll('hoppers', refreshHoppers);
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
@@ -1152,13 +1152,9 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
-  const refresh = useMemo(
-    () => () => refreshReading(key),
-    [key],
-  );
-  usePoll(`reading:${key}:${offset}`, refresh);
+  usePoll('reading', refreshReading);
   usePoll('subscriptions', subscriptions.utils.refetch);
-  usePoll('hoppers', hoppers.utils.refetch);
+  usePoll('hoppers', refreshHoppers);
   usePoll('signals', signals.utils.refetch);
   const metadata = readingMeta(key, offset);
   const selected = sources.find((source) => source.id === sub);
@@ -1274,11 +1270,10 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
   useChrome({ framed: false, wide: false });
   const actions = useReadingActions();
   const collection = useMemo(() => hopperDetail(id), [id]);
-  usePoll(`hopper:${id}`, collection.utils.refetch);
+  usePoll('hoppers', refreshHoppers);
   usePoll('signals', signals.utils.refetch);
-  usePoll('hoppers', hoppers.utils.refetch);
-  const row = useLiveQuery({ query: (q) => q.from({ hopper: collection }) })
-    .data?.[0];
+  const result = useLiveQuery({ query: (q) => q.from({ hopper: collection }) });
+  const row = result.data?.[0];
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
@@ -1302,7 +1297,9 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
       <>
         <ReadingHead title="hopper" count={undefined} />
         <LensBar hopper={id} />
-        <p className="view-sub">Loading hopper…</p>
+        <p className="view-sub" role={result.isReady ? 'alert' : undefined}>
+          {result.isReady ? 'Hopper not found.' : 'Loading hopper…'}
+        </p>
       </>
     );
   const start = offset < entries.length ? offset : 0;

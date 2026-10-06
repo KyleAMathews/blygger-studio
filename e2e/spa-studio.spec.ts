@@ -135,6 +135,18 @@ test('route errors expose a retry that can recover an unavailable item read', as
   await expect(page.locator('#md-input')).toHaveValue('Original draft');
 });
 
+test('missing item and hopper routes report not found instead of waiting forever', async ({ page }) => {
+  await login(page);
+  for (const [path, message] of [
+    ['/studio/edit/missing-item', 'Item not found'],
+    ['/studio/hoppers/missing-hopper', 'Hopper not found'],
+    ['/studio/reading?hopper=missing-hopper', 'Hopper not found'],
+  ]) {
+    await page.goto(path);
+    await expect(page.getByRole('alert')).toContainText(message);
+  }
+});
+
 
 test('navigation flushes the editor debounce and blocks failed saves', async ({ page }) => {
   const id = await edit(page);
