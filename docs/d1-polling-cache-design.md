@@ -1,11 +1,12 @@
 # Trigger revisions, Studio change checks, and R2 feed revalidation
 
-Working design v3, 2026-10-05, upstream `3192d37`. The user selected ordinary
+Working design v3, updated 2026-10-06, upstream `3192d37`. The user selected ordinary
 Query Collection caching inside `queryFn`: fetch new data when its revision
 changes, otherwise return its existing cached response. The feed rules below
 include the stress-test repairs. The frozen
 [v1 specimen](../models/d1-polling-cache/design-specimen-v1.md) and original
 Studio model remain historical evidence; `StudioQuery.tla` models this revision.
+`FeedCron.tla` adds bounded timer checks to the feed safety model.
 
 ## Source and success standard
 
@@ -129,7 +130,15 @@ R4 cached feed is served immediately; unconditional and conditional requests
 both schedule a revision check. If source token equals artifact token, do not
 render or rewrite. A missing object needs a blocking initial build. Failed
 background work keeps the last good artifact and remains eligible on later
-requests. This is request-driven convergence, not an idle-time timer guarantee.
+requests. A separate minute cron also checks and warms the canonical site from
+Settings. It checks after an already-running local job finishes, so it cannot
+silently join a revision check made before a later write. Blank/invalid canonical
+URLs leave request-driven rebuilding intact. Cron retries are attempts, not a
+maximum-stale-age or unconditional convergence guarantee.
+
+The minute job does not scan subscriptions or perform housekeeping. Subscription
+polling keeps its 15-minute schedule; legacy imported-URL repair and expired
+inbound-mention cleanup run daily. No write handler needs a rebuild hook.
 
 R5 feed renderer uses a monotonic-consistent source read path, samples source
 revision before/after its multi-query render and discards a changed interval.
@@ -232,12 +241,12 @@ cutoff or withdrawal gate is a separate policy, not silently selected here.
 D1's primary/session reads and R2's conditional operations do not form one
 cross-service transaction. Safety concerns legal source renders and monotonic
 artifact replacement, not instantaneous alignment with the latest D1 commit.
-Retries after all requests stop, endless writes, and failed providers have no
-unconditional progress guarantee.
+The configured minute cron can retry after readers stop. Endless writes, missing
+configuration and failed providers still have no unconditional progress guarantee.
 
 Triggers remove caller notification obligations, not dependency maintenance.
-The candidate still needs a migration, one change endpoint, client polling
-dispatch, a feed read/revalidation helper and tests. Auth/admission writes remain.
+The implementation uses a migration, one change endpoint, ordinary Query
+functions, a feed read/revalidation helper and tests. Auth/admission writes remain.
 The fixed counters add row writes per mutation; batches/imports can amplify them.
 
 ## Provider basis and receiving checks

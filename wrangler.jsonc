@@ -35,10 +35,11 @@
     "MOUNT": ""
   },
 
-  // Poll due subscriptions. The reading side is pull-based: this is what makes
-  // other people's writing show up in yours.
+  // Check saved XML every minute; poll due subscriptions every 15 minutes.
+  // Repair legacy imports and prune expired mentions daily at midnight UTC.
+  // The feed-only tick skips subscription scans and housekeeping.
   "triggers": {
-    "crons": ["*/15 * * * *"]
+    "crons": ["* * * * *", "*/15 * * * *", "0 0 * * *"]
   },
 
   "d1_databases": [

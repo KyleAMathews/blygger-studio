@@ -204,3 +204,32 @@ docker run --rm \
   --volume /Users/kylemathews/programs/blygger-studio/models/d1-polling-cache:/work:ro \
   field-lab-tlc:local -metadir /tmp/tlc -config StudioQuerySafe.cfg StudioQuery
 ```
+
+
+## Proactive feed cron
+
+`FeedCron.tla` extends `Feed.tla` with at most two timer arrivals. A tick
+can arrive while an older render is active. It records that arrival's revision
+obligation and waits for the slot to finish before starting a fresh check.
+`TimerChecksFresh` rejects merely joining a pre-write render. A tick serves no
+HTTP bytes; `TimerDoesNotServe` checks that separate work observation. HTTP and
+timer attempts may overlap across the two clients. All original feed safety
+premises remain: complete triggers, legal artifacts and generation-bound CAS.
+
+| Config | Result | Generated | Distinct |
+| --- | --- | ---: | ---: |
+| `FeedCronSafe.cfg` | Pass, all seven invariants | 24602785 | 7578069 |
+| `FeedCronServes.cfg` | `TimerDoesNotServe` violated | 107 | 71 |
+| `FeedCronMixed.cfg` | `LegalArtifact` violated | 39888 | 20253 |
+| `FeedCronOldCheck.cfg` | `TimerChecksFresh` violated | 2328 | 1235 |
+
+Raw final runs live in `logs/FeedCron*.log`. Reproduce with the existing Docker
+command, substituting `-config FeedCronSafe.cfg FeedCron`. Initial Docker startup
+and a missing `FiniteSets` import were setup failures, not semantic controls.
+
+This model does not encode wall-clock minute delivery, canonical URL lookup,
+cold objects, epochs or a staleness deadline. Native scheduled-handler tests
+receive those configuration/cold-cache boundaries and the pending-local-job
+handoff. An unchanged tick must read only site URL/revision; daily maintenance
+must repair old URLs without polling subscriptions. Complete timer fairness,
+provider uptime and exact deployed read costs remain outside these checks.

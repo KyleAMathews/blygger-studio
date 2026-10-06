@@ -1,5 +1,6 @@
 /**
- * Contract: design v2 P1–P10/R1–R9. Reference: polling-cache-oracle-model.ts.
+ * Contract: design v3 P1–P10/R1–R9 and minute feed/daily maintenance jobs.
+ * Reference: polling-cache-oracle-model.ts.
  * Driver: real D1/R2 bindings, real makeApp feed/change HTTP routes, and direct
  * source SQL. Provider gates delay completed reads/conditional puts, never
  * manufacture expected XML or source revisions. Comparisons observe parsed
@@ -15,7 +16,7 @@ import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import fc from 'fast-check';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
-import { makeApp } from '../src/index.ts';
+import worker, { makeApp } from '../src/index.ts';
 import { readChanges, readFeedRevision } from '../src/changes.ts';
 import type { Env } from '../src/types.ts';
 import { BASE, login } from './helpers.ts';
@@ -465,5 +466,111 @@ describe('R2 feed oracle', () => {
       release.resolve(); const loser = await cold; await loser.finish();
       expect(loser.response.status).toBe(500);
     } finally { release.resolve(); }
+  });
+});
+
+
+describe('feed-only scheduled rebuilds', () => {
+  async function configureSite() {
+    await env.DB.prepare("INSERT INTO settings(key,value) VALUES('site_url',?)").bind(`${BASE}/blyg/`).run();
+  }
+  async function tick(bindings: Env = env) {
+    const ctx = createExecutionContext();
+    await worker.scheduled({ cron: '* * * * *', scheduledTime: Date.now(), noRetry() {} }, bindings, ctx);
+    await waitOnExecutionContext(ctx);
+  }
+  it('cron builds cold XML and changed XML before any feed reader arrives', async () => {
+    await seed(); await configureSite();
+    await tick(); expect(facts((await saved()).xml)).toEqual(expected('A'));
+    await setFacts('B'); await tick();
+    expect(facts((await saved()).xml)).toEqual(expected('B'));
+    const firstReader = await request();
+    expect(facts(await firstReader.response.text())).toEqual(expected('B')); await firstReader.finish();
+  });
+  it('an unchanged minute tick makes only two small D1 reads and no render or put', async () => {
+    await seed(); await configureSite(); await tick();
+    const db = observedDB(), bucket = observedBucket();
+    await tick({ ...env, DB: db.db, MEDIA: bucket.bucket });
+    expect(db.statements).toEqual([
+      "SELECT value FROM settings WHERE key = 'site_url'",
+      'SELECT epoch, feed FROM change_state WHERE id = 1',
+    ]);
+    expect(bucket.puts()).toBe(0);
+  });
+  it('a site without a canonical URL keeps request-driven rebuilding', async () => {
+    await seed(); const db = observedDB(), bucket = observedBucket();
+    await tick({ ...env, DB: db.db, MEDIA: bucket.bucket });
+    expect(db.statements).toEqual(["SELECT value FROM settings WHERE key = 'site_url'"]);
+    expect(bucket.puts()).toBe(0);
+    expect((await env.MEDIA.list({ prefix: '__cache/feed/' })).objects).toHaveLength(0);
+    const reader = await request(); expect(facts(await reader.response.text())).toEqual(expected('A')); await reader.finish();
+  });
+  it('cron checks afresh after a pending render that sampled before a later write', async () => {
+    await seed(); await configureSite(); await tick(); await setFacts('B');
+    const entered = deferred(), release = deferred(); let puts = 0;
+    const bucket = observedBucket(async () => { if (++puts === 1) { entered.resolve(); await release.promise; } });
+    const old = await request({ ...env, MEDIA: bucket.bucket }); await old.response.text();
+    let next: Promise<void> | undefined;
+    try {
+      await entered.promise; await setFacts('C');
+      const tickEntered = deferred();
+      const bindings = new Proxy({ ...env, MEDIA: bucket.bucket }, {
+        get(target, property) {
+          if (property === 'MEDIA') tickEntered.resolve();
+          return Reflect.get(target, property);
+        },
+      });
+      next = tick(bindings);
+      // The real binding lookup marks the tick's pending-job handoff. Hold the
+      // old PUT until that handoff, rather than relying on elapsed time.
+      await tickEntered.promise;
+      release.resolve(); await old.finish(); await next;
+      const artifact = await saved();
+      const source = await generation();
+      atCheckpoint('scheduled feed fresh revision', () => {
+        expect(facts(artifact.xml)).toEqual(expected('C'));
+        expect({ epoch: artifact.epoch, revision: artifact.revision }).toEqual(source);
+      });
+      expect(bucket.puts()).toBe(2);
+    } finally { release.resolve(); await old.finish(); await next; }
+  });
+  it('cron failure preserves legal saved XML and a later tick retries', async () => {
+    await seed(); await configureSite(); await tick(); await setFacts('B');
+    const broken = observedBucket(async () => { throw new Error('controlled scheduled put failure'); });
+    await tick({ ...env, MEDIA: broken.bucket });
+    expect(facts((await saved()).xml)).toEqual(expected('A'));
+    await tick(); expect(facts((await saved()).xml)).toEqual(expected('B'));
+  });
+});
+
+
+describe('daily maintenance dispatch', () => {
+  async function legacyImport() {
+    await env.DB.prepare("INSERT INTO subscriptions(id,kind,origin,feed_url,title,status,created) VALUES('legacy-cron','blyg','https://old.example/blyg/','https://old.example/blyg/feed.xml','Old','paused','now')").run();
+    await env.DB.prepare(`INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,content_html,observed_at)
+      VALUES('legacy-cron','old','fragment','current',1,'<img src="media/old.png"><a href="/blyg/f/old/">old</a>','now')`).run();
+  }
+  async function html() {
+    return (await env.DB.prepare("SELECT content_html FROM imported_items WHERE subscription_id='legacy-cron' AND remote_id='old'").first<{ content_html: string }>())!.content_html;
+  }
+  async function scheduled(cron: string, bindings: Env) {
+    const ctx = createExecutionContext();
+    await worker.scheduled({ cron, scheduledTime: Date.now(), noRetry() {} }, bindings, ctx);
+    await waitOnExecutionContext(ctx);
+  }
+  it('the quarter-hour subscription poll leaves legacy repair to daily maintenance', async () => {
+    await legacyImport(); const before = await html(), db = observedDB();
+    await scheduled('*/15 * * * *', { ...env, DB: db.db });
+    expect(await html()).toBe(before);
+    expect(db.statements.some(sql => sql.includes('content_html GLOB'))).toBe(false);
+    expect(db.statements.some(sql => /DELETE FROM mentions_in/.test(sql))).toBe(false);
+  });
+  it('daily maintenance repairs old URLs and prunes claims without polling subscriptions', async () => {
+    await legacyImport(); const db = observedDB();
+    await scheduled('0 0 * * *', { ...env, DB: db.db });
+    expect(await html()).toBe('<img src="https://old.example/blyg/media/old.png"><a href="https://old.example/blyg/f/old/">old</a>');
+    expect(db.statements.some(sql => /SELECT \* FROM subscriptions/.test(sql))).toBe(false);
+    expect(db.statements.some(sql => /DELETE FROM mentions_in/.test(sql))).toBe(true);
+    expect(db.statements.some(sql => sql.includes('FROM change_state'))).toBe(false);
   });
 });

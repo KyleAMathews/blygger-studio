@@ -12,6 +12,35 @@ renderer version, request origin and mount. No new secret, bucket or Durable
 Object is required. Renderer changes without a software version change must
 bump the cache format in `src/feed-cache.ts`.
 
+Configure three cron expressions in your deployment config (including an
+existing ignored `wrangler.private.jsonc`):
+
+```json
+"triggers": { "crons": ["* * * * *", "*/15 * * * *", "0 0 * * *"] }
+```
+
+The minute job checks saved XML. Set **Settings → Canonical site URL** so it
+knows which public origin to warm; `npm run init` already sets this for new
+installations. With no valid HTTP(S) canonical URL, feed requests still rebuild
+their own cache. Aliases also keep their request-driven checks.
+
+An unchanged configured minute tick makes two small D1 reads (site URL and feed
+revision) and one R2 lookup, with no XML render or R2 write: about 2,880 small
+D1 lookups per day. These are extra checks, not deployed billing measurements.
+A pending local render finishes before the tick makes its fresh revision check.
+
+The 15-minute job still selects due subscriptions and retries outbound mentions.
+Daily maintenance at midnight UTC repairs legacy imported URLs and prunes failed
+inbound mentions past their 30-day retention. URL repairs retain the existing
+200-row limit per run, so a large legacy backlog can take several days. Normal
+new imports already resolve URLs. These scans no longer run every 15 minutes.
+
+For a local manual tick, start Wrangler with `--test-scheduled` and run:
+
+```sh
+curl -G --data-urlencode 'cron=* * * * *' http://localhost:8888/__scheduled
+```
+
 Warm requests serve saved XML and ETag/304/HEAD responses immediately, then
 check one D1 revision row. Unchanged checks do not rebuild or rewrite the file.
 Changed checks use a stable render interval and conditional publication against
@@ -19,7 +48,7 @@ generation-bearing XML bytes. Cold creation blocks for an initial valid artifact
 attempts it checks for a valid same-key artifact saved by another builder; if
 one exists, it serves that copy under the same SWR policy. A truly empty cache
 still returns an error if no stable render interval can be found.
-Interrupted work can retry on later requests; no idle-time refresh or maximum
+Interrupted work can retry on later cron ticks or feed requests. No maximum
 stale age is guaranteed. XML can remain stale after withdrawal during this window.
 
 Studio keeps its 15-second visibility-aware timer and ordinary Query Collections.

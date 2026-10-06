@@ -178,3 +178,45 @@ identical. Revision-outage fallback, tighter feed dependencies and public ETag
 semantics remain design choices. Unbounded SWR, metadata-only R2 reads and old
 version-object retention remain named follow-ups in the operations guide. No
 policy change is implied by these receiving fixes.
+
+
+## Proactive cron and maintenance (2026-10-06)
+
+The selected plan adds a feed-only minute tick. The fifteen-minute tick retains
+subscription due-selection and outbound retries. A separate midnight-UTC tick
+owns legacy imported-URL repair and failed inbound-mention pruning. Owner API,
+MCP, Query Collection and individual write handlers need no new rebuild calls.
+Canonical site URL supplies the origin unavailable to scheduled events; missing
+or invalid configuration keeps request-driven rebuilding. Alias caches retain
+request-driven checks. No stale-age deadline or exact cron delivery is promised.
+
+Native RED probes showed that the old scheduled handler never built cold XML,
+did subscription work for a feed-only event, repaired legacy URLs every fifteen
+minutes and polled subscriptions on a proposed maintenance event. The same
+histories are GREEN after separating the jobs. The unchanged minute tick reads
+only site URL and feed revision, with no render/put. Cold/changed builds finish
+before a reader arrives; failures preserve saved XML and the next tick retries.
+The daily event still performs the existing bounded URL repair and claim prune.
+
+The pending-build receiving case holds an actual R2 PUT, commits a later source
+state, and gates on the new tick's real MEDIA-binding access before releasing
+the old PUT. Its generation/payload checkpoint rejects a timer that joins the
+old work and stops. An initial ungated overlap/control survived because the
+harness did not establish this handoff; it was a coverage gap, not evidence that
+the fresh-check law was unnecessary. Nine semantic controls now reject their
+named faults, including that timer fault. Feed/Studio replay receipts retain
+seed `20261001` and paths `0:0` / `0:1:0:0:2`.
+
+`FeedCron.tla` explicitly retains a queued timer and its arrival revision,
+separate from the active attempt. The safe model checks 7,578,069 distinct states.
+Joining an older sampled revision violates `TimerChecksFresh`; counting cron as
+HTTP service violates `TimerDoesNotServe`; disabling render validation violates
+`LegalArtifact`. Raw final logs and bounds live beside the model. Earlier Docker
+startup errors and a missing module import were setup failures, not controls.
+
+The full Worker suite passes 121 files, 1354 cases with 5 skipped. The final native
+cache file passes all 85 cases after the handoff gate was strengthened. Types,
+SDK/SPA build and template checks pass. These extend local value/work evidence;
+canonical URL lookup, cold objects and actual provider handoffs remain native
+receiving boundaries rather than invented formal guarantees. SQLite trigger
+behavior is unchanged and its earlier loss ledger/receiving cases remain intact.
