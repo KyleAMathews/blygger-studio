@@ -36,6 +36,7 @@
     "release:verify": "node --import tsx scripts/verify-release.ts",
     "release:check": "node --import tsx scripts/check-release.ts",
     "postinstall": "npm run build",
+    "test:polling-cache:mutations": "node --import tsx scripts/verify-polling-cache-mutations.ts",
     "test:mutations": "node --import tsx scripts/verify-oracle-mutations.ts",
     "test:ui": "vitest run --config vitest.ui.config.ts",
     "test:auth:security": "vitest run test/auth-security.oracle.test.ts && node --import tsx scripts/verify-auth-security-race.ts",

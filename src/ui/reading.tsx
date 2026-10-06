@@ -57,6 +57,8 @@ import { diffText, type DiffOp } from '../word-diff.ts';
 import { useSwipe } from './swipe.ts';
 import './reading.css';
 
+import type { CachedResponse } from './revision-query.ts';
+
 const PAGE = 25;
 
 /* ---------------- small helpers ---------------- */
@@ -64,8 +66,8 @@ const PAGE = 25;
 /** The cached page metadata (counts, total) for one reading view. */
 function readingMeta(sub: string, offset: number) {
   return queryClient
-    .getQueriesData<ListReadingResponses[200]>({ queryKey: ['reading', sub] })
-    .map(([, value]) => value)
+    .getQueriesData<CachedResponse<ListReadingResponses[200]>>({ queryKey: ['reading', sub] })
+    .map(([, value]) => value?.data)
     .find((value) => value?.offset === offset);
 }
 /** A poll time, to the minute, in the owner's timezone. */
@@ -961,7 +963,7 @@ function Sources() {
   const lens = useContext(LensContext);
   const allKey = readingKey('all', lens);
   useLiveQuery(readingView(allKey, 0));
-  const refresh = useMemo(() => () => refreshReading(allKey, 0), [allKey]);
+  const refresh = useMemo(() => () => refreshReading(allKey), [allKey]);
   usePoll(`reading:${allKey}:0`, refresh);
   usePoll('subscriptions', subscriptions.utils.refetch);
   usePoll('hoppers', hoppers.utils.refetch);
@@ -1151,8 +1153,8 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
   const refresh = useMemo(
-    () => () => refreshReading(key, offset),
-    [key, offset],
+    () => () => refreshReading(key),
+    [key],
   );
   usePoll(`reading:${key}:${offset}`, refresh);
   usePoll('subscriptions', subscriptions.utils.refetch);

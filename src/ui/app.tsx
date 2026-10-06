@@ -40,6 +40,7 @@ import {
   queryClient,
 } from './data.ts';
 import { Button } from './components.tsx';
+import type { CachedResponse } from './revision-query.ts';
 import { SyntaxPage } from './syntax.tsx';
 import { MorePage } from './more.tsx';
 import { UpdatesPage } from './updates.tsx';
@@ -150,8 +151,12 @@ const reading = createRoute({
     const sub = deps.sub ?? 'all';
     const offset = deps.view === 'sources' ? 0 : deps.offset;
     const key = readingKey(sub, deps.lens);
+    const view = readingView(key, offset);
+    // A failed startup leaves the derived view in its error state even after
+    // resetQueries reloads the source. Restart that failed sync on route retry.
+    if (view.status === 'error') await view.cleanup();
     await Promise.all([
-      readingView(key, offset).preload(),
+      view.preload(),
       subscriptions.preload(),
       hopperCollection.preload(),
       signals.preload(),
@@ -159,9 +164,9 @@ const reading = createRoute({
     if (deps.sub === undefined || deps.lens === 'background' || deps.lens === 'smart') return;
     const page = queryClient
       .getQueriesData<
-        import('../../sdk/dist/browser.js').ListReadingResponses[200]
+        CachedResponse<import('../../sdk/dist/browser.js').ListReadingResponses[200]>
       >({ queryKey: ['reading', key] })
-      .map(([, data]) => data)
+      .map(([, data]) => data?.data)
       .find((data) => data?.offset === offset);
     if (
       page &&

@@ -22,8 +22,10 @@ import { normalizeOrigin } from "./stub.ts";
 import { mentionFetchFor } from "./mentions/http.ts";
 import { platformFetchFor } from "./importer/http.ts";
 import { fetchImportedHistory, fetchPublicVersion } from "./imported-history.ts";
+import { readChanges } from './changes.ts';
 
 export const readApi = contractApp();
+readApi.openapi(routes.getChanges, async c => c.json(await readChanges(c.env.DB)));
 async function collection<T>(db: D1Database, query: Record<string, string>, sql: string, countSql: string) {
   const offset = Number(query.offset ?? 0), limit = Number(query.limit ?? 100);
   const [rows, count] = await Promise.all([

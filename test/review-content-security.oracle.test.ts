@@ -152,8 +152,10 @@ it.each([
   const created = await f.owner('/api/items', 'POST', { kind: 'thread', content_md: 'A response' }); expect(created.status).toBe(201);
   const { id } = await created.json() as { id: string };
   expect((await f.owner(`/api/items/${id}/publish`, 'POST')).status).toBe(200);
-  for (const [column, value] of Object.entries(version)) expect((await env.DB.prepare(`UPDATE versions SET ${column}=? WHERE item_id=?`).bind(value, id).run()).meta.changes).toBe(1);
-  for (const [column, value] of Object.entries(item)) expect((await env.DB.prepare(`UPDATE items SET ${column}=? WHERE id=?`).bind(value, id).run()).meta.changes).toBe(1);
+  // Observe the seeded field itself: native D1 change counts also include
+  // tracking writes, and null/no-op assignments deliberately do not track.
+  for (const [column, value] of Object.entries(version)) expect(await env.DB.prepare(`UPDATE versions SET ${column}=? WHERE item_id=? AND version=1 RETURNING ${column} AS value`).bind(value, id).first()).toEqual({ value });
+  for (const [column, value] of Object.entries(item)) expect(await env.DB.prepare(`UPDATE items SET ${column}=? WHERE id=? RETURNING ${column} AS value`).bind(value, id).first()).toEqual({ value });
   for (const path of [`/blyg/t/${id}/`, '/blyg/']) {
     const page = await receive(path); expect(page.status).toBe(200);
     const html = await page.text();

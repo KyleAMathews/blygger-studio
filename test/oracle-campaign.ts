@@ -15,7 +15,7 @@ export function atCheckpoint(name: string, compare: () => void) {
 // A shrink failure at a different checkpoint is not the original fault. Preserve
 // that original fault alongside fast-check's reduced case. This bounded campaign
 // explores histories; it does not claim an exhaustive state space.
-export function campaign<T>(name: string, inputs: fc.Arbitrary<T>, check: (input: T) => Promise<void>) {
+export function campaign<T>(name: string, inputs: fc.Arbitrary<T>, check: (input: T) => Promise<void>, numRuns = 8) {
   const replay = __ORACLE_REPLAY__;
   if (replay.seed !== undefined && !replay.target) throw new Error("ORACLE_TARGET is required for replay");
   if (replay.target && replay.target !== name) return;
@@ -36,7 +36,7 @@ export function campaign<T>(name: string, inputs: fc.Arbitrary<T>, check: (input
           if (checkpoint === firstFailure.checkpoint) throw error;
         }
       }), {
-        numRuns: 8, ...(seed !== undefined ? { seed } : {}), ...(mode === "replay" ? { path: replay.path ?? "" } : {}),
+        numRuns, ...(seed !== undefined ? { seed } : {}), ...(mode === "replay" ? { path: replay.path ?? "" } : {}),
       });
     } catch (reduced) {
       throw new AggregateError([firstFailure?.error, reduced], `Oracle ${name}: original ${firstFailure?.checkpoint}; original input ${firstFailure?.input}. Fast-check's error contains the reduced input and replay seed/path.`, { cause: firstFailure?.error });

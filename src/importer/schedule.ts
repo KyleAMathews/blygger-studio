@@ -42,7 +42,6 @@ export interface ScheduledPollResult {
   polled: number;
 }
 
-/** One cron tick: poll every due subscription, bounded concurrency. */
 /**
  * Heal blyg-native imports stored before 0.10.1 resolved their relative URLs
  * (session 30). Same pattern as session 18's L0 date repair: the poll skips
@@ -50,7 +49,7 @@ export interface ScheduledPollResult {
  * alone. Idempotent — a repaired row no longer matches the filter, which is
  * GLOB rather than LIKE so that protocol-relative `//host` URLs (correctly left
  * alone) cannot match forever and starve the per-run limit — and
- * bounded per run, so a large reading list heals over a few cron ticks
+ * bounded per run, so a large reading list heals over daily maintenance runs
  * instead of one long one. L0 rows are left alone: an RSS item's relative URLs
  * resolve against its own link, not the feed's origin, and §7 already
  * requires RSS HTML to be absolute.
@@ -87,8 +86,8 @@ export async function pollAll(db: D1Database, fetchFn: FetchLike = platformFetch
   return subs.length;
 }
 
+/** Quarter-hour tick: select and poll due subscriptions, bounded concurrency. */
 export async function runScheduledPoll(db: D1Database, fetchFn: FetchLike = platformFetch, now: number = Date.now()): Promise<ScheduledPollResult> {
-  await repairImportedUrls(db);
   const subs = await listSubscriptions(db);
   const due = dueSubscriptions(subs, now);
   await mapLimit(due, POLL_CONCURRENCY, (sub) => pollSubscription(db, sub, fetchFn));

@@ -16,11 +16,12 @@ import { type Context, Hono } from "hono";
 
 import { buildBlogrollOpml } from "./importer/opml.ts";
 import { publicHopperPage } from "./importer/pages.ts";
-import { runScheduledPoll } from "./importer/schedule.ts";
+import { repairImportedUrls, runScheduledPoll } from "./importer/schedule.ts";
 import { getHopperBySlug, getImportedItem, getSubscription, listBlogrollSubscriptions, listHopperItems } from "./importer/store.ts";
 import { authoredKind, getItem, getMedia, getSettings, getVersion, listPublic } from "./model.ts";
 import { archivePage, feedPage, generatedHighlightCss, permalinkPage, pinnedVersionPage, STYLE_CSS, themeCss, threadPage } from "./pages.ts";
-import { buildArchiveIndex, buildFeedXml, buildItemJson, buildManifest, buildPinnedVersionJson, siteOrigin } from "./protocol.ts";
+import { buildArchiveIndex, buildItemJson, buildManifest, buildPinnedVersionJson, siteOrigin } from "./protocol.ts";
+import { cachedFeed, refreshConfiguredFeed } from './feed-cache.ts';
 import { platformFetchFor } from "./importer/http.ts";
 import { mentionFetchFor } from "./mentions/http.ts";
 import { receiveMention, verifyMention } from "./mentions/receive.ts";
@@ -99,10 +100,7 @@ export function makeApp(mount: string) {
   });
 
   pub.get("/feed.xml", async (c) => {
-    const settings = await getSettings(c.env.DB);
-    const xml = await buildFeedXml(c.env.DB, settings, siteOrigin(settings, c.req.url, mount));
-    cors(c);
-    return c.body(xml, 200, { "Content-Type": "application/rss+xml; charset=utf-8" });
+    return cachedFeed(c.req.raw, c.env, mount, work => c.executionCtx.waitUntil(work));
   });
 
   pub.get("/blyg.json", async (c) => {
@@ -320,16 +318,25 @@ export default {
     }
     return app.fetch(req, env, ctx);
   },
-  // Cron trigger (§4.2): poll every due subscription. Due-selection + backoff
-  // logic lives in importer/schedule.ts, fake-clock testable in isolation.
-  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+  // The minute tick only warms XML; the 15-minute tick polls due subscriptions.
+  // Due-selection and backoff live in importer/schedule.ts.
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (controller.cron === '* * * * *') {
+      ctx.waitUntil(refreshConfiguredFeed(env, normalizeMount(env.MOUNT), work => ctx.waitUntil(work)).catch(() => {
+        console.warn('Scheduled feed rebuild failed');
+      }));
+      return;
+    }
+    if (controller.cron === '0 0 * * *') {
+      ctx.waitUntil(repairImportedUrls(env.DB).catch(() => {
+        console.warn('Imported URL repair failed');
+      }));
+      ctx.waitUntil(pruneFailedInbound(env.DB).catch(() => {}));
+      return;
+    }
     ctx.waitUntil(runScheduledPoll(env.DB, platformFetchFor(env)));
     // Outbound mentions retry here (§2.3.4): the publish path tries once
     // immediately, and a receiver that was down gets it on a later tick.
     ctx.waitUntil(drainOutbound(env.DB, mentionFetchFor(env)).catch(() => {}));
-    // Housekeeping (§9.1 gap 3): `failed` inbound claims are kept for 30 days
-    // and then dropped. Here rather than on the endpoint, because the request
-    // path must not do work that a flood would multiply.
-    ctx.waitUntil(pruneFailedInbound(env.DB).catch(() => {}));
   },
 };
