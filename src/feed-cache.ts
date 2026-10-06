@@ -71,21 +71,14 @@ function revalidate(request: Request, env: Env, mount: string, key: string, arti
 function matches(header: string | null, tag: string) {
   return header?.split(',').some(value => value.trim() === '*' || value.trim().replace(/^W\//, '') === tag) ?? false;
 }
-/** Warm the saved feed independently of a feed reader. */
-async function refreshFeed(request: Request, env: Env, mount: string): Promise<void> {
-  const key = await cacheKey(request, mount);
-  // A job already running may have checked before a recent write. Wait for it,
-  // then make a fresh revision check rather than merely joining that job.
-  await pending.get(env.MEDIA)?.get(key)?.catch(() => {});
-  await revalidate(request, env, mount, key, await readArtifact(env.MEDIA, key));
-}
-/** Scheduled events have no request origin; warm the configured public site. */
-export async function refreshConfiguredFeed(env: Env, mount: string): Promise<void> {
+/** Scheduled events reuse the feed handler with a bodyless HEAD request. */
+export async function refreshConfiguredFeed(env: Env, mount: string, waitUntil: (work: Promise<unknown>) => void): Promise<void> {
   const site = await env.DB.prepare("SELECT value FROM settings WHERE key = 'site_url'").first<{ value: string }>();
   if (!site || typeof site.value !== 'string' || !URL.canParse(site.value)) return;
   const url = new URL(site.value);
   if (!['http:', 'https:'].includes(url.protocol)) return;
-  await refreshFeed(new Request(new URL('feed.xml', site.value.endsWith('/') ? site.value : site.value + '/')), env, mount);
+  const request = new Request(new URL('feed.xml', site.value.endsWith('/') ? site.value : site.value + '/'), { method: 'HEAD' });
+  await cachedFeed(request, env, mount, waitUntil);
 }
 /** Request-driven SWR. A 304 validates saved bytes, not current D1 state. */
 export async function cachedFeed(request: Request, env: Env, mount: string, waitUntil: (work: Promise<unknown>) => void): Promise<Response> {

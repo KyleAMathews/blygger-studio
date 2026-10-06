@@ -483,7 +483,8 @@ describe('feed-only scheduled rebuilds', () => {
     await seed(); await configureSite();
     await tick(); expect(facts((await saved()).xml)).toEqual(expected('A'));
     await setFacts('B'); await tick();
-    expect(facts((await saved()).xml)).toEqual(expected('B'));
+    const changed = await saved();
+    atCheckpoint('scheduled feed changed XML', () => expect(facts(changed.xml)).toEqual(expected('B')));
     const firstReader = await request();
     expect(facts(await firstReader.response.text())).toEqual(expected('B')); await firstReader.finish();
   });
@@ -505,7 +506,7 @@ describe('feed-only scheduled rebuilds', () => {
     expect((await env.MEDIA.list({ prefix: '__cache/feed/' })).objects).toHaveLength(0);
     const reader = await request(); expect(facts(await reader.response.text())).toEqual(expected('A')); await reader.finish();
   });
-  it('cron checks afresh after a pending render that sampled before a later write', async () => {
+  it('cron joins pending SWR work and receives later writes on the next tick', async () => {
     await seed(); await configureSite(); await tick(); await setFacts('B');
     const entered = deferred(), release = deferred(); let puts = 0;
     const bucket = observedBucket(async () => { if (++puts === 1) { entered.resolve(); await release.promise; } });
@@ -513,10 +514,10 @@ describe('feed-only scheduled rebuilds', () => {
     let next: Promise<void> | undefined;
     try {
       await entered.promise; await setFacts('C');
-      const tickEntered = deferred();
+      const tickEntered = deferred(); let accesses = 0;
       const bindings = new Proxy({ ...env, MEDIA: bucket.bucket }, {
         get(target, property) {
-          if (property === 'MEDIA') tickEntered.resolve();
+          if (property === 'MEDIA' && ++accesses === 2) tickEntered.resolve();
           return Reflect.get(target, property);
         },
       });
@@ -525,9 +526,10 @@ describe('feed-only scheduled rebuilds', () => {
       // old PUT until that handoff, rather than relying on elapsed time.
       await tickEntered.promise;
       release.resolve(); await old.finish(); await next;
-      const artifact = await saved();
-      const source = await generation();
-      atCheckpoint('scheduled feed fresh revision', () => {
+      // HEAD joined the older legal render; its source token remains dirty.
+      expect(facts((await saved()).xml)).toEqual(expected('B'));
+      await tick({ ...env, MEDIA: bucket.bucket }); const artifact = await saved(), source = await generation();
+      atCheckpoint('scheduled feed next-tick retry', () => {
         expect(facts(artifact.xml)).toEqual(expected('C'));
         expect({ epoch: artifact.epoch, revision: artifact.revision }).toEqual(source);
       });

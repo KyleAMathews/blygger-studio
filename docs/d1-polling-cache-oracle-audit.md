@@ -198,24 +198,33 @@ only site URL and feed revision, with no render/put. Cold/changed builds finish
 before a reader arrives; failures preserve saved XML and the next tick retries.
 The daily event still performs the existing bounded URL repair and claim prune.
 
-The pending-build receiving case holds an actual R2 PUT, commits a later source
-state, and gates on the new tick's real MEDIA-binding access before releasing
-the old PUT. Its generation/payload checkpoint rejects a timer that joins the
-old work and stops. An initial ungated overlap/control survived because the
-harness did not establish this handoff; it was a coverage gap, not evidence that
-the fresh-check law was unnecessary. Nine semantic controls now reject their
-named faults, including that timer fault. Feed/Studio replay receipts retain
-seed `20261001` and paths `0:0` / `0:1:0:0:2`.
+The minute tick uses `cachedFeed` with an internal HEAD request, forwarding
+background work to the scheduled context. It shares the reader's SWR and local
+coalescing rules. A tick joining an older render can retain its legal saved
+generation; the next tick detects the remaining source difference. The native
+handoff holds an actual R2 PUT, commits a newer state, and gates on the HEAD
+handler's pending-job binding access. It observes the older saved artifact,
+then the next tick's newer one. This intentionally replaces the earlier
+extra-fresh-check warming design recorded in commit `9330026`.
 
-`FeedCron.tla` explicitly retains a queued timer and its arrival revision,
-separate from the active attempt. The safe model checks 7,578,069 distinct states.
-Joining an older sampled revision violates `TimerChecksFresh`; counting cron as
-HTTP service violates `TimerDoesNotServe`; disabling render validation violates
-`LegalArtifact`. Raw final logs and bounds live beside the model. Earlier Docker
-startup errors and a missing module import were setup failures, not controls.
+Nine semantic controls include HEAD incorrectly skipping its revision check;
+that fault must fail at `scheduled feed changed XML`. Feed/Studio replay
+receipts retain seed `20261001` and paths `0:0` / `0:1:0:0:2`. The original
+strict-warming control and queued-timer model are historical evidence in Git,
+not current guarantees. Earlier fixture observer/setup failures are excluded
+from semantic evidence.
+
+`FeedCron.tla` now models internal HEAD ticks starting checks on idle/completed
+slots and joining active SWR attempts without changing their captured tokens.
+The source counter remains ahead of an older artifact, permitting a later tick
+to detect that change. The current model retains the original feed safety laws
+and bodyless-timer work law; its final counts and controls are recorded beside
+its source: 624,863 safe states, with disabled timer checks, external service
+and unstable rendering controls rejected. No fresh-at-every-tick or staleness
+deadline is asserted.
 
 The full Worker suite passes 121 files, 1354 cases with 5 skipped. The final native
-cache file passes all 85 cases after the handoff gate was strengthened. Types,
+cache file passes all 85 cases after the HEAD handoff and next-tick scope were received. Types,
 SDK/SPA build and template checks pass. These extend local value/work evidence;
 canonical URL lookup, cold objects and actual provider handoffs remain native
 receiving boundaries rather than invented formal guarantees. SQLite trigger

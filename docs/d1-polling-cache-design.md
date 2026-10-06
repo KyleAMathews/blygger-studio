@@ -131,8 +131,10 @@ both schedule a revision check. If source token equals artifact token, do not
 render or rewrite. A missing object needs a blocking initial build. Failed
 background work keeps the last good artifact and remains eligible on later
 requests. A separate minute cron also checks and warms the canonical site from
-Settings. It checks after an already-running local job finishes, so it cannot
-silently join a revision check made before a later write. Blank/invalid canonical
+Settings by calling the same feed handler with HEAD. It shares existing SWR
+coalescing: joining a pre-write render leaves the newer source revision dirty
+for the next tick. No separate warming or acknowledgment algorithm is needed.
+Blank/invalid canonical
 URLs leave request-driven rebuilding intact. Cron retries are attempts, not a
 maximum-stale-age or unconditional convergence guarantee.
 

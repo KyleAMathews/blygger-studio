@@ -322,7 +322,7 @@ export default {
   // Due-selection and backoff live in importer/schedule.ts.
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     if (controller.cron === '* * * * *') {
-      ctx.waitUntil(refreshConfiguredFeed(env, normalizeMount(env.MOUNT)).catch(() => {
+      ctx.waitUntil(refreshConfiguredFeed(env, normalizeMount(env.MOUNT), work => ctx.waitUntil(work)).catch(() => {
         console.warn('Scheduled feed rebuild failed');
       }));
       return;

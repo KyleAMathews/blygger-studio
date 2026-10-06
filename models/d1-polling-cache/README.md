@@ -208,28 +208,33 @@ docker run --rm \
 
 ## Proactive feed cron
 
-`FeedCron.tla` extends `Feed.tla` with at most two timer arrivals. A tick
-can arrive while an older render is active. It records that arrival's revision
-obligation and waits for the slot to finish before starting a fresh check.
-`TimerChecksFresh` rejects merely joining a pre-write render. A tick serves no
-HTTP bytes; `TimerDoesNotServe` checks that separate work observation. HTTP and
-timer attempts may overlap across the two clients. All original feed safety
-premises remain: complete triggers, legal artifacts and generation-bound CAS.
+`FeedCron.tla` extends `Feed.tla` with at most two internal HEAD ticks. A tick
+starts a revision check when its slot is idle/completed/failed. Active SWR work
+is joined without advancing its source token. Once that job ends, another tick
+can detect the still-newer source counter. No extra fresh-check queue is part
+of the current implementation. The earlier queued variant is retained in Git
+history at commit `9330026`, not as a current obligation.
+
+`TimerSchedulesCheck` rejects a tick skipping its revision check on an idle
+slot. `TimerDoesNotServe` distinguishes internal calls from external HTTP
+service. Original legal-artifact, complete-trigger and generation-CAS safety
+premises remain.
 
 | Config | Result | Generated | Distinct |
 | --- | --- | ---: | ---: |
-| `FeedCronSafe.cfg` | Pass, all seven invariants | 24602785 | 7578069 |
-| `FeedCronServes.cfg` | `TimerDoesNotServe` violated | 107 | 71 |
-| `FeedCronMixed.cfg` | `LegalArtifact` violated | 39888 | 20253 |
-| `FeedCronOldCheck.cfg` | `TimerChecksFresh` violated | 2328 | 1235 |
+| `FeedCronSafe.cfg` | Pass, all seven invariants | 2296440 | 624863 |
+| `FeedCronServes.cfg` | `TimerDoesNotServe` violated | 103 | 69 |
+| `FeedCronMixed.cfg` | `LegalArtifact` violated | 19270 | 8293 |
+| `FeedCronNoCheck.cfg` | `TimerSchedulesCheck` violated | 7 | 7 |
 
-Raw final runs live in `logs/FeedCron*.log`. Reproduce with the existing Docker
-command, substituting `-config FeedCronSafe.cfg FeedCron`. Initial Docker startup
-and a missing `FiniteSets` import were setup failures, not semantic controls.
+Raw final runs live in `logs/FeedCron*.log`. Use the existing Docker command
+with `-config FeedCronSafe.cfg FeedCron`; `--network none` is sufficient because
+TLC reads only local model files. Container-create errors and an initial Boolean
+precedence error in the no-check control were setup failures, not semantic kills.
 
-This model does not encode wall-clock minute delivery, canonical URL lookup,
-cold objects, epochs or a staleness deadline. Native scheduled-handler tests
-receive those configuration/cold-cache boundaries and the pending-local-job
-handoff. An unchanged tick must read only site URL/revision; daily maintenance
-must repair old URLs without polling subscriptions. Complete timer fairness,
-provider uptime and exact deployed read costs remain outside these checks.
+The model assumes a configured canonical URL and an existing legal artifact.
+It does not encode actual minute delivery, canonical lookup, cold objects,
+epochs, provider uptime or a staleness deadline. Native scheduled tests receive
+those configuration/cold-cache boundaries, internal HEAD/SWR handoff, next-tick
+retry and daily maintenance dispatch. The unchanged tick must make only the
+site/revision reads. These local observations do not establish deployed billing.

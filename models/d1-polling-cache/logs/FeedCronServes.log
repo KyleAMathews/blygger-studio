@@ -1,5 +1,5 @@
 TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
-Running breadth-first search Model-Checking with fp 33 and seed 1702403854125803126 with 1 worker on 10 cores with 1765MB heap and 64MB offheap memory [pid: 1] (Linux 6.12.76-linuxkit aarch64, Eclipse Adoptium 21.0.12 x86_64, MSBDiskFPSet, DiskStateQueue).
+Running breadth-first search Model-Checking with fp 11 and seed 6413888752895780738 with 1 worker on 10 cores with 1765MB heap and 64MB offheap memory [pid: 1] (Linux 6.12.76-linuxkit aarch64, Eclipse Adoptium 21.0.12 x86_64, MSBDiskFPSet, DiskStateQueue).
 Parsing file /work/FeedCron.tla
 Parsing file /work/Feed.tla
 Parsing file /tmp/FiniteSets.tla
@@ -12,9 +12,9 @@ Semantic processing of module FiniteSets
 Semantic processing of module TLC
 Semantic processing of module Feed
 Semantic processing of module FeedCron
-Starting... (2026-10-06 01:19:50)
+Starting... (2026-10-06 01:57:00)
 Computing initial states...
-Finished computing initial states: 1 distinct state generated at 2026-10-06 01:19:51.
+Finished computing initial states: 1 distinct state generated at 2026-10-06 01:57:00.
 Error: Invariant TimerDoesNotServe is violated.
 Error: The behavior up to this point is:
 State 1: <Initial predicate>
@@ -40,17 +40,15 @@ State 1: <Initial predicate>
 /\ triggerWrites = 0
 /\ checks = 0
 /\ ticks = 0
-/\ required = <<0, 0>>
-/\ timerActive = <<FALSE, FALSE>>
+/\ missedTimer = FALSE
 /\ source = 0
 /\ missedCheck = FALSE
 /\ services = 0
 /\ artifact = [commit |-> 0, a |-> 0, b |-> 0, rev |-> 0, token |-> 0]
 /\ renders = 0
 /\ revision = 0
-/\ queued = <<FALSE, FALSE>>
 
-State 2: <CronNext line 34, col 14 to line 34, col 71 of module FeedCron>
+State 2: <CronNext line 20, col 14 to line 20, col 53 of module FeedCron>
 /\ regressed = FALSE
 /\ attempts = << [ phase |-> "check",
      before |-> 0,
@@ -73,17 +71,15 @@ State 2: <CronNext line 34, col 14 to line 34, col 71 of module FeedCron>
 /\ triggerWrites = 0
 /\ checks = 0
 /\ ticks = 0
-/\ required = <<0, 0>>
-/\ timerActive = <<FALSE, FALSE>>
+/\ missedTimer = FALSE
 /\ source = 0
 /\ missedCheck = FALSE
 /\ services = 1
 /\ artifact = [commit |-> 0, a |-> 0, b |-> 0, rev |-> 0, token |-> 0]
 /\ renders = 0
 /\ revision = 0
-/\ queued = <<FALSE, FALSE>>
 
-State 3: <CronNext line 34, col 14 to line 34, col 71 of module FeedCron>
+State 3: <CronNext line 20, col 14 to line 20, col 53 of module FeedCron>
 /\ regressed = FALSE
 /\ attempts = << [ phase |-> "check",
      before |-> 0,
@@ -106,17 +102,15 @@ State 3: <CronNext line 34, col 14 to line 34, col 71 of module FeedCron>
 /\ triggerWrites = 0
 /\ checks = 0
 /\ ticks = 0
-/\ required = <<0, 0>>
-/\ timerActive = <<FALSE, FALSE>>
+/\ missedTimer = FALSE
 /\ source = 0
 /\ missedCheck = FALSE
 /\ services = 2
 /\ artifact = [commit |-> 0, a |-> 0, b |-> 0, rev |-> 0, token |-> 0]
 /\ renders = 0
 /\ revision = 0
-/\ queued = <<FALSE, FALSE>>
 
-State 4: <Tick line 15, col 5 to line 22, col 52 of module FeedCron>
+State 4: <Tick line 11, col 5 to line 19, col 52 of module FeedCron>
 /\ regressed = FALSE
 /\ attempts = << [ phase |-> "check",
      before |-> 0,
@@ -139,17 +133,15 @@ State 4: <Tick line 15, col 5 to line 22, col 52 of module FeedCron>
 /\ triggerWrites = 0
 /\ checks = 0
 /\ ticks = 1
-/\ required = <<0, 0>>
-/\ timerActive = <<FALSE, FALSE>>
+/\ missedTimer = FALSE
 /\ source = 0
 /\ missedCheck = FALSE
 /\ services = 3
 /\ artifact = [commit |-> 0, a |-> 0, b |-> 0, rev |-> 0, token |-> 0]
 /\ renders = 0
 /\ revision = 0
-/\ queued = <<TRUE, FALSE>>
 
-107 states generated, 71 distinct states found, 53 states left on queue.
+103 states generated, 69 distinct states found, 51 states left on queue.
 The depth of the complete state graph search is 4.
 The average outdegree of the complete state graph is 4 (minimum is 2, the maximum 7 and the 95th percentile is 7).
-Finished in 00s at (2026-10-06 01:19:51)
+Finished in 00s at (2026-10-06 01:57:00)

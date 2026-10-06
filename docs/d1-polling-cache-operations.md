@@ -27,7 +27,9 @@ their own cache. Aliases also keep their request-driven checks.
 An unchanged configured minute tick makes two small D1 reads (site URL and feed
 revision) and one R2 lookup, with no XML render or R2 write: about 2,880 small
 D1 lookups per day. These are extra checks, not deployed billing measurements.
-A pending local render finishes before the tick makes its fresh revision check.
+The tick calls the existing feed handler in-process with HEAD, so no XML body
+is returned. It shares normal SWR work: an active build can be joined, and the
+next tick checks any source changes committed after that build sampled.
 
 The 15-minute job still selects due subscriptions and retries outbound mentions.
 Daily maintenance at midnight UTC repairs legacy imported URLs and prunes failed
@@ -61,7 +63,7 @@ write totals separately; these changes do not establish a free-plan capacity.
 
 ## Database restores
 
-Pause traffic before restoring/replacing D1. Apply any missing migrations if
+Pause requests and disable cron triggers before restoring/replacing D1. Apply any missing migrations if
 the backup predates `0024_change_state.sql`. Then run:
 
 ```sh
@@ -70,7 +72,7 @@ npx wrangler d1 execute DB --remote --file scripts/reset-change-epoch.sql
 
 Pass your normal deployment configuration if it differs from `wrangler.jsonc`.
 The script establishes a fresh epoch, resets counters, and can restore the
-missing singleton. Resume traffic only after this step. Do not run it during
+missing singleton. Resume requests and restore cron triggers only after this step. Do not run it during
 ordinary upgrades: clients' cursors should survive code deployments. The
 implementation work does not run this remote command or deploy production.
 
