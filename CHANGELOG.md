@@ -21,6 +21,7 @@ not have its own repo until session 26.
 ## 0.30.1 — 2026-10-06
 
 - **Live preview no longer throttles editing.** `POST /api/preview` renders a draft and stores nothing, but 0.28 counted it against the owner's write budget (120 a minute); the editor sends one on every pause in typing, so ordinary composing hit "API work budget exceeded" and the preview stalled. It now spends the read budget (1,200 a minute). Real writes stay bounded.
+- **The daily sync runs when a feed is unchanged.** A blyg subscription's poll returned on `304 Not Modified` before its daily index sync and manifest-name refresh, so an origin that honours ETags was never re-synced after its first poll; if that first sync failed (as during 0.28.0–0.28.2's DNS-check outage), its index and name stayed stale indefinitely. A 304 now runs the sync when it is due, and a degraded subscription reconciles on one too.
 - Migrations: none.
 
 ## 0.30.0 — 2026-10-05
