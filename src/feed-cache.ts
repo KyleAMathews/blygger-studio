@@ -53,6 +53,10 @@ async function rebuild(request: Request, env: Env, mount: string, key: string, i
     current = await readArtifact(env.MEDIA, key);
     if (satisfies(current, target)) return current!;
   }
+  // Churn can exhaust our render attempts while another builder has saved
+  // legal bytes. Reuse that same-key artifact under the existing SWR policy.
+  const winner = await readArtifact(env.MEDIA, key);
+  if (winner?.generation) return winner;
   throw new Error('feed source remained unstable');
 }
 function revalidate(request: Request, env: Env, mount: string, key: string, artifact: Artifact | null) {

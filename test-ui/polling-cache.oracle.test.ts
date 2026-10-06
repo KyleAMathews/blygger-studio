@@ -245,3 +245,26 @@ describe('Studio query-cache oracle', () => {
     }, [async () => { client.clear(); }]);
   }, 50);
 });
+
+describe('Reading subset ownership', () => {
+  it('released Reading pages are not fetched on a revision bump', async () => {
+    const client = makeClient(); let source = token(); const calls: number[] = [];
+    const collection = createCollection(queryCollectionOptions({
+      queryKey: ['reading', 'review'], queryClient: client, syncMode: 'on-demand', getKey: (row: { id: string; rank: number; revision: number }) => row.id,
+      queryFn: context => readIfChanged(context, 'reading', async () => source, async ({ meta }) => {
+        const { filters } = parseLoadSubsetOptions(meta?.loadSubsetOptions);
+        const start = filters.find(filter => filter.field[0] === 'rank' && filter.operator === 'gte');
+        const offset = Number(start?.value ?? 0); calls.push(offset);
+        return [{ id: `r${offset}`, rank: offset, revision: source.domains.reading }];
+      }),
+      select: (response: CachedResponse<{ id: string; rank: number; revision: number }[]>) => response.data,
+    }));
+    const views = [0, 25, 50].map(offset => createLiveQueryCollection({ query: q => q.from({ row: collection }).where(({ row }) => and(gte(row.rank, offset), lt(row.rank, offset + 25))).orderBy(({ row }) => row.rank) }));
+    await withOracleCleanup(async () => {
+      await Promise.all(views.map(view => view.preload())); expect(calls.sort()).toEqual([0,25,50]);
+      await views[0].cleanup(); await views[1].cleanup(); calls.length = 0; source = token(1);
+      await collection.utils.refetch({ throwOnError: true });
+      expect(calls).toEqual([50]); expect([...collection.values()].map(row => row.rank)).toEqual([50]);
+    }, [...views.map(view => () => view.cleanup()), () => collection.cleanup(), async () => { client.clear(); }]);
+  });
+});

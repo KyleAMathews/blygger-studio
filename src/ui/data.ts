@@ -352,12 +352,10 @@ const readingViews = scoped((key) => {
 });
 export const readingView = (sub: string, offset: number) =>
   readingViews(JSON.stringify([sub, offset]));
-export function refreshReading(sub: string, _offset: number) {
-  // The adapter owns both startup-error retry and collection application.
-  // QueryClient.refetchQueries skips disabled failed-startup observers. Tracked
-  // subsets refresh together so their shared rank rows cannot stay mismatched.
+export function refreshReading(sub: string) {
   return reading(sub).utils.refetch({ throwOnError: true });
 }
+
 function hopperDetailCollection(id: string) {
   return createCollection(
     queryCollectionOptions({

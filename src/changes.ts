@@ -15,6 +15,6 @@ export async function readChanges(db: D1Database): Promise<ChangeState> {
 }
 export async function readFeedRevision(db: D1Database) {
   const row = await db.prepare('SELECT epoch, feed FROM change_state WHERE id = 1').first<{ epoch: string; feed: number }>();
-  if (!row || !row.epoch || !Number.isSafeInteger(row.feed) || row.feed < 0) throw new Error('feed revision unavailable');
+  if (!row || typeof row.epoch !== 'string' || !row.epoch || !Number.isSafeInteger(row.feed) || row.feed < 0) throw new Error('feed revision unavailable');
   return { epoch: row.epoch, revision: row.feed };
 }

@@ -16,6 +16,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import fc from 'fast-check';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { makeApp } from '../src/index.ts';
+import { readChanges, readFeedRevision } from '../src/changes.ts';
 import type { Env } from '../src/types.ts';
 import { BASE, login } from './helpers.ts';
 import { atCheckpoint, campaign } from './oracle-campaign.ts';
@@ -204,6 +205,13 @@ describe('trigger revision oracle', () => {
         for (const domain of fixture.domains) expect(after.domains[domain]).toBeGreaterThan(before.domains[domain]);
       });
     }
+  });
+  it('trigger bookkeeping preserves the zero/nonzero meaning of D1 changes', async () => {
+    await seed();
+    const absent = await env.DB.prepare("DELETE FROM items WHERE id='absent-review-item'").run();
+    const changed = await env.DB.prepare("UPDATE items SET content_md='review-body' WHERE id='cache-item'").run();
+    expect(Boolean(absent.meta.changes)).toBe(false);
+    expect(Boolean(changed.meta.changes)).toBe(true);
   });
   it('receives the prototype write-amplification witness without calling it deployed billing', async () => {
     const cookie = await login(), before = await changes(cookie);
@@ -410,5 +418,52 @@ describe('R2 feed oracle', () => {
       const fresh = await request(); const parsed = facts(await fresh.response.text()); await fresh.finish();
       atCheckpoint('feed settled values', () => expect(parsed).toEqual(expected(value)));
     }
+  });
+
+  it('cold validation exhaustion reuses a valid concurrent saved artifact', async () => {
+    await seed(); const entered = deferred(), release = deferred(); let changes = 0;
+    const recorder = observedDB(async sql => {
+      if (/SELECT key, value FROM settings/.test(sql)) {
+        changes++; await setFacts(String(changes));
+        if (changes === 1) { entered.resolve(); await release.promise; }
+      }
+    });
+    const cold = request({ ...env, DB: recorder.db });
+    try {
+      await entered.promise;
+      const winner = await request({ ...env, MEDIA: observedBucket().bucket });
+      expect(winner.response.status).toBe(200); await winner.response.text(); await winner.finish();
+      release.resolve(); const loser = await cold; await loser.finish();
+      // This is the review's proposed availability law: saved legal bytes exist.
+      expect((await env.MEDIA.list({ prefix: '__cache/feed/' })).objects).toHaveLength(1);
+      expect(loser.response.status).toBe(200); expect(facts(await loser.response.text())).toEqual(expected('1'));
+    } finally { release.resolve(); }
+  });
+
+  it('both change readers reject a native blob epoch', async () => {
+    await env.DB.prepare('UPDATE change_state SET epoch=? WHERE id=1').bind(new Uint8Array([1,2])).run();
+    await expect(readChanges(env.DB)).rejects.toThrow('change state unavailable');
+    // Native SQLite TEXT affinity still permits blobs, so this is a receiving case.
+    await expect(readFeedRevision(env.DB)).rejects.toThrow('feed revision unavailable');
+  });
+
+  it('cold validation exhaustion rejects a winner whose generation metadata is invalid', async () => {
+    await seed(); const entered = deferred(), release = deferred(); let changes = 0;
+    const recorder = observedDB(async sql => {
+      if (/SELECT key, value FROM settings/.test(sql)) {
+        changes++; await setFacts(String(changes));
+        if (changes === 1) { entered.resolve(); await release.promise; }
+      }
+    });
+    const cold = request({ ...env, DB: recorder.db });
+    try {
+      await entered.promise;
+      const winner = await request({ ...env, MEDIA: observedBucket().bucket });
+      expect(winner.response.status).toBe(200); await winner.response.text(); await winner.finish();
+      const key = (await env.MEDIA.list({ prefix: '__cache/feed/' })).objects[0].key;
+      await env.MEDIA.put(key, '<broken', { customMetadata: {} });
+      release.resolve(); const loser = await cold; await loser.finish();
+      expect(loser.response.status).toBe(500);
+    } finally { release.resolve(); }
   });
 });

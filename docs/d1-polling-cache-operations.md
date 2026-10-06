@@ -15,7 +15,10 @@ bump the cache format in `src/feed-cache.ts`.
 Warm requests serve saved XML and ETag/304/HEAD responses immediately, then
 check one D1 revision row. Unchanged checks do not rebuild or rewrite the file.
 Changed checks use a stable render interval and conditional publication against
-generation-bearing XML bytes. Cold creation blocks for an initial valid artifact.
+generation-bearing XML bytes. Cold creation blocks for an initial valid artifact. After three unstable render
+attempts it checks for a valid same-key artifact saved by another builder; if
+one exists, it serves that copy under the same SWR policy. A truly empty cache
+still returns an error if no stable render interval can be found.
 Interrupted work can retry on later requests; no idle-time refresh or maximum
 stale age is guaranteed. XML can remain stale after withdrawal during this window.
 
@@ -55,3 +58,45 @@ map current when adding response fields. Keep each collection's query-to-domain 
 when adding revision-aware query functions. Unknown views keep polling. The receiving oracle
 checks current column guards, direct effects, joined response dependencies,
 failed/canceled Query responses, generation races and matching work observations.
+
+## Review follow-ups
+
+Revision checks are required for the current freshness contract. If `/changes`
+fails, Studio keeps its cached data and the timer retries; it cannot fetch new
+content until that check succeeds. A missing migration also blocks a cold feed.
+A future Studio fallback could do a full read without a revision label, so a
+later successful check cannot mistake it for validated cached data. Choosing
+that fallback trades extra reads during outages for availability. A cold feed
+fallback needs its own consistency policy: rendering without the stability
+check can mix settings and item versions from different source states.
+
+Feed triggers deliberately over-invalidate some unrelated imports,
+subscriptions, drafts and media writes. Two possible improvements need design
+review: narrower dependency-aware triggers, or a weak public ETag derived from
+visible XML while preserving the generation-bearing R2 ETag for conditional
+publication. Narrower triggers must still cover cited imported content and
+joined dependencies. A separate public validator reduces downloads but does
+not avoid rebuilds or cold-render churn. Do not remove the private generation
+stamp to obtain this optimization; it protects against old builders replacing
+new generations whose visible bytes happen to match.
+
+The accepted request-driven SWR policy has no age bound. A maximum stale age or
+withdrawal deadline would change that policy and can block requests during a
+rebuild. Keep this decision separate from the concurrent-builder fallback.
+
+HEAD and conditional requests currently obtain an R2 body stream even when the
+HTTP response has no body. A metadata-only or conditional-get optimization is
+still open. Measure transferred bytes before claiming whole-object downloads;
+the current handler does not consume the stream for those responses. Preserve
+weak/list/wildcard If-None-Match behavior when changing this path.
+
+Query Collection refetch owns all currently tracked Reading subsets. Released
+views unload their subsets, so historical pages do not accumulate polling work.
+Multiple active owners, including a view awaiting cleanup, can still cause more
+than one page read on a revision change. Keep the receiving test for released
+pages; preserve the shared-row ownership tests before changing refresh scope.
+Poll keys remain opaque to the timer; do not reintroduce separate kind parsers.
+
+Software versions create new feed object keys. No cache-retention cleanup is
+implemented. If storage becomes material, define a retention window that also
+covers rollback and every origin/mount before deleting old objects.

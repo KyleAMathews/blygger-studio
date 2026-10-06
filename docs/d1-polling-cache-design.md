@@ -23,7 +23,8 @@ owns materialization and optimistic state. Timed reads keep their scheduling.
 Current source:
 
 - `src/ui/polling.ts`: mounted views refresh every 15 seconds; hidden tabs pause.
-- `src/ui/data.ts`: list collections refetch all pages. Existing local optimistic
+- `src/ui/data.ts`: collections refetch their tracked active subsets; released
+  Reading pages unload. Existing local optimistic
   edits and query collection behavior must remain intact.
 - `src/reading-data.ts`: Reading loads all identities for ordering and counts.
 - `src/api.ts:148-160`: working-copy edits need not change `items.updated`.
@@ -143,6 +144,10 @@ artifact and stop if its generation already satisfies the target. Otherwise
 perform another cheap source check before deciding to rebuild; never blindly
 retry the old PUT or rerender without checking the winner. Mutations after
 validation can still leave the artifact temporarily stale; SWR permits that window.
+After the bounded render attempts, reread the same R2 key and serve a valid saved
+artifact if another builder installed one. Keep its recorded generation; do not
+publish unchecked bytes. A truly empty cache can still fail under continued
+source churn. This is a safety contract, not guaranteed cold-request availability.
 
 R7 bind the generation into the saved XML bytes using a canonical, valid XML
 comment after the XML declaration. The comment includes the database epoch and

@@ -1080,7 +1080,7 @@ function Sources() {
   const lens = useContext(LensContext);
   const allKey = readingKey('all', lens);
   useLiveQuery(readingView(allKey, 0));
-  const refresh = useMemo(() => () => refreshReading(allKey, 0), [allKey]);
+  const refresh = useMemo(() => () => refreshReading(allKey), [allKey]);
   usePoll(`reading:${allKey}:0`, refresh);
   usePoll('subscriptions', subscriptions.utils.refetch);
   usePoll('hoppers', hoppers.utils.refetch);
@@ -1270,8 +1270,8 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
   const refresh = useMemo(
-    () => () => refreshReading(key, offset),
-    [key, offset],
+    () => () => refreshReading(key),
+    [key],
   );
   usePoll(`reading:${key}:${offset}`, refresh);
   usePoll('subscriptions', subscriptions.utils.refetch);

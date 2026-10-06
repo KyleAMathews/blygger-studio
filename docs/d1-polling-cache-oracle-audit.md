@@ -253,3 +253,38 @@ unchanged optimistic/lifecycle behavior around the new query function.
 
 Current v3 reviewed implementation head: `03d771db136cc84362cd29cfecc0d06cb5259dde`.
 This source includes the plain Query configs, current model and receiving tests.
+
+
+## External review receiving checks (2026-10-05)
+
+The concurrent-winner cold path returned 500 after three invalidated renders,
+even though another builder had saved a valid same-key artifact. The same
+controlled native D1/R2 history now returns 200 with the saved source facts.
+An artifact with invalid generation metadata still fails. This fallback serves
+existing legal bytes under SWR; it neither publishes mixed source data nor
+establishes unconditional cold availability. The feed model's saved-snapshot
+safety still applies; its bounded attempts never proved temporal completion.
+
+The feed revision reader accepted a native blob epoch that the Studio reader
+rejected. Its type guard now matches, with a receiving regression for SQLite's
+permissive TEXT affinity. The unused Reading refresh argument and obsolete
+comment are removed. Released Reading subsets have a new adapter receiving
+check: after loading three pages and releasing two, a revision bump fetches only
+the remaining page. Existing shared-row and active-subset tests remain.
+
+Review receipts: all 78 cache-oracle tests, 40 UI tests, six desktop/mobile cache
+browser checks and eight semantic mutation controls pass. Type checks and the
+SDK/SPA build pass. The full Worker run passed the other 120 files; its only
+failure was a nonexistent fixture column in the new boolean meta.changes probe.
+After correcting that setup error, all 78 cache cases pass. This gives 1347
+passing Worker cases and five skipped cases across the full run and focused
+rerun, rather than claiming an entirely green single full run. The native
+boolean probe confirms trigger changes preserve zero/nonzero observations.
+An initial parallel type check raced the SDK build's generated output; the
+ordered type check after build passes. Neither setup failure is a semantic kill.
+
+Unrelated source writes really can advance feed revision while visible XML stays
+identical. Revision-outage fallback, tighter feed dependencies and public ETag
+semantics remain design choices. Unbounded SWR, metadata-only R2 reads and old
+version-object retention remain named follow-ups in the operations guide. No
+policy change is implied by these receiving fixes.
