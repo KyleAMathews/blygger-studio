@@ -51,7 +51,8 @@ test('a buffered query response keeps its pre-fetch revision and receives a late
   await page.clock.install();
   await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
   await page.getByRole('button', { name: 'log in', exact: true }).click(); await expect(page.locator('#composer-text')).toBeVisible();
-  await page.evaluate(content_md => fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md }) }), `First buffered client ${Date.now()}`);
+  const firstMarker = `First buffered client ${Date.now()}`;
+  await page.evaluate(content_md => fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md }) }), firstMarker);
   await page.clock.pauseAt(new Date(Date.now() + 10_000));
   let release!: () => void, captured!: () => void;
   const gate = new Promise<void>(done => { release = done; }), ready = new Promise<void>(done => { captured = done; });
@@ -67,6 +68,8 @@ test('a buffered query response keeps its pre-fetch revision and receives a late
     expect(await page.evaluate(async content_md => (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md }) })).ok, marker)).toBe(true);
     const old = page.waitForResponse(response => new URL(response.url()).pathname === '/api/items' && response.request().method() === 'GET');
     release(); await (await old).finished(); await page.clock.runFor(1_000);
+    // The first response can be one page of a larger collection load.
+    await expect(page.getByText(firstMarker, { exact: false }).first()).toBeVisible();
     const fresh = page.waitForResponse(async response => new URL(response.url()).pathname === '/api/items' && response.request().method() === 'GET' && (await response.json()).items.some((item: { content_md: string }) => item.content_md === marker));
     await page.clock.runFor(15_000); await (await fresh).finished(); await page.clock.runFor(1_000);
     await expect(page.getByText(marker, { exact: false }).first()).toBeVisible();
