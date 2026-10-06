@@ -52,7 +52,11 @@ ownerApi.use("*", async (c, next) => {
     }
   }
   c.env = withWorkPrincipal(c.env, delegated ?? undefined);
-  if (!await admitApi(c.env, ['GET', 'HEAD'].includes(c.req.method))) {
+  // POST /api/preview renders a draft and stores nothing; the editor sends
+  // one on every pause in typing. Counting it as a write throttled ordinary
+  // editing at 120 a minute (session 36), so it spends the read budget.
+  const reads = ['GET', 'HEAD'].includes(c.req.method) || (c.req.method === 'POST' && c.req.path === '/api/preview');
+  if (!await admitApi(c.env, reads)) {
     c.header('Retry-After', '60');
     return c.json({ error: 'API work budget exceeded' }, 429);
   }

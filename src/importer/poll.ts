@@ -179,16 +179,32 @@ export async function pollSubscription(db: D1Database, sub: SubscriptionRow, fet
     return { outcome: "failed", itemsFetched: 0, reconciled: false };
   }
 
-  if (res.status === 304) {
-    await recordPollSuccess(db, sub.id, { etag: sub.etag, lastModified: sub.last_modified });
-    return { outcome: "not-modified", itemsFetched: 0, reconciled: false };
-  }
-  if (!res.ok) {
+  if (!res.ok && res.status !== 304) {
     await recordPollFailure(db, sub.id);
     return { outcome: "failed", itemsFetched: 0, reconciled: false };
   }
 
   const wasDegraded = sub.status === "degraded";
+  const periodicOrFirstSync = !sub.last_index_sync_at || Date.now() - Date.parse(sub.last_index_sync_at) >= INDEX_SYNC_PERIOD_MS;
+  // A blyg's name lives in its manifest. Re-read it with the daily sync: one
+  // small request a day, and a rename shows up within a day.
+  if (periodicOrFirstSync) await refreshManifestTitle(db, sub, fetchFn);
+
+  if (res.status === 304) {
+    // An unchanged feed says nothing about the index, so the daily sync still
+    // runs. Returning before it starved every origin that honours ETags: a
+    // subscription whose first sync failed never synced, and never re-read its
+    // name (Sachin Benny's blyg, session 37). No entries, so no gap check.
+    let reconciled = false, itemsFetched = 0;
+    if (periodicOrFirstSync || wasDegraded) {
+      const r = await reconcileIndex(db, sub, fetchFn);
+      reconciled = r.ok;
+      itemsFetched = r.changed;
+    }
+    await recordPollSuccess(db, sub.id, { etag: sub.etag, lastModified: sub.last_modified });
+    return { outcome: "not-modified", itemsFetched, reconciled };
+  }
+
   const etag = res.headers.get("ETag");
   const lastModified = res.headers.get("Last-Modified");
   const body = await res.text();
@@ -220,12 +236,7 @@ export async function pollSubscription(db: D1Database, sub: SubscriptionRow, fet
   // dropped every new entry (studio#27). The cost is one index fetch on a rare
   // poll; the next poll records the new newest GUID, so it does not repeat.
   const gap = !!sub.newest_guid && parsed.ok && !parsed.entries.some((e) => e.guid === sub.newest_guid);
-  const periodicOrFirstSync = !sub.last_index_sync_at || Date.now() - Date.parse(sub.last_index_sync_at) >= INDEX_SYNC_PERIOD_MS;
   const shouldReconcile = !parsed.ok || gap || periodicOrFirstSync || wasDegraded;
-
-  // A blyg's name lives in its manifest. Re-read it with the daily sync: one
-  // small request a day, and a rename shows up within a day.
-  if (periodicOrFirstSync) await refreshManifestTitle(db, sub, fetchFn);
 
   let reconciled = false;
   if (shouldReconcile) {
