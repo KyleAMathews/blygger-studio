@@ -335,9 +335,9 @@ export class PublicHtml extends WorkerEntrypoint<Env> {
 export default {
   fetch(req: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {
     if (publicHtmlRequest(req, normalizeMount(env.MOUNT))) {
-      // Browser reload/validation must not force another shared-cache render.
+      // Browser reloads validate saved bytes; HTML ignores range requests.
       const headers = new Headers(req.headers);
-      for (const name of ['cache-control', 'pragma', 'if-none-match', 'if-modified-since']) headers.delete(name);
+      for (const name of ['cache-control', 'pragma', 'if-none-match', 'if-modified-since', 'range', 'if-range']) headers.delete(name);
       const read = new Request(req, { method: 'GET', headers });
       return ctx.exports.PublicHtml.fetch(read, { cf: { cacheKey: publicHtmlKey(req) } })
         .then(response => conditionalHtmlResponse(req, response));
