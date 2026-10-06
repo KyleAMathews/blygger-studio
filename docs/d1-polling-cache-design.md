@@ -2,8 +2,8 @@
 
 Working design v3, 2026-10-05, upstream `3192d37`. The user selected ordinary
 Query Collection caching inside `queryFn`: fetch new data when its revision
-changes, otherwise return its existing cached response. Feed rules retain the
-[stress-round fixes](d1-polling-cache-review.md). The frozen
+changes, otherwise return its existing cached response. The feed rules below
+include the stress-test repairs. The frozen
 [v1 specimen](../models/d1-polling-cache/design-specimen-v1.md) and original
 Studio model remain historical evidence; `StudioQuery.tla` models this revision.
 

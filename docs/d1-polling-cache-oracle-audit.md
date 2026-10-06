@@ -4,9 +4,9 @@ Contract: [working design v3](d1-polling-cache-design.md). This record owns the
 loss comparison and receiving boundary; it does not claim deployed-provider
 proof, maximum stale age, global single-flight or actual quota capacity.
 
-The original loss ledgers and v2 audit below describe their named historical
-commits. The v3 review at the end supersedes Studio publication-cursor claims.
-Feed and trigger evidence retains its original scope.
+The original reduction ledgers below preserve the TLA+ and SQLite comparison.
+The current Query Collection audit supersedes the former publication-cursor
+implementation. Historical review prose remains in Git history.
 
 ## Frozen reduction and source isolation
 
@@ -93,99 +93,7 @@ distribution. No production connection or deployment is authorized or needed
 for this implementation stage. Implementation must pass the receiving suite;
 final execution and numbered ORC outcomes are recorded at closeout.
 
-## Numbered guide review (v2, historical)
-
-Reviewed implementation head: `9a9a6ab8e23fc48685986685d2070539110a4942`.
-This record identifies the immutable source used for the final review. Later
-commits that only add this evidence or PR prose do not change that source.
-
-The evidence applies to the selected narrow contract. “Pass” below is bounded by
-that contract and the stated receiving environments; it is not proof of all
-cache behavior or a claim that the original design was lossless.
-
-| Requirement | Outcome and concrete evidence |
-| --- | --- |
-| ORC-001 | Pass. Design v2 P1–P10/R1–R9 is the authority. Both oracle headers and this record exclude deployed quota, global single-flight, maximum stale age and unconditional convergence. |
-| ORC-002 | Pass. `polling-cache-oracle-model.ts` imports no production code. Trigger event expectations are hand fixtures, source facts precede requests, and generated Studio expected installation comes from source history. Driver imports do not predict the answer. |
-| ORC-003 | Pass. Headers name contract, model, grammar, driver and checks. SQL events go through native D1; feed histories go through makeApp and native R2; Studio histories go through Polling and the actual query adapter. Parsed values, saved generation bytes, HTTP validators and work are distinct observations. |
-| ORC-004 | Pass within the declared generated scope. Feed generation is serial settled histories of 1–8 values in 0–2; it reconstructs single changes, repetitions and A/B/A. Removing repetitions loses same-visible-value coverage; removing the second request loses settled observation. It excludes empty histories and 3. Studio generation is 1–20 write/poll/fail/restore actions plus a mandatory final poll. Each named cursor sequence can be written in that alphabet. Removing fail loses retry, restore loses counter-reuse identity, write loses invalidation, poll loses acknowledgment. Unknown actions are excluded. Delayed/concurrent/provider histories are fixed receiving witnesses, not claimed as generated grammar coverage. |
-| ORC-005 | Pass. Named checkpoints observe actual XML/HTTP/saved-object facts, native trigger effects and actual QueryClient/Collection results. Browser idle requests distinguish cheap checks from collection GETs and show later-client content. |
-| ORC-006 | Pass. Native missing-delete-trigger control rejects the expected domain; six source guard mutants reject at named generation/snapshot/work/cursor checkpoints. A seventh wrong unchanged-token design is rejected by the generated settled-values checker. Mutation runner rejects timeouts/setup failures as semantic evidence. |
-| ORC-007 | Pass. Shared campaign runs equal-budget fixed seed 20261001 and unseeded lanes (8 feed, 50 Studio histories). Explicit seed/path bypasses those lanes. Mutation runner captures a generated failure's seed/path and reruns that same checker directly; no fc.commands replayPath applies. |
-| ORC-008 | Pass. Installed vs applied is distinguished by a newer load/older sampled target and deferred publication. Source vs saved is distinguished by SWR; generation vs visible value by A/B/A; epoch vs revision by restore reuse; wall clock vs revision by the daily deadline. Removing those states changes a legal next observation. |
-| ORC-009 | Pass. TLA source/revision maps to committed source facts/domain counters; artifact maps to saved R2 XML and metadata; replacement token maps to generation-bearing XML's HTTP ETag. Studio installed is collection publication; applied is the per-view sampled token. Model clock is scheduled work, not a source revision. |
-| ORC-010 | Pass for the receiving harness. Campaign preserves the original checkpoint through shrinking; mutation runner separates semantic kills from setup/timeout and restores sources. Gate cleanup releases held work. Actual Collection fixtures use withOracleCleanup so cleanup failures retain the primary mismatch and separate secondary errors. |
-| ORC-011 | Pass. Named shared-fault hypotheses: omitted feed dependencies, body-only equality and fetch-success-as-installation. Independent source/parsed DTO checks, TLA generation histories, SQLite direct-event receipts and real adapter pending-edit/initial-flight witnesses distinguish those faults. Native billing remains unresolved; this record owns that limit. |
-| ORC-012 | Pass. This table records all other requirements; frozen-source loss ledgers retain omissions and repairs. No blanket bug-class elimination is claimed. Fixed concurrent histories cover old overwrite, ABA, mixed read, failed publication and cold creation; adjacent restore/304/retry cases extend those boundaries. General multi-page snapshot consistency and deployed lifetime/billing remain outside the selected contract. |
-| ORC-013 | Pass at tested boundaries. No-op vs changed/null transitions and OLD/NEW setting keys distinguish trigger rules; maximum counter vs overflow rejects unsafe increments; exactly 24 hours minus 1ms vs 24 hours distinguishes scheduling. A canceled/no-op fetch, pre-target initial flight and pending local edit distinguish success from installed acknowledgment; source changes during render and same-valued newer publication distinguish stable generation from body equality. |
-| ORC-014 | Pass with explicit handoff limits. Delayed provider gates wrap completed native D1 reads/R2 conditional puts, so native transactions/CAS supply the receiving premise. Studio controlled loads hand off to real QueryClient/Collection cancellation, initial-flight and pending-edit cases. Browser HTTP buffering supplies the mounted-view timing premise. Deployment distribution, waitUntil termination, global coordination and actual billing are unresolved and are not claimed by these fixtures. |
-
-## Execution and acceptance boundary
-
-The first receiving red run failed for missing feed ETag before implementation.
-The repaired Worker suite passed 117 files: 1328 passed and 5 skipped. The
-polling/cache receiving file has 73 tests in normal fixed/random mode (direct
-replay selects one campaign and removes one normal lane). UI suite passes all
-38 tests across five files. Type checks and SDK/SPA builds pass. Mutation controls
-must reach their named semantic checkpoint; fixture failures are not counted.
-
-Studio acknowledges only a token sampled before a fresh load. The query adapter
-may resolve before publishing when a local mutation persists; the central
-acknowledgment seam checks pending transactions before and after refetch and
-leaves that view dirty. This uses TanStack DB's `_state.transactions` in one place,
-with a real pending-edit receiving test. Library upgrades must retain that test.
-A failed startup route has no mounted watcher; its existing Retry control now
-restarts the failed derived Reading view after resetting failed queries.
-
-The implementation uses full collection refetch on changed domains. It does not
-claim an atomic multi-request pagination snapshot, delta cursor or row-level
-merge. Those are separate work with their own oracle owner if later selected.
-
-Final acceptance receipts (2026-10-05):
-
-- Worker receiving oracle: 73 passed after readability edits.
-- UI suite: 38 passed after deferred-publication and cleanup repairs.
-- Browser receiving oracle: all 3 cases passed on desktop and mobile (6 total).
-- Seven semantic mutation controls: all rejected. Generated settled-values fault
-  replayed directly with seed `20261001`, shrink path `0:0`, at the same law.
-- Normal Worker suite: 117 files passed, 1328 tests passed, 5 skipped.
-- Type checks and SDK/SPA build passed. Both direct replay interfaces ran.
-
-The CI workflow now runs `npm run test:polling-cache:mutations` and preserves
-its failure logs. Source guard controls and replay are permanent, not one-time
-review claims. Prep review found no new runtime defect. Three small readability
-edits were accepted: explicit collection dispatch, readable cursor control flow,
-and one HTTP ETag field. Broader design and coordination policies did not change.
-
-## Upstream integration receipt
-
-Upstream advanced to `3192d37` while this branch was under review. Reviewed merged
-implementation: `812cc759f702c3e18d0a6dc4f52521d4b0fcf5f3`. The cache migration
-is now `0024_change_state.sql`, after upstream's subscription-name migration.
-Its added `title_auto` column participates in the null-safe guard and has an
-independent subscriptions-only event witness. Actual title changes still affect
-Reading, hoppers and feed. No new feed dependency or cache policy resulted.
-SDK regeneration retained both upstream API additions and `getChanges`.
-
-After this merge, type checks, template check and SDK/SPA build pass. All 38 UI
-tests and all six desktop/mobile browser checks pass. The seven mutation controls
-and direct failure replay pass again. The 0.8.3 upgrade acceptance script passes,
-including local migrations and Worker/SDK smoke checks. Prep integration review
-found no new correctness or design issue. The expanded Worker suite passed 121 files, with 1343 tests passed and 5 skipped.
-Its cache oracle now has 74 tests, including the new field witness.
-
-## CI output-format repair
-
-GitHub run `37385879673` passed the mutation baseline but its ANSI color codes
-split the text that the runner used as an execution witness. This was a harness
-setup/reporting failure, not a semantic kill or a cache counterexample. The
-runner now strips terminal control codes before checking counts, checkpoints
-and replay receipts. With `FORCE_COLOR=1`, all seven controls again fail at their
-named laws and the generated failure replays at seed `20261001`, path `0:0`.
-This repair changes output parsing only. The proposed TanStack integration
-redesign remains a separate design question.
-
-## Query Collection correction (v3)
+## Current Query Collection audit (v3)
 
 Authority: the user requires ordinary Query Collection configs whose `queryFn`
 fetches changed data or returns its existing cached response. The poller is
@@ -230,30 +138,10 @@ changed revision violates `NoStaleHit`. An earlier malformed hostile action is
 an encoding/setup failure, not a semantic kill. Final logs and model mapping
 live in `models/d1-polling-cache/README.md`.
 
-V3 acceptance receipts (2026-10-05): 39 UI tests pass across five files, including
-16 normal cache-oracle cases. All six desktop/mobile cache browser checks pass.
-Eight semantic mutation controls pass with forced ANSI color enabled. Both
-feed and Studio generated wrong answers replay directly: feed seed `20261001`,
-path `0:0`; Studio seed `20261001`, path `0:1:0:0:2`. Type checks and SDK/SPA build
-pass. The prior full Worker/upgrade receipts still cover the unchanged backend;
-this revision changes frontend query fetching and its reference/model boundary.
-
-Fresh correctness review found no runtime defect. Its only additional receiving
-gap was the disjoint-subset fixture, now repaired with the shared-row witness.
-Readability review retained ordinary configs and the small stateless helper.
-The upstream poller is byte-for-byte restored, and the obsolete publication
-wrapper is removed. The one-cheap-check-per-tick claim is intentionally retired:
-each queryFn must check afresh to avoid reusing a pre-write observation.
-
-All nine existing desktop SPA regressions also pass: creation/edit/publication,
-failed-save rollback, polling without replacing editor text, paginated Reading,
-route preload/cache reuse, requested-page reload, settings persistence, item
-read retry and navigation-save flushing. These are receiving checks for the
-unchanged optimistic/lifecycle behavior around the new query function.
-
-Current v3 reviewed implementation head: `03d771db136cc84362cd29cfecc0d06cb5259dde`.
-This source includes the plain Query configs, current model and receiving tests.
-
+The nine existing desktop SPA regressions passed for the Query Collection
+correction: create/edit/publish, failed-save rollback, editor-safe polling,
+paginated Reading, route preload/cache reuse, requested-page reload, settings,
+item retry and navigation-save flushing. Current receipts appear below.
 
 ## External review receiving checks (2026-10-05)
 
@@ -271,6 +159,8 @@ permissive TEXT affinity. The unused Reading refresh argument and obsolete
 comment are removed. Released Reading subsets have a new adapter receiving
 check: after loading three pages and releasing two, a revision bump fetches only
 the remaining page. Existing shared-row and active-subset tests remain.
+
+Reviewed implementation: `bda9ec8b20acb52c1cae2edc62a5d3c5539f5040`.
 
 Review receipts: all 78 cache-oracle tests, 40 UI tests, six desktop/mobile cache
 browser checks and eight semantic mutation controls pass. Type checks and the
