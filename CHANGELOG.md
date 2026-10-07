@@ -18,6 +18,28 @@ not have its own repo until session 26.
 
 ---
 
+## 0.34.0 — 2026-10-06
+
+**Migrations: none.**
+
+**The studio's data layer is rebuilt on shared sources** (Kyle Mathews,
+blygger-studio#43). Each kind of record (items, hoppers, reading entries,
+subscriptions, mentions and the rest) now has one source per browser tab,
+and every list, editor and preview reads from it. An edit made in the editor
+shows in the lists at once and rolls back everywhere if the save fails.
+Nothing about the API changes.
+
+- **Responses are checked before they are used.** Every response the studio
+  loads is parsed with validators generated from the API contract; a
+  response that does not match fails that read, keeps the last good rows on
+  screen and can be retried.
+- **The SDK exports those validators** as `@blygger/sdk/schemas`. The
+  addition is additive; the SDK version stays 0.2.0.
+- TanStack packages updated: `@tanstack/react-db` 0.5.5,
+  `@tanstack/query-db-collection` 1.4.0, `@tanstack/query-core` 5.104.1.
+
+Protocol: implements 0.3 (eleventh revision).
+
 ## 0.33.0 — 2026-10-06
 
 **Migrations: none.** **Config: add a block to your own deployment config**
