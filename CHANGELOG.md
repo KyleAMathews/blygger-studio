@@ -18,6 +18,25 @@ not have its own repo until session 26.
 
 ---
 
+## 0.32.3 — 2026-10-06
+
+**Migrations: none.**
+
+**A fork no longer carries `[[id]]` links that re-resolve in the forker's
+context** (blygger-spec decision #63, spec §5.6 rule 6 in the 0.3 eleventh
+revision). Forking already flattened a thread's quotes from the pinned
+document (0.20.0), but inline `[[id]]` links in the copied prose were kept
+as written. On publish they resolved against the forker's own blyg and
+imports, so a link to an origin the forker had not imported failed publish,
+and one that resolved could point somewhere other than what the source
+linked. Each link now becomes an ordinary markdown link with the text and
+absolute address that the pinned version rendered, in forked fragments and
+threads alike. `[[id]]` inside code is left as written. If a link's rendered
+anchor cannot be found (the target declares its own `page`), the fork is
+rebuilt from the pinned HTML, as it already was when quotes did not line up.
+
+Protocol: implements 0.3 (eleventh revision).
+
 ## 0.32.2 — 2026-10-06
 
 **Migrations: none.** Upgrade promptly: the first item is a security fix.
