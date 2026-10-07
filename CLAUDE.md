@@ -155,6 +155,8 @@ saying so.
 
 ## Status
 
+**0.32.2** (session 38, 2026-10-06): security fix for mention verification (#61): the item document must come from exactly `{origin}items/{id}.json`, so same-host path-mounted impostors and pinned stub files fail, and a target outside the mount is refused. TK sources come from the instruction only, and publish warns on an unrequested own-line directive in TK output (#60). `page` stability test (#56). No migrations.
+
 **0.32.1** (session 37, 2026-10-06): Kyle Mathews' #40, the D1 polling cache: Studio checks `/api/changes` revision counters (27 triggers, **migration 0024**) before reloading; `feed.xml` is served from R2 with ETags/304s, stale-while-revalidate, warmed by a minute cron. Three crons now (`* * * * *`, `*/15 * * * *`, `0 0 * * *`); a pre-0.32 `*/15`-only config still gets the daily work at 00:00 UTC. **0.32.0 was never released:** its 0024 used `SELECT CASE … END;` trigger guards, which D1's remote executor cuts at the first `END;` (local apply passes); `test/migration-remote-shape.test.ts` now rejects that shape. Before a D1 restore, see `docs/d1-polling-cache-operations.md`.
 
 **0.31.0** (session 37): one response action. *Quote selection* and the reading-view pill are gone; a stub opens quoting the whole post; passages are chosen in the stub editor (`src/ui/stub-quote.ts`), with further passages added after the cursor for a running commentary; a "How stubs work" sheet. No migration.

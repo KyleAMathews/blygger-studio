@@ -18,6 +18,48 @@ not have its own repo until session 26.
 
 ---
 
+## 0.32.2 — 2026-10-06
+
+**Migrations: none.** Upgrade promptly: the first item is a security fix.
+
+**Mention verification checks the full address, path included** (blygger-spec
+decision #61, spec §15.4 step 2 in the 0.3 eighth revision; found by Aneesh
+Sathe's conformance toolkit, findings F1 and F4).
+
+- **Two blygs on one host can no longer verify in each other's name.** The
+  verifier compared only scheme, host and port, so a document served under
+  `example.com/alice/` could claim to be `example.com/carol/`. It now requires
+  the item document to have been fetched from exactly
+  `{origin}items/{id}.json` for the origin and id it declares.
+- **A pinned copy of a stub no longer verifies after the stub is withdrawn.**
+  A pin file's address is never the live document's, so a mention whose
+  source resolves to a pin fails. Honest senders are unaffected: a source is
+  the item's page, whose alternate link names the live document.
+- **A mention target on our host but outside our mount is refused** (§15.3).
+  On a path-mounted blyg, `example.com/f/{id}/` is not ours when we live at
+  `example.com/blyg/`.
+
+Mentions verified under the old rule keep their status until they are re-sent
+or re-verified.
+
+**TK output and sources** (decision #60, settling blygger-studio#5).
+
+- **A generation source is only what the instruction names.** A `![[id]]`
+  that appears only in a scope's output is no longer recorded in
+  `generated[].sources`, because the generator never read it.
+- **Publish warns about an unrequested quote in generated text.** An
+  own-line `![[id]]` left in TK output still becomes a real quote at publish,
+  as in 0.20.1. When the instruction did not name that id, usually because a
+  model echoed it, the publish response now says so, since the quoted origin
+  was also notified.
+
+**`page` stability is now tested** (decision #56): an item's `page` is the
+same across edits and on its withdrawal endcap.
+
+Protocol: implements 0.3 (eighth revision).
+
+---
+
 ## 0.32.1 — 2026-10-06
 
 - **Migration 0024 applies on Cloudflare.** As shipped in 0.32.0 it failed on `wrangler d1 migrations apply --remote` with `incomplete input`, because each trigger opened with a `CASE … END;` guard and D1's remote executor ends a trigger at the first `END;`. Local tests apply migrations another way and passed. The guards are now `SELECT RAISE(…) WHERE NOT EXISTS(…)`, which behaves the same; a new test rejects the old shape in any migration. Nothing was applied by the failed attempt, so if you tried 0.32.0, apply again.
