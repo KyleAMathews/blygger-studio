@@ -30,6 +30,7 @@ import { Polling } from './polling.ts';
 import { readIfChanged, type CachedResponse } from './revision-query.ts';
 import type { ChangeDomain } from '../change-state.ts';
 import { scoped } from './scoped.ts';
+import { createDraftWrites } from './paced-write.ts';
 
 export const client = createBlyggerClient({ baseUrl: location.origin });
 export const queryClient = new QueryClient({
@@ -279,6 +280,45 @@ function detailCollection(id: string) {
   );
 }
 export const itemDetail = scoped(detailCollection);
+
+const draftQueues = new Map<string, ReturnType<typeof createDraftWrites>>();
+export function draftWrites(id?: string) {
+  if (id && draftQueues.has(id)) return draftQueues.get(id)!;
+  let itemId = id;
+  const writes = createDraftWrites(async command => {
+    let result;
+    if (command.type === 'save' && !itemId) {
+      result = await unwrap(BlyggerApi.createItem({ client, body: {
+        content_md: command.text, kind: command.kind,
+      } }));
+      itemId = result.id;
+      draftQueues.set(itemId, writes);
+    } else {
+      if (!itemId) throw new Error('Save the draft before running this command');
+      const path = { id: itemId };
+      switch (command.type) {
+        case 'save': result = await unwrap(BlyggerApi.updateItem({ client, path, body: { content_md: command.text, kind: command.kind } })); break;
+        case 'generate': result = await unwrap(BlyggerApi.generateItem({ client, path, body: { scope: command.scope } })); break;
+        case 'restore':
+          await unwrap(BlyggerApi.restoreItem({ client, path, body: { version: command.version } }));
+          result = await unwrap(BlyggerApi.getItem({ client, path })); break;
+        case 'publish': result = await unwrap(BlyggerApi.publishItem({ client, path, body: { note: command.note, note_generated: command.generated } })); break;
+        case 'delete': result = await unwrap(BlyggerApi.deleteItem({ client, path })); break;
+        case 'withdraw': result = await unwrap(BlyggerApi.withdrawItem({ client, path })); break;
+        case 'pin': result = await unwrap(BlyggerApi.pinItem({ client, path: { ...path, version: command.version } })); break;
+        case 'draft-note': result = await unwrap(BlyggerApi.draftNote({ client, path })); break;
+        case 'update': result = await unwrap(BlyggerApi.updateItem({ client, path, body: command.changes })); break;
+      }
+    }
+    // Finish read-back inside the handler, before another command starts.
+    if (command.type === 'save' || command.type === 'update') items.utils.writeUpsert(result as Detail);
+    await changed(...(command.type === 'delete' ? ['items', 'reading'] : ['item', 'items', 'reading']));
+    return result;
+  });
+  if (id) draftQueues.set(id, writes);
+  return writes;
+}
+
 export type Reading = ListReadingResponses[200]['items'][number] & {
   rank: number;
 };

@@ -12,6 +12,7 @@ import {
   hoppers,
   queryClient,
   items,
+  draftWrites,
   changed,
   hopperDetail,
   hopperPreview,
@@ -740,9 +741,7 @@ export function MentionsPage() {
                         onClick={() =>
                           void action.run(async () => {
                             if (mode === value) return;
-                            await items.update(id, (row) => {
-                              row.responses = value;
-                            }).isPersisted.promise;
+                            await draftWrites(id).write({ type: 'update', changes: { responses: value } });
                           })
                         }
                       >
