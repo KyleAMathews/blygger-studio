@@ -150,6 +150,16 @@ describe("the candidate list pages, and says so", () => {
     expect(empty.json.offset).toBe(0); expect(empty.json.items).toHaveLength(1);
   });
 
+  it("matches a word longer than D1's 50-byte LIKE cap, case-folded, with % and _ literal", async () => {
+    const cookie = await login();
+    const url = "https://longsearchtoken.example/some/deeply/nested/path/to_a/100%25/page";
+    await createAndPublish(cookie, `See ${url} for more.`);
+    await createAndPublish(cookie, "https://longsearchtoken.example/some/deeply/nested/path/toXa/100X/page");
+    const res = await search(cookie, encodeURIComponent(url.toUpperCase().replace("HTTPS", "https")));
+    expect(res.status).toBe(200);
+    expect(res.json.total).toBe(1);
+  });
+
   it("the total counts matches, not the whole blyg", async () => {
     const cookie = await login();
     await createAndPublish(cookie, "alphatoken one");

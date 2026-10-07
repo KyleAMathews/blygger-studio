@@ -18,6 +18,45 @@ not have its own repo until session 26.
 
 ---
 
+## 0.33.0 — 2026-10-06
+
+**Migrations: none.** **Config: add a block to your own deployment config**
+for the public HTML cache (below). Without it the studio works as before,
+with only the browser half of the change.
+
+**Public pages are cached at the edge for 60 seconds** (Kyle Mathews,
+blygger-studio#41). The homepage, archive, fragment and thread pages, pinned
+version pages and public collection pages are served from Cloudflare's
+shared cache through a separate `PublicHtml` entrypoint; the studio, the API,
+media and every wire file stay uncached. Browsers get a content ETag and
+`Cache-Control: no-cache`, so a reload costs a bodyless 304 when nothing
+changed. An edit or withdrawal can take up to a minute to reach readers. A
+static export run right after an edit can pick up the cached page too.
+Enable it by adding this next to `compatibility_date` in your Wrangler
+config (the template already has it), and use Wrangler 4.107.0 or later:
+
+```jsonc
+"cache": { "enabled": false },
+"exports": {
+  "PublicHtml": { "type": "worker", "cache": { "enabled": true } }
+},
+```
+
+After deploying, a second request for a public page should show
+`Cf-Cache-Status: HIT`.
+
+**One long subscription URL no longer stops all outgoing Webmentions**
+(Kyle Mathews, blygger-studio#42). Delivery looked up each target's origin
+with a SQL `LIKE` pattern, which D1 caps at 50 bytes; one subscription with
+a longer URL made the lookup throw for every pending mention. Pending
+mentions retry on the next delivery pass.
+
+**Search accepts long words.** The same 50-byte cap made a search for a
+pasted URL fail. Search now matches words of any length, still ignoring
+ASCII case, and treats `%` and `_` as ordinary characters.
+
+Protocol: implements 0.3 (eleventh revision).
+
 ## 0.32.3 — 2026-10-06
 
 **Migrations: none.**

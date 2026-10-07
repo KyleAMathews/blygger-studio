@@ -200,12 +200,12 @@ readApi.openapi(routes.search, async (c) => {
   const sub = c.req.query("sub") || undefined;
   const order = c.req.query("sort") === "oldest" ? "ASC" : "DESC";
   // Every word must appear somewhere in the item's text or id, in any order.
-  // LIKE is case-insensitive for ASCII only; that is the "rudimentary" in
-  // rudimentary search, and FTS5 is the upgrade if it ever matters.
+  // lower() folds ASCII only; that is the "rudimentary" in rudimentary
+  // search, and FTS5 is the upgrade if it ever matters. instr, not LIKE: D1
+  // caps LIKE patterns at 50 bytes, so a pasted URL as a search word threw.
   const words = (c.req.query("q") ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 8);
-  const like = (w: string) => "%" + w.replace(/[\\%_]/g, (ch) => "\\" + ch) + "%";
-  const textMatch = (text: string, id: string) => words.map(() => `(${text} LIKE ? ESCAPE '\\' OR ${id} LIKE ? ESCAPE '\\')`).join(" AND ");
-  const wordBinds = words.flatMap((w) => [like(w), like(w)]);
+  const textMatch = (text: string, id: string) => words.map(() => `(instr(lower(${text}), lower(?)) > 0 OR instr(lower(${id}), lower(?)) > 0)`).join(" AND ");
+  const wordBinds = words.flatMap((w) => [w, w]);
   const parts: string[] = [];
   const binds: unknown[] = [];
   if (source !== "imported" && !sub) {
