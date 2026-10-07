@@ -7,5 +7,15 @@ execFileSync("./node_modules/.bin/tsc", ["-p", "sdk/tsconfig.json"], { stdio: "i
 for (const [outfile, platform] of [["sdk/dist/index.js", "neutral"], ["sdk/dist/browser.js", "browser"]] as const) {
   await build({ entryPoints: ["sdk/index.ts"], outfile, bundle: true, format: "esm", platform, target: "es2022" });
 }
+await build({
+  entryPoints: ["sdk/generated/zod.gen.ts"],
+  outfile: "sdk/dist/schemas.js",
+  bundle: true,
+  external: ["zod"],
+  format: "esm",
+  platform: "neutral",
+  target: "es2022",
+});
+copyFileSync("sdk/dist/generated/zod.gen.d.ts", "sdk/dist/schemas.d.ts");
 copyFileSync("sdk/dist/index.d.ts", "sdk/dist/browser.d.ts");
 mkdirSync("build", { recursive: true });

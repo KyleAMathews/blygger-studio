@@ -1,20 +1,24 @@
 import { previewFromHtml } from '../preview.ts';
-import { scoped } from './scoped.ts';
 import { useMemo, useState } from 'react';
-import { useLiveQuery, createCollection } from '@tanstack/react-db';
-import { queryCollectionOptions } from '@tanstack/query-db-collection';
+import { useLiveQuery } from '@tanstack/react-db';
 import { Link, useNavigate } from '@tanstack/react-router';
-import type { Mention, MentionOutRow } from '../../sdk/dist/browser.js';
+import type { Mention } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import {
   client,
+  queryClient,
   subscriptions,
   hoppers,
-  queryClient,
   items,
   changed,
   hopperDetail,
   hopperPreview,
+  inbound,
+  outbound,
+  mentionSource,
+  mentionSources,
+  refreshItems,
+  refreshHoppers,
 } from './data.ts';
 import {
   Button,
@@ -141,7 +145,7 @@ export function HoppersPage() {
     useLiveQuery({
       query: (q) => q.from({ hopper: hoppers }),
     }).data ?? [];
-  usePoll('hoppers', hoppers.utils.refetch);
+  usePoll('hoppers', refreshHoppers);
   const action = useAction();
   const [name, setName] = useState('');
   const create = async () => {
@@ -188,7 +192,7 @@ export function HoppersPage() {
 }
 function HopperCard({ id, name }: { id: string; name: string }) {
   const collection = useMemo(() => hopperPreview(id), [id]);
-  usePoll(`hopper-preview:${id}`, collection.utils.refetch);
+  usePoll('hoppers', refreshHoppers);
   const row = useLiveQuery({ query: (q) => q.from({ hopper: collection }) })
     .data?.[0];
   const sources =
@@ -241,10 +245,11 @@ function HopperCard({ id, name }: { id: string; name: string }) {
 export function HopperPage({ id }: { id: string }) {
   useChrome({ framed: false });
   const collection = useMemo(() => hopperDetail(id), [id]);
-  const row = useLiveQuery({
+  const result = useLiveQuery({
     query: (q) => q.from({ hopper: collection }),
-  }).data?.[0];
-  usePoll(`hopper:${id}`, collection.utils.refetch);
+  });
+  const row = result.data?.[0];
+  usePoll('hoppers', refreshHoppers);
   const action = useAction();
   const navigate = useNavigate();
   const settings = useSettings();
@@ -253,7 +258,9 @@ export function HopperPage({ id }: { id: string }) {
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
-  if (!row) return <p className="view-sub">Loading hopper…</p>;
+  if (!row) return <p className="view-sub" role={result.isReady ? 'alert' : undefined}>
+    {result.isReady ? 'Hopper not found.' : 'Loading hopper…'}
+  </p>;
   const update = async (body: { name?: string; public?: boolean; description?: string }) => {
     await unwrap(BlyggerApi.updateHopper({ client, path: { id }, body }));
     await changed('hoppers', 'hopper', 'hopper-preview');
@@ -291,7 +298,7 @@ export function HopperPage({ id }: { id: string }) {
             value={name ?? row.hopper.name}
             onChange={(e) => setName(e.target.value)}
           />
-          <Button className="btn btn-ghost" type="submit">
+          <Button className="btn btn-ghost" type="submit" disabled={action.busy}>
             rename
           </Button>
         </form>
@@ -313,7 +320,7 @@ export function HopperPage({ id }: { id: string }) {
             value={description ?? row.hopper.description ?? ''}
             onChange={(e) => setDescription(e.target.value)}
           />
-          <Button className="btn btn-ghost" type="submit">
+          <Button className="btn btn-ghost" type="submit" disabled={action.busy}>
             save
           </Button>
         </form>
@@ -480,56 +487,13 @@ export function HopperPage({ id }: { id: string }) {
     </>
   );
 }
-async function mentions(
-  direction: 'inbound' | 'outbound',
-  signal: AbortSignal,
-) {
-  const rows: (Mention | MentionOutRow)[] = [];
-  for (let offset = 0; ; offset += 100) {
-    const page = await unwrap(
-      BlyggerApi.listMentions({
-        client,
-        query: { direction, offset, limit: 100 },
-        signal,
-      }),
-    );
-    rows.push(...page.items);
-    if (offset + page.items.length >= page.total) return rows;
-    if (!page.items.length)
-      throw new Error('Mentions ended before their total');
-  }
-}
-export const inbound = createCollection(
-  queryCollectionOptions({
-    id: 'mentions-in',
-    queryKey: ['mentions-in'],
-    queryClient,
-    getKey: (row: Mention) => row.id,
-    queryFn: async ({ signal }) =>
-      (await mentions('inbound', signal)).filter(
-        (row): row is Mention => 'hidden' in row,
-      ),
-  }),
-);
-export const outbound = createCollection(
-  queryCollectionOptions({
-    id: 'mentions-out',
-    queryKey: ['mentions-out'],
-    queryClient,
-    getKey: (row: MentionOutRow) => row.id,
-    queryFn: async ({ signal }) =>
-      (await mentions('outbound', signal)).filter(
-        (row): row is MentionOutRow => 'next_attempt_at' in row,
-      ),
-  }),
-);
 function MentionRow({ mention }: { mention: Mention }) {
   const action = useAction(),
     navigate = useNavigate();
   const collection = useMemo(() => mentionSource(mention.id), [mention.id]);
   const source = useLiveQuery({ query: (q) => q.from({ source: collection }) })
     .data?.[0];
-  usePoll(`mention-source:${mention.id}`, collection.utils.refetch);
+  usePoll('mention-sources', mentionSources.utils.refetch);
   let author = mention.source_origin || mention.source;
   try {
     const name = JSON.parse(mention.source_author_json || '{}')?.name;
@@ -625,28 +589,6 @@ function MentionRow({ mention }: { mention: Mention }) {
     </div>
   );
 }
-const mentionSource = scoped((id) =>
-  createCollection(
-    queryCollectionOptions({
-      id: `mention-source:${id}`,
-      queryKey: ['mention-source', id],
-      queryClient,
-      getKey: (
-        row: import('../../sdk/dist/browser.js').GetMentionSourceResponses[200] & {
-          key: string;
-        },
-      ) => row.key,
-      queryFn: async ({ signal }) => [
-        {
-          ...(await unwrap(
-            BlyggerApi.getMentionSource({ client, path: { id }, signal }),
-          )),
-          key: id,
-        },
-      ],
-    }),
-  ),
-);
 export function MentionsPage() {
   useChrome({ framed: false });
   const incoming =
@@ -662,7 +604,7 @@ export function MentionsPage() {
   );
   usePoll('mentions-in', inbound.utils.refetch);
   usePoll('mentions-out', outbound.utils.refetch);
-  usePoll('items', items.utils.refetch);
+  usePoll('items', refreshItems);
   const groups = new Map<string, Mention[]>();
   for (const mention of incoming) {
     const rows = groups.get(mention.target_item_id) || [];

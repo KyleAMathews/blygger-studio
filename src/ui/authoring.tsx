@@ -19,7 +19,7 @@ import { previewFromHtml } from '../preview.ts';
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { Detail } from './data.ts';
-import { client, items, itemDetail, changed } from './data.ts';
+import { client, items, itemDetail, changed, refreshItems } from './data.ts';
 import {
   ActionBar,
   Button,
@@ -786,7 +786,7 @@ export function Compose() {
     query: (q) =>
       q.from({ item: items }).orderBy(({ item }) => item.updated, 'desc'),
   });
-  usePoll('items', items.utils.refetch);
+  usePoll('items', refreshItems);
   const current = useRef({ text, kind, id });
   current.current = { text, kind, id };
   const queue = useRef(Promise.resolve<string | undefined>(undefined));
@@ -1372,14 +1372,16 @@ function ItemRow({
 export function EditorPage({ id }: { id: string }) {
   useChrome({ tabs: false, framed: false });
   const collection = useMemo(() => itemDetail(id), [id]);
-  usePoll(`item:${id}`, collection.utils.refetch);
+  usePoll('items', refreshItems);
   const result = useLiveQuery({
     query: (q) => q.from({ item: collection }),
   });
   return result.data?.[0] ? (
     <Editor key={id} item={result.data[0]} />
   ) : (
-    <p>Loading editor…</p>
+    <p role={result.isReady ? 'alert' : undefined}>
+      {result.isReady ? 'Item not found.' : 'Loading editor…'}
+    </p>
   );
 }
 /** A collapsible card whose open state the screen can also set. */
@@ -1419,11 +1421,10 @@ function Editor({ item }: { item: Detail }) {
   const settings = useSettings();
   const sharing = useSharing();
   const action = useAction();
-  const collection = itemDetail(item.id);
   const draft = useRef<Draft | null>(null);
   if (!draft.current) {
     draft.current = new Draft(item.content_md, async (text) => {
-      const transaction = collection.update(item.id, (row) => {
+      const transaction = items.update(item.id, (row) => {
         row.content_md = text;
       });
       await transaction.isPersisted.promise;
@@ -1577,9 +1578,9 @@ function Editor({ item }: { item: Detail }) {
     try {
       await draft.current!.settle();
       await unwrap(BlyggerApi.deleteItem({ client, path: { id: item.id } }));
-      await changed('items');
       leaving.current = true;
       await navigate({ to: '/' });
+      await changed('items');
       toast('Draft discarded', { tone: 'ok' });
     } finally {
       setReplacing(false);
