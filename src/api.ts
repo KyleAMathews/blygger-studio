@@ -1,4 +1,5 @@
 import { itemResource } from "./contract/resources.ts";
+import { itemUrl, storedSurface } from "./surface.ts";
 import { z } from "@hono/zod-openapi";
 import { createResponseDraft } from "./item-create.ts";
 import { contractApp, readJson, readForm } from "./contract/app.ts";
@@ -33,7 +34,7 @@ import { flattenFork } from "./fork-flatten.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { siteOrigin } from "./protocol.ts";
 import { parseForkedFrom, parseStoredFork, parseStoredStub, parseStubOf } from "./stub.ts";
-import { parseScopes } from './tk.ts';
+import { parseScopes, unrequestedOutputDirectives } from './tk.ts';
 import { runGenerateScope } from "./tk-generate.ts";
 import type { Env, ItemRow, SubscriptionRow } from "./types.ts";
 import { BLOCKING, staleThreads, threadFreshness } from "./freshness.ts";
@@ -102,7 +103,7 @@ async function quotedLink(db: D1Database, quoteOrigin: string, id: string, ourOr
     .prepare("SELECT ii.kind AS kind, ii.page AS page FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id WHERE ii.remote_id = ? AND s.origin = ?")
     .bind(id, quoteOrigin)
     .first<{ kind: string; page: string | null }>();
-  return row ? blygItemUrl(quoteOrigin, row.kind, id, row.page) : `${quoteOrigin}items/${id}.json`;
+  return row ? blygItemUrl(quoteOrigin, row.kind, id, row.page) : itemUrl(quoteOrigin, await storedSurface(db, quoteOrigin), id);
 }
 
 async function createForkResponse(c: Context<{ Bindings: Env }>, body: { origin: string; id: string; version: number }) {
@@ -206,10 +207,18 @@ async function publishAndNotify(c: Context<{ Bindings: Env }>, item: ItemRow, no
     if (!check.ok) return c.json({ error: check.reason }, 400);
     lineageNote = check.skipped;
   }
+  // Decision #60: an own-line `![[id]]` left in generated output is a real
+  // quote at publish. Warn when the instruction never named it — the usual
+  // cause is a model echoing a directive — since it also notifies that origin.
+  const echoed = unrequestedOutputDirectives(item.content_md);
+  const echoNote = echoed.length
+    ? `Generated text contains ${echoed.map((id) => `![[${id}]]`).join(", ")} on its own line, which the instruction did not ask for. It was published as a quote and its author notified. Edit the output and republish if that was not intended.`
+    : undefined;
+  const warning = [lineageNote, echoNote].filter(Boolean).join(" ") || undefined;
   try {
     const version = await publish(c.env.DB, item, note, origin, noteGenerated);
     await sendMentionsFor(c, item.id, version);
-    return c.json({ ok: true, version, ...extra, ...(lineageNote ? { warning: lineageNote } : {}) });
+    return c.json({ ok: true, version, ...extra, ...(warning ? { warning } : {}) });
   } catch (e) {
     if (e instanceof TransclusionResolveError) {
       // Both bracket forms report here: `![[id]]` directives and `[[id]]`

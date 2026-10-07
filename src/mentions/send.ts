@@ -92,8 +92,10 @@ export async function enqueueForVersion(
 
 /** Which blyg origin, if any, a target URL belongs to — the manifest-first discovery hint (§2.3.4 step 1). */
 async function blygOriginFor(db: D1Database, target: string): Promise<string | undefined> {
+  // Origins are literal prefixes. D1 caps LIKE patterns at 50 bytes, so one
+  // long subscription used to abort delivery for every pending mention.
   const row = await db
-    .prepare("SELECT origin FROM subscriptions WHERE kind = 'blyg' AND ? LIKE origin || '%' ORDER BY length(origin) DESC LIMIT 1")
+    .prepare("SELECT origin FROM subscriptions WHERE kind = 'blyg' AND substr(?, 1, length(origin)) = origin ORDER BY length(origin) DESC LIMIT 1")
     .bind(target)
     .first<{ origin: string }>();
   return row?.origin;

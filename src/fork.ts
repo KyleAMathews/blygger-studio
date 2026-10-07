@@ -10,14 +10,15 @@
 // action reads content from the pinned *file*, not from the live item: the
 // bytes a fork descends from must be the bytes anyone else can still fetch.
 
+import { fetchOnSurface, pinUrl, type Surface } from "./surface.ts";
 import { boundedText } from "./mentions/http.ts";
 import type { FetchLike } from "./importer/http.ts";
 import { excerptFromHtml } from "./markdown.ts";
 import type { ForkedFrom, ScopeProvenance, StubCite } from "./types.ts";
 
-/** Where a pinned version lives, on any conformant blyg (§2.8). */
-export function pinnedVersionUrl(ref: ForkedFrom): string {
-  return `${ref.origin}items/${ref.id}/v${ref.version}.json`;
+/** Where a pinned version lives (§2.8), at the place the origin's manifest says (§16.6e). */
+export function pinnedVersionUrl(ref: ForkedFrom, surface: Surface | null = null): string {
+  return pinUrl(ref.origin, surface, ref.id, ref.version);
 }
 
 export interface ForkSource {
@@ -91,10 +92,10 @@ async function resolveOwnFork(
 type Doc = Record<string, unknown>;
 
 async function resolveRemoteFork(db: D1Database, ref: ForkedFrom, fetchFn: FetchLike, now: string): Promise<ForkResolve> {
-  const url = pinnedVersionUrl(ref);
+  let url = pinnedVersionUrl(ref);
   let res;
   try {
-    res = await fetchFn(url);
+    ({ res, url } = await fetchOnSurface(db, ref.origin, fetchFn, (s) => pinnedVersionUrl(ref, s)));
   } catch (e) {
     return { ok: false, reason: `could not fetch ${url}: ${(e as Error).message}` };
   }
@@ -173,10 +174,10 @@ export async function checkForkTarget(
     if (row.pinned !== 1) return { ok: false, reason: `forked_from names v${ref.version} of ${ref.id}, which is not pinned` };
     return { ok: true };
   }
-  const url = pinnedVersionUrl(ref);
+  let url = pinnedVersionUrl(ref);
   let res;
   try {
-    res = await fetchFn(url);
+    ({ res, url } = await fetchOnSurface(db, ref.origin, fetchFn, (s) => pinnedVersionUrl(ref, s)));
   } catch (e) {
     return { ok: true, skipped: `could not reach ${url} (${(e as Error).message}); lineage not re-checked` };
   }

@@ -1,4 +1,5 @@
 import { itemResource, versionResource, mediaResource, subscriptionResource, hopperResource, importedResource, mentionResource } from "./contract/resources.ts";
+import { fetchOnSurface, itemUrl } from "./surface.ts";
 import type { Context } from "hono";
 import { contractApp, readJson } from "./contract/app.ts";
 import { routes } from "./contract/routes.ts";
@@ -200,12 +201,12 @@ readApi.openapi(routes.search, async (c) => {
   const sub = c.req.query("sub") || undefined;
   const order = c.req.query("sort") === "oldest" ? "ASC" : "DESC";
   // Every word must appear somewhere in the item's text or id, in any order.
-  // LIKE is case-insensitive for ASCII only; that is the "rudimentary" in
-  // rudimentary search, and FTS5 is the upgrade if it ever matters.
+  // lower() folds ASCII only; that is the "rudimentary" in rudimentary
+  // search, and FTS5 is the upgrade if it ever matters. instr, not LIKE: D1
+  // caps LIKE patterns at 50 bytes, so a pasted URL as a search word threw.
   const words = (c.req.query("q") ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 8);
-  const like = (w: string) => "%" + w.replace(/[\\%_]/g, (ch) => "\\" + ch) + "%";
-  const textMatch = (text: string, id: string) => words.map(() => `(${text} LIKE ? ESCAPE '\\' OR ${id} LIKE ? ESCAPE '\\')`).join(" AND ");
-  const wordBinds = words.flatMap((w) => [like(w), like(w)]);
+  const textMatch = (text: string, id: string) => words.map(() => `(instr(lower(${text}), lower(?)) > 0 OR instr(lower(${id}), lower(?)) > 0)`).join(" AND ");
+  const wordBinds = words.flatMap((w) => [w, w]);
   const parts: string[] = [];
   const binds: unknown[] = [];
   if (source !== "imported" && !sub) {
@@ -290,13 +291,13 @@ async function forkablePins(
         .map((v) => ({ version: v.version, at: v.published_at, note: v.note })),
     };
   }
-  let res;
+  let res, docUrl = itemUrl(origin, null, id);
   try {
-    res = await fetchFn(`${origin}items/${id}.json`);
+    ({ res, url: docUrl } = await fetchOnSurface(db, origin, fetchFn, (s) => itemUrl(origin, s, id)));
   } catch {
     return { versions: [], error: `could not reach ${origin}` };
   }
-  if (!res.ok) return { versions: [], error: `${origin}items/${id}.json returned ${res.status}` };
+  if (!res.ok) return { versions: [], error: `${docUrl} returned ${res.status}` };
   try {
     const doc = JSON.parse(await res.text()) as { changelog?: { version: number; at: string; note: string | null; pinned?: boolean }[] };
     const log = Array.isArray(doc.changelog) ? doc.changelog : [];

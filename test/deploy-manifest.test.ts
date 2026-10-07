@@ -139,10 +139,12 @@ describe.runIf(havePrivate)("our own live targets still cross-check", () => {
     }
   });
 
-  it("keeps the nodes on different Cloudflare accounts", () => {
-    // Not a style preference: these really are billed to different accounts,
-    // which is what made the wrong-account deploy possible.
-    expect(new Set(liveTargets.map((t) => t.account_id)).size).toBe(liveTargets.length);
+  it("spans more than one Cloudflare account", () => {
+    // Not a style preference: the nodes really are billed to different
+    // accounts, which is what made the wrong-account deploy possible and why
+    // each env pins its own (checked above). Nodes may share an account —
+    // the official blyg (blyggerOrg) sits on the personal one with venkateshrao.
+    expect(new Set(liveTargets.map((t) => t.account_id)).size).toBeGreaterThan(1);
   });
 
   it("stores no secret values, only pointers", () => {

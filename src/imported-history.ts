@@ -8,6 +8,7 @@
 // not the changelog, and a history view is opened rarely enough that one fetch
 // on demand beats a column every poll would have to keep current.
 
+import { itemUrl, parseSurface, pinUrl } from "./surface.ts";
 import type { FetchLike } from "./importer/http.ts";
 import type { SubscriptionRow } from "./types.ts";
 
@@ -48,7 +49,7 @@ async function fetchDoc(fetchFn: FetchLike, url: string): Promise<FetchOutcome<R
 const int = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v > 0 ? v : null);
 
 export async function fetchImportedHistory(fetchFn: FetchLike, sub: SubscriptionRow, id: string): Promise<FetchOutcome<ImportedHistory>> {
-  const got = await fetchDoc(fetchFn, `${sub.origin}items/${id}.json`);
+  const got = await fetchDoc(fetchFn, itemUrl(sub.origin, parseSurface(sub.surface), id));
   if (!got.ok) return got;
   const doc = got.value;
   const current = int(doc.version);
@@ -84,11 +85,11 @@ export interface PublicVersion {
  * is the origin keeping its history private, which is its right (§5.2).
  */
 export async function fetchPublicVersion(fetchFn: FetchLike, sub: SubscriptionRow, id: string, version: number): Promise<FetchOutcome<PublicVersion>> {
-  const pinned = await fetchDoc(fetchFn, `${sub.origin}items/${id}/v${version}.json`);
+  const pinned = await fetchDoc(fetchFn, pinUrl(sub.origin, parseSurface(sub.surface), id, version));
   if (pinned.ok && pinned.value.id === id && pinned.value.version === version && typeof pinned.value.content_md === "string") {
     return { ok: true, value: { version, content_md: pinned.value.content_md, note: typeof pinned.value.note === "string" ? pinned.value.note : null, pinned: true } };
   }
-  const live = await fetchDoc(fetchFn, `${sub.origin}items/${id}.json`);
+  const live = await fetchDoc(fetchFn, itemUrl(sub.origin, parseSurface(sub.surface), id));
   if (!live.ok) return live;
   if (live.value.id === id && live.value.version === version && typeof live.value.content_md === "string" && live.value.kind !== "withdrawn") {
     return { ok: true, value: { version, content_md: live.value.content_md, note: null, pinned: false } };

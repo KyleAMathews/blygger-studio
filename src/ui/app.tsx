@@ -21,16 +21,8 @@ import {
   MentionsPage,
   ForkPage,
   loadForkOptions,
-  inbound,
-  outbound,
 } from './catalog.tsx';
 import {
-  items,
-  authorizations,
-  settings as settingsCollection,
-  subscriptions,
-  hoppers as hopperCollection,
-  signals,
   itemDetail,
   hopperDetail,
   readingView,
@@ -38,6 +30,9 @@ import {
   LENSES,
   type Lens,
   queryClient,
+  listViews,
+  preloadView,
+  preloadDetail,
 } from './data.ts';
 import { Button } from './components.tsx';
 import type { CachedResponse } from './revision-query.ts';
@@ -51,7 +46,7 @@ import { applyCachedTheme } from './theme.ts';
 // repaint it once they load (see theme.ts).
 applyCachedTheme();
 const rootRoute = createRootRoute({
-  loader: () => settingsCollection.preload(),
+  loader: () => preloadView(listViews.settings),
   pendingComponent: () => <p>Loading Studio…</p>,
   errorComponent: ({ error }) => (
     <div role="alert">
@@ -79,7 +74,7 @@ const rootRoute = createRootRoute({
 const compose = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  loader: () => items.preload(),
+  loader: () => preloadView(listViews.items),
   component: Compose,
 });
 function readingOffset(search: Record<string, unknown>) {
@@ -138,10 +133,10 @@ const reading = createRoute({
   loader: async ({ deps }) => {
     if (deps.hopper) {
       await Promise.all([
-        hopperDetail(deps.hopper).preload(),
-        subscriptions.preload(),
-        hopperCollection.preload(),
-        signals.preload(),
+        preloadDetail(hopperDetail(deps.hopper), 'Hopper'),
+        preloadView(listViews.subscriptions),
+        preloadView(listViews.hoppers),
+        preloadView(listViews.signals),
       ]);
       return;
     }
@@ -152,14 +147,11 @@ const reading = createRoute({
     const offset = deps.view === 'sources' ? 0 : deps.offset;
     const key = readingKey(sub, deps.lens);
     const view = readingView(key, offset);
-    // A failed startup leaves the derived view in its error state even after
-    // resetQueries reloads the source. Restart that failed sync on route retry.
-    if (view.status === 'error') await view.cleanup();
     await Promise.all([
-      view.preload(),
-      subscriptions.preload(),
-      hopperCollection.preload(),
-      signals.preload(),
+      preloadView(view),
+      preloadView(listViews.subscriptions),
+      preloadView(listViews.hoppers),
+      preloadView(listViews.signals),
     ]);
     if (deps.sub === undefined || deps.lens === 'background' || deps.lens === 'smart') return;
     const page = queryClient
@@ -186,7 +178,7 @@ const reading = createRoute({
 const edit = createRoute({
   getParentRoute: () => rootRoute,
   path: '/edit/$id',
-  loader: ({ params }) => itemDetail(params.id).preload(),
+  loader: ({ params }) => preloadDetail(itemDetail(params.id), 'Item'),
   component: () => {
     const { id } = edit.useParams();
     return <EditorPage id={id} />;
@@ -208,14 +200,14 @@ const subs = createRoute({
 const hoppers = createRoute({
   getParentRoute: () => rootRoute,
   path: '/hoppers',
-  loader: () => hopperCollection.preload(),
+  loader: () => preloadView(listViews.hoppers),
   component: HoppersPage,
 });
 const hopper = createRoute({
   getParentRoute: () => rootRoute,
   path: '/hoppers/$id',
   loader: ({ params }) =>
-    Promise.all([hopperDetail(params.id).preload(), subscriptions.preload()]),
+    Promise.all([preloadDetail(hopperDetail(params.id), 'Hopper'), preloadView(listViews.subscriptions)]),
   component: () => {
     const { id } = hopper.useParams();
     return <HopperPage id={id} />;
@@ -225,14 +217,18 @@ const mentions = createRoute({
   getParentRoute: () => rootRoute,
   path: '/mentions',
   loader: () =>
-    Promise.all([inbound.preload(), outbound.preload(), items.preload()]),
+    Promise.all([
+      preloadView(listViews.inbound),
+      preloadView(listViews.outbound),
+      preloadView(listViews.items),
+    ]),
   component: MentionsPage,
 });
 // Quotes that have fallen behind their sources, stalest first (0.23.0).
 const updates = createRoute({
   getParentRoute: () => rootRoute,
   path: '/updates',
-  loader: () => items.preload(),
+  loader: () => preloadView(listViews.items),
   component: UpdatesPage,
 });
 // Thumbs and the private interaction log (0.25.0).
@@ -265,7 +261,7 @@ const fork = createRoute({
     <ForkPage id={fork.useSearch().id} options={fork.useLoaderData()} />
   ),
 });
-const access = createRoute({ getParentRoute: () => rootRoute, path: '/access', loader: () => authorizations.preload(), component: AuthorizationsPage });
+const access = createRoute({ getParentRoute: () => rootRoute, path: '/access', loader: () => preloadView(listViews.authorizations), component: AuthorizationsPage });
 const more = createRoute({
   getParentRoute: () => rootRoute,
   path: '/more',

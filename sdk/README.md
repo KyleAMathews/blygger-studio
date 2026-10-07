@@ -70,6 +70,23 @@ checks drift.
 `npm run build` bundles the package and declarations for browser and server
 JavaScript. `npm pack ./sdk` creates the installable archive.
 
+## Generated schemas
+
+The same OpenAPI input also generates Zod 4 validators. Import them from the
+SDK's schema export when you need runtime validation or TanStack DB row types:
+
+```js
+import { zItem } from '@blygger/sdk/schemas';
+
+const item = zItem.parse(data);
+```
+
+Reusable definitions use names such as `zItem` and `zSubscription`. Endpoint
+schemas include `zGetItemResponse` and `zListItemsResponse`. Generate these
+files through `npm run sdk:generate`; do not edit them by hand. CI checks drift.
+The schema export uses the SDK's Zod dependency, while the existing HTTP client
+bundles remain self-contained.
+
 ## Bearer tokens
 
 Create a resource-bound token in Studio's access page. For REST, select the API resource and the scopes your tool needs. Tokens work in browsers and Node:

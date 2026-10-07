@@ -19,6 +19,11 @@ existing ignored `wrangler.private.jsonc`):
 "triggers": { "crons": ["* * * * *", "*/15 * * * *", "0 0 * * *"] }
 ```
 
+A config from before 0.32 lists only `*/15 * * * *`. That keeps working: the
+quarter-hour tick polls as before and also runs the daily maintenance when it
+falls at 00:00 UTC. Without the minute cron, feeds are refreshed only by reader
+requests.
+
 The minute job checks saved XML. Set **Settings → Canonical site URL** so it
 knows which public origin to warm; `npm run init` already sets this for new
 installations. With no valid HTTP(S) canonical URL, feed requests still rebuild

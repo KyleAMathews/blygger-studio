@@ -18,6 +18,218 @@ not have its own repo until session 26.
 
 ---
 
+## 0.35.1 — 2026-10-07
+
+**Migrations: none.**
+
+- **An absolute `page` is used as it is.** §16.6e lets a blyg's permalinks
+  live outside its mount (Soapbox's are WordPress post URLs), but every link
+  built from `page` glued it onto the origin, giving
+  `https://site/blyg/https://site/archives/…`. That covered reading-view
+  source links, quote attribution, stub citations, and the target of every
+  mention sent to such a blyg, so a mention to Soapbox would have failed on
+  arrival. Found subscribing the official blyg to robertpeake.com.
+
+Protocol: implements 0.3 (eleventh revision), plus the reader half of the
+§16.6e 0.4 shape.
+
+## 0.35.0 — 2026-10-07
+
+**Migrations: 0025** (`subscriptions.surface`, plus the subscriptions change
+trigger recreated to watch it). Apply it before deploying.
+
+**Reads templated blygs** (spec §16.6e, decision #51; v0.4-plan.md §7.5
+M1–M3). A blyg's manifest may now say where its feed, archive index, item
+documents and pins live, as absolute or origin-relative URLs and RFC 6570
+templates (`item` with `{id}`, `pin` with `{id}` and `{n}`). This is what
+lets a WordPress site publish a blyg. The first is Robert Peake's Soapbox at
+robertpeake.com/blyg/.
+
+- **Subscribing** stores the locations the manifest declares (NULL means the
+  default paths), and the daily manifest read refreshes them. That read now
+  happens even for subscriptions you have renamed; your name is still never
+  overwritten.
+- **Every remote item or pin URL goes through one helper** (`src/surface.ts`):
+  the importer, imported history and diffs, stale-quote checks, fork discovery
+  and fork lineage, and quote attribution. For an origin you do not subscribe
+  to, the default path is tried first and the manifest is read only when that
+  fails.
+- **Resolution follows `rel="blyg"` to a manifest at any path.** If the
+  linked URL is itself a manifest, that is the manifest; otherwise
+  `blyg.json` is appended as before. A blyg's identity is the manifest's URL
+  minus its last path segment.
+- **Mention verification accepts a templated sender.** When an item document
+  was served from outside `{origin}items/{id}.json`, the verifier reads the
+  sender's own `blyg.json` (a third fetch) and accepts only an exact match
+  with its `item` template. A missing manifest, or a URL matching neither,
+  fails the claim.
+- **Fixed: the verifier took WordPress's oEmbed link for the item document.**
+  It accepted any `rel="alternate"` whose type *began* with
+  `application/json`, so `application/json+oembed`, which WordPress lists
+  first, won. It now requires `application/json` exactly (parameters
+  aside).
+
+Our own surface is unchanged and emits no template keys.
+
+Protocol: implements 0.3 (eleventh revision), plus the reader half of the
+§16.6e 0.4 shape.
+
+## 0.34.1 — 2026-10-07
+
+**Migrations: none.**
+
+Three studio fixes from Venkat's click-through of 0.34.0.
+
+- **Mentions: the item heading opens its public page.** Responses are shown
+  there, so that is where the heading goes, in a new tab. A small "edit" link
+  beside it opens the editor, which is where the heading used to go.
+- **The top bar's "public page ↗" follows the editor.** While you edit a
+  published item it opens that item's page; everywhere else it still opens
+  the blyg's home page.
+- **Mentions say the public page lags.** Public pages are cached at the edge
+  for about a minute (0.33.0, #41), so showing or hiding responses takes that
+  long to appear. A note under each item now says so.
+
+Also: the deploy-manifest test no longer assumes every node is on its own
+Cloudflare account. The official blyg shares the personal account with
+venkateshrao.
+
+Protocol: implements 0.3 (eleventh revision).
+
+## 0.34.0 — 2026-10-06
+
+**Migrations: none.**
+
+**The studio's data layer is rebuilt on shared sources** (Kyle Mathews,
+blygger-studio#43). Each kind of record (items, hoppers, reading entries,
+subscriptions, mentions and the rest) now has one source per browser tab,
+and every list, editor and preview reads from it. An edit made in the editor
+shows in the lists at once and rolls back everywhere if the save fails.
+Nothing about the API changes.
+
+- **Responses are checked before they are used.** Every response the studio
+  loads is parsed with validators generated from the API contract; a
+  response that does not match fails that read, keeps the last good rows on
+  screen and can be retried.
+- **The SDK exports those validators** as `@blygger/sdk/schemas`. The
+  addition is additive; the SDK version stays 0.2.0.
+- TanStack packages updated: `@tanstack/react-db` 0.5.5,
+  `@tanstack/query-db-collection` 1.4.0, `@tanstack/query-core` 5.104.1.
+
+Protocol: implements 0.3 (eleventh revision).
+
+## 0.33.0 — 2026-10-06
+
+**Migrations: none.** **Config: add a block to your own deployment config**
+for the public HTML cache (below). Without it the studio works as before,
+with only the browser half of the change.
+
+**Public pages are cached at the edge for 60 seconds** (Kyle Mathews,
+blygger-studio#41). The homepage, archive, fragment and thread pages, pinned
+version pages and public collection pages are served from Cloudflare's
+shared cache through a separate `PublicHtml` entrypoint; the studio, the API,
+media and every wire file stay uncached. Browsers get a content ETag and
+`Cache-Control: no-cache`, so a reload costs a bodyless 304 when nothing
+changed. An edit or withdrawal can take up to a minute to reach readers. A
+static export run right after an edit can pick up the cached page too.
+Enable it by adding this next to `compatibility_date` in your Wrangler
+config (the template already has it), and use Wrangler 4.107.0 or later:
+
+```jsonc
+"cache": { "enabled": false },
+"exports": {
+  "PublicHtml": { "type": "worker", "cache": { "enabled": true } }
+},
+```
+
+After deploying, a second request for a public page should show
+`Cf-Cache-Status: HIT`.
+
+**One long subscription URL no longer stops all outgoing Webmentions**
+(Kyle Mathews, blygger-studio#42). Delivery looked up each target's origin
+with a SQL `LIKE` pattern, which D1 caps at 50 bytes; one subscription with
+a longer URL made the lookup throw for every pending mention. Pending
+mentions retry on the next delivery pass.
+
+**Search accepts long words.** The same 50-byte cap made a search for a
+pasted URL fail. Search now matches words of any length, still ignoring
+ASCII case, and treats `%` and `_` as ordinary characters.
+
+Protocol: implements 0.3 (eleventh revision).
+
+## 0.32.3 — 2026-10-06
+
+**Migrations: none.**
+
+**A fork no longer carries `[[id]]` links that re-resolve in the forker's
+context** (blygger-spec decision #63, spec §5.6 rule 6 in the 0.3 eleventh
+revision). Forking already flattened a thread's quotes from the pinned
+document (0.20.0), but inline `[[id]]` links in the copied prose were kept
+as written. On publish they resolved against the forker's own blyg and
+imports, so a link to an origin the forker had not imported failed publish,
+and one that resolved could point somewhere other than what the source
+linked. Each link now becomes an ordinary markdown link with the text and
+absolute address that the pinned version rendered, in forked fragments and
+threads alike. `[[id]]` inside code is left as written. If a link's rendered
+anchor cannot be found (the target declares its own `page`), the fork is
+rebuilt from the pinned HTML, as it already was when quotes did not line up.
+
+Protocol: implements 0.3 (eleventh revision).
+
+## 0.32.2 — 2026-10-06
+
+**Migrations: none.** Upgrade promptly: the first item is a security fix.
+
+**Mention verification checks the full address, path included** (blygger-spec
+decision #61, spec §15.4 step 2 in the 0.3 eighth revision; found by Aneesh
+Sathe's conformance toolkit, findings F1 and F4).
+
+- **Two blygs on one host can no longer verify in each other's name.** The
+  verifier compared only scheme, host and port, so a document served under
+  `example.com/alice/` could claim to be `example.com/carol/`. It now requires
+  the item document to have been fetched from exactly
+  `{origin}items/{id}.json` for the origin and id it declares.
+- **A pinned copy of a stub no longer verifies after the stub is withdrawn.**
+  A pin file's address is never the live document's, so a mention whose
+  source resolves to a pin fails. Honest senders are unaffected: a source is
+  the item's page, whose alternate link names the live document.
+- **A mention target on our host but outside our mount is refused** (§15.3).
+  On a path-mounted blyg, `example.com/f/{id}/` is not ours when we live at
+  `example.com/blyg/`.
+
+Mentions verified under the old rule keep their status until they are re-sent
+or re-verified.
+
+**TK output and sources** (decision #60, settling blygger-studio#5).
+
+- **A generation source is only what the instruction names.** A `![[id]]`
+  that appears only in a scope's output is no longer recorded in
+  `generated[].sources`, because the generator never read it.
+- **Publish warns about an unrequested quote in generated text.** An
+  own-line `![[id]]` left in TK output still becomes a real quote at publish,
+  as in 0.20.1. When the instruction did not name that id, usually because a
+  model echoed it, the publish response now says so, since the quoted origin
+  was also notified.
+
+**`page` stability is now tested** (decision #56): an item's `page` is the
+same across edits and on its withdrawal endcap.
+
+Protocol: implements 0.3 (eighth revision).
+
+---
+
+## 0.32.1 — 2026-10-06
+
+- **Migration 0024 applies on Cloudflare.** As shipped in 0.32.0 it failed on `wrangler d1 migrations apply --remote` with `incomplete input`, because each trigger opened with a `CASE … END;` guard and D1's remote executor ends a trigger at the first `END;`. Local tests apply migrations another way and passed. The guards are now `SELECT RAISE(…) WHERE NOT EXISTS(…)`, which behaves the same; a new test rejects the old shape in any migration. Nothing was applied by the failed attempt, so if you tried 0.32.0, apply again.
+- **Migrations: 0024_change_state.sql** (the corrected file). Apply before deploying. Do not deploy 0.32.0.
+
+## 0.32.0 — 2026-10-06
+
+- **Fewer D1 reads (#40, Kyle Mathews).** Studio polls `GET /api/changes`, a set of per-domain revision counters kept by database triggers, and reloads a collection only when its counter moved. `feed.xml` is rendered into the `MEDIA` bucket and served from there with an `ETag` and `304`s, rebuilt in the background when the feed's revision changes (stale-while-revalidate: a reader can get the previous feed while the new one builds). Design, operations and the verification record are in `docs/d1-polling-cache-*.md`.
+- **Three crons:** `* * * * *` keeps the saved feed current (it needs **Settings → Canonical site URL**), `*/15 * * * *` polls subscriptions and retries mentions as before, and `0 0 * * *` runs the daily URL repair and mention pruning. A config that still lists only `*/15 * * * *` keeps working: its tick at 00:00 UTC runs the daily work too.
+- Before restoring a database backup, read `docs/d1-polling-cache-operations.md`: run `scripts/reset-change-epoch.sql` after the restore.
+- **Migrations: 0024_change_state.sql.** Adds the `change_state` row and its triggers. Apply before deploying.
+
 ## 0.31.0 — 2026-10-06
 
 - **One response action: `stub`.** A stub is a quote post, a reply, commentary on an excerpt or an inline reply, depending on whether your words go above or below the quote and whether it quotes the whole post or a passage; with no words of your own it is a repost. *Quote selection* is gone from the reading view's ⋯ menu, along with the floating pill and selecting text in an entry to quote it: technically it was always a stub with a passage under the quote.

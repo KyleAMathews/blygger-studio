@@ -19,7 +19,7 @@ import { previewFromHtml } from '../preview.ts';
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { Detail } from './data.ts';
-import { client, items, itemDetail, changed, draftWrites } from './data.ts';
+import { client, items, itemDetail, changed, refreshItems, draftWrites } from './data.ts';
 import {
   ActionBar,
   Button,
@@ -30,6 +30,7 @@ import {
   useChrome,
   usePoll,
   useSettings,
+  publicPath,
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { BracketPicker } from './picker.tsx';
@@ -483,8 +484,6 @@ function useSharing() {
     },
   };
 }
-const publicPath = (item: { id: string; kind: string }) =>
-  `${mount}/${item.kind === 'thread' ? 't' : 'f'}/${item.id}/`;
 /** A row's published words: the working copy when it has no unpublished changes. */
 async function publishedOf(item: Row): Promise<Shareable> {
   const kind = item.kind === 'thread' ? 'thread' : 'fragment';
@@ -787,7 +786,7 @@ export function Compose() {
     query: (q) =>
       q.from({ item: items }).orderBy(({ item }) => item.updated, 'desc'),
   });
-  usePoll('items', items.utils.refetch);
+  usePoll('items', refreshItems);
   const current = useRef({ text, kind, id });
   current.current = { text, kind, id };
   const composer = useRef<ReturnType<typeof draftWrites> | undefined>(undefined);
@@ -1319,14 +1318,16 @@ function ItemRow({
 export function EditorPage({ id }: { id: string }) {
   useChrome({ tabs: false, framed: false });
   const collection = useMemo(() => itemDetail(id), [id]);
-  usePoll(`item:${id}`, collection.utils.refetch);
+  usePoll('items', refreshItems);
   const result = useLiveQuery({
     query: (q) => q.from({ item: collection }),
   });
   return result.data?.[0] ? (
     <Editor key={id} item={result.data[0]} />
   ) : (
-    <p>Loading editor…</p>
+    <p role={result.isReady ? 'alert' : undefined}>
+      {result.isReady ? 'Item not found.' : 'Loading editor…'}
+    </p>
   );
 }
 /** A collapsible card whose open state the screen can also set. */
@@ -1500,6 +1501,7 @@ function Editor({ item }: { item: Detail }) {
       await writes.write({ type: 'delete' });
       leaving.current = true;
       await navigate({ to: '/' });
+      await changed('items');
       toast('Draft discarded', { tone: 'ok' });
     } finally {
       setReplacing(false);

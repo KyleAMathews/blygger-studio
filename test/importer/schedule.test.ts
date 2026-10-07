@@ -28,6 +28,7 @@ function sub(overrides: Partial<SubscriptionRow>): SubscriptionRow {
     flags: "[]",
     created: "2026-08-01T00:00:00Z",
     title_auto: 1,
+    surface: null,
     ...overrides,
   };
 }

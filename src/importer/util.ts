@@ -32,7 +32,10 @@ export function blygItemUrl(origin: string, kind: string, remoteId: string, page
   // §2.3.2 (decision #29): the origin's own `page` wins when we have it. The
   // f/·t/ shape is this client's convention, which 0.2 §4 calls presentation —
   // fine as a fallback, never as an assumption about someone else's blyg.
-  if (page) return `${origin}${page.replace(/^\//, "")}`;
+  // `page` MAY be absolute (§16.6e): a CMS permalink lives outside the
+  // surface's mount, as Soapbox's WordPress posts do. A relative one stays
+  // origin-relative, a leading "/" included, as before.
+  if (page) return /^https?:\/\//i.test(page) ? page : `${origin}${page.replace(/^\//, "")}`;
   return `${origin}${kind === "thread" ? "t" : "f"}/${remoteId}/`;
 }
 

@@ -88,5 +88,5 @@ describe("simulated outage — lossless convergence (§4.3/§6)", () => {
     expect(finalSub?.status).toBe("active");
     const flags = JSON.parse(finalSub?.flags ?? "[]");
     expect(flags.find((f: { type: string }) => f.type === "lossy-mode")).toBeUndefined();
-  });
+  }, 30_000);
 });

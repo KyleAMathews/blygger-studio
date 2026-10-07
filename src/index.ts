@@ -1,3 +1,5 @@
+import { WorkerEntrypoint } from 'cloudflare:workers';
+import { conditionalHtmlResponse, htmlCacheResponse, publicHtmlKey, publicHtmlRequest } from './html-cache.ts';
 import { verifySession } from "./auth.ts";
 import { verifyBearer } from "./oauth.ts";
 import { requestError } from './request-error.ts';
@@ -308,15 +310,39 @@ export function makeApp(mount: string) {
 
 const apps = new Map<string, ReturnType<typeof makeApp>>();
 
+function fetchApp(req: Request, env: Env, ctx: ExecutionContext) {
+  const mount = normalizeMount(env.MOUNT);
+  let app = apps.get(mount);
+  if (!app) {
+    app = makeApp(mount);
+    apps.set(mount, app);
+  }
+  return app.fetch(req, env, ctx);
+}
+
+/** Cloudflare caches only this entrypoint, never the Studio/API router. */
+export class PublicHtml extends WorkerEntrypoint<Env> {
+  async fetch(req: Request): Promise<Response> {
+    if (!publicHtmlRequest(req, normalizeMount(this.env.MOUNT))) {
+      return new Response('Not found', { status: 404, headers: { 'Cache-Control': 'no-store' } });
+    }
+    // Render the same bytes for GET and HEAD so their validators agree.
+    const response = await fetchApp(new Request(req, { method: 'GET' }), this.env, this.ctx);
+    return htmlCacheResponse(req, response);
+  }
+}
+
 export default {
   fetch(req: Request, env: Env, ctx: ExecutionContext): Response | Promise<Response> {
-    const mount = normalizeMount(env.MOUNT);
-    let app = apps.get(mount);
-    if (!app) {
-      app = makeApp(mount);
-      apps.set(mount, app);
+    if (publicHtmlRequest(req, normalizeMount(env.MOUNT))) {
+      // Browser reloads validate saved bytes; HTML ignores range requests.
+      const headers = new Headers(req.headers);
+      for (const name of ['cache-control', 'pragma', 'if-none-match', 'if-modified-since', 'range', 'if-range']) headers.delete(name);
+      const read = new Request(req, { method: 'GET', headers });
+      return ctx.exports.PublicHtml.fetch(read, { cf: { cacheKey: publicHtmlKey(req) } })
+        .then(response => conditionalHtmlResponse(req, response));
     }
-    return app.fetch(req, env, ctx);
+    return fetchApp(req, env, ctx);
   },
   // The minute tick only warms XML; the 15-minute tick polls due subscriptions.
   // Due-selection and backoff live in importer/schedule.ts.
@@ -327,13 +353,21 @@ export default {
       }));
       return;
     }
-    if (controller.cron === '0 0 * * *') {
+    const daily = () => {
       ctx.waitUntil(repairImportedUrls(env.DB).catch(() => {
         console.warn('Imported URL repair failed');
       }));
       ctx.waitUntil(pruneFailedInbound(env.DB).catch(() => {}));
+    };
+    if (controller.cron === '0 0 * * *') {
+      daily();
       return;
     }
+    // A config from before 0.32 lists only "*/15 * * * *" and would never run
+    // the daily work, so the quarter-hour tick covering 00:00 UTC runs it too.
+    // Both jobs are idempotent: an install with both crons runs them twice.
+    const at = new Date(controller.scheduledTime);
+    if (at.getUTCHours() === 0 && at.getUTCMinutes() < 15) daily();
     ctx.waitUntil(runScheduledPoll(env.DB, platformFetchFor(env)));
     // Outbound mentions retry here (§2.3.4): the publish path tries once
     // immediately, and a receiver that was down gets it on a later tick.

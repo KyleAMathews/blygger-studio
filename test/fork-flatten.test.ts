@@ -63,6 +63,24 @@ describe("flattening", () => {
     expect(out.contentMd).toContain("[TK]impyrt=generated[/TK]");
   });
 
+  it("flattens inline [[id]] links to the anchors the bake rendered, leaving code inert (#63)", async () => {
+    const md = `See [[${ID1}]] and \`[[${ID2}]]\` and [mine](https://x.example/).\n\n![[${ID2}]]\n\nAlso [[${ID2}]].`;
+    const html = `<p>See <a href="${OURS}f/${ID1}/">“first item”</a> and <code>[[${ID2}]]</code> and <a href="https://x.example/">mine</a>.</p>\n<blockquote class="blyg-transclusion" data-blyg-id="${ID2}" data-blyg-version="1">\n<p>Has <a href="https://them.example/f/${ID2}/">a link of its own</a>.</p>\n</blockquote>\n<p>Also <a href="${OURS}f/${ID2}/">“second item”</a>.</p>`;
+    const out = await flattenFork({ contentMd: md, contentHtml: html, generated: [] }, ctx);
+    expect(out.exact).toBe(true);
+    expect(out.contentMd).toContain(`See [“first item”](${OURS}f/${ID1}/) and \`[[${ID2}]]\` and [mine](https://x.example/).`);
+    expect(out.contentMd).toContain(`Also [“second item”](${OURS}f/${ID2}/).`);
+    expect(out.contentMd.replace(/`[^`]*`/g, "")).not.toMatch(/(?<!!)\[\[/);
+  });
+
+  it("rebuilds from the HTML when a link's anchor cannot be found (a target with its own page)", async () => {
+    const md = `See [[${ID1}]].`;
+    const html = `<p>See <a href="https://them.example/posts/hello/">“their post”</a>.</p>`;
+    const out = await flattenFork({ contentMd: md, contentHtml: html, generated: [] }, ctx);
+    expect(out.exact).toBe(false);
+    expect(out.contentMd).toBe(`See [“their post”](https://them.example/posts/hello/).\n`);
+  });
+
   it("converts the dialect's blocks", async () => {
     const html = "<h2>Head</h2>\n<ul>\n<li>one</li>\n<li>two</li>\n</ul>\n<pre><code>x = `y`\n</code></pre>\n<p>a &amp; b * c</p>";
     expect(await htmlToMarkdown(html, ctx)).toBe("## Head\n\n- one\n- two\n\n```\nx = `y`\n```\n\na & b \\* c\n");
@@ -90,5 +108,11 @@ describe("a fork through the API (#57)", () => {
     const ffork = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: frag, version: 1 } });
     expect((await apiJson(cookie, "POST", `/api/items/${ffork.json.id}/publish`, {})).status).toBe(200);
     expect((await (await getPublic(`/blyg/items/${ffork.json.id}.json`)).json<any>()).generated).toEqual([{ sources: [], model: "gen-2" }]);
+    const linker = (await apiJson(cookie, "POST", "/api/items", { content_md: `Pointing at [[${quoted}]].` })).json.id as string;
+    await apiJson(cookie, "POST", `/api/items/${linker}/publish`, {});
+    await apiJson(cookie, "PUT", `/api/items/${linker}/versions/1/pin`);
+    const lfork = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: linker, version: 1 } });
+    expect(lfork.json.content_md).not.toContain("[[");
+    expect(lfork.json.content_md).toMatch(new RegExp(`^Pointing at \\[“quoted words”\\]\\(https://[^)]*${quoted}/?\\)\\.$`));
   });
 });
