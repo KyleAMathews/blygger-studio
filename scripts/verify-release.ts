@@ -28,6 +28,7 @@ try {
   assert.match(config, /"main": "worker.js"/);
   assert.match(config, /"no_bundle": true/);
   assert.match(config, /FILL-ME-run-npm-run-init/);
+  assert.match(config, /"PublicHtml": \{ "type": "worker", "cache": \{ "enabled": true \} \}/);
   mf = new Miniflare({ modules: [{ type: "ESModule", path: "worker.mjs", contents: readFileSync(join(worker, "worker.js"), "utf8") }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], bindings: { MOUNT: "", OWNER_PASSWORD: "test", COOKIE_SECRET: "release-smoke-test-secret" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"] });
   assert.equal((await mf.dispatchFetch("http://localhost/api/openapi.json")).status, 401);
   const browser = await mf.dispatchFetch("http://localhost/studio/app.js");
@@ -42,6 +43,15 @@ try {
   for (const migration of await readD1Migrations(join(worker, "migrations"))) {
     await db.batch(migration.queries.map((query) => db.prepare(query)));
   }
+  const homepage = await mf.dispatchFetch('http://localhost/');
+  assert.equal(homepage.status, 200);
+  assert.equal(homepage.headers.get('cache-control'), 'no-cache');
+  const htmlEtag = homepage.headers.get('etag');
+  assert.ok(htmlEtag);
+  assert.match(await homepage.text(), /<!doctype html>/);
+  const validated = await mf.dispatchFetch('http://localhost/', { headers: { 'if-none-match': htmlEtag } });
+  assert.equal(validated.status, 304);
+  assert.equal(await validated.text(), '');
   const baseUrl = (await mf.ready).origin;
   const login = await fetch(`${baseUrl}/studio/login`, { method: "POST", body: new URLSearchParams({ password: "test" }), redirect: "manual" });
   assert.equal(login.status, 302);

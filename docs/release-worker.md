@@ -48,6 +48,27 @@ README. It needs no `npm ci` or source build. Wrangler's
 [Cloudflare setup instructions](https://developers.cloudflare.com/r2/get-started/workers-api/)
 cover login and bucket creation.
 
+## Public HTML cache
+
+Use Wrangler 4.107.0 or later. The included config enables a 60-second shared
+cache only for the `PublicHtml` entrypoint. Studio and API requests remain
+uncached. Browsers use ETags to validate saved HTML. Cloudflare can serve stale
+HTML for another 300 seconds during background refresh, so public changes can
+appear after that window.
+
+Existing installations must add the following block to their own config:
+
+```json
+"cache": { "enabled": false },
+"exports": {
+  "PublicHtml": { "type": "worker", "cache": { "enabled": true } }
+}
+```
+
+No dashboard rule, binding, or migration is required. Without this block, ETags
+still work but each request renders HTML. After deployment, check public pages
+for `Cf-Cache-Status: HIT` or `UPDATING` and matching conditional requests for 304.
+
 ## Upgrading
 
 Read every changelog entry between your installed version and the target,
