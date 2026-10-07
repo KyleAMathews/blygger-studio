@@ -17,6 +17,7 @@
 // second lookup written to agree with it, so this report cannot drift from
 // what publish actually does.
 
+import { fetchOnSurface, itemUrl } from "./surface.ts";
 import type { ItemRow, Transclusion } from "./types.ts";
 import { resolveTarget, locateSelection } from "./transclusion.ts";
 import type { FetchLike } from "./importer/http.ts";
@@ -84,10 +85,13 @@ const PROBE_TIMEOUT_MS = 5000;
  * A failed probe is inconclusive, never evidence (the same stance as
  * `checkForkTarget`): an unreachable origin must not mark a quote stale.
  */
-export async function probeVersion(fetchFn: FetchLike, origin: string, id: string): Promise<number | null> {
+export async function probeVersion(fetchFn: FetchLike, origin: string, id: string, db?: D1Database): Promise<number | null> {
   try {
+    const init = { headers: { Accept: "application/json" } };
     const res = await Promise.race([
-      fetchFn(`${origin}items/${id}.json`, { headers: { Accept: "application/json" } }),
+      db
+        ? fetchOnSurface(db, origin, fetchFn, (s) => itemUrl(origin, s, id), init).then((r) => r.res)
+        : fetchFn(itemUrl(origin, null, id), init),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), PROBE_TIMEOUT_MS)),
     ]);
     if (!res.ok) return null;
@@ -108,7 +112,7 @@ async function quoteFreshness(db: D1Database, entry: Transclusion, threadId: str
   // a re-subscription, a moved blyg. A republish would follow the new one,
   // so that is what is reported; the probe follows it too.
   const origin = target.origin;
-  const live = origin && fetchFn ? await probeVersion(fetchFn, origin, entry.id) : null;
+  const live = origin && fetchFn ? await probeVersion(fetchFn, origin, entry.id, db) : null;
   const out = { ...base, ...(origin ? { origin } : {}), held: target.version, live };
   if (live !== null && live > target.version) return { ...out, status: "behind" };
   if (target.version === entry.version) return { ...out, status: "current" };

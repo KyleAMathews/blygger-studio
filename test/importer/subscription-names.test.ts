@@ -36,7 +36,10 @@ describe("subscription names follow their source", () => {
     expect(calls).not.toContain(ORIGIN + "blyg.json");
   });
 
-  it("never overwrites a name the owner gave, and does not fetch for it", async () => {
+  // The daily manifest read still happens for an owner-named subscription:
+  // since 0.35 it also re-reads where a templated blyg's surface lives
+  // (§16.6e). What the owner's name is protected from is the overwrite.
+  it("never overwrites a name the owner gave", async () => {
     const sub = await createSubscription(env.DB, { kind: "blyg", origin: ORIGIN, feedUrl: ORIGIN + "feed.xml", title: "My name for it", titleAuto: false });
     const { fetch, calls } = makeFixtureFetch({
       [ORIGIN + "feed.xml"]: { body: emptyFeed("x") },
@@ -45,7 +48,7 @@ describe("subscription names follow their source", () => {
     });
     await pollSubscription(env.DB, sub, fetch);
     expect((await getSubscription(env.DB, sub.id))!.title).toBe("My name for it");
-    expect(calls).not.toContain(ORIGIN + "blyg.json");
+    expect(calls).toContain(ORIGIN + "blyg.json");
   });
 
   it("a missing or broken manifest leaves the name and the poll alone", async () => {

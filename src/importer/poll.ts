@@ -5,12 +5,13 @@
 // follows the origin's own serving surface (task 10 layers that last one on
 // top of rollup-null via `applyEffect`'s `retainPinnedVersion`).
 
+import { feedUrl, indexUrl, itemUrl, manifestUrl, parseSurface, pinUrl, surfaceFromManifest } from "../surface.ts";
 import { absolutizeHtml, contentHash, nowIso } from "../util.ts";
 import { parseFeed } from "./feed.ts";
 import type { FetchLike, FetchResult } from "./http.ts";
 import { platformFetch } from "./http.ts";
 import { pollL0Subscription } from "./l0.ts";
-import { appendFlag, applyEffect, getImportedItem, listHoppersForItem, recordIndexSync, recordPollFailure, recordPollSuccess, refreshSourceTitle, toLocalState } from "./store.ts";
+import { appendFlag, applyEffect, getImportedItem, listHoppersForItem, recordIndexSync, recordPollFailure, recordPollSuccess, refreshSourceTitle, toLocalState, updateSurface } from "./store.ts";
 import { transition } from "./transition.ts";
 import { mapLimit } from "./util.ts";
 import type { SubscriptionRow } from "../types.ts";
@@ -94,7 +95,7 @@ async function pinnedVersionToRetain(
   const hoppers = await listHoppersForItem(db, sub.id, remoteId);
   if (!hoppers.length) return undefined;
   try {
-    const res = await fetchFn(`${sub.origin}items/${remoteId}/v${lastKnownVersion}.json`);
+    const res = await fetchFn(pinUrl(sub.origin, parseSurface(sub.surface), remoteId, lastKnownVersion));
     return res.ok ? lastKnownVersion : undefined;
   } catch {
     return undefined;
@@ -105,7 +106,7 @@ async function pinnedVersionToRetain(
 export async function reconcileIndex(db: D1Database, sub: SubscriptionRow, fetchFn: FetchLike = platformFetch): Promise<{ ok: boolean; changed: number }> {
   let res: FetchResult;
   try {
-    res = await fetchFn(`${sub.origin}items/index.json`);
+    res = await fetchFn(indexUrl(sub.origin, parseSurface(sub.surface)));
   } catch {
     return { ok: false, changed: 0 };
   }
@@ -113,7 +114,7 @@ export async function reconcileIndex(db: D1Database, sub: SubscriptionRow, fetch
     // A 404 on items/index.json from an otherwise-live blyg is a nonconforming
     // publisher — fall back to feed-window-only operation (the caller's feed
     // pass already ran independently of this), flag it once.
-    if (res.status === 404) await appendFlag(db, sub.id, "lossy-mode", "items/index.json 404");
+    if (res.status === 404) await appendFlag(db, sub.id, "lossy-mode", "archive index 404");
     return { ok: false, changed: 0 };
   }
   let parsed: unknown;
@@ -133,8 +134,9 @@ export async function reconcileIndex(db: D1Database, sub: SubscriptionRow, fetch
     if (it.version > watermark) candidates.push({ id: it.id });
   }
   const observedAt = nowIso();
+  const surface = parseSurface(sub.surface);
   const outcomes = await mapLimit(candidates, RECONCILE_CONCURRENCY, async (c) => {
-    const r = await processItemCandidate(db, sub, fetchFn, c.id, `${sub.origin}items/${c.id}.json`, observedAt);
+    const r = await processItemCandidate(db, sub, fetchFn, c.id, itemUrl(sub.origin, surface, c.id), observedAt);
     return r.processed;
   });
   await recordIndexSync(db, sub.id);
@@ -147,18 +149,35 @@ export interface PollResult {
   reconciled: boolean;
 }
 
-/** One §3.2 poll cycle for a single subscription. `sub.kind === "rss"` defers entirely to the L0 wrapper (§3.5). */
-async function refreshManifestTitle(db: D1Database, sub: SubscriptionRow, fetchFn: FetchLike): Promise<void> {
-  if (sub.title_auto === 0) return;
+/**
+ * The daily manifest read: the blyg's name, and where its surface lives
+ * (§16.6e — a publisher may move its feed or item routes, and the manifest is
+ * authoritative). Reads the manifest from where it was found, which is not
+ * always `{origin}blyg.json`.
+ */
+async function refreshManifest(db: D1Database, sub: SubscriptionRow, fetchFn: FetchLike): Promise<void> {
+  const stored = parseSurface(sub.surface);
   try {
-    const res = await fetchFn(sub.origin + "blyg.json", { headers: { Accept: "application/json" } });
+    const at = manifestUrl(sub.origin, stored);
+    const res = await fetchFn(at, { headers: { Accept: "application/json" } });
     if (!res.ok) return;
-    const manifest = JSON.parse(await res.text()) as { title?: unknown };
-    if (typeof manifest.title === "string") await refreshSourceTitle(db, sub.id, manifest.title);
+    const manifest = JSON.parse(await res.text()) as Record<string, unknown>;
+    if (!manifest || typeof manifest !== "object") return;
+    if (sub.title_auto !== 0 && typeof manifest.title === "string") await refreshSourceTitle(db, sub.id, manifest.title);
+    // The identity stays what it was; only the locations within it are re-read.
+    const surface = surfaceFromManifest(sub.origin, stored?.manifest ?? at, manifest);
+    const feed = feedUrl(sub.origin, surface);
+    if (JSON.stringify(surface) !== JSON.stringify(stored) || feed !== sub.feed_url) {
+      await updateSurface(db, sub.id, surface, feed);
+      sub.surface = surface ? JSON.stringify(surface) : null;
+      sub.feed_url = feed;
+    }
   } catch {
-    // A missing or malformed manifest leaves the name as it was; the poll goes on.
+    // A missing or malformed manifest leaves everything as it was; the poll goes on.
   }
 }
+
+/** One §3.2 poll cycle for a single subscription. `sub.kind === "rss"` defers entirely to the L0 wrapper (§3.5). */
 
 export async function pollSubscription(db: D1Database, sub: SubscriptionRow, fetchFn: FetchLike = platformFetch): Promise<PollResult> {
   if (sub.kind !== "blyg") {
@@ -188,7 +207,7 @@ export async function pollSubscription(db: D1Database, sub: SubscriptionRow, fet
   const periodicOrFirstSync = !sub.last_index_sync_at || Date.now() - Date.parse(sub.last_index_sync_at) >= INDEX_SYNC_PERIOD_MS;
   // A blyg's name lives in its manifest. Re-read it with the daily sync: one
   // small request a day, and a rename shows up within a day.
-  if (periodicOrFirstSync) await refreshManifestTitle(db, sub, fetchFn);
+  if (periodicOrFirstSync) await refreshManifest(db, sub, fetchFn);
 
   if (res.status === 304) {
     // An unchanged feed says nothing about the index, so the daily sync still
@@ -223,8 +242,8 @@ export async function pollSubscription(db: D1Database, sub: SubscriptionRow, fet
       const watermark = local ? local.version : 0;
       const stale = entry.blyg.version === undefined || entry.blyg.version > watermark;
       if (!stale) continue;
-      const itemUrl = entry.blyg.itemUrl || `${sub.origin}items/${entry.blyg.id}.json`;
-      const r = await processItemCandidate(db, sub, fetchFn, entry.blyg.id, itemUrl, observedAt);
+      const url = entry.blyg.itemUrl || itemUrl(sub.origin, parseSurface(sub.surface), entry.blyg.id);
+      const r = await processItemCandidate(db, sub, fetchFn, entry.blyg.id, url, observedAt);
       if (r.processed) itemsFetched++;
     }
   }

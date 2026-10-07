@@ -1,6 +1,7 @@
 // D1 access for the subscribe side (migration 0004) — the importer-side
 // counterpart to ../model.ts, which owns the publish side's items/versions.
 
+import type { Surface } from "../surface.ts";
 import type { HopperItemRow, HopperRow, ImportedItemRow, SignalRow, SubscriptionRow } from "../types.ts";
 import { newId, nowIso } from "../util.ts";
 import type { LocalState, TransitionEffect } from "./transition.ts";
@@ -9,15 +10,15 @@ const FLAG_LOG_CAP = 20;
 
 export async function createSubscription(
   db: D1Database,
-  row: { kind: "blyg" | "rss"; origin: string; feedUrl: string; title: string; titleAuto?: boolean },
+  row: { kind: "blyg" | "rss"; origin: string; feedUrl: string; title: string; titleAuto?: boolean; surface?: Surface | null },
 ): Promise<SubscriptionRow> {
   const id = newId();
   const created = nowIso();
   await db
     .prepare(
-      "INSERT INTO subscriptions (id, kind, origin, feed_url, title, status, fail_count, in_blogroll, flags, created, title_auto) VALUES (?, ?, ?, ?, ?, 'active', 0, 0, '[]', ?, ?)",
+      "INSERT INTO subscriptions (id, kind, origin, feed_url, title, status, fail_count, in_blogroll, flags, created, title_auto, surface) VALUES (?, ?, ?, ?, ?, 'active', 0, 0, '[]', ?, ?, ?)",
     )
-    .bind(id, row.kind, row.origin, row.feedUrl, row.title, created, row.titleAuto === false ? 0 : 1)
+    .bind(id, row.kind, row.origin, row.feedUrl, row.title, created, row.titleAuto === false ? 0 : 1, row.surface ? JSON.stringify(row.surface) : null)
     .run();
   return (await getSubscription(db, id))!;
 }
@@ -28,6 +29,17 @@ export async function findSubscription(db: D1Database, origin: string, feedUrl: 
     .prepare("SELECT * FROM subscriptions WHERE origin = ? OR feed_url = ? OR origin = ? LIMIT 1")
     .bind(origin, feedUrl, feedUrl)
     .first<SubscriptionRow>();
+}
+
+/**
+ * Record where a subscription's surface lives, re-read from its manifest
+ * (§16.6e). The feed URL moves with it: the manifest's `feed` is authoritative.
+ */
+export async function updateSurface(db: D1Database, id: string, surface: Surface | null, feedUrl: string): Promise<void> {
+  await db
+    .prepare("UPDATE subscriptions SET surface = ?, feed_url = ? WHERE id = ?")
+    .bind(surface ? JSON.stringify(surface) : null, feedUrl, id)
+    .run();
 }
 
 export async function getSubscription(db: D1Database, id: string): Promise<SubscriptionRow | null> {

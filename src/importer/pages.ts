@@ -2,6 +2,7 @@
 // (decision #12): local snapshots + source attribution + origin links,
 // never a re-emission of anyone else's content on our own feed.
 
+import { parseSurface, pinUrl } from "../surface.ts";
 import { layout, pageTop } from "../pages.ts";
 import type { HopperRow, ImportedItemRow, Settings, SubscriptionRow } from "../types.ts";
 import { escapeHtml, escapeHref } from "../util.ts";
@@ -29,7 +30,7 @@ export async function publicHopperPage(db: D1Database, settings: Settings, hoppe
     // L0 content already embeds its own source link inline; blyg imports get a constructed permalink on the origin.
     const sourceLink = row.l0 ? "" : blygItemUrl(sub.origin, row.kind, row.remote_id, row.page);
     const pinNote = withdrawn
-      ? `<p class="provenance">withdrawn by origin — retained via a pinned version: <a href="${escapeHref(`${sub.origin}items/${row.remote_id}/v${row.pinned_version_retained}.json`)}">v${row.pinned_version_retained}</a></p>`
+      ? `<p class="provenance">withdrawn by origin — retained via a pinned version: <a href="${escapeHref(pinUrl(sub.origin, parseSurface(sub.surface), row.remote_id, row.pinned_version_retained!))}">v${row.pinned_version_retained}</a></p>`
       : "";
     const attribution = `<p class="provenance">from <a href="${escapeHref(sub.origin)}">${subLabel}</a>${sourceLink ? ` — <a href="${escapeHref(sourceLink)}">source ↗</a>` : ""}</p>`;
     blocks.push(`<article class="fragment">

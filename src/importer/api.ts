@@ -1,3 +1,4 @@
+import { feedUrl as surfaceFeedUrl, surfaceFromManifest } from "../surface.ts";
 import { platformFetchFor } from "./http.ts";
 import type { SubscriptionRow, HopperRow } from "../types.ts";
 import { subscriptionResource, hopperResource } from "../contract/resources.ts";
@@ -56,10 +57,9 @@ importerApi.openapi(routes.createSubscription, async (c) => {
 
   // One subscription per source: a second one imports every item twice, and
   // then any reference to those ids is ambiguous between the two (stub refuses).
-  const feedUrl =
-    result.kind === "blyg"
-      ? typeof result.manifest.feed === "string" ? new URL(result.manifest.feed, result.origin).toString() : `${result.origin}feed.xml`
-      : result.feedUrl;
+  // §16.6e: the manifest says where the surface lives; absent keys are the defaults.
+  const surface = result.kind === "blyg" ? surfaceFromManifest(result.origin, result.manifestUrl, result.manifest) : null;
+  const feedUrl = result.kind === "blyg" ? surfaceFeedUrl(result.origin, surface) : result.feedUrl;
   const identity = result.kind === "blyg" ? result.origin : result.feedUrl;
   const existing = await findSubscription(c.env.DB, identity, feedUrl);
   if (existing) return c.json({ error: `already subscribed to ${existing.title || existing.origin}` }, 409);
@@ -84,7 +84,7 @@ importerApi.openapi(routes.createSubscription, async (c) => {
   const titleAuto = title === undefined || title === sourceTitle.trim();
   const sub =
     result.kind === "blyg"
-      ? await createSubscription(c.env.DB, { kind: "blyg", origin: result.origin, feedUrl, title: title ?? sourceTitle, titleAuto })
+      ? await createSubscription(c.env.DB, { kind: "blyg", origin: result.origin, feedUrl, title: title ?? sourceTitle, titleAuto, surface })
       : await createSubscription(c.env.DB, { kind: "rss", origin: result.feedUrl, feedUrl: result.feedUrl, title: title ?? sourceTitle, titleAuto });
   // Initial backfill (§3.2 step 4 / plan §7 open decision #2: import the full
   // archive on first subscribe) — a fresh subscription's null

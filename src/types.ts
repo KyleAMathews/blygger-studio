@@ -253,6 +253,8 @@ export interface SubscriptionRow {
   created: string;
   /** 1 = the title follows the source (manifest or channel title); 0 = the owner named it. */
   title_auto: number;
+  /** JSON `Surface` (src/surface.ts): where a templated blyg's files live. NULL = default paths. */
+  surface: string | null;
 }
 
 export interface ImportedItemRow {

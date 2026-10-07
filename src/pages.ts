@@ -1323,6 +1323,9 @@ export function forkLineage(item: Pick<ItemRow, "forked_from" | "fork_cite">, tz
   const fork = parseStoredFork(item.forked_from);
   if (!fork) return "";
   const cite = parseStoredCite(item.fork_cite);
+  // Every fork freezes the URL it was fetched from into its citation (a
+  // templated origin's included, §16.6e); the default pin path is only for
+  // rows older than citations.
   const url = cite?.url ?? `${fork.origin}items/${fork.id}/v${fork.version}.json`;
   if (opts.compact) {
     const who = cite?.source ? `<cite>${escapeHtml(cite.source)}</cite>` : escapeHtml(url);

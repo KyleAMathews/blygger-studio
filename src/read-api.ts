@@ -1,4 +1,5 @@
 import { itemResource, versionResource, mediaResource, subscriptionResource, hopperResource, importedResource, mentionResource } from "./contract/resources.ts";
+import { fetchOnSurface, itemUrl } from "./surface.ts";
 import type { Context } from "hono";
 import { contractApp, readJson } from "./contract/app.ts";
 import { routes } from "./contract/routes.ts";
@@ -290,13 +291,13 @@ async function forkablePins(
         .map((v) => ({ version: v.version, at: v.published_at, note: v.note })),
     };
   }
-  let res;
+  let res, docUrl = itemUrl(origin, null, id);
   try {
-    res = await fetchFn(`${origin}items/${id}.json`);
+    ({ res, url: docUrl } = await fetchOnSurface(db, origin, fetchFn, (s) => itemUrl(origin, s, id)));
   } catch {
     return { versions: [], error: `could not reach ${origin}` };
   }
-  if (!res.ok) return { versions: [], error: `${origin}items/${id}.json returned ${res.status}` };
+  if (!res.ok) return { versions: [], error: `${docUrl} returned ${res.status}` };
   try {
     const doc = JSON.parse(await res.text()) as { changelog?: { version: number; at: string; note: string | null; pinned?: boolean }[] };
     const log = Array.isArray(doc.changelog) ? doc.changelog : [];

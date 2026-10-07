@@ -13,7 +13,7 @@ import { platformFetch } from "./http.ts";
 export type BlygManifestLike = Record<string, unknown> & { blyg: unknown };
 
 export type ResolveResult =
-  | { kind: "blyg"; origin: string; manifest: BlygManifestLike; siteMismatch?: { asserted: string; actual: string } }
+  | { kind: "blyg"; origin: string; manifestUrl: string; manifest: BlygManifestLike; siteMismatch?: { asserted: string; actual: string } }
   | { kind: "rss"; feedUrl: string }
   | { kind: "failure"; tried: string[] };
 
@@ -44,6 +44,38 @@ function isManifestLike(v: unknown): v is BlygManifestLike {
   return !!v && typeof v === "object" && "blyg" in (v as Record<string, unknown>);
 }
 
+type Found = { origin: string; manifestUrl: string; manifest: BlygManifestLike };
+
+/**
+ * Identity (§12.2, as §16.6e states it without the filename): the manifest's
+ * final URL minus its last path segment. A manifest at `/blyg/blyg.json` gives
+ * `/blyg/`; one at `/wp-json/blyg/v1/manifest` gives `/wp-json/blyg/v1/`.
+ */
+function identityOf(manifestUrl: string): string {
+  const u = new URL(manifestUrl);
+  u.pathname = u.pathname.replace(/[^/]*$/, "");
+  u.search = "";
+  u.hash = "";
+  return u.toString();
+}
+
+/** Fetch `url`; if the body parses as a manifest, that is the manifest (§16.6e step 4). */
+async function fetchManifestAt(url: string, fetchFn: FetchLike, tried: string[]): Promise<Found | null> {
+  if (tried.includes(url)) return null;
+  tried.push(url);
+  let res: FetchResult;
+  try {
+    res = await fetchFn(url);
+  } catch {
+    return null;
+  }
+  if (!res.ok) return null;
+  const parsed = safeJsonParse(await res.text().catch(() => ""));
+  if (!isManifestLike(parsed)) return null;
+  const at = res.url || url;
+  return { origin: identityOf(at), manifestUrl: at, manifest: parsed };
+}
+
 /**
  * Fetch `{originUrl}blyg.json` and test parse-success — never Content-Type
  * (§2.1 step 2: dumb static hosts misreport it). Skips (no fetch) a URL
@@ -54,30 +86,13 @@ async function probeManifest(
   originUrl: string,
   fetchFn: FetchLike,
   tried: string[],
-): Promise<{ origin: string; manifest: BlygManifestLike } | null> {
-  const url = originUrl + "blyg.json";
-  if (tried.includes(url)) return null;
-  tried.push(url);
-  let res: FetchResult;
-  try {
-    res = await fetchFn(url);
-  } catch {
-    return null;
-  }
-  if (!res.ok) return null;
-  const parsed = safeJsonParse(await res.text());
-  if (!isManifestLike(parsed)) return null;
-  // Identity = final fetch origin, i.e. the manifest URL actually reached, minus the filename.
-  const finalUrl = new URL(res.url || url);
-  finalUrl.pathname = finalUrl.pathname.replace(/blyg\.json$/, "");
-  finalUrl.search = "";
-  finalUrl.hash = "";
-  return { origin: finalUrl.toString(), manifest: parsed };
+): Promise<Found | null> {
+  return fetchManifestAt(originUrl + "blyg.json", fetchFn, tried);
 }
 
 /** Compare the manifest's self-asserted `site` to resolved identity; never adopt it, only flag disagreement. */
-function finalizeBlyg({ origin, manifest }: { origin: string; manifest: BlygManifestLike }): ResolveResult {
-  const result: ResolveResult = { kind: "blyg", origin, manifest };
+function finalizeBlyg({ origin, manifestUrl, manifest }: Found): ResolveResult {
+  const result: ResolveResult = { kind: "blyg", origin, manifestUrl, manifest };
   const asserted = typeof manifest.site === "string" ? manifest.site : undefined;
   if (asserted) {
     let normalizedAsserted: string | null;
@@ -160,24 +175,8 @@ export async function resolve(inputUrl: string, fetchFn: FetchLike = platformFet
         // Step 3: feed upgrade.
         if (feedProbe.manifestUrl) {
           const abs = new URL(feedProbe.manifestUrl, finalUrl).toString();
-          if (!tried.includes(abs)) {
-            tried.push(abs);
-            try {
-              const res2 = await fetchFn(abs);
-              if (res2.ok) {
-                const parsed = safeJsonParse(await res2.text());
-                if (isManifestLike(parsed)) {
-                  const url = new URL(res2.url || abs);
-                  url.pathname = url.pathname.replace(/blyg\.json$/, "");
-                  url.search = "";
-                  url.hash = "";
-                  return finalizeBlyg({ origin: url.toString(), manifest: parsed });
-                }
-              }
-            } catch {
-              // fall through — held as the L0 candidate below
-            }
-          }
+          const upgraded = await fetchManifestAt(abs, fetchFn, tried);
+          if (upgraded) return finalizeBlyg(upgraded);
         }
         // No manifest link, or the upgrade fetch failed — hold as the L0 candidate, keep going.
         l0FeedUrl = finalUrl;
@@ -186,15 +185,28 @@ export async function resolve(inputUrl: string, fetchFn: FetchLike = platformFet
         const links = await extractLinkTags(bodyText);
         const relBlyg = links.find((l) => hasRelToken(l.rel, "blyg") && l.href);
         if (relBlyg) {
-          let hrefOrigin: string | null = null;
+          // §16.6e: fetch the href itself; if it parses as a manifest, that is
+          // the manifest (a CMS may serve it at any path). Otherwise the href is
+          // an origin base and blyg.json is appended, as before.
+          let href: string | null = null;
           try {
-            hrefOrigin = normalizeOrigin(new URL(relBlyg.href, finalUrl).toString());
+            href = new URL(relBlyg.href, finalUrl).toString();
           } catch {
-            hrefOrigin = null;
+            href = null;
           }
-          if (hrefOrigin) {
-            const relResult = await probeManifest(hrefOrigin, fetchFn, tried);
-            if (relResult) return finalizeBlyg(relResult);
+          if (href) {
+            const direct = await fetchManifestAt(href, fetchFn, tried);
+            if (direct) return finalizeBlyg(direct);
+            let hrefOrigin: string | null = null;
+            try {
+              hrefOrigin = normalizeOrigin(href);
+            } catch {
+              hrefOrigin = null;
+            }
+            if (hrefOrigin) {
+              const relResult = await probeManifest(hrefOrigin, fetchFn, tried);
+              if (relResult) return finalizeBlyg(relResult);
+            }
           }
         }
         // Step 6 prep: standard RSS/Atom autodiscovery on this HTML.

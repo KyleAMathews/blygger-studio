@@ -1,4 +1,5 @@
 import { itemResource } from "./contract/resources.ts";
+import { itemUrl, storedSurface } from "./surface.ts";
 import { z } from "@hono/zod-openapi";
 import { createResponseDraft } from "./item-create.ts";
 import { contractApp, readJson, readForm } from "./contract/app.ts";
@@ -102,7 +103,7 @@ async function quotedLink(db: D1Database, quoteOrigin: string, id: string, ourOr
     .prepare("SELECT ii.kind AS kind, ii.page AS page FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id WHERE ii.remote_id = ? AND s.origin = ?")
     .bind(id, quoteOrigin)
     .first<{ kind: string; page: string | null }>();
-  return row ? blygItemUrl(quoteOrigin, row.kind, id, row.page) : `${quoteOrigin}items/${id}.json`;
+  return row ? blygItemUrl(quoteOrigin, row.kind, id, row.page) : itemUrl(quoteOrigin, await storedSurface(db, quoteOrigin), id);
 }
 
 async function createForkResponse(c: Context<{ Bindings: Env }>, body: { origin: string; id: string; version: number }) {

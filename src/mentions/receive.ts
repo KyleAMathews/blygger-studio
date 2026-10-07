@@ -8,6 +8,7 @@
 //
 // No content of theirs is ever stored. A verified mention is a pointer.
 
+import { fetchSurface, itemUrl } from "../surface.ts";
 import type { FetchLike } from "../importer/http.ts";
 import { normalizeOrigin } from "../stub.ts";
 import type { MentionRelation, Transclusion } from "../types.ts";
@@ -128,8 +129,11 @@ export function alternateJsonHref(html: string, base: string): string | null {
   while ((m = tag.exec(html))) {
     const rel = /\brel\s*=\s*["']?([^"'>]+)["']?/i.exec(m[0]);
     if (!rel || !rel[1].toLowerCase().split(/\s+/).includes("alternate")) continue;
-    const type = /\btype\s*=\s*["']?([^"'>\s]+)["']?/i.exec(m[0]);
-    if (!type || !type[1].toLowerCase().startsWith("application/json")) continue;
+    // The media type exactly, parameters aside: WordPress pages also carry an
+    // oEmbed alternate typed `application/json+oembed`, often first.
+    const type = /\btype\s*=\s*["']([^"']*)["']|\btype\s*=\s*([^\s>]+)/i.exec(m[0]);
+    const media = (type?.[1] ?? type?.[2] ?? "").split(";")[0].trim().toLowerCase();
+    if (media !== "application/json") continue;
     const href = /\bhref\s*=\s*["']([^"']*)["']/i.exec(m[0]);
     if (!href) continue;
     try {
@@ -187,7 +191,9 @@ export interface VerifyResult {
 /**
  * Fetch the source, find its item document, and decide. Bounded to two
  * fetches (§2.3.5): the page, and the document its `rel="alternate"` names —
- * or one, when the source URL *is* the document.
+ * or one, when the source URL *is* the document. A third, the sender's own
+ * manifest, only when the document was served from outside the default path
+ * (a templated blyg, §16.6e, whose bounds are raised to three).
  *
  * The identity rule is the load-bearing one: the item document must have been
  * fetched from exactly `{origin}items/{id}.json` for its own asserted `origin`
@@ -246,7 +252,16 @@ export async function verifyMention(
   const served = new URL(finalUrl);
   served.hash = "";
   if (served.href !== expected.href) {
-    return fail(`origin mismatch: document claims ${expected.href} but was served from ${served.href}`);
+    // §16.6e: a templated blyg serves item documents where its manifest's
+    // `item` template says, possibly outside the identity origin. Read the
+    // asserted origin's own manifest (the third fetch) and accept only an
+    // exact match with its template; a missing manifest fails the claim.
+    const surface = await fetchSurface(asserted, fetchFn);
+    const templated = surface?.item ? new URL(itemUrl(asserted, surface, doc.id)) : null;
+    if (templated) templated.hash = "";
+    if (!templated || served.href !== templated.href) {
+      return fail(`origin mismatch: document claims ${expected.href}${templated ? ` or ${templated.href}` : ""} but was served from ${served.href}`);
+    }
   }
   if (doc.kind === "withdrawn") return fail("source item is withdrawn", "gone");
 

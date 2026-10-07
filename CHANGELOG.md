@@ -18,6 +18,47 @@ not have its own repo until session 26.
 
 ---
 
+## 0.35.0 — 2026-10-07
+
+**Migrations: 0025** (`subscriptions.surface`, plus the subscriptions change
+trigger recreated to watch it). Apply it before deploying.
+
+**Reads templated blygs** (spec §16.6e, decision #51; v0.4-plan.md §7.5
+M1–M3). A blyg's manifest may now say where its feed, archive index, item
+documents and pins live, as absolute or origin-relative URLs and RFC 6570
+templates (`item` with `{id}`, `pin` with `{id}` and `{n}`). This is what
+lets a WordPress site publish a blyg. The first is Robert Peake's Soapbox at
+robertpeake.com/blyg/.
+
+- **Subscribing** stores the locations the manifest declares (NULL means the
+  default paths), and the daily manifest read refreshes them. That read now
+  happens even for subscriptions you have renamed; your name is still never
+  overwritten.
+- **Every remote item or pin URL goes through one helper** (`src/surface.ts`):
+  the importer, imported history and diffs, stale-quote checks, fork discovery
+  and fork lineage, and quote attribution. For an origin you do not subscribe
+  to, the default path is tried first and the manifest is read only when that
+  fails.
+- **Resolution follows `rel="blyg"` to a manifest at any path.** If the
+  linked URL is itself a manifest, that is the manifest; otherwise
+  `blyg.json` is appended as before. A blyg's identity is the manifest's URL
+  minus its last path segment.
+- **Mention verification accepts a templated sender.** When an item document
+  was served from outside `{origin}items/{id}.json`, the verifier reads the
+  sender's own `blyg.json` (a third fetch) and accepts only an exact match
+  with its `item` template. A missing manifest, or a URL matching neither,
+  fails the claim.
+- **Fixed: the verifier took WordPress's oEmbed link for the item document.**
+  It accepted any `rel="alternate"` whose type *began* with
+  `application/json`, so `application/json+oembed`, which WordPress lists
+  first, won. It now requires `application/json` exactly (parameters
+  aside).
+
+Our own surface is unchanged and emits no template keys.
+
+Protocol: implements 0.3 (eleventh revision), plus the reader half of the
+§16.6e 0.4 shape.
+
 ## 0.34.1 — 2026-10-07
 
 **Migrations: none.**
