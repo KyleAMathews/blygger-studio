@@ -1578,9 +1578,9 @@ function Editor({ item }: { item: Detail }) {
     try {
       await draft.current!.settle();
       await unwrap(BlyggerApi.deleteItem({ client, path: { id: item.id } }));
-      await changed('items');
       leaving.current = true;
       await navigate({ to: '/' });
+      await changed('items');
       toast('Draft discarded', { tone: 'ok' });
     } finally {
       setReplacing(false);
