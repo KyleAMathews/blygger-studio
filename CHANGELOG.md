@@ -18,6 +18,21 @@ not have its own repo until session 26.
 
 ---
 
+## 0.35.1 — 2026-10-07
+
+**Migrations: none.**
+
+- **An absolute `page` is used as it is.** §16.6e lets a blyg's permalinks
+  live outside its mount (Soapbox's are WordPress post URLs), but every link
+  built from `page` glued it onto the origin, giving
+  `https://site/blyg/https://site/archives/…`. That covered reading-view
+  source links, quote attribution, stub citations, and the target of every
+  mention sent to such a blyg, so a mention to Soapbox would have failed on
+  arrival. Found subscribing the official blyg to robertpeake.com.
+
+Protocol: implements 0.3 (eleventh revision), plus the reader half of the
+§16.6e 0.4 shape.
+
 ## 0.35.0 — 2026-10-07
 
 **Migrations: 0025** (`subscriptions.surface`, plus the subscriptions change

@@ -10,6 +10,7 @@ import { createSubscription, getSubscription } from "../src/importer/store.ts";
 import { reconcileIndex } from "../src/importer/poll.ts";
 import { alternateJsonHref } from "../src/mentions/receive.ts";
 import { makeFixtureFetch } from "./importer/fixtures.ts";
+import { blygItemUrl } from "../src/importer/util.ts";
 import { upsertAndVerify } from "./fork-helpers.ts";
 import { contentHash } from "../src/util.ts";
 
@@ -131,6 +132,16 @@ describe("M2 — resolution", () => {
     const r = await reconcileIndex(env.DB, sub, fetch);
     expect(r).toEqual({ ok: true, changed: 1 });
     expect(calls).toEqual([`${API}items`, `${API}items/${ID}`]);
+  });
+});
+
+describe("absolute page", () => {
+  it("an absolute page is the item's URL; a relative one is origin-relative as before", () => {
+    const page = "https://soapbox.example/archives/22-a-poem.html";
+    expect(blygItemUrl(ORIGIN, "thread", ID, page)).toBe(page);
+    expect(blygItemUrl(ORIGIN, "thread", ID, "t/x/")).toBe(`${ORIGIN}t/x/`);
+    expect(blygItemUrl(ORIGIN, "thread", ID, "/t/x/")).toBe(`${ORIGIN}t/x/`);
+    expect(blygItemUrl(ORIGIN, "thread", ID, null)).toBe(`${ORIGIN}t/${ID}/`);
   });
 });
 
