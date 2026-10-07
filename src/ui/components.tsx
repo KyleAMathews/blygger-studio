@@ -11,6 +11,7 @@ import { Link, useLocation } from '@tanstack/react-router';
 import { useLiveQuery } from '@tanstack/react-db';
 import {
   settings as settingsCollection,
+  items as itemsCollection,
   polling,
   queryClient,
   updates,
@@ -23,6 +24,9 @@ export { Button };
 export const mount =
   document.getElementById('studio-root')!.dataset.mount ?? '';
 export const basepath = `${mount}/studio`;
+/** An item's public permalink, mount-relative (the page a reader sees). */
+export const publicPath = (item: { id: string; kind: string }) =>
+  `${mount}/${item.kind === 'thread' ? 't' : 'f'}/${item.id}/`;
 export function usePoll(key: string, refresh: () => Promise<unknown>) {
   useEffect(() => polling.watch(key, refresh), [key, refresh]);
 }
@@ -193,6 +197,16 @@ export function Layout({ children }: { children: ReactNode }) {
     document.body.classList.toggle('has-tabs', showTabs);
     document.body.classList.toggle('no-tabs', !showTabs);
   }, [showTabs]);
+  // In the editor of a published item, "public page" means that item's page;
+  // everywhere else it is the blyg's home.
+  const editing = path.startsWith('/edit/') ? path.split('/')[2] : undefined;
+  const allItems =
+    useLiveQuery({ query: (q) => q.from({ item: itemsCollection }) }).data;
+  const editedItem = editing
+    ? allItems?.find((item) => item.id === editing)
+    : undefined;
+  const publicHref =
+    editedItem?.status === 'public' ? publicPath(editedItem) : `${mount}/`;
   const behind = !!(settings?.update_check && update?.behind);
   const unacked = !!(settings?.update_check && !settings.update_notice_ack);
   return (
@@ -216,7 +230,7 @@ export function Layout({ children }: { children: ReactNode }) {
           ) : null}
           <a
             className="tb-btn"
-            href={`${mount}/`}
+            href={publicHref}
             target="_blank"
             rel="noreferrer"
             aria-label="public page ↗"

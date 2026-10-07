@@ -26,6 +26,7 @@ import {
   Html,
   usePoll,
   mount,
+  publicPath,
   useChrome,
   useSettings,
   SourceLink,
@@ -647,8 +648,17 @@ export function MentionsPage() {
             return (
               <section className="card mention-group" key={id}>
                 <h3 className="card-h">
-                  <Link to="/edit/$id" params={{ id }}>
-                    {item?.content_md.slice(0, 60) || id.slice(0, 8)}
+                  {/* The responses are shown on the public page, so that is
+                      where the heading goes; editing is a side link. */}
+                  {item?.status === 'public' ? (
+                    <a href={publicPath(item)} target="_blank" rel="noreferrer">
+                      {item.content_md.slice(0, 60) || id.slice(0, 8)} ↗
+                    </a>
+                  ) : (
+                    item?.content_md.slice(0, 60) || id.slice(0, 8)
+                  )}{' '}
+                  <Link className="muted small" to="/edit/$id" params={{ id }}>
+                    edit
                   </Link>
                 </h3>
                 <p className="muted small group-meta">
@@ -693,6 +703,10 @@ export function MentionsPage() {
                     ))}
                   </div>
                 </div>
+                <p className="muted small">
+                  The public page can take about a minute to reflect a change
+                  here: it is cached at the edge.
+                </p>
                 {rows.map((mention) => (
                   <MentionRow key={mention.id} mention={mention} />
                 ))}

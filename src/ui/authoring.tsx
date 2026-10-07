@@ -30,6 +30,7 @@ import {
   useChrome,
   usePoll,
   useSettings,
+  publicPath,
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { BracketPicker } from './picker.tsx';
@@ -482,8 +483,6 @@ function useSharing() {
     },
   };
 }
-const publicPath = (item: { id: string; kind: string }) =>
-  `${mount}/${item.kind === 'thread' ? 't' : 'f'}/${item.id}/`;
 /** A row's published words: the working copy when it has no unpublished changes. */
 async function publishedOf(item: Row): Promise<Shareable> {
   const kind = item.kind === 'thread' ? 'thread' : 'fragment';

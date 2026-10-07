@@ -18,6 +18,28 @@ not have its own repo until session 26.
 
 ---
 
+## 0.34.1 — 2026-10-07
+
+**Migrations: none.**
+
+Three studio fixes from Venkat's click-through of 0.34.0.
+
+- **Mentions: the item heading opens its public page.** Responses are shown
+  there, so that is where the heading goes, in a new tab. A small "edit" link
+  beside it opens the editor, which is where the heading used to go.
+- **The top bar's "public page ↗" follows the editor.** While you edit a
+  published item it opens that item's page; everywhere else it still opens
+  the blyg's home page.
+- **Mentions say the public page lags.** Public pages are cached at the edge
+  for about a minute (0.33.0, #41), so showing or hiding responses takes that
+  long to appear. A note under each item now says so.
+
+Also: the deploy-manifest test no longer assumes every node is on its own
+Cloudflare account. The official blyg shares the personal account with
+venkateshrao.
+
+Protocol: implements 0.3 (eleventh revision).
+
 ## 0.34.0 — 2026-10-06
 
 **Migrations: none.**
