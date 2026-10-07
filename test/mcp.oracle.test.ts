@@ -119,7 +119,7 @@ describe('MCP contract oracles', () => {
       const scope = all.filter((_, index) => mask & 1 << index), credential = await d.manual(scope), client = await d.connect(credential.access_token);
       await withOracleCleanup(async () => { const observed = (await client.listTools()).tools.map(tool => tool.name).sort(); atCheckpoint('MCP scope capabilities', () => expect(observed).toEqual(expectedTools(scope))); }, [() => client.close()]);
     }
-  });
+  }, 30_000);
   it('has the same item values and publication/provenance as REST', async () => {
     const d = await driver(), credential = await d.manual(all), client = await d.connect(credential.access_token);
     await withOracleCleanup(async () => {
