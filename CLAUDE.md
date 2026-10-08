@@ -576,3 +576,20 @@ Deferred when the session wrapped, not blocked on anything.
   task, and it found 28 call sites across six files. Wire unchanged and tested — feed dates
   RFC-822 in GMT, item documents ISO-8601 UTC. An invalid zone is rejected on save *and*
   falls back to UTC on render; the second half matters because a bad row is not a typo.
+
+## Anthropic keys for the production blygs (changed 2026-10-07)
+
+Each deployed blyg Worker has its own Anthropic key in its `AI_PROVIDER_KEY` secret (the name `models.json` maps to Anthropic): `blyg-venkateshrao` → `ANTHROPIC_KEY_BLYGS_VENKATESHRAO`, `blyg-blygger-org` → `ANTHROPIC_KEY_BLYGS_BLYGGER_ORG` (**new** — it had no AI key before, so [TK] generation is now available there), `blyg-protocol-institute` → `ANTHROPIC_KEY_BLYGS_PI` (PI account, PI workspace). All three live in `Code/.env.keys` / `protocol-institute/.env.keys`, service account `blygs`, one single-workspace key each. Coding/dev work uses `ANTHROPIC_KEY_BLYGGER`. **Not yet exercised:** run one [TK] generation in each blyg and confirm in the Console that the matching key shows usage. Set secrets with `wrangler secret put AI_PROVIDER_KEY --name <worker>` (explicit `--name`; see `Code/warnings-node.md`). Plan: `Code/anthropic-key-plan.md`.
+
+## Session rituals
+
+**Base:** [`Code/devops/rituals.md`](../../devops/rituals.md) — v1.0. Startup is S1–S7, wrap-up is W0–W7 (IDs reserved). Everything below is this
+project's **local config**; it adds to the base and never replaces it.
+
+**Ritual config**
+- **Log:** `status.md` (dated entry, non-skippable). Devlog: none.
+- **Startup extras (S5):** none
+- **Verification (W2):** tests plus a real click-through on a node; for key changes see the Anthropic-keys section above.
+- **Wrap-up extras (after W5):** none
+- **Deploy policy:** `wrangler`-based; authenticate with `wrangler login`, always `--name` for secrets; only on request.
+- **Carry-overs (S6):** none
