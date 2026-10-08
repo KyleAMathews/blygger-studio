@@ -34,7 +34,7 @@ const requestSchema = z.object({ key: z.string(), revision: z.number().int(), co
 type Request = z.infer<typeof requestSchema>;
 
 /** All commands share one scheduler and one persistence handler. */
-export function createDraftWrites(dispatch: (command: DraftWrite) => Promise<unknown>) {
+export function createPacedDraftAction(dispatch: (command: DraftWrite) => Promise<unknown>) {
   const requests = createCollection(localOnlyCollectionOptions({
     schema: requestSchema, getKey: row => row.key,
   }));
@@ -45,7 +45,7 @@ export function createDraftWrites(dispatch: (command: DraftWrite) => Promise<unk
     // Local-only command rows record requests, even when item text is unchanged.
     requests.utils.acceptMutations(transaction as unknown as Parameters<typeof requests.utils.acceptMutations>[0]);
   };
-  const manager = () => {
+  const createAction = () => {
     const key = String(++sequence);
     return createPacedMutations<DraftWrite, Request>({
       strategy, mutationFn,
@@ -58,23 +58,21 @@ export function createDraftWrites(dispatch: (command: DraftWrite) => Promise<unk
       },
     });
   };
-  let saves = manager();
-  return {
-    write<W extends DraftWrite>(input: W): Promise<Results[W['type']]> {
-      const command = draftWriteSchema.parse(input);
-      const mutate = command.type === 'save' ? saves : manager();
-      // A command closes this save group. Later text cannot merge across it.
-      if (command.type !== 'save') saves = manager();
-      const transaction = mutate(command);
-      return transaction.when('settled').then(() => {
-        if (command.type !== 'save') {
-          // This command finished after every earlier save group. Drop those
-          // completed request rows; later groups have larger keys.
-          const completed = [...requests.keys()].filter(key => Number(key) <= Number(transaction.mutations[0].key));
-          if (completed.length) void requests.delete(completed).when('settled').catch(() => undefined);
-        }
-        return transaction.metadata.result as Results[W['type']];
-      });
-    },
+  let saves = createAction();
+  return function write<W extends DraftWrite>(input: W): Promise<Results[W['type']]> {
+    const command = draftWriteSchema.parse(input);
+    const mutate = command.type === 'save' ? saves : createAction();
+    // A command closes this save group. Later text cannot merge across it.
+    if (command.type !== 'save') saves = createAction();
+    const transaction = mutate(command);
+    return transaction.when('settled').then(() => {
+      if (command.type !== 'save') {
+        // This command finished after every earlier save group. Drop those
+        // completed request rows; later groups have larger keys.
+        const completed = [...requests.keys()].filter(key => Number(key) <= Number(transaction.mutations[0].key));
+        if (completed.length) void requests.delete(completed).when('settled').catch(() => undefined);
+      }
+      return transaction.metadata.result as Results[W['type']];
+    });
   };
 }

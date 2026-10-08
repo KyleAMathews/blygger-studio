@@ -29,7 +29,7 @@ import { Polling } from './polling.ts';
 import { readIfChanged, type CachedResponse } from './revision-query.ts';
 import type { ChangeDomain } from '../change-state.ts';
 import { scoped } from './scoped.ts';
-import { createDraftWrites } from './paced-write.ts';
+import { createPacedDraftAction } from './paced-write.ts';
 import { sourceSchemas, readingResponseSchema } from './data-schemas.ts';
 import { zGetItemResponse } from '../../sdk/dist/schemas.js';
 
@@ -359,18 +359,15 @@ export const itemDetail = scoped((id) => createLiveQueryCollection({
     .where(({ item, history }) => and(eq(item.id, id), eq(history.id, id)))
     .fn.select(({ item, history }): Detail => ({ ...item, ...history })),
 }));
-const draftQueues = new Map<string, ReturnType<typeof createDraftWrites>>();
-export function draftWrites(id?: string) {
-  if (id && draftQueues.has(id)) return draftQueues.get(id)!;
+export function createDraftAction(id?: string) {
   let itemId = id;
-  const writes = createDraftWrites(async command => {
+  return createPacedDraftAction(async command => {
     let result;
     if (command.type === 'save' && !itemId) {
       result = await unwrap(BlyggerApi.createItem({ client, body: {
         content_md: command.text, kind: command.kind,
       } }));
       itemId = result.id;
-      draftQueues.set(itemId, writes);
     } else {
       if (!itemId) throw new Error('Save the draft before running this command');
       const path = { id: itemId };
@@ -393,8 +390,6 @@ export function draftWrites(id?: string) {
     await changed(...(command.type === 'delete' ? ['items', 'reading'] : ['item', 'items', 'reading']));
     return result;
   });
-  if (id) draftQueues.set(id, writes);
-  return writes;
 }
 
 export type Reading = Omit<z.infer<typeof sourceSchemas.reading>, 'view'>;

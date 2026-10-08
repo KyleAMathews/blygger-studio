@@ -19,7 +19,7 @@ import { previewFromHtml } from '../preview.ts';
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { Detail } from './data.ts';
-import { client, items, itemDetail, changed, refreshItems, draftWrites } from './data.ts';
+import { client, items, itemDetail, changed, refreshItems, createDraftAction } from './data.ts';
 import {
   ActionBar,
   Button,
@@ -674,7 +674,7 @@ function textareaProps(upload: ReturnType<typeof useUpload>, tools: TextTools) {
  * confirmed text is exactly what the model drafted.
  */
 type NoteChoice = { note: string; generated: boolean };
-function useNoteConfirm() {
+function useNoteConfirm(write: ReturnType<typeof createDraftAction>) {
   const settings = useSettings();
   const [state, setState] = useState<{
     version: number;
@@ -696,7 +696,7 @@ function useNoteConfirm() {
     return new Promise((resolve) => {
       setState({ version: item.version + 1, text: typed, drafted, loading: auto, resolve });
       if (!auto) return;
-      draftWrites(item.id).write({ type: 'draft-note' })
+      write({ type: 'draft-note' })
         .then((r) => setState((s) => s && { ...s, text: r.note, drafted: r.note, loading: false }))
         .catch((error) => setState((s) => s && { ...s, loading: false, error }));
     });
@@ -789,11 +789,11 @@ export function Compose() {
   usePoll('items', refreshItems);
   const current = useRef({ text, kind, id });
   current.current = { text, kind, id };
-  const composer = useRef<ReturnType<typeof draftWrites> | undefined>(undefined);
+  const [draftKey, setDraftKey] = useState(0);
+  const write = useMemo(() => createDraftAction(), [draftKey]);
   const save = async () => {
     const snapshot = { text: current.current.text, kind: current.current.kind };
-    composer.current ??= draftWrites();
-    const result = await composer.current.write({ type: 'save', text: snapshot.text, kind: snapshot.kind });
+    const result = await write({ type: 'save', text: snapshot.text, kind: snapshot.kind });
     const savedId = result.id;
     setId(savedId);
     current.current.id = savedId;
@@ -844,13 +844,13 @@ export function Compose() {
   const publish = async () => {
     const savedId = await save();
     if (!savedId) return;
-    const result = await composer.current!.write({ type: 'publish', note: '', generated: false });
+    const result = await write({ type: 'publish', note: '', generated: false });
     setPublished({ id: savedId, kind, md: text, version: result.version });
     if (current.current.text === text) {
       setText('');
       setId(undefined);
       current.current.id = undefined;
-      composer.current = undefined;
+      setDraftKey(key => key + 1);
       setSaved(false);
     }
     return result;
@@ -1014,23 +1014,23 @@ function ItemRow({
   const settings = useSettings();
   const sharing = useSharing();
   const action = useAction();
-  const confirmNote = useNoteConfirm();
   const [expanded, setExpanded] = useState(false);
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(item.content_md);
   const [saved, setSaved] = useState(false);
-  const writes = useMemo(() => draftWrites(item.id), [item.id]);
+  const write = useMemo(() => createDraftAction(item.id), [item.id]);
+  const confirmNote = useNoteConfirm(write);
   const draft = useRef<Draft | null>(null);
   if (!draft.current)
     draft.current = new Draft(item.content_md, async (content) => {
-      await writes.write({ type: 'save', text: content });
+      await write({ type: 'save', text: content });
     });
   const kind: Kind = item.kind === 'thread' ? 'thread' : 'fragment';
   const publishRow = async () => {
     const choice = await confirmNote.request(item, '');
     if (!choice) return;
     const md = draft.current!.text;
-    const result = await writes.write({ type: 'publish', note: choice.note, generated: choice.generated });
+    const result = await write({ type: 'publish', note: choice.note, generated: choice.generated });
     onPublished({ id: item.id, kind, md, version: result.version });
     return result;
   };
@@ -1100,7 +1100,7 @@ function ItemRow({
         ok: `pin v${item.version}`,
       })
     )
-      mutate(() => writes.write({ type: 'pin', version: item.version }));
+      mutate(() => write({ type: 'pin', version: item.version }));
   };
   return (
     <li
@@ -1254,7 +1254,7 @@ function ItemRow({
                     })
                   )
                     void action.run(async () => {
-                      await writes.write({ type: 'delete' });
+                      await write({ type: 'delete' });
                       toast('Draft discarded', { tone: 'ok' });
                     });
                 }}
@@ -1297,7 +1297,7 @@ function ItemRow({
                         danger: true,
                       })
                     )
-                      mutate(() => writes.write({ type: 'withdraw' }));
+                      mutate(() => write({ type: 'withdraw' }));
                   }}
                 >
                   withdraw
@@ -1367,11 +1367,11 @@ function Editor({ item }: { item: Detail }) {
   const settings = useSettings();
   const sharing = useSharing();
   const action = useAction();
-  const writes = useMemo(() => draftWrites(item.id), [item.id]);
+  const write = useMemo(() => createDraftAction(item.id), [item.id]);
   const draft = useRef<Draft | null>(null);
   if (!draft.current) {
     draft.current = new Draft(item.content_md, async (text) => {
-      await writes.write({ type: 'save', text });
+      await write({ type: 'save', text });
     });
     const cleaned = stripStaleUploads(item.content_md);
     if (cleaned !== item.content_md) draft.current.edit(cleaned);
@@ -1381,7 +1381,7 @@ function Editor({ item }: { item: Detail }) {
   // The note the studio drafted (#40); `generated` is sent only while the
   // field still holds exactly that text — an edit makes the words the author's.
   const [drafted, setDrafted] = useState<string>();
-  const confirmNote = useNoteConfirm();
+  const confirmNote = useNoteConfirm(write);
   const [preview, setPreview] =
     useState<Awaited<ReturnType<typeof getPreview>>>();
   const [version, setVersion] = useState<Version>();
@@ -1456,7 +1456,7 @@ function Editor({ item }: { item: Detail }) {
       if (!(await save())) return;
       return fn();
     });
-  const switchKind = () => writes.write({ type: 'update', changes: {
+  const switchKind = () => write({ type: 'update', changes: {
     kind: item.authored_kind === 'fragment' ? 'thread' : 'fragment',
   } });
   const restore = async (version: number, discardChanges = false) => {
@@ -1478,7 +1478,7 @@ function Editor({ item }: { item: Detail }) {
     clearTimeout(saveTimer.current);
     setReplacing(true);
     try {
-      const restored = await writes.write({ type: 'restore', version });
+      const restored = await write({ type: 'restore', version });
       draft.current!.accept(restored.content_md);
       setText(restored.content_md);
       setSaved(true);
@@ -1498,7 +1498,7 @@ function Editor({ item }: { item: Detail }) {
     clearTimeout(saveTimer.current);
     setReplacing(true);
     try {
-      await writes.write({ type: 'delete' });
+      await write({ type: 'delete' });
       leaving.current = true;
       await navigate({ to: '/' });
       await changed('items');
@@ -1517,11 +1517,11 @@ function Editor({ item }: { item: Detail }) {
       }))
     )
       return;
-    operation(() => writes.write({ type: 'withdraw' }));
+    operation(() => write({ type: 'withdraw' }));
   };
   const generate = async (scope: number) => {
     const revision = draft.current!.revision;
-    const result = await writes.write({ type: 'generate', scope });
+    const result = await write({ type: 'generate', scope });
     // `text` is the scope's output alone; the draft is the whole document with
     // it spliced in, which the server has already saved. Replacing the draft
     // with `text` threw away everything around the scope (0.10.0–0.27.1).
@@ -1535,14 +1535,14 @@ function Editor({ item }: { item: Detail }) {
       }))
     )
       return;
-    await writes.write({ type: 'pin', version });
+    await write({ type: 'pin', version });
   };
   const publish = () =>
     operation(async () => {
       const choice = await confirmNote.request(item, note, drafted);
       if (!choice) return;
       const md = draft.current!.text;
-      const result = await writes.write({ type: 'publish', note: choice.note, generated: choice.generated });
+      const result = await write({ type: 'publish', note: choice.note, generated: choice.generated });
       // A note describes one change; it must not ride along on the next.
       setNote('');
       setDrafted(undefined);
@@ -1665,7 +1665,7 @@ function Editor({ item }: { item: Detail }) {
             className="btn btn-ghost btn-mini"
             onClick={() =>
               operation(async () => {
-                await writes.write({ type: 'update', changes: { stub_of: null } });
+                await write({ type: 'update', changes: { stub_of: null } });
               })
             }
           >
@@ -1804,7 +1804,7 @@ function Editor({ item }: { item: Detail }) {
                 title="Describe the change from the published version; you can edit it before publishing"
                 onClick={() =>
                   operation(async () => {
-                    const result = await writes.write({ type: 'draft-note' });
+                    const result = await write({ type: 'draft-note' });
                     setNote(result.note);
                     setDrafted(result.note);
                   })
@@ -1898,7 +1898,7 @@ function Editor({ item }: { item: Detail }) {
                     item.highlight === value
                       ? undefined
                       : operation(() =>
-                          writes.write({ type: 'update', changes: { highlight: value } }),
+                          write({ type: 'update', changes: { highlight: value } }),
                         )
                   }
                 >
