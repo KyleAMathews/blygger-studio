@@ -587,7 +587,7 @@ Each deployed blyg Worker has its own Anthropic key in its `AI_PROVIDER_KEY` sec
 project's **local config**; it adds to the base and never replaces it.
 
 **Ritual config**
-- **Log:** `status.md` (dated entry, non-skippable). Devlog: none.
+- **Log:** `../blygger-spec/DEVLOG.md` (the one program log for all four repos; dated entry, non-skippable).
 - **Startup extras (S5):** none
 - **Verification (W2):** tests plus a real click-through on a node; for key changes see the Anthropic-keys section above.
 - **Wrap-up extras (after W5):** none
