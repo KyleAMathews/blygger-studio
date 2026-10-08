@@ -387,7 +387,9 @@ export function createDraftAction(id?: string) {
     }
     // Finish read-back inside the handler, before another command starts.
     if (command.type === 'save' || command.type === 'update') items.utils.writeUpsert(sourceSchemas.items.parse({ ...result, pins: items.get(itemId!)?.pins }));
-    await changed(...(command.type === 'delete' ? ['items', 'reading'] : ['item', 'items', 'reading']));
+    // A delete caller refreshes after leaving the editor, so its active view
+    // does not report the discarded item as missing before navigation.
+    if (command.type !== 'delete') await changed('item', 'items', 'reading');
     return result;
   });
 }

@@ -1255,6 +1255,7 @@ function ItemRow({
                   )
                     void action.run(async () => {
                       await write({ type: 'delete' });
+                      await changed('items', 'reading');
                       toast('Draft discarded', { tone: 'ok' });
                     });
                 }}
@@ -1501,7 +1502,7 @@ function Editor({ item }: { item: Detail }) {
       await write({ type: 'delete' });
       leaving.current = true;
       await navigate({ to: '/' });
-      await changed('items');
+      await changed('items', 'reading');
       toast('Draft discarded', { tone: 'ok' });
     } finally {
       setReplacing(false);
