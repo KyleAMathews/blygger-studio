@@ -18,6 +18,22 @@ not have its own repo until session 26.
 
 ---
 
+## 0.36.1 — 2026-10-07
+
+**Migrations: none.**
+
+- **Webmention receiver: repeat claims and the verification queue.** The hourly
+  caps count rows, and a repeat claim for a source/target pair already stored
+  adds none, so the same POST could be sent without limit, each time spending
+  two outbound fetches and flipping a verified mention back to pending. A pair
+  claimed again within a minute is now refused with a 429, and the stored row
+  is left alone. A second cap refuses new claims while 30 are awaiting
+  verification (rows touched in the last ten minutes, so a row whose
+  verification died ages out). Both 429s now carry their own `Retry-After`
+  (the remaining cooldown, or five minutes) instead of a flat hour. The
+  per-host, per-domain and global hourly caps and the 30-day prune of failed
+  rows (0.4.1) are unchanged.
+
 ## 0.36.0 — 2026-10-07
 
 **Migrations: none.**

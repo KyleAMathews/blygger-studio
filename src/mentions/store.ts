@@ -40,6 +40,22 @@ export const INBOUND_DOMAIN_HOURLY_LIMIT = 120;
 export const INBOUND_GLOBAL_HOURLY_LIMIT = 300;
 
 /**
+ * The caps above all count rows, and a repeat claim for a pair already stored
+ * adds none: the same POST can be sent forever, each time spending two outbound
+ * fetches and flipping a verified mention back to pending. A pair claimed again
+ * inside this window is refused, naming the wait (roadmap row 11).
+ */
+export const INBOUND_PAIR_COOLDOWN_MS = 60_000;
+
+/**
+ * A cap on claims awaiting verification. Verification runs after the response
+ * and can die with it, leaving a row pending, so only rows touched within the
+ * window count: a wedged row ages out instead of closing the endpoint forever.
+ */
+export const INBOUND_PENDING_LIMIT = 30;
+export const INBOUND_PENDING_WINDOW_MS = 10 * 60_000;
+
+/**
  * How long a `failed` inbound row is kept (§9.1 gap 3). `failed` is the status
  * of a claim that never verified — there is no relationship to remember, unlike
  * `gone`, which is kept forever on purpose — and no view reads these rows: the
@@ -271,6 +287,19 @@ export async function recentInboundSources(db: D1Database, now: number = Date.no
   const cutoff = new Date(now - 60 * 60_000).toISOString();
   const rows = await db.prepare("SELECT source FROM mentions_in WHERE last_seen >= ?").bind(cutoff).all<{ source: string }>();
   return rows.results.map((r) => r.source);
+}
+
+/** When this exact source/target pair was last claimed, or null if never. */
+export async function pairLastSeen(db: D1Database, source: string, target: string): Promise<number | null> {
+  const row = await db.prepare("SELECT last_seen FROM mentions_in WHERE source = ? AND target = ?").bind(source, target).first<{ last_seen: string }>();
+  return row ? Date.parse(row.last_seen) : null;
+}
+
+/** Claims still awaiting verification that were touched inside the window. */
+export async function pendingInboundCount(db: D1Database, now: number = Date.now()): Promise<number> {
+  const cutoff = new Date(now - INBOUND_PENDING_WINDOW_MS).toISOString();
+  const row = await db.prepare("SELECT COUNT(*) AS n FROM mentions_in WHERE status = 'pending' AND last_seen >= ?").bind(cutoff).first<{ n: number }>();
+  return row?.n ?? 0;
 }
 
 /**

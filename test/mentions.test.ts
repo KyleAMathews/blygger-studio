@@ -24,8 +24,11 @@ import {
   INBOUND_DOMAIN_HOURLY_LIMIT,
   INBOUND_GLOBAL_HOURLY_LIMIT,
   INBOUND_HOURLY_LIMIT,
+  INBOUND_PENDING_LIMIT,
+  INBOUND_PENDING_WINDOW_MS,
   listOutbound,
   markInboundUnverified,
+  markInboundVerified,
   markOutbound,
   pruneFailedInbound,
   registrableDomain,
@@ -554,6 +557,8 @@ describe("receiving and structural verification (§2.3.5)", () => {
     for (let i = 0; i < INBOUND_HOURLY_LIMIT; i++) {
       await upsertInbound(env.DB, `https://flood.example/t/${i}/`, target, id, new Date(now).toISOString());
     }
+    // These rows stand for claims already resolved; the pending cap (row 11) is tested on its own.
+    await env.DB.prepare("UPDATE mentions_in SET status = 'failed' WHERE target_item_id = ?").bind(id).run();
     const res = await receiveMention(env.DB, { source: "https://flood.example/t/last/", target }, OURS, now);
     expect(res.status).toBe(429);
     // A different host is unaffected — the limit is per source host.
@@ -569,6 +574,8 @@ describe("receiving and structural verification (§2.3.5)", () => {
     for (let i = 0; i < INBOUND_DOMAIN_HOURLY_LIMIT; i++) {
       await upsertInbound(env.DB, `https://h${i}.spam.example/t/x/`, target, id, new Date(now).toISOString());
     }
+    // These rows stand for claims already resolved; the pending cap (row 11) is tested on its own.
+    await env.DB.prepare("UPDATE mentions_in SET status = 'failed' WHERE target_item_id = ?").bind(id).run();
     const res = await receiveMention(env.DB, { source: "https://h999.spam.example/t/x/", target }, OURS, now);
     expect(res.status).toBe(429);
     expect((res as { error: string }).error).toMatch(/domain/);
@@ -590,6 +597,39 @@ describe("receiving and structural verification (§2.3.5)", () => {
     expect((res as { error: string }).error).toMatch(/hourly limit/);
     // An hour later the window has rolled and the endpoint accepts again.
     const later = now + 61 * 60_000;
+    expect((await receiveMention(env.DB, { source: "https://newcomer.example/t/x/", target }, OURS, later)).status).toBe(202);
+  });
+
+  it("refuses the same pair claimed again within a minute, without touching the stored row (row 11)", async () => {
+    const { target } = await ourItem();
+    const now = Date.parse("2026-10-07T12:00:00Z");
+    const source = `${THEIRS}t/x/`;
+    const first = await receiveMention(env.DB, { source, target }, OURS, now);
+    expect(first.status).toBe(202);
+    const row = await getInbound(env.DB, (first as { mentionId: string }).mentionId);
+    await markInboundVerified(env.DB, row!.id, { relation: "stub", sourceOrigin: THEIRS, sourceId: "x", sourceKind: "thread", sourceVersion: 1, authorJson: null, sourcePage: source });
+    const again = await receiveMention(env.DB, { source, target }, OURS, now + 10_000);
+    expect(again.status).toBe(429);
+    expect((again as { retryAfter: number }).retryAfter).toBe(50);
+    // Still verified, attempts not bumped: the repeat cost nothing and changed nothing.
+    const after = await getInbound(env.DB, row!.id);
+    expect(after?.status).toBe("verified");
+    expect(after?.attempts).toBe(row?.attempts);
+    // After the cooldown it is accepted and re-verified as before.
+    expect((await receiveMention(env.DB, { source, target }, OURS, now + 61_000)).status).toBe(202);
+  });
+
+  it("caps claims awaiting verification, and a wedged pending row ages out of the count (row 11)", async () => {
+    const { id, target } = await ourItem();
+    const now = Date.parse("2026-10-07T12:00:00Z");
+    for (let i = 0; i < INBOUND_PENDING_LIMIT; i++) {
+      await upsertInbound(env.DB, `https://p${i}.example/t/x/`, target, id, new Date(now).toISOString());
+    }
+    const res = await receiveMention(env.DB, { source: "https://newcomer.example/t/x/", target }, OURS, now);
+    expect(res.status).toBe(429);
+    expect((res as { error: string }).error).toMatch(/awaiting verification/);
+    // Verified and failed rows do not count, only pending ones.
+    const later = now + INBOUND_PENDING_WINDOW_MS + 1000;
     expect((await receiveMention(env.DB, { source: "https://newcomer.example/t/x/", target }, OURS, later)).status).toBe(202);
   });
 
@@ -631,7 +671,7 @@ describe("receiving and structural verification (§2.3.5)", () => {
 
     const gone = sourceFixture({ id: src.id, stubTargetId: id, withdrawn: true });
     net = fixtureNet(gone.map);
-    const again = await receiveMention(env.DB, { source: src.page, target }, OURS);
+    const again = await receiveMention(env.DB, { source: src.page, target }, OURS, Date.now() + 2 * 60_000);
     expect((again as { mentionId: string }).mentionId).toBe(mentionId);
     await verifyMention(env.DB, mentionId, src.page, id, OURS, net.fetch);
     const row = await getInbound(env.DB, mentionId);

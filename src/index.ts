@@ -198,10 +198,10 @@ export function makeApp(mount: string) {
     // Never cacheable: the public sub-app stamps 60s on anything without a
     // Cache-Control, and a mention endpoint's answer is about one claim.
     c.header("Cache-Control", "no-store");
-    // A rate limit is a rolling hour, so an hour is the honest upper bound on
-    // when a slot frees — said in the header so a well-behaved sender waits
-    // instead of retrying into the cap.
-    if (outcome.status === 429) c.header("Retry-After", "3600");
+    // Said in the header so a well-behaved sender waits instead of retrying
+    // into the cap: an hour for the rolling-hour limits, less for a repeat
+    // claim or a full verification queue.
+    if (outcome.status === 429) c.header("Retry-After", String(outcome.retryAfter));
     if (outcome.status !== 202) return c.json({ error: outcome.error }, outcome.status);
     const { mentionId, source } = outcome;
     const itemId = (await c.env.DB.prepare("SELECT target_item_id FROM mentions_in WHERE id = ?").bind(mentionId).first<{ target_item_id: string }>())!
