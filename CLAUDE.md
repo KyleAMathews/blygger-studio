@@ -155,6 +155,10 @@ saying so.
 
 ## Status
 
+**0.36.1** (session 41, 2026-10-07): webmention receiver (roadmap row 11): the same source/target pair claimed again within 60 s is refused (429, stored row untouched; the hourly caps count rows, so repeats had escaped them and re-run verification), and new claims are refused while 30 are pending (rows touched in the last 10 min). Each 429 carries its own `Retry-After`. No migration.
+
+**0.36.0** (session 41, 2026-10-07): block-position detection treats document edges as blank lines, so a generated scope followed by one trailing newline renders as a block (row 2); `author_url` setting for `author.url`, blank = the blyg's own address (row 6); a `[[id]]` link takes the target's opening heading as its text (row 8). No migration.
+
 **0.32.2** (session 38, 2026-10-06): security fix for mention verification (#61): the item document must come from exactly `{origin}items/{id}.json`, so same-host path-mounted impostors and pinned stub files fail, and a target outside the mount is refused. TK sources come from the instruction only, and publish warns on an unrequested own-line directive in TK output (#60). `page` stability test (#56). No migrations.
 
 **0.32.1** (session 37, 2026-10-06): Kyle Mathews' #40, the D1 polling cache: Studio checks `/api/changes` revision counters (27 triggers, **migration 0024**) before reloading; `feed.xml` is served from R2 with ETags/304s, stale-while-revalidate, warmed by a minute cron. Three crons now (`* * * * *`, `*/15 * * * *`, `0 0 * * *`); a pre-0.32 `*/15`-only config still gets the daily work at 00:00 UTC. **0.32.0 was never released:** its 0024 used `SELECT CASE … END;` trigger guards, which D1's remote executor cuts at the first `END;` (local apply passes); `test/migration-remote-shape.test.ts` now rejects that shape. Before a D1 restore, see `docs/d1-polling-cache-operations.md`.
@@ -579,7 +583,7 @@ Deferred when the session wrapped, not blocked on anything.
 
 ## Anthropic keys for the production blygs (changed 2026-10-07)
 
-Each deployed blyg Worker has its own Anthropic key in its `AI_PROVIDER_KEY` secret (the name `models.json` maps to Anthropic): `blyg-venkateshrao` → `ANTHROPIC_KEY_BLYGS_VENKATESHRAO`, `blyg-blygger-org` → `ANTHROPIC_KEY_BLYGS_BLYGGER_ORG` (**new** — it had no AI key before, so [TK] generation is now available there), `blyg-protocol-institute` → `ANTHROPIC_KEY_BLYGS_PI` (PI account, PI workspace). All three live in `Code/.env.keys` / `protocol-institute/.env.keys`, service account `blygs`, one single-workspace key each. Coding/dev work uses `ANTHROPIC_KEY_BLYGGER`. **Not yet exercised:** run one [TK] generation in each blyg and confirm in the Console that the matching key shows usage. Set secrets with `wrangler secret put AI_PROVIDER_KEY --name <worker>` (explicit `--name`; see `Code/warnings-node.md`). Plan: `Code/anthropic-key-plan.md`.
+Each deployed blyg Worker has its own Anthropic key in its `AI_PROVIDER_KEY` secret (the name `models.json` maps to Anthropic): `blyg-venkateshrao` → `ANTHROPIC_KEY_BLYGS_VENKATESHRAO`, `blyg-blygger-org` → `ANTHROPIC_KEY_BLYGS_BLYGGER_ORG` (**new** — it had no AI key before, so [TK] generation is now available there), `blyg-protocol-institute` → `ANTHROPIC_KEY_BLYGS_PI` (PI account, PI workspace). All three live in `Code/.env.keys` / `protocol-institute/.env.keys`, service account `blygs`, one single-workspace key each. Coding/dev work uses `ANTHROPIC_KEY_BLYGGER`. **Exercised 2026-10-07 (session 41):** one [TK] generation per blyg succeeded on all three (the official blyg first needed `ai_model_tk` set to `claude-sonnet-5-5`); the Console usage check per key is Venkat's. Set secrets with `wrangler secret put AI_PROVIDER_KEY --name <worker>` (explicit `--name`; see `Code/warnings-node.md`). Plan: `Code/anthropic-key-plan.md`.
 
 ## Session rituals
 
