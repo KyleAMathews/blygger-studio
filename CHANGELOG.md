@@ -18,6 +18,25 @@ not have its own repo until session 26.
 
 ---
 
+## 0.36.0 — 2026-10-07
+
+**Migrations: none.**
+
+- **A generated block at the end of a post renders as a block.** A scope
+  followed by a single trailing newline (or preceded by a leading one) was
+  taken as sharing a paragraph with prose, so its disclosure rendered inline.
+  The edges of the document now count as blank lines, whitespace and one
+  newline included. `publish_blyg.py` had worked around this by stripping the
+  final newline; the workaround is no longer needed.
+- **Author URL in settings.** `author.url` in item documents was always the
+  blyg's own address. A new `author_url` setting (Settings → profile) sets it;
+  blank keeps the old behaviour. Must be an absolute http(s) URL.
+- **`[[id]]` links take a heading as their text.** When the target opens with
+  a heading (a thread's H1 is its title by convention) the link reads as that
+  heading, in plain text; otherwise the quoted excerpt is used as before.
+  Frozen into `content_html` at publish, so existing posts are unchanged until
+  republished.
+
 ## 0.35.1 — 2026-10-07
 
 **Migrations: none.**

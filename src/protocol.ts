@@ -50,7 +50,7 @@ function withCited<T extends object>(ref: T | null, citeJson: string | null): T 
 }
 
 function author(settings: Settings, origin: string) {
-  return { name: settings.author_name, url: origin };
+  return { name: settings.author_name, url: settings.author_url || origin };
 }
 
 /** §2.3 item JSON. Only the latest published version's content is served. */

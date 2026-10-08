@@ -19,6 +19,7 @@ const fields = [
   'site_title',
   'theme',
   'author_name',
+  'author_url',
   'author_bio',
   'author_links',
   'site_url',
@@ -101,6 +102,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
     key:
       | 'site_title'
       | 'author_name'
+      | 'author_url'
       | 'author_bio'
       | 'site_url'
       | 'ai_style_prompt'
@@ -189,6 +191,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
         <h3 className="card-h">profile</h3>
         {field('site_title', 'Site title')}
         {field('author_name', 'Author name')}
+        {field('author_url', 'Author URL', false, 'blank = this blyg\'s own address')}
         {field('author_bio', 'Bio', true)}
         <div className="field">
           <label htmlFor="author_links">

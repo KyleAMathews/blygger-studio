@@ -85,8 +85,10 @@ export function unrequestedOutputDirectives(contentMd: string): string[] {
   return found;
 }
 
-const BLANK_BEFORE = /(^|\n[ \t]*\n)[ \t]*$/;
-const BLANK_AFTER = /^[ \t]*(\n[ \t]*\n|$)/;
+// Document edges count as blank lines even with stray whitespace or one newline
+// between the scope and the edge (roadmap row 2): editors commonly end a post with "\n".
+const BLANK_BEFORE = /(^\s*|\n[ \t]*\n)[ \t]*$/;
+const BLANK_AFTER = /^[ \t]*(\n[ \t]*\n|\s*$)/;
 
 function isBlockPosition(contentMd: string, start: number, end: number): boolean {
   return BLANK_BEFORE.test(contentMd.slice(0, start)) && BLANK_AFTER.test(contentMd.slice(end));

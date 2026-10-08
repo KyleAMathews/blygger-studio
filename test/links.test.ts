@@ -133,3 +133,40 @@ describe("[[id]] and ![[id]] are one `!` and two different acts apart", () => {
     expect(body.link_errors[0].reason).toBe("unknown item");
   });
 });
+
+describe("[[id]] link text (roadmap row 8)", () => {
+  it("takes the target's opening heading as the link text", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    const created = await apiJson(cookie, "POST", "/api/items", { kind: "thread", content_md: "# How protocols eat time\n\nThe body of the argument." });
+    const target = created.json.id as string;
+    expect((await apiJson(cookie, "POST", `/api/items/${target}/publish`, {})).status).toBe(200);
+    const linker = (await apiJson(cookie, "POST", "/api/items", { content_md: `See [[${target}]] for more.` })).json.id as string;
+    expect((await apiJson(cookie, "POST", `/api/items/${linker}/publish`, {})).status).toBe(200);
+    const html = (await itemDoc(linker)).content_html as string;
+    expect(html).toContain(`<a href="${OURS}t/${target}/">How protocols eat time</a>`);
+  });
+
+  it("keeps the quoted excerpt when the target has no heading", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    const target = await createAndPublish(cookie, "A plain fragment with no heading.");
+    const linker = (await apiJson(cookie, "POST", "/api/items", { content_md: `See [[${target}]].` })).json.id as string;
+    expect((await apiJson(cookie, "POST", `/api/items/${linker}/publish`, {})).status).toBe(200);
+    expect((await itemDoc(linker)).content_html).toContain("“A plain fragment with no heading.”");
+  });
+});
+
+describe("author_url setting (roadmap row 6)", () => {
+  it("defaults to the blyg's own address, can be set, and rejects non-http(s)", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS, author_url: "" });
+    expect((await apiJson(cookie, "PATCH", "/api/settings", { author_url: "javascript:alert(1)" })).status).toBe(400);
+    const id = await createAndPublish(cookie, "A post.");
+    expect((await itemDoc(id)).author.url).toBe(OURS);
+    expect((await apiJson(cookie, "PATCH", "/api/settings", { author_url: "https://author.example/me" })).status).toBe(200);
+    const id2 = await createAndPublish(cookie, "Another post.");
+    expect((await itemDoc(id2)).author.url).toBe("https://author.example/me");
+    await apiJson(cookie, "PATCH", "/api/settings", { author_url: "" });
+  });
+});

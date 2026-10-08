@@ -369,6 +369,8 @@ export interface Settings {
   /** Reading theme for the public pages — a key of THEMES, or "auto" to follow the reader's system preference. */
   theme: string;
   author_name: string;
+  /** Where the author is found on the web (§2.3 `author.url`); empty = the blyg's own address. */
+  author_url: string;
   author_bio: string;
   author_links: AuthorLink[];
   /** Canonical origin (full base URL incl. any mount path, e.g. https://example.com/blyg/); empty = derive from request origin + MOUNT. */

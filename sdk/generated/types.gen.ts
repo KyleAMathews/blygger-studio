@@ -94,6 +94,7 @@ export type Settings = {
     site_title: string;
     theme: string;
     author_name: string;
+    author_url: string;
     author_bio: string;
     author_links: Array<{
         label: string;
@@ -1739,6 +1740,7 @@ export type UpdateSettingsData = {
         site_title?: string;
         theme?: string;
         author_name?: string;
+        author_url?: string;
         author_bio?: string;
         author_links?: Array<{
             label: string;

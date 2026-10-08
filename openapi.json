@@ -431,6 +431,9 @@
           "author_name": {
             "type": "string"
           },
+          "author_url": {
+            "type": "string"
+          },
           "author_bio": {
             "type": "string"
           },
@@ -513,6 +516,7 @@
           "site_title",
           "theme",
           "author_name",
+          "author_url",
           "author_bio",
           "author_links",
           "site_url",
@@ -5079,6 +5083,9 @@
                     "type": "string"
                   },
                   "author_name": {
+                    "type": "string"
+                  },
+                  "author_url": {
                     "type": "string"
                   },
                   "author_bio": {

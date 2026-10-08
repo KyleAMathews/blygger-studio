@@ -86,6 +86,7 @@ export async function getSettings(db: D1Database): Promise<Settings> {
     site_title: map.site_title || defaultSiteTitle(map.site_url),
     theme: map.theme ?? "auto",
     author_name: map.author_name ?? "",
+    author_url: map.author_url ?? "",
     author_bio: map.author_bio ?? "",
     author_links: links,
     site_url: map.site_url ?? "",

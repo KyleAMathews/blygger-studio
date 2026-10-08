@@ -274,3 +274,18 @@ describe("previewStrip — studio preview, non-throwing (task 6)", () => {
     expect(text.slice(spans[0].start, spans[0].end)).toBe(text.trim().split("\n\n")[1]);
   });
 });
+
+describe("block position with surrounding whitespace (roadmap row 2)", () => {
+  it("a scope followed by a trailing newline is still block", () => {
+    expect(parseScopes("Intro.\n\n[TK]write one line[=]Done.[/TK]\n").scopes[0].block).toBe(true);
+  });
+  it("a scope preceded by a leading newline is still block", () => {
+    expect(parseScopes("\n[TK]write one line[=]Done.[/TK]\n\nOutro.").scopes[0].block).toBe(true);
+  });
+  it("a scope followed by trailing spaces and blank lines is block", () => {
+    expect(parseScopes("Intro.\n\n[TK]x[=]Done.[/TK]  \n\n\n").scopes[0].block).toBe(true);
+  });
+  it("prose on the next line is still inline", () => {
+    expect(parseScopes("Intro.\n\n[TK]x[=]Done.[/TK]\nmore prose").scopes[0].block).toBe(false);
+  });
+});

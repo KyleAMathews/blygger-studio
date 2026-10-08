@@ -450,6 +450,7 @@ const SETTINGS_KEYS = [
   "site_title",
   "theme",
   "author_name",
+  "author_url",
   "author_bio",
   "site_url",
   "avatar_media_id",
@@ -480,6 +481,7 @@ api.openapi(routes.updateSettings, async (c) => {
   }
   if (typeof patch.picker_typing === "string" && !["auto", "editor", "panel"].includes(patch.picker_typing)) return c.json({ error: "picker_typing must be auto, editor or panel" }, 400);
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return c.json({ error: `unknown timezone: ${patch.timezone}` }, 400);
+  if (patch.author_url && !(URL.canParse(patch.author_url) && ["http:", "https:"].includes(new URL(patch.author_url).protocol))) return c.json({ error: "author_url must be an absolute http(s) URL" }, 400);
   if (patch.site_url && !(URL.canParse(patch.site_url) && ["http:", "https:"].includes(new URL(patch.site_url).protocol))) return c.json({ error: "site_url must be an absolute http(s) URL" }, 400);
   if (Array.isArray(body.author_links)) {
     const links = body.author_links as { label?: unknown; url?: unknown }[];

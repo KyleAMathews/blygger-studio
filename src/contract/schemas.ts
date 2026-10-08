@@ -149,6 +149,7 @@ export const SettingsSchema = z.object({
   site_title: z.string(),
   theme: z.string(),
   author_name: z.string(),
+  author_url: z.string(),
   author_bio: z.string(),
   author_links: z.array(z.object({ label: z.string(), url: z.string() })),
   site_url: z.string(),

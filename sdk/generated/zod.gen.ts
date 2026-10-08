@@ -108,6 +108,7 @@ export const zSettings = z.object({
     site_title: z.string(),
     theme: z.string(),
     author_name: z.string(),
+    author_url: z.string(),
     author_bio: z.string(),
     author_links: z.array(z.object({
         label: z.string(),
@@ -749,6 +750,7 @@ export const zUpdateSettingsBody = z.object({
     site_title: z.string().optional(),
     theme: z.string().optional(),
     author_name: z.string().optional(),
+    author_url: z.string().optional(),
     author_bio: z.string().optional(),
     author_links: z.array(z.object({
         label: z.string(),

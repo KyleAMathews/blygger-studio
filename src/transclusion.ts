@@ -422,12 +422,17 @@ export interface InternalLinkDocument {
 
 /**
  * The anchor's text. Items are titleless by design (§5.3), so an id would be
- * the one label guaranteed to mean nothing to a reader — this uses a short
- * excerpt of the target in quotes, which reads as a citation inside running
- * prose. Presentation, and ours to choose (§16.2); it is frozen into
- * `content_html` at publish like every other rendered thing.
+ * the one label guaranteed to mean nothing to a reader. When the target opens
+ * with a heading (a thread's markdown H1 is its title by convention) that
+ * heading is the label, as plain text; otherwise this uses a short excerpt of
+ * the target in quotes, which reads as a citation inside running prose.
+ * Presentation, and ours to choose (§16.2); it is frozen into `content_html`
+ * at publish like every other rendered thing.
  */
 function anchorText(target: ResolvedTarget): string {
+  const heading = /^\s*<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/i.exec(target.contentHtml);
+  const title = heading ? excerptFromHtml(heading[1], 80) : "";
+  if (title) return title;
   const excerpt = excerptFromHtml(target.contentHtml, 60);
   return excerpt ? `“${excerpt}”` : `${target.kind === "thread" ? "a thread" : "a fragment"}`;
 }
