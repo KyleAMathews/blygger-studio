@@ -155,6 +155,8 @@ saying so.
 
 ## Status
 
+**0.41.1** (session 45, 2026-10-10): TK grammar quoted in code inside a scope is text (#68; every token search in `parseScopes` skips code, found when a changelog quoting `[TK]` failed to publish inside an impyrt scope); the public AI box's source links take `--pencil`. **CI reworked (#67, #69):** parallel jobs, `scripts/ci-scope.ts` scopes a PR's e2e and mutation suites to the files it touches, every `main` push runs everything in its own concurrency group, and Release publishes after the tagged commit's green Check instead of rerunning the suite (first used for v0.41.1). No migration. Deployed to all three nodes.
+
 **0.41.0** (session 44, 2026-10-10): **remote generation sources** (decision #44, gate G8): a [TK] scope draws on any item a directive may name (own threads, imported items), resolved by `resolveTarget`; remote sources carry `origin` + a frozen `cited` and send a mention verified as **`source`**; imports keep `generated` (**migration 0027**, `imported_items.generated_json`, with the change trigger recreated); a *source* picker inside TK instructions; preview scopes carry `sources`. **`PROTOCOL_VERSION` is `"0.4"`.** Exercised live PI → venkateshrao (ids in the devlog).
 
 **0.40.0** (session 44, 2026-10-10): six contributor PRs — #64 composer caret (the `compose-pwa:179` flake), #61 `GET /api/reading/imported`, #62 YouTube posters and failed-image links, #60 Workers AI and OpenAI-compatible providers, #53 lineage-glyph extension (operator-compiled), #58 custom theme and reading typeface. No migration. Not deployed on its own.
