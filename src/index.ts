@@ -90,7 +90,7 @@ export function makeApp(mount: string) {
   // strict:false: serves both {mount} and {mount}/ (and "/" at root mount).
   pub.get("/", async (c) => {
     const settings = await getSettings(c.env.DB);
-    const items = await listHomeItems(c.env.DB, settings.feed_order, FEED_PAGE_SIZE + 1);
+    const items = await listHomeItems(c.env.DB, settings, FEED_PAGE_SIZE + 1);
     const hasMore = items.length > FEED_PAGE_SIZE;
     return c.html(await feedPage(c.env.DB, settings, items.slice(0, FEED_PAGE_SIZE), hasMore, mount, siteOrigin(settings, c.req.url, mount)));
   });

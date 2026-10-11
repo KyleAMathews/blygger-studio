@@ -154,6 +154,11 @@ export const zSettings = z.object({
         'panel'
     ]),
     feed_order: z.string(),
+    feed_orders: z.array(z.object({
+        id: z.string(),
+        title: z.string(),
+        description: z.string()
+    })).optional(),
     update_feed_url: z.string(),
     update_notice_ack: z.boolean(),
     extensions: z.array(z.string())
@@ -891,6 +896,11 @@ export const zUpdateSettingsBody = z.object({
         'panel'
     ]).optional(),
     feed_order: z.string().optional(),
+    feed_orders: z.array(z.object({
+        id: z.string(),
+        title: z.string(),
+        description: z.string()
+    })).optional(),
     update_feed_url: z.string().optional(),
     update_notice_ack: z.boolean().optional(),
     extensions: z.array(z.string()).optional()

@@ -14,7 +14,7 @@
 import { routes as lineageGlyph } from "./lineage-glyph/contract.ts";
 
 /** Names: lowercase, digits and hyphens; also the directory under extensions/ and the /api/ext/<name>/ prefix. */
-export const EXTENSIONS = ["example", "inspect", "lineage-glyph", "reading-time"] as const;
+export const EXTENSIONS = ["example", "feed-example", "inspect", "lineage-glyph", "reading-time"] as const;
 export type ExtensionName = (typeof EXTENSIONS)[number];
 
 /** Read routes contributed by extensions, keyed by operationId (see src/extensions/contract.ts). */

@@ -127,9 +127,17 @@ export type Settings = {
     auto_change_notes: boolean;
     picker_typing: 'auto' | 'editor' | 'panel';
     /**
-     * The public home page order: an algorithm id from the node's feed registry (pace-layered or reverse-chronological in core).
+     * The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>.
      */
     feed_order: string;
+    /**
+     * Read-only: the home page orders this node can use now (core, plus enabled extensions').
+     */
+    feed_orders?: Array<{
+        id: string;
+        title: string;
+        description: string;
+    }>;
     update_feed_url: string;
     update_notice_ack: boolean;
     /**
@@ -1929,9 +1937,17 @@ export type UpdateSettingsData = {
         auto_change_notes?: boolean;
         picker_typing?: 'auto' | 'editor' | 'panel';
         /**
-         * The public home page order: an algorithm id from the node's feed registry (pace-layered or reverse-chronological in core).
+         * The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>.
          */
         feed_order?: string;
+        /**
+         * Read-only: the home page orders this node can use now (core, plus enabled extensions').
+         */
+        feed_orders?: Array<{
+            id: string;
+            title: string;
+            description: string;
+        }>;
         update_feed_url?: string;
         update_notice_ack?: boolean;
         /**

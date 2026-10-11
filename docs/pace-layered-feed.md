@@ -17,7 +17,7 @@ Time is counted in **ticks**: one tick each time a new item enters the feed.
   `2^-n` per tick. The six layers take Brand's pace-layer names: fashion, commerce,
   infrastructure, governance, culture, nature. More pins, deeper layer, slower sinking.
 - **Weight.** An item's own pinned versions, plus half the weight of each item that
-  quotes it in a pinned version, recursively (halved again per hop; cycles cut).
+  quotes it in a pinned version, recursively (halved again per hop, out to six hops, so a cycle adds a little and fades).
   A pin on a thread freezes what it quotes, so it is evidence that the quoted item
   matters. The other direction (a thread inheriting from what it quotes) would reward
   quoting popular things, so it does not count.

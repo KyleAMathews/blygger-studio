@@ -530,7 +530,30 @@
           },
           "feed_order": {
             "type": "string",
-            "description": "The public home page order: an algorithm id from the node's feed registry (pace-layered or reverse-chronological in core)."
+            "description": "The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>."
+          },
+          "feed_orders": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "description"
+              ]
+            },
+            "description": "Read-only: the home page orders this node can use now (core, plus enabled extensions')."
           },
           "update_feed_url": {
             "type": "string"
@@ -5757,7 +5780,30 @@
                   },
                   "feed_order": {
                     "type": "string",
-                    "description": "The public home page order: an algorithm id from the node's feed registry (pace-layered or reverse-chronological in core)."
+                    "description": "The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>."
+                  },
+                  "feed_orders": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "description"
+                      ]
+                    },
+                    "description": "Read-only: the home page orders this node can use now (core, plus enabled extensions')."
                   },
                   "update_feed_url": {
                     "type": "string"

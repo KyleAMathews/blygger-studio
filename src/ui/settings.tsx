@@ -55,7 +55,7 @@ const fields = [
   'extensions',
 ] as const;
 function editable(row: Settings): Settings {
-  return Object.fromEntries(fields.map((key) => [key, row[key]])) as Settings;
+  return Object.fromEntries(fields.map((key) => [key, row[key]])) as unknown as Settings;
 }
 function parseLinks(text: string): Settings['author_links'] {
   return text
@@ -440,7 +440,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
         <h3 className="card-h">home page</h3>
         <div className="field" role="radiogroup" aria-labelledby="feed_order-label">
           <span id="feed_order-label">Order of your public home page</span>
-          {FEED_ALGORITHMS.map((algorithm) => (
+          {(initial.feed_orders ?? FEED_ALGORITHMS).map((algorithm) => (
             <label className="check" key={algorithm.id}>
               <input
                 type="radio"
@@ -457,7 +457,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
             </label>
           ))}
           <span className="hint">
-            Feeds and the archive stay newest first whichever you choose.
+            Feeds and the archive stay newest first whichever you choose. An
+            extension that adds an order shows it here once it is enabled and
+            saved.
           </span>
         </div>
       </section>

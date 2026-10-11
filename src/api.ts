@@ -1,5 +1,5 @@
 import { isFont } from "./fonts.ts";
-import { FEED_ALGORITHMS } from "./feeds/index.ts";
+import { availableFeedAlgorithms, feedOrderChoices } from "./feeds/available.ts";
 import { CUSTOM_THEME_ID, pairError, themeNameError, validateCustomTheme, type CustomTheme } from "./themes.ts";
 import { itemResource } from "./contract/resources.ts";
 import { itemUrl, storedSurface } from "./surface.ts";
@@ -488,7 +488,6 @@ api.openapi(routes.updateSettings, async (c) => {
     if (typeof body[key] === "boolean") patch[key] = body[key] ? "on" : "off";
   }
   if (typeof patch.picker_typing === "string" && !["auto", "editor", "panel"].includes(patch.picker_typing)) return c.json({ error: "picker_typing must be auto, editor or panel" }, 400);
-  if (typeof patch.feed_order === "string" && !FEED_ALGORITHMS.some((a) => a.id === patch.feed_order)) return c.json({ error: `feed_order must be one of ${FEED_ALGORITHMS.map((a) => a.id).join(", ")}` }, 400);
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return c.json({ error: `unknown timezone: ${patch.timezone}` }, 400);
   if (patch.author_url && !(URL.canParse(patch.author_url) && ["http:", "https:"].includes(new URL(patch.author_url).protocol))) return c.json({ error: "author_url must be an absolute http(s) URL" }, 400);
   if (patch.site_url && !(URL.canParse(patch.site_url) && ["http:", "https:"].includes(new URL(patch.site_url).protocol))) return c.json({ error: "site_url must be an absolute http(s) URL" }, 400);
@@ -503,6 +502,12 @@ api.openapi(routes.updateSettings, async (c) => {
     const unknown = names.filter((name) => typeof name !== "string" || !compiledExtensionNames.includes(name));
     if (unknown.length) return c.json({ error: `not an extension compiled into this build: ${unknown.map(String).join(", ")}` }, 400);
     patch.extensions = JSON.stringify([...new Set(names as string[])].sort());
+  }
+  if (typeof patch.feed_order === "string") {
+    // Against the extensions as they will be after this patch.
+    const enabled = patch.extensions ? (JSON.parse(patch.extensions) as string[]) : (await getSettings(c.env.DB)).extensions;
+    const ids = availableFeedAlgorithms(enabled).map((a) => a.id);
+    if (!ids.includes(patch.feed_order)) return c.json({ error: `feed_order must be one of ${ids.join(", ")}` }, 400);
   }
   if (typeof patch.font === "string" && !isFont(patch.font)) return c.json({ error: `unknown font: ${patch.font}` }, 400);
   if (typeof patch.custom_theme_name === "string") {
@@ -539,5 +544,6 @@ api.openapi(routes.updateSettings, async (c) => {
     if (incoherent) return c.json({ error: incoherent }, 400);
   }
   await putSettings(c.env.DB, patch);
-  return c.json(await getSettings(c.env.DB));
+  const saved = await getSettings(c.env.DB);
+  return c.json({ ...saved, feed_orders: feedOrderChoices(saved.extensions) });
 });

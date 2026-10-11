@@ -12,6 +12,7 @@ import { layerFor, paceLayeredOrder, pinWeights } from "../src/feeds/pace-layere
 import { reverseChronological } from "../src/feeds/reverse-chronological.ts";
 import type { FeedHistory, FeedHistoryItem } from "../src/feeds/types.ts";
 import migration0029 from "../migrations/0029_feed_order.sql?raw";
+import { listHomeItems } from "../src/public-feed.ts";
 import { apiJson, BASE, createAndPublish, login } from "./helpers.ts";
 
 type Fixture = { description: string; history: FeedHistory; expected: string[] };
@@ -149,5 +150,46 @@ describe("migration 0029", () => {
     await env.DB.prepare(migration0029).run();
     const published = await env.DB.prepare("SELECT value FROM settings WHERE key = 'feed_order'").first<{ value: string }>();
     expect({ fresh, published: published?.value }).toEqual({ fresh: null, published: "reverse-chronological" });
+  });
+});
+
+describe("feed orders from extensions", () => {
+  it("are offered only while their extension is enabled, and fall back to the default after", async () => {
+    const cookie = await login();
+    const ids = async () => ((await apiJson(cookie, "GET", "/api/settings")).json.feed_orders as { id: string }[]).map((o) => o.id);
+    await apiJson(cookie, "PATCH", "/api/settings", { extensions: [] });
+    expect(await ids()).toEqual(["pace-layered", "reverse-chronological"]);
+    expect((await apiJson(cookie, "PATCH", "/api/settings", { feed_order: "feed-example/pins-first" })).status).toBe(400);
+    // One request may enable the extension and choose its order.
+    expect((await apiJson(cookie, "PATCH", "/api/settings", { extensions: ["feed-example"], feed_order: "feed-example/pins-first" })).status).toBe(200);
+    expect(await ids()).toContain("feed-example/pins-first");
+
+    const plain = await createAndPublish(cookie, "unpinned, newer");
+    const pinned = await createAndPublish(cookie, "pinned, older");
+    await retime(pinned, 1, 1);
+    await retime(plain, 1, 2);
+    expect((await apiJson(cookie, "PUT", `/api/items/${pinned}/versions/1/pin`)).status).toBe(200);
+    expect(await homeOrder([plain, pinned])).toEqual([pinned, plain]);
+
+    await apiJson(cookie, "PATCH", "/api/settings", { extensions: [] });
+    expect((await apiJson(cookie, "GET", "/api/settings")).json.feed_order).toBe("feed-example/pins-first");
+    expect((await SELF.fetch(`${BASE}/blyg/`)).status).toBe(200); // served by the default, not an error
+  });
+
+  it("only order: drafts, withdrawn items, repeats and unknown ids never reach the page", async () => {
+    const cookie = await login();
+    const shown = await createAndPublish(cookie, "published");
+    const draft = (await apiJson(cookie, "POST", "/api/items", { content_md: "a draft" })).json.id as string;
+    const withdrawn = await createAndPublish(cookie, "withdrawn soon");
+    expect((await apiJson(cookie, "POST", `/api/items/${withdrawn}/withdraw`)).status).toBe(200);
+    const rogue = { name: "rogue", routes() {}, feeds: [{ id: "rogue/all", title: "", description: "", order: () => [draft, withdrawn, "nonexistent", shown, shown] }] };
+    const items = await listHomeItems(env.DB, { feed_order: "rogue/all", extensions: ["rogue"] }, 10, [rogue]);
+    expect(items.map((i) => i.id)).toEqual([shown]);
+  });
+
+  it("an extension cannot claim an id outside its own name", async () => {
+    const squatter = { name: "squat", routes() {}, feeds: [{ id: "pace-layered", title: "", description: "", order: () => [] }] };
+    const items = await listHomeItems(env.DB, { feed_order: "pace-layered", extensions: ["squat"] }, 100, [squatter]);
+    expect(items.length).toBeGreaterThan(0); // the core order ran, not the squatter's empty one
   });
 });

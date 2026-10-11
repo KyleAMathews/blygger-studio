@@ -1,6 +1,7 @@
 import type { ItemRow, MediaRow, VersionRow, Transclusion } from "./types.ts";
-import { feedAlgorithm } from "./feeds/index.ts";
+import { availableFeedAlgorithms, resolveFeedAlgorithm } from "./feeds/available.ts";
 import { loadFeedHistory } from "./feeds/history.ts";
+import type { ServerExtension } from "./extensions/server.ts";
 import { reverseChronological } from "./feeds/reverse-chronological.ts";
 
 export type FeedItem = Pick<ItemRow, "id" | "kind" | "created" | "updated" | "version" | "forked_from" | "fork_cite" | "highlight_override">;
@@ -16,15 +17,19 @@ export async function listFeedItems(db: D1Database, limit: number): Promise<Feed
  * The home page's items in the order the `feed_order` setting names. Newest
  * first keeps its single indexed query; any other order replays the blyg's
  * history (src/feeds) and reads back only the cards it will show.
+ *
+ * An order only orders. Whatever ids it returns, the page shows published
+ * items once each and renders them itself, so an extension's order cannot put
+ * a draft, a withdrawn item or anything of its own on a public page.
  */
-export async function listHomeItems(db: D1Database, feedOrder: string, limit: number): Promise<FeedItem[]> {
-  const algorithm = feedAlgorithm(feedOrder);
+export async function listHomeItems(db: D1Database, settings: { feed_order: string; extensions: readonly string[] }, limit: number, extensions?: readonly ServerExtension[]): Promise<FeedItem[]> {
+  const algorithm = resolveFeedAlgorithm(settings.feed_order, availableFeedAlgorithms(settings.extensions, extensions));
   if (algorithm.id === reverseChronological.id) return listFeedItems(db, limit);
-  const ids = algorithm.order(await loadFeedHistory(db)).slice(0, limit);
+  const ids = [...new Set(algorithm.order(await loadFeedHistory(db)))];
   if (!ids.length) return [];
   return (await db.prepare(`SELECT i.id, i.kind, i.created, i.updated, i.version, i.forked_from, i.fork_cite, i.highlight_override
-    FROM json_each(?) s JOIN items i ON i.id = s.value ORDER BY s.key`)
-    .bind(JSON.stringify(ids)).all<FeedItem>()).results;
+    FROM json_each(?) s JOIN items i ON i.id = s.value WHERE i.status = 'public' ORDER BY s.key LIMIT ?`)
+    .bind(JSON.stringify(ids), limit).all<FeedItem>()).results;
 }
 
 export interface FeedProvenance {

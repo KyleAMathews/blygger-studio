@@ -13,7 +13,3 @@ export type { FeedAlgorithm, FeedHistory, FeedHistoryItem, FeedVersion } from ".
 export const FEED_ALGORITHMS: readonly FeedAlgorithm[] = [paceLayered, reverseChronological];
 
 export const DEFAULT_FEED_ORDER = paceLayered.id;
-
-/** The algorithm a setting names; an unknown id (say, a removed extension's) falls back to the default. */
-export const feedAlgorithm = (id: string): FeedAlgorithm =>
-  FEED_ALGORITHMS.find((algorithm) => algorithm.id === id) ?? paceLayered;
