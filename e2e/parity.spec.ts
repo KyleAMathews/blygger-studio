@@ -57,7 +57,7 @@ for (const kind of ['fragment', 'thread'] as const) test(`${kind} discard change
   await editorMenu(page, 'discard changes');
   await answerSheet(page, { name: /^Discard unpublished changes and go back to the published v1\?/ });
   await expect(page.locator('#md-input')).toHaveValue('published text');
-  expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ version: 1, dirty: true, content_md: 'published text' });
+  expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ version: 1, dirty: false, content_md: 'published text' }); // clean since session 46: discard restores the published version whole
   await expect(page.locator('[data-action=view-version]')).toHaveCount(1);
 });
 test('quick edit retains markdown and persists without leaving compose', async ({ page }) => {
