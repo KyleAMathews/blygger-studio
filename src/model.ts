@@ -418,8 +418,10 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
     db.prepare(
       "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0),
-    db.prepare("UPDATE items SET status = 'public', kind = ?, version = ?, dirty = 0, updated = ? WHERE id = ?")
-      .bind(kind, version, now, item.id),
+    // The agreed citation goes back into the working copy as well, or the copy
+    // keeps citing the older version and differs from what it just published.
+    db.prepare("UPDATE items SET status = 'public', kind = ?, version = ?, dirty = 0, updated = ?, stub_of = ? WHERE id = ?")
+      .bind(kind, version, now, stubJson, item.id),
   ]);
   // The owner's private interaction log (src/interactions.ts): stubs, forks and
   // quotes of other blygs' items that this version newly makes.
@@ -482,6 +484,15 @@ export class RestoreVersionError extends Error {}
  * scopes, and the provenance cache is positionally aligned to scope order —
  * keeping it would misattribute generation records to scopes that no longer
  * exist.
+ *
+ * Restoring the **current** version is "discard changes", and there the
+ * working copy becomes that version whole: its stub citation comes back too
+ * (publish version-agrees the citation, §2.2, so the published one can be
+ * ahead of the working copy's), and the copy is clean again — unless the
+ * version disclosed generated text, whose provenance a restore cannot carry
+ * back (`holdsPublishedWords`). Before this, discard left `dirty` set and the
+ * old citation in place, so a stub whose quote had moved on showed
+ * "unpublished changes" that neither discard nor publish could clear.
  */
 export async function restoreVersion(db: D1Database, item: ItemRow, version: number): Promise<void> {
   const row = await getVersion(db, item.id, version);
@@ -489,9 +500,10 @@ export async function restoreVersion(db: D1Database, item: ItemRow, version: num
   if (!row.content_md) {
     throw new RestoreVersionError(`v${version} is a withdrawal endcap and has no content to restore`);
   }
+  const discard = version === item.version;
   await db
-    .prepare("UPDATE items SET content_md = ?, tk_provenance_json = NULL, dirty = 1 WHERE id = ?")
-    .bind(row.content_md, item.id)
+    .prepare("UPDATE items SET content_md = ?, tk_provenance_json = NULL, stub_of = CASE WHEN ? THEN ? ELSE stub_of END, dirty = ? WHERE id = ?")
+    .bind(row.content_md, discard ? 1 : 0, row.stub_of, discard && !row.generated_json ? 0 : 1, item.id)
     .run();
 }
 

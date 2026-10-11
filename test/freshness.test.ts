@@ -208,7 +208,7 @@ describe("refreshing — a republish of the published words", () => {
 });
 
 describe("what counts as the published words", () => {
-  it("a discarded edit (dirty, but byte-equal to the published version) can be refreshed", async () => {
+  it("a discarded edit can be refreshed, and is clean again (session 46)", async () => {
     const cookie = await login();
     const frag = await createAndPublish(cookie, "Before.");
     const md = `![[${frag}]]\n\nMy point.`;
@@ -216,7 +216,7 @@ describe("what counts as the published words", () => {
     await editAndPublish(cookie, frag, "After.");
     expect((await apiJson(cookie, "PATCH", `/api/items/${thread}`, { content_md: md + " Draft." })).status).toBe(200);
     expect((await apiJson(cookie, "POST", `/api/items/${thread}/restore`, { version: 1 })).status).toBe(200);
-    expect((await apiJson(cookie, "GET", `/api/items/${thread}`)).json.dirty).toBe(true);
+    expect((await apiJson(cookie, "GET", `/api/items/${thread}`)).json.dirty).toBe(false);
     expect((await apiJson(cookie, "GET", `/api/items/${thread}/freshness`)).json.dirty).toBe(false);
     expect((await apiJson(cookie, "POST", `/api/items/${thread}/refresh`, {})).status).toBe(200);
   });
