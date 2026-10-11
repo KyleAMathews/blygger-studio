@@ -11,7 +11,7 @@ import { DEFAULT_FEED_ORDER, FEED_ALGORITHMS } from "../src/feeds/index.ts";
 import { layerFor, paceLayeredOrder, pinWeights } from "../src/feeds/pace-layered.ts";
 import { reverseChronological } from "../src/feeds/reverse-chronological.ts";
 import type { FeedHistory, FeedHistoryItem } from "../src/feeds/types.ts";
-import migration0029 from "../migrations/0029_feed_order.sql?raw";
+import migration0029 from "../migrations/0029_feed_order_and_setup.sql?raw";
 import { listHomeItems } from "../src/public-feed.ts";
 import { apiJson, BASE, createAndPublish, login } from "./helpers.ts";
 
@@ -136,20 +136,29 @@ describe("the setting and the home page", () => {
   });
 });
 
+/** Runs every statement in the migration; prepare() alone runs only the first. */
+async function runMigration(sql: string) {
+  const code = sql.split("\n").filter((line) => !line.trim().startsWith("--")).join("\n");
+  for (const statement of code.split(";").map((part) => part.trim()).filter(Boolean)) await env.DB.prepare(statement).run();
+}
+
 describe("migration 0029", () => {
-  it("keeps a node that has published on newest-first and leaves a fresh one on the default", async () => {
+  it("keeps a node that has published on newest-first with a setup notice, and leaves a fresh one on the defaults", async () => {
     // Storage carries over between tests in a file, so a fresh node is one
     // whose published items are hidden for the first run.
     await env.DB.prepare("UPDATE items SET status = 'draft-hidden' WHERE status IN ('public', 'withdrawn')").run();
-    await env.DB.prepare("DELETE FROM settings WHERE key = 'feed_order'").run();
-    await env.DB.prepare(migration0029).run();
-    const fresh = await env.DB.prepare("SELECT value FROM settings WHERE key = 'feed_order'").first();
+    await env.DB.prepare("DELETE FROM settings WHERE key IN ('feed_order', 'setup')").run();
+    await runMigration(migration0029);
+    const fresh = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('feed_order', 'setup')").all();
     await env.DB.prepare("UPDATE items SET status = 'public' WHERE status = 'draft-hidden'").run();
     const cookie = await login();
     await createAndPublish(cookie, "already published");
-    await env.DB.prepare(migration0029).run();
-    const published = await env.DB.prepare("SELECT value FROM settings WHERE key = 'feed_order'").first<{ value: string }>();
-    expect({ fresh, published: published?.value }).toEqual({ fresh: null, published: "reverse-chronological" });
+    await runMigration(migration0029);
+    const published = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('feed_order', 'setup') ORDER BY key").all();
+    expect({ fresh: fresh.results, published: published.results }).toEqual({
+      fresh: [],
+      published: [{ key: "feed_order", value: "reverse-chronological" }, { key: "setup", value: "notice" }],
+    });
   });
 });
 

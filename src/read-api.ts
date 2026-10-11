@@ -1,5 +1,5 @@
 import { itemResource, versionResource, mediaResource, subscriptionResource, hopperResource, importedResource, mentionResource } from "./contract/resources.ts";
-import { feedOrderChoices } from "./feeds/available.ts";
+import { settingsResource } from "./settings-resource.ts";
 import { fetchOnSurface, itemUrl } from "./surface.ts";
 import type { Context } from "hono";
 import { contractApp, readJson } from "./contract/app.ts";
@@ -57,10 +57,7 @@ readApi.openapi(routes.getItem, async (c) => {
   const detail = await itemDetail(c.env.DB, c.req.param("id"));
   return detail ? c.json({ ...itemResource(detail.item), authored_kind: detail.kind, media: detail.media.map(mediaResource), versions: await Promise.all(detail.versions.map(presentVersion)), published: detail.published ? await presentVersion(detail.published) : null }) : c.json({ error: "not found" }, 404);
 });
-readApi.openapi(routes.getSettings, async (c) => {
-  const settings = await getSettings(c.env.DB);
-  return c.json({ ...settings, feed_orders: feedOrderChoices(settings.extensions) });
-});
+readApi.openapi(routes.getSettings, async (c) => c.json(settingsResource(await getSettings(c.env.DB))));
 readApi.openapi(routes.listSubscriptions, async (c) => {
   const page = await collection<SubscriptionRow>(c.env.DB, c.req.query(), "SELECT * FROM subscriptions ORDER BY created ASC, id ASC", "SELECT COUNT(*) AS total FROM subscriptions");
   return c.json({ ...page, items: page.items.map(subscriptionResource) });

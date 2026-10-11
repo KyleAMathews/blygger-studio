@@ -19,6 +19,7 @@ import {
 import { readState } from '../versions.ts';
 import { displayUrl } from '../importer/util.ts';
 import { Sheet } from './sheets.tsx';
+import { SetupBanner } from './setup.tsx';
 import { applyTheme } from './theme.ts';
 import type { CustomTheme } from '../themes.ts';
 export { Button };
@@ -269,6 +270,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </Button>
           </div>
         ) : null}
+        {path === '/setup' ? null : <SetupBanner />}
         <div className={framed ? 'screen framed' : 'screen'}>{children}</div>
       </main>
       {showTabs ? (

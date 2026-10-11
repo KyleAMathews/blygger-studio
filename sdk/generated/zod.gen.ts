@@ -154,6 +154,12 @@ export const zSettings = z.object({
         'panel'
     ]),
     feed_order: z.string(),
+    setup: z.enum([
+        'pending',
+        'notice',
+        'done'
+    ]),
+    defaults: z.record(z.string(), z.unknown()).optional(),
     feed_orders: z.array(z.object({
         id: z.string(),
         title: z.string(),
@@ -896,6 +902,12 @@ export const zUpdateSettingsBody = z.object({
         'panel'
     ]).optional(),
     feed_order: z.string().optional(),
+    setup: z.enum([
+        'pending',
+        'notice',
+        'done'
+    ]).optional(),
+    defaults: z.record(z.string(), z.unknown()).optional(),
     feed_orders: z.array(z.object({
         id: z.string(),
         title: z.string(),

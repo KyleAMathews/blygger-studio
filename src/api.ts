@@ -1,5 +1,6 @@
 import { isFont } from "./fonts.ts";
-import { availableFeedAlgorithms, feedOrderChoices } from "./feeds/available.ts";
+import { availableFeedAlgorithms } from "./feeds/available.ts";
+import { settingsResource } from "./settings-resource.ts";
 import { CUSTOM_THEME_ID, pairError, themeNameError, validateCustomTheme, type CustomTheme } from "./themes.ts";
 import { itemResource } from "./contract/resources.ts";
 import { itemUrl, storedSurface } from "./surface.ts";
@@ -470,6 +471,7 @@ const SETTINGS_KEYS = [
   "ai_style_prompt",
   "picker_typing",
   "feed_order",
+  "setup",
 ] as const;
 
 api.openapi(routes.updateSettings, async (c) => {
@@ -503,6 +505,7 @@ api.openapi(routes.updateSettings, async (c) => {
     if (unknown.length) return c.json({ error: `not an extension compiled into this build: ${unknown.map(String).join(", ")}` }, 400);
     patch.extensions = JSON.stringify([...new Set(names as string[])].sort());
   }
+  if (typeof patch.setup === "string" && !["pending", "notice", "done"].includes(patch.setup)) return c.json({ error: "setup must be pending, notice or done" }, 400);
   if (typeof patch.feed_order === "string") {
     // Against the extensions as they will be after this patch.
     const enabled = patch.extensions ? (JSON.parse(patch.extensions) as string[]) : (await getSettings(c.env.DB)).extensions;
@@ -544,6 +547,5 @@ api.openapi(routes.updateSettings, async (c) => {
     if (incoherent) return c.json({ error: incoherent }, 400);
   }
   await putSettings(c.env.DB, patch);
-  const saved = await getSettings(c.env.DB);
-  return c.json({ ...saved, feed_orders: feedOrderChoices(saved.extensions) });
+  return c.json(settingsResource(await getSettings(c.env.DB)));
 });

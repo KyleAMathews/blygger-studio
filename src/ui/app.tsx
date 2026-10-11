@@ -42,6 +42,7 @@ import { UpdatesPage } from './updates.tsx';
 import { SignalsPage } from './signals.tsx';
 import { SheetHost } from './sheets.tsx';
 import { ExtensionPage } from './extension-page.tsx';
+import { SetupPage } from './setup.tsx';
 import { applyCachedTheme } from './theme.ts';
 // Paint the last theme this device saw before the first render; settings
 // repaint it once they load (see theme.ts).
@@ -190,6 +191,11 @@ const settings = createRoute({
   path: '/settings',
   component: SettingsPage,
 });
+const setup = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/setup',
+  component: SetupPage,
+});
 // Feeds are managed from reading now (each source's inspector sheet).
 const subs = createRoute({
   getParentRoute: () => rootRoute,
@@ -285,6 +291,7 @@ export const router = createRouter({
     reading,
     edit,
     settings,
+    setup,
     access,
     subs,
     hoppers,

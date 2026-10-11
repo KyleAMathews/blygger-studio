@@ -131,6 +131,16 @@ export type Settings = {
      */
     feed_order: string;
     /**
+     * The setup wizard: pending on a fresh install, notice on a node that published before it existed, done once finished or dismissed.
+     */
+    setup: 'pending' | 'notice' | 'done';
+    /**
+     * Read-only: what each setting reads as with nothing stored, for "reset to default". site_title's default is the title derived from the address; store "" to keep it derived.
+     */
+    defaults?: {
+        [key: string]: unknown;
+    };
+    /**
      * Read-only: the home page orders this node can use now (core, plus enabled extensions').
      */
     feed_orders?: Array<{
@@ -1940,6 +1950,16 @@ export type UpdateSettingsData = {
          * The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>.
          */
         feed_order?: string;
+        /**
+         * The setup wizard: pending on a fresh install, notice on a node that published before it existed, done once finished or dismissed.
+         */
+        setup?: 'pending' | 'notice' | 'done';
+        /**
+         * Read-only: what each setting reads as with nothing stored, for "reset to default". site_title's default is the title derived from the address; store "" to keep it derived.
+         */
+        defaults?: {
+            [key: string]: unknown;
+        };
         /**
          * Read-only: the home page orders this node can use now (core, plus enabled extensions').
          */

@@ -57,7 +57,7 @@ const fields = [
 function editable(row: Settings): Settings {
   return Object.fromEntries(fields.map((key) => [key, row[key]])) as unknown as Settings;
 }
-function parseLinks(text: string): Settings['author_links'] {
+export function parseLinks(text: string): Settings['author_links'] {
   return text
     .split('\n')
     .map((line) => line.trim())
@@ -81,7 +81,10 @@ export function SettingsPage() {
         ← more
       </Link>
       <h2 className="view-h">settings</h2>
-      <div style={{ height: 10 }} />
+      <p className="view-sub">
+        <Link to="/setup" id="run-setup">Walk through setup again</Link>, one
+        step at a time, with each setting's default beside it.
+      </p>
       {row ? (
         <SettingsForm initial={row} />
       ) : (
@@ -671,7 +674,7 @@ function providerStatus(p: AiModels['providers'][number]): string {
  * fourth row, authoring, is reserved and disabled: it signals where the
  * studio is going without pretending to do it.
  */
-function ModelSettings({
+export function ModelSettings({
   form,
   change,
 }: {

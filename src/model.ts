@@ -76,7 +76,20 @@ export function defaultSiteTitle(siteUrl: string | undefined): string {
 
 export async function getSettings(db: D1Database): Promise<Settings> {
   const rows = await db.prepare("SELECT key, value FROM settings").all<{ key: string; value: string }>();
-  const map = Object.fromEntries(rows.results.map((r) => [r.key, r.value]));
+  return settingsFromMap(Object.fromEntries(rows.results.map((r) => [r.key, r.value])));
+}
+
+/**
+ * Every setting as it would read with nothing stored: what the setup wizard's
+ * "reset to default" restores. Derived by the same code as a real read, so the
+ * two cannot drift. `site_title` is the one derived default (from the address);
+ * resetting it stores an empty title, which reads as that derivation.
+ */
+export function settingDefaults(siteUrl: string): Settings {
+  return settingsFromMap({ site_url: siteUrl });
+}
+
+export function settingsFromMap(map: Record<string, string>): Settings {
   let links: Settings["author_links"] = [];
   try {
     const parsed = JSON.parse(map.author_links ?? "[]");
@@ -128,6 +141,10 @@ export async function getSettings(db: D1Database): Promise<Settings> {
     update_notice_ack: map.update_notice_ack === "on",
     // Studio extensions this node has turned on (docs/extensions.md). Empty by default.
     extensions: parseEnabledExtensions(map.extensions),
+    // The setup wizard (session 46): pending on a fresh install, a one-time
+    // notice on a node that had published before the wizard existed
+    // (migration 0029), done once either is finished or dismissed.
+    setup: map.setup === "done" || map.setup === "notice" ? map.setup : "pending",
   };
 }
 
