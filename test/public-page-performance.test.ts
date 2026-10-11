@@ -140,7 +140,10 @@ describe("public homepage read budget", () => {
     expect(html).toContain('data-item="card100"');
     expect(html).not.toContain('data-item="card0"');
     expect(html).toContain(`href="${mount}/archive/"`);
-    expect(meter.calls).toBeLessThanOrEqual(8); // +1 since 0.24.0: the Collections list (one fixed query, not per card)
+    // +1 since 0.24.0: the Collections list (one fixed query, not per card).
+    // +2 since session 46: the pace-layered default reads the history (one
+    // batch) and then the shown cards by id.
+    expect(meter.calls).toBeLessThanOrEqual(10);
   });
 
   it("uses an ordered index for the limited public-item query", async () => {

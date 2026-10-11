@@ -1,4 +1,7 @@
 import type { ItemRow, MediaRow, VersionRow, Transclusion } from "./types.ts";
+import { feedAlgorithm } from "./feeds/index.ts";
+import { loadFeedHistory } from "./feeds/history.ts";
+import { reverseChronological } from "./feeds/reverse-chronological.ts";
 
 export type FeedItem = Pick<ItemRow, "id" | "kind" | "created" | "updated" | "version" | "forked_from" | "fork_cite" | "highlight_override">;
 
@@ -7,6 +10,21 @@ export async function listFeedItems(db: D1Database, limit: number): Promise<Feed
   return (await db.prepare(`SELECT id, kind, created, updated, version, forked_from, fork_cite, highlight_override
     FROM items WHERE status IN ('public','withdrawn') ORDER BY updated DESC, rowid DESC LIMIT ?`)
     .bind(limit).all<FeedItem>()).results;
+}
+
+/**
+ * The home page's items in the order the `feed_order` setting names. Newest
+ * first keeps its single indexed query; any other order replays the blyg's
+ * history (src/feeds) and reads back only the cards it will show.
+ */
+export async function listHomeItems(db: D1Database, feedOrder: string, limit: number): Promise<FeedItem[]> {
+  const algorithm = feedAlgorithm(feedOrder);
+  if (algorithm.id === reverseChronological.id) return listFeedItems(db, limit);
+  const ids = algorithm.order(await loadFeedHistory(db)).slice(0, limit);
+  if (!ids.length) return [];
+  return (await db.prepare(`SELECT i.id, i.kind, i.created, i.updated, i.version, i.forked_from, i.fork_cite, i.highlight_override
+    FROM json_each(?) s JOIN items i ON i.id = s.value ORDER BY s.key`)
+    .bind(JSON.stringify(ids)).all<FeedItem>()).results;
 }
 
 export interface FeedProvenance {

@@ -486,6 +486,8 @@ export interface Settings {
   auto_change_notes: boolean;
   /** Where you type to search in the [[ / ![[ picker (0.29): auto = the editor with a mouse, the panel on touch. */
   picker_typing: "auto" | "editor" | "panel";
+  /** The home page order, an id from `src/feeds` (session 46). Absent = pace-layered; migration 0029 keeps published nodes newest-first. */
+  feed_order: string;
   /** Where to ask. Configurable so a fork checks its own releases, not ours. */
   update_feed_url: string;
   /**

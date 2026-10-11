@@ -4,7 +4,7 @@ import { verifySession } from "./auth.ts";
 import { verifyBearer } from "./oauth.ts";
 import { requestError } from './request-error.ts';
 import { fontCss } from "./fonts.ts";
-import { listFeedItems } from "./public-feed.ts";
+import { listHomeItems } from "./public-feed.ts";
 import { studioSpa } from "./spa.ts";
 import { authorizationApi } from './authorization-api.ts';
 import { oauthRoutes } from './oauth-routes.ts';
@@ -89,7 +89,8 @@ export function makeApp(mount: string) {
 
   // strict:false: serves both {mount} and {mount}/ (and "/" at root mount).
   pub.get("/", async (c) => {
-    const [settings, items] = await Promise.all([getSettings(c.env.DB), listFeedItems(c.env.DB, FEED_PAGE_SIZE + 1)]);
+    const settings = await getSettings(c.env.DB);
+    const items = await listHomeItems(c.env.DB, settings.feed_order, FEED_PAGE_SIZE + 1);
     const hasMore = items.length > FEED_PAGE_SIZE;
     return c.html(await feedPage(c.env.DB, settings, items.slice(0, FEED_PAGE_SIZE), hasMore, mount, siteOrigin(settings, c.req.url, mount)));
   });

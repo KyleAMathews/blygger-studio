@@ -126,6 +126,10 @@ export type Settings = {
     highlight_generated_default: boolean;
     auto_change_notes: boolean;
     picker_typing: 'auto' | 'editor' | 'panel';
+    /**
+     * The public home page order: an algorithm id from the node's feed registry (pace-layered or reverse-chronological in core).
+     */
+    feed_order: string;
     update_feed_url: string;
     update_notice_ack: boolean;
     /**
@@ -1924,6 +1928,10 @@ export type UpdateSettingsData = {
         highlight_generated_default?: boolean;
         auto_change_notes?: boolean;
         picker_typing?: 'auto' | 'editor' | 'panel';
+        /**
+         * The public home page order: an algorithm id from the node's feed registry (pace-layered or reverse-chronological in core).
+         */
+        feed_order?: string;
         update_feed_url?: string;
         update_notice_ack?: boolean;
         /**

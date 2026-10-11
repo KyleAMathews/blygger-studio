@@ -186,6 +186,7 @@ export const SettingsSchema = z.object({
   highlight_generated_default: z.boolean(),
   auto_change_notes: z.boolean(),
   picker_typing: z.enum(["auto", "editor", "panel"]),
+  feed_order: z.string().describe("The public home page order: an algorithm id from the node's feed registry (pace-layered or reverse-chronological in core)."),
   update_feed_url: z.string(),
   update_notice_ack: z.boolean(),
   extensions: z.array(z.string()).describe("Studio extensions enabled on this node (docs/extensions.md). Only names compiled into this build are accepted; every extension starts disabled."),

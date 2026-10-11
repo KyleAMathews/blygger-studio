@@ -1,4 +1,5 @@
 import { isFont } from "./fonts.ts";
+import { FEED_ALGORITHMS } from "./feeds/index.ts";
 import { CUSTOM_THEME_ID, pairError, themeNameError, validateCustomTheme, type CustomTheme } from "./themes.ts";
 import { itemResource } from "./contract/resources.ts";
 import { itemUrl, storedSurface } from "./surface.ts";
@@ -468,6 +469,7 @@ const SETTINGS_KEYS = [
   "feed_prompt",
   "ai_style_prompt",
   "picker_typing",
+  "feed_order",
 ] as const;
 
 api.openapi(routes.updateSettings, async (c) => {
@@ -486,6 +488,7 @@ api.openapi(routes.updateSettings, async (c) => {
     if (typeof body[key] === "boolean") patch[key] = body[key] ? "on" : "off";
   }
   if (typeof patch.picker_typing === "string" && !["auto", "editor", "panel"].includes(patch.picker_typing)) return c.json({ error: "picker_typing must be auto, editor or panel" }, 400);
+  if (typeof patch.feed_order === "string" && !FEED_ALGORITHMS.some((a) => a.id === patch.feed_order)) return c.json({ error: `feed_order must be one of ${FEED_ALGORITHMS.map((a) => a.id).join(", ")}` }, 400);
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return c.json({ error: `unknown timezone: ${patch.timezone}` }, 400);
   if (patch.author_url && !(URL.canParse(patch.author_url) && ["http:", "https:"].includes(new URL(patch.author_url).protocol))) return c.json({ error: "author_url must be an absolute http(s) URL" }, 400);
   if (patch.site_url && !(URL.canParse(patch.site_url) && ["http:", "https:"].includes(new URL(patch.site_url).protocol))) return c.json({ error: "site_url must be an absolute http(s) URL" }, 400);

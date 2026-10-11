@@ -1,4 +1,5 @@
 import { DEFAULT_FONT, isFont } from "./fonts.ts";
+import { DEFAULT_FEED_ORDER, feedAlgorithm } from "./feeds/index.ts";
 import { parseCustomTheme } from "./themes.ts";
 // Data access + publish-flow semantics — v0.1-plan §3.1.
 
@@ -120,6 +121,7 @@ export async function getSettings(db: D1Database): Promise<Settings> {
     highlight_generated_default: map.highlight_generated_default === "on",
     auto_change_notes: map.auto_change_notes === "on",
     picker_typing: map.picker_typing === "editor" || map.picker_typing === "panel" ? map.picker_typing : "auto",
+    feed_order: feedAlgorithm(map.feed_order ?? DEFAULT_FEED_ORDER).id,
     update_check: map.update_check !== "off",
     update_feed_url: map.update_feed_url ?? "",
     /** Cleared until the operator has seen the "alerts are on" notice once. */

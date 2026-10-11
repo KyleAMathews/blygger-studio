@@ -153,6 +153,7 @@ export const zSettings = z.object({
         'editor',
         'panel'
     ]),
+    feed_order: z.string(),
     update_feed_url: z.string(),
     update_notice_ack: z.boolean(),
     extensions: z.array(z.string())
@@ -889,6 +890,7 @@ export const zUpdateSettingsBody = z.object({
         'editor',
         'panel'
     ]).optional(),
+    feed_order: z.string().optional(),
     update_feed_url: z.string().optional(),
     update_notice_ack: z.boolean().optional(),
     extensions: z.array(z.string()).optional()

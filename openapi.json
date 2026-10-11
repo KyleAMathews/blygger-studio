@@ -528,6 +528,10 @@
               "panel"
             ]
           },
+          "feed_order": {
+            "type": "string",
+            "description": "The public home page order: an algorithm id from the node's feed registry (pace-layered or reverse-chronological in core)."
+          },
           "update_feed_url": {
             "type": "string"
           },
@@ -568,6 +572,7 @@
           "highlight_generated_default",
           "auto_change_notes",
           "picker_typing",
+          "feed_order",
           "update_feed_url",
           "update_notice_ack",
           "extensions"
@@ -5749,6 +5754,10 @@
                       "editor",
                       "panel"
                     ]
+                  },
+                  "feed_order": {
+                    "type": "string",
+                    "description": "The public home page order: an algorithm id from the node's feed registry (pace-layered or reverse-chronological in core)."
                   },
                   "update_feed_url": {
                     "type": "string"

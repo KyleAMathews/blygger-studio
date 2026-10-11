@@ -21,6 +21,7 @@ import {
 } from '../themes.ts';
 import { ThemeEditor, ThemeShare } from './theme-editor.tsx';
 import { FONTS } from '../fonts.ts';
+import { DEFAULT_FEED_ORDER, FEED_ALGORITHMS } from '../feeds/index.ts';
 import { CLIENT } from '../client.ts';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 
@@ -38,6 +39,7 @@ const fields = [
   'site_url',
   'timezone',
   'picker_typing',
+  'feed_order',
   'avatar_media_id',
   'ai_model_tk',
   'ai_model_changelog',
@@ -433,6 +435,31 @@ function SettingsForm({ initial }: { initial: Settings }) {
             override this in its editor's TK card.
           </>,
         )}
+      </section>
+      <section className="card">
+        <h3 className="card-h">home page</h3>
+        <div className="field" role="radiogroup" aria-labelledby="feed_order-label">
+          <span id="feed_order-label">Order of your public home page</span>
+          {FEED_ALGORITHMS.map((algorithm) => (
+            <label className="check" key={algorithm.id}>
+              <input
+                type="radio"
+                name="feed_order"
+                value={algorithm.id}
+                checked={form.feed_order === algorithm.id}
+                onChange={() => change('feed_order', algorithm.id)}
+              />
+              <span>
+                {algorithm.title}
+                {algorithm.id === DEFAULT_FEED_ORDER ? ' (recommended)' : ''}{' '}
+                <span className="hint">{algorithm.description}</span>
+              </span>
+            </label>
+          ))}
+          <span className="hint">
+            Feeds and the archive stay newest first whichever you choose.
+          </span>
+        </div>
       </section>
       <section className="card">
         <h3 className="card-h">writing</h3>
