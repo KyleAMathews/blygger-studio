@@ -51,7 +51,7 @@ const LABELS: Record<Key, string> = {
 const STEPS: { id: string; title: string; intro: string; keys: Key[] }[] = [
   { id: 'identity', title: 'You', intro: 'Who this blyg belongs to and where it lives. All of it appears on your public pages and in your feeds.', keys: ['site_title', 'author_name', 'author_url', 'author_bio', 'site_url', 'timezone'] },
   { id: 'look', title: 'Look', intro: 'How your public pages read. The studio wears the same theme.', keys: ['theme', 'font', 'highlight_generated_default'] },
-  { id: 'home', title: 'Home page', intro: 'Blygger keeps time two ways: what is new, and what keeps mattering. Your home page shows one of them; feeds and the archive are always newest first.', keys: ['feed_order'] },
+  { id: 'home', title: 'Home page', intro: 'Blygger keeps time two ways: what is new, and what keeps mattering. Your home page shows one of them; feeds and the archive are always newest first. Once you have published a thread, you can make it a static front page instead, from its ⋯ menu.', keys: ['feed_order'] },
   { id: 'writing', title: 'Writing and AI', intro: 'How the editor behaves, and which models do the AI work. With no model chosen, nothing calls one.', keys: ['picker_typing', 'auto_change_notes', 'ai_model_tk', 'ai_model_changelog', 'ai_model_feed', 'ai_style_prompt'] },
   { id: 'network', title: 'Others', intro: 'How your blyg meets other blygs, and whether it checks for updates.', keys: ['accept_mentions', 'show_responses_default', 'update_check'] },
 ];

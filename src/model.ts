@@ -1,5 +1,6 @@
 import { DEFAULT_FONT, isFont } from "./fonts.ts";
 import { DEFAULT_FEED_ORDER } from "./feeds/index.ts";
+import { DEFAULT_POSTS_PATH } from "./front-page.ts";
 import { parseCustomTheme } from "./themes.ts";
 // Data access + publish-flow semantics — v0.1-plan §3.1.
 
@@ -135,6 +136,8 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     auto_change_notes: map.auto_change_notes === "on",
     picker_typing: map.picker_typing === "editor" || map.picker_typing === "panel" ? map.picker_typing : "auto",
     feed_order: map.feed_order || DEFAULT_FEED_ORDER,
+    front_page: map.front_page ?? "",
+    posts_path: map.posts_path || DEFAULT_POSTS_PATH,
     update_check: map.update_check !== "off",
     update_feed_url: map.update_feed_url ?? "",
     /** Cleared until the operator has seen the "alerts are on" notice once. */

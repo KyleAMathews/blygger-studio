@@ -19,7 +19,7 @@ import { previewFromHtml } from '../preview.ts';
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { Detail } from './data.ts';
-import { client, items, itemDetail, changed, refreshItems, createDraftAction } from './data.ts';
+import { client, items, itemDetail, changed, refreshItems, createDraftAction, settings as settingsCollection } from './data.ts';
 import {
   ActionBar,
   Button,
@@ -1591,6 +1591,24 @@ function Editor({ item }: { item: Detail }) {
           icon: '⇪',
           label: 'share…',
           onSelect: () => void sharing.share(shareable),
+        },
+        // The static front page (session 47): a published thread at the public root.
+        isPublic && isThread && settings && {
+          icon: '⌂',
+          label: settings.front_page === item.id ? 'stop using as front page' : 'set as front page',
+          description:
+            settings.front_page === item.id
+              ? 'your public home page goes back to your latest items'
+              : `readers arriving at your blyg see this thread; your latest items move to /${settings.posts_path}/`,
+          disabled: action.busy,
+          onSelect: () =>
+            void action.run(async () => {
+              const front = settings.front_page === item.id ? '' : item.id;
+              await settingsCollection.update('settings', (row) => {
+                row.front_page = front;
+              }).isPersisted.promise;
+              toast(front ? 'This thread is now your front page' : 'Your home page shows your latest items again', { tone: 'ok' });
+            }),
         },
         isPublic && {
           icon: '📌',

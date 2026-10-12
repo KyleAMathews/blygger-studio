@@ -103,7 +103,10 @@ describe('cached entrypoint dispatch', () => {
     for (const page of ['', '/', '/archive/', '/f/id', '/t/id/v2/', '/h/collection']) {
       expect(publicHtmlRequest(new Request(`${BASE}${mount}${page}`), mount)).toBe(true);
     }
-    for (const page of ['/studio', '/studio/login', '/feed.xml', '/items/id.json', '/media/image.jpg', '/unknown']) {
+    // Any free single segment may be the posts page (its address is a setting),
+    // so it enters; a wrong one renders a 404, which is never cached.
+    expect(publicHtmlRequest(new Request(`${BASE}${mount}/unknown`), mount)).toBe(true);
+    for (const page of ['/studio', '/studio/login', '/feed.xml', '/items/id.json', '/media/image.jpg', '/unknown/deeper', '/feed']) {
       expect(publicHtmlRequest(new Request(`${BASE}${mount}${page}`), mount)).toBe(false);
     }
     expect(publicHtmlRequest(new Request(`${BASE}/api/settings`), mount)).toBe(false);

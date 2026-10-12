@@ -17,7 +17,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { checkExportOrigin, normalizeBase, stripWebmentionLink } from "./export-lib.ts";
+import { checkExportOrigin, normalizeBase, postsPathFromPage, stripWebmentionLink } from "./export-lib.ts";
 
 function arg(name: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -93,7 +93,10 @@ if (originCheck.refuse) {
 if (originCheck.warn) console.warn(`warning: ${originCheck.warn}\n`);
 
 // Fixed surfaces.
-await save("", "index.html");
+const home = await save("", "index.html");
+// With a front page the latest items live at {mount}/{posts_path}/; the root's header links there.
+const postsPath = postsPathFromPage(new TextDecoder().decode(home));
+if (postsPath) await save(`${postsPath}/`, `${postsPath}/index.html`);
 await save("style.css", "style.css");
 await save("feed.xml", "feed.xml");
 // The one deliberate difference between the served tree and the exported one

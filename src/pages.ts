@@ -940,13 +940,16 @@ ${body.includes("blyg-tk-gen") || body.includes("version-line") ? `<script>${GEN
  * entry rendered in the masthead, which is honest: only the author knows
  * whether `/` is their homepage, someone else's site, or nothing.
  */
-function pageHeader(mount: string): string {
+function pageHeader(mount: string, settings: Settings): string {
   // Always `bare`: the masthead below sets the blyg's name at display size on
   // every page now, and printing it twice in a row is just clutter. The class
   // is still emitted because themes target `.blyg-header.bare` for the layout
   // that pairs a one-line header with a masthead under it.
+  // With a front page the latest items move off the root, so every page links
+  // to them; the static export finds that page by this link's class.
+  const posts = settings.front_page ? `<a class="posts-link" href="${mount}/${settings.posts_path}/">Posts</a>\n` : "";
   return `<header class="blyg-header bare">
-<a href="${mount}/feed.xml" title="RSS feed">RSS ⧉</a>
+${posts}<a href="${mount}/feed.xml" title="RSS feed">RSS ⧉</a>
 </header>`;
 }
 
@@ -966,7 +969,7 @@ function pageHeader(mount: string): string {
  * page is a bare block.
  */
 export async function pageTop(db: D1Database, settings: Settings, mount: string, avatar?: MediaRow | null): Promise<string> {
-  return `${pageHeader(mount)}\n${await masthead(db, settings, mount, avatar)}`;
+  return `${pageHeader(mount, settings)}\n${await masthead(db, settings, mount, avatar)}`;
 }
 
 /**
@@ -1627,7 +1630,10 @@ ${rows}
 </section>`;
 }
 
-export async function feedPage(db: D1Database, settings: Settings, items: FeedItem[], hasMore: boolean, mount: string, origin: string): Promise<string> {
+/** Where a latest-items page is served: the root, or `{mount}/{posts_path}/` (canonical to the root when that is where they show). */
+export type FeedPageAt = { url: string; canonical?: string };
+
+export async function feedPage(db: D1Database, settings: Settings, items: FeedItem[], hasMore: boolean, mount: string, origin: string, at: FeedPageAt = { url: origin }): Promise<string> {
   const [data, blogrollSubs, collections] = await Promise.all([loadFeedData(db, items, settings.avatar_media_id || ""), listBlogrollSubscriptions(db), listPublicHoppers(db)]);
   const blocks: string[] = [];
   for (const item of items) {
@@ -1656,7 +1662,8 @@ ${blogrollSection(blogrollSubs, mount)}
   return layout(settings.site_title, body, mount, {
     hasBlogroll,
     description,
-    url: origin,
+    url: at.url,
+    canonical: at.canonical,
     webmention: webmentionHref(settings, origin),
     image: data.avatar ? origin + data.avatar.r2_key : undefined,
     siteName: settings.site_title,
@@ -1739,7 +1746,9 @@ ${await responsesSection(db, item, settings, mount)}
 
 /** Thread permalink page (§2.9) — caller (index.ts) 404s if the item's authored kind isn't thread. */
 export async function threadPage(db: D1Database, settings: Settings, item: ItemRow, mount: string, origin: string): Promise<string> {
-  const url = `${origin}t/${item.id}/`;
+  // The front page's live URL is the root; /t/{id}/ still serves it and names the root canonical.
+  const front = settings.front_page === item.id;
+  const url = front ? origin : `${origin}t/${item.id}/`;
   const alternateJson = `${origin}items/${item.id}.json`;
   const webmention = webmentionHref(settings, origin);
   if (item.kind === "withdrawn") {
@@ -1759,10 +1768,12 @@ ${await threadBlock(db, item, mount, settings.timezone)}
 ${await responsesSection(db, item, settings, mount)}
 </div>
 <script>${VERSION_NAV_SCRIPT}</script>`;
-  return layout(head.title, body, mount, {
+  // The front page is the blyg's home, so its tab reads as the blyg.
+  return layout(front ? settings.site_title : head.title, body, mount, {
     description: head.description,
     ogTitle: head.ogTitle,
     url,
+    canonical: front ? origin : undefined,
     alternateJson,
     webmention,
     type: "article",
@@ -1823,7 +1834,7 @@ ${noteHtml}
   // Canonical points at the live permalink (absolute — origin is the blyg
   // base URL, trailing slash included): the frozen page is a version of the
   // same work, and the living one is the page that should be indexed.
-  const canonical = `${origin}${isThread ? "t" : "f"}/${item.id}/`;
+  const canonical = settings.front_page === item.id ? origin : `${origin}${isThread ? "t" : "f"}/${item.id}/`;
   // `{excerpt} (v1) — {site}`, not `v1 — {excerpt} — {site}`: the version is a
   // qualifier on the item, and three em-dash-separated segments is one too many.
   // The name is derived from the pinned bytes by the same rule as a live item's

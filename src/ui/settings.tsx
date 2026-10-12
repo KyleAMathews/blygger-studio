@@ -2,7 +2,9 @@ import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type { AiModels, Settings } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
-import { settings, client } from './data.ts';
+import { settings, client, items } from './data.ts';
+import { useLiveQuery } from '@tanstack/react-db';
+import { itemTitle } from './plain-text.ts';
 import {
   Button,
   Failure,
@@ -40,6 +42,8 @@ const fields = [
   'timezone',
   'picker_typing',
   'feed_order',
+  'front_page',
+  'posts_path',
   'avatar_media_id',
   'ai_model_tk',
   'ai_model_changelog',
@@ -465,6 +469,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
             saved.
           </span>
         </div>
+        <FrontPageFields form={form} change={change} />
       </section>
       <section className="card">
         <h3 className="card-h">writing</h3>
@@ -893,5 +898,77 @@ function CustomThemeFields({
         }}
       />
     </div>
+  );
+}
+
+/**
+ * The static front page (session 47): a published thread at the public root,
+ * the latest items moved to {mount}/{posts_path}/. The server refuses anything
+ * but a published thread and a free single-segment address.
+ */
+function FrontPageFields({
+  form,
+  change,
+}: {
+  form: Settings;
+  change: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
+}) {
+  const rows =
+    useLiveQuery({ query: (q) => q.from({ item: items }) }).data ?? [];
+  const threads = rows.filter(
+    (row) => row.status === 'public' && row.kind === 'thread',
+  );
+  const missing =
+    form.front_page && !threads.some((row) => row.id === form.front_page);
+  return (
+    <>
+      <div className="field">
+        <label htmlFor="front_page">
+          <span>Front page</span>
+        </label>
+        <select
+          id="front_page"
+          value={form.front_page}
+          onChange={(event) => change('front_page', event.target.value)}
+        >
+          <option value="">Your latest items</option>
+          {missing ? (
+            <option value={form.front_page}>
+              A thread that is no longer published
+            </option>
+          ) : null}
+          {threads.map((row) => (
+            <option key={row.id} value={row.id}>
+              {itemTitle(row.content_md) || row.id}
+            </option>
+          ))}
+        </select>
+        <span className="hint">
+          Choose a published thread to greet readers at {mount || ''}/ instead
+          of your latest items, as a static front page. You edit it like any
+          thread, and it stays in your feed and archive.
+          {missing
+            ? ' This one has been withdrawn, so readers see your latest items until you choose another.'
+            : ''}
+        </span>
+      </div>
+      <div className="field">
+        <label htmlFor="posts_path">
+          <span>Address of your latest items</span>
+        </label>
+        <input
+          id="posts_path"
+          value={form.posts_path}
+          onChange={(event) =>
+            change('posts_path', event.target.value.trim().toLowerCase())
+          }
+        />
+        <span className="hint">
+          Your latest items are always at {mount || ''}/{form.posts_path || 'posts'}/,
+          and with a front page every public page links there. Lowercase
+          letters, digits and hyphens.
+        </span>
+      </div>
+    </>
   );
 }

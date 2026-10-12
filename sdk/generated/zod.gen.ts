@@ -154,6 +154,8 @@ export const zSettings = z.object({
         'panel'
     ]),
     feed_order: z.string(),
+    front_page: z.string(),
+    posts_path: z.string(),
     setup: z.enum([
         'pending',
         'notice',
@@ -902,6 +904,8 @@ export const zUpdateSettingsBody = z.object({
         'panel'
     ]).optional(),
     feed_order: z.string().optional(),
+    front_page: z.string().optional(),
+    posts_path: z.string().optional(),
     setup: z.enum([
         'pending',
         'notice',

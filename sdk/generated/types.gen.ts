@@ -131,6 +131,14 @@ export type Settings = {
      */
     feed_order: string;
     /**
+     * A published thread's id shown at the mount root instead of the latest items; empty for the latest items. A front page later withdrawn or deleted falls back to the latest items.
+     */
+    front_page: string;
+    /**
+     * Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused.
+     */
+    posts_path: string;
+    /**
      * The setup wizard: pending on a fresh install, notice on a node that published before it existed, done once finished or dismissed.
      */
     setup: 'pending' | 'notice' | 'done';
@@ -1950,6 +1958,14 @@ export type UpdateSettingsData = {
          * The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>.
          */
         feed_order?: string;
+        /**
+         * A published thread's id shown at the mount root instead of the latest items; empty for the latest items. A front page later withdrawn or deleted falls back to the latest items.
+         */
+        front_page?: string;
+        /**
+         * Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused.
+         */
+        posts_path?: string;
         /**
          * The setup wizard: pending on a fresh install, notice on a node that published before it existed, done once finished or dismissed.
          */

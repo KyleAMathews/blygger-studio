@@ -21,6 +21,7 @@ import { buildBlogrollOpml } from "./importer/opml.ts";
 import { publicHopperPage } from "./importer/pages.ts";
 import { repairImportedUrls, runScheduledPoll } from "./importer/schedule.ts";
 import { getHopperBySlug, getImportedItem, getSubscription, listBlogrollSubscriptions, listHopperItems } from "./importer/store.ts";
+import { resolveFrontPage } from "./front-page.ts";
 import { authoredKind, getItem, getMedia, getSettings, getVersion, listPublic } from "./model.ts";
 import { archivePage, feedPage, generatedHighlightCss, permalinkPage, pinnedVersionPage, STYLE_CSS, themeCss, threadPage } from "./pages.ts";
 import { buildArchiveIndex, buildItemJson, buildManifest, buildPinnedVersionJson, siteOrigin } from "./protocol.ts";
@@ -88,12 +89,31 @@ export function makeApp(mount: string) {
   });
 
   // strict:false: serves both {mount} and {mount}/ (and "/" at root mount).
+  // The root shows the front page when one is set (and still a published
+  // thread), else the latest items. src/front-page.ts has the design.
   pub.get("/", async (c) => {
     const settings = await getSettings(c.env.DB);
-    const items = await listHomeItems(c.env.DB, settings, FEED_PAGE_SIZE + 1);
-    const hasMore = items.length > FEED_PAGE_SIZE;
-    return c.html(await feedPage(c.env.DB, settings, items.slice(0, FEED_PAGE_SIZE), hasMore, mount, siteOrigin(settings, c.req.url, mount)));
+    const front = await resolveFrontPage(c.env.DB, settings);
+    if (front) {
+      webmentionLink(c, settings);
+      return c.html(await threadPage(c.env.DB, settings, front, mount, siteOrigin(settings, c.req.url, mount)));
+    }
+    return latestItems(c, settings, false);
   });
+
+  /** The latest items, at the root or at `{mount}/{posts_path}/`. */
+  const latestItems = async (c: Context<{ Bindings: Env }>, settings: Settings, atPostsPath: boolean) => {
+    const origin = siteOrigin(settings, c.req.url, mount);
+    // The front page is not a post, as on WordPress: it stays in feed.xml,
+    // the archive and the index, but not in this list.
+    const front = atPostsPath ? await resolveFrontPage(c.env.DB, settings) : null;
+    const items = (await listHomeItems(c.env.DB, settings, FEED_PAGE_SIZE + 2)).filter((i) => i.id !== front?.id);
+    const hasMore = items.length > FEED_PAGE_SIZE;
+    const url = `${origin}${settings.posts_path}/`;
+    // Without a front page the same list is the root's, and the root is the one to index.
+    const at = !atPostsPath ? { url: origin } : front ? { url } : { url, canonical: origin };
+    return c.html(await feedPage(c.env.DB, settings, items.slice(0, FEED_PAGE_SIZE), hasMore, mount, origin, at));
+  };
 
   // The stylesheet carries the author's chosen theme appended to the base, so
   // a theme change is one file for every page and the static export picks it
@@ -263,6 +283,13 @@ export function makeApp(mount: string) {
   pub.get("/archive", async (c) => {
     const settings = await getSettings(c.env.DB);
     return c.html(await archivePage(c.env.DB, settings, await listPublic(c.env.DB), mount, siteOrigin(settings, c.req.url, mount)));
+  });
+
+  // Registered after every fixed route, so it can only claim a free segment.
+  pub.get("/:posts", async (c) => {
+    const settings = await getSettings(c.env.DB);
+    if (c.req.param("posts") !== settings.posts_path) return c.notFound();
+    return latestItems(c, settings, true);
   });
 
   pub.get("/media/:file", async (c) => {

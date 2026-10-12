@@ -187,6 +187,8 @@ export const SettingsSchema = z.object({
   auto_change_notes: z.boolean(),
   picker_typing: z.enum(["auto", "editor", "panel"]),
   feed_order: z.string().describe("The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>."),
+  front_page: z.string().describe("A published thread's id shown at the mount root instead of the latest items; empty for the latest items. A front page later withdrawn or deleted falls back to the latest items."),
+  posts_path: z.string().describe("Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused."),
   setup: z.enum(["pending", "notice", "done"]).describe("The setup wizard: pending on a fresh install, notice on a node that published before it existed, done once finished or dismissed."),
   defaults: z.record(z.string(), z.unknown()).optional().describe("Read-only: what each setting reads as with nothing stored, for \"reset to default\". site_title's default is the title derived from the address; store \"\" to keep it derived."),
   feed_orders: z.array(z.object({ id: z.string(), title: z.string(), description: z.string() })).optional().describe("Read-only: the home page orders this node can use now (core, plus enabled extensions')."),

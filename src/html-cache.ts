@@ -1,3 +1,4 @@
+import { PATH_SHAPE, RESERVED_PATHS } from './front-page.ts';
 /** Only public HTML reads enter Workers Cache. The gateway remains uncached. */
 export function publicHtmlRequest(request: Request, mount: string): boolean {
   if (request.method !== 'GET' && request.method !== 'HEAD') return false;
@@ -5,7 +6,11 @@ export function publicHtmlRequest(request: Request, mount: string): boolean {
   if (path === '/api' || path.startsWith('/api/')) return false;
   if (mount && path !== mount && !path.startsWith(mount + '/')) return false;
   const page = path.slice(mount.length).replace(/\/$/, '');
-  return page === '' || page === '/archive' || /^\/(?:f|t)\/[^/]+(?:\/v\d+)?$/.test(page) || /^\/h\/[^/]+$/.test(page);
+  return page === '' || page === '/archive' || /^\/(?:f|t)\/[^/]+(?:\/v\d+)?$/.test(page) || /^\/h\/[^/]+$/.test(page) ||
+    // The posts page's address is a setting this check cannot read, so any
+    // segment that could be one is a candidate; a wrong one renders a 404,
+    // which is never cached. Reserved names include the studio's own path.
+    (PATH_SHAPE.test(page.slice(1)) && !RESERVED_PATHS.includes(page.slice(1)));
 }
 
 /** Public pages ignore query parameters; origins must never share HTML. */

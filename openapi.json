@@ -532,6 +532,14 @@
             "type": "string",
             "description": "The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>."
           },
+          "front_page": {
+            "type": "string",
+            "description": "A published thread's id shown at the mount root instead of the latest items; empty for the latest items. A front page later withdrawn or deleted falls back to the latest items."
+          },
+          "posts_path": {
+            "type": "string",
+            "description": "Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused."
+          },
           "setup": {
             "type": "string",
             "enum": [
@@ -610,6 +618,8 @@
           "auto_change_notes",
           "picker_typing",
           "feed_order",
+          "front_page",
+          "posts_path",
           "setup",
           "update_feed_url",
           "update_notice_ack",
@@ -5796,6 +5806,14 @@
                   "feed_order": {
                     "type": "string",
                     "description": "The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>."
+                  },
+                  "front_page": {
+                    "type": "string",
+                    "description": "A published thread's id shown at the mount root instead of the latest items; empty for the latest items. A front page later withdrawn or deleted falls back to the latest items."
+                  },
+                  "posts_path": {
+                    "type": "string",
+                    "description": "Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused."
                   },
                   "setup": {
                     "type": "string",

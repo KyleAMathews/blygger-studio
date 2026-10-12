@@ -12,6 +12,7 @@ import { compiledExtensionNames } from "../build/extensions.names.ts";
 // Owner API (cookie auth, JSON) — v0.1-plan §3.3.
 
 import { type Context } from "hono";
+import { canBeFrontPage, postsPathError } from "./front-page.ts";
 import {
   authoredKind,
   createDraft,
@@ -471,6 +472,8 @@ const SETTINGS_KEYS = [
   "ai_style_prompt",
   "picker_typing",
   "feed_order",
+  "front_page",
+  "posts_path",
   "setup",
 ] as const;
 
@@ -511,6 +514,11 @@ api.openapi(routes.updateSettings, async (c) => {
     const enabled = patch.extensions ? (JSON.parse(patch.extensions) as string[]) : (await getSettings(c.env.DB)).extensions;
     const ids = availableFeedAlgorithms(enabled).map((a) => a.id);
     if (!ids.includes(patch.feed_order)) return c.json({ error: `feed_order must be one of ${ids.join(", ")}` }, 400);
+  }
+  if (patch.front_page && !canBeFrontPage(await getItem(c.env.DB, patch.front_page))) return c.json({ error: "front_page must be a published thread" }, 400);
+  if (typeof patch.posts_path === "string") {
+    const pathError = postsPathError(patch.posts_path);
+    if (pathError) return c.json({ error: pathError }, 400);
   }
   if (typeof patch.font === "string" && !isFont(patch.font)) return c.json({ error: `unknown font: ${patch.font}` }, 400);
   if (typeof patch.custom_theme_name === "string") {
