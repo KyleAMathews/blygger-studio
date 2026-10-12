@@ -18,6 +18,42 @@ not have its own repo until session 26.
 
 ---
 
+## 0.42.0 — 2026-10-12
+
+**Migrations: `0029_feed_order_and_setup.sql`** (two settings rows, written
+only on a node that has published: `feed_order` = `reverse-chronological` and
+`setup` = `notice`). Apply it before deploying:
+`wrangler d1 migrations apply <database> --remote`. `0028` is reserved for the
+duplicate-upload guard (#7) and is not skipped by mistake.
+
+- **A pace-layered home page: the diachronic view** (`docs/pace-layered-feed.md`).
+  Items sink as new ones arrive and climb one place with each new version.
+  Pins slow the sinking: each unit of pin weight drops an item one of six
+  layers (fashion to nature), each sinking at half the speed of the one above.
+  An item's weight is its own pinned versions plus half the weight of each item
+  that quotes it in a pinned version, out to six hops. An item pinned and
+  revised often holds the top. It reads only what is public (changelog, pins,
+  own-origin transclusions), so other clients can compute the same order;
+  `test/fixtures/feeds/` holds worked histories with their expected orders.
+  Only the home page follows it: feeds and the archive stay newest first.
+- **The home page order is a setting** (Settings → home page): pace-layered,
+  the default for a fresh install, or newest first. A node that has published
+  keeps newest first until its owner chooses.
+- **Extensions can add home page orders** (`docs/extensions.md`, "Feed
+  orders"). An order sees the same public history and returns ids; the page
+  shows published items only, once each, and renders every card itself.
+  `extensions/feed-example` ("Pinned first") is the template.
+- **A setup walk-through** (`/studio/setup`): you, look, home page, writing
+  and AI, others, then a review. Every setting shows its current value and
+  its default; nothing is saved until the end, and then only what changed.
+  A fresh install is greeted with it; a node that had published is told once
+  that it exists. Settings can run it again.
+- **Discard changes leaves the item clean.** It now restores the published
+  version whole, its stub citation included, so a stub whose quote had moved
+  on no longer showed "unpublished changes" that neither discard nor publish
+  could clear. Publish also writes the version-agreed citation back to the
+  working copy, which is how the two drifted apart.
+
 ## 0.41.1 — 2026-10-10
 
 **Migrations: none.**
