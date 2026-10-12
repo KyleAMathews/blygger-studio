@@ -9,6 +9,7 @@ import {
 import { Button } from '@base-ui/react/button';
 import { Link, useLocation } from '@tanstack/react-router';
 import { useLiveQuery } from '@tanstack/react-db';
+import { CancelledError } from '@tanstack/query-core';
 import {
   settings as settingsCollection,
   items as itemsCollection,
@@ -172,13 +173,16 @@ export function Layout({ children }: { children: ReactNode }) {
   const wide = chrome.wide ?? (path === '/reading' || path.startsWith('/edit/'));
   const [error, setError] = useState<unknown>();
   useEffect(() => {
-    const failure = (event: Event) => setError((event as CustomEvent).detail);
+    const report = (error: unknown) => {
+      if (!(error instanceof CancelledError)) setError(error);
+    };
+    const failure = (event: Event) => report((event as CustomEvent).detail);
     window.addEventListener('studio-read-error', failure);
     const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
       // Source collections report shared-read failures after handling expected 404s.
       if (event.type === 'updated' && event.query.queryKey[0] !== 'owner-read' &&
           event.query.state.status === 'error')
-        setError(event.query.state.error);
+        report(event.query.state.error);
     });
     return () => {
       window.removeEventListener('studio-read-error', failure);

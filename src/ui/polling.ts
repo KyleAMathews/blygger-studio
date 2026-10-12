@@ -1,3 +1,5 @@
+import { CancelledError } from '@tanstack/query-core';
+
 /** One visibility-aware timer for mounted views. Hidden tabs make no poll reads.
  * Repeated focus events share pending work. A failed read leaves the DB cache.
  */
@@ -33,7 +35,10 @@ export class Polling {
         if (!view.pending)
           view.pending = Promise.resolve()
             .then(view.refresh)
-            .catch(this.report)
+            .catch((error) => {
+              // Writes and view cleanup can cancel an in-flight read.
+              if (!(error instanceof CancelledError)) this.report(error);
+            })
             .finally(() => {
               view.pending = undefined;
             });
