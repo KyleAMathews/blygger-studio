@@ -18,6 +18,20 @@ not have its own repo until session 26.
 
 ---
 
+## 0.46.1 — 2026-10-13
+
+**Migrations: none.** No config change.
+
+- **Publishing shows at once on public pages.** Since 0.39.0 the edge cache
+  kept serving a page's old copy for up to a minute after a publish, a
+  withdrawal or a settings change, and a reload could not get past it. The
+  cache key now carries the blyg's public revision (the `change_state`
+  counters for items, subscriptions, hoppers, settings and feed), so the
+  first read after a change goes to a fresh entry. Each public read costs one
+  small D1 query. The owner's reading state and thumbs do not move the key.
+  Hiding or showing an inbound mention still waits out the 60-second window:
+  mentions have no revision counter yet.
+
 ## 0.46.0 — 2026-10-12
 
 **Migrations: none.** One default changes: the main menu (`links_position`)

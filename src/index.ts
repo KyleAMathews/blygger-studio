@@ -1,5 +1,6 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { conditionalHtmlResponse, htmlCacheResponse, publicHtmlKey, publicHtmlRequest } from './html-cache.ts';
+import { conditionalHtmlResponse, htmlCacheResponse, publicHtmlKey, publicHtmlRequest, publicHtmlRevision } from './html-cache.ts';
+import { readChanges } from './changes.ts';
 import { verifySession } from "./auth.ts";
 import { verifyBearer } from "./oauth.ts";
 import { requestError } from './request-error.ts';
@@ -374,7 +375,9 @@ export default {
       const headers = new Headers(req.headers);
       for (const name of ['cache-control', 'pragma', 'if-none-match', 'if-modified-since', 'range', 'if-range']) headers.delete(name);
       const read = new Request(req, { method: 'GET', headers });
-      return ctx.exports.PublicHtml.fetch(read, { cf: { cacheKey: publicHtmlKey(req) } })
+      // Without the revision the page still renders, cached under the plain key.
+      return readChanges(env.DB).then(publicHtmlRevision, () => undefined)
+        .then(revision => ctx.exports.PublicHtml.fetch(read, { cf: { cacheKey: publicHtmlKey(req, revision) } }))
         .then(response => conditionalHtmlResponse(req, response));
     }
     return fetchApp(req, env, ctx);

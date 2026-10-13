@@ -155,6 +155,8 @@ saying so.
 
 ## Status
 
+**0.46.1** (session 48, 2026-10-13): the public HTML cache key carries `publicHtmlRevision` (epoch + items/subscriptions/hoppers/settings/feed from `change_state`), read once per public request in the gateway, so a publish no longer waits out the 60 s edge window. A failed read falls back to the plain key. `mentions_in` has no change domain, so mention hide/show still lags. No migration.
+
 **0.46.0** (session 47, 2026-10-12): Settings is one page in sections (General, Feed, Appearance, Links: masthead menu + main menu, AI: model beside instructions per function, Network, Extensions) with a sidebar of anchors (`SettingsNav`, scroll-tracked, deep-linkable); `ModelSettings` split into `useAiModels`/`ModelIntro`/`ModelField`; `ThreadSearch` shared by the front page and the main menu; `links_position` defaults to left. No migration.
 
 **0.45.0** (session 47, 2026-10-12): own posts in hoppers (membership under `OWN_SUBSCRIPTION = "~own"`, existing routes, no migration; out of the interaction log); autosave runs outside the editor's busy flag (`useAction().background`; the composer's draft-creating first save still holds it); the side menu stacks one link per line, puts the masthead over the content, and folds behind a Menu button below 62rem (`LINKS_SCRIPT`); thread search in the links-section settings. No migration.
