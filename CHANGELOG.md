@@ -18,6 +18,26 @@ not have its own repo until session 26.
 
 ---
 
+## 0.44.0 — 2026-10-12
+
+**Migrations: none.** The new settings are ordinary settings rows.
+
+- **A links section on every public page** (Settings → links section). It
+  lists threads you choose, in your order (an About or Now page, say), your
+  public collections, your own links (one per line, `label | url`), and a
+  line of standard links: your blogroll as OPML when it lists anyone, *Made
+  with Blygger* (blygger.org) and *Find more blygs* (blygger.com). Each group
+  can be turned off; the standard links start on. It sits below the content
+  by default, so no page moves on upgrade; choose left or right for a sidebar
+  on wide screens, which falls below the content on a phone. A listed thread
+  that is withdrawn drops out, and the front page's entry links to the root.
+  Collections now appear here rather than at the foot of the home page and
+  archive, unless that group is off.
+- **Settings save after a withdrawal.** A front page or listed thread that
+  had since been withdrawn made every later Settings save fail, because the
+  form sends each field back. A stored value is now accepted as it is, and a
+  withdrawn listed thread is dropped.
+
 ## 0.43.0 — 2026-10-12
 
 **Migrations: none.** Both new settings are ordinary settings rows, written
