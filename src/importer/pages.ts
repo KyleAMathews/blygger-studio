@@ -3,7 +3,7 @@
 // never a re-emission of anyone else's content on our own feed.
 
 import { parseSurface, pinUrl } from "../surface.ts";
-import { layout, pageTop } from "../pages.ts";
+import { layout, blygPage } from "../pages.ts";
 import type { HopperRow, ImportedItemRow, Settings, SubscriptionRow } from "../types.ts";
 import { escapeHtml, escapeHref } from "../util.ts";
 import { sanitizeHtml } from "./sanitize.ts";
@@ -45,14 +45,11 @@ ${attribution}
   const sources = new Set(items.map(({ sub }) => sub.id)).size;
   const summary = `${items.length} ${items.length === 1 ? "item" : "items"} from ${sources} ${sources === 1 ? "source" : "sources"}`;
   const description = hopper.description || `A collection on ${settings.site_title}: ${summary}.`;
-  const body = `<div class="blyg">
-${await pageTop(db, settings, mount)}
-<header class="collection-head">
+  const body = await blygPage(db, settings, mount, `<header class="collection-head">
 <h2>${escapeHtml(hopper.name)}</h2>
 ${hopper.description ? `<p class="collection-desc">${escapeHtml(hopper.description)}</p>\n` : ""}<p class="meta">A collection · ${summary} · <a href="${mount}/">${escapeHtml(settings.site_title)}</a></p>
 </header>
-${blocks.join("\n") || "<p>Nothing here yet.</p>"}
-</div>`;
+${blocks.join("\n") || "<p>Nothing here yet.</p>"}`);
   return layout(`${hopper.name} — ${settings.site_title}`, body, mount, {
     description,
     url: `${origin}h/${hopper.slug}/`,

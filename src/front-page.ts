@@ -12,6 +12,9 @@ import type { ItemRow } from "./types.ts";
  */
 export const DEFAULT_POSTS_PATH = "posts";
 
+/** The links section's lists (threads, external links) each hold at most this many. */
+export const MAX_LINKS = 30;
+
 /**
  * Segments the public surface or the studio already uses under the mount, plus
  * `feed`, `rss` and `atom`: feed readers probe those expecting XML, and on

@@ -139,6 +139,37 @@ export type Settings = {
      */
     posts_path: string;
     /**
+     * Where the links section sits on public pages: below the content (the default), or a sidebar on wide screens that falls below the content on narrow ones.
+     */
+    links_position: 'bottom' | 'left' | 'right';
+    /**
+     * Published threads listed first in the links section, in order. A thread later withdrawn is left out.
+     */
+    links_threads: Array<string>;
+    /**
+     * The owner's own links in the links section.
+     */
+    links_external: Array<{
+        label: string;
+        url: string;
+    }>;
+    /**
+     * List public collections in the links section.
+     */
+    links_collections: boolean;
+    /**
+     * Link the blogroll's OPML file in the links section, when the blogroll is not empty.
+     */
+    links_opml: boolean;
+    /**
+     * Link blygger.org in the links section.
+     */
+    links_blygger_org: boolean;
+    /**
+     * Link blygger.com, the directory of blygs, in the links section.
+     */
+    links_blygger_com: boolean;
+    /**
      * The setup wizard: pending on a fresh install, notice on a node that published before it existed, done once finished or dismissed.
      */
     setup: 'pending' | 'notice' | 'done';
@@ -1966,6 +1997,37 @@ export type UpdateSettingsData = {
          * Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused.
          */
         posts_path?: string;
+        /**
+         * Where the links section sits on public pages: below the content (the default), or a sidebar on wide screens that falls below the content on narrow ones.
+         */
+        links_position?: 'bottom' | 'left' | 'right';
+        /**
+         * Published threads listed first in the links section, in order. A thread later withdrawn is left out.
+         */
+        links_threads?: Array<string>;
+        /**
+         * The owner's own links in the links section.
+         */
+        links_external?: Array<{
+            label: string;
+            url: string;
+        }>;
+        /**
+         * List public collections in the links section.
+         */
+        links_collections?: boolean;
+        /**
+         * Link the blogroll's OPML file in the links section, when the blogroll is not empty.
+         */
+        links_opml?: boolean;
+        /**
+         * Link blygger.org in the links section.
+         */
+        links_blygger_org?: boolean;
+        /**
+         * Link blygger.com, the directory of blygs, in the links section.
+         */
+        links_blygger_com?: boolean;
         /**
          * The setup wizard: pending on a fresh install, notice on a node that published before it existed, done once finished or dismissed.
          */

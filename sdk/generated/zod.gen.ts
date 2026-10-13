@@ -156,6 +156,20 @@ export const zSettings = z.object({
     feed_order: z.string(),
     front_page: z.string(),
     posts_path: z.string(),
+    links_position: z.enum([
+        'bottom',
+        'left',
+        'right'
+    ]),
+    links_threads: z.array(z.string()),
+    links_external: z.array(z.object({
+        label: z.string(),
+        url: z.string()
+    })),
+    links_collections: z.boolean(),
+    links_opml: z.boolean(),
+    links_blygger_org: z.boolean(),
+    links_blygger_com: z.boolean(),
     setup: z.enum([
         'pending',
         'notice',
@@ -906,6 +920,20 @@ export const zUpdateSettingsBody = z.object({
     feed_order: z.string().optional(),
     front_page: z.string().optional(),
     posts_path: z.string().optional(),
+    links_position: z.enum([
+        'bottom',
+        'left',
+        'right'
+    ]).optional(),
+    links_threads: z.array(z.string()).optional(),
+    links_external: z.array(z.object({
+        label: z.string(),
+        url: z.string()
+    })).optional(),
+    links_collections: z.boolean().optional(),
+    links_opml: z.boolean().optional(),
+    links_blygger_org: z.boolean().optional(),
+    links_blygger_com: z.boolean().optional(),
     setup: z.enum([
         'pending',
         'notice',

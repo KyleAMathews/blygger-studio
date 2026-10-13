@@ -90,15 +90,30 @@ export function settingDefaults(siteUrl: string): Settings {
   return settingsFromMap({ site_url: siteUrl });
 }
 
-export function settingsFromMap(map: Record<string, string>): Settings {
-  let links: Settings["author_links"] = [];
+/** A stored list of label + url links; malformed JSON or unfollowable urls read as absent. */
+function parseLinkList(stored: string | undefined): Settings["author_links"] {
   try {
-    const parsed = JSON.parse(map.author_links ?? "[]");
+    const parsed = JSON.parse(stored ?? "[]");
     // Rows stored before 0.27 may hold any scheme; only followable links leave.
-    if (Array.isArray(parsed)) links = parsed.filter((l) => typeof l?.label === "string" && typeof l?.url === "string" && isFollowableUrl(l.url));
+    if (Array.isArray(parsed)) return parsed.filter((l) => typeof l?.label === "string" && typeof l?.url === "string" && isFollowableUrl(l.url));
   } catch {
     // ignore malformed settings JSON; treat as no links
   }
+  return [];
+}
+
+function parseIdList(stored: string | undefined): string[] {
+  try {
+    const parsed = JSON.parse(stored ?? "[]");
+    if (Array.isArray(parsed)) return parsed.filter((id): id is string => typeof id === "string");
+  } catch {
+    // malformed: no ids
+  }
+  return [];
+}
+
+export function settingsFromMap(map: Record<string, string>): Settings {
+  const links = parseLinkList(map.author_links);
   return {
     // `||` not `??`: an empty string is an unset title, not a chosen one.
     site_title: map.site_title || defaultSiteTitle(map.site_url),
@@ -138,6 +153,13 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     feed_order: map.feed_order || DEFAULT_FEED_ORDER,
     front_page: map.front_page ?? "",
     posts_path: map.posts_path || DEFAULT_POSTS_PATH,
+    links_position: map.links_position === "left" || map.links_position === "right" ? map.links_position : "bottom",
+    links_threads: parseIdList(map.links_threads),
+    links_external: parseLinkList(map.links_external),
+    links_collections: map.links_collections !== "off",
+    links_opml: map.links_opml !== "off",
+    links_blygger_org: map.links_blygger_org !== "off",
+    links_blygger_com: map.links_blygger_com !== "off",
     update_check: map.update_check !== "off",
     update_feed_url: map.update_feed_url ?? "",
     /** Cleared until the operator has seen the "alerts are on" notice once. */

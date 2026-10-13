@@ -44,6 +44,12 @@ const fields = [
   'feed_order',
   'front_page',
   'posts_path',
+  'links_position',
+  'links_threads',
+  'links_collections',
+  'links_opml',
+  'links_blygger_org',
+  'links_blygger_com',
   'avatar_media_id',
   'ai_model_tk',
   'ai_model_changelog',
@@ -109,6 +115,11 @@ function SettingsForm({ initial }: { initial: Settings }) {
       .map((link) => `${link.label} | ${link.url}`)
       .join('\n'),
   );
+  const [externalLinks, setExternalLinks] = useState(
+    initial.links_external
+      .map((link) => `${link.label} | ${link.url}`)
+      .join('\n'),
+  );
   const [error, setError] = useState<unknown>();
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -164,7 +175,11 @@ function SettingsForm({ initial }: { initial: Settings }) {
       | 'show_responses_default'
       | 'highlight_generated_default'
       | 'accept_mentions'
-      | 'auto_change_notes',
+      | 'auto_change_notes'
+      | 'links_collections'
+      | 'links_opml'
+      | 'links_blygger_org'
+      | 'links_blygger_com',
     label: string,
     hint?: ReactNode,
   ) => (
@@ -198,8 +213,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
         setSaved(false);
         try {
           const author_links = parseLinks(links);
+          const links_external = parseLinks(externalLinks);
           await settings.update('settings', (row) => {
-            Object.assign(row, form, { author_links });
+            Object.assign(row, form, { author_links, links_external });
           }).isPersisted.promise;
           setSaved(true);
         } catch (failure) {
@@ -470,6 +486,61 @@ function SettingsForm({ initial }: { initial: Settings }) {
           </span>
         </div>
         <FrontPageFields form={form} change={change} />
+      </section>
+      <section className="card" id="links-section">
+        <h3 className="card-h">links section</h3>
+        <p className="hint">
+          A short list on every public page: threads you choose, your public
+          collections, your own links, and a line of standard links.
+        </p>
+        <div className="field" role="radiogroup" aria-labelledby="links_position-label">
+          <span id="links_position-label">Where it sits</span>
+          {(
+            [
+              ['bottom', 'Below the content'],
+              ['right', 'On the right'],
+              ['left', 'On the left'],
+            ] as const
+          ).map(([value, label]) => (
+            <label className="check" key={value}>
+              <input
+                type="radio"
+                name="links_position"
+                value={value}
+                checked={form.links_position === value}
+                onChange={() => change('links_position', value)}
+              />
+              <span>{label}</span>
+            </label>
+          ))}
+          <span className="hint">
+            A side column shows on wide screens; on a phone it moves below the
+            content.
+          </span>
+        </div>
+        <LinkedThreads
+          ids={form.links_threads}
+          onChange={(ids) => change('links_threads', ids)}
+        />
+        <div className="field">
+          <label htmlFor="links_external">
+            <span>Your links, one per line: label | url</span>
+          </label>
+          <textarea
+            id="links_external"
+            rows={3}
+            value={externalLinks}
+            placeholder="Résumé | https://example.com/resume.pdf"
+            onChange={(event) => {
+              setSaved(false);
+              setExternalLinks(event.target.value);
+            }}
+          />
+        </div>
+        {toggle('links_collections', 'Your public collections')}
+        {toggle('links_opml', 'Your blogroll as an OPML file, when it lists anyone')}
+        {toggle('links_blygger_org', 'Made with Blygger (blygger.org)')}
+        {toggle('links_blygger_com', 'Find more blygs (blygger.com)')}
       </section>
       <section className="card">
         <h3 className="card-h">writing</h3>
@@ -970,5 +1041,89 @@ function FrontPageFields({
         </span>
       </div>
     </>
+  );
+}
+
+/** Choose published threads for the links section, in order. */
+function LinkedThreads({
+  ids,
+  onChange,
+}: {
+  ids: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const rows =
+    useLiveQuery({ query: (q) => q.from({ item: items }) }).data ?? [];
+  const threads = rows.filter(
+    (row) => row.status === 'public' && row.kind === 'thread',
+  );
+  const title = (id: string) => {
+    const row = threads.find((t) => t.id === id);
+    return row ? itemTitle(row.content_md) || id : 'a thread that is no longer published';
+  };
+  const move = (from: number, to: number) => {
+    const next = [...ids];
+    const [id] = next.splice(from, 1);
+    next.splice(to, 0, id);
+    onChange(next);
+  };
+  const available = threads.filter((row) => !ids.includes(row.id));
+  return (
+    <div className="field">
+      <span>Threads to list</span>
+      {ids.length ? (
+        <ol className="linked-threads">
+          {ids.map((id, i) => (
+            <li key={id}>
+              <span>{title(id)}</span>{' '}
+              <Button
+                className="btn btn-ghost btn-mini"
+                aria-label="move up"
+                disabled={i === 0}
+                onClick={() => move(i, i - 1)}
+              >
+                ↑
+              </Button>
+              <Button
+                className="btn btn-ghost btn-mini"
+                aria-label="move down"
+                disabled={i === ids.length - 1}
+                onClick={() => move(i, i + 1)}
+              >
+                ↓
+              </Button>
+              <Button
+                className="btn btn-ghost btn-mini"
+                aria-label="remove"
+                onClick={() => onChange(ids.filter((other) => other !== id))}
+              >
+                ✕
+              </Button>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+      {available.length ? (
+        <select
+          id="links_threads_add"
+          value=""
+          aria-label="add a thread"
+          onChange={(event) => {
+            if (event.target.value) onChange([...ids, event.target.value]);
+          }}
+        >
+          <option value="">Add a thread…</option>
+          {available.map((row) => (
+            <option key={row.id} value={row.id}>
+              {itemTitle(row.content_md) || row.id}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <span className="hint">
+          {ids.length ? '' : 'Publish a thread to list it here.'}
+        </span>
+      )}
+    </div>
   );
 }

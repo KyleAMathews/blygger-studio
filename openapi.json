@@ -540,6 +540,57 @@
             "type": "string",
             "description": "Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused."
           },
+          "links_position": {
+            "type": "string",
+            "enum": [
+              "bottom",
+              "left",
+              "right"
+            ],
+            "description": "Where the links section sits on public pages: below the content (the default), or a sidebar on wide screens that falls below the content on narrow ones."
+          },
+          "links_threads": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Published threads listed first in the links section, in order. A thread later withdrawn is left out."
+          },
+          "links_external": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "url"
+              ]
+            },
+            "description": "The owner's own links in the links section."
+          },
+          "links_collections": {
+            "type": "boolean",
+            "description": "List public collections in the links section."
+          },
+          "links_opml": {
+            "type": "boolean",
+            "description": "Link the blogroll's OPML file in the links section, when the blogroll is not empty."
+          },
+          "links_blygger_org": {
+            "type": "boolean",
+            "description": "Link blygger.org in the links section."
+          },
+          "links_blygger_com": {
+            "type": "boolean",
+            "description": "Link blygger.com, the directory of blygs, in the links section."
+          },
           "setup": {
             "type": "string",
             "enum": [
@@ -620,6 +671,13 @@
           "feed_order",
           "front_page",
           "posts_path",
+          "links_position",
+          "links_threads",
+          "links_external",
+          "links_collections",
+          "links_opml",
+          "links_blygger_org",
+          "links_blygger_com",
           "setup",
           "update_feed_url",
           "update_notice_ack",
@@ -5814,6 +5872,57 @@
                   "posts_path": {
                     "type": "string",
                     "description": "Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused."
+                  },
+                  "links_position": {
+                    "type": "string",
+                    "enum": [
+                      "bottom",
+                      "left",
+                      "right"
+                    ],
+                    "description": "Where the links section sits on public pages: below the content (the default), or a sidebar on wide screens that falls below the content on narrow ones."
+                  },
+                  "links_threads": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Published threads listed first in the links section, in order. A thread later withdrawn is left out."
+                  },
+                  "links_external": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "url"
+                      ]
+                    },
+                    "description": "The owner's own links in the links section."
+                  },
+                  "links_collections": {
+                    "type": "boolean",
+                    "description": "List public collections in the links section."
+                  },
+                  "links_opml": {
+                    "type": "boolean",
+                    "description": "Link the blogroll's OPML file in the links section, when the blogroll is not empty."
+                  },
+                  "links_blygger_org": {
+                    "type": "boolean",
+                    "description": "Link blygger.org in the links section."
+                  },
+                  "links_blygger_com": {
+                    "type": "boolean",
+                    "description": "Link blygger.com, the directory of blygs, in the links section."
                   },
                   "setup": {
                     "type": "string",

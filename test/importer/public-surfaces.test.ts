@@ -94,7 +94,8 @@ describe("public hopper page (§4.2 task 11)", () => {
     // Listed under Collections on the homepage and archive, with its count.
     for (const path of ["/blyg/", "/blyg/archive/"]) {
       const page = await (await getPublic(path)).text();
-      expect(page).toContain('<section class="collections">');
+      // In the links section since session 47 (links_collections, on by default).
+      expect(page).toContain('<section class="links-collections">');
       expect(page).toContain('<a href="/blyg/h/stigmergy-reading/">Stigmergy Reading</a> <span class="meta">1 item</span>');
     }
 
