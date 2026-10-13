@@ -153,7 +153,8 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     feed_order: map.feed_order || DEFAULT_FEED_ORDER,
     front_page: map.front_page ?? "",
     posts_path: map.posts_path || DEFAULT_POSTS_PATH,
-    links_position: map.links_position === "left" || map.links_position === "right" ? map.links_position : "bottom",
+    // Left by default (Venkat, session 47); "bottom" keeps the menu below the content.
+    links_position: map.links_position === "bottom" || map.links_position === "right" ? map.links_position : "left",
     links_threads: parseIdList(map.links_threads),
     links_external: parseLinkList(map.links_external),
     links_collections: map.links_collections !== "off",

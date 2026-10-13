@@ -139,7 +139,7 @@ export type Settings = {
      */
     posts_path: string;
     /**
-     * Where the links section sits on public pages: below the content (the default), or a sidebar on wide screens that falls below the content on narrow ones.
+     * Where the links section (main menu) sits on public pages: left (the default) or right is a sidebar on wide screens and a Menu button under the masthead on narrow ones; bottom puts it below the content at every width.
      */
     links_position: 'bottom' | 'left' | 'right';
     /**
@@ -1998,7 +1998,7 @@ export type UpdateSettingsData = {
          */
         posts_path?: string;
         /**
-         * Where the links section sits on public pages: below the content (the default), or a sidebar on wide screens that falls below the content on narrow ones.
+         * Where the links section (main menu) sits on public pages: left (the default) or right is a sidebar on wide screens and a Menu button under the masthead on narrow ones; bottom puts it below the content at every width.
          */
         links_position?: 'bottom' | 'left' | 'right';
         /**

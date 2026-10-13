@@ -40,5 +40,16 @@ test('a thread becomes the front page from its menu, and back', async ({ page })
   await editorMenu(page, 'stop using as front page');
   await expect(page.getByRole('status').filter({ hasText: 'latest items again' })).toBeVisible();
   expect((await api(page, 'GET', '/api/settings')).json.front_page).toBe('');
+
+  // Settings finds the thread by search, and can go back to the latest items.
+  await page.goto('/studio/settings#feed');
+  await page.getByRole('searchbox', { name: 'find a thread for the front page' }).fill(`Welcome (${project})`);
+  await page.getByRole('list', { name: 'matching threads: find a thread for the front page' }).getByRole('button', { name: `Welcome (${project})` }).click();
+  await expect(page.locator('#front_page')).toContainText(`Welcome (${project})`);
+  await page.getByRole('button', { name: 'save settings' }).click();
+  await expect.poll(async () => (await api(page, 'GET', '/api/settings')).json.front_page).toBe(id);
+  await page.getByRole('button', { name: 'use latest items' }).click();
+  await page.getByRole('button', { name: 'save settings' }).click();
+  await expect.poll(async () => (await api(page, 'GET', '/api/settings')).json.front_page).toBe('');
   expect(errors).toEqual([]);
 });

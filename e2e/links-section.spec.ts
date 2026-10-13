@@ -26,7 +26,7 @@ test('threads and links chosen in Settings show on the public page', async ({ pa
   const card = page.locator('#links-section');
   await card.getByRole('radio', { name: 'On the right' }).check();
   await card.getByRole('searchbox', { name: 'find a thread to add' }).fill(label);
-  await card.getByRole('list', { name: 'matching threads' }).getByRole('button', { name: label }).click();
+  await card.getByRole('list', { name: 'matching threads: find a thread to add' }).getByRole('button', { name: label }).click();
   await expect(card.locator('.linked-threads')).toContainText(label);
   await card.locator('#links_external').fill('Résumé | https://example.org/resume.pdf');
   await page.getByRole('button', { name: 'save settings' }).click();

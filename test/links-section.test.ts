@@ -13,7 +13,7 @@ const page = async (path: string) => (await getPublic(path)).text();
 const aside = (html: string) => /<nav class="blyg-links"[\s\S]*?<\/nav>/.exec(html)?.[0] ?? "";
 
 const DEFAULTS = {
-  links_position: "bottom", links_threads: [], links_external: [], front_page: "",
+  links_position: "left", links_threads: [], links_external: [], front_page: "",
   links_collections: true, links_opml: true, links_blygger_org: true, links_blygger_com: true,
 };
 
@@ -23,7 +23,7 @@ beforeEach(async () => {
 });
 
 describe("the settings", () => {
-  it("default to a section below the content with the standard links on", async () => {
+  it("default to a left sidebar with the standard links on", async () => {
     const settings = (await apiJson(await login(), "GET", "/api/settings")).json;
     expect(settings).toMatchObject(DEFAULTS);
   });
@@ -85,6 +85,7 @@ describe("the public pages", () => {
 
   it("is a sidebar only when a side is chosen and there is something to show", async () => {
     const cookie = await login();
+    await apiJson(cookie, "PATCH", "/api/settings", { links_position: "bottom" });
     expect(await page("/blyg/")).toContain('<div class="blyg">');
     expect(await page("/blyg/")).not.toContain('class="links-toggle"');
     await apiJson(cookie, "PATCH", "/api/settings", { links_position: "left" });

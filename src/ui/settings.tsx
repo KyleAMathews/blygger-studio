@@ -598,9 +598,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
           <span id="links_position-label">Where it sits</span>
           {(
             [
-              ['bottom', 'Below the content'],
+              ['left', 'On the left (default)'],
               ['right', 'On the right'],
-              ['left', 'On the left'],
+              ['bottom', 'Below the content'],
             ] as const
           ).map(([value, label]) => (
             <label className="check" key={value}>
@@ -688,6 +688,19 @@ function SettingsForm({ initial }: { initial: Settings }) {
           liked and engaged with. The agent is not built yet: this prompt is
           saved now so the Smart Feed can use it when it is.
         </p>
+      </section>
+      <section className="card" id="ai-authoring">
+        <h3 className="card-h">authoring</h3>
+        <div className="field model-field">
+          <label htmlFor="ai_model_authoring">
+            <span>
+              Model<span className="hint"> · coming later</span>
+            </span>
+          </label>
+          <select id="ai_model_authoring" disabled value="">
+            <option value="">reserved for agentic authoring</option>
+          </select>
+        </div>
       </section>
       </section>
       <section className="settings-section" id="network" aria-labelledby="network-h">
@@ -1143,26 +1156,31 @@ function FrontPageFields({
   return (
     <>
       <div className="field">
-        <label htmlFor="front_page">
-          <span>Front page</span>
-        </label>
-        <select
-          id="front_page"
-          value={form.front_page}
-          onChange={(event) => change('front_page', event.target.value)}
-        >
-          <option value="">Your latest items</option>
-          {missing ? (
-            <option value={form.front_page}>
-              A thread that is no longer published
-            </option>
+        <span id="front_page-label">Front page</span>
+        <p className="front-page-choice" id="front_page" aria-labelledby="front_page-label">
+          <strong>
+            {!form.front_page
+              ? 'Your latest items'
+              : missing
+                ? 'A thread that is no longer published'
+                : itemTitle(threads.find((row) => row.id === form.front_page)!.content_md) || form.front_page}
+          </strong>
+          {form.front_page ? (
+            <>
+              {' '}
+              <Button className="btn btn-ghost btn-mini" onClick={() => change('front_page', '')}>
+                use latest items
+              </Button>
+            </>
           ) : null}
-          {threads.map((row) => (
-            <option key={row.id} value={row.id}>
-              {itemTitle(row.content_md) || row.id}
-            </option>
-          ))}
-        </select>
+        </p>
+        <ThreadSearch
+          id="front_page_search"
+          label="find a thread for the front page"
+          placeholder="Find a thread to use as the front page…"
+          threads={threads.filter((row) => row.id !== form.front_page)}
+          onPick={(id) => change('front_page', id)}
+        />
         <span className="hint">
           Choose a published thread to greet readers at {mount || ''}/ instead
           of your latest items, as a static front page. You edit it like any
@@ -1217,19 +1235,6 @@ function LinkedThreads({
     onChange(next);
   };
   const available = threads.filter((row) => !ids.includes(row.id));
-  const [query, setQuery] = useState('');
-  // Matches by title or id, newest first; a long blyg has too many threads to scroll.
-  const needle = query.trim().toLowerCase();
-  const matches = needle
-    ? available
-        .filter((row) => (itemTitle(row.content_md) + ' ' + row.id).toLowerCase().includes(needle))
-        .sort((a, b) => (a.updated < b.updated ? 1 : -1))
-        .slice(0, 8)
-    : [];
-  const add = (id: string) => {
-    onChange([...ids, id]);
-    setQuery('');
-  };
   return (
     <div className="field">
       <span>Threads to list</span>
@@ -1266,43 +1271,85 @@ function LinkedThreads({
         </ol>
       ) : null}
       {available.length ? (
-        <div className="thread-search">
-          <input
-            id="links_threads_search"
-            type="search"
-            aria-label="find a thread to add"
-            placeholder="Find a thread to add…"
-            autoComplete="off"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              // Enter adds the first match; it must not submit the settings form.
-              if (event.key !== 'Enter') return;
-              event.preventDefault();
-              if (matches[0]) add(matches[0].id);
-            }}
-          />
-          {query.trim() ? (
-            matches.length ? (
-              <ul className="thread-matches" aria-label="matching threads">
-                {matches.map((row) => (
-                  <li key={row.id}>
-                    <button type="button" className="link" onClick={() => add(row.id)}>
-                      {itemTitle(row.content_md) || row.id}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <span className="hint">No published thread matches.</span>
-            )
-          ) : null}
-        </div>
+        <ThreadSearch
+          id="links_threads_search"
+          label="find a thread to add"
+          placeholder="Find a thread to add…"
+          threads={available}
+          onPick={(id) => onChange([...ids, id])}
+        />
       ) : (
         <span className="hint">
           {ids.length ? '' : 'Publish a thread to list it here.'}
         </span>
       )}
+    </div>
+  );
+}
+
+type ThreadRow = { id: string; content_md: string; updated: string };
+
+/**
+ * Find a published thread by title or id (session 47): up to eight matches,
+ * newest first, since a long blyg has too many threads for a dropdown. Enter
+ * picks the first match and never submits the settings form.
+ */
+function ThreadSearch({
+  id,
+  label,
+  placeholder,
+  threads,
+  onPick,
+}: {
+  id: string;
+  label: string;
+  placeholder: string;
+  threads: ThreadRow[];
+  onPick: (id: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const needle = query.trim().toLowerCase();
+  const matches = needle
+    ? threads
+        .filter((row) => (itemTitle(row.content_md) + ' ' + row.id).toLowerCase().includes(needle))
+        .sort((a, b) => (a.updated < b.updated ? 1 : -1))
+        .slice(0, 8)
+    : [];
+  const pick = (picked: string) => {
+    onPick(picked);
+    setQuery('');
+  };
+  return (
+    <div className="thread-search">
+      <input
+        id={id}
+        type="search"
+        aria-label={label}
+        placeholder={placeholder}
+        autoComplete="off"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
+          if (matches[0]) pick(matches[0].id);
+        }}
+      />
+      {needle ? (
+        matches.length ? (
+          <ul className="thread-matches" aria-label={`matching threads: ${label}`}>
+            {matches.map((row) => (
+              <li key={row.id}>
+                <button type="button" className="link" onClick={() => pick(row.id)}>
+                  {itemTitle(row.content_md) || row.id}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <span className="hint">No published thread matches.</span>
+        )
+      ) : null}
     </div>
   );
 }

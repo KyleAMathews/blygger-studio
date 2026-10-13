@@ -189,7 +189,7 @@ export const SettingsSchema = z.object({
   feed_order: z.string().describe("The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>."),
   front_page: z.string().describe("A published thread's id shown at the mount root instead of the latest items; empty for the latest items. A front page later withdrawn or deleted falls back to the latest items."),
   posts_path: z.string().describe("Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused."),
-  links_position: z.enum(["bottom", "left", "right"]).describe("Where the links section sits on public pages: below the content (the default), or a sidebar on wide screens that falls below the content on narrow ones."),
+  links_position: z.enum(["bottom", "left", "right"]).describe("Where the links section (main menu) sits on public pages: left (the default) or right is a sidebar on wide screens and a Menu button under the masthead on narrow ones; bottom puts it below the content at every width."),
   links_threads: z.array(z.string()).describe("Published threads listed first in the links section, in order. A thread later withdrawn is left out."),
   links_external: z.array(z.object({ label: z.string(), url: z.string() })).describe("The owner's own links in the links section."),
   links_collections: z.boolean().describe("List public collections in the links section."),
