@@ -398,15 +398,29 @@ article.showing-pin .item-content[aria-busy="true"] { opacity: 0.5; }
 .blyg-links a { color: var(--pencil); text-decoration: none; border-bottom: 1px solid var(--rule); }
 .blyg-links a:hover { border-bottom-color: currentColor; }
 .blyg-links .meta { color: var(--ink-soft); }
-.links-foot { color: var(--ink-soft); margin: 1.25rem 0 0; }
+.blyg-links ul.links-foot { margin-top: 1.25rem; }
+.links-foot a { color: var(--ink-soft); }
+/* As a side menu, one link per line in a column narrow enough to wrap. */
+.blyg.has-side .blyg-links ul { display: block; }
+.blyg.has-side .blyg-links li { margin: 0 0 0.45rem; }
+.links-toggle { display: none; }
+@media (max-width: 61.99rem) {
+  /* Narrow: the side menu sits under the masthead, folded behind Menu once the script runs. */
+  .blyg.has-side .blyg-links { margin: 0 0 2rem; padding: 0 0 1rem; border-top: 0; border-bottom: 1px solid var(--rule); }
+  .js-links .blyg.has-side .links-toggle { display: inline-block; margin-right: auto; font: var(--apparatus); color: var(--ink-soft); background: none; border: 1px solid var(--rule); border-radius: 4px; padding: 0.35rem 0.75rem; min-height: 2.25rem; cursor: pointer; }
+  .js-links .blyg.has-side .links-toggle[aria-expanded="true"] { color: var(--pencil); border-color: currentColor; }
+  .js-links .blyg.has-side:not(.links-open) .blyg-links { display: none; }
+  .js-links .blyg.has-side > .blyg-header { margin-bottom: 1rem; align-items: center; }
+}
 @media (min-width: 62rem) {
   .blyg.has-side { max-width: calc(65ch + 14rem + 3rem + 2 * var(--block-pad)); }
-  .blyg.has-side .blyg-body { display: grid; grid-template-columns: minmax(0, 65ch) 14rem; gap: 3rem; align-items: start; }
-  .blyg.side-left .blyg-body { grid-template-columns: 14rem minmax(0, 65ch); }
-  .blyg.side-left .blyg-links { order: -1; }
-  .blyg.has-side .blyg-links { position: sticky; top: 1.5rem; margin-top: 0; padding-top: 0; border-top: 0; }
-  .blyg.has-side .blyg-links ul { display: block; }
-  .blyg.has-side .blyg-links li { margin: 0 0 0.45rem; }
+  .blyg.has-side .blyg-body { display: grid; grid-template-columns: minmax(0, 65ch) 14rem; grid-template-areas: "main links"; gap: 3rem; align-items: start; }
+  .blyg.side-left .blyg-body { grid-template-columns: 14rem minmax(0, 65ch); grid-template-areas: "links main"; }
+  .blyg.has-side .blyg-main { grid-area: main; }
+  .blyg.has-side .blyg-links { grid-area: links; position: sticky; top: 1.5rem; margin-top: 0; padding-top: 0; border-top: 0; }
+  /* The header and masthead sit over the content column, not the menu. */
+  .blyg.side-left > .blyg-header, .blyg.side-left > .masthead { margin-left: calc(14rem + 3rem); }
+  .blyg.side-right > .blyg-header, .blyg.side-right > .masthead { margin-right: calc(14rem + 3rem); }
 }
 .collection-head { margin: 0 0 2rem; }
 .collection-head h2 { margin-bottom: 0.3rem; }
@@ -961,7 +975,7 @@ ${body.includes("blyg-tk-gen") || body.includes("version-line") ? `<script>${GEN
  * entry rendered in the masthead, which is honest: only the author knows
  * whether `/` is their homepage, someone else's site, or nothing.
  */
-function pageHeader(mount: string, settings: Settings): string {
+function pageHeader(mount: string, settings: Settings, menu = false): string {
   // Always `bare`: the masthead below sets the blyg's name at display size on
   // every page now, and printing it twice in a row is just clutter. The class
   // is still emitted because themes target `.blyg-header.bare` for the layout
@@ -969,8 +983,11 @@ function pageHeader(mount: string, settings: Settings): string {
   // With a front page the latest items move off the root, so every page links
   // to them; the static export finds that page by this link's class.
   const posts = settings.front_page ? `<a class="posts-link" href="${mount}/${settings.posts_path}/">Posts</a>\n` : "";
+  // A side menu folds behind this button on a narrow screen. It stays hidden
+  // until LINKS_SCRIPT runs, so without JavaScript the links show open.
+  const toggle = menu ? `<button type="button" class="links-toggle" aria-controls="blyg-links" aria-expanded="false" hidden>Menu</button>\n` : "";
   return `<header class="blyg-header bare">
-${posts}<a href="${mount}/feed.xml" title="RSS feed">RSS ⧉</a>
+${toggle}${posts}<a href="${mount}/feed.xml" title="RSS feed">RSS ⧉</a>
 </header>`;
 }
 
@@ -989,8 +1006,8 @@ ${posts}<a href="${mount}/feed.xml" title="RSS feed">RSS ⧉</a>
  * just the same thing uniformly: hide `.blyg-header` and `.masthead` and every
  * page is a bare block.
  */
-export async function pageTop(db: D1Database, settings: Settings, mount: string, avatar?: MediaRow | null): Promise<string> {
-  return `${pageHeader(mount, settings)}\n${await masthead(db, settings, mount, avatar)}`;
+export async function pageTop(db: D1Database, settings: Settings, mount: string, avatar?: MediaRow | null, menu = false): Promise<string> {
+  return `${pageHeader(mount, settings, menu)}\n${await masthead(db, settings, mount, avatar)}`;
 }
 
 /**
@@ -1687,12 +1704,12 @@ export async function linksSection(db: D1Database, settings: Settings, mount: st
       `<li><a href="${escapeHref(l.url)}">${escapeHtml(l.label)}</a></li>`)),
   ];
   const standard = [
-    blogroll.length ? `<a href="${mount}/blogroll.opml" title="the blogroll, for a feed reader">Blogroll (OPML)</a>` : "",
-    settings.links_blygger_org ? `<a href="https://blygger.org/">Made with Blygger</a>` : "",
-    settings.links_blygger_com ? `<a href="https://blygger.com/">Find more blygs</a>` : "",
+    blogroll.length ? `<li><a href="${mount}/blogroll.opml" title="the blogroll, for a feed reader">Blogroll (OPML)</a></li>` : "",
+    settings.links_blygger_org ? `<li><a href="https://blygger.org/">Made with Blygger</a></li>` : "",
+    settings.links_blygger_com ? `<li><a href="https://blygger.com/">Find more blygs</a></li>` : "",
   ].filter(Boolean);
-  const body = groups.filter(Boolean).join("\n") + (standard.length ? `\n<p class="links-foot">${standard.join(" &middot; ")}</p>` : "");
-  return body.trim() ? `<aside class="blyg-links" aria-label="links">\n${body.trim()}\n</aside>` : "";
+  const body = groups.filter(Boolean).join("\n") + (standard.length ? `\n<ul class="links-foot">\n${standard.join("\n")}\n</ul>` : "");
+  return body.trim() ? `<nav class="blyg-links" id="blyg-links" aria-label="links">\n${body.trim()}\n</nav>` : "";
 }
 
 /**
@@ -1702,9 +1719,24 @@ export async function linksSection(db: D1Database, settings: Settings, mount: st
  */
 export async function blygPage(db: D1Database, settings: Settings, mount: string, inner: string, avatar?: MediaRow | null, preload?: LinksPreload): Promise<string> {
   const links = await linksSection(db, settings, mount, preload);
-  const side = links && settings.links_position !== "bottom" ? ` has-side side-${settings.links_position}` : "";
-  return `<div class="blyg${side}">
-${await pageTop(db, settings, mount, avatar)}
+  const side = !!links && settings.links_position !== "bottom";
+  const top = await pageTop(db, settings, mount, avatar, side);
+  // A side menu comes first, so on a narrow screen it opens right under the
+  // masthead; on a wide one the grid places it beside the content.
+  if (side) {
+    return `<div class="blyg has-side side-${settings.links_position}">
+${top}
+<div class="blyg-body">
+${links}
+<div class="blyg-main">
+${inner}
+</div>
+</div>
+</div>
+<script>${LINKS_SCRIPT}</script>`;
+  }
+  return `<div class="blyg">
+${top}
 <div class="blyg-body">
 <div class="blyg-main">
 ${inner}
@@ -1713,6 +1745,9 @@ ${links}
 </div>
 </div>`;
 }
+
+/** Folds a side menu behind its Menu button; CSS shows the button on narrow screens only. */
+export const LINKS_SCRIPT = '(function () { var blyg = document.querySelector(".blyg.has-side"); var button = blyg && blyg.querySelector(".links-toggle"); if (!button) return; document.documentElement.classList.add("js-links"); button.hidden = false; button.addEventListener("click", function () { var open = blyg.classList.toggle("links-open"); button.setAttribute("aria-expanded", open ? "true" : "false"); }); })();';
 
 /** Where a latest-items page is served: the root, or `{mount}/{posts_path}/` (canonical to the root when that is where they show). */
 export type FeedPageAt = { url: string; canonical?: string };

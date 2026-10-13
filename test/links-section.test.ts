@@ -10,7 +10,7 @@ async function publishThread(cookie: string, contentMd: string): Promise<string>
 }
 
 const page = async (path: string) => (await getPublic(path)).text();
-const aside = (html: string) => /<aside class="blyg-links"[\s\S]*?<\/aside>/.exec(html)?.[0] ?? "";
+const aside = (html: string) => /<nav class="blyg-links"[\s\S]*?<\/nav>/.exec(html)?.[0] ?? "";
 
 const DEFAULTS = {
   links_position: "bottom", links_threads: [], links_external: [], front_page: "",
@@ -86,8 +86,15 @@ describe("the public pages", () => {
   it("is a sidebar only when a side is chosen and there is something to show", async () => {
     const cookie = await login();
     expect(await page("/blyg/")).toContain('<div class="blyg">');
+    expect(await page("/blyg/")).not.toContain('class="links-toggle"');
     await apiJson(cookie, "PATCH", "/api/settings", { links_position: "left" });
-    expect(await page("/blyg/")).toContain('<div class="blyg has-side side-left">');
+    const side = await page("/blyg/");
+    expect(side).toContain('<div class="blyg has-side side-left">');
+    // A side menu comes before the content and folds behind a Menu button on a phone.
+    expect(side.indexOf('<nav class="blyg-links"')).toBeLessThan(side.indexOf('<div class="blyg-main">'));
+    expect(side).toContain('<button type="button" class="links-toggle" aria-controls="blyg-links" aria-expanded="false" hidden>Menu</button>');
+    const script = [...side.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).find((b) => b.includes("links-toggle"));
+    expect(() => new Function(script!)).not.toThrow();
     await apiJson(cookie, "PATCH", "/api/settings", { links_blygger_org: false, links_blygger_com: false, links_opml: false, links_collections: false });
     expect(await page("/blyg/")).toContain('<div class="blyg">');
   });
