@@ -18,6 +18,25 @@ not have its own repo until session 26.
 
 ---
 
+## 0.46.0 — 2026-10-12
+
+**Migrations: none.** One default changes: the main menu (`links_position`)
+now sits on the **left** unless the owner chose otherwise, so a blyg that never
+set it moves its menu from below the content to a left sidebar on upgrade.
+Choose *Below the content* in Settings → Links to keep the old place.
+
+- **Settings on one page, in sections**, with a sidebar of anchors: General,
+  Feed, Appearance, Links, AI, Network (and Extensions when the build has
+  any). The section in view is marked, `settings#ai` and the like link
+  straight to one, and on a phone the sidebar is a row of chips under the top
+  bar. Under Links, the two menus are named for where they appear: the
+  *masthead menu* (your author links) and the *main menu*. Under AI, each
+  function's model sits beside its own instructions: TK generation with the
+  house style, change notes with auto-drafting, the smart feed with its
+  scoring prompt.
+- **The front page is chosen by search**, like the main menu's threads, with
+  *use latest items* to go back.
+
 ## 0.45.0 — 2026-10-12
 
 **Migrations: none.**

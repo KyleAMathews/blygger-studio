@@ -155,6 +155,8 @@ saying so.
 
 ## Status
 
+**0.46.0** (session 47, 2026-10-12): Settings is one page in sections (General, Feed, Appearance, Links: masthead menu + main menu, AI: model beside instructions per function, Network, Extensions) with a sidebar of anchors (`SettingsNav`, scroll-tracked, deep-linkable); `ModelSettings` split into `useAiModels`/`ModelIntro`/`ModelField`; `ThreadSearch` shared by the front page and the main menu; `links_position` defaults to left. No migration.
+
 **0.45.0** (session 47, 2026-10-12): own posts in hoppers (membership under `OWN_SUBSCRIPTION = "~own"`, existing routes, no migration; out of the interaction log); autosave runs outside the editor's busy flag (`useAction().background`; the composer's draft-creating first save still holds it); the side menu stacks one link per line, puts the masthead over the content, and folds behind a Menu button below 62rem (`LINKS_SCRIPT`); thread search in the links-section settings. No migration.
 
 **0.44.0** (session 47, 2026-10-12): the **links section** on every public page (`linksSection`, and `blygPage()` now frames every public page so none can miss it): `links_position` (bottom by default, or a left/right sidebar at ≥62rem), `links_threads`, `links_external`, and on-by-default `links_collections`/`links_opml`/`links_blygger_org`/`links_blygger_com` (ROADMAP row 5). Edited only in Settings, by Venkat's ruling: an exceptional action, not an item-menu one. Settings saves accept a stored value whose thread was since withdrawn. No migration.
