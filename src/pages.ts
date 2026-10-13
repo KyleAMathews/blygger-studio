@@ -1297,6 +1297,11 @@ function parseTransclusions(json: string | null | undefined): Transclusion[] {
  * heading): a leading heading is linked to the thread by `linkLeadingTitle`,
  * the same helper the fragment card uses.
  */
+/** One of the owner's own items as a card, exactly as the home page shows it (hopper pages, session 47). */
+export async function ownItemCard(db: D1Database, item: FeedItem, mount: string, tz: string): Promise<string> {
+  return item.kind === "thread" ? threadCard(db, item, mount, tz) : fragmentBlock(db, item, mount, tz, true);
+}
+
 async function threadCard(db: D1Database, item: FeedItem, mount: string, tz: string, loaded?: FeedCardData, provenance?: FeedProvenance): Promise<string> {
   const latest = loaded ? loaded.latest : await publishedVersion(db, item);
   const href = `${mount}/t/${item.id}/`;

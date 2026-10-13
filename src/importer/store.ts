@@ -419,6 +419,14 @@ export async function deleteHopper(db: D1Database, id: string): Promise<void> {
   ]);
 }
 
+/**
+ * The subscription id a hopper membership uses for one of the owner's own
+ * items (session 47): the remote id is then the item's id. "~" is outside the
+ * id alphabet, so it never names a real subscription. Such rows are not in the
+ * interaction log, which records reading: LOG_HOPPER finds no subscription.
+ */
+export const OWN_SUBSCRIPTION = "~own";
+
 export async function addHopperItem(db: D1Database, hopperId: string, subscriptionId: string, remoteId: string): Promise<void> {
   const at = nowIso();
   const res = await db

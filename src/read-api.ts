@@ -76,7 +76,7 @@ readApi.openapi(routes.getHopper, async (c) => {
   const preview = c.req.query("preview") === "true";
   const limit = preview ? " LIMIT 3" : "";
   const memberships = (await c.env.DB.prepare(`SELECT * FROM hopper_items WHERE hopper_id = ? ORDER BY added_at DESC, subscription_id, remote_id${limit}`).bind(hopper.id).all<import("./types.ts").HopperItemRow>()).results;
-  const counts = await c.env.DB.prepare("SELECT COUNT(*) AS total, COUNT(DISTINCT subscription_id) AS source_count FROM hopper_items WHERE hopper_id = ?").bind(hopper.id).first<{ total: number; source_count: number }>();
+  const counts = await c.env.DB.prepare("SELECT COUNT(*) AS total, COUNT(DISTINCT CASE WHEN subscription_id <> '~own' THEN subscription_id END) AS source_count FROM hopper_items WHERE hopper_id = ?").bind(hopper.id).first<{ total: number; source_count: number }>();
   const rows = await c.env.DB.prepare(`SELECT ii.* FROM hopper_items hi JOIN imported_items ii
     ON ii.subscription_id = hi.subscription_id AND ii.remote_id = hi.remote_id
     WHERE hi.hopper_id = ? ORDER BY hi.added_at DESC, hi.subscription_id, hi.remote_id${limit}`).bind(hopper.id).all<ImportedItemRow>();

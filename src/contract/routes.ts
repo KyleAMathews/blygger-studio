@@ -97,6 +97,7 @@ export const routes = {
   createHopper: route("createHopper", "post", "/hoppers", HopperSchema, z.object({ name: z.string() }), 201),
   updateHopper: route("updateHopper", "patch", "/hoppers/{id}", HopperSchema, z.object({ name: z.string().trim().min(1).optional(), public: z.boolean().optional(), description: z.string().trim().max(280).optional() }).strict()),
   deleteHopper: route("deleteHopper", "delete", "/hoppers/{id}", ok),
+  // sub "~own" with remoteId = an item id puts one of the owner's own items in the hopper (session 47).
   addHopperItem: route("addHopperItem", "put", "/hoppers/{id}/items/{sub}/{remoteId}", ok),
   removeHopperItem: route("removeHopperItem", "delete", "/hoppers/{id}/items/{sub}/{remoteId}", ok),
   setSignal: route("setSignal", "put", "/signals/{sub}/{remoteId}", ok, z.object({ thumb: z.union([z.literal(1), z.literal(-1)]) })),

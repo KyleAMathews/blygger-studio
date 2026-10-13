@@ -25,9 +25,11 @@ import {
   getHopper,
   getHopperBySlug,
   getSubscription,
+  OWN_SUBSCRIPTION,
   removeHopperItem,
   setSignal,
 } from "./store.ts";
+import { getItem } from "../model.ts";
 
 export const importerApi = contractApp();
 
@@ -193,6 +195,12 @@ importerApi.openapi(routes.deleteHopper, async (c) => {
 importerApi.openapi(routes.addHopperItem, async (c) => {
   const hopper = await getHopper(c.env.DB, c.req.param("id"));
   if (!hopper) return c.json({ error: "hopper not found" }, 404);
+  // One of the owner's own items: any that exists; the public page shows only published ones.
+  if (c.req.param("sub") === OWN_SUBSCRIPTION) {
+    if (!(await getItem(c.env.DB, c.req.param("remoteId")))) return c.json({ error: "item not found" }, 404);
+    await addHopperItem(c.env.DB, hopper.id, OWN_SUBSCRIPTION, c.req.param("remoteId"));
+    return c.json({ ok: true });
+  }
   const sub = await getSubscription(c.env.DB, c.req.param("sub"));
   if (!sub) return c.json({ error: "subscription not found" }, 404);
   await addHopperItem(c.env.DB, hopper.id, sub.id, c.req.param("remoteId"));

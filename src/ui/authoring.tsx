@@ -19,7 +19,7 @@ import { previewFromHtml } from '../preview.ts';
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { Detail } from './data.ts';
-import { client, items, itemDetail, changed, refreshItems, createDraftAction, settings as settingsCollection } from './data.ts';
+import { client, items, itemDetail, changed, refreshItems, createDraftAction, settings as settingsCollection, hoppers } from './data.ts';
 import {
   ActionBar,
   Button,
@@ -1379,6 +1379,8 @@ const initiallyOpen = (hash: string) => location.hash === `#${hash}`;
 function Editor({ item }: { item: Detail }) {
   const navigate = useNavigate();
   const settings = useSettings();
+  const buckets =
+    useLiveQuery({ query: (q) => q.from({ hopper: hoppers }) }).data ?? [];
   const sharing = useSharing();
   const action = useAction();
   const write = useMemo(() => createDraftAction(item.id), [item.id]);
@@ -1565,6 +1567,30 @@ function Editor({ item }: { item: Detail }) {
     });
   const isThread = item.authored_kind === 'thread';
   const isPublic = item.status === 'public';
+  // Own items can go in hoppers beside what you read (session 47); "~own" is
+  // the store's marker for them (src/importer/store.ts OWN_SUBSCRIPTION).
+  const addToHopper = async () => {
+    const chosen = await menu({
+      title: '+ add to hopper…',
+      rows: [
+        ...buckets.map((bucket) => ({ key: `hopper:${bucket.id}`, icon: '▤', label: bucket.name })),
+        { key: 'new', icon: '＋', label: 'new hopper…' },
+      ],
+    });
+    if (!chosen) return;
+    let hopperId = chosen.slice('hopper:'.length);
+    let name = buckets.find((bucket) => bucket.id === hopperId)?.name;
+    if (chosen === 'new') {
+      const typed = await prompt({ title: 'Name the new hopper:' });
+      if (!typed?.trim()) return;
+      const hopper = await unwrap(BlyggerApi.createHopper({ client, body: { name: typed } }));
+      hopperId = hopper.id;
+      name = hopper.name;
+    }
+    await unwrap(BlyggerApi.addHopperItem({ client, path: { id: hopperId, sub: '~own', remoteId: item.id } }));
+    await changed('hoppers', 'hopper', 'hopper-preview');
+    toast(`added to ${name}`);
+  };
   const edited = !saved && text !== item.content_md;
   // Unpublished changes, discounting a working copy that already holds the
   // published words again (discard changes leaves `dirty` set on purpose).
@@ -1632,6 +1658,13 @@ function Editor({ item }: { item: Detail }) {
               }).isPersisted.promise;
               toast(front ? 'This thread is now your front page' : 'Your home page shows your latest items again', { tone: 'ok' });
             }),
+        },
+        item.status !== 'withdrawn' && {
+          icon: '▤',
+          label: 'add to hopper…',
+          description: isPublic ? undefined : 'it shows on a public hopper once published',
+          disabled: action.busy,
+          onSelect: () => void action.run(addToHopper),
         },
         isPublic && {
           icon: '📌',

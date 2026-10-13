@@ -18,9 +18,9 @@ import { type Context, Hono } from "hono";
 
 
 import { buildBlogrollOpml } from "./importer/opml.ts";
-import { publicHopperPage } from "./importer/pages.ts";
+import { publicHopperPage, type HopperItemView } from "./importer/pages.ts";
 import { repairImportedUrls, runScheduledPoll } from "./importer/schedule.ts";
-import { getHopperBySlug, getImportedItem, getSubscription, listBlogrollSubscriptions, listHopperItems } from "./importer/store.ts";
+import { getHopperBySlug, getImportedItem, getSubscription, listBlogrollSubscriptions, listHopperItems, OWN_SUBSCRIPTION } from "./importer/store.ts";
 import { resolveFrontPage } from "./front-page.ts";
 import { authoredKind, getItem, getMedia, getSettings, getVersion, listPublic } from "./model.ts";
 import { archivePage, feedPage, generatedHighlightCss, permalinkPage, pinnedVersionPage, STYLE_CSS, themeCss, threadPage } from "./pages.ts";
@@ -153,8 +153,14 @@ export function makeApp(mount: string) {
     if (!hopper || hopper.public !== 1) return c.notFound();
     const memberships = await listHopperItems(c.env.DB, hopper.id);
     const subCache = new Map<string, Awaited<ReturnType<typeof getSubscription>>>();
-    const items: { row: NonNullable<Awaited<ReturnType<typeof getImportedItem>>>; sub: NonNullable<Awaited<ReturnType<typeof getSubscription>>> }[] = [];
+    const items: HopperItemView[] = [];
     for (const m of memberships) {
+      // The owner's own items show once published, and not after withdrawal.
+      if (m.subscription_id === OWN_SUBSCRIPTION) {
+        const own = await getItem(c.env.DB, m.remote_id);
+        if (own?.status === "public") items.push({ own });
+        continue;
+      }
       const row = await getImportedItem(c.env.DB, m.subscription_id, m.remote_id);
       if (!row) continue;
       let sub = subCache.get(m.subscription_id);
