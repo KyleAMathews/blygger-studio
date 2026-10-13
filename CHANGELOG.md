@@ -18,6 +18,27 @@ not have its own repo until session 26.
 
 ---
 
+## 0.45.0 — 2026-10-12
+
+**Migrations: none.**
+
+- **Your own posts in hoppers.** *Add to hopper…* in a post's ⋯ menu puts it
+  in a hopper beside what you have read (or in a new one). A public hopper's
+  page shows it as your home page does, once published and not after
+  withdrawal; the studio's hopper view lists it with *edit* and *remove*.
+  Clients: `PUT /api/hoppers/{id}/items/~own/{itemId}` (the existing route,
+  with `~own` in place of a subscription id).
+- **Typing no longer greys out publish.** Autosave ran through the same busy
+  state as publish and save draft, so every pause disabled both until the save
+  returned. It now saves quietly; a publish clicked meanwhile waits for the
+  save and publishes the newest text.
+- **The side menu, done properly.** On the left or right, one link per line
+  in a narrow column; your name and title sit over the content rather than the
+  menu; on a phone or a narrow window the menu folds behind a *Menu* button
+  under your name instead of falling to the bottom of the page.
+- **Find threads by search** when choosing what the links section lists,
+  instead of scrolling one long list.
+
 ## 0.44.0 — 2026-10-12
 
 **Migrations: none.** The new settings are ordinary settings rows.
