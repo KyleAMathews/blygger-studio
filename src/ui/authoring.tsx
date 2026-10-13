@@ -64,13 +64,34 @@ function useAction() {
   const [busy, setBusy] = useState(false);
   const [warning, setWarning] = useState<string>();
   const pending = useRef(0);
+  // Whether the error showing came from a background save, which the next
+  // successful one may clear; an action's error stays until the next action.
+  const backgroundError = useRef(false);
   return {
     error,
     warning,
     busy,
+    /**
+     * Autosave: reports a failure like an action, but never sets `busy`, so
+     * typing does not disable publish and save draft. Safe because draft
+     * writes are queued (createPacedDraftAction) and publish saves first.
+     */
+    background: async (fn: () => Promise<unknown>) => {
+      try {
+        await fn();
+        if (backgroundError.current) {
+          backgroundError.current = false;
+          setError(undefined);
+        }
+      } catch (error) {
+        backgroundError.current = true;
+        setError(error);
+      }
+    },
     run: async (fn: () => Promise<unknown>) => {
       pending.current++;
       setBusy(true);
+      backgroundError.current = false;
       setError(undefined);
       setWarning(undefined);
       try {
@@ -814,7 +835,9 @@ export function Compose() {
   useEffect(() => {
     if (saved || !text.trim()) return;
     if (!id && (text.replace(/\s/g, '').length < 8)) return;
-    const timer = setTimeout(() => void action.run(save), id ? 400 : 3000);
+    // The first save creates the draft and holds the buttons while it does, so
+    // a publish cannot race it into a second item; later saves stay quiet.
+    const timer = setTimeout(() => void (id ? action.background(save) : action.run(save)), id ? 400 : 3000);
     return () => clearTimeout(timer);
   }, [text, kind, id, saved]);
   const change = (next: string) => {
@@ -1413,7 +1436,7 @@ function Editor({ item }: { item: Detail }) {
     setText(text);
     setSaved(false);
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => void action.run(save), 400);
+    saveTimer.current = setTimeout(() => void action.background(save), 400);
   };
   useEffect(() => () => clearTimeout(saveTimer.current), []);
   useEffect(() => {

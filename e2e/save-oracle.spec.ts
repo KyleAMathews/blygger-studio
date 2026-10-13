@@ -186,3 +186,33 @@ for (const kind of ["fragment", "thread"] as const) {
     } finally { release(); }
   });
 }
+
+// Session 47 (Venkat): autosave while typing disabled publish and save draft,
+// because it ran through the editor's busy flag. A held autosave must leave
+// both buttons usable, and a publish clicked meanwhile must still publish the
+// newest text, after the save.
+for (const kind of ["fragment", "thread"] as const) test(`${kind} autosave in flight leaves publish usable, and publish waits for it`, async ({ page }) => {
+  const id = await editor(page, kind);
+  await acceptSheets(page);
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  let first = true;
+  await page.route(`**/api/items/${id}`, async route => {
+    if (route.request().method() !== "PATCH" || !first) return route.continue();
+    first = false;
+    await held;
+    await route.continue();
+  });
+  const autosaving = page.waitForRequest(request => request.url().endsWith(`/api/items/${id}`) && request.method() === "PATCH");
+  await page.locator("#md-input").fill("typed while saving");
+  await page.clock.runFor(450);
+  await autosaving;
+  await expect(page.locator("#publish-btn")).toBeEnabled();
+  await expect(page.locator("#save-draft-btn")).toBeEnabled();
+  const published = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}/publish`) && response.status() === 200);
+  await page.locator("#publish-btn").click();
+  release();
+  await published;
+  const item = await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string; version: number }>, id);
+  expect(item).toMatchObject({ content_md: "typed while saving", version: 1 });
+});
