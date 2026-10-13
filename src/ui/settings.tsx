@@ -514,8 +514,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
             </label>
           ))}
           <span className="hint">
-            A side column shows on wide screens; on a phone it moves below the
-            content.
+            A side column shows on wide screens; on a phone it folds behind a
+            Menu button under your name.
           </span>
         </div>
         <LinkedThreads
@@ -1068,6 +1068,19 @@ function LinkedThreads({
     onChange(next);
   };
   const available = threads.filter((row) => !ids.includes(row.id));
+  const [query, setQuery] = useState('');
+  // Matches by title or id, newest first; a long blyg has too many threads to scroll.
+  const needle = query.trim().toLowerCase();
+  const matches = needle
+    ? available
+        .filter((row) => (itemTitle(row.content_md) + ' ' + row.id).toLowerCase().includes(needle))
+        .sort((a, b) => (a.updated < b.updated ? 1 : -1))
+        .slice(0, 8)
+    : [];
+  const add = (id: string) => {
+    onChange([...ids, id]);
+    setQuery('');
+  };
   return (
     <div className="field">
       <span>Threads to list</span>
@@ -1104,21 +1117,38 @@ function LinkedThreads({
         </ol>
       ) : null}
       {available.length ? (
-        <select
-          id="links_threads_add"
-          value=""
-          aria-label="add a thread"
-          onChange={(event) => {
-            if (event.target.value) onChange([...ids, event.target.value]);
-          }}
-        >
-          <option value="">Add a thread…</option>
-          {available.map((row) => (
-            <option key={row.id} value={row.id}>
-              {itemTitle(row.content_md) || row.id}
-            </option>
-          ))}
-        </select>
+        <div className="thread-search">
+          <input
+            id="links_threads_search"
+            type="search"
+            aria-label="find a thread to add"
+            placeholder="Find a thread to add…"
+            autoComplete="off"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              // Enter adds the first match; it must not submit the settings form.
+              if (event.key !== 'Enter') return;
+              event.preventDefault();
+              if (matches[0]) add(matches[0].id);
+            }}
+          />
+          {query.trim() ? (
+            matches.length ? (
+              <ul className="thread-matches" aria-label="matching threads">
+                {matches.map((row) => (
+                  <li key={row.id}>
+                    <button type="button" className="link" onClick={() => add(row.id)}>
+                      {itemTitle(row.content_md) || row.id}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <span className="hint">No published thread matches.</span>
+            )
+          ) : null}
+        </div>
       ) : (
         <span className="hint">
           {ids.length ? '' : 'Publish a thread to list it here.'}

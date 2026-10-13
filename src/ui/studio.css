@@ -343,3 +343,11 @@ main.login .btn { width: 100%; }
 .model-field select { width: 100%; }
 .model-field input { margin-top: 6px; }
 .model-hint code, .provider-keys code { font-size: .8em; }
+
+/* Settings → links section: chosen threads and the search that adds them (session 47). */
+.linked-threads { margin: 0.25rem 0 0.5rem; padding-left: 1.5rem; }
+.linked-threads li { margin: 0.2rem 0; }
+.thread-search input { width: 100%; }
+.thread-matches { list-style: none; margin: 0.35rem 0 0; padding: 0; border: 1px solid var(--rule, #ddd); border-radius: 6px; }
+.thread-matches li + li { border-top: 1px solid var(--rule, #ddd); }
+.thread-matches button { display: block; width: 100%; text-align: left; padding: 0.55rem 0.75rem; min-height: 2.5rem; }
