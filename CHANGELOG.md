@@ -18,6 +18,27 @@ not have its own repo until session 26.
 
 ---
 
+## 0.43.0 — 2026-10-12
+
+**Migrations: none.** Both new settings are ordinary settings rows, written
+only when the owner changes them.
+
+- **A static front page**, as on WordPress. Choose a published thread in
+  Settings → home page, or with *set as front page* in the thread's ⋯ menu,
+  and readers arriving at your blyg see it instead of your latest items. You
+  edit it like any thread. The latest items move to `{mount}/posts/`, which
+  every public page then links to in its header; the address is a setting
+  (one lowercase segment; names the blyg already uses, such as `feed`,
+  `archive` and `studio`, are refused) and is served whether or not a front
+  page is set. The thread's permalink keeps working and names the root as
+  canonical. The front page is left off the posts page but stays in
+  `feed.xml`, the archive and `items/index.json`, so nothing changes on the
+  wire. If it is later withdrawn, the root shows the latest items again. The
+  static export saves the posts page too.
+- **Canceled reads stay out of the error banner** (#71, Kyle Mathews). TanStack
+  Query cancels a pending read during normal updates, and the studio showed
+  that as a `CancelledError` banner, intermittently, while editing.
+
 ## 0.42.0 — 2026-10-12
 
 **Migrations: `0029_feed_order_and_setup.sql`** (two settings rows, written
