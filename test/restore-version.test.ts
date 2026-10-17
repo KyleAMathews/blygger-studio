@@ -56,6 +56,58 @@ describe("restore is forward-only", () => {
   });
 });
 
+describe("discard changes (restoring the current version)", () => {
+  // venkateshrao.com/blyg/t/1t9vkcm4…, session 46: a stub published at the
+  // quote's v7 while its working copy still cited v2. The text matched, so
+  // publish had nothing to describe, but discard kept `dirty` and the old
+  // citation, and the list said "unpublished changes" forever.
+  it("brings back the published citation and leaves the copy clean", async () => {
+    const cookie = await login();
+    const stub = { url: "https://x.test/p", cited: { source: "X", url: "https://x.test/p", retrieved: "2026-10-03T00:00:00Z" } };
+    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: "Re: that page", kind: "thread" })).json.id as string;
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { stub_of: stub });
+    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
+    const published = (await apiJson(cookie, "GET", `/api/items/${id}`)).json.stub_of;
+
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { stub_of: { ...stub, url: "https://x.test/q", cited: { ...stub.cited, url: "https://x.test/q" } } });
+    expect((await apiJson(cookie, "GET", `/api/items/${id}`)).json.dirty).toBe(true);
+
+    await apiJson(cookie, "POST", `/api/items/${id}/restore`, { version: 1 });
+    expect((await apiJson(cookie, "GET", `/api/items/${id}`)).json).toMatchObject({ dirty: false, stub_of: published, content_md: "Re: that page" });
+  });
+
+  it("never arises from publish: the agreed citation is written back to the working copy", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: "https://ours.example/blyg/" });
+    const target = await createAndPublish(cookie, "their words");
+    await publishEdit(cookie, target, "their words, revised");
+    const id = (await apiJson(cookie, "POST", "/api/items", {
+      content_md: `![[${target}]]\n\nMy take.`,
+      kind: "thread",
+      stub_of: { origin: "https://ours.example/blyg/", id: target, version: 1 },
+    })).json.id as string;
+    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
+    expect((await (await getPublic(`/blyg/items/${id}.json`)).json<any>()).stub_of.version).toBe(2);
+    expect((await apiJson(cookie, "GET", `/api/items/${id}`)).json).toMatchObject({ dirty: false, stub_of: { version: 2 } });
+  });
+
+  it("clears an edit of the text", async () => {
+    const cookie = await login();
+    const id = await createAndPublish(cookie, "as published");
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "an edit" });
+    await apiJson(cookie, "POST", `/api/items/${id}/restore`, { version: 1 });
+    expect((await apiJson(cookie, "GET", `/api/items/${id}`)).json).toMatchObject({ dirty: false, content_md: "as published" });
+  });
+
+  it("keeps a version with generated text dirty: its provenance does not come back", async () => {
+    const cookie = await login();
+    const id = await createAndPublish(cookie, "plain");
+    await env.DB.prepare("UPDATE versions SET generated_json = '[{}]' WHERE item_id = ?").bind(id).run();
+    await apiJson(cookie, "POST", `/api/items/${id}/restore`, { version: 1 });
+    expect((await apiJson(cookie, "GET", `/api/items/${id}`)).json.dirty).toBe(true);
+  });
+});
+
 describe("restore rejects what it cannot restore", () => {
   it("404s an unknown item", async () => {
     const cookie = await login();

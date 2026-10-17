@@ -1,4 +1,6 @@
 import { DEFAULT_FONT, isFont } from "./fonts.ts";
+import { DEFAULT_FEED_ORDER } from "./feeds/index.ts";
+import { DEFAULT_POSTS_PATH } from "./front-page.ts";
 import { parseCustomTheme } from "./themes.ts";
 // Data access + publish-flow semantics — v0.1-plan §3.1.
 
@@ -75,15 +77,43 @@ export function defaultSiteTitle(siteUrl: string | undefined): string {
 
 export async function getSettings(db: D1Database): Promise<Settings> {
   const rows = await db.prepare("SELECT key, value FROM settings").all<{ key: string; value: string }>();
-  const map = Object.fromEntries(rows.results.map((r) => [r.key, r.value]));
-  let links: Settings["author_links"] = [];
+  return settingsFromMap(Object.fromEntries(rows.results.map((r) => [r.key, r.value])));
+}
+
+/**
+ * Every setting as it would read with nothing stored: what the setup wizard's
+ * "reset to default" restores. Derived by the same code as a real read, so the
+ * two cannot drift. `site_title` is the one derived default (from the address);
+ * resetting it stores an empty title, which reads as that derivation.
+ */
+export function settingDefaults(siteUrl: string): Settings {
+  return settingsFromMap({ site_url: siteUrl });
+}
+
+/** A stored list of label + url links; malformed JSON or unfollowable urls read as absent. */
+function parseLinkList(stored: string | undefined): Settings["author_links"] {
   try {
-    const parsed = JSON.parse(map.author_links ?? "[]");
+    const parsed = JSON.parse(stored ?? "[]");
     // Rows stored before 0.27 may hold any scheme; only followable links leave.
-    if (Array.isArray(parsed)) links = parsed.filter((l) => typeof l?.label === "string" && typeof l?.url === "string" && isFollowableUrl(l.url));
+    if (Array.isArray(parsed)) return parsed.filter((l) => typeof l?.label === "string" && typeof l?.url === "string" && isFollowableUrl(l.url));
   } catch {
     // ignore malformed settings JSON; treat as no links
   }
+  return [];
+}
+
+function parseIdList(stored: string | undefined): string[] {
+  try {
+    const parsed = JSON.parse(stored ?? "[]");
+    if (Array.isArray(parsed)) return parsed.filter((id): id is string => typeof id === "string");
+  } catch {
+    // malformed: no ids
+  }
+  return [];
+}
+
+export function settingsFromMap(map: Record<string, string>): Settings {
+  const links = parseLinkList(map.author_links);
   return {
     // `||` not `??`: an empty string is an unset title, not a chosen one.
     site_title: map.site_title || defaultSiteTitle(map.site_url),
@@ -120,12 +150,27 @@ export async function getSettings(db: D1Database): Promise<Settings> {
     highlight_generated_default: map.highlight_generated_default === "on",
     auto_change_notes: map.auto_change_notes === "on",
     picker_typing: map.picker_typing === "editor" || map.picker_typing === "panel" ? map.picker_typing : "auto",
+    feed_order: map.feed_order || DEFAULT_FEED_ORDER,
+    front_page: map.front_page ?? "",
+    posts_path: map.posts_path || DEFAULT_POSTS_PATH,
+    // Left by default (Venkat, session 47); "bottom" keeps the menu below the content.
+    links_position: map.links_position === "bottom" || map.links_position === "right" ? map.links_position : "left",
+    links_threads: parseIdList(map.links_threads),
+    links_external: parseLinkList(map.links_external),
+    links_collections: map.links_collections !== "off",
+    links_opml: map.links_opml !== "off",
+    links_blygger_org: map.links_blygger_org !== "off",
+    links_blygger_com: map.links_blygger_com !== "off",
     update_check: map.update_check !== "off",
     update_feed_url: map.update_feed_url ?? "",
     /** Cleared until the operator has seen the "alerts are on" notice once. */
     update_notice_ack: map.update_notice_ack === "on",
     // Studio extensions this node has turned on (docs/extensions.md). Empty by default.
     extensions: parseEnabledExtensions(map.extensions),
+    // The setup wizard (session 46): pending on a fresh install, a one-time
+    // notice on a node that had published before the wizard existed
+    // (migration 0029), done once either is finished or dismissed.
+    setup: map.setup === "done" || map.setup === "notice" ? map.setup : "pending",
   };
 }
 
@@ -418,8 +463,10 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
     db.prepare(
       "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0),
-    db.prepare("UPDATE items SET status = 'public', kind = ?, version = ?, dirty = 0, updated = ? WHERE id = ?")
-      .bind(kind, version, now, item.id),
+    // The agreed citation goes back into the working copy as well, or the copy
+    // keeps citing the older version and differs from what it just published.
+    db.prepare("UPDATE items SET status = 'public', kind = ?, version = ?, dirty = 0, updated = ?, stub_of = ? WHERE id = ?")
+      .bind(kind, version, now, stubJson, item.id),
   ]);
   // The owner's private interaction log (src/interactions.ts): stubs, forks and
   // quotes of other blygs' items that this version newly makes.
@@ -482,6 +529,15 @@ export class RestoreVersionError extends Error {}
  * scopes, and the provenance cache is positionally aligned to scope order —
  * keeping it would misattribute generation records to scopes that no longer
  * exist.
+ *
+ * Restoring the **current** version is "discard changes", and there the
+ * working copy becomes that version whole: its stub citation comes back too
+ * (publish version-agrees the citation, §2.2, so the published one can be
+ * ahead of the working copy's), and the copy is clean again — unless the
+ * version disclosed generated text, whose provenance a restore cannot carry
+ * back (`holdsPublishedWords`). Before this, discard left `dirty` set and the
+ * old citation in place, so a stub whose quote had moved on showed
+ * "unpublished changes" that neither discard nor publish could clear.
  */
 export async function restoreVersion(db: D1Database, item: ItemRow, version: number): Promise<void> {
   const row = await getVersion(db, item.id, version);
@@ -489,9 +545,10 @@ export async function restoreVersion(db: D1Database, item: ItemRow, version: num
   if (!row.content_md) {
     throw new RestoreVersionError(`v${version} is a withdrawal endcap and has no content to restore`);
   }
+  const discard = version === item.version;
   await db
-    .prepare("UPDATE items SET content_md = ?, tk_provenance_json = NULL, dirty = 1 WHERE id = ?")
-    .bind(row.content_md, item.id)
+    .prepare("UPDATE items SET content_md = ?, tk_provenance_json = NULL, stub_of = CASE WHEN ? THEN ? ELSE stub_of END, dirty = ? WHERE id = ?")
+    .bind(row.content_md, discard ? 1 : 0, row.stub_of, discard && !row.generated_json ? 0 : 1, item.id)
     .run();
 }
 

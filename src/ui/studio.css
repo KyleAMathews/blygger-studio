@@ -343,3 +343,32 @@ main.login .btn { width: 100%; }
 .model-field select { width: 100%; }
 .model-field input { margin-top: 6px; }
 .model-hint code, .provider-keys code { font-size: .8em; }
+
+/* Settings → links section: chosen threads and the search that adds them (session 47). */
+.linked-threads { margin: 0.25rem 0 0.5rem; padding-left: 1.5rem; }
+.linked-threads li { margin: 0.2rem 0; }
+.thread-search input { width: 100%; }
+.thread-matches { list-style: none; margin: 0.35rem 0 0; padding: 0; border: 1px solid var(--rule, #ddd); border-radius: 6px; }
+.thread-matches li + li { border-top: 1px solid var(--rule, #ddd); }
+.thread-matches button { display: block; width: 100%; text-align: left; padding: 0.55rem 0.75rem; min-height: 2.5rem; }
+
+/* Settings: one page in sections with a sidebar of anchors (session 47). */
+.settings-layout { max-width: calc(760px + 11rem); margin: 0 auto; }
+.settings-nav ul { list-style: none; margin: 0; padding: 0; }
+.settings-nav a { display: block; text-decoration: none; color: var(--page-ink-soft); border-radius: 6px; }
+.settings-nav a[aria-current="true"] { color: var(--pencil); font-weight: 600; background: color-mix(in srgb, var(--pencil) 10%, transparent); }
+.settings-section { scroll-margin-top: 72px; margin-bottom: 2rem; }
+.settings-section > .section-title { font-size: 1.25rem; margin: 0.5rem 0 0.75rem; }
+.settings-section > .section-intro, .settings-intro { margin-top: 0; }
+@media (min-width: 900px) {
+  .settings-layout { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+  .settings-nav { position: sticky; top: 72px; padding-top: 0.5rem; }
+  .settings-nav a { padding: 0.45rem 0.75rem; margin-bottom: 2px; }
+}
+@media (max-width: 899.98px) {
+  /* A row of chips under the top bar; it scrolls sideways when it does not fit. */
+  .settings-nav { position: sticky; top: 52px; z-index: 15; margin: 0 -16px 1rem; padding: 8px 16px; background: var(--page); border-bottom: 1px solid var(--rule); overflow-x: auto; }
+  .settings-nav ul { display: flex; gap: 6px; width: max-content; }
+  .settings-nav a { padding: 0.4rem 0.8rem; border: 1px solid var(--rule); border-radius: 999px; white-space: nowrap; }
+  .settings-section { scroll-margin-top: 112px; }
+}

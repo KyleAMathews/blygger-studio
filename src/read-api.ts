@@ -1,4 +1,5 @@
 import { itemResource, versionResource, mediaResource, subscriptionResource, hopperResource, importedResource, mentionResource } from "./contract/resources.ts";
+import { settingsResource } from "./settings-resource.ts";
 import { fetchOnSurface, itemUrl } from "./surface.ts";
 import type { Context } from "hono";
 import { contractApp, readJson } from "./contract/app.ts";
@@ -56,7 +57,7 @@ readApi.openapi(routes.getItem, async (c) => {
   const detail = await itemDetail(c.env.DB, c.req.param("id"));
   return detail ? c.json({ ...itemResource(detail.item), authored_kind: detail.kind, media: detail.media.map(mediaResource), versions: await Promise.all(detail.versions.map(presentVersion)), published: detail.published ? await presentVersion(detail.published) : null }) : c.json({ error: "not found" }, 404);
 });
-readApi.openapi(routes.getSettings, async (c) => c.json(await getSettings(c.env.DB)));
+readApi.openapi(routes.getSettings, async (c) => c.json(settingsResource(await getSettings(c.env.DB))));
 readApi.openapi(routes.listSubscriptions, async (c) => {
   const page = await collection<SubscriptionRow>(c.env.DB, c.req.query(), "SELECT * FROM subscriptions ORDER BY created ASC, id ASC", "SELECT COUNT(*) AS total FROM subscriptions");
   return c.json({ ...page, items: page.items.map(subscriptionResource) });
@@ -75,7 +76,7 @@ readApi.openapi(routes.getHopper, async (c) => {
   const preview = c.req.query("preview") === "true";
   const limit = preview ? " LIMIT 3" : "";
   const memberships = (await c.env.DB.prepare(`SELECT * FROM hopper_items WHERE hopper_id = ? ORDER BY added_at DESC, subscription_id, remote_id${limit}`).bind(hopper.id).all<import("./types.ts").HopperItemRow>()).results;
-  const counts = await c.env.DB.prepare("SELECT COUNT(*) AS total, COUNT(DISTINCT subscription_id) AS source_count FROM hopper_items WHERE hopper_id = ?").bind(hopper.id).first<{ total: number; source_count: number }>();
+  const counts = await c.env.DB.prepare("SELECT COUNT(*) AS total, COUNT(DISTINCT CASE WHEN subscription_id <> '~own' THEN subscription_id END) AS source_count FROM hopper_items WHERE hopper_id = ?").bind(hopper.id).first<{ total: number; source_count: number }>();
   const rows = await c.env.DB.prepare(`SELECT ii.* FROM hopper_items hi JOIN imported_items ii
     ON ii.subscription_id = hi.subscription_id AND ii.remote_id = hi.remote_id
     WHERE hi.hopper_id = ? ORDER BY hi.added_at DESC, hi.subscription_id, hi.remote_id${limit}`).bind(hopper.id).all<ImportedItemRow>();

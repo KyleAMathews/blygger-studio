@@ -1,3 +1,5 @@
+import type { ChangeDomain, ChangeState } from './change-state.ts';
+import { PATH_SHAPE, RESERVED_PATHS } from './front-page.ts';
 /** Only public HTML reads enter Workers Cache. The gateway remains uncached. */
 export function publicHtmlRequest(request: Request, mount: string): boolean {
   if (request.method !== 'GET' && request.method !== 'HEAD') return false;
@@ -5,13 +7,29 @@ export function publicHtmlRequest(request: Request, mount: string): boolean {
   if (path === '/api' || path.startsWith('/api/')) return false;
   if (mount && path !== mount && !path.startsWith(mount + '/')) return false;
   const page = path.slice(mount.length).replace(/\/$/, '');
-  return page === '' || page === '/archive' || /^\/(?:f|t)\/[^/]+(?:\/v\d+)?$/.test(page) || /^\/h\/[^/]+$/.test(page);
+  return page === '' || page === '/archive' || /^\/(?:f|t)\/[^/]+(?:\/v\d+)?$/.test(page) || /^\/h\/[^/]+$/.test(page) ||
+    // The posts page's address is a setting this check cannot read, so any
+    // segment that could be one is a candidate; a wrong one renders a 404,
+    // which is never cached. Reserved names include the studio's own path.
+    (PATH_SHAPE.test(page.slice(1)) && !RESERVED_PATHS.includes(page.slice(1)));
 }
 
-/** Public pages ignore query parameters; origins must never share HTML. */
-export function publicHtmlKey(request: Request): string {
+// Every domain a public page can read. Reading and signals are the owner's
+// private state, so moving them must not empty the cache. Inbound mentions
+// have no domain yet and still wait out the 60-second window.
+const PUBLIC_DOMAINS: readonly ChangeDomain[] = ['items', 'subscriptions', 'hoppers', 'settings', 'feed'];
+
+/** A token that moves whenever a publish, withdrawal or setting can change public HTML. */
+export function publicHtmlRevision(changes: ChangeState): string {
+  return [changes.epoch, ...PUBLIC_DOMAINS.map(domain => changes.domains[domain])].join('.');
+}
+
+/** Public pages ignore query parameters; origins must never share HTML. A
+ * revision in the key sends reads after a change to a fresh entry, so a
+ * publish shows at once instead of after the edge cache expires. */
+export function publicHtmlKey(request: Request, revision?: string): string {
   const url = new URL(request.url);
-  url.search = '';
+  url.search = revision ? `rev=${encodeURIComponent(revision)}` : '';
   url.hash = '';
   url.pathname = url.pathname.replace(/\/$/, '') || '/';
   return url.href;

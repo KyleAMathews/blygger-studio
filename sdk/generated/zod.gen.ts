@@ -153,6 +153,34 @@ export const zSettings = z.object({
         'editor',
         'panel'
     ]),
+    feed_order: z.string(),
+    front_page: z.string(),
+    posts_path: z.string(),
+    links_position: z.enum([
+        'bottom',
+        'left',
+        'right'
+    ]),
+    links_threads: z.array(z.string()),
+    links_external: z.array(z.object({
+        label: z.string(),
+        url: z.string()
+    })),
+    links_collections: z.boolean(),
+    links_opml: z.boolean(),
+    links_blygger_org: z.boolean(),
+    links_blygger_com: z.boolean(),
+    setup: z.enum([
+        'pending',
+        'notice',
+        'done'
+    ]),
+    defaults: z.record(z.string(), z.unknown()).optional(),
+    feed_orders: z.array(z.object({
+        id: z.string(),
+        title: z.string(),
+        description: z.string()
+    })).optional(),
     update_feed_url: z.string(),
     update_notice_ack: z.boolean(),
     extensions: z.array(z.string())
@@ -889,6 +917,34 @@ export const zUpdateSettingsBody = z.object({
         'editor',
         'panel'
     ]).optional(),
+    feed_order: z.string().optional(),
+    front_page: z.string().optional(),
+    posts_path: z.string().optional(),
+    links_position: z.enum([
+        'bottom',
+        'left',
+        'right'
+    ]).optional(),
+    links_threads: z.array(z.string()).optional(),
+    links_external: z.array(z.object({
+        label: z.string(),
+        url: z.string()
+    })).optional(),
+    links_collections: z.boolean().optional(),
+    links_opml: z.boolean().optional(),
+    links_blygger_org: z.boolean().optional(),
+    links_blygger_com: z.boolean().optional(),
+    setup: z.enum([
+        'pending',
+        'notice',
+        'done'
+    ]).optional(),
+    defaults: z.record(z.string(), z.unknown()).optional(),
+    feed_orders: z.array(z.object({
+        id: z.string(),
+        title: z.string(),
+        description: z.string()
+    })).optional(),
     update_feed_url: z.string().optional(),
     update_notice_ack: z.boolean().optional(),
     extensions: z.array(z.string()).optional()

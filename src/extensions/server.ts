@@ -11,6 +11,7 @@
 import type { RouteConfig, RouteHandler } from "@hono/zod-openapi";
 import { contractApp } from "../contract/app.ts";
 import type { Env } from "../types.ts";
+import type { FeedAlgorithm } from "../feeds/types.ts";
 import { parseEnabledExtensions } from "./names.ts";
 
 /** Registers an extension's read routes. Only routes the extension declared with extensionRoute() are accepted. */
@@ -21,6 +22,12 @@ export interface ServerExtension {
   /** The extension's name (extensions/catalog.ts). */
   name: string;
   routes(router: ExtensionRouter): void;
+  /**
+   * Home page orders (docs/extensions.md, "Feed orders"). Each id must start
+   * with `<name>/`. An order sees only the blyg's public history and returns
+   * ids; the core keeps the published ones and renders every card itself.
+   */
+  feeds?: readonly FeedAlgorithm[];
 }
 
 export async function isExtensionEnabled(db: D1Database, name: string) {

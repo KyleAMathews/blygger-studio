@@ -104,3 +104,11 @@ export function checkExportOrigin(base: string, site: string | undefined, allowL
 export function stripWebmentionLink(html: string): string {
   return html.replace(/[ \t]*<link\b[^>]*\brel=["']?webmention["']?[^>]*>\n?/gi, "");
 }
+
+/**
+ * The posts page's segment, read from the `posts-link` a page with a front
+ * page carries in its header (src/pages.ts pageHeader), or null without one.
+ */
+export function postsPathFromPage(html: string): string | null {
+  return /<a class="posts-link" href="[^"]*\/([a-z0-9][a-z0-9-]*)\/">/.exec(html)?.[1] ?? null;
+}

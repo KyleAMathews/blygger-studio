@@ -1,7 +1,8 @@
 import { SELF, env } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import worker from '../src/index.ts';
-import { htmlCacheResponse, publicHtmlKey, publicHtmlRequest } from '../src/html-cache.ts';
+import { htmlCacheResponse, publicHtmlKey, publicHtmlRequest, publicHtmlRevision } from '../src/html-cache.ts';
+import { readChanges } from '../src/changes.ts';
 import { BASE, login, createAndPublish, apiJson } from './helpers.ts';
 
 const EDGE = 'public, max-age=60, stale-while-revalidate=300, stale-if-error=0';
@@ -103,7 +104,10 @@ describe('cached entrypoint dispatch', () => {
     for (const page of ['', '/', '/archive/', '/f/id', '/t/id/v2/', '/h/collection']) {
       expect(publicHtmlRequest(new Request(`${BASE}${mount}${page}`), mount)).toBe(true);
     }
-    for (const page of ['/studio', '/studio/login', '/feed.xml', '/items/id.json', '/media/image.jpg', '/unknown']) {
+    // Any free single segment may be the posts page (its address is a setting),
+    // so it enters; a wrong one renders a 404, which is never cached.
+    expect(publicHtmlRequest(new Request(`${BASE}${mount}/unknown`), mount)).toBe(true);
+    for (const page of ['/studio', '/studio/login', '/feed.xml', '/items/id.json', '/media/image.jpg', '/unknown/deeper', '/feed']) {
       expect(publicHtmlRequest(new Request(`${BASE}${mount}${page}`), mount)).toBe(false);
     }
     expect(publicHtmlRequest(new Request(`${BASE}/api/settings`), mount)).toBe(false);
@@ -166,6 +170,47 @@ describe('cached entrypoint dispatch', () => {
     const ctx = { exports: { PublicHtml: { fetch: (req: Request, init: unknown) => { seen = { url: req.url, init }; return Promise.resolve(cached); } } } } as unknown as ExecutionContext;
     const response = await worker.fetch(new Request(`${BASE}/blyg/?utm_source=test`), env, ctx);
     expect(response).toBe(cached);
-    expect(seen).toEqual({ url: `${BASE}/blyg/?utm_source=test`, init: { cf: { cacheKey: `${BASE}/blyg` } } });
+    const revision = publicHtmlRevision(await readChanges(env.DB));
+    expect(seen).toEqual({ url: `${BASE}/blyg/?utm_source=test`, init: { cf: { cacheKey: `${BASE}/blyg?rev=${revision}` } } });
+  });
+
+  it('moves every page to a fresh cache entry when a publish or setting changes', async () => {
+    const keys: string[] = [];
+    const ctx = { exports: { PublicHtml: { fetch: (_req: Request, init: { cf: { cacheKey: string } }) => {
+      keys.push(init.cf.cacheKey);
+      return Promise.resolve(new Response('saved HTML'));
+    } } } } as unknown as ExecutionContext;
+    const keyFor = async (path: string) => {
+      await (await worker.fetch(new Request(`${BASE}/blyg${path}`), env, ctx)).arrayBuffer();
+      return keys.at(-1)!;
+    };
+    const before = await keyFor('/');
+    expect(await keyFor('/')).toBe(before);
+    expect(await keyFor('/archive/')).toMatch(/\/blyg\/archive\?rev=/);
+
+    const cookie = await login();
+    await createAndPublish(cookie, 'Shows without waiting for the edge');
+    const afterPublish = await keyFor('/');
+    expect(afterPublish).not.toBe(before);
+
+    await env.DB.prepare("INSERT INTO settings(key,value) VALUES('site_title','Revision title') ON CONFLICT(key) DO UPDATE SET value=excluded.value").run();
+    const afterSetting = await keyFor('/');
+    expect(afterSetting).not.toBe(afterPublish);
+
+    // The owner's private reading and thumbs never empty the public cache.
+    await env.DB.prepare('UPDATE change_state SET reading=reading+1, signals=signals+1 WHERE id=1').run();
+    expect(await keyFor('/')).toBe(afterSetting);
+  });
+
+  it('still serves public HTML under the plain key when the revision cannot be read', async () => {
+    let key: unknown;
+    const ctx = { exports: { PublicHtml: { fetch: (_req: Request, init: { cf: { cacheKey: string } }) => {
+      key = init.cf.cacheKey;
+      return Promise.resolve(new Response('saved HTML'));
+    } } } } as unknown as ExecutionContext;
+    const broken = { ...env, DB: { prepare: () => { throw new Error('D1 down'); } } } as unknown as typeof env;
+    const response = await worker.fetch(new Request(`${BASE}/blyg/`), broken, ctx);
+    expect(await response.text()).toBe('saved HTML');
+    expect(key).toBe(`${BASE}/blyg`);
   });
 });

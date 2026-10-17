@@ -387,6 +387,41 @@ article.showing-pin .item-content[aria-busy="true"] { opacity: 0.5; }
 .collections .meta, .collection-head .meta { color: var(--ink-soft); }
 .collection-desc { color: var(--ink-soft); }
 .collections .collection-desc { display: block; }
+/* The links section: chosen threads, collections, the owner's links, and a
+ * foot line of standard links. Below the content by default, set apart like
+ * the blogroll; beside it on a wide screen when the owner picks a side. */
+.blyg-links { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); font: var(--apparatus); }
+.blyg-links section + section { margin-top: 1.25rem; }
+.blyg-links h2 { font: var(--apparatus); font-weight: 600; color: var(--ink-soft); margin: 0 0 0.5rem; letter-spacing: 0; }
+.blyg-links ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; }
+.blyg-links li { overflow-wrap: anywhere; }
+.blyg-links a { color: var(--pencil); text-decoration: none; border-bottom: 1px solid var(--rule); }
+.blyg-links a:hover { border-bottom-color: currentColor; }
+.blyg-links .meta { color: var(--ink-soft); }
+.blyg-links ul.links-foot { margin-top: 1.25rem; }
+.links-foot a { color: var(--ink-soft); }
+/* As a side menu, one link per line in a column narrow enough to wrap. */
+.blyg.has-side .blyg-links ul { display: block; }
+.blyg.has-side .blyg-links li { margin: 0 0 0.45rem; }
+.links-toggle { display: none; }
+@media (max-width: 61.99rem) {
+  /* Narrow: the side menu sits under the masthead, folded behind Menu once the script runs. */
+  .blyg.has-side .blyg-links { margin: 0 0 2rem; padding: 0 0 1rem; border-top: 0; border-bottom: 1px solid var(--rule); }
+  .js-links .blyg.has-side .links-toggle { display: inline-block; margin-right: auto; font: var(--apparatus); color: var(--ink-soft); background: none; border: 1px solid var(--rule); border-radius: 4px; padding: 0.35rem 0.75rem; min-height: 2.25rem; cursor: pointer; }
+  .js-links .blyg.has-side .links-toggle[aria-expanded="true"] { color: var(--pencil); border-color: currentColor; }
+  .js-links .blyg.has-side:not(.links-open) .blyg-links { display: none; }
+  .js-links .blyg.has-side > .blyg-header { margin-bottom: 1rem; align-items: center; }
+}
+@media (min-width: 62rem) {
+  .blyg.has-side { max-width: calc(65ch + 14rem + 3rem + 2 * var(--block-pad)); }
+  .blyg.has-side .blyg-body { display: grid; grid-template-columns: minmax(0, 65ch) 14rem; grid-template-areas: "main links"; gap: 3rem; align-items: start; }
+  .blyg.side-left .blyg-body { grid-template-columns: 14rem minmax(0, 65ch); grid-template-areas: "links main"; }
+  .blyg.has-side .blyg-main { grid-area: main; }
+  .blyg.has-side .blyg-links { grid-area: links; position: sticky; top: 1.5rem; margin-top: 0; padding-top: 0; border-top: 0; }
+  /* The header and masthead sit over the content column, not the menu. */
+  .blyg.side-left > .blyg-header, .blyg.side-left > .masthead { margin-left: calc(14rem + 3rem); }
+  .blyg.side-right > .blyg-header, .blyg.side-right > .masthead { margin-right: calc(14rem + 3rem); }
+}
 .collection-head { margin: 0 0 2rem; }
 .collection-head h2 { margin-bottom: 0.3rem; }
 .collection-head p { font: var(--apparatus); margin: 0.2rem 0; overflow-wrap: anywhere; }
@@ -439,6 +474,8 @@ article.fragment, article.thread, .thread-card { overflow-wrap: break-word; }
 .gen-pop dl { display: grid; grid-template-columns: auto 1fr; gap: 0.1rem 0.6rem; margin: 0; }
 .gen-pop dt { color: var(--ink-soft); }
 .gen-pop dd { margin: 0; overflow-wrap: anywhere; }
+.gen-pop a { color: var(--pencil); text-decoration: none; }
+.gen-pop a:hover { text-decoration: underline; }
 ${EMBED_CSS}
 ${generatedHighlightRules(".gen-on")}`;
 
@@ -938,13 +975,19 @@ ${body.includes("blyg-tk-gen") || body.includes("version-line") ? `<script>${GEN
  * entry rendered in the masthead, which is honest: only the author knows
  * whether `/` is their homepage, someone else's site, or nothing.
  */
-function pageHeader(mount: string): string {
+function pageHeader(mount: string, settings: Settings, menu = false): string {
   // Always `bare`: the masthead below sets the blyg's name at display size on
   // every page now, and printing it twice in a row is just clutter. The class
   // is still emitted because themes target `.blyg-header.bare` for the layout
   // that pairs a one-line header with a masthead under it.
+  // With a front page the latest items move off the root, so every page links
+  // to them; the static export finds that page by this link's class.
+  const posts = settings.front_page ? `<a class="posts-link" href="${mount}/${settings.posts_path}/">Posts</a>\n` : "";
+  // A side menu folds behind this button on a narrow screen. It stays hidden
+  // until LINKS_SCRIPT runs, so without JavaScript the links show open.
+  const toggle = menu ? `<button type="button" class="links-toggle" aria-controls="blyg-links" aria-expanded="false" hidden>Menu</button>\n` : "";
   return `<header class="blyg-header bare">
-<a href="${mount}/feed.xml" title="RSS feed">RSS ⧉</a>
+${toggle}${posts}<a href="${mount}/feed.xml" title="RSS feed">RSS ⧉</a>
 </header>`;
 }
 
@@ -963,8 +1006,8 @@ function pageHeader(mount: string): string {
  * just the same thing uniformly: hide `.blyg-header` and `.masthead` and every
  * page is a bare block.
  */
-export async function pageTop(db: D1Database, settings: Settings, mount: string, avatar?: MediaRow | null): Promise<string> {
-  return `${pageHeader(mount)}\n${await masthead(db, settings, mount, avatar)}`;
+export async function pageTop(db: D1Database, settings: Settings, mount: string, avatar?: MediaRow | null, menu = false): Promise<string> {
+  return `${pageHeader(mount, settings, menu)}\n${await masthead(db, settings, mount, avatar)}`;
 }
 
 /**
@@ -1254,6 +1297,11 @@ function parseTransclusions(json: string | null | undefined): Transclusion[] {
  * heading): a leading heading is linked to the thread by `linkLeadingTitle`,
  * the same helper the fragment card uses.
  */
+/** One of the owner's own items as a card, exactly as the home page shows it (hopper pages, session 47). */
+export async function ownItemCard(db: D1Database, item: FeedItem, mount: string, tz: string): Promise<string> {
+  return item.kind === "thread" ? threadCard(db, item, mount, tz) : fragmentBlock(db, item, mount, tz, true);
+}
+
 async function threadCard(db: D1Database, item: FeedItem, mount: string, tz: string, loaded?: FeedCardData, provenance?: FeedProvenance): Promise<string> {
   const latest = loaded ? loaded.latest : await publishedVersion(db, item);
   const href = `${mount}/t/${item.id}/`;
@@ -1625,7 +1673,91 @@ ${rows}
 </section>`;
 }
 
-export async function feedPage(db: D1Database, settings: Settings, items: FeedItem[], hasMore: boolean, mount: string, origin: string): Promise<string> {
+/**
+ * The links section (session 47; ROADMAP row 5 grew into it): the owner's
+ * chosen threads, public collections, their own links, then one line of
+ * standard links (the blogroll's OPML, blygger.org, blygger.com). It sits
+ * below the content, or beside it on a wide screen (`links_position`), on
+ * every public page. Presentation only: nothing here reaches the wire.
+ * Empty groups are left out, and with nothing to show there is no section.
+ */
+/** What a page has already read, so the section does not read it twice. */
+export type LinksPreload = { hoppers?: Awaited<ReturnType<typeof listPublicHoppers>>; blogroll?: Awaited<ReturnType<typeof listBlogrollSubscriptions>> };
+
+export async function linksSection(db: D1Database, settings: Settings, mount: string, preload: LinksPreload = {}): Promise<string> {
+  const [threads, hoppers, blogroll] = await Promise.all([
+    settings.links_threads.length
+      ? db.prepare(`SELECT i.id, v.content_html FROM json_each(?) j
+          JOIN items i ON i.id = j.value AND i.status = 'public' AND i.kind = 'thread'
+          JOIN versions v ON v.item_id = i.id AND v.version = i.version
+          ORDER BY j.key`).bind(JSON.stringify(settings.links_threads)).all<{ id: string; content_html: string }>().then((r) => r.results)
+      : [],
+    settings.links_collections ? preload.hoppers ?? listPublicHoppers(db) : [],
+    settings.links_opml ? preload.blogroll ?? listBlogrollSubscriptions(db) : [],
+  ]);
+  const list = (cls: string, heading: string, rows: string[]) =>
+    rows.length ? `<section class="${cls}">\n<h2>${heading}</h2>\n<ul>\n${rows.join("\n")}\n</ul>\n</section>` : "";
+  const groups = [
+    list("links-threads", "Pages", threads.map((t) => {
+      // The front page lives at the root, so that is where its link goes.
+      const href = settings.front_page === t.id ? `${mount}/` : `${mount}/t/${t.id}/`;
+      return `<li><a href="${href}">${escapeHtml(itemHead(t.content_html, settings).ogTitle)}</a></li>`;
+    })),
+    list("links-collections", "Collections", hoppers.filter((h) => h.slug).map((h) =>
+      `<li><a href="${mount}/h/${encodeURIComponent(h.slug!)}/">${escapeHtml(h.name)}</a> <span class="meta">${h.count} ${h.count === 1 ? "item" : "items"}</span></li>`)),
+    list("links-external", "Links", settings.links_external.map((l) =>
+      `<li><a href="${escapeHref(l.url)}">${escapeHtml(l.label)}</a></li>`)),
+  ];
+  const standard = [
+    blogroll.length ? `<li><a href="${mount}/blogroll.opml" title="the blogroll, for a feed reader">Blogroll (OPML)</a></li>` : "",
+    settings.links_blygger_org ? `<li><a href="https://blygger.org/">Made with Blygger</a></li>` : "",
+    settings.links_blygger_com ? `<li><a href="https://blygger.com/">Find more blygs</a></li>` : "",
+  ].filter(Boolean);
+  const body = groups.filter(Boolean).join("\n") + (standard.length ? `\n<ul class="links-foot">\n${standard.join("\n")}\n</ul>` : "");
+  return body.trim() ? `<nav class="blyg-links" id="blyg-links" aria-label="links">\n${body.trim()}\n</nav>` : "";
+}
+
+/**
+ * Every public page's frame: header and masthead, then the page's own
+ * content beside or above the links section. One function, so a page cannot
+ * forget the section or place it differently from the others.
+ */
+export async function blygPage(db: D1Database, settings: Settings, mount: string, inner: string, avatar?: MediaRow | null, preload?: LinksPreload): Promise<string> {
+  const links = await linksSection(db, settings, mount, preload);
+  const side = !!links && settings.links_position !== "bottom";
+  const top = await pageTop(db, settings, mount, avatar, side);
+  // A side menu comes first, so on a narrow screen it opens right under the
+  // masthead; on a wide one the grid places it beside the content.
+  if (side) {
+    return `<div class="blyg has-side side-${settings.links_position}">
+${top}
+<div class="blyg-body">
+${links}
+<div class="blyg-main">
+${inner}
+</div>
+</div>
+</div>
+<script>${LINKS_SCRIPT}</script>`;
+  }
+  return `<div class="blyg">
+${top}
+<div class="blyg-body">
+<div class="blyg-main">
+${inner}
+</div>
+${links}
+</div>
+</div>`;
+}
+
+/** Folds a side menu behind its Menu button; CSS shows the button on narrow screens only. */
+export const LINKS_SCRIPT = '(function () { var blyg = document.querySelector(".blyg.has-side"); var button = blyg && blyg.querySelector(".links-toggle"); if (!button) return; document.documentElement.classList.add("js-links"); button.hidden = false; button.addEventListener("click", function () { var open = blyg.classList.toggle("links-open"); button.setAttribute("aria-expanded", open ? "true" : "false"); }); })();';
+
+/** Where a latest-items page is served: the root, or `{mount}/{posts_path}/` (canonical to the root when that is where they show). */
+export type FeedPageAt = { url: string; canonical?: string };
+
+export async function feedPage(db: D1Database, settings: Settings, items: FeedItem[], hasMore: boolean, mount: string, origin: string, at: FeedPageAt = { url: origin }): Promise<string> {
   const [data, blogrollSubs, collections] = await Promise.all([loadFeedData(db, items, settings.avatar_media_id || ""), listBlogrollSubscriptions(db), listPublicHoppers(db)]);
   const blocks: string[] = [];
   for (const item of items) {
@@ -1634,13 +1766,10 @@ export async function feedPage(db: D1Database, settings: Settings, items: FeedIt
     if (item.kind === "fragment") blocks.push(await fragmentBlock(db, item, mount, settings.timezone, true, data.cards.get(item.id)));
     else if (item.kind === "thread") blocks.push(await threadCard(db, item, mount, settings.timezone, data.cards.get(item.id), data.provenance));
   }
-  const body = `<div class="blyg">
-${await pageTop(db, settings, mount, data.avatar)}
-${blocks.join("\n") || '<p class="withdrawn">Nothing published yet.</p>'}
+  const body = `${await blygPage(db, settings, mount, `${blocks.join("\n") || '<p class="withdrawn">Nothing published yet.</p>'}
 ${hasMore ? `<footer class="older"><a href="${mount}/archive/">older items →</a></footer>` : ""}
-${collectionsSection(collections, mount)}
-${blogrollSection(blogrollSubs, mount)}
-</div>
+${settings.links_collections ? "" : collectionsSection(collections, mount)}
+${blogrollSection(blogrollSubs, mount)}`, data.avatar, { hoppers: collections, blogroll: blogrollSubs })}
 <script>${VERSION_NAV_SCRIPT}</script>`;
   // §2.2: publishers SHOULD emit rel="blogroll" on the HTML feed page when the blogroll is non-empty.
   const hasBlogroll = blogrollSubs.length > 0;
@@ -1654,7 +1783,8 @@ ${blogrollSection(blogrollSubs, mount)}
   return layout(settings.site_title, body, mount, {
     hasBlogroll,
     description,
-    url: origin,
+    url: at.url,
+    canonical: at.canonical,
     webmention: webmentionHref(settings, origin),
     image: data.avatar ? origin + data.avatar.r2_key : undefined,
     siteName: settings.site_title,
@@ -1707,7 +1837,7 @@ export async function permalinkPage(db: D1Database, settings: Settings, item: It
   if (item.kind === "withdrawn") {
     return layout(
       `withdrawn — ${settings.site_title}`,
-      `<div class="blyg">\n${await pageTop(db, settings, mount)}\n${await withdrawnBlock(db, item, mount, settings.timezone)}\n</div>`,
+      await blygPage(db, settings, mount, await withdrawnBlock(db, item, mount, settings.timezone)),
       mount,
       withdrawnMeta(settings, url, alternateJson, webmention, origin),
     );
@@ -1715,11 +1845,8 @@ export async function permalinkPage(db: D1Database, settings: Settings, item: It
   const latest = await publishedVersion(db, item);
   const media = await listMediaForItem(db, item.id);
   const head = itemHead(latest?.content_html ?? "", settings);
-  const body = `<div class="blyg">
-${await pageTop(db, settings, mount)}
-${await fragmentBlock(db, item, mount, settings.timezone)}
-${await responsesSection(db, item, settings, mount)}
-</div>
+  const body = `${await blygPage(db, settings, mount, `${await fragmentBlock(db, item, mount, settings.timezone)}
+${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;
   return layout(head.title, body, mount, {
     description: head.description,
@@ -1737,13 +1864,15 @@ ${await responsesSection(db, item, settings, mount)}
 
 /** Thread permalink page (§2.9) — caller (index.ts) 404s if the item's authored kind isn't thread. */
 export async function threadPage(db: D1Database, settings: Settings, item: ItemRow, mount: string, origin: string): Promise<string> {
-  const url = `${origin}t/${item.id}/`;
+  // The front page's live URL is the root; /t/{id}/ still serves it and names the root canonical.
+  const front = settings.front_page === item.id;
+  const url = front ? origin : `${origin}t/${item.id}/`;
   const alternateJson = `${origin}items/${item.id}.json`;
   const webmention = webmentionHref(settings, origin);
   if (item.kind === "withdrawn") {
     return layout(
       `withdrawn — ${settings.site_title}`,
-      `<div class="blyg">\n${await pageTop(db, settings, mount)}\n${await withdrawnBlock(db, item, mount, settings.timezone)}\n</div>`,
+      await blygPage(db, settings, mount, await withdrawnBlock(db, item, mount, settings.timezone)),
       mount,
       withdrawnMeta(settings, url, alternateJson, webmention, origin),
     );
@@ -1751,16 +1880,15 @@ export async function threadPage(db: D1Database, settings: Settings, item: ItemR
   const latest = await publishedVersion(db, item);
   const media = await listMediaForItem(db, item.id);
   const head = itemHead(latest?.content_html ?? "", settings, respondsToLabel(latest));
-  const body = `<div class="blyg">
-${await pageTop(db, settings, mount)}
-${await threadBlock(db, item, mount, settings.timezone)}
-${await responsesSection(db, item, settings, mount)}
-</div>
+  const body = `${await blygPage(db, settings, mount, `${await threadBlock(db, item, mount, settings.timezone)}
+${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;
-  return layout(head.title, body, mount, {
+  // The front page is the blyg's home, so its tab reads as the blyg.
+  return layout(front ? settings.site_title : head.title, body, mount, {
     description: head.description,
     ogTitle: head.ogTitle,
     url,
+    canonical: front ? origin : undefined,
     alternateJson,
     webmention,
     type: "article",
@@ -1806,9 +1934,7 @@ export async function pinnedVersionPage(
   // A pin is a frozen artifact of a response, so it carries the citation that
   // was true when it froze — not whatever the live item cites now.
   const cite = isThread ? stubCitation(row, tz) : "";
-  const body = `<div class="blyg">
-${await pageTop(db, settings, mount)}
-<p class="pinned-banner">📌 Pinned v${row.version} — a frozen snapshot from ${formatDate(row.published_at, tz)}.
+  const body = await blygPage(db, settings, mount, `<p class="pinned-banner">📌 Pinned v${row.version} — a frozen snapshot from ${formatDate(row.published_at, tz)}.
 <a href="${live}">latest version</a> &middot; <a href="${mount}/items/${item.id}/v${row.version}.json">citable JSON</a></p>
 <article class="${isThread ? "thread" : "fragment"}${highlightClass(item)}"${generatedAttr(row.generated_json)}>
 ${cite}
@@ -1816,12 +1942,11 @@ ${forkLineage(item, tz)}
 <div class="item-content">${html}</div>
 ${noteHtml}
 <p class="timestamps"><span>Published: ${formatDate(row.published_at, tz)}</span></p>
-</article>
-</div>`;
+</article>`);
   // Canonical points at the live permalink (absolute — origin is the blyg
   // base URL, trailing slash included): the frozen page is a version of the
   // same work, and the living one is the page that should be indexed.
-  const canonical = `${origin}${isThread ? "t" : "f"}/${item.id}/`;
+  const canonical = settings.front_page === item.id ? origin : `${origin}${isThread ? "t" : "f"}/${item.id}/`;
   // `{excerpt} (v1) — {site}`, not `v1 — {excerpt} — {site}`: the version is a
   // qualifier on the item, and three em-dash-separated segments is one too many.
   // The name is derived from the pinned bytes by the same rule as a live item's
@@ -1885,14 +2010,11 @@ export async function archivePage(db: D1Database, settings: Settings, items: Ite
       `<li><span class="row-main">${isThread ? '<span class="kind-chip">thread</span> ' : ""}<a href="${href}">${escapeHtml(linkText)}</a>${tail ? ` <span class="row-sub">${escapeHtml(tail)}</span>` : ""}</span><span class="meta">${formatDate(item.updated, tz)} · v${item.version}</span></li>`,
     );
   }
-  const body = `<div class="blyg">
-${await pageTop(db, settings, mount)}
-<h2>Archive</h2>
+  const body = await blygPage(db, settings, mount, `<h2>Archive</h2>
 <ul class="archive">
 ${rows.join("\n")}
 </ul>
-${collectionsSection(await listPublicHoppers(db), mount)}
-</div>`;
+${settings.links_collections ? "" : collectionsSection(await listPublicHoppers(db), mount)}`);
   return layout(`archive — ${settings.site_title}`, body, mount, {
     description: `Every item published on ${settings.site_title}.`,
     ogTitle: `Archive — ${settings.site_title}`,

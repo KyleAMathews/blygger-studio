@@ -8,7 +8,7 @@
  * These are local content laws, not HTTP or OAuth requirements.
  * Model: working copy content, status, dirty flag, authored kind and immutable versions.
  * Withdrawal appends an empty withdrawn snapshot; restore copies text without
- * removing any version. Pinning changes visibility of one existing snapshot.
+ * removing any version; restoring the current version is discard and leaves the copy clean. Pinning changes visibility of one existing snapshot.
  * History grammar: fragment/thread, plain nonempty text and at most ten generated
  * choices. Legal operations depend on model state; restore/pin target nonempty
  * published snapshots. A fixed history forces repeated pin and restore-after-withdraw.
@@ -38,7 +38,7 @@ function step(model: Model, action: Action) {
   if (action.op === "edit") { model.content = action.value!; model.dirty = true; }
   if (action.op === "publish") { model.versions.push({ content: model.content, pinned: false, kind: model.kind }); model.status = "public"; model.dirty = false; }
   if (action.op === "withdraw") { model.versions.push({ content: "", pinned: false, kind: "withdrawn" }); model.status = "withdrawn"; model.dirty = true; }
-  if (action.op === "restore") { model.content = model.versions[action.version! - 1].content; model.dirty = true; }
+  if (action.op === "restore") { model.content = model.versions[action.version! - 1].content; model.dirty = action.version !== model.versions.length; }
   if (action.op === "pin") model.versions[action.version! - 1].pinned = true;
 }
 const instruction = fc.record({ choice: fc.nat(30), version: fc.nat(30), text: fc.integer({ min: 0, max: 999 }) });

@@ -126,6 +126,67 @@ export type Settings = {
     highlight_generated_default: boolean;
     auto_change_notes: boolean;
     picker_typing: 'auto' | 'editor' | 'panel';
+    /**
+     * The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>.
+     */
+    feed_order: string;
+    /**
+     * A published thread's id shown at the mount root instead of the latest items; empty for the latest items. A front page later withdrawn or deleted falls back to the latest items.
+     */
+    front_page: string;
+    /**
+     * Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused.
+     */
+    posts_path: string;
+    /**
+     * Where the links section (main menu) sits on public pages: left (the default) or right is a sidebar on wide screens and a Menu button under the masthead on narrow ones; bottom puts it below the content at every width.
+     */
+    links_position: 'bottom' | 'left' | 'right';
+    /**
+     * Published threads listed first in the links section, in order. A thread later withdrawn is left out.
+     */
+    links_threads: Array<string>;
+    /**
+     * The owner's own links in the links section.
+     */
+    links_external: Array<{
+        label: string;
+        url: string;
+    }>;
+    /**
+     * List public collections in the links section.
+     */
+    links_collections: boolean;
+    /**
+     * Link the blogroll's OPML file in the links section, when the blogroll is not empty.
+     */
+    links_opml: boolean;
+    /**
+     * Link blygger.org in the links section.
+     */
+    links_blygger_org: boolean;
+    /**
+     * Link blygger.com, the directory of blygs, in the links section.
+     */
+    links_blygger_com: boolean;
+    /**
+     * The setup wizard: pending on a fresh install, notice on a node that published before it existed, done once finished or dismissed.
+     */
+    setup: 'pending' | 'notice' | 'done';
+    /**
+     * Read-only: what each setting reads as with nothing stored, for "reset to default". site_title's default is the title derived from the address; store "" to keep it derived.
+     */
+    defaults?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Read-only: the home page orders this node can use now (core, plus enabled extensions').
+     */
+    feed_orders?: Array<{
+        id: string;
+        title: string;
+        description: string;
+    }>;
     update_feed_url: string;
     update_notice_ack: boolean;
     /**
@@ -1924,6 +1985,67 @@ export type UpdateSettingsData = {
         highlight_generated_default?: boolean;
         auto_change_notes?: boolean;
         picker_typing?: 'auto' | 'editor' | 'panel';
+        /**
+         * The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>.
+         */
+        feed_order?: string;
+        /**
+         * A published thread's id shown at the mount root instead of the latest items; empty for the latest items. A front page later withdrawn or deleted falls back to the latest items.
+         */
+        front_page?: string;
+        /**
+         * Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused.
+         */
+        posts_path?: string;
+        /**
+         * Where the links section (main menu) sits on public pages: left (the default) or right is a sidebar on wide screens and a Menu button under the masthead on narrow ones; bottom puts it below the content at every width.
+         */
+        links_position?: 'bottom' | 'left' | 'right';
+        /**
+         * Published threads listed first in the links section, in order. A thread later withdrawn is left out.
+         */
+        links_threads?: Array<string>;
+        /**
+         * The owner's own links in the links section.
+         */
+        links_external?: Array<{
+            label: string;
+            url: string;
+        }>;
+        /**
+         * List public collections in the links section.
+         */
+        links_collections?: boolean;
+        /**
+         * Link the blogroll's OPML file in the links section, when the blogroll is not empty.
+         */
+        links_opml?: boolean;
+        /**
+         * Link blygger.org in the links section.
+         */
+        links_blygger_org?: boolean;
+        /**
+         * Link blygger.com, the directory of blygs, in the links section.
+         */
+        links_blygger_com?: boolean;
+        /**
+         * The setup wizard: pending on a fresh install, notice on a node that published before it existed, done once finished or dismissed.
+         */
+        setup?: 'pending' | 'notice' | 'done';
+        /**
+         * Read-only: what each setting reads as with nothing stored, for "reset to default". site_title's default is the title derived from the address; store "" to keep it derived.
+         */
+        defaults?: {
+            [key: string]: unknown;
+        };
+        /**
+         * Read-only: the home page orders this node can use now (core, plus enabled extensions').
+         */
+        feed_orders?: Array<{
+            id: string;
+            title: string;
+            description: string;
+        }>;
         update_feed_url?: string;
         update_notice_ack?: boolean;
         /**

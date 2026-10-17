@@ -486,6 +486,28 @@ export interface Settings {
   auto_change_notes: boolean;
   /** Where you type to search in the [[ / ![[ picker (0.29): auto = the editor with a mouse, the panel on touch. */
   picker_typing: "auto" | "editor" | "panel";
+  /** The home page order, an id from `src/feeds` (session 46). Absent = pace-layered; migration 0029 keeps published nodes newest-first. */
+  feed_order: string;
+  /** A published thread shown at the mount root instead of the latest items (session 47); empty = the latest items. */
+  front_page: string;
+  /** Where the latest items live, `{mount}/{posts_path}/`; served whether or not a front page is set. */
+  posts_path: string;
+  /** The links section on every public page (session 47): below the content, or a sidebar on wide screens. */
+  links_position: "bottom" | "left" | "right";
+  /** Published threads listed first in the links section, in this order. */
+  links_threads: string[];
+  /** The owner's own links in the links section, after the collections. */
+  links_external: AuthorLink[];
+  /** Public collections (hoppers) in the links section. On by default. */
+  links_collections: boolean;
+  /** The blogroll's OPML file in the links section, when the blogroll has anyone in it. On by default. */
+  links_opml: boolean;
+  /** A link to blygger.org (the protocol) in the links section. On by default (ROADMAP row 5). */
+  links_blygger_org: boolean;
+  /** A link to blygger.com (the directory) in the links section. On by default. */
+  links_blygger_com: boolean;
+  /** The setup wizard's state: `pending` (fresh install), `notice` (existing node, told once), `done`. */
+  setup: "pending" | "notice" | "done";
   /** Where to ask. Configurable so a fork checks its own releases, not ours. */
   update_feed_url: string;
   /**

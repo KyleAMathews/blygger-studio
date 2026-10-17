@@ -9,6 +9,7 @@ An extension is first-party TypeScript in this repository. An operator compiles 
 | Name | What it does |
 | --- | --- |
 | `example` | Fills each UI slot and does nothing that matters. The template to copy, and what the slot tests enable. |
+| `feed-example` | Adds a "Pinned first" home page order: pinned items at the top, most pins first, then the rest newest first. Server only (`feeds.ts`, `server.ts`); the template to copy for a feed order of your own. |
 | `inspect` | Adds "inspect" to each reading entry's ⋯ sheet: the record this Studio holds for it, and its JSON. Browser only; shipped in `extensions.json`. |
 | `lineage-glyph` | The lineage glyph, hex view and action ring from #35. A glyph in each reading byline counts what a post draws on and what draws on it here. It opens a hex view of one hop of ancestors and descendants, where each corner previews what stub, quote a passage, fork, link post, history and open would make, and a second press runs that action. The actions are the Studio's own (or drafts and navigation through the extension context), so they write through the owner's session like the ⋯ sheet does. Its server routes are owner reads: `GET /api/ext/lineage-glyph/lineage` and `/summaries`. `scripts/lineage-demo.ts` runs a seeded local node with it enabled. |
 | `reading-time` | An estimated reading time and word count at the end of each reading entry's byline. Browser only; shipped in `extensions.json`. |
@@ -22,6 +23,7 @@ An extension is first-party TypeScript in this repository. An operator compiles 
 | Sheets | A sheet of its own, opened from either slot above | `context.openSheet(render)` |
 | A page | A screen at `/studio/ext/<name>`, linked from More | `page` |
 | Owner reads | `GET /api/ext/<name>/…` routes, in the documented contract and the SDK | `extensions/<name>/contract.ts` + `server.ts` |
+| Feed orders | An order for the public home page, chosen in Settings → home page | `feeds` in `server.ts` (see "Feed orders" below) |
 
 A slot receives a narrow context ([`src/ui/extension-api.ts`](../src/ui/extension-api.ts)):
 
@@ -39,7 +41,7 @@ Each slot renders inside an error boundary. If an extension throws, that slot re
 
 - **Runtime loading.** No extension is fetched, evaluated or configured by URL at run time. The Studio runs with the owner's session cookie, so any script that runs there can act as the owner: publish, mint tokens, read drafts. Remote code in that session would be a credential-theft surface. Only code compiled into the build runs, and every extension is code in this repository that the operator chose to compile in.
 - **Writes.** Extension routes are GETs under `/api/ext/<name>/`. The permission model classifies them as `owner:read`, and a route registered with any other method or prefix is refused when the Worker starts. An extension that wants to change something uses the existing contract through `client`, under the same scopes as any client.
-- **The wire.** An extension does not reach `blyg.json`, public pages, feeds, `content_html` or mentions. It is studio furniture for one owner.
+- **The wire.** An extension does not reach `blyg.json`, public pages, feeds, `content_html` or mentions. It is studio furniture for one owner. The one exception is order: a feed order may decide the sequence of the home page's cards, and nothing else (session 46; see "Feed orders").
 - **Changing the Studio's own controls.** No slot rewrites, hides or annotates a built-in button, row or label. #35 needed this (hover previews on `stub ↗`, tips on ⋯ rows), and it was left out because it would make the base UI's markup depend on extension code. See the open questions in the extension PR.
 - **Other screens.** The slots are on the reading view only, plus an extension's own page. New slots should be added when an extension needs them, not before.
 
@@ -93,6 +95,25 @@ extensions/
 4. Add the extension to `extensions/catalog.ts`: its name in `EXTENSIONS`, and its routes spread into `extensionRoutes`. If it has a server half, add that to `test/fixtures/extensions.server.ts`.
 5. Run `npm run sdk:generate` and commit `openapi.json` and `sdk/generated`. Add each new operation to the `owner:read` lists in `test/rest-permissions.oracle.test.ts` and `test/mcp.oracle.test.ts`, and to `test/sdk-operations.test.ts`. The inventory checks fail until you do.
 6. Test it: Worker tests for its routes (the Worker suite compiles in every extension, so its routes are live once a test enables it), and a browser spec that enables it with `PATCH /api/settings { "extensions": ["<name>"] }` and turns it off afterwards.
+
+### Feed orders
+
+Blygger keeps time two ways: newest first (synchronic) and pace-layered (diachronic, the default for a fresh install; [`docs/pace-layered-feed.md`](pace-layered-feed.md)). Both are core, in `src/feeds/`. Further orders over the same history are extensions:
+
+```ts
+// extensions/<name>/server.ts
+export const server: ServerExtension = {
+  name: '<name>',
+  routes() {},
+  feeds: [{ id: '<name>/<order>', title, description, order(history) { return ids; } }],
+};
+```
+
+- **Input:** a `FeedHistory` (`src/feeds/types.ts`): each item's versions with time, note, pin flag and own-origin quotes, oldest first. It is what any subscriber can read from the blyg's public files, so nothing private reaches an order.
+- **Output:** item ids, top first. The core shows published items only, each once, and renders every card itself. An order that returns a draft, a withdrawn item, a repeat or an id that does not exist has that entry dropped. An order cannot add content to a page, only arrange it.
+- **Ids are namespaced:** an order's id must start with `<name>/`. One that does not is ignored, so no extension can shadow a core order.
+- **Enabling:** the order is offered in Settings → home page while the extension is enabled. If it is disabled later, the stored choice stays and the home page uses the default until it is enabled again.
+- **Starting point:** copy `extensions/feed-example/` for the plumbing. To change how items sink and climb, start from `src/feeds/pace-layered.ts`; `test/fixtures/feeds/` holds the histories its tests check, which a copy can reuse.
 
 ### Why every extension's routes are in `openapi.json`
 

@@ -167,8 +167,9 @@ npm run test:e2e
 Public HTML pages use a shared Cloudflare cache for 60 seconds. After expiry,
 Cloudflare can serve the saved page for another 300 seconds while it refreshes
 in the background. Browsers validate their saved HTML with a content ETag.
-Changes, including withdrawals and collection visibility, can appear after
-this cache window. Studio, API, media, and XML routes keep their existing behavior.
+The cache key includes the blyg's public revision, so a publish, withdrawal
+or settings change moves every page to a fresh entry and shows on the next
+read. Hiding an inbound mention still waits out the cache window. Studio, API, media, and XML routes keep their existing behavior.
 
 New installations and Worker archives include the cache configuration. Existing
 installations must add this block to their deployment config, including any

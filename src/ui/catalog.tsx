@@ -34,6 +34,7 @@ import {
 } from './components.tsx';
 import { sourceTitleAndUrl } from '../importer/util.ts';
 import { confirm } from './sheets.tsx';
+import { itemTitle } from './plain-text.ts';
 import { formatDateIn } from '../dates.ts';
 import './reading.css';
 function useAction() {
@@ -252,6 +253,8 @@ export function HopperPage({ id }: { id: string }) {
   });
   const row = result.data?.[0];
   usePoll('hoppers', refreshHoppers);
+  const ownRows =
+    useLiveQuery({ query: (q) => q.from({ item: items }) }).data ?? [];
   const action = useAction();
   const navigate = useNavigate();
   const settings = useSettings();
@@ -368,6 +371,57 @@ export function HopperPage({ id }: { id: string }) {
       </div>
       {row.memberships.map((member) => {
         const key = JSON.stringify([member.subscription_id, member.remote_id]);
+        const removeButton = (
+          <Button
+            className="btn btn-ghost btn-mini"
+            onClick={() =>
+              void action.run(async () => {
+                await unwrap(
+                  BlyggerApi.removeHopperItem({
+                    client,
+                    path: { id, sub: member.subscription_id, remoteId: member.remote_id },
+                  }),
+                );
+                await changed('hopper', 'hoppers', 'hopper-preview');
+              })
+            }
+          >
+            remove
+          </Button>
+        );
+        // One of the owner's own items (session 47; store.ts OWN_SUBSCRIPTION).
+        if (member.subscription_id === '~own') {
+          const own = ownRows.find((row) => row.id === member.remote_id);
+          return (
+            <article className="entry reading-entry" key={key} data-own={member.remote_id}>
+              <div className="entry-in">
+                <p className="byline">
+                  {own ? <span className="badge">{own.kind}</span> : null}
+                  <span className="src">
+                    {!own ? 'deleted' : own.status === 'public' ? 'yours' : own.status === 'draft' ? 'your draft, not shown publicly' : 'yours, withdrawn'}
+                  </span>
+                  <span>· added {added(member.added_at)}</span>
+                </p>
+                {own ? (
+                  <div className="entry-body content">
+                    <p>
+                      <strong>{itemTitle(own.content_md)}</strong>
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+              <div className="entry-bar">
+                <span className="spacer" />
+                {own ? (
+                  <Link className="btn btn-ghost btn-mini" to="/edit/$id" params={{ id: own.id }}>
+                    edit
+                  </Link>
+                ) : null}
+                {removeButton}
+              </div>
+            </article>
+          );
+        }
         const item = row.items.find(
           (item) =>
             item.subscription_id === member.subscription_id &&
@@ -445,26 +499,7 @@ export function HopperPage({ id }: { id: string }) {
                   stub ↗
                 </Button>
               ) : null}
-              <Button
-                className="btn btn-ghost btn-mini"
-                onClick={() =>
-                  void action.run(async () => {
-                    await unwrap(
-                      BlyggerApi.removeHopperItem({
-                        client,
-                        path: {
-                          id,
-                          sub: member.subscription_id,
-                          remoteId: member.remote_id,
-                        },
-                      }),
-                    );
-                    await changed('hopper', 'hoppers', 'hopper-preview');
-                  })
-                }
-              >
-                remove
-              </Button>
+              {removeButton}
             </div>
           </article>
         );

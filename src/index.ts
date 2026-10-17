@@ -1,10 +1,11 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { conditionalHtmlResponse, htmlCacheResponse, publicHtmlKey, publicHtmlRequest } from './html-cache.ts';
+import { conditionalHtmlResponse, htmlCacheResponse, publicHtmlKey, publicHtmlRequest, publicHtmlRevision } from './html-cache.ts';
+import { readChanges } from './changes.ts';
 import { verifySession } from "./auth.ts";
 import { verifyBearer } from "./oauth.ts";
 import { requestError } from './request-error.ts';
 import { fontCss } from "./fonts.ts";
-import { listFeedItems } from "./public-feed.ts";
+import { listHomeItems } from "./public-feed.ts";
 import { studioSpa } from "./spa.ts";
 import { authorizationApi } from './authorization-api.ts';
 import { oauthRoutes } from './oauth-routes.ts';
@@ -18,9 +19,10 @@ import { type Context, Hono } from "hono";
 
 
 import { buildBlogrollOpml } from "./importer/opml.ts";
-import { publicHopperPage } from "./importer/pages.ts";
+import { publicHopperPage, type HopperItemView } from "./importer/pages.ts";
 import { repairImportedUrls, runScheduledPoll } from "./importer/schedule.ts";
-import { getHopperBySlug, getImportedItem, getSubscription, listBlogrollSubscriptions, listHopperItems } from "./importer/store.ts";
+import { getHopperBySlug, getImportedItem, getSubscription, listBlogrollSubscriptions, listHopperItems, OWN_SUBSCRIPTION } from "./importer/store.ts";
+import { resolveFrontPage } from "./front-page.ts";
 import { authoredKind, getItem, getMedia, getSettings, getVersion, listPublic } from "./model.ts";
 import { archivePage, feedPage, generatedHighlightCss, permalinkPage, pinnedVersionPage, STYLE_CSS, themeCss, threadPage } from "./pages.ts";
 import { buildArchiveIndex, buildItemJson, buildManifest, buildPinnedVersionJson, siteOrigin } from "./protocol.ts";
@@ -88,11 +90,31 @@ export function makeApp(mount: string) {
   });
 
   // strict:false: serves both {mount} and {mount}/ (and "/" at root mount).
+  // The root shows the front page when one is set (and still a published
+  // thread), else the latest items. src/front-page.ts has the design.
   pub.get("/", async (c) => {
-    const [settings, items] = await Promise.all([getSettings(c.env.DB), listFeedItems(c.env.DB, FEED_PAGE_SIZE + 1)]);
-    const hasMore = items.length > FEED_PAGE_SIZE;
-    return c.html(await feedPage(c.env.DB, settings, items.slice(0, FEED_PAGE_SIZE), hasMore, mount, siteOrigin(settings, c.req.url, mount)));
+    const settings = await getSettings(c.env.DB);
+    const front = await resolveFrontPage(c.env.DB, settings);
+    if (front) {
+      webmentionLink(c, settings);
+      return c.html(await threadPage(c.env.DB, settings, front, mount, siteOrigin(settings, c.req.url, mount)));
+    }
+    return latestItems(c, settings, false);
   });
+
+  /** The latest items, at the root or at `{mount}/{posts_path}/`. */
+  const latestItems = async (c: Context<{ Bindings: Env }>, settings: Settings, atPostsPath: boolean) => {
+    const origin = siteOrigin(settings, c.req.url, mount);
+    // The front page is not a post, as on WordPress: it stays in feed.xml,
+    // the archive and the index, but not in this list.
+    const front = atPostsPath ? await resolveFrontPage(c.env.DB, settings) : null;
+    const items = (await listHomeItems(c.env.DB, settings, FEED_PAGE_SIZE + 2)).filter((i) => i.id !== front?.id);
+    const hasMore = items.length > FEED_PAGE_SIZE;
+    const url = `${origin}${settings.posts_path}/`;
+    // Without a front page the same list is the root's, and the root is the one to index.
+    const at = !atPostsPath ? { url: origin } : front ? { url } : { url, canonical: origin };
+    return c.html(await feedPage(c.env.DB, settings, items.slice(0, FEED_PAGE_SIZE), hasMore, mount, origin, at));
+  };
 
   // The stylesheet carries the author's chosen theme appended to the base, so
   // a theme change is one file for every page and the static export picks it
@@ -132,8 +154,14 @@ export function makeApp(mount: string) {
     if (!hopper || hopper.public !== 1) return c.notFound();
     const memberships = await listHopperItems(c.env.DB, hopper.id);
     const subCache = new Map<string, Awaited<ReturnType<typeof getSubscription>>>();
-    const items: { row: NonNullable<Awaited<ReturnType<typeof getImportedItem>>>; sub: NonNullable<Awaited<ReturnType<typeof getSubscription>>> }[] = [];
+    const items: HopperItemView[] = [];
     for (const m of memberships) {
+      // The owner's own items show once published, and not after withdrawal.
+      if (m.subscription_id === OWN_SUBSCRIPTION) {
+        const own = await getItem(c.env.DB, m.remote_id);
+        if (own?.status === "public") items.push({ own });
+        continue;
+      }
       const row = await getImportedItem(c.env.DB, m.subscription_id, m.remote_id);
       if (!row) continue;
       let sub = subCache.get(m.subscription_id);
@@ -264,6 +292,13 @@ export function makeApp(mount: string) {
     return c.html(await archivePage(c.env.DB, settings, await listPublic(c.env.DB), mount, siteOrigin(settings, c.req.url, mount)));
   });
 
+  // Registered after every fixed route, so it can only claim a free segment.
+  pub.get("/:posts", async (c) => {
+    const settings = await getSettings(c.env.DB);
+    if (c.req.param("posts") !== settings.posts_path) return c.notFound();
+    return latestItems(c, settings, true);
+  });
+
   pub.get("/media/:file", async (c) => {
     const file = c.req.param("file");
     const media = await getMedia(c.env.DB, file.split(".")[0]);
@@ -340,7 +375,9 @@ export default {
       const headers = new Headers(req.headers);
       for (const name of ['cache-control', 'pragma', 'if-none-match', 'if-modified-since', 'range', 'if-range']) headers.delete(name);
       const read = new Request(req, { method: 'GET', headers });
-      return ctx.exports.PublicHtml.fetch(read, { cf: { cacheKey: publicHtmlKey(req) } })
+      // Without the revision the page still renders, cached under the plain key.
+      return readChanges(env.DB).then(publicHtmlRevision, () => undefined)
+        .then(revision => ctx.exports.PublicHtml.fetch(read, { cf: { cacheKey: publicHtmlKey(req, revision) } }))
         .then(response => conditionalHtmlResponse(req, response));
     }
     return fetchApp(req, env, ctx);

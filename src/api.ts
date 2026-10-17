@@ -1,4 +1,6 @@
 import { isFont } from "./fonts.ts";
+import { availableFeedAlgorithms } from "./feeds/available.ts";
+import { settingsResource } from "./settings-resource.ts";
 import { CUSTOM_THEME_ID, pairError, themeNameError, validateCustomTheme, type CustomTheme } from "./themes.ts";
 import { itemResource } from "./contract/resources.ts";
 import { itemUrl, storedSurface } from "./surface.ts";
@@ -10,6 +12,7 @@ import { compiledExtensionNames } from "../build/extensions.names.ts";
 // Owner API (cookie auth, JSON) — v0.1-plan §3.3.
 
 import { type Context } from "hono";
+import { canBeFrontPage, MAX_LINKS, postsPathError } from "./front-page.ts";
 import {
   authoredKind,
   createDraft,
@@ -468,6 +471,11 @@ const SETTINGS_KEYS = [
   "feed_prompt",
   "ai_style_prompt",
   "picker_typing",
+  "feed_order",
+  "front_page",
+  "posts_path",
+  "links_position",
+  "setup",
 ] as const;
 
 api.openapi(routes.updateSettings, async (c) => {
@@ -482,7 +490,7 @@ api.openapi(routes.updateSettings, async (c) => {
   for (const key of SETTINGS_KEYS) {
     if (typeof body[key] === "string") patch[key] = body[key] as string;
   }
-  for (const key of ["accept_mentions", "update_check", "show_responses_default", "highlight_generated_default", "auto_change_notes", "update_notice_ack"] as const) {
+  for (const key of ["accept_mentions", "update_check", "show_responses_default", "highlight_generated_default", "auto_change_notes", "update_notice_ack", "links_collections", "links_opml", "links_blygger_org", "links_blygger_com"] as const) {
     if (typeof body[key] === "boolean") patch[key] = body[key] ? "on" : "off";
   }
   if (typeof patch.picker_typing === "string" && !["auto", "editor", "panel"].includes(patch.picker_typing)) return c.json({ error: "picker_typing must be auto, editor or panel" }, 400);
@@ -500,6 +508,40 @@ api.openapi(routes.updateSettings, async (c) => {
     const unknown = names.filter((name) => typeof name !== "string" || !compiledExtensionNames.includes(name));
     if (unknown.length) return c.json({ error: `not an extension compiled into this build: ${unknown.map(String).join(", ")}` }, 400);
     patch.extensions = JSON.stringify([...new Set(names as string[])].sort());
+  }
+  if (typeof patch.setup === "string" && !["pending", "notice", "done"].includes(patch.setup)) return c.json({ error: "setup must be pending, notice or done" }, 400);
+  if (typeof patch.feed_order === "string") {
+    // Against the extensions as they will be after this patch.
+    const enabled = patch.extensions ? (JSON.parse(patch.extensions) as string[]) : (await getSettings(c.env.DB)).extensions;
+    const ids = availableFeedAlgorithms(enabled).map((a) => a.id);
+    if (!ids.includes(patch.feed_order)) return c.json({ error: `feed_order must be one of ${ids.join(", ")}` }, 400);
+  }
+  // The settings form sends every field, so a value already stored passes even
+  // if its thread has since been withdrawn; the public pages skip it themselves.
+  const stored = patch.front_page || Array.isArray(body.links_threads) ? await getSettings(c.env.DB) : null;
+  if (patch.front_page && patch.front_page !== stored?.front_page && !canBeFrontPage(await getItem(c.env.DB, patch.front_page))) return c.json({ error: "front_page must be a published thread" }, 400);
+  if (typeof patch.links_position === "string" && !["bottom", "left", "right"].includes(patch.links_position)) return c.json({ error: "links_position must be bottom, left or right" }, 400);
+  if (Array.isArray(body.links_threads)) {
+    const ids = [...new Set(body.links_threads as unknown[])];
+    if (ids.length > MAX_LINKS) return c.json({ error: `links_threads takes at most ${MAX_LINKS} threads` }, 400);
+    const kept: string[] = [];
+    for (const id of ids) {
+      if (typeof id !== "string") return c.json({ error: "links_threads must list published threads" }, 400);
+      if (canBeFrontPage(await getItem(c.env.DB, id))) kept.push(id);
+      // One listed before and withdrawn since is dropped, not refused.
+      else if (!stored?.links_threads.includes(id)) return c.json({ error: "links_threads must list published threads" }, 400);
+    }
+    patch.links_threads = JSON.stringify(kept);
+  }
+  if (Array.isArray(body.links_external)) {
+    const links = body.links_external as { label?: unknown; url?: unknown }[];
+    if (links.length > MAX_LINKS) return c.json({ error: `links_external takes at most ${MAX_LINKS} links` }, 400);
+    if (!links.every((l) => typeof l?.label === "string" && l.label.trim() !== "" && typeof l?.url === "string" && isFollowableUrl(l.url))) return c.json({ error: "links_external need a label and an absolute http(s) or mailto url" }, 400);
+    patch.links_external = JSON.stringify(links.map((l) => ({ label: (l.label as string).trim(), url: l.url })));
+  }
+  if (typeof patch.posts_path === "string") {
+    const pathError = postsPathError(patch.posts_path);
+    if (pathError) return c.json({ error: pathError }, 400);
   }
   if (typeof patch.font === "string" && !isFont(patch.font)) return c.json({ error: `unknown font: ${patch.font}` }, 400);
   if (typeof patch.custom_theme_name === "string") {
@@ -536,5 +578,5 @@ api.openapi(routes.updateSettings, async (c) => {
     if (incoherent) return c.json({ error: incoherent }, 400);
   }
   await putSettings(c.env.DB, patch);
-  return c.json(await getSettings(c.env.DB));
+  return c.json(settingsResource(await getSettings(c.env.DB)));
 });
