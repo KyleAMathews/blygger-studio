@@ -395,7 +395,13 @@ function ToolRow({
 }) {
   return (
     <div className={className}>
-      <Button id={attachId} className="tool sans" disabled={disabled} onClick={attach}>
+      <Button
+        id={attachId}
+        className="tool sans"
+        disabled={disabled}
+        title="Upload an image and insert it at the cursor"
+        onClick={attach}
+      >
         attach image
       </Button>
       <Button
@@ -421,6 +427,7 @@ function ToolRow({
         data-action="bracket-link"
         disabled={disabled}
         aria-label="[[ link an item"
+        title="Link to an item, inline anywhere: an ordinary link to its page that notifies no one"
         onClick={() => tools.bracket('[[')}
       >
         [[
@@ -431,6 +438,7 @@ function ToolRow({
           data-action="bracket-quote"
           disabled={disabled}
           aria-label="![[ quote an item"
+          title="Quote an item on its own line: bakes a snapshot of it into this thread and tells its author"
           onClick={() => tools.bracket('![[')}
         >
           ![[
@@ -441,6 +449,7 @@ function ToolRow({
         data-action="tk"
         disabled={disabled}
         aria-label="[TK] instruction"
+        title="Write an instruction for the model; the generated text publishes disclosed as machine-written"
         onClick={tools.tk}
       >
         [TK]
