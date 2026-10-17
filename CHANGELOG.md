@@ -18,7 +18,17 @@ not have its own repo until session 26.
 
 ---
 
-## 0.46.2 — 2026-10-17
+## 0.46.3 — 2026-10-17
+
+**Migrations: none.** No config change. **The code is 0.46.2's**, released under
+a new number because 0.46.2's tag could not be: the conformance-suite images
+that 0.46.2's new `oauth-interop` CI job pins by digest were deleted from
+GitLab's registry when GitLab rebuilt the `release-v5.3.2` tag, so that
+commit's Check could not pass. Both images are re-pinned to the tag's current
+digests. If you upgraded to 0.46.2 from its tag, nothing changes but the
+version string.
+
+## 0.46.2 — 2026-10-17 (tagged, never released)
 
 **Migrations: none.** No config change.
 

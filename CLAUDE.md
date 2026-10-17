@@ -155,7 +155,9 @@ saying so.
 
 ## Status
 
-**0.46.2** (session 49, 2026-10-17): Kyle Mathews' #66 defaults an omitted OAuth `resource` to the mounted MCP resource at `/oauth2/authorize` (the `invalid_grant` behind #54; the default grant cannot reach REST), plus a pinned `oauth-interop` CI job (MCP Inspector + OpenID conformance, docker). Toolbar `title`s for #48. No migration.
+**0.46.3** (session 49, 2026-10-17): 0.46.2 re-released. Its tag could not pass Check because GitLab rebuilt `release-v5.3.2` and deleted the two pinned conformance-suite digests (`manifest unknown`); both are re-pinned, recipe in `docs/oauth-interop.md`. The nodes run the same code.
+
+**0.46.2** (session 49, 2026-10-17, tagged, never released): Kyle Mathews' #66 defaults an omitted OAuth `resource` to the mounted MCP resource at `/oauth2/authorize` (the `invalid_grant` behind #54; the default grant cannot reach REST), plus a pinned `oauth-interop` CI job (MCP Inspector + OpenID conformance, docker). Toolbar `title`s for #48. No migration.
 
 **0.46.1** (session 48, 2026-10-13): the public HTML cache key carries `publicHtmlRevision` (epoch + items/subscriptions/hoppers/settings/feed from `change_state`), read once per public request in the gateway, so a publish no longer waits out the 60 s edge window. A failed read falls back to the plain key. `mentions_in` has no change domain, so mention hide/show still lags. No migration.
 

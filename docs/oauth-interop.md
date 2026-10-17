@@ -3,7 +3,13 @@
 CI runs a separate `oauth-interop` job against disposable HTTPS Workers at root
 and `/nested/blyg` mounts. It uses MCP Inspector 2.10.1 and OpenID Foundation
 conformance suite 5.3.2. The Inspector package version and container digests are
-pinned. The job uses dummy accounts, fresh D1/R2 storage and no production
+pinned. The two conformance images are pinned to the digests of GitLab's
+`release-v5.3.2` tag. GitLab rebuilt that tag after #66 merged and deleted the
+old digests, so a pull failed and CI went red with no change on our side (it
+blocked v0.46.2's release). If `docker compose up` reports `manifest unknown`,
+re-pin both images to the tag's current digests: `docker buildx imagetools
+inspect registry.gitlab.com/openid/conformance-suite:release-v5.3.2`, and the
+same for `/nginx`. The job uses dummy accounts, fresh D1/R2 storage and no production
 credentials. Worker outbound requests cannot reach live services.
 
 ## What CI checks
