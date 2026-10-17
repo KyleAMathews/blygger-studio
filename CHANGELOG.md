@@ -18,6 +18,28 @@ not have its own repo until session 26.
 
 ---
 
+## 0.46.2 — 2026-10-17
+
+**Migrations: none.** No config change.
+
+- **OAuth clients that leave out `resource` now get a working token** (Kyle
+  Mathews, #66; reported as #54). A client that omits the RFC 8707 resource
+  indicator, as generic OAuth clients and manually configured MCP proxies do,
+  could complete the owner's consent and then fail at the token endpoint with
+  `invalid_grant`. The authorization request now defaults to the node's MCP
+  resource before login, consent and code issuance, and the consent page shows
+  that MCP address. An explicit resource is validated as before, and the
+  default grant cannot reach the REST API: REST clients still ask for the API
+  resource by name. No new routes, no host-root paths. `docs/oauth-interop.md`
+  and `docs/issue-54-cloudflare-mcp.md` have the findings and the Cloudflare
+  portal setup.
+- **Hover text on the editor toolbar** (#48). The `[[`, `![[` and `[TK]`
+  buttons had labels for screen readers only; each now says what it does when
+  pointed at, and *attach image* does too.
+- **CI:** a new `oauth-interop` job runs MCP Inspector 2.10.1 and selected
+  OpenID Foundation conformance modules against disposable Workers, with the
+  package version and container digests pinned (#66).
+
 ## 0.46.1 — 2026-10-13
 
 **Migrations: none.** No config change.
