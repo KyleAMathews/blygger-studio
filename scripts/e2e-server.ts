@@ -76,6 +76,20 @@ const proxy = createServer(async (request, response) => {
       response.end('<iframe src="' + escaped + '"></iframe>');
       return;
     }
+    // Disposable stand-in for a sender whose claim this blyg has just verified:
+    // writes one verified inbound mention straight into the 8787 fixture
+    // database, as verifyMention's UPDATE would. Fixture-only; the Worker ships
+    // no such route (e2e/polling-cache.spec.ts, live mentions).
+    if (path === "/__fixture/verified-mention" && request.method === "POST") {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const { id, item, origin } = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { id: string; item: string; origin: string };
+      const now = new Date().toISOString(), source = `${origin}t/${id}/`;
+      await db.prepare("INSERT INTO mentions_in (id, source, target, target_item_id, status, relation, source_origin, source_id, source_kind, source_version, source_author_json, source_page, first_seen, last_seen, verified_at, hidden) VALUES (?, ?, ?, ?, 'verified', 'stub', ?, ?, 'thread', 1, ?, ?, ?, ?, ?, 0)")
+        .bind(id, source, `http://127.0.0.1:8787/t/${item}/`, item, origin, id, JSON.stringify({ name: "Live responder" }), source, now, now, now).run();
+      response.writeHead(204); response.end();
+      return;
+    }
     if (!path.startsWith("/notes/b/") && !path.startsWith("/api/")) { response.writeHead(404); response.end("outside forwarding ranges"); return; }
     const chunks: Buffer[] = [];
     for await (const chunk of request) chunks.push(Buffer.from(chunk));

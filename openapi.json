@@ -187,6 +187,16 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991
+              },
+              "mentions": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "responses": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               }
             },
             "required": [
@@ -196,7 +206,9 @@
               "hoppers",
               "signals",
               "settings",
-              "feed"
+              "feed",
+              "mentions",
+              "responses"
             ]
           }
         },

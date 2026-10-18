@@ -40,8 +40,8 @@ beforeEach(async () => {
   // and reset only tables owned by this oracle, before running a new history.
   for (const sql of triggerDefinitions) await env.DB.prepare(sql.replace('CREATE TRIGGER ', 'CREATE TRIGGER IF NOT EXISTS ')).run();
   await env.DB.prepare('INSERT OR IGNORE INTO change_state(id) VALUES(1)').run();
-  await env.DB.prepare("UPDATE change_state SET epoch=lower(hex(randomblob(16))),items=0,reading=0,subscriptions=0,hoppers=0,signals=0,settings=0,feed=0 WHERE id=1").run();
-  await env.DB.batch(['versions','media','items','settings','hopper_items','signals','read_state','imported_items','subscriptions','hoppers'].map(table => env.DB.prepare(`DELETE FROM ${table}`)));
+  await env.DB.prepare("UPDATE change_state SET epoch=lower(hex(randomblob(16))),items=0,reading=0,subscriptions=0,hoppers=0,signals=0,settings=0,feed=0,mentions=0,responses=0 WHERE id=1").run();
+  await env.DB.batch(['versions','media','items','settings','hopper_items','signals','read_state','imported_items','subscriptions','hoppers','mentions_in','mentions_out'].map(table => env.DB.prepare(`DELETE FROM ${table}`)));
   await clearArtifacts();
 });
 afterEach(() => vi.useRealTimers());
@@ -195,6 +195,48 @@ describe('trigger revision oracle', () => {
     expect(await call('GET', '/api/reading')).toEqual(cleared);
     expect(await changes(cookie)).toEqual(clearedChanges);
   });
+  it('mention status transitions move exactly the domains whose responses they change', async () => {
+    const cookie = await login(); await seed();
+    await env.DB.prepare("UPDATE items SET responses_override=1 WHERE id='cache-item'").run();
+    async function read(path: string, headers: HeadersInit = { cookie }) {
+      const ctx = createExecutionContext(); const response = await app.fetch(new Request(BASE + path, { headers }), env, ctx);
+      expect(response.status).toBe(200); const body = await response.text(); await waitOnExecutionContext(ctx); return body;
+    }
+    // The Studio's inbound list, and the public page's responses section as a reader receives it.
+    const studio = () => read('/api/mentions?direction=inbound');
+    const page = async () => (await read('/blyg/f/cache-item/', {})).match(/<section[^>]*responses[\s\S]*?<\/section>/)?.[0] ?? '';
+    const verify = "status='verified',relation='stub',source_origin='https://responder.example/',source_id='r',source_kind='thread',source_version=1,source_page='t/r/',source_author_json='{\"name\":\"Witness\"}',verified_at='2026-10-18T00:00:00Z'";
+    // Receiver writes, in the order a claim's life takes them. Expected domains
+    // follow from the observed responses below, not from the trigger text.
+    const steps: [string, string, OracleDomain[]][] = [
+      ['claim', "INSERT INTO mentions_in(id,source,target,target_item_id,status,first_seen,last_seen) VALUES('w','https://responder.example/t/r/','https://us/f/cache-item/','cache-item','pending','t','t')", []],
+      ['verification fails', "UPDATE mentions_in SET status='failed',error='no link' WHERE id='w'", []],
+      ['claimed again', "UPDATE mentions_in SET status='pending',error=NULL,attempts=1,last_seen='t2' WHERE id='w'", []],
+      ['verified', `UPDATE mentions_in SET ${verify} WHERE id='w'`, ['mentions', 'responses']],
+      ['hidden', "UPDATE mentions_in SET hidden=1 WHERE id='w'", ['mentions', 'responses']],
+      ['hidden, claimed again', "UPDATE mentions_in SET status='pending',attempts=2,last_seen='t3' WHERE id='w'", ['mentions']],
+      ['hidden, verified', `UPDATE mentions_in SET ${verify} WHERE id='w'`, ['mentions']],
+      ['hidden, withdrawn at source', "UPDATE mentions_in SET status='gone',error='withdrawn' WHERE id='w'", ['mentions']],
+      ['gone, claimed again', "UPDATE mentions_in SET status='pending',attempts=3,last_seen='t4' WHERE id='w'", ['mentions']],
+      ['shown while pending', "UPDATE mentions_in SET hidden=0 WHERE id='w'", []],
+      ['shown, verified', `UPDATE mentions_in SET ${verify} WHERE id='w'`, ['mentions', 'responses']],
+      ['pruned', "DELETE FROM mentions_in WHERE id='w'", ['mentions', 'responses']],
+      ['failed claim pruned', "INSERT INTO mentions_in(id,source,target,target_item_id,status,first_seen,last_seen) VALUES('f','https://spam.example/','https://us/f/cache-item/','cache-item','failed','t','t')", []],
+      ['failed claim pruned', "DELETE FROM mentions_in WHERE id='f'", []],
+    ];
+    for (const [name, sql, domains] of steps) {
+      const before = { studio: await studio(), page: await page(), changes: await changes(cookie) };
+      await env.DB.prepare(sql).run();
+      const after = { studio: await studio(), page: await page(), changes: await changes(cookie) };
+      const observed: OracleDomain[] = [];
+      if (after.studio !== before.studio) observed.push('mentions');
+      if (after.page !== before.page) observed.push('responses');
+      // A step with no observable change must not have been written as one.
+      expect(observed, name).toEqual(domains);
+      atCheckpoint('trigger exact domain effects', () => expect(changedDomains(before.changes, after.changes), name).toEqual(domains));
+    }
+    expect(await page()).toBe('');
+  });
   it('the timed update-state read crosses its exact daily deadline without source changes', async () => {
     vi.useFakeTimers({ toFake: ['Date'] }); const start = Date.parse('2026-10-01T12:00:00Z'); vi.setSystemTime(start);
     const cookie = await login();
@@ -316,7 +358,7 @@ describe('trigger revision oracle', () => {
     expect((await env.DB.prepare("SELECT value FROM settings WHERE key='site_title'").first<{ value: string }>())!.value).toBe('A');
   });
   it('rejects missing, extra and stale domain answers at the public checkpoint', () => {
-    const baseline: OracleToken = { epoch: 'e', domains: { items: 0, reading: 0, subscriptions: 0, hoppers: 0, signals: 0, settings: 0, feed: 0 } };
+    const baseline: OracleToken = { epoch: 'e', domains: { items: 0, reading: 0, subscriptions: 0, hoppers: 0, signals: 0, settings: 0, feed: 0, mentions: 0, responses: 0 } };
     for (const wrong of [[], ['subscriptions', 'feed'], ['reading']]) {
       expect(() => atCheckpoint('trigger exact domain effects', () => expect(wrong).toEqual(changedDomains(baseline, { ...baseline, domains: { ...baseline.domains, subscriptions: 1 } })))).toThrow('trigger exact domain effects');
     }

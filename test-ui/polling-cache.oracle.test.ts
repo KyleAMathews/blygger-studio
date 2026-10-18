@@ -17,7 +17,7 @@ import { StudioQueryReference, type OracleToken } from '../test/polling-cache-or
 import { campaign, atCheckpoint } from '../test/oracle-campaign.ts';
 import { withOracleCleanup } from '../test/oracle-cleanup.ts';
 
-const token = (revision = 0, epoch = 'e'): OracleToken => ({ epoch, domains: { items: revision, reading: revision, subscriptions: revision, hoppers: revision, signals: revision, settings: revision, feed: revision } });
+const token = (revision = 0, epoch = 'e'): OracleToken => ({ epoch, domains: { items: revision, reading: revision, subscriptions: revision, hoppers: revision, signals: revision, settings: revision, feed: revision, mentions: revision, responses: revision } });
 const makeClient = () => new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
 function rowsCollection(client: QueryClient, read: QueryFunction<OracleToken>, load: QueryFunction<{ id: string; revision: number }[]>) {
@@ -64,6 +64,24 @@ describe('Studio query-cache oracle', () => {
       atCheckpoint('Studio failed-query retry', () => expect(client.getQueryData(['items'])).toBe(old)); expect(collection.get('a')!.revision).toBe(0);
       fail = false; await collection.utils.refetch({ throwOnError: true });
       atCheckpoint('Studio failed-query retry', () => { expect(collection.get('a')!.revision).toBe(1); expect(load).toHaveBeenCalledTimes(3); });
+    }, [() => collection.cleanup(), async () => { client.clear(); }]);
+  });
+  it('a response joining two domains reloads when either moves and not when another does', async () => {
+    const client = makeClient(); let source = token();
+    const load = vi.fn(async () => [{ id: 'a', revision: source.domains.mentions + source.domains.reading }]);
+    const collection = createCollection(queryCollectionOptions({
+      queryKey: ['mention-sources'], queryClient: client, getKey: (row: { id: string; revision: number }) => row.id,
+      queryFn: context => readIfChanged(context, ['mentions', 'reading'], async () => source, load),
+      select: (response: CachedResponse<{ id: string; revision: number }[]>) => response.data,
+    }));
+    const bump = (domain: keyof OracleToken['domains']) => { source = { ...source, domains: { ...source.domains, [domain]: source.domains[domain] + 1 } }; };
+    await withOracleCleanup(async () => {
+      await collection.preload();
+      for (const [domain, loads] of [['responses', 1], ['items', 1], ['mentions', 2], ['reading', 3], ['subscriptions', 3]] as const) {
+        bump(domain); await collection.utils.refetch({ throwOnError: true });
+        atCheckpoint('Studio unchanged query work', () => expect(load, domain).toHaveBeenCalledTimes(loads));
+      }
+      expect(collection.get('a')!.revision).toBe(2);
     }, [() => collection.cleanup(), async () => { client.clear(); }]);
   });
   it('failed revision reads retain rows and cannot reuse a stale changes-query result', async () => {

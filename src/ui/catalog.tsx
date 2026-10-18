@@ -750,10 +750,6 @@ export function MentionsPage() {
                   now
                 </p>
                 <ResponseVisibility id={id} mode={mode} defaultShowing={!!settings?.show_responses_default} disabled={!item} />
-                <p className="muted small">
-                  The public page can take about a minute to reflect a change
-                  here: it is cached at the edge.
-                </p>
                 {rows.map((mention) => (
                   <MentionRow key={mention.id} mention={mention} />
                 ))}

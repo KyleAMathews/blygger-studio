@@ -14,10 +14,14 @@ export function publicHtmlRequest(request: Request, mount: string): boolean {
     (PATH_SHAPE.test(page.slice(1)) && !RESERVED_PATHS.includes(page.slice(1)));
 }
 
-// Every domain a public page can read. Reading and signals are the owner's
-// private state, so moving them must not empty the cache. Inbound mentions
-// have no domain yet and still wait out the 60-second window.
-const PUBLIC_DOMAINS: readonly ChangeDomain[] = ['items', 'subscriptions', 'hoppers', 'settings', 'feed'];
+// Every domain a public page can read. Reading, signals and mentions are the
+// owner's private state, so moving them must not empty the cache. `responses`
+// is the one mentions fact a page shows: the responses list under an item
+// (listPublicResponses: verified and not hidden). Its triggers (0032) move it
+// only when a row enters, leaves or changes inside that set, so a verified
+// response or a hide/show appears at once, while a stranger's unverified claim,
+// or a flood of them, cannot roll the key and empty the cache.
+const PUBLIC_DOMAINS: readonly ChangeDomain[] = ['items', 'subscriptions', 'hoppers', 'settings', 'feed', 'responses'];
 
 /** A token that moves whenever a publish, withdrawal or setting can change public HTML. */
 export function publicHtmlRevision(changes: ChangeState): string {

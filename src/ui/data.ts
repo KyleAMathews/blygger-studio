@@ -58,7 +58,7 @@ export const polling = new Polling(
 polling.start(window, document);
 function cachedQuery<S extends z.ZodType>(
   context: QueryFunctionContext,
-  domain: ChangeDomain,
+  domain: ChangeDomain | readonly ChangeDomain[],
   schema: S,
   load: (context: QueryFunctionContext, generation: Generation) => Promise<z.input<S>>,
 ) {
@@ -718,39 +718,44 @@ async function mentions(direction: 'inbound' | 'outbound', signal: AbortSignal) 
     client, query: { direction, offset, limit: 100 }, signal,
   })));
 }
+// Mentions views poll every tick, as before, but an unchanged `mentions`
+// counter (0032) answers from cache: before it, each tick re-read both lists
+// in full and every row's source card.
 export const inbound = createCollection(queryCollectionOptions({
   schema: sourceSchemas.inbound,
   id: 'mentions-in', syncMode: 'on-demand', queryKey: ['mentions-in'], queryClient,
   getKey: (row) => row.id,
-  queryFn: async ({ signal }) => {
-    const rows = (await mentions('inbound', signal))
-      .filter((row): row is Mention => 'hidden' in row);
-    return sourceSchemas.inbound.array().parse(rows);
-  },
+  queryFn: (context) =>
+    cachedQuery(context, 'mentions', sourceSchemas.inbound.array(), async ({ signal }) =>
+      (await mentions('inbound', signal)).filter((row): row is Mention => 'hidden' in row)),
+  select: (response) => response.data,
 }));
 export const outbound = createCollection(queryCollectionOptions({
   schema: sourceSchemas.outbound,
   id: 'mentions-out', syncMode: 'on-demand', queryKey: ['mentions-out'], queryClient,
   getKey: (row) => row.id,
-  queryFn: async ({ signal }) => {
-    const rows = (await mentions('outbound', signal))
-      .filter((row): row is MentionOutRow => 'next_attempt_at' in row);
-    return sourceSchemas.outbound.array().parse(rows);
-  },
+  queryFn: (context) =>
+    cachedQuery(context, 'mentions', sourceSchemas.outbound.array(), async ({ signal }) =>
+      (await mentions('outbound', signal)).filter((row): row is MentionOutRow => 'next_attempt_at' in row)),
+  select: (response) => response.data,
 }));
+// A source card joins the mention to the Reading tables: whether an import of
+// the source is held (stub back) and whether its origin is subscribed. Both
+// tables advance `reading`, so the card follows mentions + reading.
 export const mentionSources = createCollection(queryCollectionOptions({
   schema: sourceSchemas.mentionSources,
   id: 'mention-sources', syncMode: 'on-demand', queryKey: ['mention-sources'], queryClient,
   getKey: (row) => row.key,
-  queryFn: async (context) => {
-    const ids = subsetIds(context, 'key');
-    if (!ids) throw new Error('Mention sources require a key predicate');
-    const rows = await existing(ids, async (id) => ({
-      ...(await unwrap(BlyggerApi.getMentionSource({ client, path: { id }, signal: context.signal }))),
-      key: id,
-    }));
-    return sourceSchemas.mentionSources.array().parse(rows);
-  },
+  queryFn: (context) =>
+    cachedQuery(context, ['mentions', 'reading'], sourceSchemas.mentionSources.array(), async ({ signal }) => {
+      const ids = subsetIds(context, 'key');
+      if (!ids) throw new Error('Mention sources require a key predicate');
+      return existing(ids, async (id) => ({
+        ...(await unwrap(BlyggerApi.getMentionSource({ client, path: { id }, signal }))),
+        key: id,
+      }));
+    }),
+  select: (response) => response.data,
 }));
 export const mentionSource = scoped((id) => createLiveQueryCollection({
   id: `mention-source-view:${id}`,
