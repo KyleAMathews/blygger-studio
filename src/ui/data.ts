@@ -728,6 +728,7 @@ export const inbound = createCollection(queryCollectionOptions({
     return sourceSchemas.inbound.array().parse(rows);
   },
 }));
+inbound.createIndex(row => row.target_item_id, { indexType: BasicIndex });
 export const outbound = createCollection(queryCollectionOptions({
   schema: sourceSchemas.outbound,
   id: 'mentions-out', syncMode: 'on-demand', queryKey: ['mentions-out'], queryClient,

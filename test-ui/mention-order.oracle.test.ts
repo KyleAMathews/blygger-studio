@@ -6,21 +6,24 @@
  * Model: repeatedly choose the highest independent numeric rank, then group.
  * Grammar: two mandatory receipts with IDs opposite their recency (the live
  * defect), plus 0–12 unique IDs, five targets, null or 0–9 verification ranks,
- * 0–9 last-seen ranks, hidden/gone rows, and reversed transport order.
+ * 0–9 last-seen ranks, hidden/gone rows, reversed transport order, all response
+ * modes, a missing target, and both site defaults.
  * Removing crossed IDs loses the reported defect; removing repeated targets
  * loses within-group order; ties/nulls/flags distinguish API tie and retention
  * rules. Duplicate receipt IDs are invalid and excluded. Empty input also runs.
  * Driver: real QueryClient, Query Collection and createLiveQueryCollection,
- * followed by mentionGroups, which MentionsPage calls. No simulated DB sort.
+ * using the same mentionQuery as MentionsPage. TanStack DB performs grouping,
+ * ordering, target joins, counts and response-visibility calculations.
  * Checkpoint: the complete group-key and receipt-ID sequences, including gone
- * and hidden rows, plus unchanged input. No browser rendering/poll timing claim.
+ * and hidden rows, joined targets, counts, visibility and unchanged input.
+ * No browser rendering/poll timing claim.
  * Shared campaign runs eight inputs with fixed/random seeds and direct replay.
- * Calibration: verify-oracle-mutations.ts removes the presentation sort and
- * requires the same display checkpoint during failure capture and replay.
+ * Calibration: verify-oracle-mutations.ts removes group ordering and counts
+ * hidden receipts. Ordering must fail at the same checkpoint during replay.
  * ORC-001–005/009: authority, independent ranks, grammar, driver and complete
  * observations are above. ORC-006/007: production mutation and direct replay.
  * ORC-008: stateless recomputation; no reference lifecycle state. ORC-010:
- * shared cleanup releases both collections and the client, preserving failure.
+ * shared cleanup releases all three collections and the client, preserving failure.
  * ORC-011: no named shared semantic fault needs a second formulation.
  * ORC-012/013: this executable record covers the stated boundary; crossed
  * IDs, equal ranks and null verification distinguish weaker ordering rules.
@@ -30,9 +33,9 @@
 import fc from 'fast-check';
 import { expect } from 'vitest';
 import { QueryClient } from '@tanstack/query-core';
-import { createCollection, createLiveQueryCollection } from '@tanstack/react-db';
+import { BasicIndex, createCollection, createLiveQueryCollection } from '@tanstack/react-db';
 import { queryCollectionOptions } from '@tanstack/query-db-collection';
-import { mentionGroups } from '../src/ui/mention-order.ts';
+import { mentionQuery } from '../src/ui/mention-order.ts';
 import { atCheckpoint, campaign } from '../test/oracle-campaign.ts';
 import { withOracleCleanup } from '../test/oracle-cleanup.ts';
 
@@ -43,7 +46,11 @@ const receipt = fc.record({
   status: fc.constantFrom('verified' as const, 'gone' as const),
 });
 type Fact = { key: number; target: number; verified: number | null; seen: number; hidden: boolean; status: 'verified' | 'gone' };
-const input = fc.record({ rows: fc.uniqueArray(receipt, { selector: row => row.key, maxLength: 12 }), reverse: fc.boolean() });
+const input = fc.record({
+  rows: fc.uniqueArray(receipt, { selector: row => row.key, maxLength: 12 }), reverse: fc.boolean(),
+  modes: fc.array(fc.constantFrom('default' as const, 'show' as const, 'hide' as const), { minLength: 5, maxLength: 5 }),
+  missingTarget: fc.integer({ min: 0, max: 4 }), defaultShowing: fc.boolean(),
+});
 const id = (key: number) => `r${String(key).padStart(2, '0')}`;
 const date = (rank: number) => new Date(Date.UTC(2026, 9, 1 + rank)).toISOString();
 
@@ -64,7 +71,7 @@ function reference(facts: Fact[]) {
   return [...groups];
 }
 
-campaign('mention-order', input, async ({ rows, reverse }) => {
+campaign('mention-order', input, async ({ rows, reverse, modes, missingTarget, defaultShowing }) => {
   const facts: Fact[] = [
     { key: 0, target: 0, verified: 0, seen: 0, hidden: false, status: 'verified' },
     ...rows,
@@ -76,13 +83,28 @@ campaign('mention-order', input, async ({ rows, reverse }) => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const source = createCollection(queryCollectionOptions({ queryKey: ['mention-order'], queryClient: client,
       getKey: row => row.id, queryFn: async () => wire }));
-    const view = createLiveQueryCollection(q => q.from({ mention: source }));
+    source.createIndex(row => row.target_item_id, { indexType: BasicIndex });
+    const owned = createCollection(queryCollectionOptions({ queryKey: ['mention-targets'], queryClient: client,
+      getKey: row => row.id, queryFn: async () => modes.flatMap((responses, i) => i === missingTarget ? [] : [{ id: String(i), responses }]) }));
+    owned.createIndex(row => row.id, { indexType: BasicIndex });
+    const view = createLiveQueryCollection(q => mentionQuery(q, source, owned, defaultShowing));
     await withOracleCleanup(async () => {
       await view.preload();
-      const incoming = view.toArray, before = [...incoming];
-      const actual = [...mentionGroups(incoming)].map(([target, receipts]) => [target, receipts.map(row => row.id)]);
+      const before = [...wire];
+      const actual = view.toArray.map(({ target, receipts }) => [target, receipts.map(row => row.id)]);
       atCheckpoint('mention display order', () => expect(actual).toEqual(reference(snapshot)));
-      atCheckpoint('mention input preservation', () => expect(incoming).toEqual(before));
-    }, [() => view.cleanup(), () => source.cleanup(), async () => { client.clear(); }]);
+      const values = view.toArray.map(({ target, total, visible, item, mode, showing }) =>
+        ({ target, total, visible, itemId: item?.id, mode, showing }));
+      const expectedValues = reference(snapshot).map(([target]) => {
+        const targetId = Number(target), mode = targetId === missingTarget ? 'default' : modes[targetId];
+        const targetRows = snapshot.filter(row => row.target === targetId);
+        const showing = mode === 'show' || (mode === 'default' && defaultShowing);
+        return { target, total: targetRows.length,
+          visible: showing ? targetRows.filter(row => row.status === 'verified' && !row.hidden).length : 0,
+          itemId: targetId === missingTarget ? undefined : target, mode, showing };
+      });
+      atCheckpoint('mention group values', () => expect(values).toEqual(expectedValues));
+      atCheckpoint('mention input preservation', () => expect(wire).toEqual(before));
+    }, [() => view.cleanup(), () => source.cleanup(), () => owned.cleanup(), async () => { client.clear(); }]);
   }
 });

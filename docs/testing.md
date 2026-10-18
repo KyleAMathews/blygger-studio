@@ -53,7 +53,7 @@ queue and sender against real SQLite through local D1.
 | `test/pagination.oracle.test.ts` | Every signals page and the complete ordered walk match independent sorting and slicing, including row values, duplicates, and exhaustion. | Static collections of 0–25 records, three timestamp values, and page widths 1–10. No snapshot guarantee across writes and no database-cost claim. |
 | `test/patch-atomicity.oracle.test.ts` | A subsequent owner read preserves every field after rejection and changes only requested fields after acceptance. | Draft content, kind, response preference, and citation clearing. Invalid enums, malformed citations, and immutable fields. Separate controlled race cases change kind, citation, and withdrawal state before the guarded SQL write. No promise about concurrent text-edit conflicts. |
 | `test/mention-delivery.oracle.test.ts` | Discovery and successful delivery match an independent longest literal-prefix model. Check the complete request trace, stored queue state and absence of redelivery. | Generated names, source kinds, insertion orders and 49–96 byte origins. Each input includes parent/nested prefixes, an RSS decoy, a wildcard-looking nonmatch and an unrelated 58-byte origin. Controlled HTTP responses. No retry, incoming verification, cron or production DNS claim. |
-| `test-ui/mention-order.oracle.test.ts` | Receipt groups follow their newest receipt, with rows ordered by verification time, last-seen time and ID. Compare complete group and row sequences after the real live collection. | Empty input, crossed IDs/recency, up to 12 extra receipts, five targets, ties, null verification, hidden/gone rows and reversed transport order. Independent numeric-rank reference. No browser, polling or delivery claim. |
+| `test-ui/mention-order.oracle.test.ts` | TanStack DB groups and orders receipts by verification time, last-seen time and ID, joins target items and computes counts and visibility. Compare complete groups, receipt sequences and computed values after the actual shared query. | Empty input, crossed IDs/recency, up to 12 extra receipts, five targets, ties, null verification, hidden/gone rows, reversed transport order, all response modes, missing targets and both site defaults. Independent numeric-rank reference. No browser, polling or delivery claim. |
 
 Each normal campaign runs eight histories with seed `20261001`, then eight
 histories with a fresh random seed. Both use the same generator, recorder,
@@ -106,10 +106,11 @@ The lifecycle checker rejects rewound history and changed pinned content.
 It also retains the complete wire response from the first pin read and compares
 all later reads with those exact bytes. It never overwrites that reference.
 These controls calibrate comparisons. `npm run test:mutations` also checks the
-full production path in an isolated copy. Green baselines precede eight mutations:
+full production path in an isolated copy. Green baselines precede nine mutations:
 missing pins, wrong restored text, ignored offsets, reversed tie order, restored
 mention `LIKE` lookup, shortest-origin selection, inclusion of RSS origins and
-displaying mention groups in collection-key order.
+displaying mention groups in collection-key order, and counting hidden receipts
+as visible.
 Each must fail at its named semantic checkpoint. Setup errors and timeouts do
 not count as caught mutations. Logs remain in `build/mutation-*.log`.
 These checks do not cover every conceivable production mutation.
