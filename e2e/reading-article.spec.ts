@@ -125,7 +125,9 @@ test('an imported blyg entry opens by its address with the action row, and openi
     // Back with no feed behind it goes to the feed.
     await page.getByRole('button', { name: 'back', exact: true }).click();
     await expect(page).toHaveURL(/\/studio\/reading$/);
-    await expect(card(page, 'Native title')).toHaveAttribute('data-read', 'read');
+    // The read reached the server (the feed's first page may not hold this entry).
+    const { json } = await api(page, 'GET', '/reading?sub=parity-native&limit=50');
+    expect(json.items.find((e: { imported?: { remoteId: string } }) => e.imported?.remoteId === NATIVE).imported.readVersion).toBe(1);
   } finally {
     await clear();
   }
