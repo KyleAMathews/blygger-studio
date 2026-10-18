@@ -46,6 +46,8 @@ describe("media (§3.3)", () => {
       item_id: id,
       alt: "the alt text",
     });
+    // An attachment joins the item with its next version (migration 0031).
+    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
 
     const item = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     expect(item.media).toEqual([{ url: json.url, mime: "image/png", alt: "the alt text" }]);
@@ -96,6 +98,7 @@ describe("duplicate uploads (studio#7, migration 0028)", () => {
     const again = await upload(cookie, png(1, 2), { item_id: id, alt: "second" });
     expect(again.status).toBe(200);
     expect(again.json).toEqual({ id: first.json.id, url: first.json.url, mime: "image/png", duplicate: true });
+    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
 
     const item = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     expect(item.media).toEqual([{ url: first.json.url, mime: "image/png", alt: "first" }]);

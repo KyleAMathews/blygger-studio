@@ -25,6 +25,7 @@ export const sourceSchemas = {
     id: true,
     authored_kind: true,
     media: true,
+    published_media: true,
     versions: true,
     published: true,
   }),

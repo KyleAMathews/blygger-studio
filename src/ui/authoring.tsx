@@ -1577,6 +1577,8 @@ function Editor({ item }: { item: Detail }) {
     });
   const isThread = item.authored_kind === 'thread';
   const isPublic = item.status === 'public';
+  // Attachments the live version lists that the working copy no longer has.
+  const dropped = item.published_media.filter((m) => !item.media.some((w) => w.id === m.id));
   // Own items can go in hoppers beside what you read (session 47); "~own" is
   // the store's marker for them (src/importer/store.ts OWN_SUBSCRIPTION).
   const addToHopper = async () => {
@@ -2012,6 +2014,9 @@ function Editor({ item }: { item: Detail }) {
             <section className="media">
               {item.media.map((media) => {
                 const inText = text.includes(media.url);
+                // The live version keeps what it lists (studio#7): removing it
+                // here takes it off the next version only.
+                const live = item.published_media.some((m) => m.id === media.id);
                 return (
                   <p key={media.id} className="attachment kv" data-media={media.id}>
                     <a
@@ -2048,7 +2053,7 @@ function Editor({ item }: { item: Detail }) {
                             })
                           }
                         >
-                          remove
+                          {live ? 'drop from the next version' : 'remove'}
                         </Button>
                       </>
                     ) : null}
@@ -2056,8 +2061,20 @@ function Editor({ item }: { item: Detail }) {
                 );
               })}
             </section>
-          ) : !upload.attached ? (
+          ) : !upload.attached && !dropped.length ? (
             <p className="hint">None.</p>
+          ) : null}
+          {dropped.length ? (
+            <section className="media" data-dropped>
+              {dropped.map((media) => (
+                <p key={media.id} className="attachment kv muted" data-media={media.id}>
+                  <a href={`${mount}/${media.url}`} target="_blank" rel="noreferrer">
+                    {media.alt || media.url}
+                  </a>{' '}
+                  <span className="h-hint">· in the live version, leaves with the next one</span>
+                </p>
+              ))}
+            </section>
           ) : null}
         </Card>
         {isPublic && isThread ? (

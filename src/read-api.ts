@@ -56,7 +56,7 @@ async function presentVersion(row: Parameters<typeof versionResource>[0]) {
 }
 readApi.openapi(routes.getItem, async (c) => {
   const detail = await itemDetail(c.env.DB, c.req.param("id"));
-  return detail ? c.json({ ...itemResource(detail.item), authored_kind: detail.kind, media: detail.media.map(mediaResource), versions: await Promise.all(detail.versions.map(presentVersion)), published: detail.published ? await presentVersion(detail.published) : null }) : c.json({ error: "not found" }, 404);
+  return detail ? c.json({ ...itemResource(detail.item), authored_kind: detail.kind, media: detail.media.map(mediaResource), published_media: detail.publishedMedia.map(mediaResource), versions: await Promise.all(detail.versions.map(presentVersion)), published: detail.published ? await presentVersion(detail.published) : null }) : c.json({ error: "not found" }, 404);
 });
 readApi.openapi(routes.getSettings, async (c) => c.json(settingsResource(await getSettings(c.env.DB))));
 readApi.openapi(routes.listSubscriptions, async (c) => {

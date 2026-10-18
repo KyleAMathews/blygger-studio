@@ -20,7 +20,7 @@ import {
 import type { ForkedFrom, ItemRow, MediaRow, ScopeProvenance, Settings, StubCite, StubOf, Transclusion, VersionRow } from "./types.ts";
 import { FRAGMENT_MAX_CHARS } from "./types.ts";
 import { parseEnabledExtensions } from "./extensions/names.ts";
-import { absolutizeHtml, authoredText, contentHash, isFollowableUrl, newId, nowIso } from "./util.ts";
+import { absolutizeHtml, authoredText, contentHash, isFollowableUrl, newId, nowIso, visibleMedia } from "./util.ts";
 
 export { TkPublishError, TransclusionResolveError };
 
@@ -459,10 +459,17 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   const citeJson = agreed ? JSON.stringify(await composeStubCite(db, agreed, normalizedOrigin(origin), settings.site_title, now)) : null;
 
   const hash = await contentHash(strippedMd);
+  // The attachments this version shows (§5.4, studio#7): appended ones, and
+  // inline ones its text places. Frozen with the version, so dropping one from
+  // the working copy changes the next version and never this one.
+  const shown = JSON.stringify(visibleMedia(await listMediaForItem(db, item.id), contentHtml).map((m) => m.id));
   await db.batch([
     db.prepare(
       "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0),
+    // Rows still attached at the write, so a removal racing the publish wins.
+    db.prepare("INSERT INTO version_media (item_id, version, media_id) SELECT ?, ?, m.id FROM json_each(?) s JOIN media m ON m.id = s.value WHERE m.item_id = ?")
+      .bind(item.id, version, shown, item.id),
     // The agreed citation goes back into the working copy as well, or the copy
     // keeps citing the older version and differs from what it just published.
     db.prepare("UPDATE items SET status = 'public', kind = ?, version = ?, dirty = 0, updated = ?, stub_of = ? WHERE id = ?")
@@ -672,6 +679,17 @@ export async function getMedia(db: D1Database, id: string): Promise<MediaRow | n
   return db.prepare("SELECT * FROM media WHERE id = ?").bind(id).first<MediaRow>();
 }
 
+/** The attachments a published version shows (migration 0031), detached rows included: what that version's document and pages list. */
+export async function listVersionMedia(db: D1Database, itemId: string, version: number): Promise<MediaRow[]> {
+  return (
+    await db
+      .prepare("SELECT m.* FROM version_media vm JOIN media m ON m.id = vm.media_id WHERE vm.item_id = ? AND vm.version = ? ORDER BY m.created ASC")
+      .bind(itemId, version)
+      .all<MediaRow>()
+  ).results;
+}
+
+/** The working copy's attachments: what the next version will show. */
 export async function listMediaForItem(db: D1Database, itemId: string): Promise<MediaRow[]> {
   return (
     await db.prepare("SELECT * FROM media WHERE item_id = ? ORDER BY created ASC").bind(itemId).all<MediaRow>()

@@ -720,6 +720,7 @@ export const zGetItemResponse = z.object({
     fork_cite: zCitation.nullable(),
     authored_kind: z.enum(['fragment', 'thread']),
     media: z.array(zMedia),
+    published_media: z.array(zMedia),
     versions: z.array(zVersion),
     published: zVersion.nullable()
 });

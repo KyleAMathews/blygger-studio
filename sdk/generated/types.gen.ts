@@ -1186,7 +1186,14 @@ export type GetItemResponses = {
         forked_from: VersionReference | null;
         fork_cite: Citation | null;
         authored_kind: 'fragment' | 'thread';
+        /**
+         * The working copy's attachments: what the next version lists.
+         */
         media: Array<Media>;
+        /**
+         * What the live version lists, including attachments removed from the working copy since (studio#7).
+         */
+        published_media: Array<Media>;
         versions: Array<Version>;
         published: Version | null;
     };

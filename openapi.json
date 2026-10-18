@@ -4061,7 +4061,15 @@
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/Media"
-                      }
+                      },
+                      "description": "The working copy's attachments: what the next version lists."
+                    },
+                    "published_media": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Media"
+                      },
+                      "description": "What the live version lists, including attachments removed from the working copy since (studio#7)."
                     },
                     "versions": {
                       "type": "array",
@@ -4097,6 +4105,7 @@
                     "fork_cite",
                     "authored_kind",
                     "media",
+                    "published_media",
                     "versions",
                     "published"
                   ]

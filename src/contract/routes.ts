@@ -108,7 +108,7 @@ export const routes = {
   markUnreadBatch: route("markUnreadBatch", "post", "/reading/unread", ok.extend({ received: z.number().int().nonnegative() }), z.object({ items: z.array(unreadMark).max(READ_BATCH_MAX) })),
   updateMention: route("updateMention", "patch", "/mentions/{id}", ok.extend({ hidden: z.boolean() }), z.object({ hidden: z.boolean() })),
   listItems: route("listItems", "get", "/items", z.object({ items: z.array(ItemSchema.extend({ pins: z.array(z.object({ version: z.number().int().positive(), kind: z.enum(["fragment", "thread"]) })).optional() })), total: z.number(), offset: z.number(), limit: z.number() }), undefined, 200, page),
-  getItem: route("getItem", "get", "/items/{id}", z.object({ ...ItemSchema.shape, authored_kind: z.enum(["fragment", "thread"]), media: z.array(MediaSchema), versions: z.array(VersionSchema), published: z.union([VersionSchema, z.null()]) })),
+  getItem: route("getItem", "get", "/items/{id}", z.object({ ...ItemSchema.shape, authored_kind: z.enum(["fragment", "thread"]), media: z.array(MediaSchema).describe("The working copy's attachments: what the next version lists."), published_media: z.array(MediaSchema).describe("What the live version lists, including attachments removed from the working copy since (studio#7)."), versions: z.array(VersionSchema), published: z.union([VersionSchema, z.null()]) })),
   getSettings: route("getSettings", "get", "/settings", SettingsSchema),
   listSubscriptions: route("listSubscriptions", "get", "/subscriptions", collection(SubscriptionSchema), undefined, 200, page),
   getSubscription: route("getSubscription", "get", "/subscriptions/{id}", SubscriptionSchema),
