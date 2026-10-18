@@ -76,7 +76,7 @@ export type GenerationSource = {
     id: string;
     version: number;
     /**
-     * Present for a remote source (0.4, §16.3); omitted for this blyg's own.
+     * Present for a remote source (0.4, §5.7); omitted for this blyg's own.
      */
     origin?: string;
     cited?: Citation;
@@ -4281,6 +4281,10 @@ export type SearchResponses = {
         items: Array<{
             id: string;
             excerpt: string;
+            /**
+             * The text a `[[id]]` link to this item shows: its opening heading, else a short quoted excerpt. Written as the label by the picker (0.4 §10.1).
+             */
+            label: string;
             version: number;
             updated: string;
             badge: string;

@@ -218,7 +218,8 @@ test("an entry's ⋯ sheet copies, shares, opens, forks and shows history", asyn
   let menu = await entryMenu(page, entry);
   await menu.getByRole('button', { name: 'copy [[id]]', exact: true }).click();
   await expect(page.locator('.toast')).toHaveText('copied');
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`[[${NATIVE}]]`);
+  // The long form (#70), labelled with the text the link would show.
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(new RegExp(`^\\[\\[${NATIVE} \\| .+\\]\\]$`));
   menu = await entryMenu(page, entry);
   await menu.getByRole('button', { name: 'copy url', exact: true }).click();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('https://source.example/native');

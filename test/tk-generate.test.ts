@@ -12,6 +12,7 @@ import { putSettings, createDraft, getItem, getTkProvenance, withdraw } from "..
 
 beforeEach(() => putSettings(env.DB, { ai_model: "claude-opus-5" }));
 import { runGenerateScope } from "../src/tk-generate.ts";
+import { stripGeneratedGrammar } from "../src/grammar.ts";
 
 function fixture(text: string, model = "claude-opus-5") {
   const calls: unknown[] = [];
@@ -132,5 +133,34 @@ describe("runGenerateScope — error cases (§5/§6 task 4)", () => {
       expect(result.body.error as string).toContain("529");
     }
     expect(calls).toBe(1);
+  });
+});
+
+describe("generated text is not grammar (ROADMAP row 67)", () => {
+  const ID = "7c9wk2n4h6q1x8v0z3m5rjy2ke";
+
+  it.each([
+    // The live example on row 67: a paragraph ending in an inline directive.
+    [`It is worth reading in full ![[${ID}]]`, "It is worth reading in full"],
+    [`As argued in [[${ID}]], the order matters.`, "As argued in, the order matters."],
+    [`As argued in [[${ID} | the earlier post]], yes.`, "As argued in the earlier post, yes."],
+    [`see (![[${ID} | that]]) here`, "see (that) here"],
+    [`No grammar here at all.`, `No grammar here at all.`],
+    // #60: a directive alone on its line is a real quote, and publish warns.
+    [`Above.\n\n![[${ID}]]\n\nBelow.`, `Above.\n\n![[${ID}]]\n\nBelow.`],
+  ])("strips %j", (input, expected) => {
+    expect(stripGeneratedGrammar(input)).toBe(expected);
+  });
+
+  it("strips what the model echoed before it reaches the draft, and says so in the prompt", async () => {
+    const cookie = await login();
+    const f1 = await createAndPublish(cookie, "source fragment text");
+    const item = await createDraft(env.DB, `[TK]summarize ![[${f1}]][/TK]`);
+    const { fetchImpl, calls } = fixture(`A fine summary, see ![[${f1}]]`);
+
+    const result = await runGenerateScope({ ...env, AI_PROVIDER_KEY: "k" }, item, 0, fetchImpl);
+    expect(result).toMatchObject({ ok: true, text: "A fine summary, see" });
+    expect((await getItem(env.DB, item.id))!.content_md).toBe(`[TK]summarize ![[${f1}]][=]A fine summary, see[/TK]`);
+    expect(JSON.stringify(calls[0])).toContain("Never write the document's bracket syntax");
   });
 });

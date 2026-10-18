@@ -166,9 +166,9 @@ export function BracketPicker({
       input.current?.focus();
       input.current?.setSelectionRange(at, at);
     });
-  const pick = (id: string) => {
+  const pick = (hit: Hit) => {
     if (!trigger) return;
-    const next = paletteInsert(text, caret, trigger, id);
+    const next = paletteInsert(text, caret, trigger, hit.id, hit.label);
     request.current?.abort();
     setHits([]);
     // Caret placed now, not on the next frame: see setTextAt.
@@ -203,7 +203,7 @@ export function BracketPicker({
     }
     if (event.key === 'Enter' && hits[selected]) {
       event.preventDefault();
-      pick(hits[selected].id);
+      pick(hits[selected]);
     }
   };
   useEffect(() => {
@@ -319,7 +319,7 @@ export function BracketPicker({
             onMouseEnter={() => setSelected(i)}
             onMouseDown={(event) => {
               event.preventDefault();
-              pick(hit.id);
+              pick(hit);
             }}
           >
             <span className="picker-excerpt">{hit.excerpt}</span>

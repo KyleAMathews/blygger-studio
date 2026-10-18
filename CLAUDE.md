@@ -155,6 +155,8 @@ saying so.
 
 ## Status
 
+**0.47.0** (session 49, 2026-10-17): labels `[[id | text]]`/`![[id | text]]` (#70, 0.4 §10.1): the bracket grammar now lives once in `src/grammar.ts` (directive, link, reserved, inline and own-line directive builders, `label()`, `labelText()`, `linkSource()`), used by transclusion, directives, tk, fork-flatten, plain-text, stub-quote and the editor; `src/link-label.ts` holds the heading-or-excerpt text shared by the bake, search hits (`label`), the picker and *copy [[id]]*. Generated output is stripped of inline grammar (`stripGeneratedGrammar`, row 67) and the prompt says so; own-line directives in output still quote (#60). Comments cite 0.4 sections. No migration.
+
 **0.46.3** (session 49, 2026-10-17): 0.46.2 re-released. Its tag could not pass Check because GitLab rebuilt `release-v5.3.2` and deleted the two pinned conformance-suite digests (`manifest unknown`); both are re-pinned, recipe in `docs/oauth-interop.md`. The nodes run the same code.
 
 **0.46.2** (session 49, 2026-10-17, tagged, never released): Kyle Mathews' #66 defaults an omitted OAuth `resource` to the mounted MCP resource at `/oauth2/authorize` (the `invalid_grant` behind #54; the default grant cannot reach REST), plus a pinned `oauth-interop` CI job (MCP Inspector + OpenID conformance, docker). Toolbar `title`s for #48. No migration.

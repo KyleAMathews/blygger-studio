@@ -33,7 +33,7 @@ export async function findSubscription(db: D1Database, origin: string, feedUrl: 
 
 /**
  * Record where a subscription's surface lives, re-read from its manifest
- * (§16.6e). The feed URL moves with it: the manifest's `feed` is authoritative.
+ * (§6.1). The feed URL moves with it: the manifest's `feed` is authoritative.
  */
 export async function updateSurface(db: D1Database, id: string, surface: Surface | null, feedUrl: string): Promise<void> {
   await db

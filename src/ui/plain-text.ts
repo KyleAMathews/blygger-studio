@@ -10,7 +10,7 @@
  *    no output yet contributes nothing;
  *  - `[[id]]` becomes the linked item's text, or its id when unknown.
  */
-import { ID_ALPHABET } from '../identity.ts';
+import { DIRECTIVE_LINE, label, linkInline } from '../grammar.ts';
 import { renderMarkdown, selectionText } from '../markdown.ts';
 import { codeRanges, inRanges, lineOffsets } from '../code-ranges.ts';
 import { parseScopes } from '../tk.ts';
@@ -20,8 +20,7 @@ import { extractDirectives } from '../directives.ts';
 /** What the caller knows of item `id`: its text for a quote, its name for a link. */
 export type Resolve = (id: string, form: 'quote' | 'link') => string | undefined;
 
-const DIRECTIVE_LINE = new RegExp(`^\\s*!\\[\\[([${ID_ALPHABET}]{26})\\]\\]\\s*$`);
-const LINK = new RegExp(`(?<!!)\\[\\[([${ID_ALPHABET}]{26})\\]\\]`, 'g');
+const LINK = linkInline();
 const QUOTE_LINE = /^\s*>/;
 
 /** Every TK scope replaced by its output (nothing, if it has none yet). */
@@ -39,7 +38,8 @@ const curly = (text: string) => `“${text.replace(/\s*\n\s*/g, ' ').trim()}”`
 
 /** Paragraphs of rendered prose, blockquotes as “…”. */
 function prose(md: string, resolve: Resolve): string[] {
-  const linked = md.replace(LINK, (_, id: string) => resolve(id, 'link') || id);
+  // A link reads as its author's label when it has one (§10.1, #70), as it does on the page.
+  const linked = md.replace(LINK, (_, id: string, raw?: string) => label(raw) || resolve(id, 'link') || id);
   const html = renderMarkdown(linked).replace(
     /<blockquote>([\s\S]*?)<\/blockquote>/g,
     (_, inner: string) => `<p>${curly(selectionText(inner))}</p>`,

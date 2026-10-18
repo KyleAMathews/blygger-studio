@@ -1,4 +1,4 @@
-// Where another blyg's surface lives — spec §16.6e, decision #51 (the reader
+// Where another blyg's surface lives — spec §6.1, decision #51 (the reader
 // half; v0.4-plan.md §7.5 M1). A manifest MAY say where its feed, archive
 // index, item documents and pins are, as origin-relative or absolute URLs and,
 // for `item` and `pin`, RFC 6570 level-1 templates. Absent keys mean the
@@ -113,7 +113,7 @@ export async function storedSurface(db: D1Database, origin: string): Promise<Sur
  * surface says. A subscribed origin's stored surface is used directly (one
  * fetch). For an origin we do not subscribe to, the default path is tried
  * first, so an ordinary blyg costs nothing extra; only when that fails is the
- * manifest read and the templated URL tried (§16.6e: "one cached fetch per
+ * manifest read and the templated URL tried (§6.1: "one cached fetch per
  * unknown origin"). Returns the last response and the URL it came from;
  * throws what `fetchFn` throws.
  */

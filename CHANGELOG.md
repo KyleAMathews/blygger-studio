@@ -18,6 +18,30 @@ not have its own repo until session 26.
 
 ---
 
+## 0.47.0 — 2026-10-17
+
+**Migrations: none.** No config change. Implements protocol 0.4, opened today.
+
+- **Labels on links and quotes: `[[id | text]]` and `![[id | text]]`** (0.4
+  §10.1, decision #70; blygger-spec#16, ROADMAP row 66). On a link the label is
+  the link text, in place of the target's heading or an excerpt. On a quote
+  it is a note for you that keeps a thread's source readable, and it never
+  reaches the published quote, `transclusions[]` or provenance. The id comes
+  first; the label runs to `]]`, may contain a pipe, and an empty one is no
+  label. The picker and *copy [[id]]* now write the long form, labelled with
+  the text the link would have shown, so nothing changes until you edit it.
+  Search results carry that text as a new `label` field. Labelled forms are
+  inert inside code like the rest of the grammar, and fork flattening keeps a
+  labelled link's text.
+- **Generated text no longer publishes literal brackets** (ROADMAP row 67). A
+  model that echoed `[[id]]` or an inline `![[id]]` from its context left raw
+  brackets in the post. The generation prompt now asks for none, and any that
+  survive are removed before the text reaches the draft, keeping a label's
+  words. A quote alone on its own line still quotes, as before (decision #60).
+- The bracket grammar is defined once (`src/grammar.ts`) and every reader of
+  it, server and studio, builds from there. Code comments now cite protocol
+  0.4's sections instead of 0.3's appendix.
+
 ## 0.46.3 — 2026-10-17
 
 **Migrations: none.** No config change. **The code is 0.46.2's**, released under

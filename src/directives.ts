@@ -1,8 +1,5 @@
-import { ID_ALPHABET } from "./identity.ts";
 import { codeRanges, inRanges, lineOffsets } from "./code-ranges.ts";
-const DIRECTIVE_LINE = new RegExp(`^\\s*!\\[\\[([${ID_ALPHABET}]{26})\\]\\]\\s*$`);
-
-const RESERVED_LINE = new RegExp(`^\\s*!\\[\\[([${ID_ALPHABET}]{26})@v\\d+\\]\\]\\s*$`);
+import { DIRECTIVE_LINE, RESERVED_LINE } from "./grammar.ts";
 const QUOTE_LINE = /^\s*>/;
 
 export function attachedQuote(lines: string[], i: number): { quoteMd: string | null; next: number } {

@@ -92,7 +92,7 @@ export function plainTextFromHtml(html: string): string {
 }
 
 /**
- * The **selection normalizer** for partial transclusion (spec §16.4, decision
+ * The **selection normalizer** for partial transclusion (spec §10.1–§10.3, decision
  * #49, plan §7.3 P2). Written once and exported, because the publish-time check
  * and any read-side re-check MUST agree exactly: two normalizers that differ by
  * one space are a construct that verifies on one node and fails on another.

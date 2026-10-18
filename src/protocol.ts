@@ -35,7 +35,7 @@ export function siteOrigin(settings: Settings, requestUrl: string, mount: string
 }
 
 /**
- * Attach a reference's frozen human half for the wire (§16.1, decision #30).
+ * Attach a reference's frozen human half for the wire (§5.9, decision #30).
  *
  * `stub_of` and `forked_from` keep their cites in the columns migrations 0008
  * and 0010 gave them, and gain `cited` here at serialization; a remote
@@ -65,7 +65,7 @@ export async function buildItemJson(db: D1Database, settings: Settings, item: It
     at: v.published_at,
     note: v.note,
     ...(v.pinned === 1 ? { pinned: true } : {}),
-    // §16.6c / #40: the studio wrote this note. Only with a note to describe.
+    // §5.2 / #40: the studio wrote this note. Only with a note to describe.
     ...(v.note_generated === 1 && v.note ? { generated: true } : {}),
   }));
   // Thread items additionally carry transclusions provenance (§2.9); a
@@ -159,7 +159,7 @@ export async function buildManifest(db: D1Database, settings: Settings, origin: 
     blyg: PROTOCOL_VERSION,
     level: PROTOCOL_LEVEL,
     generator: GENERATOR,
-    // §16.6a (decision #34): where this client's source lives. A directory can
+    // §6.1 (decision #34): where this client's source lives. A directory can
     // then reach a client's release page from a manifest alone, which is the
     // only channel that exists for telling five of seven implementations'
     // operators anything — most have no locatable repo.

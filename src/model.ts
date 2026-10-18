@@ -387,7 +387,7 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   const settings = await getSettings(db);
   const origin = ourOrigin ?? settings.site_url;
 
-  // `[[id]]` plain internal links (§16.2, decision #32) — substituted to
+  // `[[id]]` plain internal links (§10.1, decision #32) — substituted to
   // sentinels here and spliced back after rendering, like TK's inline spans.
   //
   // Run over the body *and* over each independently-rendered generated block,
@@ -414,7 +414,7 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
     const resolved = await resolveTransclusions(db, links.text, item.id);
     if (resolved.errors.length) throw new TransclusionResolveError(resolved.errors);
     contentHtml = spliceLinks(applyGeneratedWrappers(resolved.html, annotated));
-    // §16.1 / decision #30: every **remote** entry carries its frozen human
+    // §5.9 / decision #30: every **remote** entry carries its frozen human
     // half. Stored inside the entry rather than in a column of its own, which
     // is where a per-reference fact belongs in an array of references — and it
     // makes the wire emission the stored object, so a published citation and
@@ -433,7 +433,7 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   }
 
   // Every URL in `content_html` is made absolute against our own origin, for
-  // the same reason `[[id]]` anchors are (§16.2): the HTML travels to
+  // the same reason `[[id]]` anchors are (§10.1): the HTML travels to
   // subscribers, and a host-rooted `/blyg/media/x.png` resolves against *their*
   // host there — a 404, or someone else's file (session 30, found on a live
   // import). Remote snapshots baked into a thread are already absolute against

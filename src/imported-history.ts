@@ -17,7 +17,7 @@ export interface HistoryEntry {
   at: string;
   note: string | null;
   pinned: boolean;
-  /** §16.6c: the publisher's studio wrote this note. */
+  /** §5.2: the publisher's studio wrote this note. */
   generated: boolean;
 }
 

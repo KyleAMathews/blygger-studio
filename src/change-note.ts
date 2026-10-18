@@ -1,4 +1,4 @@
-// Generated changelog notes — decision #40, spec §5.2 + §16.6c.
+// Generated changelog notes — decision #40, spec §5.2 + §5.2.
 //
 // The studio drafts a note from the local diff between the published version
 // and the working copy; the author sees it in the note field and may edit it

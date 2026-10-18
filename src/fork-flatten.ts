@@ -1,5 +1,5 @@
 // A fork descends from the pinned document, not from its composition
-// (decision #57, spec §16.6f; gate G11).
+// (decision #57, spec §5.6 rule 6; gate G11).
 //
 // A thread's `content_md` holds its quotes as `![[id]]` directives, which
 // re-resolve at publish in the *forker's* context — a later version, a
@@ -28,11 +28,9 @@
 
 import { codeRanges, inRanges, lineOffsets } from "./code-ranges.ts";
 import { attachedQuote } from "./directives.ts";
-import { ID_ALPHABET } from "./identity.ts";
+import { DIRECTIVE_LINE, LINK_INLINE } from "./grammar.ts";
 import type { ScopeProvenance } from "./types.ts";
 
-const DIRECTIVE_LINE = new RegExp(`^\\s*!\\[\\[([${ID_ALPHABET}]{26})\\]\\]\\s*$`);
-const LINK_INLINE = new RegExp(`(?<!!)\\[\\[([${ID_ALPHABET}]{26})\\]\\]`, "g");
 
 // ── A small, tolerant HTML tree for the dialect this client renders ─────────
 
@@ -249,9 +247,9 @@ export async function flattenFork(input: ForkInput, ctx: FlattenContext): Promis
       const baked = quotes[q++];
       out.push(await flattenQuote(baked, ctx));
       // The `>` lines after a directive are an attached excerpt only if the
-      // bake says it was partial (§16.4's second class). A client without
+      // bake says it was partial (§10.1–§10.3's second class). A client without
       // partial grammar baked a whole quote, and those lines are the author's
-      // own prose, which §16.6f copies byte-exact (studio#29).
+      // own prose, which §5.6 rule 6 copies byte-exact (studio#29).
       if (hasClass(baked, "blyg-partial")) i = attachedQuote(lines, i).next - 1;
       // A blank line keeps the author's own blockquote from merging into the
       // flattened one, as it was a separate block in the pinned rendering.
@@ -262,9 +260,11 @@ export async function flattenFork(input: ForkInput, ctx: FlattenContext): Promis
     // it. The renderer marks nothing, but its href is the target's page,
     // which names the id unless the target declared a `page` of its own —
     // and then the whole fork comes from the HTML, whose anchors are absolute.
+    // A labelled link (#70) matches the same way; its label was the anchor
+    // text, so the flattened link keeps it.
     let line = lines[i];
     let unmatched = false;
-    line = line.replace(LINK_INLINE, (whole, id: string, at: number) => {
+    line = line.replace(LINK_INLINE, (whole, id: string, _label: string | undefined, at: number) => {
       if (inRanges(code, starts[i] + at)) return whole;
       while (a < anchors.length && !(anchors[a].attrs.href ?? "").includes(id)) a++;
       if (a >= anchors.length) { unmatched = true; return whole; }

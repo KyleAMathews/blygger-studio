@@ -67,7 +67,7 @@ export async function remoteReferences(db: D1Database, itemId: string, row: Vers
     if (!t.origin || t.origin === ourOrigin) continue;
     refs.push({ target: await remotePermalink(db, t.origin, t.id), origin: t.origin, targetVersion: t.version });
   }
-  // A remote generation source is a remote reference too (0.3 §16.3,
+  // A remote generation source is a remote reference too (§5.7,
   // decision #44): a model at this origin used those words, so their origin
   // is told, with relation `source`. Same target as a quote of the same item
   // is one mention; the receiver decides the relation.

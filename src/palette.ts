@@ -1,3 +1,5 @@
+import { labelText } from "./grammar.ts";
+
 export type Trigger = { form: "transclude" | "link" | "source"; query: string; start: number } | null;
 
 /**
@@ -38,10 +40,17 @@ export function paletteTrigger(text: string, caret: number, allowTransclude: boo
   return { form: "link", query: prefix.slice(open + 2), start: lineStart + open };
 }
 
-/** The picked id spliced in, with the caret left after the closing brackets. */
-export function paletteInsert(text: string, caret: number, trigger: NonNullable<Trigger>, id: string) {
+/**
+ * The picked id spliced in, with the caret left after the closing brackets.
+ * With a label (decision #70) every form is written long, `[[id | label]]`:
+ * on a link it is the anchor text readers get, on a quote or a source a note
+ * that keeps the source readable for the author. The picker passes the text
+ * the link would have shown anyway, so nothing changes until it is edited.
+ */
+export function paletteInsert(text: string, caret: number, trigger: NonNullable<Trigger>, id: string, label?: string) {
   var before = text.slice(0, trigger.start);
   var after = text.slice(caret);
-  var insertion = (trigger.form === "link" ? "[[" : "![[") + id + "]]";
+  var l = label === undefined ? "" : labelText(label);
+  var insertion = (trigger.form === "link" ? "[[" : "![[") + id + (l ? " | " + l : "") + "]]";
   return { text: before + insertion + after, caret: (before + insertion).length };
 }

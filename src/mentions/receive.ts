@@ -177,7 +177,7 @@ export function relationTo(doc: Doc, ourOrigin: string, targetId: string): Menti
   const transclusions = Array.isArray(doc.transclusions) ? (doc.transclusions as Transclusion[]) : [];
   if (transclusions.some((t) => t && normalizeOrigin(t.origin) === ourOrigin && t.id === targetId)) return "transclusion";
   if (forkedVersion(doc, ourOrigin, targetId) !== null) return "fork";
-  // 0.4 (§16.3, decision #44): a model at the source's origin was fed this
+  // 0.4 (§15.4, decision #44): a model at the source's origin was fed this
   // item. Read from the reference alone, like the other three; the weakest
   // claim, so it ranks last.
   const generated = Array.isArray(doc.generated) ? (doc.generated as unknown[]) : [];
@@ -218,7 +218,7 @@ export interface VerifyResult {
  * fetches (§2.3.5): the page, and the document its `rel="alternate"` names —
  * or one, when the source URL *is* the document. A third, the sender's own
  * manifest, only when the document was served from outside the default path
- * (a templated blyg, §16.6e, whose bounds are raised to three).
+ * (a templated blyg, §15.4 step 2, whose bounds are raised to three).
  *
  * The identity rule is the load-bearing one: the item document must have been
  * fetched from exactly `{origin}items/{id}.json` for its own asserted `origin`
@@ -277,7 +277,7 @@ export async function verifyMention(
   const served = new URL(finalUrl);
   served.hash = "";
   if (served.href !== expected.href) {
-    // §16.6e: a templated blyg serves item documents where its manifest's
+    // §15.4 step 2: a templated blyg serves item documents where its manifest's
     // `item` template says, possibly outside the identity origin. Read the
     // asserted origin's own manifest (the third fetch) and accept only an
     // exact match with its template; a missing manifest fails the claim.

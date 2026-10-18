@@ -57,7 +57,8 @@ test('typing [[ opens the panel; source, sort, Escape and Enter work from the ed
   await editor.press('End');
   await editor.press('ArrowDown');
   await editor.press('Enter');
-  await expect(editor).toHaveValue(`see [[${second}]]`);
+  // The long form (#70): the label is the text the link would show anyway.
+  await expect(editor).toHaveValue(new RegExp(`^see \\[\\[${second} \\| “Second of two[^\\]]*”\\]\\]$`));
   await expect(panel).toHaveCount(0);
   // Escape closes without touching the text.
   await editor.fill(`again [[${token}`);
@@ -83,7 +84,7 @@ test('the picker setting: panel mode searches in the picker, and automatic follo
     await search.fill(token);
     await expect(options(page)).toHaveCount(1);
     await search.press('Enter');
-    await expect(editor).toHaveValue(`x [[${id}]]`);
+    await expect(editor).toHaveValue(new RegExp(`^x \\[\\[${id} \\| “Panel mode target[^\\]]*”\\]\\]$`));
     await expect(editor).toBeFocused();
     // Automatic: the editor with a mouse, the picker's own search on a touch screen.
     await typing(page, 'auto');
@@ -150,7 +151,7 @@ test('![[ inside a [TK] instruction opens a source picker and inserts the id in 
     await expect(panel).toContainText('feeds the item to the generator');
     await expect(options(page)).toHaveCount(1);
     await editor.press('Enter');
-    await expect(editor).toHaveValue(`[TK]summarize ![[${id}]]`);
+    await expect(editor).toHaveValue(new RegExp(`^\\[TK\\]summarize !\\[\\[${id} \\| “A source for the generator[^\\]]*”\\]\\]$`));
     // Outside a scope an inline ![[ still opens nothing.
     await editor.fill(`plain ![[${token}`);
     await expect(page.getByRole('complementary')).toHaveCount(0);

@@ -113,13 +113,13 @@ export interface Transclusion {
    */
   origin?: string;
   /**
-   * The frozen human half of this reference (§16.1, decision #30). Emitted for
+   * The frozen human half of this reference (§5.9, decision #30). Emitted for
    * **remote** entries only: for an own-origin target a reader can just fetch
    * it, so a label would be words with nothing to add.
    */
   cited?: StubCite;
   /**
-   * Present only on a **partial** transclusion (§16.4, decision #49) — the
+   * Present only on a **partial** transclusion (§10.1–§10.3, decision #49) — the
    * passage quoted, in the W3C Web Annotation text-quote shape. `exact` is the
    * selection as normalized by `selectionText`; `prefix`/`suffix` are up to 32
    * characters either side of where it was found, for a reader that wants to
@@ -133,7 +133,7 @@ export interface Transclusion {
   selector?: TextQuoteSelector;
 }
 
-/** §16.4's `selector` — the W3C text-quote shape, kept minimal. */
+/** §10.1–§10.3's `selector` — the W3C text-quote shape, kept minimal. */
 export interface TextQuoteSelector {
   exact: string;
   prefix?: string;
@@ -167,7 +167,7 @@ export type ForkedFrom = { origin: string; id: string; version: number; cited?: 
  * changes; this is what a reader needs when the link has rotted — who it was,
  * what it said, and when we saw it.
  *
- * **On the wire since decision #30** (spec §16.1), as `cited` inside any
+ * **On the wire since decision #30** (spec §5.9), as `cited` inside any
  * reference — it was client-side only through 0.3's first draft, on the
  * argument that another client should compose its own rather than inherit our
  * guesses. What changed: six independent implementations exist, so "compose
@@ -195,7 +195,7 @@ export interface StubCite {
 }
 
 /**
- * One `generated[].sources[]` entry: the §5.9 reference (0.3 §16.3, decision
+ * One `generated[].sources[]` entry: the §5.9 reference (§5.7, decision
  * #44). `origin` is present for a remote source and omitted for our own, so
  * every document published before remote sources stays valid. A remote source
  * carries its frozen human half, composed when the scope was generated.
@@ -571,7 +571,7 @@ export const GENERATOR = `${CLIENT.name}/${CLIENT.version}`;
 
 /**
  * Manifest `generator_url` — one absolute URL to this client's canonical source
- * (§16.6a, decision #34; the precedent is Atom's generator `uri`). SHOULD be
+ * (§6.1, decision #34; the precedent is Atom's generator `uri`). SHOULD be
  * emitted, and readers MUST NOT gate on it (§3.2), so it is honesty for
  * directories and strangers rather than a compatibility signal. Derived from
  * `CLIENT` exactly as `GENERATOR` is, because a hand-written copy of an
@@ -595,10 +595,10 @@ export const GENERATOR_URL = CLIENT.url;
  * reports what the wire carries; the document follows (decision #21 — building
  * the implementation is how the protocol gets tested).
  *
- * "0.4" since 0.41.0 (session 44): remote generation sources (0.3 §16.3,
+ * "0.4" since 0.41.0 (session 44): remote generation sources (§5.7,
  * decision #44) put `origin` on `generated[].sources[]` and a `source`
  * mention on the wire, a construct a receiver must act on (#43), and the
- * templated surface (§16.6e) was already read. Bumped with the build and
+ * templated surface (§6.1) was already read. Bumped with the build and
  * before `protocol-v0.4.md` exists, as both earlier bumps were. Pinned files
  * report it too: a pin's promise is its content (§8 rules 1 and 6), and this
  * key says what the serving deployment implements.

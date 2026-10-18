@@ -1190,7 +1190,7 @@ export async function transclusionProvenance(db: D1Database, transclusions: Tran
   for (const t of transclusions) {
     let link: ProvenanceLink;
     if (t.origin && t.cited) {
-      // The frozen citation, when the published entry carries one (§16.1,
+      // The frozen citation, when the published entry carries one (§5.9,
       // decision #30). This is the whole stale-byline fix: the branch below
       // renders a *published* document's byline from a live join, so renaming
       // or deleting a subscription silently rewrote what an already-published
@@ -1219,7 +1219,7 @@ export async function transclusionProvenance(db: D1Database, transclusions: Tran
       const kind = loaded ? loaded.localKinds.get(t.id) ?? "fragment" : row ? await authoredKind(db, row) : "fragment";
       link = { href: `${mount}/${kind === "thread" ? "t" : "f"}/${t.id}/`, label: `${kind} ↗` };
     }
-    // A partial quote says so. §16.4 puts the disclosure on the second class,
+    // A partial quote says so. §10.1–§10.3 puts the disclosure on the second class,
     // and this is the human half of it: without it an excerpt and a whole
     // transclusion are the same blockquote to a reader, differing only in
     // being shorter — which is indistinguishable from the source being short.
@@ -1260,7 +1260,7 @@ export function injectProvenance(html: string, provenance: string[]): string {
       }
     } else {
       // Match the class **token**, not the literal attribute. A partial
-      // transclusion's class is `blyg-transclusion blyg-partial` (§16.4), so a
+      // transclusion's class is `blyg-transclusion blyg-partial` (§10.1–§10.3), so a
       // substring test on the whole attribute misses it — and missing it does
       // not merely drop one provenance line, it stops the index advancing and
       // mis-pairs every following line in a thread that mixes the two forms,
@@ -1414,7 +1414,7 @@ export function forkLineage(item: Pick<ItemRow, "forked_from" | "fork_cite">, tz
   if (!fork) return "";
   const cite = parseStoredCite(item.fork_cite);
   // Every fork freezes the URL it was fetched from into its citation (a
-  // templated origin's included, §16.6e); the default pin path is only for
+  // templated origin's included, §6.1); the default pin path is only for
   // rows older than citations.
   const url = cite?.url ?? `${fork.origin}items/${fork.id}/v${fork.version}.json`;
   if (opts.compact) {

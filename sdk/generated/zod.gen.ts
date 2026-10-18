@@ -1381,6 +1381,7 @@ export const zSearchResponse = z.object({
     items: z.array(z.object({
         id: z.string(),
         excerpt: z.string(),
+        label: z.string(),
         version: z.number(),
         updated: z.string(),
         badge: z.string(),

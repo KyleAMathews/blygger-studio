@@ -151,7 +151,7 @@ export interface PollResult {
 
 /**
  * The daily manifest read: the blyg's name, and where its surface lives
- * (§16.6e — a publisher may move its feed or item routes, and the manifest is
+ * (§6.1 — a publisher may move its feed or item routes, and the manifest is
  * authoritative). Reads the manifest from where it was found, which is not
  * always `{origin}blyg.json`.
  */

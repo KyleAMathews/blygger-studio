@@ -16,7 +16,7 @@ import type { FetchLike } from "./importer/http.ts";
 import { excerptFromHtml } from "./markdown.ts";
 import type { ForkedFrom, ScopeProvenance, StubCite } from "./types.ts";
 
-/** Where a pinned version lives (§2.8), at the place the origin's manifest says (§16.6e). */
+/** Where a pinned version lives (§2.8), at the place the origin's manifest says (§6.1). */
 export function pinnedVersionUrl(ref: ForkedFrom, surface: Surface | null = null): string {
   return pinUrl(ref.origin, surface, ref.id, ref.version);
 }

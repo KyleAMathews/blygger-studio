@@ -60,7 +60,7 @@ importerApi.openapi(routes.createSubscription, async (c) => {
 
   // One subscription per source: a second one imports every item twice, and
   // then any reference to those ids is ambiguous between the two (stub refuses).
-  // §16.6e: the manifest says where the surface lives; absent keys are the defaults.
+  // §6.1: the manifest says where the surface lives; absent keys are the defaults.
   const surface = result.kind === "blyg" ? surfaceFromManifest(result.origin, result.manifestUrl, result.manifest) : null;
   const feedUrl = result.kind === "blyg" ? surfaceFeedUrl(result.origin, surface) : result.feedUrl;
   const identity = result.kind === "blyg" ? result.origin : result.feedUrl;

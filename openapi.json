@@ -368,7 +368,7 @@
           },
           "origin": {
             "type": "string",
-            "description": "Present for a remote source (0.4, §16.3); omitted for this blyg's own."
+            "description": "Present for a remote source (0.4, §5.7); omitted for this blyg's own."
           },
           "cited": {
             "$ref": "#/components/schemas/Citation"
@@ -11579,6 +11579,10 @@
                           "excerpt": {
                             "type": "string"
                           },
+                          "label": {
+                            "type": "string",
+                            "description": "The text a `[[id]]` link to this item shows: its opening heading, else a short quoted excerpt. Written as the label by the picker (0.4 §10.1)."
+                          },
                           "version": {
                             "type": "number"
                           },
@@ -11618,6 +11622,7 @@
                         "required": [
                           "id",
                           "excerpt",
+                          "label",
                           "version",
                           "updated",
                           "badge",

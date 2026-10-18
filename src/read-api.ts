@@ -26,6 +26,7 @@ import { mentionFetchFor } from "./mentions/http.ts";
 import { platformFetchFor } from "./importer/http.ts";
 import { fetchImportedHistory, fetchPublicVersion } from "./imported-history.ts";
 import { readChanges } from './changes.ts';
+import { linkLabel } from "./link-label.ts";
 
 export const readApi = contractApp();
 readApi.openapi(routes.getChanges, async c => c.json(await readChanges(c.env.DB)));
@@ -206,7 +207,7 @@ readApi.openapi(routes.getVersion, async (c) => {
  * subject widened.
  *
  * One list serves both bracket forms, and that is not a convenience: `[[id]]`
- * resolves through `resolveTarget` too — "by the same order", §16.2 — so the
+ * resolves through `resolveTarget` too — "by the same order", §10.1 — so the
  * set of ids a link can name *is* the set a directive can name. A second
  * endpoint would be a second copy of that rule, free to drift from it.
  */
@@ -256,10 +257,12 @@ readApi.openapi(routes.search, async (c) => {
     // From rendered HTML, not markdown source — the picker showed literal
     // "#"/"*" markers otherwise, same bug class as the index rows.
     const excerpt = clampText(plainTextFromHtml(r.html ?? ""), 140);
+    const label = linkLabel(r.html ?? "", r.kind);
     const sourceTitle = r.source === "mine" ? null : r.source_title || (r.origin ? new URL(r.origin).host : null);
     return {
       id: r.id,
       excerpt,
+      label,
       version: r.version,
       updated: r.updated,
       // Pre-0.29 field, kept for existing clients: the kind for own items, the source for imports.

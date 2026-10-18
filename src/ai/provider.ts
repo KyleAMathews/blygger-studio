@@ -61,7 +61,10 @@ const SYSTEM_PROMPT =
   "instruction; you write the prose that replaces it. Output ONLY the replacement " +
   "text: no preamble, no meta-commentary, no code fences, no explanation of what " +
   "you did. The output becomes the literal body of the author's document, so match " +
-  "the voice, register, and formatting conventions of the surrounding context.";
+  "the voice, register, and formatting conventions of the surrounding context. " +
+  "Never write the document's bracket syntax — `[[…]]` or `![[…]]` — and never write an " +
+  "item id: refer to sources and other items in words. The one exception is when the " +
+  "instruction explicitly asks you to quote a source: then put `![[id]]` alone on its own line.";
 
 function buildUserContent(req: GenerateRequest): string {
   const parts: string[] = [`Instruction: ${req.instruction}`];

@@ -5,18 +5,17 @@ import { attachedQuote } from "./directives.ts";
 import { codeRanges, htmlCodeRanges, inRanges, lineOffsets, type Range } from "./code-ranges.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
 import { blygItemUrl } from "./importer/util.ts";
-import { excerptFromHtml, renderMarkdown, selectionText } from "./markdown.ts";
+import { renderMarkdown, selectionText } from "./markdown.ts";
 import type { ImportedItemRow, ItemRow, TextQuoteSelector, Transclusion, VersionRow } from "./types.ts";
-import { absolutizeHtml, escapeHtml, ID_ALPHABET } from "./util.ts";
-
-const DIRECTIVE_LINE = new RegExp(`^\\s*!\\[\\[([${ID_ALPHABET}]{26})\\]\\]\\s*$`);
-const RESERVED_LINE = new RegExp(`^\\s*!\\[\\[([${ID_ALPHABET}]{26})@v\\d+\\]\\]\\s*$`);
+import { absolutizeHtml, escapeHtml } from "./util.ts";
+import { DIRECTIVE_LINE, label, LINK_INLINE, RESERVED_LINE } from "./grammar.ts";
+import { linkLabel } from "./link-label.ts";
 
 /**
- * `[[id]]` — a plain internal link (0.3 §16.2, decision #32). Deliberately in
- * this file and directly under the two regexes above: it is the same bracket
- * grammar one `!` apart, and the **negative lookbehind is what keeps them
- * apart**. A directive is a whole line and bakes a snapshot; a link is inline,
+ * `[[id]]` — a plain internal link (§10.1, decision #32). The same bracket
+ * grammar as the directive, one `!` apart, and the **negative lookbehind is
+ * what keeps them apart** (all three patterns are in `grammar.ts`, with the
+ * optional label of decision #70). A directive is a whole line and bakes a snapshot; a link is inline,
  * bakes nothing, and is silent on the wire — no `transclusions[]` entry, no
  * mention, no wire class.
  *
@@ -25,12 +24,11 @@ const RESERVED_LINE = new RegExp(`^\\s*!\\[\\[([${ID_ALPHABET}]{26})@v\\d+\\]\\]
  * parser. Inside another anchor a link renders as text only (studio#13) —
  * see `applyInternalLinks`.
  */
-const LINK_INLINE = new RegExp(`(?<!!)\\[\\[([${ID_ALPHABET}]{26})\\]\\]`, "g");
 
 /**
  * A markdown blockquote line. A directive immediately followed — **no blank
  * line** — by a run of these is a *partial* transclusion, and the run's text is
- * the selection (spec §16.4, decision #49).
+ * the selection (spec §10.1–§10.3, decision #49).
  *
  * A blank line detaches, which is the whole reason the grammar is adjacency
  * rather than a new sigil: a whole transclusion followed by the author's own
@@ -40,7 +38,7 @@ const LINK_INLINE = new RegExp(`(?<!!)\\[\\[([${ID_ALPHABET}]{26})\\]\\]`, "g");
  */
 
 
-/** How much context either side of the match to record — §16.4 says short. */
+/** How much context either side of the match to record — §10.1–§10.3 says short. */
 const SELECTOR_CONTEXT = 32;
 
 /**
@@ -62,7 +60,7 @@ export function selectionFromQuote(quoteMd: string): string {
 /**
  * Locate the selection in the target's text and describe where it was found.
  * `null` when it is not there, which is a publish error exactly as an
- * unresolvable directive is (§16.4 Faithfulness).
+ * unresolvable directive is (§10.1–§10.3 Faithfulness).
  *
  * Context comes from the **first** match. A passage that occurs twice gets the
  * first one's neighbours, which is arbitrary but deterministic — and `prefix`/
@@ -138,7 +136,7 @@ export interface ResolvedTarget {
   origin?: string;
   /** Authored kind, for callers that need the target's page URL rather than its bytes. */
   kind: string;
-  /** A remote target's own declared `page`, when it gave one (§16.2: origin + page). */
+  /** A remote target's own declared `page`, when it gave one (§10.1: origin + page). */
   page?: string | null;
 }
 
@@ -303,7 +301,7 @@ async function walk(
     }
     const { target } = resolved;
 
-    // ── Partial (§16.4): the quote must actually be in the target ──────────
+    // ── Partial (§10.1–§10.3): the quote must actually be in the target ──────────
     let selector: TextQuoteSelector | null = null;
     if (quoteMd !== null) {
       const selection = selectionFromQuote(quoteMd);
@@ -385,7 +383,7 @@ export async function previewTransclusions(db: D1Database, contentMd: string, se
   return { ...result, html: await sanitizeHtml(result.html) };
 }
 
-// --- `[[id]]` plain internal links (§16.2, decision #32) ---
+// --- `[[id]]` plain internal links (§10.1, decision #32) ---
 
 export interface InternalLinkDocument {
   /** Markdown with each `[[id]]` replaced by a sentinel token, ready to render. */
@@ -407,15 +405,11 @@ export interface InternalLinkDocument {
  * with a heading (a thread's markdown H1 is its title by convention) that
  * heading is the label, as plain text; otherwise this uses a short excerpt of
  * the target in quotes, which reads as a citation inside running prose.
- * Presentation, and ours to choose (§16.2); it is frozen into `content_html`
+ * Presentation, and ours to choose (§10.1); it is frozen into `content_html`
  * at publish like every other rendered thing.
  */
 function anchorText(target: ResolvedTarget): string {
-  const heading = /^\s*<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/i.exec(target.contentHtml);
-  const title = heading ? excerptFromHtml(heading[1], 80) : "";
-  if (title) return title;
-  const excerpt = excerptFromHtml(target.contentHtml, 60);
-  return excerpt ? `“${excerpt}”` : `${target.kind === "thread" ? "a thread" : "a fragment"}`;
+  return linkLabel(target.contentHtml, target.kind);
 }
 
 /**
@@ -423,7 +417,7 @@ function anchorText(target: ResolvedTarget): string {
  *
  * Resolution is **literally the directive's** — `resolveTarget`, the #26 order:
  * a published local item of either kind, then an imported non-L0 blyg item,
- * then an error. One implementation on purpose; §16.2 says "by the same order",
+ * then an error. One implementation on purpose; §10.1 says "by the same order",
  * and a second copy of that rule would be free to drift from it.
  *
  * Two deliberate differences from a directive, both because a link bakes
@@ -432,7 +426,7 @@ function anchorText(target: ResolvedTarget): string {
  *    snapshot from containing itself, and a link cannot.
  *  - **no `transclusions[]` entry and no mention.** Mentions are derived from
  *    references, and a link is not one: it asserts nothing on the target's
- *    behalf, so the target has nothing to verify (§16.2).
+ *    behalf, so the target has nothing to verify (§10.1).
  *
  * `ourOrigin` must be absolute: `content_html` travels to subscribers, where a
  * relative href would resolve against *their* origin and point at nothing.
@@ -475,8 +469,10 @@ export async function resolveInternalLinks(
       ? blygItemUrl(target.origin, target.kind, target.id, target.page)
       : blygItemUrl(ourOrigin, target.kind, target.id, null);
     const token = `${LINK_SENTINEL}${linkTokenSeq++}${LINK_SENTINEL}`;
-    replacements.set(token, `<a href="${escapeHtml(href)}">${escapeHtml(anchorText(target))}</a>`);
-    labels.set(token, { text: escapeHtml(anchorText(target)), literal: m[0] });
+    // The author's label is the anchor text when there is one (§10.1, #70).
+    const text = label(m[2]) ?? anchorText(target);
+    replacements.set(token, `<a href="${escapeHtml(href)}">${escapeHtml(text)}</a>`);
+    labels.set(token, { text: escapeHtml(text), literal: m[0] });
     out += token;
   }
   out += contentMd.slice(last);

@@ -13,6 +13,7 @@ import { useLiveQuery } from '@tanstack/react-db';
 import { Link, useNavigate, useBlocker } from '@tanstack/react-router';
 import { formatDateIn } from '../dates.ts';
 import { renderMarkdown } from '../markdown.ts';
+import { linkInline } from '../grammar.ts';
 import { markImported, parseScopes, previewStrip } from '../tk.ts';
 import { extractDirectives } from '../directives.ts';
 import { previewFromHtml } from '../preview.ts';
@@ -1091,7 +1092,7 @@ function ItemRow({
   // "(empty draft)" here. Ask the preview endpoint once for what the reader
   // and public pages show (quotes baked, links resolved); until it answers,
   // say what the item does.
-  const LINK = /(?<!!)\[\[[^\]\n]+\]\]/g;
+  const LINK = linkInline();
   const links = (item.content_md.match(LINK) ?? []).length;
   // Bare [[id]] tokens are not prose: without them, is anything left?
   const prose = links ? previewFromHtml(renderMarkdown(stripped.text.replace(LINK, ''))) : own;

@@ -47,7 +47,7 @@ function isManifestLike(v: unknown): v is BlygManifestLike {
 type Found = { origin: string; manifestUrl: string; manifest: BlygManifestLike };
 
 /**
- * Identity (§12.2, as §16.6e states it without the filename): the manifest's
+ * Identity (§12.2, as 0.4 states it without the filename): the manifest's
  * final URL minus its last path segment. A manifest at `/blyg/blyg.json` gives
  * `/blyg/`; one at `/wp-json/blyg/v1/manifest` gives `/wp-json/blyg/v1/`.
  */
@@ -59,7 +59,7 @@ function identityOf(manifestUrl: string): string {
   return u.toString();
 }
 
-/** Fetch `url`; if the body parses as a manifest, that is the manifest (§16.6e step 4). */
+/** Fetch `url`; if the body parses as a manifest, that is the manifest (§12.1 step 4). */
 async function fetchManifestAt(url: string, fetchFn: FetchLike, tried: string[]): Promise<Found | null> {
   if (tried.includes(url)) return null;
   tried.push(url);
@@ -185,7 +185,7 @@ export async function resolve(inputUrl: string, fetchFn: FetchLike = platformFet
         const links = await extractLinkTags(bodyText);
         const relBlyg = links.find((l) => hasRelToken(l.rel, "blyg") && l.href);
         if (relBlyg) {
-          // §16.6e: fetch the href itself; if it parses as a manifest, that is
+          // §12.1 step 4: fetch the href itself; if it parses as a manifest, that is
           // the manifest (a CMS may serve it at any path). Otherwise the href is
           // an origin base and blyg.json is appended, as before.
           let href: string | null = null;

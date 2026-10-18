@@ -3,6 +3,7 @@
 // fetch, the same DI pattern importer/schedule.ts uses for runScheduledPoll.
 
 import { generate, markDocument, platformProviderFetch, ProviderError, AiBudgetError, type ProviderFetchLike } from "./ai/provider.ts";
+import { stripGeneratedGrammar } from "./grammar.ts";
 import { selectionText } from "./markdown.ts";
 import { getSettings, saveWorkingCopy, setTkProvenance } from "./model.ts";
 import { composeStubCite } from "./stub.ts";
@@ -12,7 +13,7 @@ import type { Env, GenerationSource, ItemRow } from "./types.ts";
 import { nowIso } from "./util.ts";
 
 /**
- * What a generator is fed for one source: the local snapshot (0.3 §16.3),
+ * What a generator is fed for one source: the local snapshot (§5.7),
  * never a live fetch. A fragment's markdown is its text. A thread's markdown
  * holds bare `![[id]]` directives, so it is fed as its reader sees it — the
  * baked snapshot, quotes included, as text with its block breaks kept. An
@@ -45,7 +46,7 @@ export async function runGenerateScope(
   if (scope.imported) return { ok: false, status: 400, body: { error: "an impyrt scope holds text generated elsewhere; it is not regenerated here" } };
 
   // Every source resolves by the rule a directive uses (§10.2's order, 0.3
-  // §16.3, decision #44): one of our published items, then an imported item
+  // §5.7, decision #44): one of our published items, then an imported item
   // with a current or pin-retained snapshot. No selfId: a source bakes
   // nothing, so there is no cycle to refuse, the same reasoning as `[[id]]`.
   const settings = await getSettings(env.DB);
@@ -86,6 +87,8 @@ export async function runGenerateScope(
     throw e;
   }
 
+  // Generated text is not grammar (row 67): strip any bracket form the model echoed.
+  result = { ...result, text: stripGeneratedGrammar(result.text) };
   const updatedMd = setScopeOutput(item.content_md, scope, result.text);
   await saveWorkingCopy(env.DB, item.id, updatedMd);
   await setTkProvenance(env.DB, item.id, scopeIndex, scopes.length, {

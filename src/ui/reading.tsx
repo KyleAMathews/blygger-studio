@@ -13,6 +13,8 @@
  * stub editor (session 37), not here.
  */
 import { readingPage } from '../paging.ts';
+import { linkSource } from '../grammar.ts';
+import { linkLabel } from '../link-label.ts';
 import type { ReactNode } from 'react';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from '@tanstack/react-db';
@@ -429,7 +431,8 @@ function Entry({
         canLink(entry) && {
           icon: '⟦',
           label: 'copy [[id]]',
-          onSelect: () => void copy(`[[${id}]]`),
+          // The long form (#70): the label is the text the link would show anyway.
+          onSelect: () => void copy(linkSource(id, linkLabel(entry.contentHtml, entry.kind))),
         },
         !!url && {
           icon: '⧉',

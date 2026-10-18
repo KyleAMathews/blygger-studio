@@ -227,7 +227,7 @@ export async function composeStubCite(
 }
 
 /**
- * The frozen human half of one **remote** transclusion entry (§16.1, decision
+ * The frozen human half of one **remote** transclusion entry (§5.9, decision
  * #30) — the same composition as a stub's, from the same local knowledge, for
  * the reference type that never had one.
  *

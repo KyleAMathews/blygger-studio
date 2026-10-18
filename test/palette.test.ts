@@ -112,6 +112,23 @@ describe("paletteInsert — the insertion matches the trigger", () => {
     });
   });
 
+  it("writes the label after the id when given one, in every form (#70)", () => {
+    const line = "  ![[fr";
+    expect(insert(line, line.length, trigger(line, line.length, true)!, id, "Their title").text).toBe(`![[${id} | Their title]]`);
+    const text = "as I said in [[fr and then some";
+    const caret = "as I said in [[fr".length;
+    expect(insert(text, caret, trigger(text, caret, false)!, id, "“an excerpt”").text).toBe(
+      `as I said in [[${id} | “an excerpt”]] and then some`,
+    );
+  });
+
+  it("rewrites a label the grammar cannot hold, and omits an empty one", () => {
+    const text = "[[fr";
+    const t = trigger(text, text.length, false)!;
+    expect(insert(text, text.length, t, id, "a\nb ]] c").text).toBe(`[[${id} | a b ] ] c]]`);
+    expect(insert(text, text.length, t, id, "  ").text).toBe(`[[${id}]]`);
+  });
+
   it("keeps everything before and after a multi-line insertion", () => {
     const text = "para one\n\nsee [[q\n\npara three";
     const caret = "para one\n\nsee [[q".length;

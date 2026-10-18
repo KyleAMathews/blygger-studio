@@ -9,12 +9,11 @@
  * (`attachedQuote`) — so the chooser can never edit a different quote from
  * the one publish will check.
  */
-import { ID_ALPHABET } from '../identity.ts';
+import { DIRECTIVE_LINE } from '../grammar.ts';
 import { codeRanges, inRanges, lineOffsets } from '../code-ranges.ts';
 import { attachedQuote } from '../directives.ts';
 import { normalizeSelection, quoteLines } from '../markdown.ts';
 
-const DIRECTIVE_LINE = new RegExp(`^\\s*!\\[\\[([${ID_ALPHABET}]{26})\\]\\]\\s*$`);
 
 /** Where the stub's quote of `id` is: its directive line and the line after its attached quote. */
 function findQuote(md: string, id: string) {

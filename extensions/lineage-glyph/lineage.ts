@@ -203,7 +203,7 @@ export async function lineageOf(db: D1Database, ourOrigin: string, rawOrigin: st
     ancestors.push({
       ...d,
       version: e.to.version ?? d.version,
-      // A target we do not hold still has a frozen human half (§16.1 `cited`).
+      // A target we do not hold still has a frozen human half (§5.9 `cited`).
       excerpt: d.excerpt ?? e.to.cited?.excerpt ?? null,
       source: d.source ?? e.to.cited?.source ?? e.to.cited?.author ?? null,
       url: d.url ?? followable(e.to.cited?.url) ?? followable(e.to.url),

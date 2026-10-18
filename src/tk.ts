@@ -4,10 +4,11 @@
 // output (see stripToOutput); the wire never sees "[TK]".
 
 import { renderMarkdown } from "./markdown.ts";
-import { ID_ALPHABET } from "./identity.ts";
+import { directiveInline, directiveOwnLine } from "./grammar.ts";
 import { codeRanges, inRanges } from "./code-ranges.ts";
 
-const SOURCE_REF = new RegExp(`!\\[\\[([${ID_ALPHABET}]{26})\\]\\]`, "g");
+/** `![[id]]` or `![[id | label]]` anywhere in a scope: a source ref in an instruction (id in group 1). */
+const SOURCE_REF = directiveInline();
 
 export interface TkScope {
   /** Index of the opening "[TK]" token in the source string. */
@@ -64,7 +65,7 @@ function extractSourceIds(scopeText: string): string[] {
   return ids;
 }
 
-const OWN_LINE_DIRECTIVE = new RegExp(`^[ \\t]*!\\[\\[([${ID_ALPHABET}]{26})\\]\\][ \\t]*$`, "gm");
+const OWN_LINE_DIRECTIVE = directiveOwnLine();
 
 /**
  * Ids that sit on their own line in a scope's generated output without being
