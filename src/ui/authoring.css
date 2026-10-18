@@ -97,7 +97,7 @@
 }
 .editor-grid { display: block; }
 .editor-pane, .preview-pane { min-width: 0; }
-.editor-pane textarea.md { width: 100%; min-height: 46vh; font-family: var(--mono); font-size: .9rem; background: var(--card); border: 1px solid var(--rule); }
+.editor-pane textarea.md { width: 100%; min-height: 46vh; font-family: var(--mono); font-size: 1rem; background: var(--card); border: 1px solid var(--rule); }
 .ed-foot { margin-top: 6px; font-size: .8rem; color: var(--page-ink-soft); }
 .ed-foot .counter { margin-left: 0; color: inherit; }
 .ed-foot a { color: var(--page-ink); }
@@ -106,6 +106,10 @@
 .preview-pane h1 { font-size: 1.35rem; margin: 0 0 10px; }
 .preview-pane p { margin: 0 0 12px; }
 .preview img { max-width: 100%; border-radius: 8px; }
+/* Wide content scrolls inside its box, never widens the page (iOS lays a wider
+   page out zoomed out, which reads as a random zoom). */
+.preview :is(img, video, iframe, embed, object, svg, canvas), #h-viewer-body :is(video, iframe, embed, object, svg, canvas) { max-width: 100%; height: auto; }
+.preview :is(pre, table), #h-viewer-body :is(pre, table) { display: block; max-width: 100%; overflow-x: auto; }
 .preview blockquote.blyg-transclusion { margin: 1rem 0; padding: 8px 12px; border-left: 3px solid var(--pencil); background: var(--sunk); border-radius: 0 8px 8px 0; font-size: .95em; }
 .preview blockquote.blyg-transclusion p { margin: 0 0 .25rem; }
 .preview .provenance { font-size: .75rem; color: var(--ink-soft); }

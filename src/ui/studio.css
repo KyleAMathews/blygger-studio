@@ -66,6 +66,9 @@ html { -webkit-text-size-adjust: 100%; }
 body {
   font-family: var(--sans); color: var(--ink); background: var(--page);
   -webkit-font-smoothing: antialiased; line-height: 1.5; min-height: 100vh;
+  /* No double-tap zoom on a quick second tap of a button (iOS waits for, and
+     then zooms on, it). Pinch zoom stays: user zoom is never disabled. */
+  touch-action: manipulation;
 }
 h1, h2, h3, h4 { font-family: var(--sans); font-weight: 600; letter-spacing: .1px; }
 code, pre, kbd, .mono { font-family: var(--mono); }
@@ -147,6 +150,13 @@ details.card[open] > summary { margin-bottom: 12px; }
 :where(input, textarea, select):focus-visible { outline: none; }
 :where(.field, .card, .sheet) :where(input:not([type]), input[type=text], input[type=url], input[type=search], input[type=password], textarea, select) { width: 100%; }
 :where(textarea) { resize: vertical; line-height: 1.55; }
+/* iOS Safari zooms the page when a field under 16px takes focus, and does not
+   zoom back: the "page zooms in and has to be resized" report. Every field
+   rule above inherits 16px; this is the guard for a screen rule (or an
+   extension's) that shrinks one, on touch screens only. */
+@media (pointer: coarse) {
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]), textarea, select, [contenteditable]:not([contenteditable=false]) { font-size: max(16px, 1em) !important; }
+}
 .check { display: flex; gap: 10px; align-items: flex-start; font-size: .9rem; margin: 6px 0 12px; }
 .check input { margin-top: 4px; accent-color: var(--pencil); }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
