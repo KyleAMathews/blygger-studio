@@ -32,19 +32,15 @@ async function longThreads(page: Page, tags: string[]) {
   }
   return ids;
 }
-async function remove(page: Page, ids: string[]) {
-  for (const id of ids) {
-    await api(page, 'POST', `/items/${id}/withdraw`, {});
-    await api(page, 'DELETE', `/items/${id}`);
-  }
-}
 const card = (page: Page, text: string) => page.locator('.reading-entry').filter({ hasText: text });
 
 test('"more" opens the full view; reload stays; back returns to the same entry', async ({ page }) => {
   await login(page);
   const tags = [`Alpha${Date.now()}`, `Bravo${Date.now()}`, `Charlie${Date.now()}`];
+  // Left published, as other suites leave theirs: withdrawing them would put
+  // url-less tombstones in the feed that reading-pwa's every-card check counts.
   const ids = await longThreads(page, tags);
-  try {
+  {
     await page.goto('/studio/reading');
     // The oldest of the three sits below the other two: scroll it into the middle.
     const target = card(page, `${tags[0]} heading`);
@@ -97,8 +93,6 @@ test('"more" opens the full view; reload stays; back returns to the same entry',
     // A tap on the clamped text opens it too.
     await target.locator('.entry-body p').first().click();
     await expect(page).toHaveURL(new RegExp(`/studio/reading/~own/${ids[0]}$`));
-  } finally {
-    await remove(page, ids);
   }
 });
 
