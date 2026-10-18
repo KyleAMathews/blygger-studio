@@ -42,8 +42,12 @@ export const linkInline = () => new RegExp(LINK_INLINE.source, "g");
 /** A directive anywhere in a line (TK source refs): id in group 1, raw label in group 2. */
 export const directiveInline = () => new RegExp(`!\\[\\[${BODY}`, "g");
 
-/** A directive alone on its line, multiline (TK output): id in group 1, raw label in group 2. */
-export const directiveOwnLine = () => new RegExp(`^[ \\t]*!\\[\\[${BODY}[ \\t]*$`, "gm");
+/**
+ * A directive alone on its line, multiline (TK output): id in group 1, raw label in group 2.
+ * `[^\S\n]` is `DIRECTIVE_LINE`'s `\s` less the newline that ends a line, so
+ * every line publish transcludes is one this finds (decision #60).
+ */
+export const directiveOwnLine = () => new RegExp(`^[^\\S\\n]*!\\[\\[${BODY}[^\\S\\n]*$`, "gm");
 
 /** The label a match carries, trimmed; undefined when absent or empty. */
 export function label(raw: string | undefined): string | undefined {
@@ -53,10 +57,12 @@ export function label(raw: string | undefined): string | undefined {
 
 /**
  * Text made safe to write as a label: one line, no `]]` (the grammar has no
- * escape, so §10.1 says a label that would contain one is rewritten).
+ * escape, so §10.1 says a label that would contain one is rewritten). Every
+ * `]` followed by another, or by the `]]` that will close the link, takes a
+ * space after it; one pass over `]]` would leave `a]]]b` reading `a] ]]`.
  */
 export function labelText(text: string): string {
-  return text.replace(/\s+/g, " ").replace(/\]\]/g, "] ]").trim();
+  return text.replace(/\s+/g, " ").trim().replace(/\](?=\]|$)/g, "] ");
 }
 
 /**

@@ -1,6 +1,7 @@
-// Reproductions for six suspected label-grammar bugs reported by Burrow (a
-// port of this renderer). Each test asserts the CORRECT behaviour, so a test
-// that fails on main confirms the bug. Nothing here is a fix.
+// Edge cases of the label grammar (0.4 §10.1, decision #70), kept as regression
+// coverage for six bugs in 0.47.0 found by Burrow, a port of this renderer.
+// Each describe names the bug it pins; each test asserts the correct
+// behaviour, so a regression reads as the bug it brings back.
 import { describe, expect, it } from "vitest";
 import { DIRECTIVE_LINE, label, linkInline, linkSource } from "../src/grammar.ts";
 import { unrequestedOutputDirectives } from "../src/tk.ts";
@@ -20,7 +21,7 @@ async function publish(cookie: string, md: string, kind: "fragment" | "thread" =
 const anchorText = (html: string, target: string) =>
   new RegExp(`<a href="${OURS}f/${target}/">([\\s\\S]*?)</a>`).exec(html)?.[1];
 
-describe("1. a label inside block TK output is escaped once, as in the body", () => {
+describe("a label inside block TK output is escaped once, as in the body", () => {
   it("block-scope anchor text equals body anchor text for the same label", async () => {
     const cookie = await login();
     await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
@@ -49,7 +50,7 @@ describe("1. a label inside block TK output is escaped once, as in the body", ()
   });
 });
 
-describe("2. a backtick inside a label does not make a later link inert", () => {
+describe("a backtick inside a label does not make a later link inert", () => {
   it("the second link on the line still renders as a link", async () => {
     const cookie = await login();
     await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
@@ -61,9 +62,19 @@ describe("2. a backtick inside a label does not make a later link inert", () => 
     expect(doc.content_html).toContain(`<a href="${OURS}f/${b}/">Beta</a>`);
     expect(doc.content_html).not.toContain(`[[${b}]]`);
   });
+
+  it("a code span opened before a link still wins where it closes inside the label", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    const a = await createAndPublish(cookie, "# Alpha\n\nBody.");
+    const { res, doc } = await publish(cookie, `See \`x [[${a} | y\`]] after.`, "fragment");
+    expect(res.status, JSON.stringify(res.json)).toBe(200);
+    expect(doc.content_html).toContain(`<code>x [[${a} | y</code>`);
+    expect(doc.content_html).not.toContain("<a ");
+  });
 });
 
-describe("3. linkSource -> parse round-trips the label", () => {
+describe("linkSource -> parse round-trips a label holding runs of ]", () => {
   it.each(["a]]]b", "a]]]]b", "x]]]"])("label %s survives as a label with no ]] cut", (text) => {
     const src = linkSource(ID, text);
     const parsed = [...src.matchAll(linkInline())].map((m) => ({ id: m[1], label: label(m[2]), whole: m[0] }));
@@ -73,7 +84,7 @@ describe("3. linkSource -> parse round-trips the label", () => {
   });
 });
 
-describe("4. an autolinked URL holding a labelled link escapes & in its href", () => {
+describe("an autolinked URL holding a labelled link escapes & in its href", () => {
   it("the href attribute carries &amp;, never a raw &", async () => {
     const cookie = await login();
     await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
@@ -89,7 +100,7 @@ describe("4. an autolinked URL holding a labelled link escapes & in its href", (
   });
 });
 
-describe("5. choosing a passage keeps the directive's label", () => {
+describe("choosing a passage in a stub keeps the directive's label", () => {
   it("withStubQuote preserves `![[id | label]]`", () => {
     const md = `![[${ID} | their post]]\n\nMy reply.`;
     const out = withStubQuote(md, ID, "a passage");
@@ -100,7 +111,7 @@ describe("5. choosing a passage keeps the directive's label", () => {
   });
 });
 
-describe("6. directiveOwnLine ([ \\t]) vs DIRECTIVE_LINE (\\s)", () => {
+describe("an own-line directive in TK output takes the same whitespace as DIRECTIVE_LINE", () => {
   it.each([
     ["NBSP before", " "],
     ["form feed before", "\f"],

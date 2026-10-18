@@ -15,7 +15,11 @@ import { attachedQuote } from '../directives.ts';
 import { normalizeSelection, quoteLines } from '../markdown.ts';
 
 
-/** Where the stub's quote of `id` is: its directive line and the line after its attached quote. */
+/**
+ * Where the stub's quote of `id` is: its directive line (index, and the line
+ * as written, so a rewrite keeps its label — decision #70) and the line after
+ * its attached quote.
+ */
 function findQuote(md: string, id: string) {
   const lines = md.split('\n');
   const inert = codeRanges(md);
@@ -24,7 +28,7 @@ function findQuote(md: string, id: string) {
     if (inRanges(inert, starts[i])) continue;
     if (DIRECTIVE_LINE.exec(lines[i])?.[1] !== id) continue;
     const { quoteMd, next } = attachedQuote(lines, i);
-    return { lines, at: i, next, partial: quoteMd !== null };
+    return { lines, at: i, directive: lines[i], next, partial: quoteMd !== null };
   }
   return null;
 }
@@ -78,8 +82,9 @@ export function addStubQuote(md: string, id: string, passage: string, at: number
  */
 export function withStubQuote(md: string, id: string, passage: string | null): string {
   const selection = passage === null ? '' : normalizeSelection(passage);
-  const block = [`![[${id}]]`, ...(selection ? [quoteLines(selection)] : [])].join('\n');
   const found = findQuote(md, id);
+  const directive = found?.directive ?? `![[${id}]]`;
+  const block = [directive, ...(selection ? [quoteLines(selection)] : [])].join('\n');
   if (!found) return `${block}\n\n${md.replace(/^\n+/, '')}`;
   const { lines, at, next } = found;
   return [...lines.slice(0, at), block, ...lines.slice(next)].join('\n');

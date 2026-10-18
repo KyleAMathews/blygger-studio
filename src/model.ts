@@ -5,7 +5,6 @@ import { parseCustomTheme } from "./themes.ts";
 // Data access + publish-flow semantics — v0.1-plan §3.1.
 
 import { renderMarkdown } from "./markdown.ts";
-import { htmlCodeRanges } from "./code-ranges.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, stripToOutput, TkPublishError, unresolvedScopes } from "./tk.ts";
 import { recordPublishInteractions } from "./interactions.ts";
 import { applyVersionAgreement, composeStubCite, composeTransclusionCite, parseStoredStub } from "./stub.ts";
@@ -392,16 +391,15 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   //
   // Run over the body *and* over each independently-rendered generated block,
   // because annotateGenerated has already lifted those blocks out of the body
-  // text: a link inside one would otherwise stay literal. Their raw text is
-  // gone by now, but the rendered HTML still contains the un-substituted
-  // `[[id]]` verbatim — no character of the grammar is HTML-special — so the
-  // same resolver works on either input. Token sequence is global, so the maps
-  // merge.
+  // text: a link inside one would otherwise stay literal. Each block is
+  // resolved over its own markdown and rendered again, never over its HTML,
+  // where a label has already been through markdown and escaping once.
+  // Token sequence is global, so the maps merge.
   const linkErrors: TransclusionRefError[] = [];
   const links = await resolveInternalLinks(db, annotated.text, normalizedOrigin(origin));
   linkErrors.push(...links.errors);
-  const { docs: blockLinks, errors: blockErrors } = await resolveBlockLinks(annotated.blockReplacements, (html) =>
-    resolveInternalLinks(db, html, normalizedOrigin(origin), undefined, htmlCodeRanges),
+  const { docs: blockLinks, errors: blockErrors } = await resolveBlockLinks(annotated, (md) =>
+    resolveInternalLinks(db, md, normalizedOrigin(origin)),
   );
   linkErrors.push(...blockErrors);
   if (linkErrors.length) throw new TransclusionResolveError(linkErrors);
