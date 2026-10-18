@@ -60,9 +60,13 @@ test('the composer: icon tools keep their names and titles, compact actions, fol
   await expect(help.getByText(/^Markdown supported\./)).toBeHidden();
   await help.locator('summary').click();
   await expect(help.getByText(/^Markdown supported\./)).toBeVisible();
+  // <details> fires toggle asynchronously; reload only once the choice is stored.
+  const stored = () => page.evaluate(() => localStorage.getItem('studio.syntaxHelpOpen'));
+  await expect.poll(stored).toBe('1');
   await page.reload();
   await expect(page.locator('details.syntax-help')).toHaveAttribute('open');
   await page.locator('details.syntax-help summary').click();
+  await expect.poll(stored).toBe('0');
   await page.reload();
   await expect(page.locator('details.syntax-help')).not.toHaveAttribute('open');
   // A thread adds ![[; the row still fits.
