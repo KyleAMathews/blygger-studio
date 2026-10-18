@@ -63,6 +63,7 @@ import { useSwipe } from './swipe.ts';
 import type { EntryContext, StudioExtension } from './extension-api.ts';
 import { EntryBylineSlot, EntrySheetSlot, entryActionRows, enabledExtensions, type OpenSheet } from './extensions.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
+import { More, ThumbDown, ThumbUp } from './icons.tsx';
 import './reading.css';
 
 import type { CachedResponse } from './revision-query.ts';
@@ -216,27 +217,46 @@ const ReadContext = createContext<ReadUi>({
 
 /* ---------------- entry body ---------------- */
 
+/**
+ * The entry's opening heading (or an L0 entry's lone title link) becomes its
+ * title; the rest is the body. Shared by the card and the full view.
+ */
+function splitTitle(html: string, l0: boolean) {
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const first = parsed.body.firstElementChild;
+  let title: string | undefined;
+  if (
+    first &&
+    (/^H[1-6]$/.test(first.tagName) ||
+      (l0 &&
+        first.tagName === 'P' &&
+        first.children.length === 1 &&
+        first.firstElementChild?.tagName === 'A'))
+  ) {
+    title = first.textContent || undefined;
+    first.remove();
+  }
+  return { title, html: parsed.body.innerHTML };
+}
+function EntryTitle({ title, url, as: Tag = 'h3', className = 'entry-title' }: { title?: string; url?: string; as?: 'h2' | 'h3'; className?: string }) {
+  if (!title) return null;
+  return (
+    <Tag className={className}>
+      {url ? (
+        <a href={url} target="_blank" rel="noreferrer">
+          {title}
+        </a>
+      ) : (
+        title
+      )}
+    </Tag>
+  );
+}
 function Body({ html, url, l0, onOpen }: { html: string; url?: string; l0: boolean; onOpen?: () => void }) {
   const [expanded, setExpanded] = useState(false),
     [overflow, setOverflow] = useState(false);
   const body = useRef<HTMLDivElement>(null);
-  const content = useMemo(() => {
-    const parsed = new DOMParser().parseFromString(html, 'text/html');
-    const first = parsed.body.firstElementChild;
-    let title: string | undefined;
-    if (
-      first &&
-      (/^H[1-6]$/.test(first.tagName) ||
-        (l0 &&
-          first.tagName === 'P' &&
-          first.children.length === 1 &&
-          first.firstElementChild?.tagName === 'A'))
-    ) {
-      title = first.textContent || undefined;
-      first.remove();
-    }
-    return { title, html: parsed.body.innerHTML };
-  }, [html, l0]);
+  const content = useMemo(() => splitTitle(html, l0), [html, l0]);
   useEffect(() => {
     const element = body.current;
     if (!element) return;
@@ -249,17 +269,7 @@ function Body({ html, url, l0, onOpen }: { html: string; url?: string; l0: boole
   }, [content.html]);
   return (
     <>
-      {content.title ? (
-        <h3 className="entry-title">
-          {url ? (
-            <a href={url} target="_blank" rel="noreferrer">
-              {content.title}
-            </a>
-          ) : (
-            content.title
-          )}
-        </h3>
-      ) : null}
+      <EntryTitle title={content.title} url={url} />
       <div
         ref={body}
         className={`content entry-body ${expanded ? '' : 'clamped'} ${overflow && !expanded ? 'overflowing' : ''}`}
@@ -305,26 +315,24 @@ function entryParts(entry: Reading) {
   return { imported, id, url, source };
 }
 
-/* ---------------- one entry ---------------- */
+/* ---------------- an entry's actions (card and full view) ---------------- */
 
-function Entry({
+function useEntryActions({
   entry,
   actions,
   votes,
   buckets,
+  opened,
 }: {
   entry: Reading;
   actions: Actions;
   votes: SignalRow[];
   buckets: Hopper[];
+  /** The owner followed the entry to its origin. */
+  opened: () => void;
 }) {
   const { run, openDraft, navigate } = actions;
   const settings = useSettings();
-  const readUi = useContext(ReadContext);
-  const status = readUi.shown ? readStatus(entry.imported) : null;
-  const opened = () => {
-    if (entry.imported) readUi.opened(entry);
-  };
   const [historyOpen, setHistoryOpen] = useState(false);
   const [extensionSheet, setExtensionSheet] = useState<OpenSheet | null>(null);
   const extensions = enabledExtensions(compiledExtensions, settings?.extensions);
@@ -334,7 +342,6 @@ function Entry({
       vote.subscription_id === imported?.subscriptionId &&
       vote.remote_id === imported.remoteId,
   );
-  const date = formatDateIn(entry.displayAt, settings?.timezone || 'UTC');
   const vote = (thumb: 1 | -1) =>
     run(async () => {
       if (!imported) return;
@@ -467,11 +474,138 @@ function Entry({
       ],
     });
   };
+  return {
+    imported,
+    id,
+    url,
+    signal,
+    vote,
+    stub,
+    addToHopper,
+    openMenu,
+    historyOpen,
+    extensions,
+    extensionContext,
+    extensionSheet,
+    closeExtensionSheet: () => setExtensionSheet(null),
+  };
+}
+type EntryActions = ReturnType<typeof useEntryActions>;
+
+/** The byline: kind, legacy rss, source and date, plus the extensions' slot. */
+function Byline({ entry, a, children }: { entry: Reading; a: EntryActions; children?: ReactNode }) {
+  const settings = useSettings();
+  const date = formatDateIn(entry.displayAt, settings?.timezone || 'UTC');
+  return (
+    <p className="byline">
+      {children}
+      <span className="badge">{entry.kind}</span>
+      {entry.l0 ? <span className="badge badge-line">legacy rss</span> : null}
+      <span className="src">{a.imported?.subscriptionTitle || 'you'}</span>
+      <span>· {date}</span>
+      <EntryBylineSlot extensions={a.extensions} context={a.extensionContext} />
+    </p>
+  );
+}
+function Tomb({ entry }: { entry: Reading }) {
+  return entry.withdrawn ? (
+    <p className="tomb">
+      withdrawn
+      {entry.imported?.pinnedVersionRetained != null
+        ? ` · retained pinned v${entry.imported.pinnedVersionRetained}`
+        : ''}
+    </p>
+  ) : null;
+}
+/**
+ * The action row, the same on the card and in the full view: line-icon
+ * thumbs, then edit / stub ↗ / + add to hopper… as quiet text, then ⋯.
+ * Small to look at; every control is still a 40px target (.act).
+ */
+function EntryBar({ entry, a }: { entry: Reading; a: EntryActions }) {
+  const { imported, id, signal } = a;
+  return (
+    <div className="entry-bar">
+      {imported
+        ? ([1, -1] as const).map((thumb) => (
+            <Button
+              key={thumb}
+              className="act icon-only thumb"
+              aria-label={thumb === 1 ? 'thumbs up' : 'thumbs down'}
+              title={thumb === 1 ? 'thumbs up' : 'thumbs down'}
+              aria-pressed={signal?.thumb === thumb}
+              onClick={() => void a.vote(thumb)}
+            >
+              {thumb === 1 ? <ThumbUp /> : <ThumbDown />}
+            </Button>
+          ))
+        : null}
+      <span className="spacer" />
+      {entry.own ? (
+        <Link className="act" to="/edit/$id" params={{ id }}>
+          edit
+        </Link>
+      ) : null}
+      {imported ? (
+        <>
+          <Button
+            className="act"
+            data-action="stub"
+            data-sub={imported.subscriptionId}
+            data-remote={imported.remoteId}
+            onClick={() => void a.stub()}
+          >
+            stub ↗
+          </Button>
+          <Button
+            className="act"
+            aria-label="add to hopper"
+            title="add to hopper"
+            onClick={() => void a.addToHopper()}
+          >
+            + add to hopper…
+          </Button>
+        </>
+      ) : null}
+      <Button
+        className="act icon-only more-btn"
+        aria-label="more actions"
+        title="more actions"
+        // Keep a text selection alive through the press.
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => void a.openMenu()}
+      >
+        <More />
+      </Button>
+    </div>
+  );
+}
+
+/* ---------------- one entry ---------------- */
+
+function Entry({
+  entry,
+  actions,
+  votes,
+  buckets,
+}: {
+  entry: Reading;
+  actions: Actions;
+  votes: SignalRow[];
+  buckets: Hopper[];
+}) {
+  const readUi = useContext(ReadContext);
+  const status = readUi.shown ? readStatus(entry.imported) : null;
+  const opened = () => {
+    if (entry.imported) readUi.opened(entry);
+  };
+  const a = useEntryActions({ entry, actions, votes, buckets, opened });
+  const { imported, id, url, signal } = a;
   const swipe = useSwipe<HTMLDivElement>(
     imported
       ? {
-          onRight: () => void vote(1),
-          onLeft: () => void stub(),
+          onRight: () => void a.vote(1),
+          onLeft: () => void a.stub(),
           mouseFrom: '.byline, .entry-bar',
           mover: '.entry',
         }
@@ -503,7 +637,7 @@ function Entry({
             if ((event.target as Element).closest('.entry-title a, a.entry-src')) opened();
           }}
         >
-          <p className="byline">
+          <Byline entry={entry} a={a}>
             {readUi.selecting && imported ? (
               <label className="entry-select">
                 <input
@@ -522,83 +656,16 @@ function Entry({
                 title={status === 'unread' ? 'unread' : 'updated since you read it'}
               />
             ) : null}
-            <span className="badge">{entry.kind}</span>
-            {entry.l0 ? (
-              <span className="badge badge-line">legacy rss</span>
-            ) : null}
-            <span className="src">{imported?.subscriptionTitle || 'you'}</span>
-            <span>· {date}</span>
-            <EntryBylineSlot extensions={extensions} context={extensionContext} />
-          </p>
-          {entry.withdrawn ? (
-            <p className="tomb">
-              withdrawn
-              {imported?.pinnedVersionRetained != null
-                ? ` · retained pinned v${imported.pinnedVersionRetained}`
-                : ''}
-            </p>
-          ) : null}
+          </Byline>
+          <Tomb entry={entry} />
           <Body html={entry.contentHtml} url={url} l0={entry.l0} onOpen={opened} />
           <SourceLink url={url} />
         </div>
-        {imported && !entry.l0 && historyOpen ? (
+        {imported && !entry.l0 && a.historyOpen ? (
           <History sub={imported.subscriptionId} id={id} />
         ) : null}
-        <div className="entry-bar">
-          {imported
-            ? ([1, -1] as const).map((thumb) => (
-                <Button
-                  key={thumb}
-                  className="icon-btn"
-                  aria-label={thumb === 1 ? 'thumbs up' : 'thumbs down'}
-                  aria-pressed={signal?.thumb === thumb}
-                  onClick={() => void vote(thumb)}
-                >
-                  {thumb === 1 ? '👍' : '👎'}
-                </Button>
-              ))
-            : null}
-          <span className="spacer" />
-          {entry.own ? (
-            <Link
-              className="btn btn-ghost btn-mini"
-              to="/edit/$id"
-              params={{ id }}
-            >
-              edit
-            </Link>
-          ) : null}
-          {imported ? (
-            <>
-              <Button
-                className="btn btn-ghost btn-mini"
-                data-action="stub"
-                data-sub={imported.subscriptionId}
-                data-remote={imported.remoteId}
-                onClick={() => void stub()}
-              >
-                stub ↗
-              </Button>
-              <Button
-                className="btn btn-ghost btn-mini"
-                aria-label="add to hopper"
-                onClick={() => void addToHopper()}
-              >
-                + add to hopper…
-              </Button>
-            </>
-          ) : null}
-          <Button
-            className="icon-btn more-btn"
-            aria-label="more actions"
-            // Keep a text selection alive through the press.
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => void openMenu()}
-          >
-            ⋯
-          </Button>
-        </div>
-        <EntrySheetSlot sheet={extensionSheet} close={() => setExtensionSheet(null)} />
+        <EntryBar entry={entry} a={a} />
+        <EntrySheetSlot sheet={a.extensionSheet} close={a.closeExtensionSheet} />
       </article>
     </div>
   );
