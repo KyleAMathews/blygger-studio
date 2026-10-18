@@ -50,7 +50,7 @@ function titleFromUrl(url: string): string {
  * the confirm button for many seconds on a large blyg.
  */
 importerApi.openapi(routes.createSubscription, async (c) => {
-  const body = await readJson<{ url: string; confirm?: boolean; title?: string }>(c);
+  const body = await readJson<{ url: string; confirm?: boolean; title?: string; backfill?: boolean }>(c);
   if (!body.url.trim()) return c.json({ error: "url required" }, 400);
 
   const result = await resolve(body.url.trim(), platformFetchFor(c.env));
@@ -96,7 +96,9 @@ importerApi.openapi(routes.createSubscription, async (c) => {
   // detection (§3.2) in one pass, for both kinds uniformly. If waitUntil cuts
   // it short, the null last_poll_at and last_index_sync_at make the next
   // scheduled poll due and reconcile again, so the backfill completes there.
-  c.executionCtx.waitUntil(pollSubscription(c.env.DB, sub, platformFetchFor(c.env)).catch(() => {}));
+  // `backfill: false` (bulk imports, e.g. OPML) skips it: isDue() treats a
+  // null last_poll_at as due, so the next quarter-hour tick imports it instead.
+  if (body.backfill !== false) c.executionCtx.waitUntil(pollSubscription(c.env.DB, sub, platformFetchFor(c.env)).catch(() => {}));
   c.header("Location", `/api/subscriptions/${sub.id}`);
   return c.json(subscriptionResource(sub), 201);
 });

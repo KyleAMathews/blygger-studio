@@ -2202,6 +2202,10 @@ export type CreateSubscriptionData = {
         url: string;
         confirm?: boolean;
         title?: string;
+        /**
+         * With confirm: start importing the archive at once (true, the default). false creates the subscription only; the next quarter-hour poll imports it, since a never-polled subscription is always due. For bulk imports such as OPML.
+         */
+        backfill?: boolean;
     };
     path?: never;
     query?: never;
