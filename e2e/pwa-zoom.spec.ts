@@ -155,9 +155,14 @@ test('reading a post with wide content never scrolls the page sideways', async (
   await expect(entry).toBeVisible();
   await expect(entry.locator('img[alt=wide]')).toBeVisible();
   expect(await noSideScroll(page)).toBe(true);
+  // The full view shows the whole post unclamped: still no sideways scroll.
+  await entry.getByRole('button', { name: 'more', exact: true }).click();
+  await expect(page.locator('.reading-article')).toContainText('Filler paragraph 5');
+  await expect(page.locator('.reading-article table')).toBeVisible();
+  expect(await noSideScroll(page)).toBe(true);
   // The table and the code scroll inside their own boxes.
-  for (const selector of ['table', 'pre']) {
-    const box = await entry.locator(selector).boundingBox();
+  for (const selector of ['.reading-article table', '.reading-article pre']) {
+    const box = await page.locator(selector).boundingBox();
     expect(box!.x + box!.width, selector).toBeLessThanOrEqual(page.viewportSize()!.width);
   }
 });

@@ -12,7 +12,7 @@ import {
 } from '@tanstack/react-router';
 import { Layout, basepath } from './components.tsx';
 import { Compose, EditorPage } from './authoring.tsx';
-import { ReadingPage } from './reading.tsx';
+import { ReadingArticle, ReadingPage } from './reading.tsx';
 import { AuthorizationsPage } from './authorizations.tsx';
 import { SettingsPage } from './settings.tsx';
 import {
@@ -177,6 +177,24 @@ const reading = createRoute({
   },
   component: () => <ReadingPage {...reading.useSearch()} />,
 });
+/**
+ * One entry full screen: /reading/{sub}/{id}, `~own` as the sub for your own
+ * items. "more" on a card opens it; reloading stays on it.
+ */
+const article = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/reading/$sub/$id',
+  loader: () =>
+    Promise.all([
+      preloadView(listViews.subscriptions),
+      preloadView(listViews.hoppers),
+      preloadView(listViews.signals),
+    ]),
+  component: () => {
+    const { sub, id } = article.useParams();
+    return <ReadingArticle key={`${sub}/${id}`} sub={sub} id={id} />;
+  },
+});
 const edit = createRoute({
   getParentRoute: () => rootRoute,
   path: '/edit/$id',
@@ -289,6 +307,7 @@ export const router = createRouter({
   routeTree: rootRoute.addChildren([
     compose,
     reading,
+    article,
     edit,
     settings,
     setup,

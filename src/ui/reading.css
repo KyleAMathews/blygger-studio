@@ -86,6 +86,7 @@
 /* "more": small to look at, a 40px target (the ::after). */
 .more { position: relative; background: none; border: none; border-radius: 0; color: var(--pencil); font-size: .8rem; font-weight: 600; padding: 2px 0; margin: 0 0 var(--s1); cursor: pointer; min-height: 0; }
 .more::after { content: ""; position: absolute; inset: -10px -12px; }
+.entry-body.clamped.overflowing { cursor: pointer; }
 /* The action row (Substack-scale): small line-icon thumbs, quiet text
    actions, ⋯. The controls are .act (studio.css): ~20px to the eye, 40px to
    the finger. */
@@ -94,6 +95,16 @@
 .entry-bar .act.icon-only { padding: 0; }
 .entry-bar .thumb .ico { width: 18px; height: 18px; }
 
+/* ---------- THE FULL VIEW (/reading/{sub}/{id}) ---------- */
+.article-head { display: flex; align-items: center; margin: 0 0 var(--s2) -8px; }
+.back-btn { font-size: .9rem; gap: 2px; padding: 0 10px 0 4px; color: var(--page-ink-soft); }
+.back-btn:hover { color: var(--page-ink); }
+.reading-article .entry-in { padding: var(--s4) 18px var(--s1); }
+.reading-article .article-title { font-size: 1.45rem; line-height: 1.25; margin: var(--s1) 0 var(--s3); }
+.reading-article .article-body { font-size: 1.06rem; line-height: 1.65; }
+.reading-article .article-body p { margin: 0 0 var(--s3); }
+.reading-article .entry-src { white-space: normal; overflow-wrap: anywhere; margin: var(--s3) 0 var(--s2); }
+@media (min-width: 900px) { .reading-article .entry-in { padding: var(--s5) 28px var(--s2); } }
 .tomb { font-size: .78rem; color: var(--alert); margin: 0 0 8px; }
 
 /* Read state (0026): a dot on unread imported entries, a ring on ones
