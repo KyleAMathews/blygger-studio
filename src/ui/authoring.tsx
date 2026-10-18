@@ -17,6 +17,7 @@ import { linkInline } from '../grammar.ts';
 import { markImported, parseScopes, previewStrip } from '../tk.ts';
 import { extractDirectives } from '../directives.ts';
 import { previewFromHtml } from '../preview.ts';
+import { CHANGE_CATEGORIES, composeNote, noteIsGenerated, recategorize, type ChangeCategory } from '../change-category.ts';
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { Detail } from './data.ts';
@@ -692,17 +693,36 @@ function textareaProps(upload: ReturnType<typeof useUpload>, tools: TextTools) {
  * from *draft note*, or — when Settings' auto_change_notes is on and the field
  * was left empty — one drafted now. An empty note with the setting off
  * publishes straight away, as before. `generated` is true only when the
- * confirmed text is exactly what the model drafted.
+ * confirmed text is exactly what the machine produced (noteIsGenerated).
+ *
+ * With the change classifier on (Settings' ai_model_classify, session 49) the
+ * dialog always opens for a later version and asks for a category alongside
+ * any draft. The category is an editable chip; with change_category_in_note it
+ * also leads the note text (composeNote), here, where the author sees the note
+ * exactly as it will publish. A classifier that fails shows why and leaves no
+ * chip chosen; publishing is never blocked on it.
  */
-type NoteChoice = { note: string; generated: boolean };
+type NoteChoice = { note: string; generated: boolean; category?: ChangeCategory | null };
+type Classified = {
+  loading: boolean;
+  category: ChangeCategory | null;
+  /** What the classifier said, kept to tell an untouched note from an edited one. */
+  model: ChangeCategory | null;
+  probability: number | null;
+  reason?: string;
+};
 function useNoteConfirm(write: ReturnType<typeof createDraftAction>) {
   const settings = useSettings();
   const [state, setState] = useState<{
     version: number;
+    /** The note as the author first gave it, before any draft or category. */
+    typed: string;
     text: string;
     drafted?: string;
     loading: boolean;
     error?: unknown;
+    classify?: Classified;
+    inNote: boolean;
     resolve: (choice: NoteChoice | null) => void;
   }>();
   const request = (
@@ -713,19 +733,63 @@ function useNoteConfirm(write: ReturnType<typeof createDraftAction>) {
     const typed = note.trim();
     if (item.version === 0) return Promise.resolve({ note: typed, generated: false });
     const auto = !typed && !!settings?.auto_change_notes;
-    if (!typed && !auto) return Promise.resolve({ note: '', generated: false });
+    const classifying = !!settings?.ai_model_classify;
+    if (!typed && !auto && !classifying) return Promise.resolve({ note: '', generated: false });
+    const inNote = classifying && settings?.change_category_in_note !== false;
     return new Promise((resolve) => {
-      setState({ version: item.version + 1, text: typed, drafted, loading: auto, resolve });
-      if (!auto) return;
-      write({ type: 'draft-note' })
-        .then((r) => setState((s) => s && { ...s, text: r.note, drafted: r.note, loading: false }))
-        .catch((error) => setState((s) => s && { ...s, loading: false, error }));
+      setState({
+        version: item.version + 1,
+        typed,
+        text: typed,
+        drafted,
+        loading: auto,
+        inNote,
+        classify: classifying ? { loading: true, category: null, model: null, probability: null } : undefined,
+        resolve,
+      });
+      if (auto)
+        write({ type: 'draft-note' })
+          .then((r) =>
+            setState((s) => s && { ...s, drafted: r.note, loading: false, text: s.inNote ? composeNote(r.note, s.classify?.category ?? null) : r.note }),
+          )
+          .catch((error) => setState((s) => s && { ...s, loading: false, error }));
+      if (classifying)
+        write({ type: 'classify' })
+          .then((r) =>
+            setState((s) => s && {
+              ...s,
+              text: s.inNote ? recategorize(s.text, r.category) : s.text,
+              classify: { loading: false, category: r.category, model: r.category, probability: r.probability, reason: r.reason },
+            }),
+          )
+          .catch((error) =>
+            setState((s) => s && {
+              ...s,
+              classify: { loading: false, category: null, model: null, probability: null, reason: error instanceof Error ? error.message : String(error) },
+            }),
+          );
     });
   };
   const finish = (choice: NoteChoice | null) => {
     state?.resolve(choice);
     setState(undefined);
   };
+  /**
+   * The text the machine produced, if the note began as a machine's: the
+   * drafted note led by the classifier's own category, or that category alone
+   * when the author left the note empty. Undefined when the author wrote it.
+   */
+  const machine = (s: NonNullable<typeof state>): string | undefined => {
+    const category = s.inNote ? s.classify?.model ?? null : null;
+    if (s.drafted !== undefined) return composeNote(s.drafted, category);
+    return !s.typed && category ? category : undefined;
+  };
+  const choose = (category: ChangeCategory | null) =>
+    setState((s) => s?.classify && {
+      ...s,
+      text: s.inNote ? recategorize(s.text, category) : s.text,
+      classify: { ...s.classify, category },
+    });
   const element = (
     <Modal
       open={!!state}
@@ -735,6 +799,39 @@ function useNoteConfirm(write: ReturnType<typeof createDraftAction>) {
     >
       {state ? (
         <div className="note-confirm" id="note-confirm">
+          {state.classify ? (
+            <div className="change-category" id="change-category" role="radiogroup" aria-label="Kind of change">
+              <span className="change-category-label">Kind</span>
+              {state.classify.loading ? (
+                <span className="h-hint" id="change-category-loading">classifying…</span>
+              ) : (
+                <>
+                  {CHANGE_CATEGORIES.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      role="radio"
+                      aria-checked={state.classify!.category === c}
+                      className={`chip${state.classify!.category === c ? ' chip-on' : ''}`}
+                      data-category={c}
+                      onClick={() => choose(state.classify!.category === c ? null : c)}
+                    >
+                      {c}
+                      {state.classify!.model === c && state.classify!.probability !== null
+                        ? ` · ${Math.round(state.classify!.probability * 100)}%`
+                        : ''}
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          ) : null}
+          {state.classify && !state.classify.loading && state.classify.model === null ? (
+            <p className="h-hint" id="change-category-none">
+              No kind suggested{state.classify.reason ? `: ${state.classify.reason}` : ''}. Choose one,
+              or publish without.
+            </p>
+          ) : null}
           <label htmlFor="note-confirm-text">Change</label>
           <textarea
             id="note-confirm-text"
@@ -743,10 +840,15 @@ function useNoteConfirm(write: ReturnType<typeof createDraftAction>) {
             placeholder={state.loading ? 'Drafting a note…' : 'what changed? (optional)'}
             onChange={(e) => setState({ ...state, text: e.target.value })}
           />
-          {state.drafted !== undefined && state.text.trim() === state.drafted ? (
+          {state.drafted !== undefined && noteIsGenerated(state.text, machine(state)) ? (
             <p className="h-hint" id="note-confirm-generated">
               Drafted by the model; it will be marked as generated unless you
               edit it.
+            </p>
+          ) : state.drafted === undefined && noteIsGenerated(state.text, machine(state)) ? (
+            <p className="h-hint" id="note-confirm-generated">
+              The note is the classifier&apos;s label; it will be marked as
+              generated unless you edit it.
             </p>
           ) : null}
           {state.error ? (
@@ -760,11 +862,12 @@ function useNoteConfirm(write: ReturnType<typeof createDraftAction>) {
             <Button
               id="note-confirm-ok"
               className="btn btn-primary"
-              disabled={state.loading}
+              disabled={state.loading || !!state.classify?.loading}
               onClick={() =>
                 finish({
                   note: state.text.trim(),
-                  generated: state.drafted !== undefined && state.text.trim() === state.drafted,
+                  generated: noteIsGenerated(state.text, machine(state)),
+                  ...(state.classify ? { category: state.classify.category } : {}),
                 })
               }
             >
@@ -1053,7 +1156,7 @@ function ItemRow({
     const choice = await confirmNote.request(item, '');
     if (!choice) return;
     const md = draft.current!.text;
-    const result = await write({ type: 'publish', note: choice.note, generated: choice.generated });
+    const result = await write({ type: 'publish', note: choice.note, generated: choice.generated, category: choice.category });
     onPublished({ id: item.id, kind, md, version: result.version });
     return result;
   };
@@ -1568,7 +1671,7 @@ function Editor({ item }: { item: Detail }) {
       const choice = await confirmNote.request(item, note, drafted);
       if (!choice) return;
       const md = draft.current!.text;
-      const result = await write({ type: 'publish', note: choice.note, generated: choice.generated });
+      const result = await write({ type: 'publish', note: choice.note, generated: choice.generated, category: choice.category });
       // A note describes one change; it must not ride along on the next.
       setNote('');
       setDrafted(undefined);
@@ -2084,6 +2187,21 @@ function Editor({ item }: { item: Detail }) {
                   <span className="h-note">{v.note}</span>
                   {v.note_generated ? (
                     <span className="badge" title="note drafted by the studio">generated</span>
+                  ) : null}
+                  {v.change_class?.category ? (
+                    <span
+                      className="badge change-class"
+                      data-category={v.change_class.category}
+                      title={
+                        v.change_class.overridden
+                          ? 'kind of change, set by you (private to this studio)'
+                          : v.change_class.model
+                            ? `kind of change, from ${v.change_class.model}${v.change_class.probability !== null ? ` (${Math.round(v.change_class.probability * 100)}%)` : ''} (private to this studio)`
+                            : 'kind of change (private to this studio)'
+                      }
+                    >
+                      {v.change_class.category}
+                    </span>
                   ) : null}{' '}
                   <span className="h-actions">
                     <Button

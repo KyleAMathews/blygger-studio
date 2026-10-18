@@ -499,6 +499,14 @@
           "ai_model_feed": {
             "type": "string"
           },
+          "ai_model_classify": {
+            "type": "string",
+            "description": "The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms."
+          },
+          "change_category_in_note": {
+            "type": "boolean",
+            "description": "Lead the changelog note with the classifier's category, in the publish dialog where the author sees it. Matters only while ai_model_classify is set."
+          },
           "feed_prompt": {
             "type": "string"
           },
@@ -660,6 +668,8 @@
           "ai_model_tk",
           "ai_model_changelog",
           "ai_model_feed",
+          "ai_model_classify",
+          "change_category_in_note",
           "feed_prompt",
           "ai_style_prompt",
           "accept_mentions",
@@ -1007,6 +1017,55 @@
                 "type": "null"
               }
             ]
+          },
+          "change_class": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "category": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "refresh",
+                  "typo",
+                  "minor",
+                  "major",
+                  null
+                ]
+              },
+              "model": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Null for refresh (decided locally) and for a category the author set by hand."
+              },
+              "probability": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "classified_at": {
+                "type": "string"
+              },
+              "overridden": {
+                "type": "boolean",
+                "description": "The author changed or cleared the classifier's category before publishing."
+              }
+            },
+            "required": [
+              "category",
+              "model",
+              "probability",
+              "classified_at",
+              "overridden"
+            ],
+            "description": "The change classifier's studio-private record of this version, in an item's versions; absent elsewhere. Never on the wire."
           }
         },
         "required": [
@@ -1444,6 +1503,13 @@
                 },
                 "note": {
                   "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "decision"
+                  ],
+                  "description": "A decision model (Clef, Jev): offered only for the change classifier (ai_model_classify), never for text generation."
                 }
               },
               "required": [
@@ -4266,6 +4332,20 @@
                   },
                   "note_generated": {
                     "type": "boolean"
+                  },
+                  "change_category": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "refresh",
+                      "typo",
+                      "minor",
+                      "major",
+                      null
+                    ],
+                    "description": "The change category the author confirmed in the publish dialog: kept with the version in studio-private storage (never on the wire). Omitted: a classification made for these words stands; null: cleared."
                   }
                 },
                 "additionalProperties": false
@@ -4294,6 +4374,210 @@
                   "required": [
                     "ok",
                     "version"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/items/{id}/classify": {
+      "post": {
+        "operationId": "classifyChange",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:draft"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "description": "The version the working copy would publish as."
+                    },
+                    "category": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "refresh",
+                        "typo",
+                        "minor",
+                        "major",
+                        null
+                      ],
+                      "description": "Null when no category could be had; see reason."
+                    },
+                    "model": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The decision model that answered; null for refresh, decided locally from content_hash."
+                    },
+                    "probability": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "reason": {
+                      "type": "string",
+                      "description": "Why there is no category: a provider error, an exhausted AI budget, or an unusable answer. Never fatal: publish as usual."
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "category",
+                    "model",
+                    "probability"
                   ]
                 }
               }
@@ -5831,6 +6115,13 @@
                   },
                   "ai_model_feed": {
                     "type": "string"
+                  },
+                  "ai_model_classify": {
+                    "type": "string",
+                    "description": "The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms."
+                  },
+                  "change_category_in_note": {
+                    "type": "boolean"
                   },
                   "feed_prompt": {
                     "type": "string"

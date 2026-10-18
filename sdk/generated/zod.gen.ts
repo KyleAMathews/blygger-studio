@@ -141,6 +141,8 @@ export const zSettings = z.object({
     ai_model_tk: z.string(),
     ai_model_changelog: z.string(),
     ai_model_feed: z.string(),
+    ai_model_classify: z.string(),
+    change_category_in_note: z.boolean(),
     feed_prompt: z.string(),
     ai_style_prompt: z.string(),
     accept_mentions: z.boolean(),
@@ -267,7 +269,19 @@ export const zVersion = z.object({
             cited: zCitation.optional()
         }).strict()
     ]).nullable(),
-    stub_cite: zCitation.nullable()
+    stub_cite: zCitation.nullable(),
+    change_class: z.object({
+        category: z.enum([
+            'refresh',
+            'typo',
+            'minor',
+            'major'
+        ]).nullable(),
+        model: z.string().nullable(),
+        probability: z.number().nullable(),
+        classified_at: z.string(),
+        overridden: z.boolean()
+    }).nullish()
 });
 
 export const zHopperItemRow = z.object({
@@ -359,7 +373,8 @@ export const zAiModels = z.object({
         id: z.string(),
         provider: z.string(),
         label: z.string(),
-        note: z.string().optional()
+        note: z.string().optional(),
+        kind: z.enum(['decision']).optional()
     })),
     local: z.boolean()
 });
@@ -758,7 +773,13 @@ export const zUpdateItemResponse = zItem;
 
 export const zPublishItemBody = z.object({
     note: z.string().optional(),
-    note_generated: z.boolean().optional()
+    note_generated: z.boolean().optional(),
+    change_category: z.enum([
+        'refresh',
+        'typo',
+        'minor',
+        'major'
+    ]).nullish()
 }).strict();
 
 export const zPublishItemPath = z.object({
@@ -772,6 +793,26 @@ export const zPublishItemResponse = z.object({
     ok: z.boolean(),
     version: z.number(),
     warning: z.string().optional()
+});
+
+export const zClassifyChangePath = z.object({
+    id: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zClassifyChangeResponse = z.object({
+    version: z.int(),
+    category: z.enum([
+        'refresh',
+        'typo',
+        'minor',
+        'major'
+    ]).nullable(),
+    model: z.string().nullable(),
+    probability: z.number().nullable(),
+    reason: z.string().optional()
 });
 
 export const zDraftNotePath = z.object({
@@ -905,6 +946,8 @@ export const zUpdateSettingsBody = z.object({
     ai_model_tk: z.string().optional(),
     ai_model_changelog: z.string().optional(),
     ai_model_feed: z.string().optional(),
+    ai_model_classify: z.string().optional(),
+    change_category_in_note: z.boolean().optional(),
     feed_prompt: z.string().optional(),
     ai_style_prompt: z.string().optional(),
     accept_mentions: z.boolean().optional(),

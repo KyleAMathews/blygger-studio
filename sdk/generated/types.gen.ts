@@ -118,6 +118,14 @@ export type Settings = {
     ai_model_tk: string;
     ai_model_changelog: string;
     ai_model_feed: string;
+    /**
+     * The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms.
+     */
+    ai_model_classify: string;
+    /**
+     * Lead the changelog note with the classifier's category, in the publish dialog where the author sees it. Matters only while ai_model_classify is set.
+     */
+    change_category_in_note: boolean;
     feed_prompt: string;
     ai_style_prompt: string;
     accept_mentions: boolean;
@@ -266,6 +274,22 @@ export type Version = {
         cited?: Citation;
     } | null;
     stub_cite: Citation | null;
+    /**
+     * The change classifier's studio-private record of this version, in an item's versions; absent elsewhere. Never on the wire.
+     */
+    change_class?: {
+        category: 'refresh' | 'typo' | 'minor' | 'major' | null;
+        /**
+         * Null for refresh (decided locally) and for a category the author set by hand.
+         */
+        model: string | null;
+        probability: number | null;
+        classified_at: string;
+        /**
+         * The author changed or cleared the classifier's category before publishing.
+         */
+        overridden: boolean;
+    } | null;
 };
 
 export type Transclusion = {
@@ -367,6 +391,10 @@ export type AiModels = {
         provider: string;
         label: string;
         note?: string;
+        /**
+         * A decision model (Clef, Jev): offered only for the change classifier (ai_model_classify), never for text generation.
+         */
+        kind?: 'decision';
     }>;
     local: boolean;
 };
@@ -1279,6 +1307,10 @@ export type PublishItemData = {
     body?: {
         note?: string;
         note_generated?: boolean;
+        /**
+         * The change category the author confirmed in the publish dialog: kept with the version in studio-private storage (never on the wire). Omitted: a classification made for these words stands; null: cleared.
+         */
+        change_category?: 'refresh' | 'typo' | 'minor' | 'major' | null;
     };
     path: {
         id: string;
@@ -1352,6 +1384,95 @@ export type PublishItemResponses = {
 };
 
 export type PublishItemResponse = PublishItemResponses[keyof PublishItemResponses];
+
+export type ClassifyChangeData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/items/{id}/classify';
+};
+
+export type ClassifyChangeErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ClassifyChangeError = ClassifyChangeErrors[keyof ClassifyChangeErrors];
+
+export type ClassifyChangeResponses = {
+    /**
+     * Success
+     */
+    200: {
+        /**
+         * The version the working copy would publish as.
+         */
+        version: number;
+        /**
+         * Null when no category could be had; see reason.
+         */
+        category: 'refresh' | 'typo' | 'minor' | 'major' | null;
+        /**
+         * The decision model that answered; null for refresh, decided locally from content_hash.
+         */
+        model: string | null;
+        probability: number | null;
+        /**
+         * Why there is no category: a provider error, an exhausted AI budget, or an unusable answer. Never fatal: publish as usual.
+         */
+        reason?: string;
+    };
+};
+
+export type ClassifyChangeResponse = ClassifyChangeResponses[keyof ClassifyChangeResponses];
 
 export type DraftNoteData = {
     body?: never;
@@ -1977,6 +2098,11 @@ export type UpdateSettingsData = {
         ai_model_tk?: string;
         ai_model_changelog?: string;
         ai_model_feed?: string;
+        /**
+         * The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms.
+         */
+        ai_model_classify?: string;
+        change_category_in_note?: boolean;
         feed_prompt?: string;
         ai_style_prompt?: string;
         accept_mentions?: boolean;

@@ -399,11 +399,12 @@ export function createDraftAction(id?: string) {
         case 'restore':
           await unwrap(BlyggerApi.restoreItem({ client, path, body: { version: command.version } }));
           result = await unwrap(BlyggerApi.getItem({ client, path })); break;
-        case 'publish': result = await unwrap(BlyggerApi.publishItem({ client, path, body: { note: command.note, note_generated: command.generated } })); break;
+        case 'publish': result = await unwrap(BlyggerApi.publishItem({ client, path, body: { note: command.note, note_generated: command.generated, ...(command.category !== undefined ? { change_category: command.category } : {}) } })); break;
         case 'delete': result = await unwrap(BlyggerApi.deleteItem({ client, path })); break;
         case 'withdraw': result = await unwrap(BlyggerApi.withdrawItem({ client, path })); break;
         case 'pin': result = await unwrap(BlyggerApi.pinItem({ client, path: { ...path, version: command.version } })); break;
         case 'draft-note': result = await unwrap(BlyggerApi.draftNote({ client, path })); break;
+        case 'classify': result = await unwrap(BlyggerApi.classifyChange({ client, path })); break;
         case 'update': result = await unwrap(BlyggerApi.updateItem({ client, path, body: command.changes })); break;
       }
     }

@@ -134,6 +134,9 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     ai_model_tk: map.ai_model_tk ?? map.ai_model ?? "",
     ai_model_changelog: map.ai_model_changelog ?? map.ai_model ?? "",
     ai_model_feed: map.ai_model_feed ?? "",
+    // Off by default: an empty model is no classifier (session 49).
+    ai_model_classify: map.ai_model_classify ?? "",
+    change_category_in_note: map.change_category_in_note !== "off",
     feed_prompt: map.feed_prompt ?? "",
     ai_style_prompt: map.ai_style_prompt ?? "",
     // Default on: an existing deployment's behaviour must not change under it.

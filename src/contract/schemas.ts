@@ -178,6 +178,8 @@ export const SettingsSchema = z.object({
   ai_model_tk: z.string(),
   ai_model_changelog: z.string(),
   ai_model_feed: z.string(),
+  ai_model_classify: z.string().describe("The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms."),
+  change_category_in_note: z.boolean().describe("Lead the changelog note with the classifier's category, in the publish dialog where the author sees it. Matters only while ai_model_classify is set."),
   feed_prompt: z.string(),
   ai_style_prompt: z.string(),
   accept_mentions: z.boolean(),
