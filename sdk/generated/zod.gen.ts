@@ -858,14 +858,19 @@ export const zUploadMediaBody = z.object({
     inline: z.enum(['true', 'false']).optional()
 });
 
-/**
- * Success
- */
-export const zUploadMediaResponse = z.object({
-    id: z.string(),
-    url: z.string(),
-    mime: z.string()
-});
+export const zUploadMediaResponse = z.union([
+    z.object({
+        id: z.string(),
+        url: z.string(),
+        mime: z.string(),
+        duplicate: z.literal(true)
+    }),
+    z.object({
+        id: z.string(),
+        url: z.string(),
+        mime: z.string()
+    })
+]);
 
 export const zDeleteMediaPath = z.object({
     id: z.string().min(1)

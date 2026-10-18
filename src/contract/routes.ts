@@ -136,5 +136,7 @@ export const routes = {
   // Read routes contributed by the extensions in this repository (extensions/catalog.ts).
   ...extensionRoutes,
 };
+// An identical file uploaded again to the same item returns the existing row (studio#7).
+routes.uploadMedia.responses[200] = { description: "Already attached", content: json(z.object({ id: z.string(), url: z.string(), mime: z.string(), duplicate: z.literal(true) })) };
 // The resolve/confirm operation has two successful response shapes and statuses.
 routes.createSubscription.responses[201] = { description: "Subscribed", content: json(subscribed) };

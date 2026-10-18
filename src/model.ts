@@ -648,15 +648,24 @@ export async function insertMedia(
   db: D1Database,
   row: Omit<MediaRow, "created">,
   unpublishedOnly = false,
+  sha256: string | null = null,
 ): Promise<MediaRow | null> {
   const created = nowIso();
   // Evaluate publication and insert in one statement. A publisher can run while
   // the R2 upload awaits; a separate earlier read is not an authorization gate.
   const result = await db
-    .prepare("INSERT INTO media (id, item_id, r2_key, mime, alt, created, inline) SELECT ?, ?, ?, ?, ?, ?, ? WHERE ? = 0 OR ? IS NULL OR EXISTS (SELECT 1 FROM items WHERE id = ? AND version = 0)")
-    .bind(row.id, row.item_id, row.r2_key, row.mime, row.alt, created, row.inline, unpublishedOnly ? 1 : 0, row.item_id, row.item_id)
+    .prepare("INSERT INTO media (id, item_id, r2_key, mime, alt, created, inline, sha256) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ? = 0 OR ? IS NULL OR EXISTS (SELECT 1 FROM items WHERE id = ? AND version = 0)")
+    .bind(row.id, row.item_id, row.r2_key, row.mime, row.alt, created, row.inline, sha256, unpublishedOnly ? 1 : 0, row.item_id, row.item_id)
     .run();
   return result.meta.changes ? { ...row, created } : null;
+}
+
+/** The item's earlier upload of the same file (bytes and type) in the same placement, if any (migration 0028, studio#7). */
+export async function findDuplicateMedia(db: D1Database, itemId: string, sha256: string, mime: string, inline: number): Promise<MediaRow | null> {
+  return db
+    .prepare("SELECT id, item_id, r2_key, mime, alt, created, inline FROM media WHERE item_id = ? AND sha256 = ? AND mime = ? AND inline = ? ORDER BY created ASC LIMIT 1")
+    .bind(itemId, sha256, mime, inline)
+    .first<MediaRow>();
 }
 
 export async function getMedia(db: D1Database, id: string): Promise<MediaRow | null> {

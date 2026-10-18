@@ -23,6 +23,7 @@ import {
   getMedia,
   getSettings,
   getVersion,
+  findDuplicateMedia,
   insertMedia,
   pinVersion,
   publish,
@@ -47,7 +48,7 @@ import { BLOCKING, staleThreads, threadFreshness } from "./freshness.ts";
 import { draftChangeNote } from "./change-note.ts";
 import { platformFetchFor } from "./importer/http.ts";
 import { reconcileIndex } from "./importer/poll.ts";
-import { isFollowableUrl, isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
+import { hex, isFollowableUrl, isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
 
 const MEDIA_TYPES: Record<string, string> = {
   "image/png": "png",
@@ -408,9 +409,19 @@ api.openapi(routes.uploadMedia, async (c) => {
   if (typeof itemId === "string" && itemId && !(await getItem(c.env.DB, itemId))) {
     return c.json({ error: "item_id not found" }, 404);
   }
+  const bytes = await file.arrayBuffer();
+  // The studio sends inline=true for an upload it places in the text
+  // (studio#24): shown only where its line is, never appended.
+  const inline = form?.get("inline") === "true" ? 1 : 0;
+  // The same file (bytes and type) uploaded to the same item in the same
+  // placement is the same attachment (studio#7): return the row already
+  // there, store nothing.
+  const sha256 = typeof itemId === "string" && itemId ? hex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))) : null;
+  const existing = sha256 ? await findDuplicateMedia(c.env.DB, itemId as string, sha256, file.type, inline) : null;
+  if (existing) return c.json({ id: existing.id, url: existing.r2_key, mime: existing.mime, duplicate: true }, 200);
   const id = newMediaId();
   const r2Key = `media/${id}.${ext}`;
-  await c.env.MEDIA.put(r2Key, await file.arrayBuffer(), { httpMetadata: { contentType: file.type } });
+  await c.env.MEDIA.put(r2Key, bytes, { httpMetadata: { contentType: file.type } });
   const alt = form?.get("alt");
   const row = await insertMedia(c.env.DB, {
     id,
@@ -418,10 +429,8 @@ api.openapi(routes.uploadMedia, async (c) => {
     r2_key: r2Key,
     mime: file.type,
     alt: typeof alt === "string" ? alt : null,
-    // The studio sends inline=true for an upload it places in the text
-    // (studio#24): shown only where its line is, never appended.
-    inline: form?.get("inline") === "true" ? 1 : 0,
-  }, c.get('draftOnlyMedia') === true);
+    inline,
+  }, c.get('draftOnlyMedia') === true, sha256);
   if (!row) {
     await c.env.MEDIA.delete(r2Key);
     c.header('WWW-Authenticate', 'Bearer error="insufficient_scope", scope="owner:draft owner:publish"');

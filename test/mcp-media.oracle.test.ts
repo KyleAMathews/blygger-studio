@@ -73,7 +73,14 @@ describe('MCP multipart media transport parity', () => {
     expect(await (await d.fetch('/blyg/items/' + item.id + '.json')).json()).toEqual(before);
     expect(await storedCount()).toEqual({ r2: 0, rows: 0 });
     const permitted = await d.credential(['owner:draft', 'owner:publish']);
-    expect((await result(await d.upload(permitted, { file: { filename: 'boundary.png', contentType: 'image/png', dataBase64: 'aW1hZ2U=' }, item_id: item.id }))).error).toBe(false);
+    const attached = await result(await d.upload(permitted, { file: { filename: 'boundary.png', contentType: 'image/png', dataBase64: 'aW1hZ2U=' }, item_id: item.id }));
+    expect(attached.error).toBe(false);
+    // The same file again under draft scope is the attached row (studio#7): returned, nothing written.
+    const stored = await storedCount(), after = await (await d.fetch('/blyg/items/' + item.id + '.json')).json();
+    const again = await result(await d.upload(token, { file: { filename: 'boundary.png', contentType: 'image/png', dataBase64: 'aW1hZ2U=' }, item_id: item.id }));
+    expect(again.error).toBe(false); expect(again.value).toEqual({ ...attached.value, duplicate: true });
+    expect(await storedCount()).toEqual(stored);
+    expect(await (await d.fetch('/blyg/items/' + item.id + '.json')).json()).toEqual(after);
   });
 
   it('discovers uploadMedia for draft scopes', async () => {
@@ -84,16 +91,19 @@ describe('MCP multipart media transport parity', () => {
   });
   it('uses the same bytes, MIME types and attachment metadata as multipart REST', async () => {
     const d = await driver(), token = await d.credential(['owner:draft']);
-    const item = await (await d.owner('/api/items', { content_md: 'media parity' })).json() as any;
+    // One item per transport: the same file sent twice to one item is a
+    // duplicate (studio#7) and would not exercise MCP's own write.
+    const restItem = await (await d.owner('/api/items', { content_md: 'media parity (REST)' })).json() as any;
+    const mcpItem = await (await d.owner('/api/items', { content_md: 'media parity (MCP)' })).json() as any;
     const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
     for (const contentType of ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml']) {
-      const extra = { item_id: item.id, alt: 'a diagram', inline: 'true' };
-      const rest = await d.restUpload(bytes, contentType, extra); expect(rest.status).toBe(201);
+      const extra = { alt: 'a diagram', inline: 'true' };
+      const rest = await d.restUpload(bytes, contentType, { item_id: restItem.id, ...extra }); expect(rest.status).toBe(201);
       const expected = await rest.json() as any;
-      const observed = await result(await d.upload(token, { file: { filename: 'same-file.dat', contentType, dataBase64: base64(bytes) }, ...extra }));
-      expect(observed.error).toBe(false); expect(observed.value.mime).toBe(expected.mime);
+      const observed = await result(await d.upload(token, { file: { filename: 'same-file.dat', contentType, dataBase64: base64(bytes) }, item_id: mcpItem.id, ...extra }));
+      expect(observed.error).toBe(false); expect(observed.value.mime).toBe(expected.mime); expect(observed.value.duplicate).toBeUndefined();
       expect(observed.value.url.split('.').pop()).toBe(expected.url.split('.').pop());
-      for (const value of [expected, observed.value]) {
+      for (const [value, item] of [[expected, restItem], [observed.value, mcpItem]]) {
         expect((await d.fetch('/blyg/' + value.url)).status).toBe(404);
         const publicBytes = await d.fetch('/blyg/' + value.url, { headers: { cookie: d.cookie } }); expect(publicBytes.status).toBe(200);
         expect(publicBytes.headers.get('content-type')).toBe(contentType);

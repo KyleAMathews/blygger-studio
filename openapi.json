@@ -5417,6 +5417,39 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "Already attached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "mime": {
+                      "type": "string"
+                    },
+                    "duplicate": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "url",
+                    "mime",
+                    "duplicate"
+                  ]
+                }
+              }
+            }
+          },
           "201": {
             "description": "Success",
             "content": {

@@ -1801,6 +1801,15 @@ export type UploadMediaError = UploadMediaErrors[keyof UploadMediaErrors];
 
 export type UploadMediaResponses = {
     /**
+     * Already attached
+     */
+    200: {
+        id: string;
+        url: string;
+        mime: string;
+        duplicate: true;
+    };
+    /**
      * Success
      */
     201: {
