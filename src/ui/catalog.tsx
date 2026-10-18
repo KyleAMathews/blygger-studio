@@ -36,6 +36,7 @@ import { sourceTitleAndUrl } from '../importer/util.ts';
 import { confirm } from './sheets.tsx';
 import { itemTitle } from './plain-text.ts';
 import { formatDateIn } from '../dates.ts';
+import { mentionGroups } from './mention-order.ts';
 import './reading.css';
 function useAction() {
   const [error, setError] = useState<unknown>();
@@ -691,12 +692,7 @@ export function MentionsPage() {
   usePoll('mentions-in', inbound.utils.refetch);
   usePoll('mentions-out', outbound.utils.refetch);
   usePoll('items', refreshItems);
-  const groups = new Map<string, Mention[]>();
-  for (const mention of incoming) {
-    const rows = groups.get(mention.target_item_id) || [];
-    rows.push(mention);
-    groups.set(mention.target_item_id, rows);
-  }
+  const groups = mentionGroups(incoming);
   return (
     <>
       <h2 className="view-h">mentions</h2>
