@@ -13,7 +13,7 @@ import { blygItemUrl } from "./importer/util.ts";
 import { parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
 import { excerptFromHtml } from "./markdown.ts";
 import { clampText, leadingHeading, stripTransclusionQuotes } from "./preview.ts";
-import { authoredKind, getMedia, itemShowsResponses, listMediaForItem, publishedVersion } from "./model.ts";
+import { authoredKind, getMedia, itemShowsResponses, listVersionMedia, publishedVersion } from "./model.ts";
 import type { ItemRow, MediaRow, Settings, SubscriptionRow, Transclusion, VersionRow } from "./types.ts";
 import { loadFeedData, sourceKey, type FeedCardData, type FeedProvenance, type FeedItem } from "./public-feed.ts";
 import { WEBMENTION_PATH } from "./types.ts";
@@ -1156,7 +1156,7 @@ ${permalinkLink(item.id, false, mount)}
  */
 async function fragmentBlock(db: D1Database, item: FeedItem, mount: string, tz: string, titleLink = false, loaded?: FeedCardData): Promise<string> {
   const latest = loaded ? loaded.latest : await publishedVersion(db, item);
-  const media = loaded ? loaded.media : await listMediaForItem(db, item.id);
+  const media = loaded ? loaded.media : await listVersionMedia(db, item.id, item.version);
   const html = latest?.content_html ?? "";
   return renderFragment(
     item,
@@ -1307,7 +1307,7 @@ async function threadCard(db: D1Database, item: FeedItem, mount: string, tz: str
   const href = `${mount}/t/${item.id}/`;
   const transclusions = parseTransclusions(latest?.transclusions);
   const html = injectProvenance(await sanitizeHtml(latest?.content_html ?? ""), await transclusionProvenance(db, transclusions, mount, provenance));
-  const media = loaded ? loaded.media : await listMediaForItem(db, item.id);
+  const media = loaded ? loaded.media : await listVersionMedia(db, item.id, item.version);
   // The kind line is apparatus, on its own line above the item, never inline
   // with the author's first sentence (session 30). The quote count says what
   // the card may be cutting off.
@@ -1330,7 +1330,7 @@ async function threadBlock(db: D1Database, item: ItemRow, mount: string, tz: str
   const latest = await publishedVersion(db, item);
   const transclusions = parseTransclusions(latest?.transclusions);
   const html = injectProvenance(await sanitizeHtml(latest?.content_html ?? ""), await transclusionProvenance(db, transclusions, mount));
-  const media = await listMediaForItem(db, item.id);
+  const media = await listVersionMedia(db, item.id, item.version);
   return `<article class="thread${highlightClass(item)}">
 ${stubCitation(latest, tz)}
 ${forkLineage(item, tz)}
@@ -1843,7 +1843,7 @@ export async function permalinkPage(db: D1Database, settings: Settings, item: It
     );
   }
   const latest = await publishedVersion(db, item);
-  const media = await listMediaForItem(db, item.id);
+  const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings);
   const body = `${await blygPage(db, settings, mount, `${await fragmentBlock(db, item, mount, settings.timezone)}
 ${await responsesSection(db, item, settings, mount)}`)}
@@ -1878,7 +1878,7 @@ export async function threadPage(db: D1Database, settings: Settings, item: ItemR
     );
   }
   const latest = await publishedVersion(db, item);
-  const media = await listMediaForItem(db, item.id);
+  const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings, respondsToLabel(latest));
   const body = `${await blygPage(db, settings, mount, `${await threadBlock(db, item, mount, settings.timezone)}
 ${await responsesSection(db, item, settings, mount)}`)}

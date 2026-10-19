@@ -281,6 +281,42 @@ test("an uploaded image leaves with its line, and an unused attachment can be re
   expect(errors).toEqual([]);
 });
 
+test("an attachment the live version lists is dropped from the next version only", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/studio/login");
+  await page.locator('[name="password"]').fill("test-password");
+  await page.getByRole("button", { name: "log in", exact: true }).click();
+  await expect(page.locator("#composer-text")).toBeVisible();
+  // An appended attachment (another tool's upload, not placed in the text),
+  // published. In-page fetches, so the owner cookie (Secure) rides along.
+  const id = await page.evaluate(async (stamp) => {
+    const json = (method: string, path: string, body: unknown) =>
+      fetch(path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const { id } = await (await json("POST", "/api/items", { content_md: `Per-version fixture ${stamp}` })).json();
+    const form = new FormData();
+    form.set("item_id", id);
+    form.set("alt", "the figure");
+    form.set("file", new File([`PNG fixture ${stamp}`], "fig.png", { type: "image/png" }));
+    if ((await fetch("/api/media", { method: "POST", body: form })).status !== 201) throw new Error("upload failed");
+    if ((await json("POST", `/api/items/${id}/publish`, {})).status !== 200) throw new Error("publish failed");
+    return id as string;
+  }, `${test.info().project.name} ${Date.now()}`);
+  await page.goto(`/studio/edit/${id}`);
+  await openCard(page, "attachments");
+  const row = page.locator('.media:not([data-dropped]) .attachment');
+  await expect(row).toContainText("shown below the post");
+  const drop = row.locator('[data-action="remove-media"]');
+  await expect(drop).toHaveText("drop from the next version");
+  const removed = page.waitForResponse((r) => r.url().includes("/api/media/") && r.request().method() === "DELETE");
+  await drop.click();
+  expect((await removed).status()).toBe(200);
+  const dropped = page.locator("[data-dropped] .attachment");
+  await expect(dropped).toContainText("the figure");
+  await expect(dropped).toContainText("leaves with the next one");
+  expect(errors).toEqual([]);
+});
+
 test("the composer autosaves real text, and not a stray keystroke", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));

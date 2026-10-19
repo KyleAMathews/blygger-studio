@@ -311,6 +311,8 @@ describe("social / meta tags (session 19)", () => {
     const up = (await (
       await SELF.fetch(`${BASE}/api/media`, { method: "POST", headers: { cookie }, body: form })
     ).json()) as any;
+    // An attachment joins the item with its next version (migration 0031).
+    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
     const withImage = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(withImage).toContain(`<meta property="og:image" content="https://example.org/blyg/${up.url}">`);
     expect(withImage).toContain('<meta name="twitter:card" content="summary_large_image">');

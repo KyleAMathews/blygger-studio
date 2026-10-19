@@ -11,7 +11,7 @@ import {
   feedEvents,
   getMedia,
   lastUpdated,
-  listMediaForItem,
+  listVersionMedia,
   listPublic,
   listVersions,
   publishedVersion,
@@ -59,7 +59,7 @@ export async function buildItemJson(db: D1Database, settings: Settings, item: It
   const latest = await publishedVersion(db, item);
   const contentMd = isWithdrawn ? "" : (latest?.content_md ?? "");
   const contentHtml = isWithdrawn ? "" : (latest?.content_html ?? "");
-  const media = isWithdrawn ? [] : await listMediaForItem(db, item.id);
+  const media = isWithdrawn ? [] : await listVersionMedia(db, item.id, item.version);
   const changelog = (await listVersions(db, item.id)).map((v) => ({
     version: v.version,
     at: v.published_at,
@@ -226,12 +226,14 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
   // friends reported "invalid feed"). Same bytes out, fixed query count.
   const liveItems = events.filter(({ item }) => item.kind !== "withdrawn");
   const livePairs = JSON.stringify([...new Map(liveItems.map(({ item }) => [item.id, { id: item.id, version: item.version }])).values()]);
-  const allIds = JSON.stringify([...new Set(events.map(({ item }) => item.id))]);
   const withdrawnIds = JSON.stringify([...new Map(events.filter(({ item }) => item.kind === "withdrawn").map(({ item }) => [item.id, { id: item.id, version: item.version }])).values()]);
   const [latestRes, mediaRes, prevRes] = await db.batch([
     db.prepare(`SELECT v.item_id, v.content_md, v.content_html, v.transclusions, v.stub_of, v.stub_cite FROM json_each(?) s JOIN versions v
       ON v.item_id = json_extract(s.value, '$.id') AND v.version = json_extract(s.value, '$.version')`).bind(livePairs),
-    db.prepare(`SELECT m.* FROM json_each(?) s JOIN media m ON m.item_id = s.value ORDER BY m.created ASC`).bind(allIds),
+    // Each live item's latest version's own attachments (migration 0031).
+    db.prepare(`SELECT vm.item_id, m.r2_key, m.alt, m.inline FROM json_each(?) s JOIN version_media vm
+      ON vm.item_id = json_extract(s.value, '$.id') AND vm.version = json_extract(s.value, '$.version')
+      JOIN media m ON m.id = vm.media_id ORDER BY m.created ASC, m.rowid ASC`).bind(livePairs),
     db.prepare(`SELECT v.item_id, v.transclusions FROM json_each(?) s JOIN versions v
       ON v.item_id = json_extract(s.value, '$.id') AND v.version = json_extract(s.value, '$.version') - 1`).bind(withdrawnIds),
   ]);
@@ -240,7 +242,7 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
     latestById.set(v.item_id, v);
   }
   const mediaById = new Map<string, Array<{ r2_key: string; alt: string | null; inline?: number }>>();
-  for (const m of mediaRes.results as unknown as Array<{ item_id: string; r2_key: string; alt: string | null }>) {
+  for (const m of mediaRes.results as unknown as Array<{ item_id: string; r2_key: string; alt: string | null; inline: number }>) {
     const list = mediaById.get(m.item_id) ?? [];
     list.push(m);
     mediaById.set(m.item_id, list);

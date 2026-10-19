@@ -305,15 +305,18 @@ export function makeApp(mount: string) {
     if (!media || media.r2_key !== `media/${file}`) return c.notFound();
     // §5.4: a published media URL MUST always serve the same bytes, and §9
     // withdrawal does not cascade. Public uses: the avatar, an attachment on an
-    // item ever published (attaching there needs publish scope), and anything
-    // a published version's text shows. Unused uploads stay owner-only.
-    // Indexed checks run first; the scan of every version is the last resort.
+    // item ever published (attaching there needs publish scope), anything a
+    // published version lists (migration 0031: detached rows included), and
+    // anything a published version's text shows. Unused uploads stay
+    // owner-only. Indexed checks run first; the scan of every version is the
+    // last resort.
     const publicUse = await c.env.DB.prepare(`SELECT 1 WHERE
       EXISTS (SELECT 1 FROM settings WHERE key='avatar_media_id' AND value=?)
       OR EXISTS (SELECT 1 FROM items WHERE id=? AND version>0 AND ?<>1)
+      OR EXISTS (SELECT 1 FROM version_media WHERE media_id=?)
       OR EXISTS (SELECT 1 FROM versions WHERE item_id=? AND instr(content_html, ?) > 0)
       OR EXISTS (SELECT 1 FROM versions WHERE instr(content_html, ?) > 0)`)
-      .bind(media.id, media.item_id, media.inline ?? 0, media.item_id, media.r2_key, media.r2_key).first();
+      .bind(media.id, media.item_id, media.inline ?? 0, media.id, media.item_id, media.r2_key, media.r2_key).first();
     if (!publicUse) {
       c.header('Cache-Control', 'no-store');
       const url = new URL(c.req.url);

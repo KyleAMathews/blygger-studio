@@ -28,8 +28,8 @@ async function fixture() {
   const login = await receive('/blyg/studio/login', { method: 'POST', headers: { 'CF-Connecting-IP': 'fd00:' + crypto.randomUUID().replaceAll('-', '').match(/.{4}/g)!.slice(0,7).join(':') }, body: new URLSearchParams({ password: env.OWNER_PASSWORD }) });
   expect(login.status).toBe(302); const cookie = login.headers.get('set-cookie')!.split(';')[0];
   const owner = (path: string, method = 'GET', body?: unknown) => receive(path, { method, headers: { cookie, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-  const upload = async (item?: string, inline = false) => {
-    const form = new FormData(); form.set('file', new File(['private fixture bytes'], 'private.png', { type: 'image/png' }));
+  const upload = async (item?: string, inline = false, bytes = 'private fixture bytes') => {
+    const form = new FormData(); form.set('file', new File([bytes], 'private.png', { type: 'image/png' }));
     if (item) form.set('item_id', item); if (inline) form.set('inline', 'true');
     const response = await receive('/api/media', { method: 'POST', headers: { cookie }, body: form });
     expect(response.status).toBe(201); return response.json() as Promise<{id:string;url:string}>;
@@ -75,7 +75,8 @@ it.each([false, true])('withdrawal keeps published media and leaves later upload
   // Attaching to an ever-published item is itself a publish act (publish scope);
   // an inline upload is public only once published text shows it.
   if (inline) {
-    const later = await f.upload(id, true);
+    // Other bytes: the same file again would be the published row (studio#7).
+    const later = await f.upload(id, true, 'later fixture bytes');
     expect((await receive('/blyg/' + later.url)).status, 'an inline upload no published text showed stays private on a withdrawn item').toBe(404);
   }
 });

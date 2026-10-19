@@ -366,9 +366,9 @@ export const itemHistory = createCollection(
         const ids = subsetIds(context);
         if (!ids) throw new Error('Item history requires an id predicate');
         return existing(ids, async (id) => {
-          const { authored_kind, media, versions, published } =
+          const { authored_kind, media, published_media, versions, published } =
             await readItem(id, generation);
-          return { id, authored_kind, media, versions, published };
+          return { id, authored_kind, media, published_media, versions, published };
         });
       }),
     select: (response) => response.data,

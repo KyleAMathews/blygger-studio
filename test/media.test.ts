@@ -46,6 +46,8 @@ describe("media (§3.3)", () => {
       item_id: id,
       alt: "the alt text",
     });
+    // An attachment joins the item with its next version (migration 0031).
+    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
 
     const item = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     expect(item.media).toEqual([{ url: json.url, mime: "image/png", alt: "the alt text" }]);
@@ -84,3 +86,42 @@ describe("avatar resolution (session 19)", () => {
   });
 });
 
+
+describe("duplicate uploads (studio#7, migration 0028)", () => {
+  const png = (...b: number[]) => new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, ...b])], "p.png", { type: "image/png" });
+
+  it("returns the existing row for the same bytes on the same item, and stores nothing", async () => {
+    const cookie = await login();
+    const id = await createAndPublish(cookie, "fragment with a repeated image");
+    const first = await upload(cookie, png(1, 2), { item_id: id, alt: "first" });
+    expect(first.status).toBe(201);
+    const again = await upload(cookie, png(1, 2), { item_id: id, alt: "second" });
+    expect(again.status).toBe(200);
+    expect(again.json).toEqual({ id: first.json.id, url: first.json.url, mime: "image/png", duplicate: true });
+    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
+
+    const item = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
+    expect(item.media).toEqual([{ url: first.json.url, mime: "image/png", alt: "first" }]);
+  });
+
+  it("stores a new row for different bytes, another type, another item, another placement, or no item", async () => {
+    const cookie = await login();
+    const a = await createAndPublish(cookie, "item a");
+    const b = await createAndPublish(cookie, "item b");
+    const base = await upload(cookie, png(3), { item_id: a });
+    expect(base.status).toBe(201);
+    const others = [
+      await upload(cookie, png(4), { item_id: a }),
+      await upload(cookie, new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 3])], "p.webp", { type: "image/webp" }), { item_id: a }),
+      await upload(cookie, png(3), { item_id: b }),
+      await upload(cookie, png(3), { item_id: a, inline: "true" }),
+      await upload(cookie, png(3)),
+      await upload(cookie, png(3)),
+    ];
+    for (const r of others) {
+      expect(r.status).toBe(201);
+      expect(r.json.duplicate).toBeUndefined();
+    }
+    expect(new Set([base, ...others].map((r) => r.json.id)).size).toBe(7);
+  });
+});

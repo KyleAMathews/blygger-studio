@@ -23,6 +23,7 @@ import {
   getMedia,
   getSettings,
   getVersion,
+  findDuplicateMedia,
   insertMedia,
   pinVersion,
   publish,
@@ -47,7 +48,7 @@ import { BLOCKING, staleThreads, threadFreshness } from "./freshness.ts";
 import { draftChangeNote } from "./change-note.ts";
 import { platformFetchFor } from "./importer/http.ts";
 import { reconcileIndex } from "./importer/poll.ts";
-import { isFollowableUrl, isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
+import { hex, isFollowableUrl, isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
 
 const MEDIA_TYPES: Record<string, string> = {
   "image/png": "png",
@@ -408,9 +409,19 @@ api.openapi(routes.uploadMedia, async (c) => {
   if (typeof itemId === "string" && itemId && !(await getItem(c.env.DB, itemId))) {
     return c.json({ error: "item_id not found" }, 404);
   }
+  const bytes = await file.arrayBuffer();
+  // The studio sends inline=true for an upload it places in the text
+  // (studio#24): shown only where its line is, never appended.
+  const inline = form?.get("inline") === "true" ? 1 : 0;
+  // The same file (bytes and type) uploaded to the same item in the same
+  // placement is the same attachment (studio#7): return the row already
+  // there, store nothing.
+  const sha256 = typeof itemId === "string" && itemId ? hex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))) : null;
+  const existing = sha256 ? await findDuplicateMedia(c.env.DB, itemId as string, sha256, file.type, inline) : null;
+  if (existing) return c.json({ id: existing.id, url: existing.r2_key, mime: existing.mime, duplicate: true }, 200);
   const id = newMediaId();
   const r2Key = `media/${id}.${ext}`;
-  await c.env.MEDIA.put(r2Key, await file.arrayBuffer(), { httpMetadata: { contentType: file.type } });
+  await c.env.MEDIA.put(r2Key, bytes, { httpMetadata: { contentType: file.type } });
   const alt = form?.get("alt");
   const row = await insertMedia(c.env.DB, {
     id,
@@ -418,15 +429,15 @@ api.openapi(routes.uploadMedia, async (c) => {
     r2_key: r2Key,
     mime: file.type,
     alt: typeof alt === "string" ? alt : null,
-    // The studio sends inline=true for an upload it places in the text
-    // (studio#24): shown only where its line is, never appended.
-    inline: form?.get("inline") === "true" ? 1 : 0,
-  }, c.get('draftOnlyMedia') === true);
+    inline,
+  }, c.get('draftOnlyMedia') === true, sha256);
   if (!row) {
     await c.env.MEDIA.delete(r2Key);
     c.header('WWW-Authenticate', 'Bearer error="insufficient_scope", scope="owner:draft owner:publish"');
     return c.json({ error: 'owner:publish required to attach media to a published item' }, 403);
   }
+  // A published item lists it from its next version on (migration 0031).
+  if (row.item_id) await c.env.DB.prepare("UPDATE items SET dirty = 1 WHERE id = ? AND status = 'public'").bind(row.item_id).run();
   c.header("Location", `/${normalizeMount(c.env.MOUNT).replace(/^\//, "")}/${row.r2_key}`.replace(/^\/\//, "/"));
   return c.json({ id: row.id, url: row.r2_key, mime: row.mime }, 201);
 });
@@ -434,8 +445,9 @@ api.openapi(routes.uploadMedia, async (c) => {
 /**
  * Remove an attachment from its item (studio#24, #7). A media URL is a promise
  * to serve the same bytes (§5.4), so bytes any published version still shows
- * are kept and the row is only detached — it leaves the item, its page and its
- * `media` list. Bytes nothing published references are deleted outright.
+ * are kept and the row is only detached: it leaves the working copy, so the
+ * next version goes without it, while the versions that listed it keep it
+ * (migration 0031). Bytes nothing published references are deleted outright.
  * The avatar is not an attachment and is refused.
  */
 api.openapi(routes.deleteMedia, async (c) => {
@@ -443,9 +455,14 @@ api.openapi(routes.deleteMedia, async (c) => {
   const row = await getMedia(db, c.req.param("id"));
   if (!row) return c.json({ error: "not found" }, 404);
   if ((await getSettings(db)).avatar_media_id === row.id) return c.json({ error: "this is the avatar; change it in Settings" }, 409);
-  const published = await db.prepare("SELECT 1 FROM versions WHERE instr(content_html, ?) > 0 LIMIT 1").bind(row.r2_key).first();
+  // An appended attachment is in no version's text, only in its list.
+  const published = await db.prepare("SELECT 1 WHERE EXISTS (SELECT 1 FROM version_media WHERE media_id = ?) OR EXISTS (SELECT 1 FROM versions WHERE instr(content_html, ?) > 0)").bind(row.id, row.r2_key).first();
   if (published) {
-    await db.prepare("UPDATE media SET item_id = NULL WHERE id = ?").bind(row.id).run();
+    // The working copy now differs from the live version, which still lists it.
+    await db.batch([
+      db.prepare("UPDATE items SET dirty = 1 WHERE id = ? AND status = 'public' AND EXISTS (SELECT 1 FROM version_media WHERE item_id = ? AND version = items.version AND media_id = ?)").bind(row.item_id, row.item_id, row.id),
+      db.prepare("UPDATE media SET item_id = NULL WHERE id = ?").bind(row.id),
+    ]);
     return c.json({ ok: true, outcome: "detached" as const });
   }
   await c.env.MEDIA.delete(row.r2_key);
