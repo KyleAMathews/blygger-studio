@@ -42,6 +42,8 @@ export type ChangeState = {
         signals: number;
         settings: number;
         feed: number;
+        mentions: number;
+        responses: number;
     };
 };
 

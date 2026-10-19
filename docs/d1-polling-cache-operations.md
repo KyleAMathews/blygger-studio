@@ -6,6 +6,40 @@ tables. Relevant source writes and counter changes commit or roll back together.
 Missing state and unsafe counter overflow reject writes rather than silently
 lose notifications. No application mutation caller needs an invalidation hook.
 
+### Mentions and responses domains (migration 0032)
+
+`0032_mentions_change_domain.sql` adds two counters to `change_state` and six
+triggers (insert, update, delete on `mentions_in` and `mentions_out`), so the
+tracked set is now 36 `change_*` triggers over twelve tables (27 from 0024, three
+from 0026 on `read_state`, six here):
+
+| Domain | Moves when | Read by |
+|---|---|---|
+| `mentions` | any `mentions_out` change; a `mentions_in` change to a row whose status is, or was, `verified` or `gone` | Studio mentions view (both lists) and, with `reading`, each mention's source card |
+| `responses` | a `mentions_in` change to a row that is, or was, `verified` and not hidden | public HTML: the responses list under an item (`listPublicResponses`) |
+
+`responses` is in the public HTML cache key (`publicHtmlRevision`), so a newly
+verified response, a hide or a show reaches the item page at once instead of
+after the edge window (60 s plus up to 300 s stale-while-revalidate). A pending
+claim, its failure and the daily prune of failed claims move neither counter:
+anyone can POST a claim, and if claims rolled the key a stranger could empty
+the edge cache at the receiver's rate cap. They still write the state row once,
+like every tracked table, and are refused if it is missing.
+
+Apply 0032 before deploying a Worker that reads these columns: `/api/changes`
+selects every domain by name and fails without them, which stops Studio from
+loading new data, and public pages fall back to the plain cache key (the
+pre-0.46.1 60-second behaviour) until the migration lands. The first deploy
+after 0032 changes every public cache key once, so each page renders fresh on
+its next read.
+
+Studio already polled the mentions view every 15 seconds, re-reading both lists
+in full and every row's source card on each tick. Those reads are now gated on
+the counters like every other owner read, so an unchanged tick costs one
+`/api/changes` read per collection. Polls stop while the tab or installed PWA is
+hidden and run at once on `visibilitychange` back to visible and on window
+focus (`src/ui/polling.ts`), for every domain.
+
 The feed uses the existing `MEDIA` R2 binding. Objects under `__cache/feed/` are
 internal XML artifacts, separate from attachment paths. Keys include software/
 renderer version, request origin and mount. No new secret, bucket or Durable
@@ -69,7 +103,11 @@ write totals separately; these changes do not establish a free-plan capacity.
 ## Database restores
 
 Pause requests and disable cron triggers before restoring/replacing D1. Apply any missing migrations if
-the backup predates `0024_change_state.sql`. Then run:
+the backup predates `0024_change_state.sql`, and in particular `0032_mentions_change_domain.sql`:
+the reset script below names the `mentions` and `responses` columns and fails on a
+database without them. A restore brings back mention rows as they were at the backup,
+so a response verified or hidden since then is undone on the public page too; the new
+epoch makes every Studio and public cache entry re-read. Then run:
 
 ```sh
 npx wrangler d1 execute DB --remote --file scripts/reset-change-epoch.sql

@@ -37,7 +37,9 @@ export const zChangeState = z.object({
         hoppers: z.int().gte(0).lte(9007199254740991),
         signals: z.int().gte(0).lte(9007199254740991),
         settings: z.int().gte(0).lte(9007199254740991),
-        feed: z.int().gte(0).lte(9007199254740991)
+        feed: z.int().gte(0).lte(9007199254740991),
+        mentions: z.int().gte(0).lte(9007199254740991),
+        responses: z.int().gte(0).lte(9007199254740991)
     })
 });
 

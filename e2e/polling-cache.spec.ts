@@ -75,3 +75,49 @@ test('a buffered query response keeps its pre-fetch revision and receives a late
     await expect(page.getByText(marker, { exact: false }).first()).toBeVisible();
   } finally { release(); }
 });
+
+// Delivery was never the delay: live mentions verify in seconds. What lagged
+// was every view of them. A verified mention written by the receiver (here the
+// fixture's stand-in for verifyMention) must reach an open mentions view within
+// one poll, and a view resumed from the background must check at once.
+test('a newly verified mention reaches the open mentions view in one poll, and a resumed view checks at once', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  await page.clock.install();
+  await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
+  await page.getByRole('button', { name: 'log in', exact: true }).click(); await expect(page.locator('#composer-text')).toBeVisible();
+  const marker = `Live mention target ${crypto.randomUUID()}`;
+  const item = await page.evaluate(async content_md => {
+    const created = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md, kind: 'thread' }) })).json() as { id: string };
+    await fetch(`/api/items/${created.id}/publish`, { method: 'POST' });
+    return created.id;
+  }, marker);
+  await page.goto('/studio/mentions');
+  await expect(page.locator('.mention-group').first()).toBeVisible();
+  await page.clock.pauseAt(new Date(Date.now() + 10_000));
+  const group = page.locator('.mention-group').filter({ hasText: marker });
+  await expect(group).toHaveCount(0);
+  const id = `live${Date.now()}`;
+  expect((await request.post('http://127.0.0.1:8789/__fixture/verified-mention', { data: { id, item, origin: 'https://responder.example/' } })).status()).toBe(204);
+  await page.clock.runFor(15_000);
+  await expect(group).toContainText('1 responses');
+  await expect(group).toContainText('Live responder');
+  await expect(group.getByRole('button', { name: 'hide from page', exact: true })).toBeVisible();
+
+  // Backgrounded: no reads at all, however long it stays hidden.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  const reads: string[] = [];
+  page.on('request', r => { if (r.method() === 'GET' && new URL(r.url()).pathname.startsWith('/api/')) reads.push(new URL(r.url()).pathname); });
+  expect(await page.evaluate(async id => (await fetch(`/api/mentions/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ hidden: true }) })).ok, id)).toBe(true);
+  await page.clock.runFor(60_000);
+  expect(reads).toEqual([]);
+  // Resumed: the check runs on the visibility change, not at the next tick.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(group.getByRole('button', { name: 'show on page', exact: true })).toBeVisible();
+  expect(reads).toContain('/api/changes');
+});

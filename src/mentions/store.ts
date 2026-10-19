@@ -309,8 +309,10 @@ export async function pendingInboundCount(db: D1Database, now: number = Date.now
  */
 export async function pruneFailedInbound(db: D1Database, now: number = Date.now()): Promise<number> {
   const cutoff = new Date(now - FAILED_INBOUND_RETENTION_MS).toISOString();
-  const res = await db.prepare("DELETE FROM mentions_in WHERE status = 'failed' AND last_seen < ?").bind(cutoff).run();
-  return res.meta.changes ?? 0;
+  // Counted from the rows deleted, not meta.changes: D1 adds the change-state
+  // trigger's write to that count (0032), which keeps only its zero/nonzero meaning.
+  const res = await db.prepare("DELETE FROM mentions_in WHERE status = 'failed' AND last_seen < ? RETURNING id").bind(cutoff).all();
+  return res.results.length;
 }
 
 /**
