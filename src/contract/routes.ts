@@ -4,6 +4,7 @@ import { ErrorSchema, route } from "./route.ts";
 import { extensionRoutes } from "../../extensions/catalog.ts";
 import { SettingsSchema, HopperItemRowSchema, SignalRowSchema, MentionOutRowSchema } from "./schemas.ts";
 import { CHANGE_DOMAINS } from '../change-state.ts';
+import { CHANGE_CATEGORIES } from "../change-category.ts";
 import { READ_BATCH_MAX, READ_ID_MAX, READ_VERSION_MAX } from '../importer/read-state.ts';
 import { IMPORTED_READING_MAX, READING_CURSOR_MAX, decodeReadingCursor } from '../imported-reading.ts';
 
@@ -20,8 +21,9 @@ export const ItemCreateSchema = z.union([
   z.object({ mode: z.literal("response"), source: z.object({ subscription_id: z.string().min(1), remote_id: z.string().min(1) }).strict(), selection: z.string().optional() }).strict(),
 ]);
 const toggle = z.boolean();
-const settingsBody = SettingsSchema.partial().extend({ accept_mentions: toggle.optional(), update_check: toggle.optional(), show_responses_default: toggle.optional(), highlight_generated_default: toggle.optional(), auto_change_notes: toggle.optional(), update_notice_ack: toggle.optional() }).strict();
+const settingsBody = SettingsSchema.partial().extend({ accept_mentions: toggle.optional(), update_check: toggle.optional(), show_responses_default: toggle.optional(), highlight_generated_default: toggle.optional(), auto_change_notes: toggle.optional(), change_category_in_note: toggle.optional(), update_notice_ack: toggle.optional() }).strict();
 const note = z.object({ note: z.string().optional() });
+const changeCategory = z.enum(CHANGE_CATEGORIES);
 const version = z.object({ version: z.number().int().positive() });
 const page = z.object({ offset: z.coerce.number().int().min(0).optional(), limit: z.coerce.number().int().min(1).max(100).optional() });
 const collection = (schema: z.ZodType) => z.object({ items: z.array(schema), total: z.number().int().nonnegative(), offset: z.number().int().nonnegative(), limit: z.number().int().positive() });
@@ -64,7 +66,7 @@ export const AiModelsSchema = z.object({
     binding: z.string().optional().describe("Workers AI only: the Worker binding the provider calls (studio#8)."),
     configured: z.boolean().describe("The key secret is set, the binding is bound, or the provider needs neither."),
   })),
-  models: z.array(z.object({ id: z.string(), provider: z.string(), label: z.string(), note: z.string().optional() })),
+  models: z.array(z.object({ id: z.string(), provider: z.string(), label: z.string(), note: z.string().optional(), kind: z.literal("decision").optional().describe("A decision model (Clef, Jev): offered only for the change classifier (ai_model_classify), never for text generation.") })),
   local: z.boolean(),
 }).openapi("AiModels");
 const readVersion = z.number().int().min(1).max(READ_VERSION_MAX);
@@ -79,7 +81,8 @@ export const routes = {
   getChanges: route('getChanges', 'get', '/changes', z.object({ epoch: z.string().min(1), domains: z.object(Object.fromEntries(CHANGE_DOMAINS.map(domain => [domain, z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)])) as Record<typeof CHANGE_DOMAINS[number], z.ZodNumber>) }).openapi('ChangeState')),
   createItem: route("createItem", "post", "/items", created, ItemCreateSchema, 201, undefined, true),
   updateItem: route("updateItem", "patch", "/items/{id}", ItemSchema, ItemEditSchema),
-  publishItem: route("publishItem", "post", "/items/{id}/publish", ok.extend({ version: z.number(), warning: z.string().optional() }), note.extend({ note_generated: z.boolean().optional() }), 200, undefined, true),
+  publishItem: route("publishItem", "post", "/items/{id}/publish", ok.extend({ version: z.number(), warning: z.string().optional() }), note.extend({ note_generated: z.boolean().optional(), change_category: changeCategory.nullable().optional().describe("The change category the author confirmed in the publish dialog: kept with the version in studio-private storage (never on the wire). Omitted: a classification made for these words stands; null: cleared.") }), 200, undefined, true),
+  classifyChange: route("classifyChange", "post", "/items/{id}/classify", z.object({ version: z.number().int().describe("The version the working copy would publish as."), category: changeCategory.nullable().describe("Null when no category could be had; see reason."), model: z.string().nullable().describe("The decision model that answered; null for refresh, decided locally from content_hash."), probability: z.number().nullable(), reason: z.string().optional().describe("Why there is no category: a provider error, an exhausted AI budget, or an unusable answer. Never fatal: publish as usual.") })),
   draftNote: route("draftNote", "post", "/items/{id}/note-draft", z.object({ note: z.string(), model: z.string(), pinned_prior: z.boolean() })),
   generateItem: route("generateItem", "post", "/items/{id}/generate", z.object({ text: z.string(), model: z.string(), content_md: z.string() }), z.object({ scope: z.number().int().min(0) })),
   withdrawItem: route("withdrawItem", "post", "/items/{id}/withdraw", ok.extend({ version: z.number() }), note, 200, undefined, true),

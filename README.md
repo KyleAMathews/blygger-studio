@@ -231,6 +231,22 @@ The list comes from `models.json`, merged at build with your gitignored
 | `gemini-generate` | Gemini generateContent | `key_secret` (shipped: `GOOGLE_AI_KEY`) |
 | `workers-ai` | Cloudflare Workers AI, through the Worker's binding | an `ai` binding (`binding`, default `AI`); no key |
 | `openai-chat` | any OpenAI-compatible Chat Completions endpoint | `base_url`, and `key_secret` unless the endpoint is keyless |
+| `systemone` | TypeSafe's System One decision API (Jev), `POST {base_url}/systemone` | `key_secret` (shipped: `TYPESAFE_API_KEY`); `base_url` optional, default `https://api.typesafe.ai/v1` |
+
+**Decision models and the change classifier.** A model listed with
+`"kind": "decision"`, and every `systemone` model, is a decision model: it
+answers typed questions with probabilities and writes no text. Decision models
+are offered only for the change classifier (Settings → AI → change classifier,
+`ai_model_classify`), and text models never are. The classifier is **off by
+default**; with a model chosen, the publish dialog labels each new version of
+your own items `typo`, `minor` or `major` (a republish of the same words is
+`refresh`, decided with no model call), and you can change or clear the label.
+The shipped list has Clef and Clef-flash on Workers AI (the `ai` binding; their
+`params` carry the request's `model` selector) and `jev-latest` on TypeSafe (set
+`npx wrangler@4 secret put TYPESAFE_API_KEY`). Each classification is one call
+against the daily AI budget. The label is kept privately with the version and
+never sent as data: readers see it only as words in your change note. See
+[`docs/api.md`](docs/api.md#change-classifier).
 
 **Workers AI.** The shipped list includes Gemma 4 26B and a few other `@cf/…`
 models, and any `@cf/…` id typed in with *other…* runs there too. Inference is

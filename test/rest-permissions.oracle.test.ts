@@ -27,7 +27,7 @@ import { routes } from '../src/contract/routes.ts';
 
 const model = {
   'owner:read': ['getChanges','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','extLineageGlyphGetLineage','extLineageGlyphListSummaries'],
-  'owner:draft': ['createItem','updateItem','deleteItem','restoreItem','uploadMedia','generateItem','draftNote','preview'],
+  'owner:draft': ['createItem','updateItem','deleteItem','restoreItem','uploadMedia','generateItem','draftNote','classifyChange','preview'],
   'owner:publish': ['publishItem','withdrawItem','pinItem','refreshItem','deleteMedia'],
   'owner:manage': ['updateSettings','createSubscription','updateSubscription','resyncSubscription','pollAllSubscriptions','deleteSubscription','createHopper','updateHopper','deleteHopper','addHopperItem','removeHopperItem','setSignal','deleteSignal','updateMention'],
   'reading:state': ['markRead','markReadBatch','markUnread','markUnreadBatch'],

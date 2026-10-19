@@ -1,8 +1,9 @@
 import { createCollection, createPacedMutations, localOnlyCollectionOptions, throttleStrategy } from '@tanstack/react-db';
 import { z } from 'zod';
+import { CHANGE_CATEGORIES } from '../change-category.ts';
 import type {
   GetItemResponses, UpdateItemResponses, GenerateItemResponses, PublishItemResponses,
-  DeleteItemResponses, WithdrawItemResponses, PinItemResponses, DraftNoteResponses,
+  DeleteItemResponses, WithdrawItemResponses, PinItemResponses, DraftNoteResponses, ClassifyChangeResponses,
 } from '../../sdk/dist/browser.js';
 
 const kind = z.enum(['fragment', 'thread']);
@@ -10,11 +11,13 @@ export const draftWriteSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('save'), text: z.string(), kind: kind.optional() }),
   z.object({ type: z.literal('generate'), scope: z.number().int().nonnegative() }),
   z.object({ type: z.literal('restore'), version: z.number().int().positive() }),
-  z.object({ type: z.literal('publish'), note: z.string(), generated: z.boolean() }),
+  // category: the change category the author confirmed (studio-private); omitted when the classifier did not run.
+  z.object({ type: z.literal('publish'), note: z.string(), generated: z.boolean(), category: z.enum(CHANGE_CATEGORIES).nullable().optional() }),
   z.object({ type: z.literal('delete') }),
   z.object({ type: z.literal('withdraw') }),
   z.object({ type: z.literal('pin'), version: z.number().int().positive() }),
   z.object({ type: z.literal('draft-note') }),
+  z.object({ type: z.literal('classify') }),
   z.object({ type: z.literal('update'), changes: z.object({
     kind: kind.optional(),
     highlight: z.enum(['default', 'show', 'hide']).optional(),
@@ -27,7 +30,7 @@ type Results = {
   save: UpdateItemResponses[200]; generate: GenerateItemResponses[200];
   restore: GetItemResponses[200]; publish: PublishItemResponses[200];
   delete: DeleteItemResponses[200]; withdraw: WithdrawItemResponses[200];
-  pin: PinItemResponses[200]; 'draft-note': DraftNoteResponses[200];
+  pin: PinItemResponses[200]; 'draft-note': DraftNoteResponses[200]; classify: ClassifyChangeResponses[200];
   update: UpdateItemResponses[200];
 };
 const requestSchema = z.object({ key: z.string(), revision: z.number().int(), command: draftWriteSchema });

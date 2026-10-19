@@ -179,6 +179,11 @@
 .note-confirm label { display: block; font-size: .8rem; font-weight: 600; color: var(--ink-soft); margin-bottom: .25rem; }
 .note-confirm textarea { width: 100%; min-height: 5rem; margin-bottom: 8px; }
 .note-confirm .h-hint { font-size: .82rem; }
+/* The change classifier's chip row (session 49): one choice, or none. */
+.change-category { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
+.change-category-label { font-size: .8rem; font-weight: 600; color: var(--ink-soft); margin-right: 2px; }
+.change-category .chip { min-height: 32px; padding: 4px 12px; border: 1px solid var(--rule-strong); border-radius: 999px; background: var(--card); color: var(--ink); font: inherit; font-size: .85rem; cursor: pointer; }
+.change-category .chip-on { background: var(--ink); color: var(--card); border-color: var(--ink); }
 #h-viewer-body { font-size: .95rem; overflow-wrap: anywhere; }
 #h-viewer-body img { max-width: 100%; }
 #h-viewer-body blockquote.blyg-transclusion { margin: 1rem 0; padding: 8px 12px; border-left: 3px solid var(--pencil); background: var(--sunk); border-radius: 0 8px 8px 0; font-size: .92rem; }

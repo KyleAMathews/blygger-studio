@@ -1,4 +1,5 @@
 import { z } from "@hono/zod-openapi";
+import { CHANGE_CATEGORIES } from "../change-category.ts";
 import { ItemRowSchema, VersionRowSchema, MediaRowSchema, SubscriptionRowSchema, HopperRowSchema, ImportedItemRowSchema, MentionInRowSchema } from "./schemas.ts";
 import type { ItemRow, VersionRow, MediaRow, SubscriptionRow, HopperRow, ImportedItemRow, MentionInRow } from "../types.ts";
 
@@ -13,9 +14,12 @@ export const ItemSchema = z.object(ItemRowSchema.omit({ show_responses: true, re
   provenance: z.array(z.union([ProvenanceSchema, z.null()])),
   stub_of: z.union([StubSchema, z.null()]), forked_from: z.union([VersionReferenceSchema, z.null()]), fork_cite: z.union([CitationSchema, z.null()]),
 }).openapi("Item");
+/** The change classifier's record of one own version (migration 0030). Studio-private: never on the wire (#19 / TN-1, #77). */
+export const ChangeClassSchema = z.object({ category: z.enum(CHANGE_CATEGORIES).nullable(), model: z.string().nullable().describe("Null for refresh (decided locally) and for a category the author set by hand."), probability: z.number().nullable(), classified_at: z.string(), overridden: z.boolean().describe("The author changed or cleared the classifier's category before publishing.") }).openapi("ChangeClass");
 export const VersionSchema = z.object(VersionRowSchema.omit({ pinned: true, transclusions: true, generated_json: true, stub_of: true, stub_cite: true, note_generated: true }).shape).extend({
   kind: z.enum(["fragment", "thread", "withdrawn"]), pinned: z.boolean(), note_generated: z.boolean(), transclusions: z.array(TransclusionSchema), generated: z.array(ProvenanceSchema),
   stub_of: z.union([StubSchema, z.null()]), stub_cite: z.union([CitationSchema, z.null()]),
+  change_class: ChangeClassSchema.nullable().optional().describe("The change classifier's studio-private record of this version, in an item's versions; absent elsewhere. Never on the wire."),
 }).openapi("Version");
 export const MediaSchema = z.object(MediaRowSchema.omit({ r2_key: true }).shape).extend({ url: z.string() }).openapi("Media");
 export const SubscriptionSchema = z.object(SubscriptionRowSchema.omit({ etag: true, last_modified: true, newest_guid: true, in_blogroll: true, flags: true, title_auto: true }).shape).extend({ title_follows_source: z.boolean(), in_blogroll: z.boolean(), flags: z.array(z.object({ type: z.string(), at: z.string(), detail: z.string().optional() })) }).openapi("Subscription");

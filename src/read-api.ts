@@ -12,7 +12,8 @@ import { renderMarkdown, plainTextFromHtml } from "./markdown.ts";
 import { clampText } from "./preview.ts";
 import { applyInternalLinks, previewInternalLinks, previewTransclusions, resolveBlockLinks } from "./transclusion.ts";
 import { siteOrigin } from "./protocol.ts";
-import { MODELS, bindingName, configuredProviders } from "./ai/models.ts";
+import { MODELS, bindingName, configuredProviders, isDecisionModel } from "./ai/models.ts";
+import { changeClassesFor } from "./change-class.ts";
 import { INTERACTION_KINDS, listInteractions, listThumbs, type InteractionKind } from "./interactions.ts";
 import { normalizeMount } from "./util.ts";
 import type { Env, SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, MentionInRow, MentionOutRow } from "./types.ts";
@@ -56,7 +57,15 @@ async function presentVersion(row: Parameters<typeof versionResource>[0]) {
 }
 readApi.openapi(routes.getItem, async (c) => {
   const detail = await itemDetail(c.env.DB, c.req.param("id"));
-  return detail ? c.json({ ...itemResource(detail.item), authored_kind: detail.kind, media: detail.media.map(mediaResource), published_media: detail.publishedMedia.map(mediaResource), versions: await Promise.all(detail.versions.map(presentVersion)), published: detail.published ? await presentVersion(detail.published) : null }) : c.json({ error: "not found" }, 404);
+  if (!detail) return c.json({ error: "not found" }, 404);
+  // The change classifier's studio-private record rides on the owner's view of
+  // each version (migration 0030); protocol.ts never reads it.
+  const classes = await changeClassesFor(c.env.DB, detail.item.id, detail.item.version);
+  const withClass = async (row: Parameters<typeof versionResource>[0]) => {
+    const cls = classes.get(row.version);
+    return { ...(await presentVersion(row)), change_class: cls ? { category: cls.category, model: cls.model, probability: cls.probability, classified_at: cls.classified_at, overridden: cls.overridden === 1 } : null };
+  };
+  return c.json({ ...itemResource(detail.item), authored_kind: detail.kind, media: detail.media.map(mediaResource), published_media: detail.publishedMedia.map(mediaResource), versions: await Promise.all(detail.versions.map(withClass)), published: detail.published ? await withClass(detail.published) : null });
 });
 readApi.openapi(routes.getSettings, async (c) => c.json(settingsResource(await getSettings(c.env.DB))));
 readApi.openapi(routes.listSubscriptions, async (c) => {
@@ -111,7 +120,8 @@ readApi.openapi(routes.getAiModels, async (c) => {
       ...(p.api === "workers-ai" ? { binding: bindingName(p) } : {}),
       configured: configured[id] ?? false,
     })),
-    models: MODELS.models.map(({ id, provider, label, note }) => ({ id, provider, label, ...(note ? { note } : {}) })),
+    // A decision model is marked so Settings lists it only for the classifier.
+    models: MODELS.models.map(({ id, provider, label, note }) => ({ id, provider, label, ...(note ? { note } : {}), ...(isDecisionModel(id) ? { kind: "decision" as const } : {}) })),
     local: MODELS.local,
   });
 });

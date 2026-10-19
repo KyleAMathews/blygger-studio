@@ -73,6 +73,8 @@ it("exercises every declared operation through its named SDK method, including a
     ["refreshItem", 409, client => api.refreshItem({ client, path: { id } })],
     ["deleteMedia", 404, client => api.deleteMedia({ client, path: { id: "missing-media" } })],
     ["draftNote", 409, client => api.draftNote({ client, path: { id } })],
+    // Off (409) until Settings names a decision model, as it does not here.
+    ["classifyChange", 409, client => api.classifyChange({ client, path: { id } })],
     ["getImportedHistory", 404, client => api.getImportedHistory({ client, path: { sub: sub.id, id: "remote" } })],
     ["getImportedVersion", 404, client => api.getImportedVersion({ client, path: { sub: sub.id, id: "remote", v: 1 } })],
     ["withdrawItem", 200, client => api.withdrawItem({ client, path: { id } })],

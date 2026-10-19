@@ -46,6 +46,9 @@ import { runGenerateScope } from "./tk-generate.ts";
 import type { Env, ItemRow, SubscriptionRow } from "./types.ts";
 import { BLOCKING, staleThreads, threadFreshness } from "./freshness.ts";
 import { draftChangeNote } from "./change-note.ts";
+import { classifyChange, settleChangeClass } from "./change-class.ts";
+import type { ChangeCategory } from "./change-category.ts";
+import { isDecisionModel } from "./ai/models.ts";
 import { platformFetchFor } from "./importer/http.ts";
 import { reconcileIndex } from "./importer/poll.ts";
 import { hex, isFollowableUrl, isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
@@ -199,7 +202,7 @@ async function sendMentionsFor(
  * `refresh` take, so a refresh gets exactly a publish's checks and error
  * mapping. Returns the response to send.
  */
-async function publishAndNotify(c: Context<{ Bindings: Env }>, item: ItemRow, note: string | null, extra: Record<string, unknown> = {}, noteGenerated = false) {
+async function publishAndNotify(c: Context<{ Bindings: Env }>, item: ItemRow, note: string | null, extra: Record<string, unknown> = {}, noteGenerated = false, settle?: (version: number) => Promise<void>) {
   const origin = siteOrigin(await getSettings(c.env.DB), c.req.url, normalizeMount(c.env.MOUNT));
   // §2.4's publish-time check. It lives here rather than inside publish()
   // deliberately: publish() is network-free by design (#26 — quoting follows
@@ -224,6 +227,8 @@ async function publishAndNotify(c: Context<{ Bindings: Env }>, item: ItemRow, no
   const warning = [lineageNote, echoNote].filter(Boolean).join(" ") || undefined;
   try {
     const version = await publish(c.env.DB, item, note, origin, noteGenerated);
+    // Studio-private bookkeeping must never fail a publish that has happened.
+    if (settle) await settle(version).catch((e) => console.error("change class not settled", e));
     await sendMentionsFor(c, item.id, version);
     return c.json({ ok: true, version, ...extra, ...(warning ? { warning } : {}) });
   } catch (e) {
@@ -250,10 +255,27 @@ api.openapi(routes.publishItem, async (c) => {
   // TK-stripped (published) length, not the raw working copy — see FragmentTooLongError.
   const item = await getItem(c.env.DB, c.req.param("id"));
   if (!item) return c.json({ error: "not found" }, 404);
-  const body = await readJson<{ note?: string; note_generated?: boolean }>(c);
+  const body = await readJson<{ note?: string; note_generated?: boolean; change_category?: ChangeCategory | null }>(c);
   // note_generated is the studio's own assertion that the note is the drafted
   // text, unedited (#40) — self-asserted, like every provenance member.
-  return publishAndNotify(c, item, body.note?.trim() || null, {}, body.note_generated === true);
+  // change_category is studio-private (migration 0030): settled after the
+  // version exists, and never part of what publish() writes to the wire.
+  const requested = "change_category" in body ? body.change_category ?? null : undefined;
+  return publishAndNotify(c, item, body.note?.trim() || null, {}, body.note_generated === true, (version) => settleChangeClass(c.env.DB, item.id, version, requested));
+});
+
+/**
+ * Classify the change the working copy would publish (session 49). Never
+ * publishes; the publish dialog shows the answer as an editable chip. Off (409)
+ * until Settings names a decision model; a provider failure is a null category,
+ * never an error, so publish proceeds without one.
+ */
+api.openapi(routes.classifyChange, async (c) => {
+  const item = await getItem(c.env.DB, c.req.param("id"));
+  if (!item) return c.json({ error: "not found" }, 404);
+  const result = await classifyChange(c.env, item);
+  if (!result.ok) return c.json({ error: result.error }, result.status);
+  return c.json({ version: result.version, category: result.category, model: result.model, probability: result.probability, ...(result.reason ? { reason: result.reason } : {}) });
 });
 
 /** Draft a changelog note from the local diff (#40). Never publishes; the author edits and decides. */
@@ -485,6 +507,7 @@ const SETTINGS_KEYS = [
   "ai_model_tk",
   "ai_model_changelog",
   "ai_model_feed",
+  "ai_model_classify",
   "feed_prompt",
   "ai_style_prompt",
   "picker_typing",
@@ -507,8 +530,14 @@ api.openapi(routes.updateSettings, async (c) => {
   for (const key of SETTINGS_KEYS) {
     if (typeof body[key] === "string") patch[key] = body[key] as string;
   }
-  for (const key of ["accept_mentions", "update_check", "show_responses_default", "highlight_generated_default", "auto_change_notes", "update_notice_ack", "links_collections", "links_opml", "links_blygger_org", "links_blygger_com"] as const) {
+  for (const key of ["accept_mentions", "update_check", "show_responses_default", "highlight_generated_default", "auto_change_notes", "change_category_in_note", "update_notice_ack", "links_collections", "links_opml", "links_blygger_org", "links_blygger_com"] as const) {
     if (typeof body[key] === "boolean") patch[key] = body[key] ? "on" : "off";
+  }
+  // Decision models answer questions and write no text (src/ai/models.ts): the
+  // classifier takes only a decision model, and no text function takes one.
+  if (patch.ai_model_classify?.trim() && !isDecisionModel(patch.ai_model_classify.trim())) return c.json({ error: `ai_model_classify must be a decision model (Clef, Jev), not "${patch.ai_model_classify}"` }, 400);
+  for (const key of ["ai_model_tk", "ai_model_changelog", "ai_model_feed"] as const) {
+    if (patch[key]?.trim() && isDecisionModel(patch[key].trim())) return c.json({ error: `${key} cannot be a decision model ("${patch[key]}"): decision models write no text` }, 400);
   }
   if (typeof patch.picker_typing === "string" && !["auto", "editor", "panel"].includes(patch.picker_typing)) return c.json({ error: "picker_typing must be auto, editor or panel" }, 400);
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return c.json({ error: `unknown timezone: ${patch.timezone}` }, 400);

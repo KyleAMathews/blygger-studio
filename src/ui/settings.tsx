@@ -54,6 +54,7 @@ const fields = [
   'ai_model_tk',
   'ai_model_changelog',
   'ai_model_feed',
+  'ai_model_classify',
   'feed_prompt',
   'ai_style_prompt',
   'accept_mentions',
@@ -61,6 +62,7 @@ const fields = [
   'show_responses_default',
   'highlight_generated_default',
   'auto_change_notes',
+  'change_category_in_note',
   'update_feed_url',
   'extensions',
 ] as const;
@@ -173,6 +175,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
       | 'highlight_generated_default'
       | 'accept_mentions'
       | 'auto_change_notes'
+      | 'change_category_in_note'
       | 'links_collections'
       | 'links_opml'
       | 'links_blygger_org'
@@ -671,6 +674,39 @@ function SettingsForm({ initial }: { initial: Settings }) {
           </>,
         )}
       </section>
+      <section className="card" id="ai-classify">
+        <h3 className="card-h">change classifier</h3>
+        <p className="hint">
+          Off unless you choose a model. A decision model (Clef on Workers AI,
+          or TypeSafe&apos;s Jev) labels each new version <em>typo</em>,{' '}
+          <em>minor</em> or <em>major</em> before you publish it; a republish of
+          the same words is <em>refresh</em> with no model call. You see the
+          label and can change or clear it. It is kept privately with the
+          version and is never sent as data: readers see it only as the words
+          of your change note.
+        </p>
+        <ModelField
+          fkey="ai_model_classify"
+          label="Model"
+          name="change classifier"
+          decision
+          manifest={aiModels}
+          form={form}
+          change={change}
+        />
+        {form.ai_model_classify
+          ? toggle(
+              'change_category_in_note',
+              'Start the change note with the label',
+              <>
+                An empty note becomes the label (<code>minor</code>); a note
+                becomes <code>minor: your note</code>, unless it already starts
+                with a label. The publish dialog shows the note as it will
+                publish.
+              </>,
+            )
+          : null}
+      </section>
       <section className="card" id="ai-feed">
         <h3 className="card-h">smart feed</h3>
         <ModelField fkey="ai_model_feed" label="Model" name="feed scoring" hint="not used yet" manifest={aiModels} form={form} change={change} />
@@ -908,14 +944,19 @@ function ModelIntro({ manifest }: { manifest?: AiModels }) {
   );
 }
 
-type ModelKey = (typeof FUNCTIONS)[number]['key'];
+type ModelKey = (typeof FUNCTIONS)[number]['key'] | 'ai_model_classify';
 
-/** One AI function's model, chosen from the manifest or typed in (0.26.0). */
+/**
+ * One AI function's model, chosen from the manifest or typed in (0.26.0).
+ * `decision` lists decision models only (the change classifier); without it,
+ * decision models are left out, since they write no text.
+ */
 function ModelField({
   fkey,
   label,
   name = label,
   hint,
+  decision = false,
   manifest,
   form,
   change,
@@ -925,13 +966,16 @@ function ModelField({
   /** The function, for the typed-id box's label when `label` is just "Model". */
   name?: string;
   hint?: string;
+  decision?: boolean;
   manifest?: AiModels;
   form: Settings;
   change: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
 }) {
   const [other, setOther] = useState(false);
   const value = form[fkey];
-  const listed = !!manifest?.models.some((m) => m.id === value);
+  const models = (manifest?.models ?? []).filter((m) => (m.kind === 'decision') === decision);
+  const providers = (manifest?.providers ?? []).filter((p) => models.some((m) => m.provider === p.id));
+  const listed = models.some((m) => m.id === value);
   const isOther = other || (!!value && !!manifest && !listed);
   return (
     <div className="field model-field">
@@ -951,9 +995,9 @@ function ModelField({
         }}
       >
         <option value="">— none —</option>
-        {manifest?.providers.map((p) => (
+        {providers.map((p) => (
           <optgroup key={p.id} label={p.configured ? p.label : `${p.label} (${providerStatus(p)})`}>
-            {manifest.models
+            {models
               .filter((m) => m.provider === p.id)
               .map((m) => (
                 <option key={m.id} value={m.id}>
@@ -969,7 +1013,7 @@ function ModelField({
         <input
           type="text"
           aria-label={`${name} model id`}
-          placeholder="model id, e.g. claude-sonnet-5-5"
+          placeholder={decision ? 'model id, e.g. jev-1.14.0' : 'model id, e.g. claude-sonnet-5-5'}
           value={value}
           onChange={(event) => change(fkey, event.target.value)}
         />
