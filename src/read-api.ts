@@ -179,7 +179,7 @@ readApi.openapi(routes.preview, async (c) => {
   const origin = siteOrigin(await getSettings(c.env.DB), c.req.url, mount);
   const links = await previewInternalLinks(c.env.DB, tk.text, origin);
   // Links inside generated blocks resolve here too, as at publish (studio#14).
-  const blocks = await resolveBlockLinks(tk.blocks, (html) => previewInternalLinks(c.env.DB, html, origin, true));
+  const blocks = await resolveBlockLinks(tk, (md) => previewInternalLinks(c.env.DB, md, origin));
   const html = [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(renderMarkdown(links.text)));
   return c.json({ html, scopes: await scopeSummariesWithSources(c.env.DB, tk.scopes), link_errors: [...links.errors, ...blocks.errors] });
 });
@@ -285,7 +285,7 @@ async function threadPreview(c: Context<{ Bindings: Env }>) {
   const mount = normalizeMount(c.env.MOUNT);
   const origin = siteOrigin(await getSettings(c.env.DB), c.req.url, mount);
   const links = await previewInternalLinks(c.env.DB, tk.text, origin);
-  const blocks = await resolveBlockLinks(tk.blocks, (html) => previewInternalLinks(c.env.DB, html, origin, true));
+  const blocks = await resolveBlockLinks(tk, (md) => previewInternalLinks(c.env.DB, md, origin));
   const resolved = await previewTransclusions(c.env.DB, links.text, body.item_id);
   return c.json({
     html: [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(resolved.html)),

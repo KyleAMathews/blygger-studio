@@ -2,7 +2,7 @@
 // locked protocol surface: do not modify without Fable + Venkat.
 
 import { attachedQuote } from "./directives.ts";
-import { codeRanges, htmlCodeRanges, inRanges, lineOffsets, type Range } from "./code-ranges.ts";
+import { codeRanges, inRanges, lineOffsets } from "./code-ranges.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { renderMarkdown, selectionText } from "./markdown.ts";
@@ -10,6 +10,7 @@ import type { ImportedItemRow, ItemRow, TextQuoteSelector, Transclusion, Version
 import { absolutizeHtml, escapeHtml } from "./util.ts";
 import { DIRECTIVE_LINE, label, LINK_INLINE, RESERVED_LINE } from "./grammar.ts";
 import { linkLabel } from "./link-label.ts";
+import { renderGeneratedBlock } from "./tk.ts";
 
 /**
  * `[[id]]` — a plain internal link (§10.1, decision #32). The same bracket
@@ -430,13 +431,17 @@ function anchorText(target: ResolvedTarget): string {
  *
  * `ourOrigin` must be absolute: `content_html` travels to subscribers, where a
  * relative href would resolve against *their* origin and point at nothing.
+ *
+ * `contentMd` is always markdown, never rendered HTML: a label is the author's
+ * plain text, and HTML has already had markdown applied to it (`*em*` is
+ * `<em>` by then) and its `<`/`&` escaped. Generated blocks are resolved over
+ * their own markdown for that reason — see `resolveBlockLinks`.
  */
 export async function resolveInternalLinks(
   db: D1Database,
   contentMd: string,
   ourOrigin: string,
   onError: (err: TransclusionRefError) => string | null = () => null,
-  inert: (text: string) => Range[] = codeRanges,
 ): Promise<InternalLinkDocument> {
   const errors: TransclusionRefError[] = [];
   const replacements = new Map<string, string>();
@@ -444,10 +449,21 @@ export async function resolveInternalLinks(
   let out = "";
   let last = 0;
 
-  const code = inert(contentMd);
+  // A label is text, not markdown, so a backtick in one must not open a code
+  // span that swallows a later link. Each live link's label is blanked (same
+  // length, so offsets hold) and code found again. Left to right, so a span
+  // opened *before* a link still makes it inert, as markdown's own precedence
+  // has it (§10.1, #54).
+  let scanned = contentMd;
+  let code = codeRanges(scanned);
   for (const m of contentMd.matchAll(LINK_INLINE)) {
     const at = m.index ?? 0;
     if (inRanges(code, at)) continue; // inert inside code (§10.1, #54)
+    if (m[2]?.includes("`")) {
+      const end = at + m[0].length - 2; // the label runs up to the closing `]]`
+      scanned = scanned.slice(0, end - m[2].length) + " ".repeat(m[2].length) + scanned.slice(end);
+      code = codeRanges(scanned);
+    }
     out += contentMd.slice(last, at);
     last = at + m[0].length;
     const id = m[1];
@@ -498,10 +514,13 @@ const ENCODED_TOKEN = new RegExp(`${ENCODED_SENTINEL}(\\d+)${ENCODED_SENTINEL}`,
  */
 export function applyInternalLinks(html: string, doc: InternalLinkDocument): string {
   const label = (seq: string) => doc.labels.get(`${LINK_SENTINEL}${seq}${LINK_SENTINEL}`);
-  // 1. Tokens percent-encoded into attribute values: the author's literal, encoded the way the URL around it was.
+  // 1. Tokens percent-encoded into attribute values: the author's literal,
+  // encoded the way the URL around it was, and escaped like any attribute
+  // value — `encodeURI` keeps `&`, which a browser would read as an entity.
+  const inHref = (literal: string) => escapeHtml(encodeURI(literal));
   let out = html.replace(ENCODED_TOKEN, (whole, seq: string) => {
     const l = label(seq);
-    return l ? encodeURI(l.literal) : whole;
+    return l ? inHref(l.literal) : whole;
   });
   // 2. Walk tags and text, tracking whether we are inside an anchor or code.
   const parts = out.split(/(<[^>]*>)/);
@@ -523,7 +542,7 @@ export function applyInternalLinks(html: string, doc: InternalLinkDocument): str
       if (isTag) return escapeHtml(l.literal);
       if (inCode) return escapeHtml(l.literal);
       // An autolink's text is its URL: keep it reading as the URL it links to.
-      if (inAnchor) return anchorTag.includes(encodeURI(l.literal)) ? escapeHtml(l.literal) : l.text;
+      if (inAnchor) return anchorTag.includes(inHref(l.literal)) ? escapeHtml(l.literal) : l.text;
       return doc.replacements.get(token) ?? whole;
     });
     if (isTag && /^<a[\s>]/i.test(part)) { inAnchor++; anchorTag = parts[i]; }
@@ -536,18 +555,22 @@ export function applyInternalLinks(html: string, doc: InternalLinkDocument): str
  * block span is lifted out of the body and rendered on its own, so the body's
  * pass never sees it). Publish and preview both call this, so the preview shows
  * the links readers will get, and an unresolvable one is an error in both
- * places (studio#14). The input is rendered HTML, so code is `<code>`.
+ * places (studio#14).
+ *
+ * Resolved over each block's markdown, as the body is, and the block rendered
+ * again from the substituted text: resolving over its HTML would take a label
+ * that markdown had already rendered and escaped, and escape it a second time.
  */
 export async function resolveBlockLinks(
-  blocks: Map<string, string>,
-  resolve: (html: string) => Promise<InternalLinkDocument>,
+  blocks: { blockReplacements: Map<string, string>; blockSources: Map<string, string> },
+  resolve: (md: string) => Promise<InternalLinkDocument>,
 ): Promise<{ docs: InternalLinkDocument[]; errors: TransclusionRefError[] }> {
   const docs: InternalLinkDocument[] = [];
   const errors: TransclusionRefError[] = [];
-  for (const [token, blockHtml] of blocks) {
-    const doc = await resolve(blockHtml);
+  for (const [token, blockMd] of blocks.blockSources) {
+    const doc = await resolve(blockMd);
     if (doc.replacements.size || doc.errors.length) {
-      blocks.set(token, doc.text);
+      blocks.blockReplacements.set(token, renderGeneratedBlock(doc.text));
       errors.push(...doc.errors);
       docs.push(doc);
     }
@@ -560,12 +583,11 @@ export async function resolveBlockLinks(
  * the composer shows what publish will reject before the author hits publish —
  * the same contract as `previewTransclusions`.
  */
-export async function previewInternalLinks(db: D1Database, contentMd: string, ourOrigin: string, html = false): Promise<InternalLinkDocument> {
+export async function previewInternalLinks(db: D1Database, contentMd: string, ourOrigin: string): Promise<InternalLinkDocument> {
   return resolveInternalLinks(
     db,
     contentMd,
     ourOrigin,
     (err) => `<span class="blyg-link-unresolved" style="color:#b3412b">⚠ ${escapeHtml(err.reason)}</span>`,
-    html ? htmlCodeRanges : codeRanges,
   );
 }
