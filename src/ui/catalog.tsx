@@ -1,6 +1,6 @@
 import { previewFromHtml } from '../preview.ts';
 import { useMemo, useState } from 'react';
-import { useLiveQuery } from '@tanstack/react-db';
+import { count, useLiveQuery } from '@tanstack/react-db';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type { Mention } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
@@ -36,6 +36,7 @@ import { sourceTitleAndUrl } from '../importer/util.ts';
 import { confirm } from './sheets.tsx';
 import { itemTitle } from './plain-text.ts';
 import { formatDateIn } from '../dates.ts';
+import { mentionQuery } from './mention-order.ts';
 import './reading.css';
 function useAction() {
   const [error, setError] = useState<unknown>();
@@ -678,25 +679,22 @@ function ResponseVisibility({ id, mode, defaultShowing, disabled }: {
 }
 export function MentionsPage() {
   useChrome({ framed: false });
-  const incoming =
-    useLiveQuery({ query: (q) => q.from({ mention: inbound }) }).data ?? [];
-  const outgoing =
-    useLiveQuery({ query: (q) => q.from({ mention: outbound }) }).data ?? [];
-  const owned =
-    useLiveQuery({ query: (q) => q.from({ item: items }) }).data ?? [];
   const settings = useSettings();
+  const groups =
+    useLiveQuery({ query: (q) => mentionQuery(q, inbound, items, !!settings?.show_responses_default) }).data ?? [];
+  const incomingStats = useLiveQuery({ query: q => q.from({ mention: inbound })
+    .select(({ mention }) => ({ total: count(mention.id) })).findOne() }).data;
+  const outgoingStats = useLiveQuery({ query: q => q.from({ mention: outbound })
+    .select(({ mention }) => ({ total: count(mention.id) })).findOne() }).data;
+  const outgoing =
+    useLiveQuery({ query: (q) => q.from({ mention: outbound })
+      .orderBy(({ mention }) => mention.created, 'desc').orderBy(({ mention }) => mention.id, 'asc') }).data ?? [];
   const [direction, setDirection] = useState<'inbound' | 'outbound'>(
     'inbound',
   );
   usePoll('mentions-in', inbound.utils.refetch);
   usePoll('mentions-out', outbound.utils.refetch);
   usePoll('items', refreshItems);
-  const groups = new Map<string, Mention[]>();
-  for (const mention of incoming) {
-    const rows = groups.get(mention.target_item_id) || [];
-    rows.push(mention);
-    groups.set(mention.target_item_id, rows);
-  }
   return (
     <>
       <h2 className="view-h">mentions</h2>
@@ -713,22 +711,14 @@ export function MentionsPage() {
           >
             {value}
             <span className="n">
-              {value === 'inbound' ? incoming.length : outgoing.length}
+              {value === 'inbound' ? incomingStats?.total ?? 0 : outgoingStats?.total ?? 0}
             </span>
           </Button>
         ))}
       </div>
       {direction === 'inbound' ? (
         <>
-          {[...groups].map(([id, rows]) => {
-            const item = owned.find((item) => item.id === id),
-              mode = item?.responses || 'default';
-            const showing =
-              mode === 'show' ||
-              (mode === 'default' && settings?.show_responses_default);
-            const visible = rows.filter(
-              (row) => row.status === 'verified' && !row.hidden,
-            ).length;
+          {groups.map(({ target: id, receipts: rows, item, mode, visible, total }) => {
             return (
               <section className="card mention-group" key={id}>
                 <h3 className="card-h">
@@ -746,7 +736,7 @@ export function MentionsPage() {
                   </Link>
                 </h3>
                 <p className="muted small group-meta">
-                  {rows.length} responses · {showing ? visible : 0} on the page
+                  {total} responses · {visible} on the page
                   now
                 </p>
                 <ResponseVisibility id={id} mode={mode} defaultShowing={!!settings?.show_responses_default} disabled={!item} />
@@ -760,7 +750,7 @@ export function MentionsPage() {
               </section>
             );
           })}
-          {!incoming.length ? (
+          {!groups.length ? (
             <div className="empty">
               <span className="em" aria-hidden="true">
                 ↩
