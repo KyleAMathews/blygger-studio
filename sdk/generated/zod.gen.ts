@@ -973,7 +973,8 @@ export const zListSubscriptionsResponse = z.object({
 export const zCreateSubscriptionBody = z.object({
     url: z.string(),
     confirm: z.boolean().optional(),
-    title: z.string().optional()
+    title: z.string().optional(),
+    backfill: z.boolean().optional()
 }).strict();
 
 export const zCreateSubscriptionResponse = z.union([

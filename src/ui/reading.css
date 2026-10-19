@@ -18,6 +18,8 @@
 .back-link { display: inline-block; font-size: .86rem; color: var(--page-ink-soft); text-decoration: none; margin: 0 2px 2px; padding: 4px 0; }
 .back-link:hover { color: var(--page-ink); }
 .list-h a { color: inherit; text-transform: none; letter-spacing: 0; font-weight: 600; }
+.list-h-actions { display: flex; gap: 12px; align-items: baseline; }
+.list-h .link-btn { background: none; border: none; padding: 0; font: inherit; color: inherit; text-transform: none; letter-spacing: 0; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 
 /* ---------- SOURCES LIST ---------- */
 .feeds { list-style: none; margin: 0 0 14px; padding: 0; background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
@@ -127,6 +129,25 @@
 .add-sub-confirm { margin-top: 14px; border-top: 1px solid var(--rule); padding-top: 12px; }
 .add-sub-confirm p { margin: 0 0 6px; }
 .add-sub-confirm .mismatch { color: var(--warn); font-size: .86rem; }
+.add-sub-more { margin-top: 10px; }
+
+/* ---------- OPML IMPORT ---------- */
+.opml-pick { position: relative; justify-content: center; padding: 13px; width: 100%; cursor: pointer; }
+.opml-pick input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.opml-head { margin: 0 0 8px; font-size: .88rem; color: var(--ink-soft); overflow-wrap: anywhere; }
+.opml-head strong { color: var(--ink); }
+.opml-list { list-style: none; margin: 0 0 12px; padding: 0; border: 1px solid var(--rule); border-radius: var(--radius); max-height: 42vh; overflow-y: auto; }
+.opml-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--rule); }
+.opml-row:first-child { border-top: none; }
+.opml-row input { flex: 0 0 auto; accent-color: var(--pencil); }
+.opml-row .badge { flex: 0 0 auto; }
+.opml-text { flex: 1; min-width: 0; }
+.opml-title { display: block; font-weight: 600; font-size: .92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opml-url { display: block; font-size: .74rem; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opml-reason { display: block; font-size: .74rem; color: var(--alert); overflow-wrap: anywhere; }
+.opml-row[data-state=added] .opml-reason, .opml-row[data-state=working] .opml-reason { color: var(--warn); }
+.opml-progress { margin: 0; font-size: .86rem; color: var(--ink-soft); text-align: center; }
+.opml-summary p { margin: 0 0 8px; }
 
 /* ---------- HOPPERS ---------- */
 .hopper-row { position: relative; }

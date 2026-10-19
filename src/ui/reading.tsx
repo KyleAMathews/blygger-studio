@@ -58,6 +58,7 @@ import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { displayUrl, sourceTitleAndUrl } from '../importer/util.ts';
 import { formatDateIn } from '../dates.ts';
 import { AddFeedForm } from './catalog.tsx';
+import { OpmlImportSheet } from './opml-import.tsx';
 import { diffText, type DiffOp } from '../word-diff.ts';
 import { useSwipe } from './swipe.ts';
 import type { EntryContext, StudioExtension } from './extension-api.ts';
@@ -837,9 +838,11 @@ function Inspector({
 function SubscribeSheet({
   open,
   onClose,
+  onImport,
 }: {
   open: boolean;
   onClose: () => void;
+  onImport: () => void;
 }) {
   return (
     <Sheet open={open} onClose={onClose} title="subscribe">
@@ -849,6 +852,17 @@ function SubscribeSheet({
           toast('subscribed');
         }}
       />
+      <div className="sheet-actions add-sub-more">
+        <Button
+          className="btn btn-ghost"
+          onClick={() => {
+            onClose();
+            onImport();
+          }}
+        >
+          import an OPML file…
+        </Button>
+      </div>
     </Sheet>
   );
 }
@@ -1064,6 +1078,7 @@ function Sources() {
   const actions = useReadingActions();
   const { toggle } = useSubscriptionActions(actions);
   const [inspect, setInspect] = useState<string>();
+  const [importing, setImporting] = useState(false);
   // The first page of "all" carries the counts for every source; it is also
   // what tapping "all" shows, so it is warm when that happens.
   const lens = useContext(LensContext);
@@ -1113,8 +1128,11 @@ function Sources() {
       ) : null}
       <div className="list-h">
         <span>subscriptions · {sources.length}</span>
-        <span>
+        <span className="list-h-actions">
           {sources.filter((source) => source.in_blogroll).length} in blogroll
+          <Button className="link-btn" id="opml-open" onClick={() => setImporting(true)}>
+            import OPML
+          </Button>
         </span>
       </div>
       {sources.length ? (
@@ -1150,6 +1168,7 @@ function Sources() {
         onClose={() => setInspect(undefined)}
         actions={actions}
       />
+      <OpmlImportSheet open={importing} onClose={() => setImporting(false)} />
     </>
   );
 }
@@ -1199,6 +1218,7 @@ function ReadingHead({
   children?: ReactNode;
 }) {
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [resyncing, setResyncing] = useState(false);
   // Polls run in the background on the server; refresh twice as they land.
   const resyncAll = async () => {
@@ -1242,7 +1262,8 @@ function ReadingHead({
           </Button>
         </div>
       </div>
-      <SubscribeSheet open={adding} onClose={() => setAdding(false)} />
+      <SubscribeSheet open={adding} onClose={() => setAdding(false)} onImport={() => setImporting(true)} />
+      <OpmlImportSheet open={importing} onClose={() => setImporting(false)} />
     </>
   );
 }

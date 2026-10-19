@@ -6293,6 +6293,10 @@
                   },
                   "title": {
                     "type": "string"
+                  },
+                  "backfill": {
+                    "type": "boolean",
+                    "description": "With confirm: start importing the archive at once (true, the default). false creates the subscription only; the next quarter-hour poll imports it, since a never-polled subscription is always due. For bulk imports such as OPML."
                   }
                 },
                 "required": [

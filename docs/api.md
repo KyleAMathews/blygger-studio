@@ -89,6 +89,30 @@ Creation returns the item, status 201, and a `Location` header.
 Hopper and media creation also return 201.
 Subscription creation returns 200 when the owner must accept the proposed subscription, then 201 when it creates the subscription.
 
+## Subscriptions
+
+`POST /subscriptions` takes `{ url, confirm?, title?, backfill? }`.
+Without `confirm` it resolves the URL and returns the proposal (200); with `confirm: true` it creates the subscription (201).
+A source that is already subscribed, by origin or by feed, is refused with 409.
+New subscriptions are not in the public `blogroll.opml`; `PATCH /subscriptions/{id}` with `in_blogroll: true` adds one.
+
+`backfill` (boolean, default `true`) applies with `confirm: true`.
+By default the server starts importing the source's archive as soon as it has answered.
+With `backfill: false` it creates the subscription and imports nothing yet: a subscription that has never been polled is always due, so the next quarter-hour poll imports it.
+Use it for bulk imports, so that many subscriptions do not each start an archive import at once:
+
+```ts
+const result = await BlyggerApi.createSubscription({
+  client,
+  body: { url: "https://example.com/feed.xml", confirm: true, backfill: false },
+});
+if (result.response?.status === 409) { /* already subscribed */ }
+if (result.response?.status === 429) { /* wait Retry-After seconds, then retry */ }
+```
+
+The Studio's OPML import works this way. It reads the file in the browser, flattens folders and sends one request at a time, about one a second, which stays under the owner's write budget of 120 writes a minute (`API_WRITE_LIMIT`).
+Delegated clients have less room: 120 a minute per grant, and 60 a minute shared by every grant (`API_DELEGATED_WRITE_LIMIT`), so a token-bearing importer should go slower than one a second and honour `Retry-After` on 429.
+
 ## Partial edits
 
 PATCH changes only supplied fields.
