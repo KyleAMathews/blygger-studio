@@ -233,7 +233,7 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
     // Each live item's latest version's own attachments (migration 0031).
     db.prepare(`SELECT vm.item_id, m.r2_key, m.alt, m.inline FROM json_each(?) s JOIN version_media vm
       ON vm.item_id = json_extract(s.value, '$.id') AND vm.version = json_extract(s.value, '$.version')
-      JOIN media m ON m.id = vm.media_id ORDER BY m.created ASC`).bind(livePairs),
+      JOIN media m ON m.id = vm.media_id ORDER BY m.created ASC, m.rowid ASC`).bind(livePairs),
     db.prepare(`SELECT v.item_id, v.transclusions FROM json_each(?) s JOIN versions v
       ON v.item_id = json_extract(s.value, '$.id') AND v.version = json_extract(s.value, '$.version') - 1`).bind(withdrawnIds),
   ]);

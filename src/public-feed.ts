@@ -60,7 +60,7 @@ export async function loadFeedData(db: D1Database, items: FeedItem[], avatarId: 
       ON v.item_id = json_extract(s.value, '$.id') WHERE v.pinned = 1 ORDER BY v.version`).bind(selected),
     db.prepare(`SELECT vm.item_id AS version_item, m.* FROM json_each(?) s JOIN version_media vm
       ON vm.item_id = json_extract(s.value, '$.id') AND vm.version = json_extract(s.value, '$.version')
-      JOIN media m ON m.id = vm.media_id ORDER BY m.created ASC`).bind(live),
+      JOIN media m ON m.id = vm.media_id ORDER BY m.created ASC, m.rowid ASC`).bind(live),
     db.prepare("SELECT * FROM media WHERE id = ?").bind(avatarId),
   ]);
   const cards = new Map<string, FeedCardData>(items.map(i => [i.id, { latest: null, pins: [], media: [] }]));

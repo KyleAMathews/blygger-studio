@@ -683,7 +683,7 @@ export async function getMedia(db: D1Database, id: string): Promise<MediaRow | n
 export async function listVersionMedia(db: D1Database, itemId: string, version: number): Promise<MediaRow[]> {
   return (
     await db
-      .prepare("SELECT m.* FROM version_media vm JOIN media m ON m.id = vm.media_id WHERE vm.item_id = ? AND vm.version = ? ORDER BY m.created ASC")
+      .prepare("SELECT m.* FROM version_media vm JOIN media m ON m.id = vm.media_id WHERE vm.item_id = ? AND vm.version = ? ORDER BY m.created ASC, m.rowid ASC")
       .bind(itemId, version)
       .all<MediaRow>()
   ).results;
@@ -692,7 +692,7 @@ export async function listVersionMedia(db: D1Database, itemId: string, version: 
 /** The working copy's attachments: what the next version will show. */
 export async function listMediaForItem(db: D1Database, itemId: string): Promise<MediaRow[]> {
   return (
-    await db.prepare("SELECT * FROM media WHERE item_id = ? ORDER BY created ASC").bind(itemId).all<MediaRow>()
+    await db.prepare("SELECT * FROM media WHERE item_id = ? ORDER BY created ASC, rowid ASC").bind(itemId).all<MediaRow>()
   ).results;
 }
 
