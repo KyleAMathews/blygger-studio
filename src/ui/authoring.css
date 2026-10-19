@@ -3,26 +3,40 @@
  * Builds on the vocabulary in studio.css (.card .seg .badge .dot .banner
  * .btn …); only what these two screens add lives here. Sans throughout. */
 
-/* ---------- COMPOSER ---------- */
-.composer .segmented { margin-bottom: 8px; }
+/* ---------- COMPOSER ----------
+   After Substack's composer: a compact kind switch, a borderless text area
+   with room to breathe, and one baseline below it — small line-icon tools on
+   the left, the counter and two compact buttons on the right. On a phone the
+   tools and the actions take a row each. Controls are .act / .btn-compact /
+   .segmented.compact from studio.css. */
+.composer { padding: var(--s4) var(--s4) var(--s2); }
+.composer .segmented.compact { margin-bottom: var(--s2); }
 .ta-wrap { position: relative; }
-.composer textarea { width: 100%; min-height: 128px; background: var(--card); border: none; padding: 4px 2px; box-shadow: none; resize: vertical; font-size: 1rem; }
+.composer textarea { display: block; width: 100%; min-height: 140px; background: transparent; border: none; border-radius: 0; padding: var(--s2) 2px var(--s3); box-shadow: none; resize: none; font-size: 1.05rem; line-height: 1.6; }
 .composer textarea:focus { box-shadow: none; }
-.composer-tools, .ed-tools { display: flex; gap: 6px; align-items: center; }
-.composer-tools { flex-wrap: wrap; border-top: 1px dashed var(--rule); padding-top: 10px; margin-top: 6px; }
-.ed-tools { overflow-x: auto; margin: 0 0 8px; padding-bottom: 2px; scrollbar-width: none; }
-.ed-tools::-webkit-scrollbar { display: none; }
-.ed-tools .tool { flex: 0 0 auto; }
-.tool { font: inherit; font-family: var(--mono); font-size: .8rem; line-height: 1.2; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--rule); background: var(--card); color: var(--ink-soft); cursor: pointer; white-space: nowrap; }
-.tool.sans { font-family: var(--sans); }
-.tool:hover { color: var(--ink); border-color: var(--rule-strong); }
-.tool:disabled { opacity: .5; cursor: not-allowed; }
-.counter { font-size: .78rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; margin-left: auto; }
+.composer textarea::placeholder, .editor-pane textarea.md::placeholder { color: var(--muted); opacity: .8; }
+.composer-foot { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--s2); border-top: 1px solid var(--rule); margin: 0 calc(-1 * var(--s2)); padding: 2px 0 0; }
+.composer-tools, .ed-tools { display: flex; align-items: center; gap: 0; flex-wrap: wrap; min-width: 0; }
+.composer-tools .full-editor { font-size: .78rem; }
+.ed-tools { margin: 0 0 var(--s1) calc(-1 * var(--s2)); }
+.tool .ico { width: 19px; height: 19px; }
+.counter { font-size: .74rem; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
 .counter.over { color: var(--alert); font-weight: 700; }
 .over-hint { color: var(--alert); }
 .over-hint button.link { color: inherit; font-weight: 600; }
 .save-state { font-size: .78rem; color: var(--ok); font-weight: 600; }
-.composer-actions { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+.composer-actions { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; margin-left: auto; padding: var(--s1) var(--s2); }
+.composer-actions .counter { margin-left: 0; }
+/* The resize grip helps with a mouse; on touch it is a stray target. */
+@media (hover: hover) and (pointer: fine) { .composer textarea { resize: vertical; } }
+/* "syntax help": the long syntax paragraph, folded (open state per device). */
+.syntax-help { margin: 0 2px var(--s3); }
+.syntax-help > summary { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; cursor: pointer; font-size: .8rem; color: var(--page-ink-soft); list-style: none; }
+.syntax-help > summary::-webkit-details-marker { display: none; }
+.syntax-help > summary::before { content: "▸"; font-size: .7rem; transition: transform .15s; }
+.syntax-help[open] > summary::before { transform: rotate(90deg); }
+.syntax-help > summary:hover { color: var(--page-ink); }
+.syntax-help > p { margin: var(--s1) 0 0; font-size: .82rem; }
 .publish-warning { font-size: .85rem; color: var(--warn); margin: 10px 0 0; }
 .filters { margin-top: 20px; }
 
@@ -97,8 +111,12 @@
 }
 .editor-grid { display: block; }
 .editor-pane, .preview-pane { min-width: 0; }
-.editor-pane textarea.md { width: 100%; min-height: 46vh; font-family: var(--mono); font-size: .9rem; background: var(--card); border: 1px solid var(--rule); }
-.ed-foot { margin-top: 6px; font-size: .8rem; color: var(--page-ink-soft); }
+.editor-pane textarea.md { display: block; width: 100%; min-height: 46vh; font-family: var(--mono); font-size: 1rem; line-height: 1.6; background: var(--card); border: 1px solid transparent; border-radius: var(--radius); padding: var(--s4); box-shadow: var(--shadow); }
+.editor-pane textarea.md:focus { border-color: var(--rule-strong); box-shadow: var(--shadow); }
+@media (hover: none) { .editor-pane textarea.md { resize: none; } }
+.editor .pane-toggle { margin: 0 0 var(--s3); }
+.ed-foot { margin-top: var(--s2); font-size: .78rem; color: var(--page-ink-soft); }
+.editor-pane .syntax-help { margin-top: var(--s1); }
 .ed-foot .counter { margin-left: 0; color: inherit; }
 .ed-foot a { color: var(--page-ink); }
 .editor-pane .hint { color: var(--page-ink-soft); }
@@ -106,6 +124,10 @@
 .preview-pane h1 { font-size: 1.35rem; margin: 0 0 10px; }
 .preview-pane p { margin: 0 0 12px; }
 .preview img { max-width: 100%; border-radius: 8px; }
+/* Wide content scrolls inside its box, never widens the page (iOS lays a wider
+   page out zoomed out, which reads as a random zoom). */
+.preview :is(img, video, iframe, embed, object, svg, canvas), #h-viewer-body :is(video, iframe, embed, object, svg, canvas) { max-width: 100%; height: auto; }
+.preview :is(pre, table), #h-viewer-body :is(pre, table) { display: block; max-width: 100%; overflow-x: auto; }
 .preview blockquote.blyg-transclusion { margin: 1rem 0; padding: 8px 12px; border-left: 3px solid var(--pencil); background: var(--sunk); border-radius: 0 8px 8px 0; font-size: .95em; }
 .preview blockquote.blyg-transclusion p { margin: 0 0 .25rem; }
 .preview .provenance { font-size: .75rem; color: var(--ink-soft); }
@@ -149,7 +171,7 @@
 #snapshots .q-passage-missing .q-state, #snapshots .q-unresolvable .q-state { color: var(--alert); }
 #snapshots .banner { margin: 10px 0 0; }
 .refresh-row { margin-top: 12px; }
-.editor .actionbar .more-btn { font-size: 1.2rem; }
+.editor .actionbar { padding-top: 6px; padding-bottom: max(6px, env(safe-area-inset-bottom)); }
 
 /* ---------- PALETTE (the [[ / ![[ picker) ---------- */
 
@@ -164,7 +186,7 @@
 @media (max-width: 640px) {
   .tk-scope-row { flex-wrap: wrap; }
   .tk-instruction { white-space: normal; overflow: visible; flex-basis: 100%; }
-  .editor .actionbar .btn { padding: 10px 12px; }
+
 }
 .stub-help p[tabindex] { outline: none; }
 .stub-help pre code { padding: 0; background: none; border: none; font-size: inherit; }

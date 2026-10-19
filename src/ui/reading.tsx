@@ -31,6 +31,7 @@ import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { Lens, Reading } from './data.ts';
 import { LENSES, lensKind, readingKey } from './data.ts';
 import {
+  reading,
   readingView,
   subscriptions,
   hoppers,
@@ -43,6 +44,7 @@ import {
   hopperDetail,
   hopperPreview,
   markReading,
+  saveReadState,
 } from './data.ts';
 import { needsRead, readStatus, readWrites } from './read-state.ts';
 import {
@@ -64,6 +66,7 @@ import { useSwipe } from './swipe.ts';
 import type { EntryContext, StudioExtension } from './extension-api.ts';
 import { EntryBylineSlot, EntrySheetSlot, entryActionRows, enabledExtensions, type OpenSheet } from './extensions.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
+import { Back, More, ThumbDown, ThumbUp } from './icons.tsx';
 import './reading.css';
 
 import type { CachedResponse } from './revision-query.ts';
@@ -217,63 +220,83 @@ const ReadContext = createContext<ReadUi>({
 
 /* ---------------- entry body ---------------- */
 
-function Body({ html, url, l0, onOpen }: { html: string; url?: string; l0: boolean; onOpen?: () => void }) {
-  const [expanded, setExpanded] = useState(false),
-    [overflow, setOverflow] = useState(false);
+/**
+ * The entry's opening heading (or an L0 entry's lone title link) becomes its
+ * title; the rest is the body. Shared by the card and the full view.
+ */
+function splitTitle(html: string, l0: boolean) {
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const first = parsed.body.firstElementChild;
+  let title: string | undefined;
+  if (
+    first &&
+    (/^H[1-6]$/.test(first.tagName) ||
+      (l0 &&
+        first.tagName === 'P' &&
+        first.children.length === 1 &&
+        first.firstElementChild?.tagName === 'A'))
+  ) {
+    title = first.textContent || undefined;
+    first.remove();
+  }
+  return { title, html: parsed.body.innerHTML };
+}
+function EntryTitle({ title, url, as: Tag = 'h3', className = 'entry-title' }: { title?: string; url?: string; as?: 'h2' | 'h3'; className?: string }) {
+  if (!title) return null;
+  return (
+    <Tag className={className}>
+      {url ? (
+        <a href={url} target="_blank" rel="noreferrer">
+          {title}
+        </a>
+      ) : (
+        title
+      )}
+    </Tag>
+  );
+}
+/**
+ * The card's body, clamped. "more" opens the entry's full view (and so does
+ * a tap on the clamped text itself); it shows whenever the text is cut, which
+ * is measured again as images inside it load and change its height.
+ */
+function Body({ html, url, l0, onMore }: { html: string; url?: string; l0: boolean; onMore: () => void }) {
+  const [overflow, setOverflow] = useState(false);
   const body = useRef<HTMLDivElement>(null);
-  const content = useMemo(() => {
-    const parsed = new DOMParser().parseFromString(html, 'text/html');
-    const first = parsed.body.firstElementChild;
-    let title: string | undefined;
-    if (
-      first &&
-      (/^H[1-6]$/.test(first.tagName) ||
-        (l0 &&
-          first.tagName === 'P' &&
-          first.children.length === 1 &&
-          first.firstElementChild?.tagName === 'A'))
-    ) {
-      title = first.textContent || undefined;
-      first.remove();
-    }
-    return { title, html: parsed.body.innerHTML };
-  }, [html, l0]);
+  const content = useMemo(() => splitTitle(html, l0), [html, l0]);
   useEffect(() => {
     const element = body.current;
     if (!element) return;
     const measure = () =>
       setOverflow(element.scrollHeight > element.clientHeight + 1);
+    // The box stops resizing once it reaches the clamp, but its content keeps
+    // growing as images load: watch both, and every image's load.
     const observer = new ResizeObserver(measure);
     observer.observe(element);
+    for (const child of element.children) observer.observe(child);
+    element.addEventListener('load', measure, true);
     measure();
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      element.removeEventListener('load', measure, true);
+    };
   }, [content.html]);
   return (
     <>
-      {content.title ? (
-        <h3 className="entry-title">
-          {url ? (
-            <a href={url} target="_blank" rel="noreferrer">
-              {content.title}
-            </a>
-          ) : (
-            content.title
-          )}
-        </h3>
-      ) : null}
+      <EntryTitle title={content.title} url={url} />
       <div
         ref={body}
-        className={`content entry-body ${expanded ? '' : 'clamped'} ${overflow && !expanded ? 'overflowing' : ''}`}
+        className={`content entry-body clamped ${overflow ? 'overflowing' : ''}`}
+        onClick={(event) => {
+          // A tap on cut-off text is a way in too; links and selections keep theirs.
+          if (!overflow || (event.target as Element).closest('a, button')) return;
+          if (!(window.getSelection()?.isCollapsed ?? true)) return;
+          onMore();
+        }}
         dangerouslySetInnerHTML={{ __html: content.html }}
       />
-      {overflow && !expanded ? (
-        <Button
-          className="more expand-btn"
-          onClick={() => {
-            setExpanded(true);
-            onOpen?.();
-          }}
-        >
+      {overflow ? (
+        <Button className="more expand-btn" onClick={onMore}>
           more
         </Button>
       ) : null}
@@ -306,26 +329,99 @@ function entryParts(entry: Reading) {
   return { imported, id, url, source };
 }
 
-/* ---------------- one entry ---------------- */
+/* ---------------- the full view's address ---------------- */
 
-function Entry({
+/** The `sub` segment of an own item's full view (the hoppers' own-post id). */
+const OWN_SUB = '~own';
+/** Where an entry's full view lives: /reading/{sub}/{id}, `~own` for your own. */
+export function articleParams(entry: Reading) {
+  return entry.own || entry.imported?.subscriptionId === OWN_SUB
+    ? { sub: OWN_SUB, id: entry.own?.id ?? entry.imported!.remoteId }
+    : { sub: entry.imported!.subscriptionId, id: entry.imported!.remoteId };
+}
+/**
+ * The feed position to come back to. Set when an entry's full view opens,
+ * read once by the timeline it was opened from: the entry's key and how far
+ * from the top of the viewport it sat, so back lands on the same item.
+ */
+type ReturnPoint = { href: string; key: string; top: number; y: number };
+// Kept in sessionStorage too, so the browser's back after a reload of the
+// full view still lands on the entry; memory alone when storage is refused.
+const RETURN_KEY = 'studio.reading.return';
+let returnPoint: ReturnPoint | null = null;
+function setReturnPoint(point: ReturnPoint | null) {
+  returnPoint = point;
+  try {
+    if (point) sessionStorage.setItem(RETURN_KEY, JSON.stringify(point));
+    else sessionStorage.removeItem(RETURN_KEY);
+  } catch {
+    /* private mode or blocked storage: memory only */
+  }
+}
+function takeReturnPoint(): ReturnPoint | null {
+  let point = returnPoint;
+  if (!point)
+    try {
+      point = JSON.parse(sessionStorage.getItem(RETURN_KEY) ?? 'null') as ReturnPoint | null;
+    } catch {
+      point = null;
+    }
+  if (!point || point.href !== feedHref()) return null;
+  setReturnPoint(null);
+  return point;
+}
+const feedHref = () => location.pathname + location.search;
+/** Put the timeline back where the full view was opened from. */
+function useReturnPoint(ready: boolean) {
+  useEffect(() => {
+    if (!ready) return;
+    const point = takeReturnPoint();
+    if (!point) return;
+    const restore = () => {
+      const element = document.querySelector<HTMLElement>(`.reading-entry[data-key="${CSS.escape(point.key)}"]`);
+      const y = element ? element.getBoundingClientRect().top + window.scrollY - point.top : point.y;
+      window.scrollTo(0, y);
+    };
+    // After the router's own scroll handling for the navigation, and again
+    // once late layout (images above) has settled.
+    const frame = requestAnimationFrame(() => requestAnimationFrame(restore));
+    const late = setTimeout(restore, 250);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(late);
+    };
+  }, [ready]);
+}
+/** Whether this full view was opened from a timeline in this session (so back is history's back). */
+let openedFromFeed = false;
+function useOpenArticle(entry: Reading) {
+  const navigate = useNavigate();
+  return () => {
+    const element = document.querySelector<HTMLElement>(`.reading-entry[data-key="${CSS.escape(entry.key)}"]`);
+    setReturnPoint({ href: feedHref(), key: entry.key, top: element?.getBoundingClientRect().top ?? 0, y: window.scrollY });
+    openedFromFeed = true;
+    void navigate({ to: '/reading/$sub/$id', params: articleParams(entry) });
+  };
+}
+
+/* ---------------- an entry's actions (card and full view) ---------------- */
+
+function useEntryActions({
   entry,
   actions,
   votes,
   buckets,
+  opened,
 }: {
   entry: Reading;
   actions: Actions;
   votes: SignalRow[];
   buckets: Hopper[];
+  /** The owner followed the entry to its origin. */
+  opened: () => void;
 }) {
   const { run, openDraft, navigate } = actions;
   const settings = useSettings();
-  const readUi = useContext(ReadContext);
-  const status = readUi.shown ? readStatus(entry.imported) : null;
-  const opened = () => {
-    if (entry.imported) readUi.opened(entry);
-  };
   const [historyOpen, setHistoryOpen] = useState(false);
   const [extensionSheet, setExtensionSheet] = useState<OpenSheet | null>(null);
   const extensions = enabledExtensions(compiledExtensions, settings?.extensions);
@@ -335,7 +431,6 @@ function Entry({
       vote.subscription_id === imported?.subscriptionId &&
       vote.remote_id === imported.remoteId,
   );
-  const date = formatDateIn(entry.displayAt, settings?.timezone || 'UTC');
   const vote = (thumb: 1 | -1) =>
     run(async () => {
       if (!imported) return;
@@ -468,11 +563,139 @@ function Entry({
       ],
     });
   };
+  return {
+    imported,
+    id,
+    url,
+    signal,
+    vote,
+    stub,
+    addToHopper,
+    openMenu,
+    historyOpen,
+    extensions,
+    extensionContext,
+    extensionSheet,
+    closeExtensionSheet: () => setExtensionSheet(null),
+  };
+}
+type EntryActions = ReturnType<typeof useEntryActions>;
+
+/** The byline: kind, legacy rss, source and date, plus the extensions' slot. */
+function Byline({ entry, a, children }: { entry: Reading; a: EntryActions; children?: ReactNode }) {
+  const settings = useSettings();
+  const date = formatDateIn(entry.displayAt, settings?.timezone || 'UTC');
+  return (
+    <p className="byline">
+      {children}
+      <span className="badge">{entry.kind}</span>
+      {entry.l0 ? <span className="badge badge-line">legacy rss</span> : null}
+      <span className="src">{a.imported?.subscriptionTitle || 'you'}</span>
+      <span>· {date}</span>
+      <EntryBylineSlot extensions={a.extensions} context={a.extensionContext} />
+    </p>
+  );
+}
+function Tomb({ entry }: { entry: Reading }) {
+  return entry.withdrawn ? (
+    <p className="tomb">
+      withdrawn
+      {entry.imported?.pinnedVersionRetained != null
+        ? ` · retained pinned v${entry.imported.pinnedVersionRetained}`
+        : ''}
+    </p>
+  ) : null;
+}
+/**
+ * The action row, the same on the card and in the full view: line-icon
+ * thumbs, then edit / stub ↗ / + add to hopper… as quiet text, then ⋯.
+ * Small to look at; every control is still a 40px target (.act).
+ */
+function EntryBar({ entry, a }: { entry: Reading; a: EntryActions }) {
+  const { imported, id, signal } = a;
+  return (
+    <div className="entry-bar">
+      {imported
+        ? ([1, -1] as const).map((thumb) => (
+            <Button
+              key={thumb}
+              className="act icon-only thumb"
+              aria-label={thumb === 1 ? 'thumbs up' : 'thumbs down'}
+              title={thumb === 1 ? 'thumbs up' : 'thumbs down'}
+              aria-pressed={signal?.thumb === thumb}
+              onClick={() => void a.vote(thumb)}
+            >
+              {thumb === 1 ? <ThumbUp /> : <ThumbDown />}
+            </Button>
+          ))
+        : null}
+      <span className="spacer" />
+      {entry.own ? (
+        <Link className="act" to="/edit/$id" params={{ id }}>
+          edit
+        </Link>
+      ) : null}
+      {imported ? (
+        <>
+          <Button
+            className="act"
+            data-action="stub"
+            data-sub={imported.subscriptionId}
+            data-remote={imported.remoteId}
+            onClick={() => void a.stub()}
+          >
+            stub ↗
+          </Button>
+          <Button
+            className="act"
+            aria-label="add to hopper"
+            title="add to hopper"
+            onClick={() => void a.addToHopper()}
+          >
+            + add to hopper…
+          </Button>
+        </>
+      ) : null}
+      <Button
+        className="act icon-only more-btn"
+        aria-label="more actions"
+        title="more actions"
+        // Keep a text selection alive through the press.
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => void a.openMenu()}
+      >
+        <More />
+      </Button>
+    </div>
+  );
+}
+
+/* ---------------- one entry ---------------- */
+
+function Entry({
+  entry,
+  actions,
+  votes,
+  buckets,
+}: {
+  entry: Reading;
+  actions: Actions;
+  votes: SignalRow[];
+  buckets: Hopper[];
+}) {
+  const readUi = useContext(ReadContext);
+  const status = readUi.shown ? readStatus(entry.imported) : null;
+  const opened = () => {
+    if (entry.imported) readUi.opened(entry);
+  };
+  const a = useEntryActions({ entry, actions, votes, buckets, opened });
+  const { imported, id, url, signal } = a;
+  const openArticle = useOpenArticle(entry);
   const swipe = useSwipe<HTMLDivElement>(
     imported
       ? {
-          onRight: () => void vote(1),
-          onLeft: () => void stub(),
+          onRight: () => void a.vote(1),
+          onLeft: () => void a.stub(),
           mouseFrom: '.byline, .entry-bar',
           mover: '.entry',
         }
@@ -504,7 +727,7 @@ function Entry({
             if ((event.target as Element).closest('.entry-title a, a.entry-src')) opened();
           }}
         >
-          <p className="byline">
+          <Byline entry={entry} a={a}>
             {readUi.selecting && imported ? (
               <label className="entry-select">
                 <input
@@ -523,85 +746,145 @@ function Entry({
                 title={status === 'unread' ? 'unread' : 'updated since you read it'}
               />
             ) : null}
-            <span className="badge">{entry.kind}</span>
-            {entry.l0 ? (
-              <span className="badge badge-line">legacy rss</span>
-            ) : null}
-            <span className="src">{imported?.subscriptionTitle || 'you'}</span>
-            <span>· {date}</span>
-            <EntryBylineSlot extensions={extensions} context={extensionContext} />
-          </p>
-          {entry.withdrawn ? (
-            <p className="tomb">
-              withdrawn
-              {imported?.pinnedVersionRetained != null
-                ? ` · retained pinned v${imported.pinnedVersionRetained}`
-                : ''}
-            </p>
-          ) : null}
-          <Body html={entry.contentHtml} url={url} l0={entry.l0} onOpen={opened} />
+          </Byline>
+          <Tomb entry={entry} />
+          <Body html={entry.contentHtml} url={url} l0={entry.l0} onMore={openArticle} />
           <SourceLink url={url} />
         </div>
-        {imported && !entry.l0 && historyOpen ? (
+        {imported && !entry.l0 && a.historyOpen ? (
           <History sub={imported.subscriptionId} id={id} />
         ) : null}
-        <div className="entry-bar">
-          {imported
-            ? ([1, -1] as const).map((thumb) => (
-                <Button
-                  key={thumb}
-                  className="icon-btn"
-                  aria-label={thumb === 1 ? 'thumbs up' : 'thumbs down'}
-                  aria-pressed={signal?.thumb === thumb}
-                  onClick={() => void vote(thumb)}
-                >
-                  {thumb === 1 ? '👍' : '👎'}
-                </Button>
-              ))
-            : null}
-          <span className="spacer" />
-          {entry.own ? (
-            <Link
-              className="btn btn-ghost btn-mini"
-              to="/edit/$id"
-              params={{ id }}
-            >
-              edit
-            </Link>
-          ) : null}
-          {imported ? (
-            <>
-              <Button
-                className="btn btn-ghost btn-mini"
-                data-action="stub"
-                data-sub={imported.subscriptionId}
-                data-remote={imported.remoteId}
-                onClick={() => void stub()}
-              >
-                stub ↗
-              </Button>
-              <Button
-                className="btn btn-ghost btn-mini"
-                aria-label="add to hopper"
-                onClick={() => void addToHopper()}
-              >
-                + add to hopper…
-              </Button>
-            </>
-          ) : null}
-          <Button
-            className="icon-btn more-btn"
-            aria-label="more actions"
-            // Keep a text selection alive through the press.
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => void openMenu()}
-          >
-            ⋯
-          </Button>
-        </div>
-        <EntrySheetSlot sheet={extensionSheet} close={() => setExtensionSheet(null)} />
+        <EntryBar entry={entry} a={a} />
+        <EntrySheetSlot sheet={a.extensionSheet} close={a.closeExtensionSheet} />
       </article>
     </div>
+  );
+}
+
+/* ---------------- the full view ---------------- */
+
+/** An own item as a reading entry, for a full view opened by its address. */
+async function ownEntry(id: string): Promise<Reading> {
+  const item = await unwrap(BlyggerApi.getItem({ client, path: { id } }));
+  const withdrawn = item.status === 'withdrawn';
+  const contentHtml = withdrawn ? '' : (item.published?.content_html ?? '');
+  const kind = item.authored_kind;
+  return {
+    key: `own:${id}`,
+    source: 'own',
+    kind,
+    withdrawn,
+    l0: false,
+    contentHtml,
+    displayAt: item.published?.published_at ?? item.updated,
+    rank: 0,
+    own: { id, kind, withdrawn, updated: item.updated, contentHtml },
+  };
+}
+/** The entry an address names: from what reading already holds, else fetched. */
+function useArticleEntry(sub: string, id: string) {
+  const key = sub === OWN_SUB ? `own:${id}` : `imported:${JSON.stringify([sub, id])}`;
+  const held = () => reading.toArray.find((row) => row.key === key);
+  const [entry, setEntry] = useState<Reading | undefined>(held);
+  const [error, setError] = useState<unknown>();
+  const sources = useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data;
+  useEffect(() => {
+    const row = held();
+    if (row) {
+      setEntry(row);
+      return;
+    }
+    let live = true;
+    setEntry(undefined);
+    setError(undefined);
+    (sub === OWN_SUB
+      ? ownEntry(id)
+      : unwrap(BlyggerApi.getImportedItem({ client, path: { sub, id } })).then((item) =>
+          hopperEntry(item, subscriptions.get(sub), 0),
+        )
+    ).then(
+      (loaded) => live && setEntry(loaded),
+      (failure) => live && setError(failure),
+    );
+    return () => {
+      live = false;
+    };
+  }, [key]);
+  // A fetched entry names its source once subscriptions have loaded.
+  const source = sources?.find((row) => row.id === sub);
+  const shown =
+    entry?.imported && source && entry.imported.subscriptionTitle === sub
+      ? { ...entry, imported: { ...entry.imported, subscriptionTitle: sourceName(source) } }
+      : entry;
+  return { entry: shown, error };
+}
+/**
+ * One entry, full screen (/reading/{sub}/{id}): the whole post with its
+ * citation line and the card's action row. Opening it marks it read, as
+ * expanding a card did. Back returns to the timeline at the same entry.
+ */
+export function ReadingArticle({ sub, id }: { sub: string; id: string }) {
+  useChrome({ framed: false, wide: false });
+  const actions = useReadingActions();
+  const { entry, error } = useArticleEntry(sub, id);
+  const back = () => {
+    if (openedFromFeed && window.history.length > 1) {
+      openedFromFeed = false;
+      window.history.back();
+    } else void actions.navigate({ to: '/reading' });
+  };
+  return (
+    <>
+      <div className="article-head">
+        <Button className="act back-btn" onClick={back}>
+          <Back />
+          back
+        </Button>
+      </div>
+      <Failure error={error ?? actions.error} />
+      {entry ? (
+        <Article entry={entry} actions={actions} />
+      ) : !error ? (
+        <p className="view-sub">Loading…</p>
+      ) : null}
+    </>
+  );
+}
+function Article({ entry, actions }: { entry: Reading; actions: Actions }) {
+  const votes = useLiveQuery({ query: (q) => q.from({ signal: signals }) }).data ?? [];
+  const buckets = useLiveQuery({ query: (q) => q.from({ hopper: hoppers }) }).data ?? [];
+  usePoll('signals', signals.utils.refetch);
+  // Opening the full view is opening the entry: mark it read once, at the
+  // version held here, as expanding a card did (0.39.0).
+  const marked = useRef<string | null>(null);
+  useEffect(() => {
+    if (marked.current === entry.key) return;
+    marked.current = entry.key;
+    if (!needsRead(readStatus(entry.imported))) return;
+    // A row reading holds is marked through it (every view updates at once);
+    // one fetched by its address has no row to change, so it is written direct.
+    const write = reading.toArray.some((row) => row.key === entry.key)
+      ? markEntries([entry], true)
+      : saveReadState(readWrites([entry], true).read, []).then(() => changed('reading'));
+    void write.catch(() => toast('Could not store the read mark.'));
+  }, [entry.key]);
+  const a = useEntryActions({ entry, actions, votes, buckets, opened: () => {} });
+  const content = useMemo(() => splitTitle(entry.contentHtml, entry.l0), [entry.contentHtml, entry.l0]);
+  return (
+    <article className="entry reading-article" data-key={entry.key}>
+      <div className="entry-in">
+        <Byline entry={entry} a={a} />
+        <Tomb entry={entry} />
+        <EntryTitle title={content.title} url={a.url} as="h2" className="entry-title article-title" />
+        <div className="content entry-body article-body" dangerouslySetInnerHTML={{ __html: content.html }} />
+        <SourceLink url={a.url} />
+      </div>
+      {a.imported && !entry.l0 && a.historyOpen ? (
+        <History sub={a.imported.subscriptionId} id={a.id} />
+      ) : null}
+      <EntryBar entry={entry} a={a} />
+      <EntrySheetSlot sheet={a.extensionSheet} close={a.closeExtensionSheet} />
+    </article>
   );
 }
 
@@ -1404,6 +1687,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
           ? sourceName(selected)
           : 'all';
   const readable = sub !== 'own' && !isPlaceholder(lens);
+  useReturnPoint(!!entries.data?.length);
   const read = useReadSelection(key, offset, entries.data ?? [], actions, title, lens);
   return (
     <ReadContext.Provider value={read.ui}>
@@ -1545,6 +1829,7 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
         ),
     [row, sources, kind],
   );
+  useReturnPoint(entries.length > 0);
   if (!row)
     return (
       <>

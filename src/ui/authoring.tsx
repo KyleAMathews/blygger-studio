@@ -45,6 +45,7 @@ import type { Resolve } from './plain-text.ts';
 import { itemTitle, permalink, plainText, textWithLink } from './plain-text.ts';
 import { OcrScan } from './ocr.tsx';
 import { addStubQuote, passageCount, stubQuoteForm, withStubQuote } from './stub-quote.ts';
+import { Image as ImageIcon, LinkIcon, More, Scan, Sparkle, Swap } from './icons.tsx';
 import './authoring.css';
 
 type Kind = 'fragment' | 'thread';
@@ -132,6 +133,37 @@ function Help({ thread, className = 'compose-help' }: { thread?: boolean; classN
       insert one there. Paste a URL over selected text to link it.{' '}
       <Link to="/syntax">full syntax reference</Link>
     </p>
+  );
+}
+/** Whether "syntax help" was left open (per device; false when storage is refused). */
+const SYNTAX_HELP_KEY = 'studio.syntaxHelpOpen';
+function syntaxHelpOpen() {
+  try {
+    return localStorage.getItem(SYNTAX_HELP_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+/** The syntax paragraph behind a small "syntax help" disclosure, closed until opened once. */
+function SyntaxHelp({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(syntaxHelpOpen);
+  return (
+    <details
+      className="syntax-help"
+      open={open}
+      onToggle={(event) => {
+        const next = (event.currentTarget as HTMLDetailsElement).open;
+        setOpen(next);
+        try {
+          localStorage.setItem(SYNTAX_HELP_KEY, next ? '1' : '0');
+        } catch {
+          /* private mode: the choice lasts this page only */
+        }
+      }}
+    >
+      <summary>syntax help</summary>
+      {children}
+    </details>
   );
 }
 /**
@@ -376,7 +408,12 @@ function useTextTools(
   };
 }
 type TextTools = ReturnType<typeof useTextTools>;
-/** The tool row: attach image, link, scan, the bracket forms and TK, plus a screen's own. */
+/**
+ * The tool row: attach image, link, scan, the bracket forms and TK, plus a
+ * screen's own. One row of small line icons (.act, a 40px target each); each
+ * keeps its words as its accessible name and its hover text as its title.
+ * The bracket forms are syntax and show their own glyphs.
+ */
 function ToolRow({
   tools,
   thread,
@@ -398,33 +435,36 @@ function ToolRow({
     <div className={className}>
       <Button
         id={attachId}
-        className="tool sans"
+        className="act icon-only tool"
         disabled={disabled}
         title="Upload an image and insert it at the cursor"
         onClick={attach}
       >
-        attach image
+        <ImageIcon />
+        <span className="sr-only">attach image</span>
       </Button>
       <Button
-        className="tool sans"
+        className="act icon-only tool"
         data-action="link-clipboard"
         disabled={disabled}
         title="Read a URL from the clipboard, strip its trackers, and insert it at the cursor — or over the selected text"
         onClick={() => void tools.linkFromClipboard()}
       >
-        🔗 link from clipboard
+        <LinkIcon />
+        <span className="sr-only">link from clipboard</span>
       </Button>
       <Button
-        className="tool sans"
+        className="act icon-only tool"
         data-action="scan"
         disabled={disabled}
         title="Scan printed text into the text box with your phone's camera"
         onClick={tools.openScan}
       >
-        ⌸ scan text
+        <Scan />
+        <span className="sr-only">scan text</span>
       </Button>
       <Button
-        className="tool"
+        className="act mono tool"
         data-action="bracket-link"
         disabled={disabled}
         aria-label="[[ link an item"
@@ -435,7 +475,7 @@ function ToolRow({
       </Button>
       {thread ? (
         <Button
-          className="tool"
+          className="act mono tool"
           data-action="bracket-quote"
           disabled={disabled}
           aria-label="![[ quote an item"
@@ -446,7 +486,7 @@ function ToolRow({
         </Button>
       ) : null}
       <Button
-        className="tool"
+        className="act mono tool"
         data-action="tk"
         disabled={disabled}
         aria-label="[TK] instruction"
@@ -884,10 +924,12 @@ export function Compose() {
   return (
     <>
       <h2 className="view-h">compose</h2>
-      <Help className="view-sub" />
+      <SyntaxHelp>
+        <Help className="view-sub" />
+      </SyntaxHelp>
       <PublishedBanner published={published} dismiss={() => setPublished(undefined)} />
       <div className="card composer">
-        <div className="segmented" role="radiogroup" aria-label="kind">
+        <div className="segmented compact" role="radiogroup" aria-label="kind">
           {(['fragment', 'thread'] as const).map((value) => (
             <button
               key={value}
@@ -920,26 +962,60 @@ export function Compose() {
           />
           {tools.coach}
         </div>
-        <ToolRow
-          tools={tools}
-          thread={kind === 'thread'}
-          attach={() => upload.pick()}
-          attachId="composer-attach"
-          className="composer-tools"
-        >
-          <Button
-            id="composer-full"
-            className="tool sans"
-            disabled={action.busy}
-            onClick={() => void action.run(openEditor)}
+        {/* Tools left, actions right: one row where it fits, two on a phone. */}
+        <div className="composer-foot">
+          <ToolRow
+            tools={tools}
+            thread={kind === 'thread'}
+            attach={() => upload.pick()}
+            attachId="composer-attach"
+            className="composer-tools"
           >
-            Full Editor →
-          </Button>
-          <span className={over ? 'counter over' : 'counter'} id="composer-count">
-            {/* Only fragments have a length limit; a thread shows its count alone. */}
-            {kind === 'thread' ? `${text.length} chars` : `${text.length} / ${MAX}`}
-          </span>
-        </ToolRow>
+            <Button
+              id="composer-full"
+              className="act full-editor"
+              title="Full Editor →"
+              disabled={action.busy}
+              onClick={() => void action.run(openEditor)}
+            >
+              Full Editor →
+            </Button>
+          </ToolRow>
+          <div className="composer-actions">
+            <span className="save-state" id="composer-state" hidden={!saved}>
+              {saved ? 'saved' : ''}
+            </span>
+            <span className={over ? 'counter over' : 'counter'} id="composer-count">
+              {/* Only fragments have a length limit; a thread shows its count alone. */}
+              {kind === 'thread' ? `${text.length} chars` : `${text.length} / ${MAX}`}
+            </span>
+            <span className="spacer" />
+            {text.includes('[TK]') ? (
+              <Button
+                className="act"
+                onClick={() => void action.run(openEditor)}
+              >
+                generate in editor →
+              </Button>
+            ) : null}
+            <Button
+              id="save-draft-btn"
+              className="btn btn-compact btn-neutral"
+              disabled={action.busy}
+              onClick={() => void action.run(save)}
+            >
+              save draft
+            </Button>
+            <Button
+              id="publish-btn"
+              className="btn btn-compact btn-primary"
+              disabled={action.busy}
+              onClick={() => void action.run(publish)}
+            >
+              publish
+            </Button>
+          </div>
+        </div>
         {over ? (
           <p className="hint over-hint">
             Too long for a fragment ·{' '}
@@ -948,36 +1024,6 @@ export function Compose() {
             </button>
           </p>
         ) : null}
-        <div className="composer-actions">
-          <span className="save-state" id="composer-state" hidden={!saved}>
-            {saved ? 'saved' : ''}
-          </span>
-          <span className="spacer" />
-          {text.includes('[TK]') ? (
-            <Button
-              className="btn btn-ghost btn-mini"
-              onClick={() => void action.run(openEditor)}
-            >
-              generate in editor →
-            </Button>
-          ) : null}
-          <Button
-            id="save-draft-btn"
-            className="btn btn-ghost"
-            disabled={action.busy}
-            onClick={() => void action.run(save)}
-          >
-            save draft
-          </Button>
-          <Button
-            id="publish-btn"
-            className="btn btn-primary"
-            disabled={action.busy}
-            onClick={() => void action.run(publish)}
-          >
-            publish
-          </Button>
-        </div>
         {upload.element}
         <Failure error={action.error || upload.action.error} />
         {action.warning ? (
@@ -1763,7 +1809,7 @@ function Editor({ item }: { item: Detail }) {
           fork of {item.forked_from.id} v{item.forked_from.version}
         </p>
       ) : null}
-      <div className="segmented pane-toggle" role="group" aria-label="pane">
+      <div className="segmented compact pane-toggle" role="group" aria-label="pane">
         {(['draft', 'preview'] as const).map((value) => (
           <button
             key={value}
@@ -1789,16 +1835,18 @@ function Editor({ item }: { item: Detail }) {
           >
             {item.status === 'draft' ? (
               <Button
-                className="tool sans"
+                className="act icon-only tool"
                 data-action="switch-kind"
+                title={`make this a ${isThread ? 'fragment' : 'thread'}`}
                 onClick={() => operation(switchKind)}
               >
-                make this a {isThread ? 'fragment' : 'thread'}
+                <Swap />
+                <span className="sr-only">make this a {isThread ? 'fragment' : 'thread'}</span>
               </Button>
             ) : null}
             <Button
               id="tk-impyrt-btn"
-              className="tool sans"
+              className="act icon-only tool"
               disabled={replacing}
               title="Wrap the selected text as machine-generated text from another tool"
               onClick={() => {
@@ -1813,7 +1861,8 @@ function Editor({ item }: { item: Detail }) {
                 edit(markImported(value, from, to));
               }}
             >
-              mark selection as generated
+              <Sparkle />
+              <span className="sr-only">mark selection as generated</span>
             </Button>
           </ToolRow>
           <div className="ta-wrap">
@@ -1848,7 +1897,9 @@ function Editor({ item }: { item: Detail }) {
               </a>
             ) : null}
           </div>
-          <Help thread={isThread} className="hint" />
+          <SyntaxHelp>
+            <Help thread={isThread} className="hint" />
+          </SyntaxHelp>
         </div>
         <div className="preview-pane preview" id="preview-pane" aria-label="preview">
           <Html id="preview-body" html={preview?.html ?? ''} />
@@ -2150,16 +2201,17 @@ function Editor({ item }: { item: Detail }) {
           {saved ? <b className="save-state">saved</b> : null}
         </span>
         <Button
-          className="icon-btn more-btn"
+          className="act icon-only more-btn"
           aria-label="more actions"
+          title="more actions"
           data-action="editor-more"
           onClick={more}
         >
-          ⋯
+          <More />
         </Button>
         <Button
           id="save-draft-btn"
-          className="btn btn-ghost"
+          className="btn btn-compact btn-neutral"
           disabled={action.busy}
           onClick={() => void action.run(save)}
         >
@@ -2167,7 +2219,7 @@ function Editor({ item }: { item: Detail }) {
         </Button>
         <Button
           id="publish-btn"
-          className="btn btn-primary"
+          className="btn btn-compact btn-primary"
           disabled={action.busy}
           onClick={publish}
         >

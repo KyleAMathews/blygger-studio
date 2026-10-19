@@ -149,7 +149,7 @@ type Tab = (typeof tabs)[number]['label'];
 export function tabFor(path: string): Tab | null {
   const p = path.replace(/\/+$/, '') || '/';
   if (p === '/' || p.startsWith('/edit/')) return 'compose';
-  if (p === '/reading' || p === '/subs' || p === '/fork') return 'reading';
+  if (p === '/reading' || p.startsWith('/reading/') || p === '/subs' || p === '/fork') return 'reading';
   if (p === '/hoppers' || p.startsWith('/hoppers/')) return 'hoppers';
   if (p === '/mentions') return 'mentions';
   if (p === '/updates') return 'updates';
