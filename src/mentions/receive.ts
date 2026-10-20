@@ -81,12 +81,29 @@ export async function targetItemId(db: D1Database, target: URL, ourOrigin: strin
   if (!m) return null;
   const id = m[2] ?? m[4] ?? m[6];
   const version = m[3] ?? m[5];
+  // One read gives the item and its authored kind, the way the live page
+  // routes decide it (model.ts authoredKind): the row's own kind, or for a
+  // withdrawn item the kind of the version before its endcap.
   const row = await db
-    .prepare("SELECT id FROM items WHERE id = ? AND status IN ('public','withdrawn')")
+    .prepare(
+      `SELECT i.id, i.kind, v.transclusions FROM items i
+       LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version - 1
+       WHERE i.id = ? AND i.status IN ('public','withdrawn')`,
+    )
     .bind(id)
-    .first<{ id: string }>();
+    .first<{ id: string; kind: string; transclusions: string | null }>();
   if (!row) return null;
-  if (version === undefined) return row.id;
+  const seg = m[1];
+  if (version === undefined) {
+    // A live page is served only under its authored kind (index.ts /f/:id,
+    // /t/:id): a fragment at t/{id}/ is a 404, so not ours to name. The item
+    // document is served for both kinds and stays kind-agnostic.
+    if (seg) {
+      const isThread = row.kind === "thread" || (row.kind !== "fragment" && row.transclusions !== null);
+      if ((seg === "t") !== isThread) return null;
+    }
+    return row.id;
+  }
   const pin = await db
     .prepare("SELECT transclusions FROM versions WHERE item_id = ? AND version = ? AND pinned = 1")
     .bind(row.id, Number(version))
@@ -94,7 +111,6 @@ export async function targetItemId(db: D1Database, target: URL, ourOrigin: strin
   if (!pin) return null;
   // A pinned page is served only under its authored kind (index.ts
   // pinnedPage): a thread's pin at f/{id}/v{n}/ is a 404, so not ours to name.
-  const seg = m[1];
   if (seg && (seg === "t") !== (pin.transclusions !== null)) return null;
   return row.id;
 }

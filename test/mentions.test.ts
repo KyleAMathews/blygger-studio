@@ -594,6 +594,25 @@ describe("receiving and structural verification (§2.3.5)", () => {
     }
   });
 
+  it("a live page under the wrong kind is not an address we serve: 400 (§15.3, #84)", async () => {
+    const { id, cookie } = await ourItem();
+    const source = `${THEIRS}t/${newId()}/`;
+    expect(await targetItemId(env.DB, new URL(`${OURS}f/${id}/`), OURS)).toBe(id);
+    expect((await receiveMention(env.DB, { source, target: `${OURS}t/${id}/` }, OURS)).status).toBe(400);
+    // The item document is served for either kind.
+    expect(await targetItemId(env.DB, new URL(`${OURS}items/${id}.json`), OURS)).toBe(id);
+    // A withdrawn fragment keeps its authored kind.
+    await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, {});
+    expect(await targetItemId(env.DB, new URL(`${OURS}f/${id}/`), OURS)).toBe(id);
+    expect(await targetItemId(env.DB, new URL(`${OURS}t/${id}/`), OURS)).toBeNull();
+
+    // And a thread named at f/{id}/.
+    const thread = (await apiJson(cookie, "POST", "/api/items", { kind: "thread", content_md: "A thread of mine." })).json.id as string;
+    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect(await targetItemId(env.DB, new URL(`${OURS}t/${thread}/`), OURS)).toBe(thread);
+    expect((await receiveMention(env.DB, { source, target: `${OURS}f/${thread}/` }, OURS)).status).toBe(400);
+  });
+
   it("rejects malformed claims syntactically, before any fetch", async () => {
     const { target } = await ourItem();
     const cases: [string, { source?: string; target?: string }][] = [

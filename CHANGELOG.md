@@ -31,6 +31,10 @@ not have its own repo until session 26.
   (`f/{id}/v{n}/`, `t/{id}/v{n}/`, under the version's authored kind). Each
   resolves to the item, and the mention is recorded against the item, never
   a version. A version that is not pinned, or an unknown id, is still 400.
+  So is a live page named under the wrong kind (a fragment at `t/{id}/`, a
+  thread at `f/{id}/`): the studio answers 404 there, so it is not an address
+  this receiver serves. A withdrawn item keeps its authored kind, and the
+  item document stays accepted for either kind.
   The mount-prefix check stays, with a comment saying why it is a membership
   test here (this studio never relocates its surface or emits an absolute
   `page`) and what a client that does either must check instead.
