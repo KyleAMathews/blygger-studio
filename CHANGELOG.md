@@ -18,6 +18,60 @@ not have its own repo until session 26.
 
 ---
 
+## 0.48.0 — 2026-10-19
+
+**Migrations: 0028, 0030, 0031, 0032** — apply them before deploying
+(`wrangler d1 migrations apply DB --remote`). 0031 backfills
+`version_media` so no live document changes at upgrade. Optional new secret
+`TYPESAFE_API_KEY`, needed only to use Jev as the change classifier.
+Implements protocol 0.4.
+
+- **Own items in the reading feed get stub ↗, add to hopper and fork**
+  (Venkat). Your own entries offered only edit and link post. A stub of your
+  own post quotes its live version and cites it with a same-origin `stub_of`,
+  which sends no mention (§15.2); a withdrawn post is cited without a quote.
+  The lineage sheet now offers these actions on your own posts and says what
+  differs.
+- **Local mentions on public pages** (Venkat). A fragment or thread page lists
+  this blyg's own published items that stub, quote or fork it, each linked
+  back, so a transclusion is walkable in both directions on your site. Like
+  Responses it is page chrome, never in a document, feed or hash; unlike
+  Responses it needs no opt-in, because every row is your own. Only live
+  versions count: a quote edited out, or a withdrawn quoter, leaves the list.
+- **Attachments per version** (studio#7, Aneesh Sathe; migration 0031). Each
+  published version records the attachments it showed. Removing an attachment
+  drops it from the next version only; earlier versions keep listing it and
+  its bytes keep serving. Before, an attachment appended below a post could
+  have its bytes deleted while a published version still listed it.
+- **Duplicate uploads return the existing file** (studio#7, Aneesh Sathe;
+  migration 0028). The same bytes, type and placement on the same item store
+  nothing new; `POST /api/media` answers `200` with `duplicate: true`.
+- **Optional change classifier** (Aneesh Sathe; migration 0030). Off unless
+  Settings → AI → change classifier names a decision model (Clef or Clef-flash
+  on Workers AI, or TypeSafe's Jev). It suggests `typo`, `minor` or `major`
+  for a new version in the publish dialog, `refresh` for a republish of the
+  same words with no model call, and can lead the change note with that word.
+  The label is kept privately with the version; readers see it only as words
+  in your note, and no client gives it meaning (decision #83).
+- **OPML import** (studio#63, Aneesh Sathe). Import subscriptions from an OPML
+  file in Sources, with a preview, per-feed choice, an optional add-to-blogroll,
+  and a per-row result. Imported feeds are fetched by the next background poll.
+- **Mentions show up as they arrive** (Aneesh Sathe; migration 0032). Verified
+  responses, and hiding or showing one, now refresh the public page at once
+  instead of after the edge cache expired (up to about six minutes), and the
+  studio's mention views re-read only when something changed.
+- **Newest Webmention responses first** (Kyle Mathews). Response groups on the
+  Webmentions page had come back in random id order.
+- **Label grammar: six edge cases fixed** (#70, Aneesh Sathe), found porting
+  the renderer to another client, among them a label escaped twice inside a
+  generated block and a backtick in one label disabling a later link.
+- **Studio on the phone** (Aneesh Sathe): no more random zoom on iOS (fields
+  under 16px, double-tap), compact reading cards, full-screen reading, and a
+  quieter composer and editor.
+- TanStack DB packages updated (Kyle Mathews).
+
+---
+
 ## 0.47.0 — 2026-10-17
 
 **Migrations: none.** No config change. Implements protocol 0.4, opened today.
