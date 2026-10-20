@@ -18,7 +18,7 @@ not have its own repo until session 26.
 
 ---
 
-## Unreleased
+## 0.48.1 — 2026-10-20
 
 **Migrations: none.** Implements protocol 0.4.
 
