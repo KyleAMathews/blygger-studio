@@ -103,3 +103,23 @@ test('settings: a model per AI function from the manifest, other…, a reserved 
     await api(page, 'PATCH', '/settings', { ai_model_tk: before.ai_model_tk, ai_model_changelog: before.ai_model_changelog, ai_model_feed: before.ai_model_feed, feed_prompt: before.feed_prompt });
   }
 });
+
+test('own items in the reading feed: stub ↗ opens a quoting stub, and fork is offered', async ({ page }) => {
+  await login(page);
+  const stamp = Date.now();
+  const own = (await api(page, 'POST', '/items', { content_md: `Own feed item ${stamp}` })).json.id;
+  await api(page, 'POST', `/items/${own}/publish`, {});
+  await page.goto('/studio/reading?sub=all');
+  const entry = page.locator('.reading-entry').filter({ hasText: `Own feed item ${stamp}` });
+  await expect(entry).toBeVisible();
+  await expect(entry.getByRole('button', { name: 'add to hopper' })).toBeVisible();
+  await entry.getByRole('button', { name: 'more actions' }).click();
+  await expect(page.getByText('fork', { exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  const created = page.waitForResponse((r) => r.url().endsWith('/api/items') && r.request().method() === 'POST');
+  await entry.locator(`[data-action="stub"][data-remote="${own}"]`).click();
+  const response = await created;
+  expect(response.status()).toBe(201);
+  expect(response.request().postDataJSON()).toMatchObject({ mode: 'response', source: { subscription_id: '~own', remote_id: own } });
+  await expect(page.locator('#md-input')).toHaveValue(`![[${own}]]\n\n`);
+});

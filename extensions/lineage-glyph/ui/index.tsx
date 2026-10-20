@@ -67,21 +67,25 @@ function useSummary(client: BlyggerClient, key: string, wanted: boolean) {
 /* ---------------- what each action does ---------------- */
 
 const notHeld = { unavailable: 'Not held here — subscribe to its blyg to respond to, quote, fork or link it.' };
+// Stubbing your own post (session 50): a same-origin reference sends no mention
+// (§15.2), so nothing lists under the post's public responses.
+const OWN_NOTE = 'This is your own post: nobody is told and nothing lists under it publicly. It shows here, under what came from it.';
 
 /** For the opening entry: the Studio's own handlers, where it offers them. */
 function entryHandlers(context: EntryContext): Handlers {
   const { actions, entry } = context;
-  const yours = entry.own ? 'This is your own post — edit it rather than respond to it.' : undefined;
-  const handler = (run: (() => void) | undefined, unavailable: string) => (run ? { run } : { unavailable });
+  const yours = entry.own ? 'This is your own post.' : undefined;
+  const note = entry.own ? OWN_NOTE : undefined;
+  const handler = (run: (() => void) | undefined, unavailable: string, mine = note) => (run ? { run, ...(mine ? { note: mine } : {}) } : { unavailable });
   return {
     stub: handler(actions.stub, yours ?? 'This post cannot be responded to.'),
     // Passages are chosen in the stub editor (0.31): quote opens it, like stub,
     // for the posts a passage can be quoted from (those that can be forked).
     quote: handler(actions.fork && actions.stub, yours ?? 'Only a blyg post you follow can be quoted.'),
     fork: handler(actions.fork, yours ?? 'This post cannot be forked.'),
-    link: handler(actions.linkPost, 'A link to this post would not resolve.'),
-    history: handler(actions.history, 'Your own versions are in the editor.'),
-    open: handler(actions.open, 'It has no public page.'),
+    link: handler(actions.linkPost, 'A link to this post would not resolve.', undefined),
+    history: handler(actions.history, 'Your own versions are in the editor.', undefined),
+    open: handler(actions.open, 'It has no public page.', undefined),
   };
 }
 
@@ -106,8 +110,15 @@ function nodeHandlers(node: LineageGlyphLineage['node'], context: EntryContext):
     };
   }
   if (node.held === 'own' && id) {
-    const yours = { unavailable: 'This is your own post — edit it rather than respond to it.' };
-    return { stub: yours, quote: yours, fork: yours, link, history: { unavailable: 'Your own versions are in the editor.' }, open };
+    const respond = { run: () => void run(() => openDraft({ mode: 'response', source: { subscription_id: '~own', remote_id: id } })), note: OWN_NOTE };
+    return {
+      stub: respond,
+      quote: respond,
+      fork: url ? { run: () => void navigate({ to: '/fork', search: { id } }), note: OWN_NOTE } : { unavailable: 'A withdrawn post cannot be forked.' },
+      link,
+      history: { unavailable: 'Your own versions are in the editor.' },
+      open,
+    };
   }
   return { stub: notHeld, quote: notHeld, fork: notHeld, link: notHeld, history: notHeld, open };
 }

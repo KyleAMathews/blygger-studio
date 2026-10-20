@@ -262,3 +262,46 @@ describe("version agreement matches the stub's target by origin and id (studio#2
     expect(applyVersionAgreement(remote, [{ id: "x1", version: 7, origin: "https://other.example/" }], own)).toEqual(remote);
   });
 });
+
+// Stubbing your own item from the reading feed (session 50): addressed `~own`,
+// as hoppers address own items; same-origin, so no mention goes out (§15.2).
+describe("stub ↗ on an own item", () => {
+  const respond = (cookie: string, id: string, selection?: string) =>
+    apiJson(cookie, "POST", "/api/items", { mode: "response", source: { subscription_id: "~own", remote_id: id }, ...(selection ? { selection } : {}) });
+
+  it("drafts a thread quoting the live version, with a same-origin stub_of, and publishes", async () => {
+    const cookie = await login();
+    const target = await createAndPublish(cookie, "first cut");
+    await apiJson(cookie, "PATCH", `/api/items/${target}`, { content_md: "second cut, the one to answer" });
+    expect((await apiJson(cookie, "POST", `/api/items/${target}/publish`, {})).status).toBe(200);
+    const created = await respond(cookie, target);
+    expect(created.status).toBe(201);
+    expect(created.json.kind).toBe("thread");
+    expect(created.json.content_md).toBe(`![[${target}]]\n\n`);
+    expect((await apiJson(cookie, "POST", `/api/items/${created.json.id}/publish`, {})).status).toBe(200);
+    const doc = await itemJson(created.json.id);
+    expect(doc.stub_of).toMatchObject({ origin: OURS, id: target, version: 2 });
+    expect(doc.transclusions).toMatchObject([{ id: target, version: 2 }]);
+    expect(doc.transclusions[0].origin).toBeUndefined();
+  });
+
+  it("quotes a selected passage only if the published version has it", async () => {
+    const cookie = await login();
+    const target = await createAndPublish(cookie, "One sentence here. Another sentence there.");
+    const ok = await respond(cookie, target, "Another sentence there.");
+    expect(ok.status).toBe(201);
+    expect(ok.json.content_md).toBe(`![[${target}]]\n> Another sentence there.\n\n`);
+    expect((await respond(cookie, target, "not in the post")).status).toBe(400);
+  });
+
+  it("cites a withdrawn item without quoting it, and refuses a draft that was never published", async () => {
+    const cookie = await login();
+    const target = await createAndPublish(cookie, "soon gone");
+    expect((await apiJson(cookie, "POST", `/api/items/${target}/withdraw`, {})).status).toBe(200);
+    const created = await respond(cookie, target);
+    expect(created.status).toBe(201);
+    expect(created.json.content_md).toBe("");
+    const draft = await apiJson(cookie, "POST", "/api/items", { content_md: "never published" });
+    expect((await respond(cookie, draft.json.id)).status).toBe(404);
+  });
+});

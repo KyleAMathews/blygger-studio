@@ -175,7 +175,7 @@ test('our own thread lists its verified mentions as what came from it', async ({
   await expect(list.locator('li').filter({ hasText: 'Native title' })).toContainText('verified mention');
   await expect(list.locator('li').filter({ hasText: 'Source author' })).toHaveCount(1);
   await previewAt(page, sheet.locator('[data-vertex=stub]'));
-  await expect(sheet.locator('.lg-explain')).toContainText('This is your own post');
+  await expect(sheet.locator('.lg-explain .lg-note')).toContainText('nobody is told');
 });
 
 test('quote selection opens the stub editor', async ({ page }) => {

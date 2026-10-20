@@ -323,9 +323,12 @@ function entryParts(entry: Reading) {
       ? `${location.origin}${mount}/${entry.kind === 'thread' ? 't' : 'f'}/${id}/`
       : undefined
     : imported?.sourceUrl || undefined;
+  // Own items are stubbed as hoppers address them, `~own` (session 50).
   const source = imported
     ? { subscription_id: imported.subscriptionId, remote_id: imported.remoteId }
-    : undefined;
+    : entry.own
+      ? { subscription_id: OWN_SUB, remote_id: entry.own.id }
+      : undefined;
   return { imported, id, url, source };
 }
 
@@ -448,7 +451,10 @@ function useEntryActions({
   const forkPage = () => {
     if (imported)
       void navigate({ to: '/fork', search: { id, sub: imported.subscriptionId } });
+    // No sub: the fork page reads our own origin's pins.
+    else if (entry.own) void navigate({ to: '/fork', search: { id } });
   };
+  const canFork = (canQuote(entry) && !!imported) || (!!entry.own && canLink(entry));
   const openPage = () => {
     opened();
     void window.open(url, '_blank', 'noreferrer');
@@ -468,16 +474,17 @@ function useEntryActions({
     run: (action) => run(async () => action()),
     actions: {
       stub: source ? () => void stub() : undefined,
-      fork: canQuote(entry) && imported ? forkPage : undefined,
+      fork: canFork ? forkPage : undefined,
       linkPost: canLink(entry) ? linkPost : undefined,
       history: imported && !entry.l0 ? () => setHistoryOpen(true) : undefined,
       open: url ? openPage : undefined,
     },
     openSheet: (render) => setExtensionSheet({ name: extension.name, render }),
   });
+  const hopperSub = imported?.subscriptionId ?? (entry.own ? OWN_SUB : undefined);
   const addToHopper = () =>
     run(async () => {
-      if (!imported) return;
+      if (!hopperSub) return;
       const chosen = await menu({
         title: '+ add to hopper…',
         rows: [
@@ -504,7 +511,7 @@ function useEntryActions({
       await unwrap(
         BlyggerApi.addHopperItem({
           client,
-          path: { id: hopperId, sub: imported.subscriptionId, remoteId: id },
+          path: { id: hopperId, sub: hopperSub, remoteId: id },
         }),
       );
       await changed('hoppers', 'hopper', 'hopper-preview');
@@ -518,12 +525,11 @@ function useEntryActions({
           label: 'link post ↗',
           onSelect: linkPost,
         },
-        canQuote(entry) &&
-          imported && {
-            icon: '⑂',
-            label: 'fork',
-            onSelect: forkPage,
-          },
+        canFork && {
+          icon: '⑂',
+          label: 'fork',
+          onSelect: forkPage,
+        },
         canLink(entry) && {
           icon: '⟦',
           label: 'copy [[id]]',
@@ -635,13 +641,13 @@ function EntryBar({ entry, a }: { entry: Reading; a: EntryActions }) {
           edit
         </Link>
       ) : null}
-      {imported ? (
+      {imported || entry.own ? (
         <>
           <Button
             className="act"
             data-action="stub"
-            data-sub={imported.subscriptionId}
-            data-remote={imported.remoteId}
+            data-sub={imported?.subscriptionId ?? OWN_SUB}
+            data-remote={id}
             onClick={() => void a.stub()}
           >
             stub ↗
