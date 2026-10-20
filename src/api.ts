@@ -190,11 +190,15 @@ async function sendMentionsFor(
   if (!row) return;
   const settings = await getSettings(c.env.DB);
   const origin = siteOrigin(settings, c.req.url, normalizeMount(c.env.MOUNT));
-  const refs = await enqueueForVersion(c.env.DB, itemId, version, row, origin, opts);
+  // The same bounded fetch reads an unsubscribed target origin's manifest
+  // (once per origin) for its `item` template, so the target is its item
+  // document wherever that lives (§15.2, decision #85).
+  const fetchFn = mentionFetchFor(c.env);
+  const refs = await enqueueForVersion(c.env.DB, itemId, version, row, origin, { ...opts, fetchFn });
   if (!refs.length) return;
   // Fire-and-forget in the strong sense: a delivery error is a row status,
   // never an uncaught rejection in the worker that just published.
-  c.executionCtx.waitUntil(drainOutbound(c.env.DB, mentionFetchFor(c.env), { origin }).catch(() => {}));
+  c.executionCtx.waitUntil(drainOutbound(c.env.DB, fetchFn, { origin }).catch(() => {}));
 }
 
 /**

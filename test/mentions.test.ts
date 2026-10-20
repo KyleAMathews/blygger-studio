@@ -17,7 +17,9 @@ import { applyEffect, createSubscription } from "../src/importer/store.ts";
 import { transition } from "../src/importer/transition.ts";
 import { discoverEndpoint, endpointFromHtml, endpointFromLinkHeader } from "../src/mentions/discover.ts";
 import { receiveMention, relationTo, targetItemId, verifyMention } from "../src/mentions/receive.ts";
-import { drainOutbound } from "../src/mentions/send.ts";
+import { drainOutbound, enqueueForVersion, remoteReferences } from "../src/mentions/send.ts";
+import { getVersion } from "../src/model.ts";
+import type { VersionRow } from "../src/types.ts";
 import {
   FAILED_INBOUND_RETENTION_MS,
   getInbound,
@@ -325,6 +327,105 @@ describe("sending (§2.3.3)", () => {
     expect(row.status).toBe("pending");
     expect(row.attempts).toBe(1);
     expect(Date.parse(row.next_attempt_at!) - now).toBeGreaterThan(60_000);
+  });
+});
+
+describe("mention targets without the target's page (§15.2 sixth revision, decision #85)", () => {
+  async function quoteAndPublish(cookie: string, origin: string, id: string): Promise<string> {
+    const item = await apiJson(cookie, "POST", "/api/items", {
+      kind: "thread",
+      content_md: `![[${id}]]\n\nMine.`,
+      stub_of: { origin, id, version: 1 },
+    });
+    expect((await apiJson(cookie, "POST", `/api/items/${item.json.id}/publish`, {})).status).toBe(200);
+    return item.json.id as string;
+  }
+  const targetOf = async (itemId: string) => (await listOutbound(env.DB)).filter((r) => r.item_id === itemId).map((r) => r.target);
+
+  it("an import that declares its page is still mentioned at the page", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    const origin = "https://paged.example/";
+    const id = newId();
+    await importFrom(origin, { id, kind: "fragment", version: 1, content_md: "paged", page: `posts/${id}.html` }, "Paged");
+    expect(await targetOf(await quoteAndPublish(cookie, origin, id))).toEqual([`${origin}posts/${id}.html`]);
+  });
+
+  it("an import without page is mentioned at its item document, never at f/{id}/", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    const origin = "https://pageless.example/";
+    const id = newId();
+    await importFrom(origin, { id, kind: "fragment", version: 1, content_md: "no page" }, "Pageless");
+    expect(await targetOf(await quoteAndPublish(cookie, origin, id))).toEqual([`${origin}items/${id}.json`]);
+  });
+
+  it("a thread without page is not guessed as t/{id}/ (nor as f/{id}/)", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    const origin = "https://threads.example/";
+    const id = newId();
+    await importFrom(origin, { id, kind: "thread", version: 1, content_md: "a thread" }, "Threads");
+    const targets = await targetOf(await quoteAndPublish(cookie, origin, id));
+    expect(targets).toEqual([`${origin}items/${id}.json`]);
+    expect(targets.some((t) => /\/[ft]\/[^/]+\/$/.test(t))).toBe(false);
+  });
+
+  it("a subscription whose manifest declared an item template is mentioned at the templated address", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    const origin = "https://templated.example/";
+    const id = newId();
+    const sub = await importFrom(origin, { id, kind: "thread", version: 1, content_md: "templated" }, "Templated");
+    await env.DB.prepare("UPDATE subscriptions SET surface = ? WHERE id = ?").bind(JSON.stringify({ item: "api/doc?id={id}" }), sub).run();
+    expect(await targetOf(await quoteAndPublish(cookie, origin, id))).toEqual([`${origin}api/doc?id=${id}`]);
+  });
+
+  it("an origin we do not subscribe to has its manifest read once, for item template and endpoint", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    const origin = "https://stranger.example/";
+    const a = newId(), b = newId();
+    const item = await apiJson(cookie, "POST", "/api/items", { kind: "fragment", content_md: "Mine." });
+    await apiJson(cookie, "POST", `/api/items/${item.json.id}/publish`, {});
+    // The references are hand-set on the version row: the publish route reads
+    // manifests with the real network, which this runtime refuses.
+    const row = { ...(await getVersion(env.DB, item.json.id, 1)) } as VersionRow;
+    row.transclusions = JSON.stringify([{ id: a, version: 1, origin }, { id: b, version: 2, origin }]);
+    const net = fixtureNet({
+      [`${origin}blyg.json`]: { body: JSON.stringify({ blyg: "0.4", site: origin, item: "docs/{id}.json", webmention: "/wm" }) },
+    });
+    const refs = await remoteReferences(env.DB, item.json.id, row, OURS, net.fetch);
+    expect(refs.map((r) => r.target)).toEqual([`${origin}docs/${a}.json`, `${origin}docs/${b}.json`]);
+    expect(refs.every((r) => r.endpoint === "https://stranger.example/wm")).toBe(true);
+    expect(net.calls.map((c) => c.url)).toEqual([`${origin}blyg.json`]);
+
+    // No manifest at all: the default item document, and no endpoint claimed.
+    const none = fixtureNet({});
+    const fallback = await remoteReferences(env.DB, item.json.id, row, OURS, none.fetch);
+    expect(fallback.map((r) => r.target)).toEqual([`${origin}items/${a}.json`, `${origin}items/${b}.json`]);
+    expect(fallback.every((r) => r.endpoint === undefined)).toBe(true);
+  });
+
+  it("an endpoint learnt at enqueue is what delivery posts to", async () => {
+    const origin = "https://stranger2.example/";
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    const id = newId();
+    const item = await apiJson(cookie, "POST", "/api/items", { kind: "fragment", content_md: "Mine." });
+    // Published first, so the item has a public source URL to send.
+    await apiJson(cookie, "POST", `/api/items/${item.json.id}/publish`, {});
+    const row = { ...(await getVersion(env.DB, item.json.id, 1)) } as VersionRow;
+    row.transclusions = JSON.stringify([{ id, version: 1, origin }]);
+    const net = fixtureNet({
+      [`${origin}blyg.json`]: { body: JSON.stringify({ blyg: "0.4", site: origin, webmention: "wm" }) },
+      [`${origin}wm`]: { status: 202 },
+    });
+    await enqueueForVersion(env.DB, item.json.id, 1, row, OURS, { fetchFn: net.fetch });
+    await drainOutbound(env.DB, net.fetch, { origin: OURS });
+    const post = net.calls.find((c) => c.init?.method === "POST");
+    expect(post?.url).toBe(`${origin}wm`);
+    expect(new URLSearchParams(post!.init!.body).get("target")).toBe(`${origin}items/${id}.json`);
   });
 });
 
@@ -879,7 +980,7 @@ describe("detect stubs — /studio/mentions (§3.3)", () => {
 
     expect((await apiJson(cookie, "GET", "/api/settings")).json.site_url).toBe(OURS);
     const after = await apiJson(cookie, "GET", "/api/mentions?direction=outbound");
-    expect(after.json.items).toEqual(expect.arrayContaining([expect.objectContaining({ target: `${THEIRS}f/${remoteId}/`, item_id: stub.json.id })]));
+    expect(after.json.items).toEqual(expect.arrayContaining([expect.objectContaining({ target: `${THEIRS}items/${remoteId}.json`, item_id: stub.json.id })]));
   });
 });
 
@@ -931,10 +1032,11 @@ describe("the stub stack (§4.3)", () => {
     expect(doc.content_html).toContain(`data-blyg-id="${f}"`);
     expect(doc.content_html).toContain("the original claim");
 
-    // And the mention we owe B is queued at their permalink.
+    // And the mention we owe B is queued at their item document: the import
+    // declared no `page`, and §15.2 (decision #85) forbids guessing `t/{id}/`.
     const queued = (await listOutbound(env.DB)).filter((r) => r.item_id === s2);
     expect(queued).toHaveLength(1);
-    expect(queued[0].target).toBe(`${THEIRS}t/${s1}/`);
+    expect(queued[0].target).toBe(`${THEIRS}items/${s1}.json`);
   });
 });
 

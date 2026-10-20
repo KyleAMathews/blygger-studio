@@ -151,14 +151,18 @@ export async function enqueueOutbound(
   version: number,
   target: string,
   targetVersion: number | null = null,
-  opts: { force?: boolean } = {},
+  opts: { force?: boolean; endpoint?: string } = {},
 ): Promise<void> {
   const force = opts.force ? 1 : 0;
+  // A known endpoint fills an empty one only: a row that already found its
+  // endpoint keeps it, as discovery at delivery would.
+  const endpoint = opts.endpoint ?? null;
   await db
     .prepare(
       `INSERT INTO mentions_out (id, item_id, version, target, target_version, endpoint, status, attempts, next_attempt_at, last_error, created)
-       VALUES (?, ?, ?, ?, ?, NULL, 'pending', 0, NULL, NULL, ?)
+       VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, ?)
        ON CONFLICT (item_id, target) DO UPDATE SET
+         endpoint = COALESCE(mentions_out.endpoint, excluded.endpoint),
          version = excluded.version,
          target_version = excluded.target_version,
          status = CASE WHEN ? = 1 OR mentions_out.target_version IS NOT excluded.target_version THEN 'pending' ELSE mentions_out.status END,
@@ -166,7 +170,7 @@ export async function enqueueOutbound(
          next_attempt_at = CASE WHEN ? = 1 OR mentions_out.target_version IS NOT excluded.target_version THEN NULL ELSE mentions_out.next_attempt_at END,
          last_error = CASE WHEN ? = 1 OR mentions_out.target_version IS NOT excluded.target_version THEN NULL ELSE mentions_out.last_error END`,
     )
-    .bind(newId(), itemId, version, target, targetVersion, nowIso(), force, force, force, force)
+    .bind(newId(), itemId, version, target, targetVersion, endpoint, nowIso(), force, force, force, force)
     .run();
 }
 

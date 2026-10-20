@@ -202,9 +202,13 @@ describe("the publish-time check (§2.4)", () => {
       { source: "Friend", url: `${THEIRS}items/remote-item/v2.json`, retrieved: new Date().toISOString() },
     );
     expect((await apiJson(cookie, "POST", `/api/items/${item.id}/publish`, {})).status).toBe(200);
-    // The mention targets the live permalink, not the pinned file: a receiver
-    // verifies against the item a `target` names.
-    expect((await listOutbound(env.DB)).map((r) => r.target)).toContain(`${THEIRS}f/remote-item/`);
+    // The mention targets the live item, not the pinned file: a receiver
+    // verifies against the item a `target` names. Nothing imported declares
+    // a `page`, so that is the item document, never a guessed `f/{id}/`
+    // (§15.2, decision #85).
+    const targets = (await listOutbound(env.DB)).map((r) => r.target);
+    expect(targets).toContain(`${THEIRS}items/remote-item.json`);
+    expect(targets).not.toContain(`${THEIRS}f/remote-item/`);
   });
 });
 

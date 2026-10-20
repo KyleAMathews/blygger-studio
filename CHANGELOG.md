@@ -18,6 +18,29 @@ not have its own repo until session 26.
 
 ---
 
+## 0.48.2 — 2026-10-20
+
+**Migrations: none.** Implements protocol 0.4.
+
+- **A mention without the target's page names its item document** (decision
+  #85, [blygger-spec#17](https://github.com/blygger/blygger-spec/issues/17),
+  Robert Peake's follow-up). §15.2's sixth revision says a sender targets the
+  item's `page` when it holds one and otherwise the item document, expanded
+  from the target origin's `item` template or the default `items/{id}.json`;
+  it must never guess the `f/{id}/`·`t/{id}/` convention. The studio used to
+  guess, and called every item of unknown kind a fragment, which a 0.48.1
+  receiver refuses for a thread and Soapbox refuses always. Now a subscribed
+  origin's stored surface supplies the template with no network; for an
+  origin we do not subscribe to, the publish path reads `{origin}blyg.json`
+  once per origin with the bounded mention fetch, takes its `item` template
+  and its `webmention` endpoint, and falls back to the default address when
+  the manifest is missing or says nothing. The endpoint is recorded on the
+  outbound row, because delivery finds endpoints through subscriptions and an
+  item document carries no `rel="webmention"` for W3C discovery. Stubs,
+  transclusions, links, generation sources and forks all take the same path;
+  the re-send test on the target's version is unchanged. Mentions already
+  queued keep the target they were queued with.
+
 ## 0.48.1 — 2026-10-20
 
 **Migrations: none.** Implements protocol 0.4.
