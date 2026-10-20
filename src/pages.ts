@@ -10,7 +10,8 @@ import { listBlogrollSubscriptions, listPublicHoppers } from "./importer/store.t
 import { listPublicResponses } from "./mentions/store.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
 import { blygItemUrl } from "./importer/util.ts";
-import { parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
+import { isBlygStub, parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
+import { linkLabel } from "./link-label.ts";
 import { excerptFromHtml } from "./markdown.ts";
 import { clampText, leadingHeading, stripTransclusionQuotes } from "./preview.ts";
 import { authoredKind, getMedia, itemShowsResponses, listVersionMedia, publishedVersion } from "./model.ts";
@@ -1489,6 +1490,55 @@ ${lines.join("\n")}
 </section>`;
 }
 
+/**
+ * Local mentions (session 50, Venkat): this blyg's own published items that
+ * point at this one — stubs, quotes and forks. A same-origin reference sends no
+ * mention (§15.2), so they never reach the responses list; without this the
+ * quote is traversable only forwards, from the quoting post's "quoted from"
+ * line. Listed here, a transclusion is walkable both ways on the public site.
+ *
+ * Chrome, like the responses list: read from the live versions at request
+ * time, never in an item document, feed or hash. Always shown when there is
+ * one, unlike responses: the opt-in there guards against strangers' rows, and
+ * these are the author's own. Only each item's live version counts — a quote
+ * edited out is no longer a mention. The `items` change domain rolls the HTML
+ * cache key on every publish, so a new stub shows on its target at once.
+ */
+export async function localMentionsSection(db: D1Database, item: ItemRow, settings: Settings, mount: string, origin: string): Promise<string> {
+  const rows = (await db
+    .prepare(
+      `SELECT i.id, i.kind, i.forked_from, v.stub_of, v.transclusions, v.content_html, v.published_at
+       FROM items i JOIN versions v ON v.item_id = i.id AND v.version = i.version
+       WHERE i.status = 'public' AND i.id <> ?
+         AND (instr(COALESCE(v.stub_of, ''), ?) > 0 OR instr(COALESCE(v.transclusions, ''), ?) > 0 OR instr(COALESCE(i.forked_from, ''), ?) > 0)
+       ORDER BY v.published_at, i.rowid`,
+    )
+    .bind(item.id, item.id, item.id, item.id)
+    .all<{ id: string; kind: string; forked_from: string | null; stub_of: string | null; transclusions: string | null; content_html: string | null; published_at: string }>()).results;
+  const lines: string[] = [];
+  for (const row of rows) {
+    // instr() is a prefilter; the reference itself decides, origin included.
+    const stub = parseStoredStub(row.stub_of);
+    const quote = (JSON.parse(row.transclusions || "[]") as Transclusion[]).find((t) => t.id === item.id && (!t.origin || t.origin === origin));
+    const fork = parseStoredFork(row.forked_from);
+    const rel =
+      stub && isBlygStub(stub) && stub.id === item.id && stub.origin === origin ? (quote?.selector ? "stubbed a passage" : "stubbed this")
+      : quote ? (quote.selector ? "quoted a passage" : "quoted this")
+      : fork && fork.id === item.id && fork.origin === origin ? "forked this"
+      : null;
+    if (!rel) continue;
+    const href = settings.front_page === row.id ? `${mount}/` : `${mount}/${row.kind === "thread" ? "t" : "f"}/${row.id}/`;
+    lines.push(`<li><a href="${escapeHref(href)}">${escapeHtml(linkLabel(row.content_html ?? "", row.kind))}</a> <span class="rel">&middot; ${rel}</span> <span class="when">&middot; ${formatDate(row.published_at, settings.timezone)}</span></li>`);
+  }
+  if (!lines.length) return "";
+  return `<section class="responses local-mentions">
+<h2>Local mentions</h2>
+<ul>
+${lines.join("\n")}
+</ul>
+</section>`;
+}
+
 async function withdrawnBlock(db: D1Database, item: ItemRow, mount: string, tz: string): Promise<string> {
   const isThread = (await authoredKind(db, item)) === "thread";
   return `<article class="fragment withdrawn"><p>This item was withdrawn.</p>
@@ -1846,6 +1896,7 @@ export async function permalinkPage(db: D1Database, settings: Settings, item: It
   const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings);
   const body = `${await blygPage(db, settings, mount, `${await fragmentBlock(db, item, mount, settings.timezone)}
+${await localMentionsSection(db, item, settings, mount, origin)}
 ${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;
   return layout(head.title, body, mount, {
@@ -1881,6 +1932,7 @@ export async function threadPage(db: D1Database, settings: Settings, item: ItemR
   const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings, respondsToLabel(latest));
   const body = `${await blygPage(db, settings, mount, `${await threadBlock(db, item, mount, settings.timezone)}
+${await localMentionsSection(db, item, settings, mount, origin)}
 ${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;
   // The front page is the blyg's home, so its tab reads as the blyg.
