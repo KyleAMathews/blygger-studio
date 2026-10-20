@@ -18,6 +18,23 @@ not have its own repo until session 26.
 
 ---
 
+## Unreleased
+
+**Migrations: none.** Implements protocol 0.4.
+
+- **A Webmention may name a pinned version of an item** (decision #84,
+  [blygger-spec#17](https://github.com/blygger/blygger-spec/issues/17), Robert
+  Peake). §15.3 step 1 now tests a target by membership: it must resolve, by
+  the receiver's own published data, to one of its items. The endpoint
+  already accepted an item's page and its item document; it now also accepts
+  a pinned version's document (`items/{id}/v{n}.json`) and page
+  (`f/{id}/v{n}/`, `t/{id}/v{n}/`, under the version's authored kind). Each
+  resolves to the item, and the mention is recorded against the item, never
+  a version. A version that is not pinned, or an unknown id, is still 400.
+  The mount-prefix check stays, with a comment saying why it is a membership
+  test here (this studio never relocates its surface or emits an absolute
+  `page`) and what a client that does either must check instead.
+
 ## 0.48.0 — 2026-10-19
 
 **Migrations: 0028, 0030, 0031, 0032** — apply them before deploying

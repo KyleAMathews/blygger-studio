@@ -551,6 +551,49 @@ describe("receiving and structural verification (§2.3.5)", () => {
     expect(await targetItemId(env.DB, new URL(`${OURS}f/${id}/`), OURS)).toBe(id);
   });
 
+  it("a pinned version's document names its item: 202, recorded and verified against the item (§15.3, #84)", async () => {
+    const { id, cookie } = await ourItem();
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "a fragment worth responding to, revised" });
+    await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
+    expect((await apiJson(cookie, "PUT", `/api/items/${id}/versions/1/pin`)).status).toBe(200);
+    const target = `${OURS}items/${id}/v1.json`;
+    const src = sourceFixture({ stubTargetId: id });
+    const net = fixtureNet(src.map);
+
+    const out = await receiveMention(env.DB, { source: src.page, target }, OURS);
+    expect(out.status).toBe(202);
+    const mentionId = (out as { mentionId: string }).mentionId;
+    // Recorded against the item, never a version.
+    const row = await env.DB.prepare("SELECT target_item_id FROM mentions_in WHERE id = ?").bind(mentionId).first<{ target_item_id: string }>();
+    expect(row?.target_item_id).toBe(id);
+    const res = await verifyMention(env.DB, mentionId, src.page, row!.target_item_id, OURS, net.fetch);
+    expect(res.status).toBe("verified");
+    expect(res.relation).toBe("stub");
+
+    // The pinned page names it too, under its authored kind only.
+    expect(await targetItemId(env.DB, new URL(`${OURS}f/${id}/v1/`), OURS)).toBe(id);
+    expect(await targetItemId(env.DB, new URL(`${OURS}t/${id}/v1/`), OURS)).toBeNull();
+    // An unpinned version is not an address we serve (§4); v2 exists, v3 does not.
+    expect(await targetItemId(env.DB, new URL(`${OURS}items/${id}/v2.json`), OURS)).toBeNull();
+    expect(await targetItemId(env.DB, new URL(`${OURS}f/${id}/v2/`), OURS)).toBeNull();
+  });
+
+  it("an unpinned v3, an unknown id or another blyg's page is 400 (§15.3, #84)", async () => {
+    const { id, cookie } = await ourItem();
+    expect((await apiJson(cookie, "PUT", `/api/items/${id}/versions/1/pin`)).status).toBe(200);
+    const source = `${THEIRS}t/${newId()}/`;
+    for (const target of [
+      `${OURS}items/${id}/v3.json`,
+      `${OURS}items/${newId()}/v1.json`,
+      `${OURS}f/${newId()}/v1/`,
+      `${THEIRS}f/${id}/`,
+      `${THEIRS}items/${id}/v1.json`,
+      `https://example.com/items/${id}/v1.json`,
+    ]) {
+      expect((await receiveMention(env.DB, { source, target }, OURS)).status, target).toBe(400);
+    }
+  });
+
   it("rejects malformed claims syntactically, before any fetch", async () => {
     const { target } = await ourItem();
     const cases: [string, { source?: string; target?: string }][] = [
