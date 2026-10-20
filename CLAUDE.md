@@ -327,6 +327,14 @@ was specified to do in both cases.
   withdrawn item counts as published, because its endcap and its versions are both out
   there. A stub thread is refused (409) rather than silently losing its citation; "clear
   stub" is the way through.
+- [ ] **The changelog AI judges the change: trivial / minor / major, in the note** (Venkat,
+  session 50, after Fable's #83 ruling dropped the `ignyr`-in-changelog idea). When AI change
+  notes are on, the same call that drafts the note also judges how big the change is and
+  leads the note with it in words, shown in the confirm dialog to edit or clear. The
+  change classifier (studio#77, Aneesh) already does this with a *decision* model
+  (`ai_model_classify`, `change_category_in_note`); this item gives the text-model path the
+  same result when no decision model is configured, sharing `composeNote`. Under #83 it is
+  prose only: no reader parses it, and the studio never routes on it, inbound or outbound.
 - [ ] **Bulk-update stale transcluded snapshots in a stub.** **Unblocked (decision #33):**
   freshness is direct and needs nothing new on the wire — fetch `{origin}items/{id}.json`
   and compare `version` to the reference's. Build the probe and the UI against that.
