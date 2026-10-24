@@ -23,8 +23,9 @@ owns materialization and optimistic state. Timed reads keep their scheduling.
 
 Current source:
 
-- `src/ui/query-client.ts`: Query Collection inherits 15-second polling from
-  Query Client defaults. Hidden tabs pause; return and reconnect trigger a refresh.
+- `src/ui/query-client.ts`: live collections explicitly opt into 15-second
+  polling. Query Client defaults contain no timer. Settings and authorizations
+  refresh on return, reconnect, or writes without periodic polling.
 - `src/ui/data.ts`: collections refetch their tracked active subsets; released
   Reading pages unload. Existing local optimistic
   edits and query collection behavior must remain intact.
@@ -100,8 +101,8 @@ matches zero state rows is invalid. Do not recreate missing state during normal
 writes with an old/default epoch. Review the dependency matrix whenever schema
 or response fields change, including migration backfills.
 
-R2 use ordinary Query Collection configs with TanStack Query's built-in
-15-second polling and visibility handling. Each actual `queryFn` invocation reads the fixed
+R2 let live collections opt into TanStack Query's built-in 15-second polling
+and visibility handling. Each actual `queryFn` invocation reads the fixed
 revision row afresh. If its exact-key cached response has the same epoch and
 domain revision, return it; otherwise fetch complete data for that collection
 or on-demand subset. Timed update-state and security reads remain live.

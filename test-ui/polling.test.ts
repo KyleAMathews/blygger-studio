@@ -1,10 +1,10 @@
 import { afterAll, afterEach, beforeEach, expect, it, vi } from 'vitest';
 // Query Core installs interval timers only in browser runtimes.
 vi.hoisted(() => vi.stubGlobal('window', {}));
-import { focusManager, onlineManager, type QueryFunction } from '@tanstack/query-core';
+import { focusManager, onlineManager, QueryObserver, type QueryFunction } from '@tanstack/query-core';
 import { createCollection, createLiveQueryCollection, eq } from '@tanstack/react-db';
 import { queryCollectionOptions } from '@tanstack/query-db-collection';
-import { queryClient } from '../src/ui/query-client.ts';
+import { queryClient, collectionPollingOptions, collectionRefreshOptions } from '../src/ui/query-client.ts';
 
 const cleanups: (() => void | Promise<void>)[] = [];
 beforeEach(() => {
@@ -23,8 +23,9 @@ afterEach(async () => {
 });
 afterAll(() => vi.unstubAllGlobals());
 
-function rows(queryKey: string, queryFn: QueryFunction<{ id: string; value: number }[]>) {
+function rows(queryKey: string, queryFn: QueryFunction<{ id: string; value: number }[]>, poll = true) {
   const collection = createCollection(queryCollectionOptions({
+    ...(poll ? collectionPollingOptions : collectionRefreshOptions),
     queryKey: [queryKey], queryClient, queryFn, getKey: row => row.id,
   }));
   const subscription = collection.subscribeChanges(() => {});
@@ -32,7 +33,7 @@ function rows(queryKey: string, queryFn: QueryFunction<{ id: string; value: numb
   return { collection, subscription };
 }
 
-it('Studio defaults poll active collections, pause while hidden, and refresh on return or reconnect', async () => {
+it('opted-in collections poll while active, pause while hidden, and refresh on return or reconnect', async () => {
   const load = vi.fn(async () => [{ id: 'a', value: 1 }]);
   const { collection, subscription } = rows('items', load);
   await collection.preload();
@@ -92,6 +93,7 @@ it('canceled and failed interval reads retain cached rows and the next poll can 
 it('on-demand route views poll while retained and stop after the last subscriber releases demand', async () => {
   const load = vi.fn(async () => [{ id: 'a', value: 1 }]);
   const source = createCollection(queryCollectionOptions({
+    ...collectionPollingOptions,
     queryKey: ['reading'], queryClient, queryFn: load,
     syncMode: 'on-demand', getKey: row => row.id,
   }));
@@ -116,4 +118,29 @@ it('on-demand route views poll while retained and stop after the last subscriber
   expect(source.subscriberCount).toBe(0);
   await vi.advanceTimersByTimeAsync(30_000);
   expect(load).toHaveBeenCalledTimes(2);
+});
+
+it('collections and ordinary queries without polling opt-in do not acquire timers', async () => {
+  const settingsLoad = vi.fn(async () => [{ id: 'settings', value: 1 }]);
+  const { collection } = rows('settings', settingsLoad, false);
+  const auxiliaryLoad = vi.fn(async () => 'cached');
+  const observer = new QueryObserver(queryClient, {
+    queryKey: ['auxiliary'], queryFn: auxiliaryLoad,
+  });
+  const unsubscribe = observer.subscribe(() => {});
+  cleanups.push(unsubscribe);
+  await Promise.all([
+    collection.preload(),
+    queryClient.fetchQuery({ queryKey: ['auxiliary'], queryFn: auxiliaryLoad }),
+  ]);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(settingsLoad).toHaveBeenCalledTimes(1);
+  expect(auxiliaryLoad).toHaveBeenCalledTimes(1);
+
+  // Settings still refresh when the user returns, without a periodic timer.
+  focusManager.setFocused(false);
+  focusManager.setFocused(true);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(settingsLoad).toHaveBeenCalledTimes(2);
+  expect(auxiliaryLoad).toHaveBeenCalledTimes(1);
 });

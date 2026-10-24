@@ -18,15 +18,15 @@ test('unchanged Studio polls check revisions without refetching collections, the
     await page.clock.runFor(1); // Let query-collection application finish before the next tick.
     await page.evaluate(() => Promise.resolve());
   }
-  await tick(['/api/changes', '/api/changes', '/api/settings', '/api/update-state']);
+  await tick(['/api/changes', '/api/update-state']);
   const requests: string[] = [];
   page.on('request', request => { if (request.method() === 'GET' && new URL(request.url()).pathname.startsWith('/api/')) requests.push(new URL(request.url()).pathname); });
-  await tick(['/api/changes', '/api/changes', '/api/update-state']);
-  expect(requests.sort()).toEqual(['/api/changes', '/api/changes', '/api/update-state']);
+  await tick(['/api/changes', '/api/update-state']);
+  expect(requests.sort()).toEqual(['/api/changes', '/api/update-state']);
   requests.length = 0;
   const marker = `Other client ${Date.now()}`;
   await page.evaluate(content_md => fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md }) }), marker);
-  await tick(['/api/changes', '/api/changes', '/api/items', '/api/update-state']);
+  await tick(['/api/changes', '/api/items', '/api/update-state']);
   expect(requests).toContain('/api/items');
   await expect(page.getByText(marker, { exact: false }).first()).toBeVisible();
 });

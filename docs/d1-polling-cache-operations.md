@@ -38,7 +38,8 @@ in full and every row's source card on each tick. Those reads are now gated on
 the counters like every other owner read, so an unchanged tick costs one
 `/api/changes` read per collection. Polls stop while the tab or installed PWA is
 hidden. TanStack Query refreshes active queries when the page becomes visible
-or the network reconnects (`src/ui/query-client.ts`), for every domain.
+or the network reconnects (`src/ui/query-client.ts`). Live collections opt
+into timers individually. Settings and authorizations have no polling timer.
 
 The feed uses the existing `MEDIA` R2 binding. Objects under `__cache/feed/` are
 internal XML artifacts, separate from attachment paths. Keys include software/
@@ -92,7 +93,8 @@ still returns an error if no stable render interval can be found.
 Interrupted work can retry on later cron ticks or feed requests. No maximum
 stale age is guaranteed. XML can remain stale after withdrawal during this window.
 
-Studio uses Query Collections with TanStack Query's built-in 15-second polling.
+Live Studio collections opt into TanStack Query's built-in 15-second polling.
+Query Client defaults do not enable polling for other queries.
 Hidden tabs pause polling; return and reconnect trigger a refresh.
 Each query function makes a fresh change check, then returns its cached response
 or fetches changed data. Several mounted queries can each read the revision row. Timed update-state and

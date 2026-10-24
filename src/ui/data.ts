@@ -26,7 +26,7 @@ import {
   createBlyggerClient,
   unwrap,
 } from '../../sdk/dist/browser.js';
-import { queryClient } from './query-client.ts';
+import { queryClient, collectionPollingOptions, collectionRefreshOptions } from './query-client.ts';
 export { queryClient } from './query-client.ts';
 import { readIfChanged, type CachedResponse, type Generation } from './revision-query.ts';
 import type { ChangeDomain } from '../change-state.ts';
@@ -116,6 +116,7 @@ async function existing<T>(ids: string[], read: (id: string) => Promise<T>): Pro
 
 export const items = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.items,
     id: 'items',
     syncMode: 'on-demand',
@@ -185,6 +186,7 @@ export const items = createCollection(
 );
 export const settings = createCollection(
   queryCollectionOptions({
+    ...collectionRefreshOptions,
     schema: sourceSchemas.settings,
     id: 'settings',
     syncMode: 'on-demand',
@@ -210,6 +212,7 @@ export const settings = createCollection(
 );
 export const subscriptions = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.subscriptions,
     id: 'subscriptions',
     syncMode: 'on-demand',
@@ -260,6 +263,7 @@ export const subscriptions = createCollection(
 );
 export const hoppers = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.hoppers,
     id: 'hoppers',
     syncMode: 'on-demand',
@@ -310,6 +314,7 @@ export const hoppers = createCollection(
 );
 export const signals = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.signals,
     id: 'signals',
     syncMode: 'on-demand',
@@ -337,6 +342,7 @@ export type Detail = z.infer<typeof zGetItemResponse>;
 // only in `items`; editor details join them rather than keeping a second copy.
 export const itemHistory = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.itemHistory,
     id: 'item-history',
     syncMode: 'on-demand',
@@ -431,6 +437,7 @@ function readingSubset(context: Pick<QueryFunctionContext, 'meta'>): { view: str
 // occupy different ranks in "all" and a subscription without either overwriting it.
 export const reading = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.reading,
     id: 'reading',
     syncMode: 'on-demand',
@@ -527,6 +534,7 @@ export const markReading = createOptimisticAction<{
 
 export const hopperStats = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.hopperStats,
     id: 'hopper-stats',
     syncMode: 'on-demand',
@@ -556,6 +564,7 @@ function hopperSubset(context: QueryFunctionContext) {
   return { ids, offset, limit, preview: offset === 0 && limit !== undefined && limit <= 3 };
 }
 export const hopperEntries = createCollection(queryCollectionOptions({
+  ...collectionPollingOptions,
   schema: sourceSchemas.hopperEntries,
   id: 'hopper-entries',
   syncMode: 'on-demand',
@@ -576,6 +585,7 @@ export const hopperEntries = createCollection(queryCollectionOptions({
 // The API permits memberships whose imported body is not present yet. Keep
 // those rows too, so the owner's hopper page can still display and remove them.
 export const hopperMemberships = createCollection(queryCollectionOptions({
+  ...collectionPollingOptions,
   schema: sourceSchemas.hopperMemberships,
   id: 'hopper-memberships', syncMode: 'on-demand', queryKey: ['hopper-memberships'], queryClient,
   getKey: (row) => JSON.stringify([row.hopper_id, row.subscription_id, row.remote_id]),
@@ -654,6 +664,7 @@ export async function changed(...keys: string[]) {
 
 export const updates = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.updates,
     id: 'updates',
     syncMode: 'on-demand',
@@ -670,6 +681,7 @@ export const updates = createCollection(
 );
 
 export const authorizations = createCollection(queryCollectionOptions({
+  ...collectionRefreshOptions,
   schema: sourceSchemas.authorizations,
   id: 'authorizations', syncMode: 'on-demand', queryKey: ['authorizations'], queryClient, getKey: row => row.id,
   queryFn: async ({ signal }) => {
@@ -687,6 +699,7 @@ async function mentions(direction: 'inbound' | 'outbound', signal: AbortSignal) 
 // counter (0032) answers from cache: before it, each tick re-read both lists
 // in full and every row's source card.
 export const inbound = createCollection(queryCollectionOptions({
+  ...collectionPollingOptions,
   schema: sourceSchemas.inbound,
   id: 'mentions-in', syncMode: 'on-demand', queryKey: ['mentions-in'], queryClient,
   getKey: (row) => row.id,
@@ -697,6 +710,7 @@ export const inbound = createCollection(queryCollectionOptions({
 }));
 inbound.createIndex(row => row.target_item_id, { indexType: BasicIndex });
 export const outbound = createCollection(queryCollectionOptions({
+  ...collectionPollingOptions,
   schema: sourceSchemas.outbound,
   id: 'mentions-out', syncMode: 'on-demand', queryKey: ['mentions-out'], queryClient,
   getKey: (row) => row.id,
@@ -709,6 +723,7 @@ export const outbound = createCollection(queryCollectionOptions({
 // the source is held (stub back) and whether its origin is subscribed. Both
 // tables advance `reading`, so the card follows mentions + reading.
 export const mentionSources = createCollection(queryCollectionOptions({
+  ...collectionPollingOptions,
   schema: sourceSchemas.mentionSources,
   id: 'mention-sources', syncMode: 'on-demand', queryKey: ['mention-sources'], queryClient,
   getKey: (row) => row.key,
