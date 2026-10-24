@@ -106,7 +106,7 @@ test('a newly verified mention reaches the open mentions view in one poll, and a
   // Backgrounded: no reads at all, however long it stays hidden.
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
-    document.dispatchEvent(new Event('visibilitychange'));
+    document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
   });
   const reads: string[] = [];
   page.on('request', r => { if (r.method() === 'GET' && new URL(r.url()).pathname.startsWith('/api/')) reads.push(new URL(r.url()).pathname); });
@@ -116,7 +116,7 @@ test('a newly verified mention reaches the open mentions view in one poll, and a
   // Resumed: the check runs on the visibility change, not at the next tick.
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
-    document.dispatchEvent(new Event('visibilitychange'));
+    document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
   });
   await expect(group.getByRole('button', { name: 'show on page', exact: true })).toBeVisible();
   expect(reads).toContain('/api/changes');

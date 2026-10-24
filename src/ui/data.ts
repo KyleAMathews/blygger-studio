@@ -13,7 +13,7 @@ import {
   parseLoadSubsetOptions,
   queryCollectionOptions,
 } from '@tanstack/query-db-collection';
-import { QueryClient, type QueryFunctionContext } from '@tanstack/query-core';
+import type { QueryFunctionContext } from '@tanstack/query-core';
 import { z } from 'zod';
 import type {
   ListReadingResponses,
@@ -26,7 +26,8 @@ import {
   createBlyggerClient,
   unwrap,
 } from '../../sdk/dist/browser.js';
-import { Polling } from './polling.ts';
+import { queryClient } from './query-client.ts';
+export { queryClient } from './query-client.ts';
 import { readIfChanged, type CachedResponse, type Generation } from './revision-query.ts';
 import type { ChangeDomain } from '../change-state.ts';
 import { scoped } from './scoped.ts';
@@ -36,26 +37,7 @@ import { zGetItemResponse, zGetHopperResponse } from '../../sdk/dist/schemas.js'
 import { planReadWrites, type ReadWrite, type UnreadWrite } from './read-state.ts';
 
 export const client = createBlyggerClient({ baseUrl: location.origin });
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      staleTime: Infinity,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    },
-  },
-});
 queryClient.mount();
-// Poll errors are view state, not replacements for cached rows or local drafts.
-export const polling = new Polling(
-  () => document.visibilityState === 'visible',
-  (error) =>
-    window.dispatchEvent(
-      new CustomEvent('studio-read-error', { detail: error }),
-    ),
-);
-polling.start(window, document);
 function cachedQuery<S extends z.ZodType>(
   context: QueryFunctionContext,
   domain: ChangeDomain | readonly ChangeDomain[],
@@ -501,9 +483,6 @@ const readingViews = scoped((key) => {
 });
 export const readingView = (sub: string, offset: number) =>
   readingViews(JSON.stringify([sub, offset]));
-export function refreshReading() {
-  return reading.utils.refetch({ throwOnError: true });
-}
 
 /** Store read marks: one PUT or DELETE for a single row, else batches of ≤ 500. */
 export async function saveReadState(read: ReadWrite[], unread: UnreadWrite[]) {
@@ -644,21 +623,6 @@ function hopperView(id: string, preview: boolean) {
 }
 export const hopperDetail = scoped((id) => hopperView(id, false));
 export const hopperPreview = scoped((id) => hopperView(id, true));
-async function refreshActive(...sources: {
-  subscriberCount: number;
-  utils: { refetch(options: { throwOnError: true }): Promise<unknown> };
-}[]) {
-  // Refetching a source with no demand can start an unfiltered fallback read.
-  // ID-only sources must sync only while a derived view subscribes to them.
-  await Promise.all(sources.filter((source) => source.subscriberCount > 0)
-    .map((source) => source.utils.refetch({ throwOnError: true })));
-}
-export function refreshItems() {
-  return refreshActive(items, itemHistory);
-}
-export function refreshHoppers() {
-  return refreshActive(hoppers, hopperStats, hopperEntries, hopperMemberships);
-}
 // Cancel pending reads before invalidation, so earlier responses cannot replace
 // acknowledged writes. Query collection mutation handlers own rollback on failure.
 export async function changed(...keys: string[]) {
@@ -769,6 +733,7 @@ export const mentionSource = scoped((id) => createLiveQueryCollection({
 export const listViews = {
   items: createLiveQueryCollection((q) => q.from({ item: items })),
   settings: createLiveQueryCollection((q) => q.from({ setting: settings })),
+  updates: createLiveQueryCollection((q) => q.from({ update: updates })),
   subscriptions: createLiveQueryCollection((q) => q.from({ subscription: subscriptions })),
   hoppers: createLiveQueryCollection((q) => q.from({ hopper: hoppers })),
   signals: createLiveQueryCollection((q) => q.from({ signal: signals })),
@@ -792,4 +757,19 @@ export async function preloadDetail(view: Parameters<typeof preloadView>[0] & {
 }, resource: string) {
   await preloadView(view);
   if (!view.toArray.length) throw new Error(`${resource} not found`);
+}
+
+/** Preload the same derived previews that hopper cards render. */
+export async function preloadHopperPreviews() {
+  await preloadView(listViews.hoppers);
+  await Promise.all(listViews.hoppers.toArray.map((hopper) => preloadView(hopperPreview(hopper.id))));
+}
+
+export async function preloadMentions() {
+  await Promise.all([
+    preloadView(listViews.inbound),
+    preloadView(listViews.outbound),
+    preloadView(listViews.items),
+  ]);
+  await Promise.all(listViews.inbound.toArray.map((mention) => preloadView(mentionSource(mention.id))));
 }

@@ -12,7 +12,6 @@ import { QueryClient, type QueryFunction } from '@tanstack/query-core';
 import { createCollection, createLiveQueryCollection, and, gte, lt } from '@tanstack/react-db';
 import { queryCollectionOptions, parseLoadSubsetOptions } from '@tanstack/query-db-collection';
 import { readIfChanged, type CachedResponse } from '../src/ui/revision-query.ts';
-import { Polling } from '../src/ui/polling.ts';
 import { StudioQueryReference, type OracleToken } from '../test/polling-cache-oracle-model.ts';
 import { campaign, atCheckpoint } from '../test/oracle-campaign.ts';
 import { withOracleCleanup } from '../test/oracle-cleanup.ts';
@@ -220,22 +219,16 @@ describe('Studio query-cache oracle', () => {
       expect(collection.get('a')!.revision).toBe(1);
     }, [async () => { release.resolve(); await earlier; await collection.cleanup(); }, async () => { client.clear(); }]);
   });
-  it('diagnostic-only changes do not fetch Reading and timed reads still run', async () => {
-    const client = makeClient(); let source = token(); const load = vi.fn(async () => 0), timed = vi.fn(async () => {});
+  it('subscription diagnostics do not fetch Reading when its revision is unchanged', async () => {
+    const client = makeClient(); let source = token();
+    const load = vi.fn(async () => 0);
     const queryFn = (context: Parameters<QueryFunction>[0]) => readIfChanged(context, 'reading', async () => source, load);
-    const poll = new Polling(() => true, error => { throw error; });
-    poll.watch('reading:all:0', () => client.fetchQuery({ queryKey: ['reading', 'all', 0], queryFn, staleTime: 0 })); poll.watch('updates', timed);
-    await poll.refresh(); source = { ...source, domains: { ...source.domains, subscriptions: 1 } }; await poll.refresh();
-    expect(load).toHaveBeenCalledTimes(1); expect(timed).toHaveBeenCalledTimes(2); client.clear();
-  });
-  it('a stalled view does not stop another query or a timed read from polling', async () => {
-    const release = deferred(); let healthy = 0, timed = 0;
-    const poll = new Polling(() => true, error => { throw error; });
-    poll.watch('items', async () => { await release.promise; }); poll.watch('settings', async () => { healthy++; }); poll.watch('updates', async () => { timed++; });
-    const first = poll.refresh(); await new Promise(resolve => setTimeout(resolve, 0)); const second = poll.refresh();
-    await withOracleCleanup(async () => {
-      await new Promise(resolve => setTimeout(resolve, 0)); expect([healthy, timed]).toEqual([2, 2]);
-    }, [async () => { release.resolve(); await Promise.all([first, second]); }]);
+    try {
+      await client.fetchQuery({ queryKey: ['reading', 'all', 0], queryFn, staleTime: 0 });
+      source = { ...source, domains: { ...source.domains, subscriptions: 1 } };
+      await client.fetchQuery({ queryKey: ['reading', 'all', 0], queryFn, staleTime: 0 });
+      expect(load).toHaveBeenCalledTimes(1);
+    } finally { client.clear(); }
   });
   it('the independent checker rejects a token newer than its fetched source data', () => {
     const reference = new StudioQueryReference();

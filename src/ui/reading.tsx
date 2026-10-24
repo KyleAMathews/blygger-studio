@@ -39,8 +39,6 @@ import {
   client,
   changed,
   queryClient,
-  refreshReading,
-  refreshHoppers,
   hopperDetail,
   hopperPreview,
   markReading,
@@ -52,7 +50,6 @@ import {
   Failure,
   mount,
   useChrome,
-  usePoll,
   useSettings,
   SourceLink,
 } from './components.tsx';
@@ -859,7 +856,6 @@ export function ReadingArticle({ sub, id }: { sub: string; id: string }) {
 function Article({ entry, actions }: { entry: Reading; actions: Actions }) {
   const votes = useLiveQuery({ query: (q) => q.from({ signal: signals }) }).data ?? [];
   const buckets = useLiveQuery({ query: (q) => q.from({ hopper: hoppers }) }).data ?? [];
-  usePoll('signals', signals.utils.refetch);
   // Opening the full view is opening the entry: mark it read once, at the
   // version held here, as expanding a card did (0.39.0).
   const marked = useRef<string | null>(null);
@@ -1303,7 +1299,6 @@ function SubscriptionRow({
 function HopperSource({ id, name }: { id: string; name: string }) {
   const lensSearch = useLensSearch();
   const collection = useMemo(() => hopperPreview(id), [id]);
-  usePoll('hoppers', refreshHoppers);
   const row = useLiveQuery({ query: (q) => q.from({ hopper: collection }) })
     .data?.[0];
   return (
@@ -1373,9 +1368,6 @@ function Sources() {
   const lens = useContext(LensContext);
   const allKey = readingKey('all', lens);
   useLiveQuery(readingView(allKey, 0));
-  usePoll('reading', refreshReading);
-  usePoll('subscriptions', subscriptions.utils.refetch);
-  usePoll('hoppers', refreshHoppers);
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
@@ -1678,10 +1670,6 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
-  usePoll('reading', refreshReading);
-  usePoll('subscriptions', subscriptions.utils.refetch);
-  usePoll('hoppers', refreshHoppers);
-  usePoll('signals', signals.utils.refetch);
   const metadata = readingMeta(key, offset);
   const selected = sources.find((source) => source.id === sub);
   const title =
@@ -1813,8 +1801,6 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
   useChrome({ framed: false, wide: false });
   const actions = useReadingActions();
   const collection = useMemo(() => hopperDetail(id), [id]);
-  usePoll('hoppers', refreshHoppers);
-  usePoll('signals', signals.utils.refetch);
   const result = useLiveQuery({ query: (q) => q.from({ hopper: collection }) });
   const row = result.data?.[0];
   const sources =

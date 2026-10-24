@@ -78,13 +78,20 @@ afterEach(async () => {
   await Promise.all([db.items, db.itemHistory, db.hoppers, db.hopperStats, db.hopperEntries, db.hopperMemberships, db.reading, db.mentionSources].map((source) => source.cleanup()));
   db.queryClient.clear();
 });
-afterAll(() => { db.polling.stop(); db.queryClient.unmount(); vi.unstubAllGlobals(); });
+afterAll(() => { db.queryClient.unmount(); vi.unstubAllGlobals(); });
+
+async function refetch(...prefixes: string[]) {
+  await Promise.all(prefixes.map(prefix => db.queryClient.refetchQueries(
+    { queryKey: [prefix], type: 'active' },
+    { throwOnError: true },
+  )));
+}
 
 test('editor projections share one item read on open and per changed revision', async () => {
   const editor = db.itemDetail('a'); views.push(editor);
   await editor.preload();
   expect(requests.filter((request) => request.path === '/api/items/a')).toHaveLength(1);
-  await db.refreshItems();
+  await refetch('items', 'item-history');
   expect(requests.filter((request) => request.path === '/api/items/a')).toHaveLength(1);
   text = 'fresh'; revision++;
   await db.changed('items');
@@ -101,7 +108,7 @@ test('hopper projections share each preview and full response per revision', asy
   await full.preload();
   expect(reads()).toHaveLength(2);
   expect(reads()[1].params.get('preview')).toBeNull();
-  await db.refreshHoppers();
+  await refetch('hoppers', 'hopper-stats', 'hopper-entries', 'hopper-memberships');
   expect(reads()).toHaveLength(2);
   text = 'fresh'; revision++;
   await db.changed('hoppers');
@@ -115,7 +122,7 @@ test('shared owner reads reload after an epoch change with the same revision', a
   const editor = db.itemDetail('a'), hopperView = db.hopperPreview('h'); views.push(editor, hopperView);
   await Promise.all([editor.preload(), hopperView.preload()]);
   epoch = 'restored'; text = 'restored content';
-  await Promise.all([db.refreshItems(), db.refreshHoppers()]);
+  await Promise.all([refetch('items', 'item-history'), refetch('hoppers', 'hopper-stats', 'hopper-entries', 'hopper-memberships')]);
   expect(requests.filter((request) => request.path === '/api/items/a')).toHaveLength(2);
   expect(requests.filter((request) => request.path === '/api/hoppers/h')).toHaveLength(2);
   expect(editor.toArray[0].content_md).toBe('restored content');
@@ -164,7 +171,7 @@ test('item writes persist through the source and removed items leave every view'
 test('list polls do not start detail sources without a subscribed demand', async () => {
   await db.listViews.items.preload();
   requests.length = 0;
-  await db.refreshItems();
+  await refetch('items', 'item-history');
   expect(requests.map((request) => request.path)).toEqual(['/api/changes']);
 });
 
@@ -174,7 +181,7 @@ test('route preload and locally sorted list share one backend demand', async () 
   await Promise.all([db.listViews.items.preload(), sorted.preload()]);
   expect(requests.filter((request) => request.path === '/api/items')).toHaveLength(1);
   requests.length = 0;
-  await db.refreshItems();
+  await refetch('items', 'item-history');
   expect(requests.map((request) => request.path)).toEqual(['/api/changes']);
 });
 
@@ -233,15 +240,15 @@ test('reading feeds, lenses, and pages use one source with independent positions
   expect(threads.toArray.find((row) => row.key === 'shared')?.kind).toBe('thread');
   expect(db.reading.size).toBe(6);
   const reads = requests.filter((request) => request.path === '/api/reading').length;
-  await db.refreshReading();
+  await refetch('reading');
   expect(requests.filter((request) => request.path === '/api/reading')).toHaveLength(reads);
   text = 'remote change'; revision++;
-  await db.refreshReading();
+  await refetch('reading');
   expect([all, own, next, threads].every((view) => view.toArray.every((row) => row.contentHtml === 'remote change'))).toBe(true);
   await own.cleanup();
   await new Promise((resolve) => setTimeout(resolve, 0));
   requests.length = 0; revision++;
-  await db.refreshReading();
+  await refetch('reading');
   expect(requests.filter((request) => request.path === '/api/reading').map((request) => request.params.get('sub'))).not.toContain('own');
   expect(all.toArray.find((row) => row.key === 'shared')?.rank).toBe(1);
 });
@@ -259,7 +266,7 @@ test('hopper previews demand three entries and detail uses the same source rows'
   await vi.waitFor(() => expect(preview.toArray[0].hopper.name).toBe('Renamed'));
   expect(full.toArray[0].hopper.name).toBe('Renamed');
   text = 'fresh content'; revision++;
-  await db.refreshHoppers();
+  await refetch('hoppers', 'hopper-stats', 'hopper-entries', 'hopper-memberships');
   expect(preview.toArray[0].items[0].content_html).toBe('fresh content 0');
 });
 

@@ -33,6 +33,8 @@ import {
   listViews,
   preloadView,
   preloadDetail,
+  preloadHopperPreviews,
+  preloadMentions,
 } from './data.ts';
 import { Button } from './components.tsx';
 import type { CachedResponse } from './revision-query.ts';
@@ -48,7 +50,11 @@ import { applyCachedTheme } from './theme.ts';
 // repaint it once they load (see theme.ts).
 applyCachedTheme();
 const rootRoute = createRootRoute({
-  loader: () => preloadView(listViews.settings),
+  loader: () => Promise.all([
+    preloadView(listViews.settings),
+    preloadView(listViews.updates),
+    preloadView(listViews.items),
+  ]),
   pendingComponent: () => <p>Loading Studio…</p>,
   errorComponent: ({ error }) => (
     <div role="alert">
@@ -154,6 +160,9 @@ const reading = createRoute({
       preloadView(listViews.subscriptions),
       preloadView(listViews.hoppers),
       preloadView(listViews.signals),
+      ...(deps.view === 'sources' && deps.lens !== 'background' && deps.lens !== 'smart'
+        ? [preloadHopperPreviews()]
+        : []),
     ]);
     if (deps.sub === undefined || deps.lens === 'background' || deps.lens === 'smart') return;
     const page = queryClient
@@ -225,7 +234,7 @@ const subs = createRoute({
 const hoppers = createRoute({
   getParentRoute: () => rootRoute,
   path: '/hoppers',
-  loader: () => preloadView(listViews.hoppers),
+  loader: () => Promise.all([preloadHopperPreviews(), preloadView(listViews.subscriptions)]),
   component: HoppersPage,
 });
 const hopper = createRoute({
@@ -241,12 +250,7 @@ const hopper = createRoute({
 const mentions = createRoute({
   getParentRoute: () => rootRoute,
   path: '/mentions',
-  loader: () =>
-    Promise.all([
-      preloadView(listViews.inbound),
-      preloadView(listViews.outbound),
-      preloadView(listViews.items),
-    ]),
+  loader: preloadMentions,
   component: MentionsPage,
 });
 // Quotes that have fallen behind their sources, stalest first (0.23.0).
