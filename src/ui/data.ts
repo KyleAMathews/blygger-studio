@@ -427,6 +427,7 @@ export const lensKind = (lens: Lens | undefined): 'thread' | 'fragment' | undefi
  * unfiltered view (so every existing key is unchanged), `sub~kind` otherwise.
  */
 export const readingKey = (sub: string, lens?: Lens) => {
+  if (lens === 'background') return `${sub}~background`;
   const kind = lensKind(lens);
   return kind ? `${sub}~${kind}` : sub;
 };
@@ -458,11 +459,12 @@ export const reading = createCollection(
     queryFn: (context) =>
       cachedQuery(context, 'reading', readingResponseSchema, async ({ signal, meta }) => {
         const { view, offset, limit } = readingSubset({ meta });
-        const [sub, kind] = view.split('~') as [string, 'thread' | 'fragment' | undefined];
+        const [sub, filter] = view.split('~') as [string, 'thread' | 'fragment' | 'background' | undefined];
+        const kind = filter === 'background' ? undefined : filter;
         const page = await unwrap(
           BlyggerApi.listReading({
             client,
-            query: { sub, offset, limit, ...(kind ? { kind } : {}) },
+            query: { sub, offset, limit, ...(kind ? { kind } : {}), ...(filter === 'background' ? { background: 'true' as const } : {}) },
             signal,
           }),
         );
@@ -657,14 +659,18 @@ export async function changed(...keys: string[]) {
         return [key];
     }
   }))];
+  // Reader intent caches must not survive a local write to their sources.
+  const readKeys = sourceKeys.map(key => [key]);
+  if (sourceKeys.some(key => ['items', 'reading', 'subscriptions'].includes(key)))
+    readKeys.push(['owner-read', 'reading-article']);
   await Promise.all([
-    ...sourceKeys.map((key) => queryClient.cancelQueries({ queryKey: [key] })),
+    ...readKeys.map((queryKey) => queryClient.cancelQueries({ queryKey })),
     ...['items', 'hoppers'].filter((key) => sourceKeys.includes(key))
       .map((key) => queryClient.cancelQueries({ queryKey: ['owner-read', key] })),
   ]);
   await Promise.all(
-    sourceKeys.map((key) =>
-      queryClient.invalidateQueries({ queryKey: [key], refetchType: 'active' }),
+    readKeys.map((queryKey) =>
+      queryClient.invalidateQueries({ queryKey, refetchType: 'active' }),
     ),
   );
 }

@@ -49,6 +49,7 @@ The rulings and their build consequences are in `../blygger-spec/docs/v0.3-plan.
 - **Inline page scripts live inside TS template literals, so escapes are a live hazard** —
   now only on the *public* pages (`VERSION_NAV_SCRIPT` and kin in `pages.ts`); the Studio's
   inline scripts were deleted by 0.10.0: write `\\n` (not `\n`) inside a `confirm()`/string in `actionScript`/`composerScript`/`FEED_SCRIPT`, or the emitted JS gets a real newline inside a string literal and the whole script fails to parse. Session 19 shipped a studio where every button was dead this way, **with the full suite green** — assertions about HTML pass whether or not the `<script>` in it is valid JavaScript. `test/inline-scripts.test.ts` compiles every inline script via `new Function`; keep new pages covered by it.
+- Use TanStack Router `Link` for internal navigation so hover and keyboard focus can preload the destination. Use buttons for actions, not links.
 - **Page scripts need behaviour tests, not just markup tests.** For the Studio that now means
   the Playwright suite (`npm run test:e2e`, desktop + mobile Chromium, 118 tests at 0.10.0) and
   `npm run test:ui`; the Worker suite keeps API, public-output and lifecycle tests. The same blind spot produced a second session-19 bug: the shared action handler ends in `location.reload()`, correct for every action that leaves the item in place and wrong for `discard`, which deletes it (reloading an editor URL 404s). Assert on what a handler *does* — where it navigates, what it calls — not only that the button rendered.
@@ -154,6 +155,8 @@ Fable. Do not harden it in a way that breaks the tools now depending on it witho
 saying so.
 
 ## Status
+
+**0.49.0** (session 53, 2026-10-29): browse the thicket from the reader — every quoted layer at any depth and every link that names a blyg item opens in the reader (`src/ui/reader-links.tsx`), items of unsubscribed blygs are read from their origin at `/peek` (`src/peek.ts`, nothing stored), back retraces the descent, and the walk is logged privately (`browse_log`, `src/browse-log.ts`) and shown in a *history* pane; public pages give nested quotes a provenance line (`injectNestedProvenance`); a stub's passage is selected in the editor's preview. **Migration 0033** (`browse_log`, `link_probe`).
 
 **0.48.2** (session 52, 2026-10-20): a mention without the target's page names its item document (decision #85, blygger-spec#17) — `remoteTarget` in `mentions/send.ts` replaces `remotePermalink`: `page` when held, else `itemUrl` under the subscription's stored surface or, for an unsubscribed origin, a manifest read once per origin at enqueue (template and `webmention` endpoint, the endpoint stored on the `mentions_out` row); never `f/`·`t/`. No migration.
 
@@ -345,7 +348,8 @@ was specified to do in both cases.
   freshness is direct and needs nothing new on the wire — fetch `{origin}items/{id}.json`
   and compare `version` to the reference's. Build the probe and the UI against that.
   Transitive ("over the DAG") staleness is undefined and stays out.
-- [ ] **Show second-degree references within a stubbed item.** Presentation is this client's
+- [ ] **Link probing traffic (parked, session 53).** `classifyLinks` makes the Worker fetch pages behind an entry's links (cap 40, cached 7 days in `link_probe`). Venkat: minimal for now; revisit only if heavy traffic of that type becomes a problem. Trigger and options: `../blygger-spec/docs/backlog.md` §2. Drop this line when that row is ruled or scheduled.
+- [x] **Show second-degree references within a stubbed item.** **Done 0.49.0 (session 53):** the layers' own `data-blyg-*` carry every depth, so nothing needed fetching — each nested quote gets a line naming its source that opens in the reader (`ReaderBody`) and, on public pages, a provenance link (`injectNestedProvenance`). Original entry: Presentation is this client's
   call (§8.4 does not constrain presentation — session 20). **Check the data exists first:**
   we hold a snapshot of the target, not the target's own reference list, so this may need a
   fetch we don't currently make — in which case say so rather than half-rendering it.
@@ -420,7 +424,7 @@ was specified to do in both cases.
   change"). Needs nothing from the wire; works on any imported 0.2+ blyg with pins.
 - [ ] **Discovery surfaces from references** (decision #41, roadmap-tracks 2.13). Four,
   none touching the wire, in this order of payoff:
-  1. **Chain view.** Parse the stored `content_html` of an imported thread for nested
+  1. **Chain view.** **Built 0.49.0** (the subscribe affordance is the *not subscribed* alert at `/peek`; the per-origin manifest title is the subscription title or the host). Original: Parse the stored `content_html` of an imported thread for nested
      `blockquote.blyg-transclusion` and read `data-blyg-id/version/origin` at every depth;
      render the chain with a provenance line per layer (today only the direct layer gets
      one) and a subscribe affordance per origin not in `subscriptions`. **Absent

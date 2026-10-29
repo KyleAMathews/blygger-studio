@@ -26,11 +26,11 @@ import { createOwnerApi } from '../src/owner-api.ts';
 import { routes } from '../src/contract/routes.ts';
 
 const model = {
-  'owner:read': ['getChanges','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','extLineageGlyphGetLineage','extLineageGlyphListSummaries'],
+  'owner:read': ['getChanges','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse','extLineageGlyphGetLineage','extLineageGlyphListSummaries'],
   'owner:draft': ['createItem','updateItem','deleteItem','restoreItem','uploadMedia','generateItem','draftNote','classifyChange','preview'],
   'owner:publish': ['publishItem','withdrawItem','pinItem','refreshItem','deleteMedia'],
   'owner:manage': ['updateSettings','createSubscription','updateSubscription','resyncSubscription','pollAllSubscriptions','deleteSubscription','createHopper','updateHopper','deleteHopper','addHopperItem','removeHopperItem','setSignal','deleteSignal','updateMention'],
-  'reading:state': ['markRead','markReadBatch','markUnread','markUnreadBatch'],
+  'reading:state': ['markRead','markReadBatch','markUnread','markUnreadBatch','logBrowse','clearBrowse'],
 };
 const capabilities = Object.keys(model);
 const subsets = Array.from({ length: 1 << capabilities.length }, (_, mask) => capabilities.filter((_, bit) => mask & 1 << bit));

@@ -56,3 +56,14 @@ test('a second passage is added as its own quote, not over the first (a running 
   expect(addStubQuote(md, ID, 'x', md.indexOf('first passage'))).toBe(`![[${ID}]]\n> first passage\n\n![[${ID}]]\n> x\n\nMy first point.\n\nMy closing point.`);
   expect(addStubQuote(md, ID, 'x', 0)).toBe(`${md}\n\n![[${ID}]]\n> x\n\n`);
 });
+
+test('a selection in the nth quote rewrites that quote only, and a whole quote can be added to select from', async () => {
+  const { addStubQuote, quoteCount } = await import('../src/ui/stub-quote.ts');
+  const md = `![[${ID}]]\n> first passage\n\nMy point.\n\n![[${ID}]]\n\nMy end.`;
+  expect(quoteCount(md, ID)).toBe(2);
+  expect(quoteCount('```\n![[' + ID + ']]\n```\n', ID)).toBe(0);
+  expect(withStubQuote(md, ID, 'second', 1)).toBe(`![[${ID}]]\n> first passage\n\nMy point.\n\n![[${ID}]]\n> second\n\nMy end.`);
+  expect(withStubQuote(md, ID, null, 0)).toBe(`![[${ID}]]\n\nMy point.\n\n![[${ID}]]\n\nMy end.`);
+  // Another quote to choose from arrives whole, after the caret's block.
+  expect(addStubQuote(`![[${ID}]]\n> a\n\nMine.`, ID, null, 0)).toBe(`![[${ID}]]\n> a\n\nMine.\n\n![[${ID}]]\n\n`);
+});

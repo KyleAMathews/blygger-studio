@@ -16,10 +16,16 @@ async function login(page: Page) {
 test('reading preserves retained snapshots and restricts legacy actions', async ({ page }) => {
   await login(page); await page.goto('/studio/reading?sub=parity-native');
   await expect(page.locator('.reading-entry')).toHaveCount(2);
+  // A withdrawn post is background: not in the feed, and kept (with its pinned snapshot) under Background.
+  await expect(page.locator('.reading-entry').filter({ hasText: 'Pinned retained text.' })).toHaveCount(0);
+  const feed = page.url();
+  await page.goto('/studio/reading?sub=parity-native&lens=background');
   const retained = page.locator('.reading-entry').filter({ hasText: 'Pinned retained text.' });
+  await expect(page.locator('.reading-entry')).toHaveCount(1);
   await expect(retained).toContainText('retained pinned v1');
   await expect((await entryMenu(page, retained)).getByRole('button', { name: 'copy [[id]]', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
+  await page.goto(feed);
   const native = page.locator('.reading-entry').filter({ hasText: 'Native title' });
   await expect(native.locator('.entry-title a')).toHaveAttribute('href', 'https://source.example/native');
   await expect(native).toContainText('Frozen quote from a prior version.');

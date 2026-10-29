@@ -30,11 +30,11 @@ import { atCheckpoint } from './oracle-campaign.ts';
 import { flow } from './oauth-flow-driver.ts';
 import { withOracleCleanup } from './oracle-cleanup.ts';
 
-const reads = ['getChanges','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','extLineageGlyphGetLineage','extLineageGlyphListSummaries'];
+const reads = ['getChanges','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse','extLineageGlyphGetLineage','extLineageGlyphListSummaries'];
 const drafting = ['createItem','updateItem','deleteItem','restoreItem','uploadMedia','generateItem','draftNote','classifyChange','preview'];
 const publishing = ['publishItem','withdrawItem','pinItem','refreshItem','deleteMedia'];
 const management = ['updateSettings','createSubscription','updateSubscription','resyncSubscription','pollAllSubscriptions','deleteSubscription','createHopper','updateHopper','deleteHopper','addHopperItem','removeHopperItem','setSignal','deleteSignal','updateMention'];
-const readState = ['markRead','markReadBatch','markUnread','markUnreadBatch'];
+const readState = ['markRead','markReadBatch','markUnread','markUnreadBatch','logBrowse','clearBrowse'];
 const all = ['owner:read', 'owner:draft', 'owner:publish', 'owner:manage', 'reading:state'];
 // Each explicit scope contributes exactly its named verbs. Union the lists;
 // never infer read access from draft/publish/manage. This finite reference owns

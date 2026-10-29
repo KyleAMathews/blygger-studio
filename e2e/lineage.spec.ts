@@ -64,7 +64,10 @@ test('the byline glyph counts what a post draws on and what draws on it', async 
   const glyph = nativeEntry(page).locator('[data-action=lineage]');
   await expect(glyph).toHaveAccessibleName('lineage: draws on 2, 0 known to draw on it');
   await expect(glyph.locator('.lg-glyph path.lg-edge')).toHaveCount(2);
+  // The retained post is withdrawn, so it lives under the Background lens.
+  await page.goto('/studio/reading?sub=parity-native&lens=background');
   await expect(retainedEntry(page).locator('[data-action=lineage]')).toHaveAccessibleName('lineage: draws on 0, 1 known to draw on it');
+  await page.goto('/studio/reading?sub=parity-native');
   // A legacy feed has no item documents, so no lineage and no glyph.
   await page.goto('/studio/reading?sub=parity-rss');
   await expect(page.locator('.reading-entry').first()).toBeVisible();

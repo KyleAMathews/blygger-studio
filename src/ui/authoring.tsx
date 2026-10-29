@@ -44,7 +44,7 @@ import { insertLink, isUrl, linkToast } from './links.ts';
 import type { Resolve } from './plain-text.ts';
 import { itemTitle, permalink, plainText, textWithLink } from './plain-text.ts';
 import { OcrScan } from './ocr.tsx';
-import { addStubQuote, passageCount, stubQuoteForm, withStubQuote } from './stub-quote.ts';
+import { addStubQuote, passageCount, quoteCount, stubQuoteForm, withStubQuote } from './stub-quote.ts';
 import { Image as ImageIcon, LinkIcon, More, Scan, Sparkle, Swap } from './icons.tsx';
 import './authoring.css';
 
@@ -1898,7 +1898,7 @@ function Editor({ item }: { item: Detail }) {
       ) : null}
       {item.stub_of && 'id' in item.stub_of && isThread ? (
         <StubQuote
-          itemId={item.id}
+          setPane={setPane}
           target={item.stub_of.id}
           text={text}
           edit={edit}
@@ -2511,114 +2511,104 @@ function dismissStubHelp() {
   }
 }
 /**
- * The stub's quote, chosen in the editor (session 37). A stub opens quoting
- * the whole post; selecting text in the quoted post below writes that passage
- * under the directive (§10.1's partial grammar), and "quote whole post" takes
- * it out again. Replaces select-to-quote in the reading view, where the
- * passage had to be chosen before there was a draft to choose it for.
+ * The stub's quote, chosen in the editor's own preview. A stub opens quoting
+ * the whole post; selecting text inside a quote in the preview pane writes
+ * that passage under its directive (§10.1's partial grammar), and "quote
+ * whole post" takes it out again. Replaces the separate chooser pane
+ * (session 37), which showed the same post a second time.
  *
- * The post is shown as publish would bake it whole — the preview of a lone
- * directive — so a passage chosen from it is checked against the same text.
+ * The preview renders a lone `![[id]]` as the whole baked post, so a passage
+ * chosen from it is checked against the same text publish checks. Nested
+ * quotes are not offered: only the top-level quotes of the target map to
+ * directives in the draft, in order.
  */
 function StubQuote({
-  itemId,
   target,
   text,
   edit,
   input,
   fresh,
+  setPane,
 }: {
-  itemId: string;
   target: string;
   text: string;
   edit: (text: string) => void;
   input: RefObject<HTMLTextAreaElement | null>;
   fresh: boolean;
+  setPane: (pane: 'draft' | 'preview') => void;
 }) {
   const form = stubQuoteForm(text, target);
-  // More than one passage is a running commentary; the chooser then adds
-  // rather than replaces, and "quote whole post" would destroy it, so it goes.
+  // More than one passage is a running commentary; "quote whole post" would
+  // destroy it, so it goes.
   const passages = passageCount(text, target);
-  const [open, setOpen] = useState(false);
-  const [post, setPost] = useState<{ html: string; error?: string }>();
-  const [chosen, setChosen] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<{ passage: string; nth: number } | null>(null);
   const [help, setHelp] = useState(() => fresh && !stubHelpDismissed());
   const [never, setNever] = useState(false);
-  const panel = useRef<HTMLDivElement>(null);
-  const addButton = useRef<HTMLButtonElement>(null);
   const replaceButton = useRef<HTMLButtonElement>(null);
   const helpTop = useRef<HTMLParagraphElement>(null);
   const latest = useRef({ text, chosen });
   latest.current = { text, chosen };
   useEffect(() => {
-    if (!open || post) return;
-    getPreview(`![[${target}]]`, itemId, 'thread')
-      .then((result) =>
-        setPost(
-          result.errors?.length
-            ? { html: '', error: result.errors[0].reason }
-            : { html: result.html },
-        ),
-      )
-      .catch((error) =>
-        setPost({ html: '', error: error instanceof Error ? error.message : String(error) }),
-      );
-  }, [open, post, target, itemId]);
-  useEffect(() => {
-    if (!open) return;
-    const inside = (node: Node | null) => !!node && !!panel.current?.contains(node);
+    // Which quote of the target the selection sits in, counted among the
+    // preview's top-level quotes of it; null when it is anywhere else.
     const check = () => {
       const selection = window.getSelection();
-      setChosen(
-        selection &&
-          !selection.isCollapsed &&
-          inside(selection.anchorNode) &&
-          inside(selection.focusNode) &&
-          selection.toString().trim()
-          ? selection.toString()
-          : null,
+      const pane = document.getElementById('preview-body');
+      const quote = (node: Node | null) => {
+        const element = node instanceof Element ? node : node?.parentElement;
+        const found = element?.closest('blockquote.blyg-transclusion');
+        return found && pane?.contains(found) ? found : null;
+      };
+      const within = selection && !selection.isCollapsed ? quote(selection.anchorNode) : null;
+      if (!within || within !== quote(selection!.focusNode) || !selection!.toString().trim()) return setChosen(null);
+      // Only the target's own top-level quotes map to its directives, in order.
+      const quotes = [...(pane?.querySelectorAll(`blockquote.blyg-transclusion[data-blyg-id="${CSS.escape(target)}"]`) ?? [])].filter(
+        (node) => !node.parentElement?.closest('blockquote.blyg-transclusion'),
       );
+      const nth = quotes.indexOf(within);
+      // A stale or unresolved preview would pair the wrong directive.
+      const aligned = nth >= 0 && quotes.length === quoteCount(latest.current.text, target);
+      setChosen(aligned ? { passage: selection!.toString(), nth } : null);
     };
     document.addEventListener('selectionchange', check);
     return () => document.removeEventListener('selectionchange', check);
-  }, [open]);
-  const quotePassage = (how: 'replace' | 'add') => {
+  }, [target]);
+  const quotePassage = () => {
     const { text, chosen } = latest.current;
     if (!chosen) return;
-    const caret = input.current?.selectionStart ?? text.length;
-    edit(how === 'add' ? addStubQuote(text, target, chosen, caret) : withStubQuote(text, target, chosen));
+    edit(withStubQuote(text, target, chosen.passage, chosen.nth));
     window.getSelection()?.removeAllRanges();
     setChosen(null);
-    setOpen(false);
-    toast(how === 'add' ? 'added another quote' : 'quoting the passage');
+    // On a phone the draft is the other pane; show the result in it.
+    setPane('draft');
+    toast('quoting the passage');
   };
   useEffect(() => {
     // Pressing a button must not collapse the selection it quotes. React's
     // touch listeners are passive, so these are native (as the old pill's were).
-    const cleanups = (
-      [
-        [addButton.current, 'add'],
-        [replaceButton.current, 'replace'],
-      ] as const
-    ).map(([element, how]) => {
-      if (!element) return () => {};
-      const touch = (event: TouchEvent) => {
-        event.preventDefault();
-        quotePassage(how);
-      };
-      const mouse = (event: MouseEvent) => event.preventDefault();
-      element.addEventListener('touchstart', touch, { passive: false });
-      element.addEventListener('mousedown', mouse);
-      return () => {
-        element.removeEventListener('touchstart', touch);
-        element.removeEventListener('mousedown', mouse);
-      };
-    });
-    return () => cleanups.forEach((cleanup) => cleanup());
+    const element = replaceButton.current;
+    if (!element) return;
+    const touch = (event: TouchEvent) => {
+      event.preventDefault();
+      quotePassage();
+    };
+    const mouse = (event: MouseEvent) => event.preventDefault();
+    element.addEventListener('touchstart', touch, { passive: false });
+    element.addEventListener('mousedown', mouse);
+    return () => {
+      element.removeEventListener('touchstart', touch);
+      element.removeEventListener('mousedown', mouse);
+    };
   });
   const closeHelp = () => {
     if (never) dismissStubHelp();
     setHelp(false);
+  };
+  // Phones show one pane at a time; the selection happens in the preview.
+  const choose = (next: string) => {
+    if (next !== text) edit(next);
+    setPane('preview');
+    setTimeout(() => document.getElementById('preview-pane')?.scrollIntoView({ block: 'nearest' }), 0);
   };
   return (
     <div className="stub-quote" data-form={form ?? 'none'}>
@@ -2626,10 +2616,11 @@ function StubQuote({
         {form === 'whole'
           ? 'Quoting the whole post. Write above the quote for a quote post, below it for a reply, or nothing for a repost.'
           : passages > 1
-            ? `Quoting ${passages} passages: a running commentary. Choose another to add it after the cursor.`
+            ? `Quoting ${passages} passages: a running commentary.`
             : form === 'passage'
               ? 'Quoting a passage: the > lines under the quote. Write above it, below it, or both.'
               : 'Not quoting the post: this is a response by link.'}{' '}
+        {form === null ? null : 'To quote only part of it, select the text in the preview.'}{' '}
         {passages <= 1 && form !== 'whole' ? (
           <button
             type="button"
@@ -2644,10 +2635,17 @@ function StubQuote({
           type="button"
           className="link-btn"
           data-action="choose-passage"
-          aria-expanded={open}
-          onClick={() => setOpen((value) => !value)}
+          onClick={() =>
+            choose(
+              form === null
+                ? withStubQuote(text, target, null)
+                : form === 'whole'
+                  ? text
+                  : addStubQuote(text, target, null, input.current?.selectionStart ?? text.length),
+            )
+          }
         >
-          {open ? 'done choosing' : form === 'passage' ? 'quote another passage' : 'quote a passage instead'}
+          {form === 'passage' ? 'quote another passage' : 'select a passage in the preview'}
         </button>{' '}
         ·{' '}
         <button
@@ -2659,45 +2657,17 @@ function StubQuote({
           how stubs work
         </button>
       </p>
-      {open ? (
-        <div className="stub-chooser">
-          <p className="hint">
-            Select the passage to quote in the post below. It must be one
-            unbroken stretch of the original.
-          </p>
-          {post?.error ? (
-            <Failure error={post.error} />
-          ) : post ? (
-            <div ref={panel} className="stub-post preview">
-              <Html html={post.html} />
-            </div>
-          ) : (
-            <p className="hint">loading the post…</p>
-          )}
-          {chosen !== null ? (
-            <div className="quote-pills">
-              {passages > 0 ? (
-                <button
-                  ref={addButton}
-                  type="button"
-                  className="quote-pill"
-                  data-action="add-passage"
-                  onClick={() => quotePassage('add')}
-                >
-                  ❝ add as another quote
-                </button>
-              ) : null}
-              <button
-                ref={replaceButton}
-                type="button"
-                className={passages > 0 ? 'quote-pill quote-pill-alt' : 'quote-pill'}
-                data-action="quote-passage"
-                onClick={() => quotePassage('replace')}
-              >
-                {passages > 0 ? 'replace the first quote' : '❝ quote only this'}
-              </button>
-            </div>
-          ) : null}
+      {chosen !== null ? (
+        <div className="quote-pills">
+          <button
+            ref={replaceButton}
+            type="button"
+            className="quote-pill"
+            data-action="quote-passage"
+            onClick={quotePassage}
+          >
+            ❝ quote only this
+          </button>
         </div>
       ) : null}
       <Sheet
@@ -2742,8 +2712,8 @@ function StubQuote({
           </p>
           <pre><code>{'![[id]]\n> First paragraph you are quoting.\n>\n> Second paragraph.\n\nYour reply.'}</code></pre>
           <p>
-            Or choose <em>quote a passage instead</em> and select it in the
-            post. A passage must be one unbroken stretch of the original, and
+            Or select the passage in the preview and choose <em>quote only
+            this</em>. A passage must be one unbroken stretch of the original, and
             is published as plain text. Quote several passages, each under its
             own <code>![[id]]</code>, for a running commentary.
           </p>

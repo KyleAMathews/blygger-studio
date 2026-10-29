@@ -9,18 +9,22 @@ import type { ImportedItemRow } from "./types.ts";
  * `kind` is the reading lens (0.25.0): "thread" or "fragment" narrows every
  * source, and the counts with it, so the sources list and a timeline agree
  * under the same lens. A withdrawn own item counts as the kind it was authored.
+ *
+ * Withdrawn items (own endcaps and imported tombstones) are background: every
+ * lens but the Background one leaves them out, and Background shows only them,
+ * so a retraction stays findable without crowding what is being read.
  */
-export async function readingData(db: D1Database, requestedOffset: number, limit: number, source: string | undefined, kind?: "thread" | "fragment") {
+export async function readingData(db: D1Database, requestedOffset: number, limit: number, source: string | undefined, kind?: "thread" | "fragment", background = false) {
   const [ownAll, importedAll, subs] = await Promise.all([
     db.prepare(`SELECT i.id, i.updated, CASE WHEN i.kind = 'withdrawn' THEN
-        CASE WHEN COALESCE(p.transclusions, '') != '' THEN 'thread' ELSE 'fragment' END ELSE i.kind END AS kind
+        CASE WHEN COALESCE(p.transclusions, '') != '' THEN 'thread' ELSE 'fragment' END ELSE i.kind END AS kind, i.kind = 'withdrawn' AS withdrawn
       FROM items i LEFT JOIN versions p ON i.kind = 'withdrawn' AND p.item_id = i.id AND p.version = i.version - 1
-      WHERE i.status IN ('public','withdrawn') ORDER BY i.updated DESC, i.rowid DESC`).all<{ id: string; updated: string; kind: string }>(),
-    db.prepare("SELECT subscription_id, remote_id, updated, observed_at, kind FROM imported_items ORDER BY observed_at DESC").all<{ subscription_id: string; remote_id: string; updated: string | null; observed_at: string; kind: string }>(),
+      WHERE i.status IN ('public','withdrawn') ORDER BY i.updated DESC, i.rowid DESC`).all<{ id: string; updated: string; kind: string; withdrawn: number }>(),
+    db.prepare("SELECT subscription_id, remote_id, updated, observed_at, kind, state FROM imported_items ORDER BY observed_at DESC").all<{ subscription_id: string; remote_id: string; updated: string | null; observed_at: string; kind: string; state: string }>(),
     listSubscriptions(db),
   ]);
-  const own = { results: kind ? ownAll.results.filter((r) => r.kind === kind) : ownAll.results };
-  const imported = { results: kind ? importedAll.results.filter((r) => r.kind === kind) : importedAll.results };
+  const own = { results: ownAll.results.filter((r) => (r.withdrawn === 1) === background && (!kind || r.kind === kind)) };
+  const imported = { results: importedAll.results.filter((r) => (r.state === "tombstone") === background && (!kind || r.kind === kind)) };
   const selected = source === "own" || subs.some((s) => s.id === source) ? source! : "all";
   const counts = { all: own.results.length + imported.results.length, own: own.results.length, subscriptions: Object.fromEntries(subs.map((s) => [s.id, 0])) };
   for (const row of imported.results) counts.subscriptions[row.subscription_id] = (counts.subscriptions[row.subscription_id] ?? 0) + 1;

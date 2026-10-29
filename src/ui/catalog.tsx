@@ -55,9 +55,9 @@ function useAction() {
   };
 }
 /** Subscribe to a blyg or a feed: the body of reading's ＋ sheet. */
-export function AddFeedForm({ onSubscribed }: { onSubscribed?: () => void }) {
+export function AddFeedForm({ onSubscribed, initialUrl = '' }: { onSubscribed?: () => void; initialUrl?: string }) {
   const action = useAction();
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState(initialUrl);
   const [confirmation, setConfirmation] = useState<{
     title: string;
     siteMismatch?: {

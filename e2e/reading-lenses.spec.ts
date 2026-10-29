@@ -19,7 +19,7 @@ const api = (page: Page, method: string, path: string, body?: unknown) =>
     { method, path, body },
   );
 
-test('lenses filter by kind, keep themselves across screens, and show the two placeholders', async ({ page }) => {
+test('lenses filter by kind, keep themselves across screens, keep withdrawn posts to Background, and show the Smart Feed placeholder', async ({ page }) => {
   await login(page);
   const stamp = Date.now();
   const frag = (await api(page, 'POST', '/items', { content_md: `Lens fragment ${stamp}` })).json.id;
@@ -46,11 +46,24 @@ test('lenses filter by kind, keep themselves across screens, and show the two pl
   await expect(fragmentEntry).toBeVisible();
   await expect(page.locator('.reading-entry').filter({ hasText: `Lens thread ${stamp}` })).toHaveCount(0);
 
+  // Withdrawn posts are background: out of every other lens, and the only thing in this one.
+  await api(page, 'POST', `/items/${thread}/withdraw`, {});
+  await page.reload(); // the withdrawal came by API, not through the UI that would refresh its cache
+  const withdrawn = page.locator(`.reading-entry[data-key="own:${thread}"]`);
   await bar.getByRole('button', { name: 'Background' }).click();
-  await expect(page.locator('.lens-placeholder')).toContainText('with ignyr in the changelog');
+  await expect(page).toHaveURL(/lens=background/);
+  await expect(page.locator('.view-sub').first()).toContainText('Withdrawn posts');
+  await expect(withdrawn).toBeVisible();
+  await expect(withdrawn).toContainText('withdrawn');
+  await expect(page.locator(`.reading-entry[data-key="own:${frag}"]`)).toHaveCount(0);
+  await bar.getByRole('button', { name: 'All' }).click();
+  await expect(page.locator(`.reading-entry[data-key="own:${frag}"]`)).toBeVisible();
+  await expect(withdrawn).toHaveCount(0);
+  await bar.getByRole('button', { name: 'Threads' }).click();
+  await expect(withdrawn).toHaveCount(0);
   await bar.getByRole('button', { name: 'Smart Feed' }).click();
   await expect(page.locator('.lens-placeholder')).toContainText('Coming soon. Feed sorted and filtered by your AI agent.');
-  // The placeholders keep the screen's head: tabs, title and count, ＋.
+  // The placeholder keeps the screen's head: tabs, title and count, ＋.
   await expect(page.getByRole('group', { name: 'reading view' })).toBeVisible();
   await expect(page.getByRole('heading', { name: /^my blyg/ })).toContainText(/\d+ items/);
   await expect(page.getByRole('button', { name: 'subscribe', exact: true })).toBeVisible();
