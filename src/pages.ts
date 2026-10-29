@@ -1274,6 +1274,80 @@ export function injectProvenance(html: string, provenance: string[]): string {
   return out + html.slice(last);
 }
 
+/**
+ * A provenance line on every *nested* baked quote, at any depth (0.49.0).
+ * `injectProvenance` names only the direct layer, because the document's
+ * `transclusions[]` records direct transclusions only; the layers a quoted
+ * thread already carried are inspectable in their own `data-blyg-*`
+ * attributes, which is all this reads. An absent `data-blyg-origin` means the
+ * origin of the layer that baked it (§10.2), not ours, so the origin is carried
+ * down the tree. Presentation only, like the direct line: never stored.
+ *
+ * The page a layer's link points at is looked up where we hold the item (its
+ * declared `page`, its kind), and otherwise falls back to the f/·t/ convention
+ * exactly as the direct line does for a source whose subscription has gone.
+ */
+export async function injectNestedProvenance(db: D1Database, html: string, mount: string): Promise<string> {
+  if (!html.includes("data-blyg-id=")) return html;
+  type Layer = { transclusion: boolean; id: string | null; version: string | null; origin: string | null; partial: boolean; nested: boolean };
+  const attr = (tag: string, name: string) => new RegExp(`\\b${name}="([^"]*)"`).exec(tag)?.[1] ?? null;
+  const stack: Layer[] = [];
+  const closes: Array<{ at: number; layer: Layer }> = [];
+  const re = /<blockquote\b[^>]*>|<\/blockquote>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    if (m[0].startsWith("</")) {
+      const layer = stack.pop();
+      if (layer?.transclusion && layer.nested && layer.id) closes.push({ at: m.index, layer });
+      continue;
+    }
+    const cls = attr(m[0], "class") ?? "";
+    const transclusion = /\bblyg-transclusion\b/.test(cls);
+    const enclosing = [...stack].reverse().find((l) => l.transclusion);
+    stack.push({
+      transclusion,
+      id: attr(m[0], "data-blyg-id"),
+      version: attr(m[0], "data-blyg-version"),
+      origin: attr(m[0], "data-blyg-origin") ?? (enclosing ? enclosing.origin : null),
+      partial: /\bblyg-partial\b/.test(cls),
+      nested: !!enclosing,
+    });
+  }
+  if (!closes.length) return html;
+  const lines = new Map<string, string>();
+  for (const { layer } of closes) {
+    const key = `${layer.origin ?? ""}\u0000${layer.id}`;
+    if (lines.has(key)) continue;
+    let href: string, label: string;
+    if (layer.origin) {
+      // The blyg's name needs only the subscription; kind and page need the held item.
+      const row = await db
+        .prepare(
+          `SELECT ii.kind AS kind, ii.page AS page, s.title AS title FROM subscriptions s
+           LEFT JOIN imported_items ii ON ii.subscription_id = s.id AND ii.remote_id = ?
+           WHERE s.kind = 'blyg' AND s.origin = ? LIMIT 1`,
+        )
+        .bind(layer.id, layer.origin)
+        .first<{ kind: string | null; page: string | null; title: string }>();
+      href = blygItemUrl(layer.origin, row?.kind ?? "fragment", layer.id!, row?.page ?? null);
+      label = row?.title ? `from <em>${escapeHtml(clampForeign(row.title))}</em> ↗` : `from ${escapeHtml(new URL(layer.origin).host)} ↗`;
+    } else {
+      const row = await db.prepare("SELECT * FROM items WHERE id = ?").bind(layer.id).first<ItemRow>();
+      const kind = row ? await authoredKind(db, row) : "fragment";
+      href = `${mount}/${kind === "thread" ? "t" : "f"}/${layer.id}/`;
+      label = `${kind} ↗`;
+    }
+    lines.set(key, `<a href="${escapeHref(href)}">${label}</a>`);
+  }
+  let out = html;
+  for (const { at, layer } of closes.sort((a, b) => b.at - a.at)) {
+    const link = lines.get(`${layer.origin ?? ""}\u0000${layer.id}`)!;
+    const what = layer.partial ? "excerpt of" : "snapshot of";
+    out = `${out.slice(0, at)}\n<p class="provenance nested">${link} · ${what} v${escapeHtml(layer.version ?? "?")}</p>${out.slice(at)}`;
+  }
+  return out;
+}
+
 function parseTransclusions(json: string | null | undefined): Transclusion[] {
   if (!json) return [];
   return JSON.parse(json) as Transclusion[];
@@ -1307,7 +1381,7 @@ async function threadCard(db: D1Database, item: FeedItem, mount: string, tz: str
   const latest = loaded ? loaded.latest : await publishedVersion(db, item);
   const href = `${mount}/t/${item.id}/`;
   const transclusions = parseTransclusions(latest?.transclusions);
-  const html = injectProvenance(await sanitizeHtml(latest?.content_html ?? ""), await transclusionProvenance(db, transclusions, mount, provenance));
+  const html = await injectNestedProvenance(db, injectProvenance(await sanitizeHtml(latest?.content_html ?? ""), await transclusionProvenance(db, transclusions, mount, provenance)), mount);
   const media = loaded ? loaded.media : await listVersionMedia(db, item.id, item.version);
   // The kind line is apparatus, on its own line above the item, never inline
   // with the author's first sentence (session 30). The quote count says what
@@ -1330,7 +1404,7 @@ ${itemMeta(item, latest?.note ?? null, loaded ? loaded.pins : await pinnedVersio
 async function threadBlock(db: D1Database, item: ItemRow, mount: string, tz: string): Promise<string> {
   const latest = await publishedVersion(db, item);
   const transclusions = parseTransclusions(latest?.transclusions);
-  const html = injectProvenance(await sanitizeHtml(latest?.content_html ?? ""), await transclusionProvenance(db, transclusions, mount));
+  const html = await injectNestedProvenance(db, injectProvenance(await sanitizeHtml(latest?.content_html ?? ""), await transclusionProvenance(db, transclusions, mount)), mount);
   const media = await listVersionMedia(db, item.id, item.version);
   return `<article class="thread${highlightClass(item)}">
 ${stubCitation(latest, tz)}

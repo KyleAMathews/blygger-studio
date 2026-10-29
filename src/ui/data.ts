@@ -432,6 +432,7 @@ export const lensKind = (lens: Lens | undefined): 'thread' | 'fragment' | undefi
  * unfiltered view (so every existing key is unchanged), `sub~kind` otherwise.
  */
 export const readingKey = (sub: string, lens?: Lens) => {
+  if (lens === 'background') return `${sub}~background`;
   const kind = lensKind(lens);
   return kind ? `${sub}~${kind}` : sub;
 };
@@ -462,11 +463,12 @@ export const reading = createCollection(
     queryFn: (context) =>
       cachedQuery(context, 'reading', readingResponseSchema, async ({ signal, meta }) => {
         const { view, offset, limit } = readingSubset({ meta });
-        const [sub, kind] = view.split('~') as [string, 'thread' | 'fragment' | undefined];
+        const [sub, filter] = view.split('~') as [string, 'thread' | 'fragment' | 'background' | undefined];
+        const kind = filter === 'background' ? undefined : filter;
         const page = await unwrap(
           BlyggerApi.listReading({
             client,
-            query: { sub, offset, limit, ...(kind ? { kind } : {}) },
+            query: { sub, offset, limit, ...(kind ? { kind } : {}), ...(filter === 'background' ? { background: 'true' as const } : {}) },
             signal,
           }),
         );

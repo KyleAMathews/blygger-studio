@@ -13,6 +13,7 @@ import {
 import { Layout, basepath } from './components.tsx';
 import { Compose, EditorPage } from './authoring.tsx';
 import { ReadingArticle, ReadingPage } from './reading.tsx';
+import { PeekPage } from './peek.tsx';
 import { AuthorizationsPage } from './authorizations.tsx';
 import { SettingsPage } from './settings.tsx';
 import {
@@ -155,7 +156,7 @@ const reading = createRoute({
       preloadView(listViews.hoppers),
       preloadView(listViews.signals),
     ]);
-    if (deps.sub === undefined || deps.lens === 'background' || deps.lens === 'smart') return;
+    if (deps.sub === undefined || deps.lens === 'smart') return;
     const page = queryClient
       .getQueriesData<
         CachedResponse<import('../../sdk/dist/browser.js').ListReadingResponses[200]>
@@ -193,6 +194,22 @@ const article = createRoute({
   component: () => {
     const { sub, id } = article.useParams();
     return <ReadingArticle key={`${sub}/${id}`} sub={sub} id={id} />;
+  },
+});
+/**
+ * An item of a blyg you do not subscribe to, read from its origin: where a
+ * link or a quoted layer in the reader leads when the blyg is not held.
+ */
+const peek = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/peek',
+  validateSearch: (search: Record<string, unknown>) => ({
+    origin: typeof search.origin === 'string' ? search.origin : '',
+    id: typeof search.id === 'string' ? search.id : '',
+  }),
+  component: () => {
+    const { origin, id } = peek.useSearch();
+    return <PeekPage key={`${origin}/${id}`} origin={origin} id={id} />;
   },
 });
 const edit = createRoute({
@@ -308,6 +325,7 @@ export const router = createRouter({
     compose,
     reading,
     article,
+    peek,
     edit,
     settings,
     setup,

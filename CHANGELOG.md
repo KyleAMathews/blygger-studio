@@ -18,6 +18,53 @@ not have its own repo until session 26.
 
 ---
 
+## 0.49.0 — 2026-10-29
+
+**Migrations: 0033** (`browse_log`, `link_probe`; both studio-private). Apply it to every D1 before deploying.
+
+- **Browse the thicket from the reader.** Every quoted layer in an entry, at
+  any depth, now says whose it is and opens in the reader; so does any ordinary
+  link that names a blyg item (the server looks at the page the link points to,
+  §5.8's `rel="alternate"` item document, and remembers the answer for a
+  week). An item of a blyg you hold opens at its own address; one you do not
+  hold opens at `/peek`, read from its origin with nothing stored, with a
+  *subscribe* button. A stub opened that way shows what it responds to, and
+  that opens too. Back retraces the descent one entry at a time, and a
+  breadcrumb shows the path.
+- **Browsing history.** The walk is logged privately (`browse_log`, a tree: each
+  step names the step it was reached from) and a *history* pane beside the
+  reader (a bottom sheet on a phone) shows this walk and earlier ones, with
+  *clear history*. Never on the wire or a public page.
+- **Public pages name every nested quote.** `injectNestedProvenance`: the
+  provenance line, with a link, now appears on quotes inside quotes too; an
+  absent `data-blyg-origin` takes the origin of the layer that baked it. Links
+  behave as ordinary links.
+- **Links that are not blyg items open in a new tab**, so reading your place is
+  kept; and opening an item of a blyg you do not subscribe to shows an alert,
+  *You're not subscribed to this blyg — subscribe?*, with the subscribe sheet
+  prefilled.
+- **Withdrawn posts are background.** The Background lens, a placeholder until
+  now, lists withdrawn posts (your own endcaps and the blygs you read); every
+  other lens, the sources counts and hopper timelines leave them out.
+  `GET /reading` takes `background=true`.
+- **A revised post leads with its latest changelog entry.** On a feed card for
+  an imported blyg item past its first version the line `V3: …` comes first,
+  read from the origin's changelog once the card is on screen (nothing new is
+  stored); with no note for that version it says `V3: No changelog entry
+  available`.
+- New operations: `peekItem`, `classifyLinks` (both `owner:read`), `listBrowse`
+  (`owner:read`), `logBrowse` and `clearBrowse` (`reading:state`).
+
+- **A stub's passage is selected in the editor's own preview.** The separate
+  chooser pane, which showed the quoted post a second time, is gone. Select
+  text inside the stub's quote in the preview and press *quote only this*; the
+  passage is written under that quote's `![[id]]`, whichever of several it is.
+  On a phone the button *select a passage in the preview* switches panes, and
+  the draft returns after the choice. *Quote another passage* adds a whole-post
+  quote after the cursor to select from, replacing *add as another quote* and
+  *replace the first quote*. Selections inside a nested quote, or while the
+  preview is out of step with the draft, offer nothing.
+
 ## 0.48.2 — 2026-10-20
 
 **Migrations: none.** Implements protocol 0.4.

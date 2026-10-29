@@ -20,13 +20,15 @@ import { normalizeSelection, quoteLines } from '../markdown.ts';
  * as written, so a rewrite keeps its label — decision #70) and the line after
  * its attached quote.
  */
-function findQuote(md: string, id: string) {
+function findQuote(md: string, id: string, nth = 0) {
   const lines = md.split('\n');
   const inert = codeRanges(md);
   const starts = lineOffsets(lines);
+  let seen = 0;
   for (let i = 0; i < lines.length; i++) {
     if (inRanges(inert, starts[i])) continue;
     if (DIRECTIVE_LINE.exec(lines[i])?.[1] !== id) continue;
+    if (seen++ < nth) continue;
     const { quoteMd, next } = attachedQuote(lines, i);
     return { lines, at: i, directive: lines[i], next, partial: quoteMd !== null };
   }
@@ -57,14 +59,30 @@ export function passageCount(md: string, id: string): number {
 }
 
 /**
- * Another partial quote of `id`, inserted as its own block after the line
+ * How many own-line directives naming `id` the body holds, partial or whole:
+ * the quotes the preview renders as `blockquote.blyg-transclusion`, in order,
+ * so the nth preview quote is the nth directive.
+ */
+export function quoteCount(md: string, id: string): number {
+  const lines = md.split('\n');
+  const inert = codeRanges(md);
+  const starts = lineOffsets(lines);
+  let count = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (!inRanges(inert, starts[i]) && DIRECTIVE_LINE.exec(lines[i])?.[1] === id) count++;
+  }
+  return count;
+}
+
+/**
+ * Another quote of `id`, inserted as its own block after the line
  * holding `at` (the editor's caret), or at the end when the caret is at the
  * very start or inside a quote's own lines — never splitting a quote.
  */
-export function addStubQuote(md: string, id: string, passage: string, at: number): string {
-  const selection = normalizeSelection(passage);
-  if (!selection) return md;
-  const block = `![[${id}]]\n${quoteLines(selection)}`;
+export function addStubQuote(md: string, id: string, passage: string | null, at: number): string {
+  const selection = passage === null ? '' : normalizeSelection(passage);
+  if (passage !== null && !selection) return md;
+  const block = selection ? `![[${id}]]\n${quoteLines(selection)}` : `![[${id}]]`;
   const lines = md.split('\n');
   const starts = lineOffsets(lines);
   let line = at <= 0 ? lines.length - 1 : lines.findIndex((_, i) => i === lines.length - 1 || starts[i + 1] > at);
@@ -77,12 +95,13 @@ export function addStubQuote(md: string, id: string, passage: string, at: number
 
 /**
  * The body with its quote of `id` set to `passage` (a browser selection), or
- * to the whole item when `passage` is null. A body with no quote of `id`
+ * to the whole item when `passage` is null. `nth` picks which of several
+ * quotes of `id` (the one selected in the preview). A body with no quote of `id`
  * gains one at the top, where the stub action puts it.
  */
-export function withStubQuote(md: string, id: string, passage: string | null): string {
+export function withStubQuote(md: string, id: string, passage: string | null, nth = 0): string {
   const selection = passage === null ? '' : normalizeSelection(passage);
-  const found = findQuote(md, id);
+  const found = findQuote(md, id, nth);
   const directive = found?.directive ?? `![[${id}]]`;
   const block = [directive, ...(selection ? [quoteLines(selection)] : [])].join('\n');
   if (!found) return `${block}\n\n${md.replace(/^\n+/, '')}`;
