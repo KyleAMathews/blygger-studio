@@ -265,7 +265,7 @@ test('+ add to hopper… offers the hoppers and a new one, and adds the entry', 
   await api(page, 'DELETE', `/hoppers/${hopper.id}`);
 });
 
-test('a stub opens quoting the whole post, explains itself until dismissed, and quotes a passage chosen in the editor', async ({ page }) => {
+test('a stub opens quoting the whole post, explains itself until dismissed, and quotes a passage selected in the preview', async ({ page }) => {
   await login(page); await page.goto('/studio/reading?sub=parity-native');
   // Select-to-quote left the reading view (session 37): selecting text offers nothing.
   await nativeEntry(page).locator('.content').evaluate(node => {
@@ -288,38 +288,37 @@ test('a stub opens quoting the whole post, explains itself until dismissed, and 
   await expect(help).toHaveCount(0);
   await expect(page.locator('.stub-hint')).toContainText('Quoting the whole post');
 
-  await page.getByRole('button', { name: 'quote a passage instead', exact: true }).click();
-  const post = page.locator('.stub-post');
+  // The passage is chosen in the editor's own preview; there is no second copy of the post.
+  await expect(page.locator('.stub-chooser, .stub-post')).toHaveCount(0);
+  await page.getByRole('button', { name: 'select a passage in the preview', exact: true }).click();
+  // Top-level quotes only: the source post itself quotes another.
+  const post = page.locator('#preview-body blockquote.blyg-transclusion:not(blockquote.blyg-transclusion blockquote.blyg-transclusion)');
   await expect(post).toContainText('Frozen');
   const pill = page.getByRole('button', { name: '❝ quote only this', exact: true });
   await expect(pill).toHaveCount(0);
-  await post.evaluate(node => {
+  const select = (word: string) => post.last().evaluate((node, word) => {
     const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
     let text = walker.nextNode();
-    while (text && !text.textContent!.includes('Frozen')) text = walker.nextNode();
-    const at = text!.textContent!.indexOf('Frozen');
-    const range = document.createRange(); range.setStart(text!, at); range.setEnd(text!, at + 'Frozen'.length);
+    while (text && !text.textContent!.includes(word)) text = walker.nextNode();
+    const at = text!.textContent!.indexOf(word);
+    const range = document.createRange(); range.setStart(text!, at); range.setEnd(text!, at + word.length);
     const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
-  });
+  }, word);
+  await select('Frozen');
   await pill.click();
   await expect(page.locator('#md-input')).toHaveValue(`![[${NATIVE}]]\n> Frozen\n\n`);
   await expect(page.locator('.stub-hint')).toContainText('Quoting a passage');
   await expect(page.locator('#preview-body .blyg-partial')).toContainText('Frozen');
 
-  // A second passage is added after the cursor, not over the first: a running commentary.
+  // A second passage is its own quote after the cursor, not over the first: a running commentary.
   await page.locator('#md-input').fill(`![[${NATIVE}]]\n> Frozen\n\nMy point.`);
   await page.locator('#md-input').evaluate((el: HTMLTextAreaElement) => { el.selectionStart = el.selectionEnd = el.value.length; });
   await page.getByRole('button', { name: 'quote another passage', exact: true }).click();
-  await expect(post).toContainText('source text');
-  await post.evaluate(node => {
-    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-    let text = walker.nextNode();
-    while (text && !text.textContent!.includes('source text')) text = walker.nextNode();
-    const at = text!.textContent!.indexOf('source text');
-    const range = document.createRange(); range.setStart(text!, at); range.setEnd(text!, at + 'source text'.length);
-    const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
-  });
-  await page.getByRole('button', { name: '❝ add as another quote', exact: true }).click();
+  await expect(page.locator('#md-input')).toHaveValue(`![[${NATIVE}]]\n> Frozen\n\nMy point.\n\n![[${NATIVE}]]\n\n`);
+  await expect(post).toHaveCount(2);
+  await expect(post.last()).toContainText('source text');
+  await select('source text');
+  await pill.click();
   await expect(page.locator('#md-input')).toHaveValue(`![[${NATIVE}]]\n> Frozen\n\nMy point.\n\n![[${NATIVE}]]\n> source text\n\n`);
   await expect(page.locator('.stub-hint')).toContainText('Quoting 2 passages');
   await expect(page.getByRole('button', { name: 'quote whole post', exact: true })).toHaveCount(0);
