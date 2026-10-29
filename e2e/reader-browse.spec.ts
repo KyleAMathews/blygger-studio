@@ -31,7 +31,7 @@ test('a stack of quotes opens layer by layer in the reader, back retraces it, an
   const tag = `Walk${Date.now()}`;
   const leaf = await publish(page, `# ${tag} leaf\n\nThe leaf text.`, 'fragment');
   const middle = await publish(page, `# ${tag} middle\n\n![[${leaf}]]\n\nMiddle comment.`, 'thread');
-  const top = await publish(page, `# ${tag} top\n\n![[${middle}]]\n\nTop comment, and a [link to the leaf](${new URL('/', page.url()).origin}/f/${leaf}/).`, 'thread');
+  const top = await publish(page, `# ${tag} top\n\n![[${middle}]]\n\nTop comment, an [outside link](https://elsewhere.example/page), and a [link to the leaf](${new URL('/', page.url()).origin}/f/${leaf}/).`, 'thread');
 
   await page.goto(`/studio/reading/~own/${top}`);
   const body = page.locator('.article-body');
@@ -39,6 +39,11 @@ test('a stack of quotes opens layer by layer in the reader, back retraces it, an
   await expect(body.locator('.layer-ref')).toHaveCount(2);
   // The ordinary link to a blyg item is recognised and opens in the reader too.
   await expect(body.locator('a.reader-ref[data-reader-via=link]')).toHaveCount(1);
+  // A link that is not a blyg item leaves the studio in a new tab; the blyg one does not.
+  const outside = body.locator('a[href="https://elsewhere.example/page"]');
+  await expect(outside).toHaveAttribute('target', '_blank');
+  await expect(outside).toHaveAttribute('rel', /noopener/);
+  await expect(outside).not.toHaveClass(/reader-ref/);
   await expect(page.locator('.crumbs')).toHaveCount(0);
 
   // Down the stack: the middle layer, then the leaf inside it.
@@ -95,4 +100,20 @@ test('an item of a blyg you do not hold opens at /peek, says so, and is not stor
   await page.goto(`/studio/peek?origin=${encodeURIComponent(origin)}&id=00000000000000000000000zz9`);
   await expect(page.locator('.error, [role=alert]').first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'history', exact: true })).toBeVisible();
+});
+
+test('opening an item of an unsubscribed blyg says so and offers to subscribe', async ({ page }) => {
+  await login(page);
+  const origin = 'https://stranger.example/';
+  await page.route('**/api/peek*', (route) =>
+    route.fulfill({ json: { origin, id: 'x1', kind: 'fragment', version: 1, content_html: '<p>A stranger&#39;s words, <a href="https://elsewhere.example/o">a link</a>.</p>', page: null, url: `${origin}f/x1/`, stub_of: null, forked_from: null, subscription_id: null } }),
+  );
+  await page.goto(`/studio/peek?origin=${encodeURIComponent(origin)}&id=x1`);
+  const alert = page.getByRole('alert');
+  await expect(alert).toContainText('You’re not subscribed to this blyg');
+  await expect(page.locator('.article-body')).toContainText("A stranger's words");
+  // Outside links from it also leave in a new tab.
+  await expect(page.locator('.article-body a[href="https://elsewhere.example/o"]')).toHaveAttribute('target', '_blank');
+  await alert.getByRole('button', { name: 'subscribe?', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Subscribe to stranger.example' })).toBeVisible();
 });

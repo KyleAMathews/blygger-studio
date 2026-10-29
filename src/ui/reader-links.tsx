@@ -120,6 +120,12 @@ export function ReaderBody({
     }
     // 2. Ordinary links: ask which of them lead to blyg items.
     const anchors = [...root.querySelectorAll<HTMLAnchorElement>('a[href^="http"]')].filter((a) => !a.closest('.layer-ref'));
+    // A link that is not (or not yet known to be) a blyg item leaves the
+    // studio, so it opens in its own tab and the reading place is kept.
+    for (const a of anchors) {
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+    }
     const apply = () => {
       for (const a of anchors) {
         const target = classified.get(a.href);

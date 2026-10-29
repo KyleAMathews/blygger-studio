@@ -39,6 +39,19 @@ not have its own repo until session 26.
   provenance line, with a link, now appears on quotes inside quotes too; an
   absent `data-blyg-origin` takes the origin of the layer that baked it. Links
   behave as ordinary links.
+- **Links that are not blyg items open in a new tab**, so reading your place is
+  kept; and opening an item of a blyg you do not subscribe to shows an alert,
+  *You're not subscribed to this blyg — subscribe?*, with the subscribe sheet
+  prefilled.
+- **Withdrawn posts are background.** The Background lens, a placeholder until
+  now, lists withdrawn posts (your own endcaps and the blygs you read); every
+  other lens, the sources counts and hopper timelines leave them out.
+  `GET /reading` takes `background=true`.
+- **A revised post leads with its latest changelog entry.** On a feed card for
+  an imported blyg item past its first version the line `V3: …` comes first,
+  read from the origin's changelog once the card is on screen (nothing new is
+  stored); with no note for that version it says `V3: No changelog entry
+  available`.
 - New operations: `peekItem`, `classifyLinks` (both `owner:read`), `listBrowse`
   (`owner:read`), `logBrowse` and `clearBrowse` (`reading:state`).
 

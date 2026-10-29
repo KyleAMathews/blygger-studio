@@ -4560,6 +4560,10 @@ export type ListReadingData = {
         limit?: number;
         sub?: string;
         kind?: 'thread' | 'fragment';
+        /**
+         * Only withdrawn items (the Background lens). Without it, withdrawn items are left out.
+         */
+        background?: 'true';
     };
     url: '/api/reading';
 };

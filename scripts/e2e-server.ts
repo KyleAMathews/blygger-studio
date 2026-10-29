@@ -14,6 +14,8 @@ await db.prepare("INSERT INTO subscriptions (id, kind, origin, feed_url, title, 
 for (const [sub, id, state, pin, l0, md, html, page] of [
   ['parity-native', '00000000000000000000000001', 'current', null, 0, '# Native title\n\nFrozen source text.', '<h1>Native title</h1><p>Frozen source text.</p><blockquote class="blyg-transclusion">Frozen quote from a prior version.</blockquote>', 'native'],
   ['parity-native', '00000000000000000000000002', 'tombstone', 1, 0, 'Pinned retained text.', '<p>Pinned retained text.</p>', 'retained'],
+  // A second live entry: withdrawn posts are background, so the feed needs another row to hold two.
+  ['parity-native', '00000000000000000000000004', 'current', null, 0, 'Second live text.', '<p>Second live text.</p>', 'second'],
   ['parity-rss', 'l0-parity', 'current', null, 1, '[Legacy title](https://legacy.example/post)', '<p><a href="https://legacy.example/post">Legacy title</a></p><p>Legacy body.</p>', 'https://legacy.example/post'],
 ] as const) await db.prepare('INSERT INTO imported_items (subscription_id, remote_id, kind, state, version, observed_at, content_md, content_html, pinned_version_retained, l0, page) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)').bind(sub, id, 'fragment', state, '2026-10-01T00:00:00Z', md, html, pin, l0, page).run();
 // Lineage (the lineage-glyph extension): the native item quotes its sibling and stubs a plain URL.

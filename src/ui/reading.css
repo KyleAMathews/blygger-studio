@@ -300,6 +300,9 @@
 .trail-bar .crumbs { flex: 1; min-width: 0; font-size: .82rem; color: var(--page-ink-soft); display: flex; flex-wrap: wrap; align-items: baseline; }
 .trail-bar .crumb { min-width: 0; overflow-wrap: anywhere; }
 .trail-bar .crumb [aria-current] { color: var(--page-ink); font-weight: 600; }
+.peek-alert { margin: 0 0 var(--s2); padding: 10px 12px; border: 1px solid var(--rule-strong, var(--rule)); border-left: 3px solid var(--page-ink-soft); border-radius: 8px; background: var(--sunk, transparent); font-size: .88rem; }
+.peek-alert p { margin: 0; }
+.peek-alert .peek-alert-sub { margin-top: 2px; font-size: .78rem; color: var(--page-ink-soft); }
 .peek-note { margin: 0 0 var(--s2); font-size: .82rem; color: var(--page-ink-soft); }
 /* The history pane: a drawer beside the reader on wide screens, the usual
    bottom sheet on a phone. */
@@ -316,3 +319,7 @@
 @media (min-width: 900px) {
   .sheet.trail-sheet { left: auto; right: 0; top: 0; bottom: 0; width: 380px; max-width: 92vw; max-height: none; transform: none; border-radius: 0; animation: fade .15s; }
 }
+
+/* A revised post leads with what changed. */
+.change-lead { margin: 0 0 6px; font-size: .88rem; color: var(--page-ink); }
+.change-lead.none { color: var(--page-ink-soft); font-style: italic; }

@@ -156,7 +156,7 @@ const reading = createRoute({
       preloadView(listViews.hoppers),
       preloadView(listViews.signals),
     ]);
-    if (deps.sub === undefined || deps.lens === 'background' || deps.lens === 'smart') return;
+    if (deps.sub === undefined || deps.lens === 'smart') return;
     const page = queryClient
       .getQueriesData<
         CachedResponse<import('../../sdk/dist/browser.js').ListReadingResponses[200]>

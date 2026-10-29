@@ -1496,7 +1496,8 @@ export const zListReadingQuery = z.object({
     offset: z.int().gte(0).nullish(),
     limit: z.int().gte(1).lte(50).optional(),
     sub: z.string().optional(),
-    kind: z.enum(['thread', 'fragment']).optional()
+    kind: z.enum(['thread', 'fragment']).optional(),
+    background: z.enum(['true']).optional()
 });
 
 /**

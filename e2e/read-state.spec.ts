@@ -6,7 +6,7 @@ import { answerSheet } from './sheets.ts';
 // when a write fails. Both projects share the fixture (e2e-server.ts), so the
 // test clears the source's read state first and again at the end.
 const NATIVE = '00000000000000000000000001';
-const RETAINED = '00000000000000000000000002';
+const RETAINED = '00000000000000000000000004';
 async function login(page: Page) {
   await page.goto('/studio/login');
   await page.locator('[name=password]').fill('test-password');
@@ -29,7 +29,7 @@ async function serverRead(page: Page) {
   return Object.fromEntries((json.items as { imported: { remoteId: string; readVersion: number | null } }[]).map((e) => [e.imported.remoteId, e.imported.readVersion]));
 }
 const native = (page: Page) => page.locator('.reading-entry').filter({ hasText: 'Native title' });
-const retained = (page: Page) => page.locator('.reading-entry').filter({ hasText: 'Pinned retained text.' });
+const retained = (page: Page) => page.locator('.reading-entry').filter({ hasText: 'Second live text.' });
 async function readMenu(page: Page, row: 'select…' | 'mark all read…') {
   await page.getByRole('button', { name: 'read state', exact: true }).click();
   await page.getByRole('dialog', { name: 'read state' }).getByRole('button', { name: row, exact: true }).click();

@@ -12467,6 +12467,19 @@
             "required": false,
             "name": "kind",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ],
+              "description": "Only withdrawn items (the Background lens). Without it, withdrawn items are left out."
+            },
+            "required": false,
+            "description": "Only withdrawn items (the Background lens). Without it, withdrawn items are left out.",
+            "name": "background",
+            "in": "query"
           }
         ],
         "responses": {

@@ -77,16 +77,21 @@ export function PeekPage({ origin, id }: { origin: string; id: string }) {
               <span className="src">{host}</span>
               <span>· v{item.version}</span>
             </p>
-            <p className="peek-note" data-peek-note>
-              {item.subscription_id
-                ? 'You subscribe to this blyg, but have not imported this item. Read from its own blyg; nothing is saved.'
-                : 'Not in your subscriptions. Read from its own blyg; nothing is saved.'}{' '}
-              {item.subscription_id ? null : (
-                <Button className="link-btn" onClick={() => setSubscribing(true)}>
-                  subscribe
-                </Button>
-              )}
-            </p>
+            {item.subscription_id ? (
+              <p className="peek-note" data-peek-note>
+                You subscribe to this blyg, but have not imported this item. Read from its own blyg; nothing is saved.
+              </p>
+            ) : (
+              <div className="peek-alert" role="alert" data-peek-note data-unsubscribed>
+                <p>
+                  <strong>You&rsquo;re not subscribed to this blyg</strong> &mdash;{' '}
+                  <Button className="link-btn" data-action="subscribe-peek" onClick={() => setSubscribing(true)}>
+                    subscribe?
+                  </Button>
+                </p>
+                <p className="peek-alert-sub">Read from its own blyg; nothing is saved.</p>
+              </div>
+            )}
             {item.kind === 'withdrawn' ? <p className="tomb">withdrawn</p> : null}
             {stub?.id && stub.origin ? (
               <p className="stub-head">
