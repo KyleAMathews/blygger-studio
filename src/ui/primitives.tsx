@@ -8,10 +8,11 @@ import type {
   ReactNode,
   TextareaHTMLAttributes,
 } from 'react';
-import { useId, useState } from 'react';
+import { useId } from 'react';
 import { Field as BaseField } from '@base-ui/react/field';
 import { Input as BaseInput } from '@base-ui/react/input';
 import { Tabs as BaseTabs } from '@base-ui/react/tabs';
+import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
 import { Button as BaseButton } from '@base-ui/react/button';
 import { Accordion as BaseAccordion } from '@base-ui/react/accordion';
 import { Checkbox as BaseCheckbox } from '@base-ui/react/checkbox';
