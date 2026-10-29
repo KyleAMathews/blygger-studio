@@ -347,6 +347,7 @@ was specified to do in both cases.
   freshness is direct and needs nothing new on the wire — fetch `{origin}items/{id}.json`
   and compare `version` to the reference's. Build the probe and the UI against that.
   Transitive ("over the DAG") staleness is undefined and stays out.
+- [ ] **Link probing traffic (parked, session 53).** `classifyLinks` makes the Worker fetch pages behind an entry's links (cap 40, cached 7 days in `link_probe`). Venkat: minimal for now; revisit only if heavy traffic of that type becomes a problem. Trigger and options: `../blygger-spec/docs/backlog.md` §2. Drop this line when that row is ruled or scheduled.
 - [x] **Show second-degree references within a stubbed item.** **Done 0.49.0 (session 53):** the layers' own `data-blyg-*` carry every depth, so nothing needed fetching — each nested quote gets a line naming its source that opens in the reader (`ReaderBody`) and, on public pages, a provenance link (`injectNestedProvenance`). Original entry: Presentation is this client's
   call (§8.4 does not constrain presentation — session 20). **Check the data exists first:**
   we hold a snapshot of the target, not the target's own reference list, so this may need a
