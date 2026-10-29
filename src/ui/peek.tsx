@@ -77,7 +77,7 @@ export function PeekPage({ origin, id }: { origin: string; id: string }) {
               <span className="src">{host}</span>
               <span>· v{item.version}</span>
             </p>
-            <p className="tomb peek-note" data-peek-note>
+            <p className="peek-note" data-peek-note>
               {item.subscription_id
                 ? 'You subscribe to this blyg, but have not imported this item. Read from its own blyg; nothing is saved.'
                 : 'Not in your subscriptions. Read from its own blyg; nothing is saved.'}{' '}
