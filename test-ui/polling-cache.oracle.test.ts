@@ -140,7 +140,7 @@ describe('Studio query-cache oracle', () => {
       queryKey: ['items'], queryClient: client, getKey: (row: { id: string; text: string }) => row.id,
       queryFn: context => readIfChanged(context, 'items', async () => source, load),
       select: (response: CachedResponse<{ id: string; text: string }[]>) => response.data,
-      onUpdate: async () => { await release.promise; text = 'local edit'; source = token(2); },
+      onUpdate: async ({ collection }) => { await release.promise; text = 'local edit'; source = token(2); await collection.utils.refetch({ throwOnError: true }); },
     }));
     await withOracleCleanup(async () => {
       await collection.preload(); const mutation = collection.update('a', draft => { draft.text = 'local edit'; });
@@ -148,7 +148,7 @@ describe('Studio query-cache oracle', () => {
       expect(client.getQueryData<CachedResponse<{ text: string }[]>>(['items'])!.data[0].text).toBe('remote change');
       expect(collection.get('a')!.text).toBe('local edit'); const before = load.mock.calls.length;
       await collection.utils.refetch({ throwOnError: true }); expect(load).toHaveBeenCalledTimes(before);
-      release.resolve(); await mutation.isPersisted.promise; expect(collection.get('a')!.text).toBe('local edit');
+      release.resolve(); await mutation.when('settled'); expect(collection.get('a')!.text).toBe('local edit');
       expect(client.getQueryData<CachedResponse<unknown>>(['items'])!.generation.revision).toBe(2);
     }, [async () => { release.resolve(); await collection.cleanup(); }, async () => { client.clear(); }]);
   });
@@ -204,13 +204,13 @@ describe('Studio query-cache oracle', () => {
       queryKey: ['items'], queryClient: client, getKey: (row: { id: string; revision: number }) => row.id,
       queryFn: context => readIfChanged(context, 'items', read, async () => [{ id: 'a', revision }]),
       select: (response: CachedResponse<{ id: string; revision: number }[]>) => response.data,
-      onUpdate: async () => { revision = 1; },
+      onUpdate: async ({ collection }) => { revision = 1; await collection.utils.refetch({ throwOnError: true }); },
     }));
     await collection.preload(); hold = true;
     const earlier = collection.utils.refetch({ throwOnError: true }).catch(() => undefined);
     await withOracleCleanup(async () => {
       await entered.promise; const mutation = collection.update('a', draft => { draft.revision = 1; });
-      await mutation.isPersisted.promise;
+      await mutation.when('settled');
       atCheckpoint('Studio post-write fresh check', () => {
         expect(reads).toBe(3); expect(collection.get('a')!.revision).toBe(1);
         expect(client.getQueryData<CachedResponse<unknown>>(['items'])!.generation.revision).toBe(1);

@@ -155,7 +155,7 @@ export const items = createCollection(
         );
       }),
     select: (response) => response.data,
-    onUpdate: async ({ transaction }) => {
+    onUpdate: async ({ transaction, collection }) => {
       for (const mutation of transaction.mutations) {
         const changes = mutation.changes;
         const body: UpdateItemData['body'] = {};
@@ -172,8 +172,9 @@ export const items = createCollection(
           }),
         );
       }
+      await collection.utils.refetch({ throwOnError: true });
     },
-    onDelete: async ({ transaction }) => {
+    onDelete: async ({ transaction, collection }) => {
       for (const mutation of transaction.mutations)
         await unwrap(
           BlyggerApi.deleteItem({
@@ -181,6 +182,7 @@ export const items = createCollection(
             path: { id: mutation.key as string },
           }),
         );
+      await collection.utils.refetch({ throwOnError: true });
     },
   }),
 );
@@ -202,11 +204,12 @@ export const settings = createCollection(
       ],
       ),
     select: (response) => response.data,
-    onUpdate: async ({ transaction }) => {
+    onUpdate: async ({ transaction, collection }) => {
       for (const { changes } of transaction.mutations) {
         const { key: _key, ...body } = changes;
         await unwrap(BlyggerApi.updateSettings({ client, body }));
       }
+      await collection.utils.refetch({ throwOnError: true });
     },
   }),
 );
@@ -232,7 +235,7 @@ export const subscriptions = createCollection(
         ),
       ),
     select: (response) => response.data,
-    onUpdate: async ({ transaction }) => {
+    onUpdate: async ({ transaction, collection }) => {
       for (const { key, changes } of transaction.mutations)
         await unwrap(
           BlyggerApi.updateSubscription({
@@ -249,8 +252,9 @@ export const subscriptions = createCollection(
             },
           }),
         );
+      await collection.utils.refetch({ throwOnError: true });
     },
-    onDelete: async ({ transaction }) => {
+    onDelete: async ({ transaction, collection }) => {
       for (const { key } of transaction.mutations)
         await unwrap(
           BlyggerApi.deleteSubscription({
@@ -258,6 +262,7 @@ export const subscriptions = createCollection(
             path: { id: key as string },
           }),
         );
+      await collection.utils.refetch({ throwOnError: true });
     },
   }),
 );
@@ -289,7 +294,7 @@ export const hoppers = createCollection(
         );
       }),
     select: (response) => response.data,
-    onUpdate: async ({ transaction }) => {
+    onUpdate: async ({ transaction, collection }) => {
       for (const { key, changes } of transaction.mutations)
         await unwrap(
           BlyggerApi.updateHopper({
@@ -303,12 +308,14 @@ export const hoppers = createCollection(
             },
           }),
         );
+      await collection.utils.refetch({ throwOnError: true });
     },
-    onDelete: async ({ transaction }) => {
+    onDelete: async ({ transaction, collection }) => {
       for (const { key } of transaction.mutations)
         await unwrap(
           BlyggerApi.deleteHopper({ client, path: { id: String(key) } }),
         );
+      await collection.utils.refetch({ throwOnError: true });
     },
   }),
 );
@@ -397,7 +404,7 @@ export function createDraftAction(id?: string) {
       }
     }
     // Finish read-back inside the handler, before another command starts.
-    if (command.type === 'save' || command.type === 'update') items.utils.writeUpsert(sourceSchemas.items.parse({ ...result, pins: items.get(itemId!)?.pins }));
+    if (command.type === 'save' || command.type === 'update') await items.utils.writeUpsert(sourceSchemas.items.parse({ ...result, pins: items.get(itemId!)?.pins }));
     // A delete caller refreshes after leaving the editor, so its active view
     // does not report the discarded item as missing before navigation.
     if (command.type !== 'delete') await changed('item', 'items', 'reading');
@@ -760,10 +767,10 @@ export const listViews = {
 /** A failed derived graph must restart after the Query cache recovers. */
 export async function preloadView(view: {
   status: string;
-  cleanup(): void | Promise<void>;
+  reload(): Promise<unknown>;
   preload(): Promise<unknown>;
 }) {
-  if (view.status === 'error') await view.cleanup();
+  if (view.status === 'error') return view.reload();
   return view.preload();
 }
 

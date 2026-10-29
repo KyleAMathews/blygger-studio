@@ -149,7 +149,7 @@ test('editor and list share optimistic item fields and roll back together', asyn
   await vi.waitFor(() => expect(editor.toArray[0].content_md).toBe('draft'));
   expect(db.listViews.items.toArray[0].content_md).toBe('draft');
   failWrite = true; releaseWrite!();
-  await expect(transaction.isPersisted.promise).rejects.toThrow('write failed');
+  await expect(transaction.when('settled')).rejects.toThrow('write failed');
   await vi.waitFor(() => expect(editor.toArray[0].content_md).toBe('original'));
   expect(db.listViews.items.toArray[0].content_md).toBe('original');
 });
@@ -158,8 +158,7 @@ test('item writes persist through the source and removed items leave every view'
   const editor = db.itemDetail('a'); views.push(editor);
   await Promise.all([db.listViews.items.preload(), editor.preload()]);
   const transaction = db.items.update('a', (row) => { row.content_md = 'saved'; });
-  await transaction.isPersisted.promise;
-  await db.changed('items');
+  await transaction.when('settled');
   expect(editor.toArray[0].content_md).toBe('saved');
   expect(db.listViews.items.toArray[0].content_md).toBe('saved');
   missing = true; revision++;
@@ -262,7 +261,7 @@ test('hopper previews demand three entries and detail uses the same source rows'
   expect(full.toArray[0].items).toHaveLength(4); expect(preview.toArray[0].items).toHaveLength(3);
   expect(db.hopperEntries.size).toBe(4);
   expect(db.hopperStats.get('h')).not.toHaveProperty('hopper');
-  db.hoppers.utils.writeUpdate({ id: 'h', name: 'Renamed' });
+  await db.hoppers.utils.writeUpdate({ id: 'h', name: 'Renamed' });
   await vi.waitFor(() => expect(preview.toArray[0].hopper.name).toBe('Renamed'));
   expect(full.toArray[0].hopper.name).toBe('Renamed');
   text = 'fresh content'; revision++;

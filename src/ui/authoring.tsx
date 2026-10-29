@@ -1813,7 +1813,7 @@ function Editor({ item }: { item: Detail }) {
               const front = settings.front_page === item.id ? '' : item.id;
               await settingsCollection.update('settings', (row) => {
                 row.front_page = front;
-              }).isPersisted.promise;
+              }).when('settled');
               toast(front ? 'This thread is now your front page' : 'Your home page shows your latest items again', { tone: 'ok' });
             }),
         },

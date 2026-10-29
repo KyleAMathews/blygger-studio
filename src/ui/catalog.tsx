@@ -151,7 +151,7 @@ export function HoppersPage() {
     const hopper = await unwrap(
       BlyggerApi.createHopper({ client, body: { name } }),
     );
-    hoppers.utils.writeUpsert(hopper);
+    await hoppers.utils.writeUpsert(hopper);
     setName('');
   };
   return (
@@ -841,7 +841,7 @@ export function ForkPage({
                         },
                       }),
                     );
-                    items.utils.writeUpsert(draft);
+                    await items.utils.writeUpsert(draft);
                     await navigate({
                       to: '/edit/$id',
                       params: { id: draft.id },

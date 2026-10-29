@@ -196,7 +196,7 @@ type Markable = Pick<Reading, 'key' | 'imported'>;
  */
 function markEntries(entries: Markable[], read: boolean) {
   const rows = entries.filter((entry) => entry.imported);
-  return markReading({ keys: rows.map((entry) => entry.key), read, writes: readWrites(rows, read) }).isPersisted.promise;
+  return markReading({ keys: rows.map((entry) => entry.key), read, writes: readWrites(rows, read) }).when('settled');
 }
 interface ReadUi {
   /** Whether rows show read state and can be selected (timelines; not hoppers). */
@@ -957,7 +957,7 @@ function useSubscriptionActions(actions: Actions) {
       const paused = source.status === 'paused';
       await subscriptions.update(source.id, (row) => {
         row.status = paused ? 'active' : 'paused';
-      }).isPersisted.promise;
+      }).when('settled');
       toast(paused ? 'resumed' : 'paused');
     });
   return { toggle };
@@ -1032,7 +1032,7 @@ function Inspector({
               .update(shown.id, (row) => {
                 row.in_blogroll = checked;
               })
-              .isPersisted.promise.then(
+              .when('settled').then(
                 () =>
                   toast(
                     checked ? 'added to blogroll' : 'removed from blogroll',
@@ -1103,7 +1103,7 @@ function Inspector({
                 })
               )
                 void actions.run(async () => {
-                  await subscriptions.delete(shown.id).isPersisted.promise;
+                  await subscriptions.delete(shown.id).when('settled');
                   await changed('hoppers', 'signals', 'reading');
                   toast('deleted');
                   onDeleted?.();
