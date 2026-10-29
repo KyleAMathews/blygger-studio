@@ -6,6 +6,8 @@ import { SettingsSchema, HopperItemRowSchema, SignalRowSchema, MentionOutRowSche
 import { CHANGE_DOMAINS } from '../change-state.ts';
 import { CHANGE_CATEGORIES } from "../change-category.ts";
 import { READ_BATCH_MAX, READ_ID_MAX, READ_VERSION_MAX } from '../importer/read-state.ts';
+import { BROWSE_VIA } from "../browse-log.ts";
+import { CLASSIFY_MAX } from "../peek.ts";
 import { IMPORTED_READING_MAX, READING_CURSOR_MAX, decodeReadingCursor } from '../imported-reading.ts';
 
 const json = (schema: z.ZodType) => ({ "application/json": { schema } });
@@ -55,6 +57,8 @@ const quoteFreshness = z.object({ id: z.string(), origin: z.string().optional(),
 export const ThreadFreshnessSchema = z.object({ id: z.string(), version: z.number().int(), dirty: z.boolean(), quotes: z.array(quoteFreshness), stale: z.number().int().nonnegative(), blocking: z.number().int().nonnegative(), behind: z.number().int().nonnegative() }).openapi("ThreadFreshness");
 const interactionKind = z.enum(["thumb_up", "thumb_down", "thumb_clear", "hopper_add", "hopper_remove", "stub", "fork", "quote"]);
 /** The owner's private interaction log (0.25.0). Never on the wire. */
+export const PeekItemSchema = z.object({ origin: z.string(), id: z.string(), kind: z.enum(["fragment", "thread", "withdrawn"]), version: z.number().int().positive(), content_html: z.string().describe("Sanitized, as a subscribed item's is."), page: z.string().nullable(), url: z.string(), stub_of: z.unknown().nullable(), forked_from: z.unknown().nullable(), subscription_id: z.string().nullable().describe("The subscription holding this origin, when there is one: open the held copy at /reading/{sub}/{id}.") }).openapi("PeekItem");
+export const BrowseStepSchema = z.object({ id: z.number().int(), at: z.string(), trail: z.string(), parent_id: z.number().int().nullable(), origin: z.string(), remote_id: z.string(), version: z.number().int().nullable(), via: z.enum(BROWSE_VIA), title: z.string().nullable() }).openapi("BrowseStep");
 export const InteractionSchema = z.object({ id: z.number().int(), at: z.string(), kind: interactionKind, origin: z.string(), remote_id: z.string(), version: z.number().int().nullable(), own_item_id: z.string().nullable(), own_version: z.number().int().nullable(), hopper_id: z.string().nullable(), hopper_name: z.string().nullable(), backfilled: z.number().int(), subscription_id: z.string().nullable(), label: z.string().nullable() }).openapi("Interaction");
 export const ThumbSchema = z.object({ thumb: z.union([z.literal(1), z.literal(-1)]), at: z.string(), origin: z.string(), remote_id: z.string(), subscription_id: z.string().nullable(), label: z.string().nullable() }).openapi("Thumb");
 /** The model manifest for Settings (0.26.0): which models exist, and which providers have a key. Never a key's value. */
@@ -130,6 +134,13 @@ export const routes = {
   getImportedItem: route("getImportedItem", "get", "/imports/{sub}/{id}", ImportedItemSchema),
   getImportedHistory: route("getImportedHistory", "get", "/imports/{sub}/{id}/history", z.object({ current: z.number().int(), withdrawn: z.boolean(), changelog: z.array(z.object({ version: z.number().int(), at: z.string(), note: z.string().nullable(), pinned: z.boolean(), generated: z.boolean() })) })),
   getImportedVersion: route("getImportedVersion", "get", "/imports/{sub}/{id}/versions/{v}", z.object({ version: z.number().int(), content_md: z.string(), note: z.string().nullable(), pinned: z.boolean() })),
+  // Following a link out of an entry (0.49.0): the item fetched from its own blyg, which
+  // links in an entry name a blyg item, and the owner's private browsing path.
+  peekItem: route("peekItem", "get", "/peek", PeekItemSchema, undefined, 200, z.object({ origin: z.string(), id: z.string() })),
+  classifyLinks: route("classifyLinks", "post", "/peek/links", z.object({ links: z.array(z.object({ url: z.string(), target: z.union([z.object({ origin: z.string(), id: z.string() }), z.null()]) })) }), z.object({ urls: z.array(z.string().max(2048)).max(CLASSIFY_MAX) })),
+  listBrowse: route("listBrowse", "get", "/browse", collection(BrowseStepSchema), undefined, 200, page.extend({ trail: z.string().optional() })),
+  logBrowse: route("logBrowse", "post", "/browse", z.object({ id: z.number().int() }), z.object({ trail: z.string().min(8).max(64), parent_id: z.number().int().nullable().optional(), origin: z.string().min(1).max(2048), remote_id: z.string().min(1).max(256), version: z.number().int().positive().nullable().optional(), via: z.enum(BROWSE_VIA), title: z.string().max(400).nullable().optional() }), 201),
+  clearBrowse: route("clearBrowse", "delete", "/browse", ok, undefined, 200, z.object({ trail: z.string().optional() })),
   getUpdateState: route("getUpdateState", "get", "/update-state", z.record(z.string(), z.string())),
   getMentionSource: route("getMentionSource", "get", "/mentions/{id}/source", z.object({ holder: z.string().nullable(), subscription: z.union([SubscriptionSchema, z.null()]) })),
   listStaleThreads: route("listStaleThreads", "get", "/freshness", z.object({ items: z.array(ThreadFreshnessSchema) })),

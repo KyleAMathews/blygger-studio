@@ -62,6 +62,12 @@ it("exercises every declared operation through its named SDK method, including a
     ["listReading", 200, client => api.listReading({ client, query: { sub: sub.id, limit: 1 } })],
     ["listImportedReading", 200, client => api.listImportedReading({ client, query: { limit: 1 } })],
     ["getImportedItem", 200, client => api.getImportedItem({ client, path: { sub: sub.id, id: "remote" } })],
+    // A malformed origin is refused before anything is fetched.
+    ["peekItem", 400, client => api.peekItem({ client, query: { origin: "not a url", id } })],
+    ["classifyLinks", 200, client => api.classifyLinks({ client, body: { urls: ["javascript:0"] } })],
+    ["listBrowse", 200, client => api.listBrowse({ client, query: { limit: 1 } })],
+    ["logBrowse", 201, client => api.logBrowse({ client, body: { trail: "matrix-trail-0001", origin: "https://matrix.example/", remote_id: "remote", via: "start" } })],
+    ["clearBrowse", 200, client => api.clearBrowse({ client, query: { trail: "matrix-trail-0001" } })],
     ["getUpdateState", 200, client => api.getUpdateState({ client })],
     ["getMentionSource", 200, client => api.getMentionSource({ client, path: { id: "matrix-mention" } })],
     ["getForkOptions", 200, client => api.getForkOptions({ client, query: { id } })],

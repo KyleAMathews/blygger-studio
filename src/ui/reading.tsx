@@ -58,6 +58,8 @@ import {
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { displayUrl, sourceTitleAndUrl } from '../importer/util.ts';
+import { ReaderBody, TrailBar, ownOrigin, useEndTrail, useSubscriptionRows } from './reader-links.tsx';
+import { currentTrail, visit } from './browse.ts';
 import { formatDateIn } from '../dates.ts';
 import { AddFeedForm } from './catalog.tsx';
 import { OpmlImportSheet } from './opml-import.tsx';
@@ -66,7 +68,7 @@ import { useSwipe } from './swipe.ts';
 import type { EntryContext, StudioExtension } from './extension-api.ts';
 import { EntryBylineSlot, EntrySheetSlot, entryActionRows, enabledExtensions, type OpenSheet } from './extensions.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
-import { Back, More, ThumbDown, ThumbUp } from './icons.tsx';
+import { More, ThumbDown, ThumbUp } from './icons.tsx';
 import './reading.css';
 
 import type { CachedResponse } from './revision-query.ts';
@@ -832,31 +834,43 @@ function useArticleEntry(sub: string, id: string) {
 export function ReadingArticle({ sub, id }: { sub: string; id: string }) {
   useChrome({ framed: false, wide: false });
   const actions = useReadingActions();
+  const navigate = useNavigate();
   const { entry, error } = useArticleEntry(sub, id);
+  const subs = useSubscriptionRows();
+  const origin = sub === OWN_SUB ? ownOrigin() : subs.find((s) => s.id === sub)?.origin;
   const back = () => {
-    if (openedFromFeed && window.history.length > 1) {
+    // Inside a walk through linked entries, back retraces it one entry at a time.
+    if (currentTrail().stack.length > 1) window.history.back();
+    else if (openedFromFeed && window.history.length > 1) {
       openedFromFeed = false;
       window.history.back();
     } else void actions.navigate({ to: '/reading' });
   };
+  // The walk's record of this entry; the title is what the breadcrumb shows.
+  useEffect(() => {
+    if (!entry || !origin) return;
+    const title = splitTitle(entry.contentHtml, entry.l0).title || plainExcerpt(entry.contentHtml).slice(0, 60);
+    visit({ origin, id, version: entry.imported?.version ?? null, title });
+  }, [entry?.key, origin]);
+  // A held blyg whose copy lacks this item (never imported, or older than the
+  // backfill): read it from its origin instead of showing an error.
+  const notHeld = (error as { status?: number } | undefined)?.status === 404 || /not found/i.test(String((error as Error | undefined)?.message ?? ''));
+  useEffect(() => {
+    if (notHeld && origin && sub !== OWN_SUB) void navigate({ to: '/peek', search: { origin, id }, replace: true });
+  }, [notHeld, origin]);
   return (
     <>
-      <div className="article-head">
-        <Button className="act back-btn" onClick={back}>
-          <Back />
-          back
-        </Button>
-      </div>
-      <Failure error={error ?? actions.error} />
+      <TrailBar back={back} />
+      <Failure error={notHeld ? undefined : error ?? actions.error} />
       {entry ? (
-        <Article entry={entry} actions={actions} />
+        <Article entry={entry} actions={actions} origin={origin ?? ownOrigin()} />
       ) : !error ? (
         <p className="view-sub">Loading…</p>
       ) : null}
     </>
   );
 }
-function Article({ entry, actions }: { entry: Reading; actions: Actions }) {
+function Article({ entry, actions, origin }: { entry: Reading; actions: Actions; origin: string }) {
   const votes = useLiveQuery({ query: (q) => q.from({ signal: signals }) }).data ?? [];
   const buckets = useLiveQuery({ query: (q) => q.from({ hopper: hoppers }) }).data ?? [];
   usePoll('signals', signals.utils.refetch);
@@ -882,7 +896,7 @@ function Article({ entry, actions }: { entry: Reading; actions: Actions }) {
         <Byline entry={entry} a={a} />
         <Tomb entry={entry} />
         <EntryTitle title={content.title} url={a.url} as="h2" className="entry-title article-title" />
-        <div className="content entry-body article-body" dangerouslySetInnerHTML={{ __html: content.html }} />
+        <ReaderBody html={content.html} origin={origin} className="content entry-body article-body" />
         <SourceLink url={a.url} />
       </div>
       {a.imported && !entry.l0 && a.historyOpen ? (
@@ -1908,6 +1922,8 @@ export function ReadingPage({
   lens?: Lens;
   view?: 'sources';
 }) {
+  // A timeline or source list is where a walk through the thicket ends.
+  useEndTrail();
   return (
     <LensContext.Provider value={lens}>
       {view === 'sources' ? (

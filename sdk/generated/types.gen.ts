@@ -538,6 +538,37 @@ export type ImportedReadingEntry = {
     generated: Array<unknown> | null;
 };
 
+export type PeekItem = {
+    origin: string;
+    id: string;
+    kind: 'fragment' | 'thread' | 'withdrawn';
+    version: number;
+    /**
+     * Sanitized, as a subscribed item's is.
+     */
+    content_html: string;
+    page: string | null;
+    url: string;
+    stub_of?: unknown;
+    forked_from?: unknown;
+    /**
+     * The subscription holding this origin, when there is one: open the held copy at /reading/{sub}/{id}.
+     */
+    subscription_id: string | null;
+};
+
+export type BrowseStep = {
+    id: number;
+    at: string;
+    trail: string;
+    parent_id: number | null;
+    origin: string;
+    remote_id: string;
+    version: number | null;
+    via: 'start' | 'stub' | 'quote' | 'link' | 'back';
+    title: string | null;
+};
+
 export type ThreadFreshness = {
     id: string;
     version: number;
@@ -4929,6 +4960,387 @@ export type GetImportedVersionResponses = {
 };
 
 export type GetImportedVersionResponse = GetImportedVersionResponses[keyof GetImportedVersionResponses];
+
+export type PeekItemData = {
+    body?: never;
+    path?: never;
+    query: {
+        origin: string;
+        id: string;
+    };
+    url: '/api/peek';
+};
+
+export type PeekItemErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type PeekItemError = PeekItemErrors[keyof PeekItemErrors];
+
+export type PeekItemResponses = {
+    /**
+     * Success
+     */
+    200: PeekItem;
+};
+
+export type PeekItemResponse = PeekItemResponses[keyof PeekItemResponses];
+
+export type ClassifyLinksData = {
+    body: {
+        urls: Array<string>;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/peek/links';
+};
+
+export type ClassifyLinksErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ClassifyLinksError = ClassifyLinksErrors[keyof ClassifyLinksErrors];
+
+export type ClassifyLinksResponses = {
+    /**
+     * Success
+     */
+    200: {
+        links: Array<{
+            url: string;
+            target: {
+                origin: string;
+                id: string;
+            } | null;
+        }>;
+    };
+};
+
+export type ClassifyLinksResponse = ClassifyLinksResponses[keyof ClassifyLinksResponses];
+
+export type ClearBrowseData = {
+    body?: never;
+    path?: never;
+    query?: {
+        trail?: string;
+    };
+    url: '/api/browse';
+};
+
+export type ClearBrowseErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ClearBrowseError = ClearBrowseErrors[keyof ClearBrowseErrors];
+
+export type ClearBrowseResponses = {
+    /**
+     * Success
+     */
+    200: {
+        ok: boolean;
+    };
+};
+
+export type ClearBrowseResponse = ClearBrowseResponses[keyof ClearBrowseResponses];
+
+export type ListBrowseData = {
+    body?: never;
+    path?: never;
+    query?: {
+        offset?: number | null;
+        limit?: number;
+        trail?: string;
+    };
+    url: '/api/browse';
+};
+
+export type ListBrowseErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListBrowseError = ListBrowseErrors[keyof ListBrowseErrors];
+
+export type ListBrowseResponses = {
+    /**
+     * Success
+     */
+    200: {
+        items: Array<BrowseStep>;
+        total: number;
+        offset: number;
+        limit: number;
+    };
+};
+
+export type ListBrowseResponse = ListBrowseResponses[keyof ListBrowseResponses];
+
+export type LogBrowseData = {
+    body: {
+        trail: string;
+        parent_id?: number | null;
+        origin: string;
+        remote_id: string;
+        version?: number | null;
+        via: 'start' | 'stub' | 'quote' | 'link' | 'back';
+        title?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/browse';
+};
+
+export type LogBrowseErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type LogBrowseError = LogBrowseErrors[keyof LogBrowseErrors];
+
+export type LogBrowseResponses = {
+    /**
+     * Success
+     */
+    201: {
+        id: number;
+    };
+};
+
+export type LogBrowseResponse = LogBrowseResponses[keyof LogBrowseResponses];
 
 export type GetUpdateStateData = {
     body?: never;

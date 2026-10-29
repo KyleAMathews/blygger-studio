@@ -155,6 +155,8 @@ saying so.
 
 ## Status
 
+**0.49.0** (session 53, 2026-10-29): browse the thicket from the reader — every quoted layer at any depth and every link that names a blyg item opens in the reader (`src/ui/reader-links.tsx`), items of unsubscribed blygs are read from their origin at `/peek` (`src/peek.ts`, nothing stored), back retraces the descent, and the walk is logged privately (`browse_log`, `src/browse-log.ts`) and shown in a *history* pane; public pages give nested quotes a provenance line (`injectNestedProvenance`); a stub's passage is selected in the editor's preview. **Migration 0033** (`browse_log`, `link_probe`).
+
 **0.48.2** (session 52, 2026-10-20): a mention without the target's page names its item document (decision #85, blygger-spec#17) — `remoteTarget` in `mentions/send.ts` replaces `remotePermalink`: `page` when held, else `itemUrl` under the subscription's stored surface or, for an unsubscribed origin, a manifest read once per origin at enqueue (template and `webmention` endpoint, the endpoint stored on the `mentions_out` row); never `f/`·`t/`. No migration.
 
 **0.48.1** (session 52, 2026-10-20): mention targets by membership (decision #84, blygger-spec#17) — `targetItemId` accepts a pinned version's document and page, each resolving to the item, and refuses a live page under the wrong kind (keyed on `authoredKind`, so a withdrawn item's page still resolves). No migration.

@@ -496,6 +496,41 @@ export const zImportedReadingEntry = z.object({
     generated: z.array(z.unknown()).nullable()
 });
 
+export const zPeekItem = z.object({
+    origin: z.string(),
+    id: z.string(),
+    kind: z.enum([
+        'fragment',
+        'thread',
+        'withdrawn'
+    ]),
+    version: z.int().gt(0),
+    content_html: z.string(),
+    page: z.string().nullable(),
+    url: z.string(),
+    stub_of: z.unknown().optional(),
+    forked_from: z.unknown().optional(),
+    subscription_id: z.string().nullable()
+});
+
+export const zBrowseStep = z.object({
+    id: z.int(),
+    at: z.string(),
+    trail: z.string(),
+    parent_id: z.int().nullable(),
+    origin: z.string(),
+    remote_id: z.string(),
+    version: z.int().nullable(),
+    via: z.enum([
+        'start',
+        'stub',
+        'quote',
+        'link',
+        'back'
+    ]),
+    title: z.string().nullable()
+});
+
 export const zQuoteFreshness = z.object({
     id: z.string(),
     origin: z.string().optional(),
@@ -1540,6 +1575,83 @@ export const zGetImportedVersionResponse = z.object({
     content_md: z.string(),
     note: z.string().nullable(),
     pinned: z.boolean()
+});
+
+export const zPeekItemQuery = z.object({
+    origin: z.string(),
+    id: z.string()
+});
+
+/**
+ * Success
+ */
+export const zPeekItemResponse = zPeekItem;
+
+export const zClassifyLinksBody = z.object({
+    urls: z.array(z.string().max(2048)).max(40)
+}).strict();
+
+/**
+ * Success
+ */
+export const zClassifyLinksResponse = z.object({
+    links: z.array(z.object({
+        url: z.string(),
+        target: z.object({
+            origin: z.string(),
+            id: z.string()
+        }).nullable()
+    }))
+});
+
+export const zClearBrowseQuery = z.object({
+    trail: z.string().optional()
+});
+
+/**
+ * Success
+ */
+export const zClearBrowseResponse = z.object({
+    ok: z.boolean()
+});
+
+export const zListBrowseQuery = z.object({
+    offset: z.int().gte(0).nullish(),
+    limit: z.int().gte(1).lte(100).optional(),
+    trail: z.string().optional()
+});
+
+/**
+ * Success
+ */
+export const zListBrowseResponse = z.object({
+    items: z.array(zBrowseStep),
+    total: z.int().gte(0),
+    offset: z.int().gte(0),
+    limit: z.int().gt(0)
+});
+
+export const zLogBrowseBody = z.object({
+    trail: z.string().min(8).max(64),
+    parent_id: z.int().nullish(),
+    origin: z.string().min(1).max(2048),
+    remote_id: z.string().min(1).max(256),
+    version: z.int().gt(0).nullish(),
+    via: z.enum([
+        'start',
+        'stub',
+        'quote',
+        'link',
+        'back'
+    ]),
+    title: z.string().max(400).nullish()
+}).strict();
+
+/**
+ * Success
+ */
+export const zLogBrowseResponse = z.object({
+    id: z.int()
 });
 
 /**

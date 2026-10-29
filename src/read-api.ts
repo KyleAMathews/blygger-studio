@@ -25,6 +25,8 @@ import { maybeCheckForUpdate } from "./update-check.ts";
 import { normalizeOrigin } from "./stub.ts";
 import { mentionFetchFor } from "./mentions/http.ts";
 import { platformFetchFor } from "./importer/http.ts";
+import { listBrowse, recordBrowse, clearBrowse, type BrowseVia } from "./browse-log.ts";
+import { classifyLinks, peekItem } from "./peek.ts";
 import { fetchImportedHistory, fetchPublicVersion } from "./imported-history.ts";
 import { readChanges } from './changes.ts';
 import { linkLabel } from "./link-label.ts";
@@ -157,6 +159,32 @@ readApi.openapi(routes.getImportedVersion, async (c) => {
   if (!sub) return c.json({ error: "not a blyg subscription" }, 404);
   const got = await fetchPublicVersion(platformFetchFor(c.env), sub, c.req.param("id"), Number(c.req.param("v")));
   return got.ok ? c.json(got.value) : c.json({ error: got.error }, got.status);
+});
+// Following links out of an entry (0.49.0). `peekItem` reads one item from its own blyg
+// without subscribing; `classifyLinks` says which of an entry's links name blyg items.
+readApi.openapi(routes.peekItem, async (c) => {
+  const got = await peekItem(c.env.DB, platformFetchFor(c.env), c.req.query("origin") ?? "", c.req.query("id") ?? "");
+  return got.ok ? c.json(got.value) : c.json({ error: got.error }, got.status);
+});
+readApi.openapi(routes.classifyLinks, async (c) => {
+  const { urls } = await readJson<{ urls: string[] }>(c);
+  const settings = await getSettings(c.env.DB);
+  const ourOrigin = siteOrigin(settings, c.req.url, normalizeMount(c.env.MOUNT));
+  return c.json({ links: await classifyLinks(c.env.DB, platformFetchFor(c.env), urls, ourOrigin, new Date().toISOString()) });
+});
+readApi.openapi(routes.listBrowse, async (c) => {
+  const offset = Math.max(0, Number(c.req.query("offset") ?? 0) || 0);
+  const limit = Math.min(100, Math.max(1, Number(c.req.query("limit") ?? 50) || 50));
+  return c.json({ ...(await listBrowse(c.env.DB, offset, limit, c.req.query("trail"))), offset, limit });
+});
+readApi.openapi(routes.logBrowse, async (c) => {
+  const b = await readJson<{ trail: string; parent_id?: number | null; origin: string; remote_id: string; version?: number | null; via: BrowseVia; title?: string | null }>(c);
+  const id = await recordBrowse(c.env.DB, { trail: b.trail, parentId: b.parent_id, origin: b.origin, remoteId: b.remote_id, version: b.version, via: b.via, title: b.title, at: new Date().toISOString() });
+  return c.json({ id }, 201);
+});
+readApi.openapi(routes.clearBrowse, async (c) => {
+  await clearBrowse(c.env.DB, c.req.query("trail"));
+  return c.json({ ok: true });
 });
 readApi.openapi(routes.getUpdateState, async (c) => {
   const [settings, map] = await Promise.all([getSettings(c.env.DB), getSettingsMap(c.env.DB)]);
