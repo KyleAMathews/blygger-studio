@@ -88,7 +88,8 @@ test('a stack of quotes opens layer by layer in the reader, back retraces it, an
 
   // Leaving for the feed ends the walk; the next entry starts a new one.
   await page.goto('/studio/reading');
-  await expect(page.locator('.reading-entry').first()).toBeVisible();
+  // The feed ends the walk from an effect after load; a reload before that restores the old stack.
+  await page.waitForFunction(() => JSON.parse(sessionStorage.getItem('studio.browse') ?? '{"stack":[]}').stack.length === 0);
   await page.goto(`/studio/reading/~own/${leaf}`);
   await expect.poll(async () => (await logged())[0]?.via).toBe('start');
   const again = (await logged())[0];
