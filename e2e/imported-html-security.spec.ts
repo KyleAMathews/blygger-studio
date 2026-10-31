@@ -92,6 +92,11 @@ test('public version navigation cannot activate a legacy pinned bake', async ({ 
   await page.getByRole('button',{name:'older version',exact:true}).click();
   await expect(page.getByText('Legacy pin safety marker',{exact:true})).toBeVisible();
   await expect(page.locator('.version-note')).toContainText('Old pin note');
+  // Rendering turns do not wait for a failed image request. Exercise its error
+  // handler now so a slow 404 response cannot let unsafe markup pass this oracle.
+  await page.locator('article .item-content img[src="/missing"]').evaluateAll(images => {
+    for (const image of images) image.dispatchEvent(new Event('error'));
+  });
   await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
   expect(attemptedGrants, 'version navigation must not attempt owner-authority calls').toEqual([]);
   await expect(page.locator('html'),'version navigation cannot execute legacy protocol markup').not.toHaveAttribute('data-import-script','yes');
