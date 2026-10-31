@@ -28,7 +28,7 @@ describe("stored JSON isolation through SDK", () => {
     await unwrap(api.publishItem({ client, path: { id: item.id } , body: { expectedRevision: await testItemRevision(item.id) } }));
     await env.DB.prepare(`UPDATE versions SET ${column} = ? WHERE item_id = ? AND version = 1`).bind(value, item.id).run();
     expect((await unwrap(api.getVersion({ client, path: { id: item.id, v: 1 } })))[field]).toEqual(fallback);
-    expect((await unwrap(api.getItem({ client, path: { id: item.id } }))).versions[0][field]).toEqual(fallback);
+    expect((await unwrap(api.getItem({ client, path: { id: item.id } }))).published![field]).toEqual(fallback);
     expect((await env.DB.prepare(`SELECT ${column} AS value FROM versions WHERE item_id = ?`).bind(item.id).first<{ value: string }>())?.value).toBe(value);
   });
   it.each(["{", "null", "{}"])("subscription flags isolate %s", async value => {

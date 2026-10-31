@@ -55,6 +55,7 @@ if (tool === 'npm' && args[0] === 'install') { cmd = process.execPath; forwarded
 else if (tool === 'npm' && args.join(' ') === 'run build') { cmd = process.execPath; forwarded = [${JSON.stringify(npmCli)}, ...args]; }
 else if (tool === 'npm' && args[0] === 'test') { cmd = process.execPath; forwarded = ['node_modules/vitest/vitest.mjs', 'run', 'test/sdk.test.ts', '--maxWorkers=2']; }
 else if (tool === 'npx' && args.join(' ') === 'wrangler d1 migrations apply DB --remote') { cmd = process.execPath; forwarded = [${JSON.stringify(wranglerCli)}, 'd1', 'migrations', 'apply', 'DB', '--local', '--persist-to', ${JSON.stringify(localD1)}]; }
+else if (tool === 'npx' && args[0] === 'wrangler@4' && args[1] === 'd1' && args[2] === 'execute' && args.includes('--local') && !args.includes('--remote') && args.includes('--command') && !args.includes('--file')) { cmd = process.execPath; forwarded = [${JSON.stringify(wranglerCli)}, ...args.slice(1)]; }
 else if (tool === 'npx' && args[0] === 'tsc') { cmd = process.execPath; forwarded = ['node_modules/typescript/bin/tsc', ...args.slice(1)]; }
 else { console.error('Unexpected upgrade command', tool, args); process.exit(1); }
 const result = spawnSync(cmd, forwarded, { stdio: 'inherit' }); process.exit(result.status ?? 1);
@@ -84,6 +85,14 @@ const result = spawnSync(cmd, forwarded, { stdio: 'inherit' }); process.exit(res
   // not merely the unrelated content indexes checked above.
   const authTables = ["user", "session", "account", "verification", "jwks", "oauthClient", "oauthResource", "oauthClientResource", "oauthRefreshToken", "oauthAccessToken", "oauthConsent", "oauthClientAssertion", "rateLimit", "oauth_records", "oauth_revocations", "oauth_state", "oauth_authorizations", "security_budgets", "security_registrations"];
   const executeLocal = (command: string) => JSON.parse(execFileSync(process.execPath, [wranglerCli, "d1", "execute", "DB", "--local", "--persist-to", localD1, "--command", command, "--json"], { cwd: installed, encoding: "utf8", env: { ...process.env, WRANGLER_LOG_PATH: join(temp, "wrangler.log") } }))[0].results;
+  executeLocal("INSERT INTO subscriptions(id,kind,origin,feed_url,title,created) VALUES ('legacy-date','rss','https://legacy.example/','https://legacy.example/feed.xml','Legacy','2026-01-01')");
+  executeLocal("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,created,updated,observed_at,content_md,content_html) VALUES ('legacy-date','old','fragment','current',7,'Wed, 01 Jul 2026 00:00:00 GMT','Wed, 01 Jul 2026 00:00:00 GMT','2026-08-05T00:00:00Z','preserved','<p>preserved</p>')");
+  // The old updater cannot run a step added by the release it just installed.
+  // Exercise the documented explicit repair after declining its deploy prompt.
+  const normalize = () => execFileSync(process.execPath, ['--import', 'tsx', 'scripts/normalize-import-dates.ts', '--local', '--persist-to', localD1], { cwd: installed, encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, WRANGLER_LOG_PATH: join(temp, 'wrangler.log') } });
+  assert.match(normalize(), /1 inspected, 1 repaired/);
+  assert.match(normalize(), /1 inspected, 0 repaired/);
+  assert.deepEqual(executeLocal("SELECT version,created,updated,observed_at,content_md FROM imported_items WHERE subscription_id='legacy-date'"), [{ version: 7, created: '2026-07-01T00:00:00Z', updated: '2026-07-01T00:00:00Z', observed_at: '2026-08-05T00:00:00Z', content_md: 'preserved' }]);
   const upgradedAuth = executeLocal(`SELECT name FROM sqlite_master WHERE type='table' AND name IN (${authTables.map(name => `'${name}'`).join(",")}) ORDER BY name`);
   assert.deepEqual(upgradedAuth, [...authTables].sort().map(name => ({ name })));
   const rateColumns = executeLocal('PRAGMA table_info("rateLimit")');

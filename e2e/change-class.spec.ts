@@ -1,5 +1,6 @@
 import { fixtureJson } from './api-fixture';
 import { test, expect } from "./fixture";
+import { openCard } from "./editor.ts";
 
 // The optional change classifier's chip in the Version N dialog (session 49).
 // The classify route is fulfilled here: what is under test is what the dialog
@@ -49,6 +50,7 @@ test.describe("change classifier", () => {
       await page.locator('#change-category [data-category="minor"]').click();
       await expect(page.locator("#note-confirm-text")).toHaveValue("minor: Fixed a word.");
       await page.locator("#note-confirm-ok").click();
+      await openCard(page, 'history');
       await expect(page.locator('[data-action="view-version"]')).toHaveCount(2);
       expect(publishes.at(-1)).toMatchObject({ note: "minor: Fixed a word.", noteGenerated: false, changeCategory: "minor" });
       expect(errors).toEqual([]);

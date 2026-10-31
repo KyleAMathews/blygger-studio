@@ -22,7 +22,10 @@ test('unchanged Studio polls check revisions without refetching collections, the
   const requests: string[] = [];
   page.on('request', request => { if (request.method() === 'GET' && new URL(request.url()).pathname.startsWith('/api/')) requests.push(new URL(request.url()).pathname); });
   await tick(['/api/changes', '/api/update-state']);
-  expect(requests.sort()).toEqual(['/api/changes', '/api/update-state']);
+  // Each native window/boundary/summary observer checks revisions. An unchanged
+  // poll must still fetch no collection bodies or summaries.
+  expect(requests.filter(path => path === '/api/changes').length).toBeGreaterThan(0);
+  expect(requests.filter(path => path !== '/api/changes')).toEqual(['/api/update-state']);
   requests.length = 0;
   const marker = `Other client ${Date.now()}`;
   await page.evaluate(content_md => fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: content_md }) }), marker);
@@ -66,11 +69,13 @@ test('a buffered query response keeps its pre-fetch revision and receives a late
     await page.clock.runFor(15_000); await ready;
     const marker = `Buffered client ${Date.now()}`;
     expect(await page.evaluate(async content_md => (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: content_md }) })).ok, marker)).toBe(true);
+    // A native underfilled window may acquire the fresh generation immediately.
+    // Observe it before releasing the old page; it must arrive by the next poll.
+    const fresh = page.waitForResponse(async response => new URL(response.url()).pathname === '/api/items' && response.request().method() === 'GET' && (await response.json()).items.some((item: { contentMd: string }) => item.contentMd === marker));
     const old = page.waitForResponse(response => new URL(response.url()).pathname === '/api/items' && response.request().method() === 'GET');
     release(); await (await old).finished(); await page.clock.runFor(1_000);
     // The first response can be one page of a larger collection load.
     await expect(page.getByText(firstMarker, { exact: false }).first()).toBeVisible();
-    const fresh = page.waitForResponse(async response => new URL(response.url()).pathname === '/api/items' && response.request().method() === 'GET' && (await response.json()).items.some((item: { contentMd: string }) => item.contentMd === marker));
     await page.clock.runFor(15_000); await (await fresh).finished(); await page.clock.runFor(1_000);
     await expect(page.getByText(marker, { exact: false }).first()).toBeVisible();
   } finally { release(); }

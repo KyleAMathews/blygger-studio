@@ -1,3 +1,4 @@
+import { testVersionHistory } from './helpers.ts';
 /**
  * Published history moves forward; restoring an old version changes the draft.
  * A pin keeps its published snapshot even after editing, withdrawal and restoration.
@@ -46,7 +47,8 @@ const instruction = fc.record({ choice: fc.nat(30), version: fc.nat(30), text: f
 const histories = fc.record({ kind: fc.constantFrom("fragment" as const, "thread" as const), instructions: fc.array(instruction, { minLength: 1, maxLength: 10 }) });
 
 async function run(kind: Model["kind"], actions?: Action[], instructions?: { choice: number; version: number; text: number }[]) {
-  const client = createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie: await login() }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
+  const cookie = await login();
+  const client = createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
   const created = await unwrap(BlyggerApi.createItem({ client, body: { kind, contentMd: "initial" } }));
   const id = created.id, model: Model = { revision: 1, content: "initial", status: "draft", dirty: true, kind, versions: [] };
   const pinnedSnapshots = new Map<number, string>();
@@ -58,7 +60,8 @@ async function run(kind: Model["kind"], actions?: Action[], instructions?: { cho
     const owner = await unwrap(BlyggerApi.getItem({ client, path: { id } }));
     atCheckpoint("lifecycle private revision", () => expect(owner.revision).toBe(model.revision));
     atCheckpoint("lifecycle owner working copy", () => expect({ content: owner.contentMd, status: owner.status, dirty: owner.dirty, version: owner.version, kind: owner.kind }).toEqual({ content: model.content, status: model.status, dirty: model.dirty, version: model.versions.length, kind }));
-    atCheckpoint("lifecycle immutable history", () => expect(owner.versions.map(v => ({ content: v.contentMd, pinned: v.pinned, kind: v.kind }))).toEqual(model.versions));
+    const history = await testVersionHistory(cookie, id);
+    atCheckpoint("lifecycle immutable history", () => expect(history.map(v => ({ content: v.contentMd, pinned: v.pinned, kind: v.kind }))).toEqual(model.versions));
     const current = await SELF.fetch(`${BASE}/blyg/items/${id}.json`);
     atCheckpoint("lifecycle public visibility", () => expect(current.status).toBe(model.versions.length ? 200 : 404));
     if (model.versions.length) {

@@ -56,10 +56,19 @@ test('the filters show drafts, unpublished changes, public and withdrawn items',
   await shows('public', [pub, changed]);
   await shows('withdrawn', [gone]);
   await shows('all', [draft, pub, changed, gone]);
-  // Each count is the number of rows its filter shows.
+  // Counts cover the whole filtered sequence; each window starts with at most25.
+  const totals = await api(page, 'GET', '/items/summary');
   for (const filter of ['drafts', 'changes', 'public', 'withdrawn', 'all']) {
     await page.locator(`[data-filter="${filter}"]`).click();
-    await expect(page.locator('.item-row')).toHaveCount(Number(await page.locator(`[data-filter="${filter}"] .n`).textContent()));
+    const total = totals[filter] as number;
+    await expect(page.locator(`[data-filter="${filter}"] .n`)).toHaveText(String(total));
+    await expect(page.locator('.item-row')).toHaveCount(Math.min(25, total));
+    for (let loaded = 25; loaded < total; loaded += 25) {
+      await page.getByRole('button', { name: 'load more items', exact: true }).click();
+      await expect(page.locator('.item-row')).toHaveCount(Math.min(loaded + 25, total));
+    }
+    await expect(page.locator('.item-row')).toHaveCount(total);
+    await expect(page.getByRole('button', { name: 'load more items', exact: true })).toHaveCount(0);
   }
   // The row says what it is without opening.
   await expect(rows(changed).locator('.item-meta')).toContainText('public · v1 · unpublished changes');

@@ -53,8 +53,8 @@ test("editor autosave, preview, image upload and history use the SDK", async ({ 
   expect((await uploaded).status()).toBe(201);
   await expect(page.locator("body")).toContainText("attached:");
   await page.locator("#publish-btn").click();
+  await openCard(page, 'history');
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
-  await openCard(page, "history");
   await page.locator('[data-action="view-version"]').click();
   await expect(page.locator("#h-viewer-body")).toContainText("Autosaved preview");
   expect(errors).toEqual([]);
@@ -104,8 +104,8 @@ test("owner can pin and fork through resource creation", async ({ page }) => {
   await page.locator("#composer-full").click();
   const sourceUrl = page.url();
   await page.locator("#publish-btn").click();
-  await expect(page.locator('[data-action="pin"]')).toHaveCount(1);
   await openCard(page, "history");
+  await expect(page.locator('[data-action="pin"]')).toHaveCount(1);
   await page.locator('[data-action="pin"]').first().click();
   await answerSheet(page, { name: /^Pin v1\?/ });
   await page.locator('a[href^="/studio/fork?"]').click();
@@ -199,6 +199,7 @@ test("pasted generated text is marked from a selection and published disclosed",
   await expect(page.locator(".tk-imported")).toBeVisible();
   await expect(page.locator(".save-state")).toHaveText("saved");
   await page.locator("#publish-btn").click();
+  await openCard(page, 'history');
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
   const id = new URL(page.url()).pathname.split("/").pop();
   const doc = await page.evaluate(async (id) => (await fetch(`/items/${id}.json`)).json(), id);
@@ -216,6 +217,7 @@ test("a drafted note is editable, flagged only while unedited, and cleared after
   await page.locator("#composer-text").fill(`Note fixture ${Date.now()}`);
   await page.locator("#composer-full").click();
   await page.locator("#publish-btn").click();
+  await openCard(page, 'history');
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
   // The fixture has no model; the route's behaviour is covered by the Worker suite.
   await page.route("**/note-draft", (route) => route.fulfill({ json: { note: "Added a second sentence.", model: "test", pinnedPrior: false } }));
@@ -231,6 +233,7 @@ test("a drafted note is editable, flagged only while unedited, and cleared after
   await expect(page.locator("#note-confirm-text")).toHaveValue("Added a second sentence.");
   await expect(page.locator("#note-confirm-generated")).toBeVisible();
   await page.locator("#note-confirm-ok").click();
+  await openCard(page, 'history');
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(2);
   expect(publishes.at(-1)).toMatchObject({ note: "Added a second sentence.", noteGenerated: true });
   await expect(page.locator("#history .badge", { hasText: "generated" })).toHaveCount(1);
@@ -246,6 +249,7 @@ test("a drafted note is editable, flagged only while unedited, and cleared after
   await expect(page.locator("#note-confirm-text")).toHaveValue("Added a third sentence, by hand.");
   await expect(page.locator("#note-confirm-generated")).toHaveCount(0);
   await page.locator("#note-confirm-ok").click();
+  await openCard(page, 'history');
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(3);
   expect(publishes.at(-1)).toMatchObject({ noteGenerated: false });
   expect(errors).toEqual([]);
@@ -399,6 +403,7 @@ test("auto change notes: a draft is shown for editing before a new version publi
   await page.locator("#note-confirm-cancel").click();
   await expect(page.locator("#note-confirm")).toHaveCount(0);
   expect(publishes.filter((b: any) => b && "noteGenerated" in b)).toHaveLength(0);
+  await openCard(page, 'history');
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
 
   // Edit the draft and confirm: published with the author's words, not marked generated.
@@ -407,6 +412,7 @@ test("auto change notes: a draft is shown for editing before a new version publi
   await page.locator("#note-confirm-text").fill("Tightened the second line, by hand.");
   await expect(page.locator("#note-confirm-generated")).toHaveCount(0);
   await page.locator("#note-confirm-ok").click();
+  await openCard(page, 'history');
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(2);
   expect(publishes.at(-1)).toMatchObject({ note: "Tightened the second line, by hand.", noteGenerated: false });
 
@@ -415,6 +421,7 @@ test("auto change notes: a draft is shown for editing before a new version publi
   await page.reload();
   await input.fill(`${await input.inputValue()} Third.`);
   await page.locator("#publish-btn").click();
+  await openCard(page, 'history');
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(3);
   await expect(page.locator("#note-confirm")).toHaveCount(0);
   expect(errors).toEqual([]);

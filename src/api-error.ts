@@ -1,5 +1,5 @@
 /** Private API errors. OAuth and provider-native errors keep their native formats. */
-export const API_ERROR_CODES = ['invalid-input', 'unauthorized', 'forbidden', 'not-found', 'method-not-allowed', 'conflict', 'revision-conflict', 'too-large', 'unsupported-media', 'unprocessable', 'rate-limit', 'internal', 'bad-gateway'] as const;
+export const API_ERROR_CODES = ['invalid-input', 'unauthorized', 'forbidden', 'not-found', 'method-not-allowed', 'conflict', 'revision-conflict', 'cursor-expired', 'too-large', 'unsupported-media', 'unprocessable', 'rate-limit', 'internal', 'bad-gateway'] as const;
 export type ApiErrorCode = typeof API_ERROR_CODES[number];
 export function apiError(code: ApiErrorCode, message: string, details?: Record<string, unknown>) {
   return { code, message, ...(details && Object.keys(details).length ? { details } : {}) };

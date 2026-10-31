@@ -25,7 +25,7 @@ const draft = await unwrap(BlyggerApi.createItem({
   client, body: { contentMd: "Hello", kind: "fragment" },
 }));
 await unwrap(BlyggerApi.publishItem({ client, path: { id: draft.id }, body: { expectedRevision: draft.revision } }));
-const reading = await unwrap(BlyggerApi.listReading({ client, query: { offset: 0, limit: 25 } }));
+const reading = await unwrap(BlyggerApi.listReading({ client, query: { limit: 25 } }));
 ```
 
 ## Node and Worker use
@@ -50,6 +50,32 @@ Upload with `body: { file: new File([...], "image.png", { type: "image/png" }) }
 Node callers can use a Blob from `node:fs`'s `openAsBlob()` with native FormData
 handling. Filesystem streams are not accepted. Requests take a standard `signal`
 for cancellation. Ordinary API calls do not retry automatically.
+
+## Cursor pages
+
+Collection methods return `{ items, page: { limit, nextCursor } }`. Pass
+`page.nextCursor` as `query.cursor` with the same filters; null ends the walk.
+Old offset inputs and the imported-feed `next` field have been removed.
+
+```js
+let cursor;
+do {
+  const page = await unwrap(BlyggerApi.listItems({ client, query: { cursor, limit: 100 } }));
+  for (const item of page.items) console.log(item.id);
+  cursor = page.page.nextCursor ?? undefined;
+} while (cursor);
+```
+
+A relevant mutation returns409 with `code: "cursor-expired"`. Discard the
+incomplete acquisition and restart without a cursor. Preserve ordinary abort
+errors. Cursors are opaque and bound to their collection, filters, order and
+change generation; they are not bookmarks or credentials.
+
+Use `listItemVersions` for history, `listHopperMemberships` for membership rows,
+and `getItemSummary`, `getReadingSummary` or `getSignalSummary` for counts.
+`getItem` returns current detail and its published version; `getHopper` returns
+metadata and totals. Neither returns the whole historical/member collection.
+See [API paging](../docs/api.md#read-and-poll) for limits and orders.
 
 ## Conditional item writes
 

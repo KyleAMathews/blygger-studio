@@ -18,11 +18,11 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { useLiveQuery } from '@tanstack/react-db';
+import { useLiveQuery, useLiveInfiniteQuery } from '@tanstack/react-db';
 import { Link } from '@tanstack/react-router';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { ListBrowseResponses } from '../../sdk/dist/browser.js';
-import { client, subscriptions } from './data.ts';
+import { browse, changed, client, subscriptions } from './data.ts';
 import { Button, Failure, mount } from './components.tsx';
 import { Sheet, confirm } from './sheets.tsx';
 import { Back } from './icons.tsx';
@@ -219,7 +219,7 @@ export function TrailBar({ back }: { back: () => void }) {
           history
         </Button>
       </div>
-      <HistoryPane open={open} onClose={() => setOpen(false)} />
+      {open ? <HistoryPane open={open} onClose={() => setOpen(false)} /> : null}
     </>
   );
 }
@@ -234,20 +234,9 @@ type BrowseRow = ListBrowseResponses[200]['items'][number];
  */
 function HistoryPane({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { stack, trail } = useTrail();
-  const [rows, setRows] = useState<BrowseRow[]>();
+  const history = useLiveInfiniteQuery(q => q.from({ step: browse }).orderBy(({ step }) => step.id, { direction: 'desc', stringSort: 'lexical' }), { pageSize: 100 });
+  const rows = history.data;
   const [error, setError] = useState<unknown>();
-  const [stamp, setStamp] = useState(0);
-  useEffect(() => {
-    if (!open) return;
-    let live = true;
-    unwrap(BlyggerApi.listBrowse({ client, query: { limit: 100 } })).then(
-      (page) => live && setRows(page.items),
-      (failure) => live && setError(failure),
-    );
-    return () => {
-      live = false;
-    };
-  }, [open, stamp, stack.length]);
   const walks = useMemo(() => {
     const byTrail = new Map<string, BrowseRow[]>();
     for (const row of rows ?? []) byTrail.set(row.trail, [...(byTrail.get(row.trail) ?? []), row].sort((a, b) => a.id - b.id));
@@ -257,11 +246,11 @@ function HistoryPane({ open, onClose }: { open: boolean; onClose: () => void }) 
     if (!(await confirm({ title: 'Clear browsing history?', body: 'The private log of what you opened by following links is deleted. Nothing public changes.', ok: 'clear', danger: true }))) return;
     await unwrap(BlyggerApi.clearBrowse({ client }));
     endTrail();
-    setStamp((n) => n + 1);
+    await changed('browse');
   };
   return (
     <Sheet open={open} onClose={onClose} title="Browsing history" className="trail-sheet" description="Where following links has taken you. Private to you.">
-      <Failure error={error} />
+      <Failure error={error ?? (history.status === 'error' ? new Error('Could not load browsing history.') : undefined)} />
       {stack.length ? (
         <>
           <h3 className="trail-h">This walk</h3>
@@ -304,11 +293,12 @@ function HistoryPane({ open, onClose }: { open: boolean; onClose: () => void }) 
           );
         })
       ) : (
-        <p className="hint">{rows ? 'Nothing yet. Follow a link or a quoted layer in an entry and the path appears here.' : 'loading…'}</p>
+        history.status === 'error' ? null : <p className="hint">{history.isLoading ? 'loading…' : 'Nothing yet. Follow a link or a quoted layer in an entry and the path appears here.'}</p>
       )}
+      {history.hasNextPage ? <Button disabled={history.isFetchingNextPage} onClick={() => void history.fetchNextPage()}>load older history</Button> : null}
       <div className="sheet-actions">
         {walks.length ? (
-          <Button className="btn btn-ghost" onClick={() => void clear()}>
+          <Button className="btn btn-ghost" onClick={() => void clear().catch(setError)}>
             clear history
           </Button>
         ) : null}

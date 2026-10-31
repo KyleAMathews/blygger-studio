@@ -1,3 +1,4 @@
+import { testVersionHistory } from './helpers.ts';
 // Generated changelog notes — decision #40, spec §5.2 + §16.6c.
 //
 // Three things matter: the depth rule is enforced, not merely requested (a note
@@ -88,8 +89,8 @@ describe("emission (§16.6c)", () => {
       expect.not.objectContaining({ generated: true }),
       expect.objectContaining({ version: 2, note: "Tightened the wording.", generated: true }),
     ]);
-    const detail = (await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json;
-    expect(detail.versions.map((v: { noteGenerated: boolean }) => v.noteGenerated)).toEqual([false, true]);
+    const history = await testVersionHistory(cookie, id);
+    expect(history.map((v: { noteGenerated: boolean }) => v.noteGenerated)).toEqual([false, true]);
   });
 
   it("an author's note, or no note at all, is never marked generated", async () => {

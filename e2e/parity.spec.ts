@@ -64,6 +64,7 @@ for (const kind of ['fragment', 'thread'] as const) test(`${kind} discard change
   await answerSheet(page, { name: /^Discard unpublished changes and go back to the published v1\?/ });
   await expect(page.locator('#md-input')).toHaveValue('published text');
   expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ version: 1, dirty: false, contentMd: 'published text' }); // clean since session 46: discard restores the published version whole
+  await openCard(page, 'history');
   await expect(page.locator('[data-action=view-version]')).toHaveCount(1);
 });
 test('quick edit retains markdown and persists without leaving compose', async ({ page }) => {
@@ -161,7 +162,7 @@ test('palette pages all candidates and applies bracket grammar in each composer'
   await page.reload();
   await page.locator('#composer-text').fill(`[[${token}`);
   await expect(page.getByRole('listbox', { name: 'items' }).getByRole('option')).toHaveCount(20);
-  await page.getByRole('button', { name: 'load more (20 of 23)' }).click();
+  await page.getByRole('button', { name: 'load more', exact: true }).click();
   await expect(page.getByRole('listbox', { name: 'items' }).getByRole('option')).toHaveCount(23);
   await page.getByRole('listbox', { name: 'items' }).getByRole('option').last().click();
   await expect(page.locator('#composer-text')).toHaveValue(/^\[\[[0-9a-z]{26} \| “[^\]]+”\]\]$/); // the long form (#70)
@@ -349,8 +350,8 @@ test('fork picker refreshes pinned versions after a client navigation', async ({
   await expect(page).toHaveURL(editor);
   await page.locator('#md-input').fill('Second pinned text');
   await page.locator('#publish-btn').click();
-  await expect(page.locator('[data-action=view-version]')).toHaveCount(2);
   await openCard(page, 'history');
+  await expect(page.locator('[data-action=view-version]')).toHaveCount(2);
   await page.locator('[data-action=pin]').click();
   await answerSheet(page, { name: /^Pin v2\?/ });
   await page.getByRole('link', { name: 'fork', exact: true }).first().click();
@@ -364,22 +365,23 @@ test('palette keeps results on failure and rejects late results for an old query
   const gate = new Promise<void>(resolve => { release = resolve; });
   let delayed!: () => void;
   const started = new Promise<void>(resolve => { delayed = resolve; });
+  const hit = (id: string, excerpt: string) => ({ id, excerpt, label: excerpt, version: 1, updated: '2026-10-31', badge: 'fragment', source: 'mine', kind: 'fragment', subscriptionId: null, sourceTitle: null });
   await page.route('**/api/search?**', async route => {
     const query = new URL(route.request().url()).searchParams;
-    if (query.get('q') === 'oldquery' && query.get('offset') === '20') {
+    if (query.get('q') === 'oldquery' && query.get('cursor') === 'old-more') {
       if (reject) return route.fulfill({ status: 503, json: { code: 'internal', message: 'search unavailable' } });
       delayed(); await gate;
-      await route.fulfill({ json: { items: [{ id: 'old-late', excerpt: 'Late old result' }], total: 21, offset: 20, limit: 20 } }).catch(() => {});
+      await route.fulfill({ json: { items: [hit('old-late', 'Late old result')], page: { limit: 20, nextCursor: null } } }).catch(() => {});
     } else if (query.get('q') === 'oldquery') {
-      await route.fulfill({ json: { items: Array.from({ length: 20 }, (_, i) => ({ id: `old-${i}`, excerpt: `Old result ${i}` })), total: 21, offset: 0, limit: 20 } });
+      await route.fulfill({ json: { items: Array.from({ length: 20 }, (_, i) => hit(`old-${i}`, `Old result ${i}`)), page: { limit: 20, nextCursor: 'old-more' } } });
     } else {
-      await route.fulfill({ json: { items: [{ id: 'new', excerpt: 'New result only' }], total: 1, offset: 0, limit: 20 } });
+      await route.fulfill({ json: { items: [hit('new', 'New result only')], page: { limit: 20, nextCursor: null } } });
     }
   });
   await page.locator('#composer-text').fill('[[oldquery');
   await expect(page.getByRole('listbox', { name: 'items' }).getByRole('option')).toHaveCount(20);
-  await page.getByRole('button', { name: 'load more (20 of 21)' }).click();
-  await expect(page.getByRole('alert')).toContainText('search unavailable');
+  await page.getByRole('button', { name: 'load more', exact: true }).click();
+  await expect(page.locator('.picker').getByRole('alert')).toContainText('search unavailable');
   await expect(page.getByRole('listbox', { name: 'items' }).getByRole('option')).toHaveCount(20);
   reject = false;
   await page.getByRole('button', { name: 'retry search', exact: true }).click();

@@ -40,8 +40,8 @@ beforeEach(async () => {
   // and reset only tables owned by this oracle, before running a new history.
   for (const sql of triggerDefinitions) await env.DB.prepare(sql.replace('CREATE TRIGGER ', 'CREATE TRIGGER IF NOT EXISTS ')).run();
   await env.DB.prepare('INSERT OR IGNORE INTO change_state(id) VALUES(1)').run();
-  await env.DB.prepare("UPDATE change_state SET epoch=lower(hex(randomblob(16))),items=0,reading=0,subscriptions=0,hoppers=0,signals=0,settings=0,feed=0,mentions=0,responses=0 WHERE id=1").run();
-  await env.DB.batch(['versions','media','items','settings','hopper_items','signals','read_state','imported_items','subscriptions','hoppers','mentions_in','mentions_out'].map(table => env.DB.prepare(`DELETE FROM ${table}`)));
+  await env.DB.prepare("UPDATE change_state SET epoch=lower(hex(randomblob(16))),items=0,reading=0,subscriptions=0,hoppers=0,signals=0,settings=0,feed=0,mentions=0,responses=0,interactions=0,browse=0 WHERE id=1").run();
+  await env.DB.batch(['versions','media','items','settings','hopper_items','signals','read_state','imported_items','subscriptions','hoppers','mentions_in','mentions_out','interactions','browse_log'].map(table => env.DB.prepare(`DELETE FROM ${table}`)));
   await clearArtifacts();
 });
 afterEach(() => vi.useRealTimers());
@@ -155,7 +155,7 @@ describe('trigger revision oracle', () => {
       const ctx = createExecutionContext(); const response = await app.fetch(new Request(BASE + path, { headers: { cookie } }), env, ctx);
       expect(response.status).toBe(200); const data = await response.json(); await waitOnExecutionContext(ctx); return data;
     }
-    const paths = ['/blyg/api/reading', '/blyg/api/hoppers/dependency-hopper'];
+    const paths = ['/blyg/api/reading', '/blyg/api/hoppers/dependency-hopper/memberships'];
     const before = await Promise.all(paths.map(read)), counters = await changes(cookie);
     await env.DB.prepare("UPDATE imported_items SET content_html='<p>After</p>' WHERE subscription_id='dependency-source'").run();
     const after = await Promise.all(paths.map(read)), changed = await changes(cookie);
@@ -358,7 +358,7 @@ describe('trigger revision oracle', () => {
     expect((await env.DB.prepare("SELECT value FROM settings WHERE key='site_title'").first<{ value: string }>())!.value).toBe('A');
   });
   it('rejects missing, extra and stale domain answers at the public checkpoint', () => {
-    const baseline: OracleToken = { epoch: 'e', domains: { items: 0, reading: 0, subscriptions: 0, hoppers: 0, signals: 0, settings: 0, feed: 0, mentions: 0, responses: 0 } };
+    const baseline: OracleToken = { epoch: 'e', domains: { items: 0, reading: 0, subscriptions: 0, hoppers: 0, signals: 0, settings: 0, feed: 0, mentions: 0, responses: 0, interactions: 0, browse: 0 } };
     for (const wrong of [[], ['subscriptions', 'feed'], ['reading']]) {
       expect(() => atCheckpoint('trigger exact domain effects', () => expect(wrong).toEqual(changedDomains(baseline, { ...baseline, domains: { ...baseline.domains, subscriptions: 1 } })))).toThrow('trigger exact domain effects');
     }

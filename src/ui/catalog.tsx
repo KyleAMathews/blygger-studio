@@ -1,6 +1,6 @@
 import { previewFromHtml } from '../preview.ts';
 import { useMemo, useState } from 'react';
-import { count, useLiveQuery } from '@tanstack/react-db';
+import { count, useLiveQuery, useLiveInfiniteQuery, eq, inArray } from '@tanstack/react-db';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type { Mention } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
@@ -12,7 +12,8 @@ import {
   items,
   createDraftAction,
   changed,
-  hopperDetail,
+  hopperInfo,
+  hopperMemberships,
   hopperPreview,
   inbound,
   outbound,
@@ -230,8 +231,8 @@ function HopperCard({ id, name }: { id: string; name: string }) {
               </p>
             );
           })}
-          {row.total > 3 ? (
-            <p className="tiny muted hopper-more">+{row.total - 3} more</p>
+          {row.total > row.items.length ? (
+            <p className="tiny muted hopper-more">+{row.total - row.items.length} more</p>
           ) : null}
         </>
       ) : (
@@ -242,13 +243,14 @@ function HopperCard({ id, name }: { id: string; name: string }) {
 }
 export function HopperPage({ id }: { id: string }) {
   useChrome({ framed: false });
-  const collection = useMemo(() => hopperDetail(id), [id]);
+  const collection = useMemo(() => hopperInfo(id), [id]);
   const result = useLiveQuery({
     query: (q) => q.from({ hopper: collection }),
   });
   const row = result.data?.[0];
-  const ownRows =
-    useLiveQuery({ query: (q) => q.from({ item: items }) }).data ?? [];
+  const memberships = useLiveInfiniteQuery(q => q.from({ member: hopperMemberships }).where(({ member }) => eq(member.hopperId, id)).orderBy(({ member }) => member.rank, 'asc'), { pageSize: 25 });
+  const ownIds = memberships.data.filter(member => member.subscriptionId === '~own').map(member => member.remoteId);
+  const ownRows = useLiveQuery(q => q.from({ item: items }).where(({ item }) => inArray(item.id, ownIds))).data ?? [];
   const action = useAction();
   const navigate = useNavigate();
   const settings = useSettings();
@@ -363,7 +365,7 @@ export function HopperPage({ id }: { id: string }) {
           {row.total} items from {row.sourceCount} sources
         </span>
       </div>
-      {row.memberships.map((member) => {
+      {memberships.data.map((member) => {
         const key = JSON.stringify([member.subscriptionId, member.remoteId]);
         const removeButton = (
           <Button
@@ -416,11 +418,7 @@ export function HopperPage({ id }: { id: string }) {
             </article>
           );
         }
-        const item = row.items.find(
-          (item) =>
-            item.subscriptionId === member.subscriptionId &&
-            item.remoteId === member.remoteId,
-        );
+        const item = member.item;
         const source = sources.find(
           (source) => source.id === member.subscriptionId,
         );
@@ -498,6 +496,7 @@ export function HopperPage({ id }: { id: string }) {
           </article>
         );
       })}
+      {memberships.hasNextPage ? <Button disabled={memberships.isFetchingNextPage} onClick={() => void memberships.fetchNextPage()}>load more members</Button> : null}
       <p>
         <Button
           className="btn btn-danger"
@@ -838,7 +837,7 @@ export function ForkPage({
                         },
                       }),
                     );
-                    await items.utils.writeUpsert(draft);
+                    await items.utils.writeUpsert({ ...draft, pins: [] });
                     await navigate({
                       to: '/edit/$id',
                       params: { id: draft.id },

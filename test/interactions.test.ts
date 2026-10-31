@@ -92,11 +92,13 @@ describe("reading lens (kind filter on /api/reading)", () => {
     const all = (await apiJson(cookie, "GET", "/blyg/api/reading?sub=own&limit=50")).json;
     const threads = (await apiJson(cookie, "GET", "/blyg/api/reading?sub=own&kind=thread&limit=50")).json;
     const fragments = (await apiJson(cookie, "GET", "/blyg/api/reading?sub=own&kind=fragment&limit=50")).json;
+    expect(all.items.map((e: any) => e.key)).toEqual(expect.arrayContaining([`own:${thread}`, `own:${frag}`]));
     expect(threads.items.every((e: any) => e.kind === "thread")).toBe(true);
     expect(fragments.items.every((e: any) => e.kind === "fragment")).toBe(true);
     expect(threads.items.map((e: any) => e.key)).toContain(`own:${thread}`);
     expect(fragments.items.map((e: any) => e.key)).toContain(`own:${frag}`);
-    expect(threads.counts.own + fragments.counts.own).toBe(all.counts.own);
+    const count = async (kind = '') => (await apiJson(cookie, 'GET', `/blyg/api/reading/summary?sub=own${kind ? `&kind=${kind}` : ''}`)).json.counts.own;
+    expect(await count('thread') + await count('fragment')).toBe(await count());
   });
 });
 

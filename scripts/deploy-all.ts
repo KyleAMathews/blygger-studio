@@ -160,6 +160,12 @@ for (const t of targets) {
     }
   }
 
+  const normalized = runInherit("node", ["--import", "tsx", "scripts/normalize-import-dates.ts", "--remote", "--config", configFile, "--env", t.env], { CLOUDFLARE_ACCOUNT_ID: t.account_id });
+  if (normalized.status !== 0) {
+    results.push({ env: t.env, ok: false, detail: "date normalization failed — worker NOT deployed" });
+    continue;
+  }
+
   console.log(`— deploying to ${t.account_label}`);
   // CLOUDFLARE_ACCOUNT_ID is pinned here in addition to the config's own
   // account_id: belt and braces against the wrong-account deploy of

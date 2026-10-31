@@ -19,6 +19,7 @@
  */
 import { test, expect, type Page } from "./fixture";
 import { acceptSheets } from "./sheets.ts";
+import { openCard } from "./editor.ts";
 
 // Each case represents an independent browser, with one stable fixture edge IP.
 // Preserve its real login budget throughout the case; do not disable throttling.
@@ -137,6 +138,7 @@ for (const kind of ["fragment", "thread"] as const) {
     expect(item).toMatchObject({ contentMd: "saved but unpublished", version: 0 });
     await page.unroute(`**/api/items/${id}/publish`);
     await page.locator("#publish-btn").click();
+    await openCard(page, 'history');
     await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
   });
   // Hold an older save until newer editor input exists. Releasing that save must

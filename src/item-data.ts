@@ -9,11 +9,11 @@ const projection = (schema: { shape: Record<string, unknown> }, alias: string) =
 const detailSql = `WITH selected AS (SELECT * FROM items WHERE id = ?)
   SELECT 'item' AS type, ${projection(ItemRowSchema, "i")}, 0 AS section, 0 AS version_order, '' AS created_order FROM selected i
   UNION ALL SELECT 'media', ${projection(MediaRowSchema, "m")}, 1, 0, m.created FROM media m WHERE m.item_id IN (SELECT id FROM selected)
-  UNION ALL SELECT 'version', ${projection(VersionRowSchema, "v")}, 2, v.version, '' FROM versions v WHERE v.item_id IN (SELECT id FROM selected)
+  UNION ALL SELECT 'version', ${projection(VersionRowSchema, "v")}, 2, v.version, '' FROM versions v JOIN selected i ON v.item_id = i.id AND v.version IN (i.version, i.version - 1)
   UNION ALL SELECT 'published_media', ${projection(MediaRowSchema, "m")}, 3, 0, m.created FROM selected i JOIN version_media vm ON vm.item_id = i.id AND vm.version = i.version JOIN media m ON m.id = vm.media_id
   ORDER BY section, version_order, created_order`;
 
-/** One D1 query, with one result row per item, attachment, history version, or attachment the live version lists. */
+/** Current state and at most two version bodies; history has its own page operation. */
 export async function itemDetail(db: D1Database, id: string) {
   const { results } = await db.prepare(detailSql).bind(id).all<Record<string, unknown> & { type: string }>();
   const itemRow = results.find((row) => row.type === "item");

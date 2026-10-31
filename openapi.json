@@ -89,6 +89,7 @@
               "method-not-allowed",
               "conflict",
               "revision-conflict",
+              "cursor-expired",
               "too-large",
               "unsupported-media",
               "unprocessable",
@@ -313,6 +314,16 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991
+              },
+              "interactions": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "browse": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               }
             },
             "required": [
@@ -324,7 +335,9 @@
               "settings",
               "feed",
               "mentions",
-              "responses"
+              "responses",
+              "interactions",
+              "browse"
             ]
           }
         },
@@ -1274,29 +1287,6 @@
           "overridden"
         ]
       },
-      "HopperMembership": {
-        "type": "object",
-        "properties": {
-          "hopperId": {
-            "type": "string"
-          },
-          "subscriptionId": {
-            "type": "string"
-          },
-          "remoteId": {
-            "type": "string"
-          },
-          "addedAt": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "hopperId",
-          "subscriptionId",
-          "remoteId",
-          "addedAt"
-        ]
-      },
       "ImportedItem": {
         "type": "object",
         "properties": {
@@ -1441,6 +1431,29 @@
           "stubOf",
           "forkedFrom",
           "generated"
+        ]
+      },
+      "HopperMembership": {
+        "type": "object",
+        "properties": {
+          "hopperId": {
+            "type": "string"
+          },
+          "subscriptionId": {
+            "type": "string"
+          },
+          "remoteId": {
+            "type": "string"
+          },
+          "addedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hopperId",
+          "subscriptionId",
+          "remoteId",
+          "addedAt"
         ]
       },
       "Signal": {
@@ -3784,14 +3797,14 @@
         "parameters": [
           {
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192,
+              "description": "The opaque nextCursor from the preceding page of this collection, filters, and order."
             },
             "required": false,
-            "name": "offset",
+            "description": "The opaque nextCursor from the preceding page of this collection, filters, and order.",
+            "name": "cursor",
             "in": "query"
           },
           {
@@ -3802,6 +3815,59 @@
             },
             "required": false,
             "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "public",
+                "withdrawn"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "dirty",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "required": false,
+            "name": "version",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "updated",
             "in": "query"
           }
         ],
@@ -3846,26 +3912,37 @@
                                   ]
                                 }
                               }
-                            }
+                            },
+                            "required": [
+                              "pins"
+                            ]
                           }
                         ]
                       }
                     },
-                    "total": {
-                      "type": "number"
-                    },
-                    "offset": {
-                      "type": "number"
-                    },
-                    "limit": {
-                      "type": "number"
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ]
                     }
                   },
                   "required": [
                     "items",
-                    "total",
-                    "offset",
-                    "limit"
+                    "page"
                   ]
                 }
               }
@@ -4583,25 +4660,42 @@
                         "hide"
                       ]
                     },
+                    "pins": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "version": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "fragment",
+                              "thread"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "version",
+                          "kind"
+                        ]
+                      }
+                    },
                     "media": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/Media"
                       },
-                      "description": "The working copy's attachments: what the next version lists."
+                      "description": "The working copy's attachments."
                     },
                     "publishedMedia": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/Media"
                       },
-                      "description": "What the live version lists, including attachments removed from the working copy since (studio#7)."
-                    },
-                    "versions": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Version"
-                      }
+                      "description": "The live version attachments, including retained detached media."
                     },
                     "published": {
                       "anyOf": [
@@ -4630,9 +4724,9 @@
                     "provenance",
                     "responses",
                     "highlight",
+                    "pins",
                     "media",
                     "publishedMedia",
-                    "versions",
                     "published"
                   ]
                 }
@@ -7464,14 +7558,14 @@
         "parameters": [
           {
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192,
+              "description": "The opaque nextCursor from the preceding page of this collection, filters, and order."
             },
             "required": false,
-            "name": "offset",
+            "description": "The opaque nextCursor from the preceding page of this collection, filters, and order.",
+            "name": "cursor",
             "in": "query"
           },
           {
@@ -7499,24 +7593,29 @@
                         "$ref": "#/components/schemas/Subscription"
                       }
                     },
-                    "total": {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    "offset": {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    "limit": {
-                      "type": "integer",
-                      "exclusiveMinimum": 0
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ]
                     }
                   },
                   "required": [
                     "items",
-                    "total",
-                    "offset",
-                    "limit"
+                    "page"
                   ]
                 }
               }
@@ -8677,14 +8776,14 @@
         "parameters": [
           {
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192,
+              "description": "The opaque nextCursor from the preceding page of this collection, filters, and order."
             },
             "required": false,
-            "name": "offset",
+            "description": "The opaque nextCursor from the preceding page of this collection, filters, and order.",
+            "name": "cursor",
             "in": "query"
           },
           {
@@ -8712,24 +8811,29 @@
                         "$ref": "#/components/schemas/Hopper"
                       }
                     },
-                    "total": {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    "offset": {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    "limit": {
-                      "type": "integer",
-                      "exclusiveMinimum": 0
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ]
                     }
                   },
                   "required": [
                     "items",
-                    "total",
-                    "offset",
-                    "limit"
+                    "page"
                   ]
                 }
               }
@@ -9233,17 +9337,6 @@
             "required": true,
             "name": "id",
             "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "enum": [
-                "true"
-              ]
-            },
-            "required": false,
-            "name": "preview",
-            "in": "query"
           }
         ],
         "responses": {
@@ -9257,18 +9350,6 @@
                     "hopper": {
                       "$ref": "#/components/schemas/Hopper"
                     },
-                    "memberships": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/HopperMembership"
-                      }
-                    },
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ImportedItem"
-                      }
-                    },
                     "total": {
                       "type": "integer",
                       "minimum": 0
@@ -9280,8 +9361,6 @@
                   },
                   "required": [
                     "hopper",
-                    "memberships",
-                    "items",
                     "total",
                     "sourceCount"
                   ]
@@ -11181,6 +11260,644 @@
         }
       }
     },
+    "/items/summary": {
+      "get": {
+        "operationId": "getItemSummary",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "all": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "drafts": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "changes": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "public": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "withdrawn": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "all",
+                    "drafts",
+                    "changes",
+                    "public",
+                    "withdrawn"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/items/{id}/versions": {
+      "get": {
+        "operationId": "listItemVersions",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192,
+              "description": "The opaque nextCursor from the preceding page of this collection, filters, and order."
+            },
+            "required": false,
+            "description": "The opaque nextCursor from the preceding page of this collection, filters, and order.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "required": false,
+            "name": "version",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Version"
+                      }
+                    },
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "page"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hoppers/{id}/memberships": {
+      "get": {
+        "operationId": "listHopperMemberships",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192,
+              "description": "The opaque nextCursor from the preceding page of this collection, filters, and order."
+            },
+            "required": false,
+            "description": "The opaque nextCursor from the preceding page of this collection, filters, and order.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/HopperMembership"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "item": {
+                                "anyOf": [
+                                  {
+                                    "$ref": "#/components/schemas/ImportedItem"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "item"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "page"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/signals": {
       "get": {
         "operationId": "listSignals",
@@ -11200,14 +11917,14 @@
         "parameters": [
           {
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192,
+              "description": "The opaque nextCursor from the preceding page of this collection, filters, and order."
             },
             "required": false,
-            "name": "offset",
+            "description": "The opaque nextCursor from the preceding page of this collection, filters, and order.",
+            "name": "cursor",
             "in": "query"
           },
           {
@@ -11235,24 +11952,29 @@
                         "$ref": "#/components/schemas/Signal"
                       }
                     },
-                    "total": {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    "offset": {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    "limit": {
-                      "type": "integer",
-                      "exclusiveMinimum": 0
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ]
                     }
                   },
                   "required": [
                     "items",
-                    "total",
-                    "offset",
-                    "limit"
+                    "page"
                   ]
                 }
               }
@@ -11400,14 +12122,14 @@
         "parameters": [
           {
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192,
+              "description": "The opaque nextCursor from the preceding page of this collection, filters, and order."
             },
             "required": false,
-            "name": "offset",
+            "description": "The opaque nextCursor from the preceding page of this collection, filters, and order.",
+            "name": "cursor",
             "in": "query"
           },
           {
@@ -11437,6 +12159,23 @@
             "required": false,
             "name": "kind",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "required": false,
+            "name": "id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "at",
+            "in": "query"
           }
         ],
         "responses": {
@@ -11453,24 +12192,29 @@
                         "$ref": "#/components/schemas/Interaction"
                       }
                     },
-                    "total": {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    "offset": {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    "limit": {
-                      "type": "integer",
-                      "exclusiveMinimum": 0
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ]
                     }
                   },
                   "required": [
                     "items",
-                    "total",
-                    "offset",
-                    "limit"
+                    "page"
                   ]
                 }
               }
@@ -11615,6 +12359,66 @@
             ]
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192,
+              "description": "The opaque nextCursor from the preceding page of this collection, filters, and order."
+            },
+            "required": false,
+            "description": "The opaque nextCursor from the preceding page of this collection, filters, and order.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1",
+                "-1"
+              ]
+            },
+            "required": false,
+            "name": "thumb",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "at",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "subscriptionId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "remoteId",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
@@ -11628,10 +12432,199 @@
                       "items": {
                         "$ref": "#/components/schemas/Thumb"
                       }
+                    },
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ]
                     }
                   },
                   "required": [
-                    "items"
+                    "items",
+                    "page"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/signals/summary": {
+      "get": {
+        "operationId": "getSignalSummary",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "liked": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "disliked": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "activity": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "liked",
+                    "disliked",
+                    "activity"
                   ]
                 }
               }
@@ -11929,14 +12922,14 @@
         "parameters": [
           {
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192,
+              "description": "The opaque nextCursor from the preceding page of this collection, filters, and order."
             },
             "required": false,
-            "name": "offset",
+            "description": "The opaque nextCursor from the preceding page of this collection, filters, and order.",
+            "name": "cursor",
             "in": "query"
           },
           {
@@ -11983,17 +12976,24 @@
                         ]
                       }
                     },
-                    "total": {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    "offset": {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    "limit": {
-                      "type": "integer",
-                      "exclusiveMinimum": 0
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ]
                     },
                     "direction": {
                       "type": "string",
@@ -12005,9 +13005,7 @@
                   },
                   "required": [
                     "items",
-                    "total",
-                    "offset",
-                    "limit",
+                    "page",
                     "direction"
                   ]
                 }
@@ -12454,14 +13452,14 @@
         "parameters": [
           {
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192,
+              "description": "The opaque nextCursor from the preceding page of this collection, filters, and order."
             },
             "required": false,
-            "name": "offset",
+            "description": "The opaque nextCursor from the preceding page of this collection, filters, and order.",
+            "name": "cursor",
             "in": "query"
           },
           {
@@ -12589,21 +13587,29 @@
                         ]
                       }
                     },
-                    "total": {
-                      "type": "number"
-                    },
-                    "offset": {
-                      "type": "number"
-                    },
-                    "limit": {
-                      "type": "number"
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ]
                     }
                   },
                   "required": [
                     "items",
-                    "total",
-                    "offset",
-                    "limit"
+                    "page"
                   ]
                 }
               }
@@ -12902,6 +13908,230 @@
         }
       }
     },
+    "/reading/summary": {
+      "get": {
+        "operationId": "getReadingSummary",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "sub",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Imported Reading entries held in this hopper, ordered by membership time."
+            },
+            "required": false,
+            "description": "Imported Reading entries held in this hopper, ordered by membership time.",
+            "name": "hopper",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "thread",
+                "fragment"
+              ]
+            },
+            "required": false,
+            "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "required": false,
+            "name": "background",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "counts": {
+                      "type": "object",
+                      "properties": {
+                        "all": {
+                          "type": "number"
+                        },
+                        "own": {
+                          "type": "number"
+                        },
+                        "subscriptions": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "number"
+                          }
+                        }
+                      },
+                      "required": [
+                        "all",
+                        "own",
+                        "subscriptions"
+                      ]
+                    },
+                    "selected": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "counts",
+                    "selected"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/reading": {
       "get": {
         "operationId": "listReading",
@@ -12921,14 +14151,14 @@
         "parameters": [
           {
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192,
+              "description": "The opaque nextCursor from the preceding page of this collection, filters, and order."
             },
             "required": false,
-            "name": "offset",
+            "description": "The opaque nextCursor from the preceding page of this collection, filters, and order.",
+            "name": "cursor",
             "in": "query"
           },
           {
@@ -12952,6 +14182,16 @@
           {
             "schema": {
               "type": "string",
+              "description": "Imported Reading entries held in this hopper, ordered by membership time."
+            },
+            "required": false,
+            "description": "Imported Reading entries held in this hopper, ordered by membership time.",
+            "name": "hopper",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
               "enum": [
                 "thread",
                 "fragment"
@@ -12967,10 +14207,10 @@
               "enum": [
                 "true"
               ],
-              "description": "Only withdrawn items (the Background lens). Without it, withdrawn items are left out."
+              "description": "Only withdrawn entries."
             },
             "required": false,
-            "description": "Only withdrawn items (the Background lens). Without it, withdrawn items are left out.",
+            "description": "Only withdrawn entries.",
             "name": "background",
             "in": "query"
           }
@@ -12989,62 +14229,43 @@
                         "$ref": "#/components/schemas/ReadingEntry"
                       }
                     },
-                    "counts": {
+                    "page": {
                       "type": "object",
                       "properties": {
-                        "all": {
-                          "type": "number"
+                        "limit": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
                         },
-                        "own": {
-                          "type": "number"
-                        },
-                        "subscriptions": {
-                          "type": "object",
-                          "additionalProperties": {
-                            "type": "number"
-                          }
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         }
                       },
                       "required": [
-                        "all",
-                        "own",
-                        "subscriptions"
+                        "limit",
+                        "nextCursor"
                       ]
-                    },
-                    "total": {
-                      "type": "number"
-                    },
-                    "offset": {
-                      "type": "number"
-                    },
-                    "limit": {
-                      "type": "number"
-                    },
-                    "selected": {
-                      "type": "string"
                     },
                     "readState": {
                       "type": "boolean",
                       "enum": [
                         true
                       ],
-                      "description": "This server stores read state: each imported entry's readVersion is meaningful."
+                      "description": "Imported readVersion values carry the owner read state."
                     },
                     "readStateClear": {
                       "type": "boolean",
                       "enum": [
                         true
                       ],
-                      "description": "Read state can be cleared: DELETE /reading/{sub}/{remoteId}/read, POST /reading/unread, and readAt on reads."
+                      "description": "Read marks can be cleared."
                     }
                   },
                   "required": [
                     "items",
-                    "counts",
-                    "total",
-                    "offset",
-                    "limit",
-                    "selected",
+                    "page",
                     "readState",
                     "readStateClear"
                   ]
@@ -13195,11 +14416,12 @@
           {
             "schema": {
               "type": "string",
-              "maxLength": 2048,
-              "description": "The next value of the previous page. Opaque."
+              "minLength": 1,
+              "maxLength": 8192,
+              "description": "The opaque nextCursor from the preceding page of this collection, filters, and order."
             },
             "required": false,
-            "description": "The next value of the previous page. Opaque.",
+            "description": "The opaque nextCursor from the preceding page of this collection, filters, and order.",
             "name": "cursor",
             "in": "query"
           },
@@ -13228,22 +14450,29 @@
                         "$ref": "#/components/schemas/ImportedReadingEntry"
                       }
                     },
-                    "next": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "description": "Pass as cursor for the next page; null on the last page."
-                    },
-                    "limit": {
-                      "type": "integer",
-                      "exclusiveMinimum": 0
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ]
                     }
                   },
                   "required": [
                     "items",
-                    "next",
-                    "limit"
+                    "page"
                   ]
                 }
               }
@@ -14363,14 +15592,14 @@
         "parameters": [
           {
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192,
+              "description": "The opaque nextCursor from the preceding page of this collection, filters, and order."
             },
             "required": false,
-            "name": "offset",
+            "description": "The opaque nextCursor from the preceding page of this collection, filters, and order.",
+            "name": "cursor",
             "in": "query"
           },
           {
@@ -14390,6 +15619,15 @@
             "required": false,
             "name": "trail",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "required": false,
+            "name": "id",
+            "in": "query"
           }
         ],
         "responses": {
@@ -14406,24 +15644,29 @@
                         "$ref": "#/components/schemas/BrowseStep"
                       }
                     },
-                    "total": {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    "offset": {
-                      "type": "integer",
-                      "minimum": 0
-                    },
-                    "limit": {
-                      "type": "integer",
-                      "exclusiveMinimum": 0
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ]
                     }
                   },
                   "required": [
                     "items",
-                    "total",
-                    "offset",
-                    "limit"
+                    "page"
                   ]
                 }
               }

@@ -86,13 +86,13 @@ describe("resource API contract", () => {
   it("paginates collections consistently and rejects invalid pagination", async () => {
     const cookie = await login(), client = clientFor(cookie);
     for (const name of ["one", "two", "three"]) await unwrap(BlyggerApi.createHopper({ client, body: { name } }));
-    const first = await unwrap(BlyggerApi.listHoppers({ client, query: { offset: 0, limit: 2 } }));
-    const second = await unwrap(BlyggerApi.listHoppers({ client, query: { offset: 2, limit: 2 } }));
+    const first = await unwrap(BlyggerApi.listHoppers({ client, query: { limit: 2 } }));
+    const second = await unwrap(BlyggerApi.listHoppers({ client, query: { cursor: first.page.nextCursor!, limit: 2 } }));
     expect(first.items).toHaveLength(2); expect(second.items).toHaveLength(1);
-    expect(first.total).toBe(3); expect(new Set([...first.items, ...second.items].map((item) => item.id)).size).toBe(3);
+    expect(first.page.nextCursor).toEqual(expect.any(String)); expect(second.page.nextCursor).toBeNull(); expect(new Set([...first.items, ...second.items].map((item) => item.id)).size).toBe(3);
     expect((await apiJson(cookie, "GET", "/blyg/api/reading?limit=51")).status).toBe(400);
     expect((await apiJson(cookie, "GET", "/blyg/api/search?offset=abc")).status).toBe(400);
-    expect(await unwrap(BlyggerApi.listReading({ client }))).toMatchObject({ items: expect.any(Array), offset: 0, limit: 25 });
+    expect(await unwrap(BlyggerApi.listReading({ client }))).toMatchObject({ items: expect.any(Array), page: { limit: 25, nextCursor: expect.toBeOneOf([null, expect.any(String)]) } });
   });
 
   it("removes old write routes and returns documented JSON for wrong methods", async () => {

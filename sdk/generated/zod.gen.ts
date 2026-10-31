@@ -22,6 +22,7 @@ export const zApiError = z.object({
         'method-not-allowed',
         'conflict',
         'revision-conflict',
+        'cursor-expired',
         'too-large',
         'unsupported-media',
         'unprocessable',
@@ -79,7 +80,9 @@ export const zChangeState = z.object({
         settings: z.int().gte(0).lte(9007199254740991),
         feed: z.int().gte(0).lte(9007199254740991),
         mentions: z.int().gte(0).lte(9007199254740991),
-        responses: z.int().gte(0).lte(9007199254740991)
+        responses: z.int().gte(0).lte(9007199254740991),
+        interactions: z.int().gte(0).lte(9007199254740991),
+        browse: z.int().gte(0).lte(9007199254740991)
     })
 });
 
@@ -325,13 +328,6 @@ export const zVersion = z.object({
     changeClass: zChangeClass.nullish()
 });
 
-export const zHopperMembership = z.object({
-    hopperId: z.string(),
-    subscriptionId: z.string(),
-    remoteId: z.string(),
-    addedAt: z.string()
-});
-
 export const zImportedItem = z.object({
     subscriptionId: z.string(),
     remoteId: z.string(),
@@ -353,6 +349,13 @@ export const zImportedItem = z.object({
     stubOf: z.record(z.string(), z.unknown()).nullable(),
     forkedFrom: z.record(z.string(), z.unknown()).nullable(),
     generated: z.array(z.unknown()).nullable()
+});
+
+export const zHopperMembership = z.object({
+    hopperId: z.string(),
+    subscriptionId: z.string(),
+    remoteId: z.string(),
+    addedAt: z.string()
 });
 
 export const zSignal = z.object({
@@ -706,8 +709,17 @@ export const zGetCapabilitiesResponse = zCapabilities;
 export const zGetChangesResponse = zChangeState;
 
 export const zListItemsQuery = z.object({
-    offset: z.int().gte(0).nullish(),
-    limit: z.int().gte(1).lte(100).optional()
+    cursor: z.string().min(1).max(8192).optional(),
+    limit: z.int().gte(1).lte(100).optional(),
+    status: z.enum([
+        'draft',
+        'public',
+        'withdrawn'
+    ]).optional(),
+    dirty: z.enum(['true', 'false']).optional(),
+    version: z.int().gte(0).nullish(),
+    id: z.string().optional(),
+    updated: z.string().optional()
 });
 
 /**
@@ -718,11 +730,12 @@ export const zListItemsResponse = z.object({
         pins: z.array(z.object({
             version: z.int().gt(0),
             kind: z.enum(['fragment', 'thread'])
-        })).optional()
+        }))
     }))),
-    total: z.number(),
-    offset: z.number(),
-    limit: z.number()
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
+    })
 });
 
 export const zCreateItemBody = z.union([
@@ -815,9 +828,12 @@ export const zGetItemResponse = z.object({
         'show',
         'hide'
     ]),
+    pins: z.array(z.object({
+        version: z.int().gt(0),
+        kind: z.enum(['fragment', 'thread'])
+    })),
     media: z.array(zMedia),
     publishedMedia: z.array(zMedia),
-    versions: z.array(zVersion),
     published: zVersion.nullable()
 });
 
@@ -1112,7 +1128,7 @@ export const zUpdateSettingsBody = z.object({
 export const zUpdateSettingsResponse = zSettings;
 
 export const zListSubscriptionsQuery = z.object({
-    offset: z.int().gte(0).nullish(),
+    cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(100).optional()
 });
 
@@ -1121,9 +1137,10 @@ export const zListSubscriptionsQuery = z.object({
  */
 export const zListSubscriptionsResponse = z.object({
     items: z.array(zSubscription),
-    total: z.int().gte(0),
-    offset: z.int().gte(0),
-    limit: z.int().gt(0)
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
+    })
 });
 
 export const zCreateSubscriptionBody = z.object({
@@ -1203,7 +1220,7 @@ export const zResyncSubscriptionResponse = z.object({
 });
 
 export const zListHoppersQuery = z.object({
-    offset: z.int().gte(0).nullish(),
+    cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(100).optional()
 });
 
@@ -1212,9 +1229,10 @@ export const zListHoppersQuery = z.object({
  */
 export const zListHoppersResponse = z.object({
     items: z.array(zHopper),
-    total: z.int().gte(0),
-    offset: z.int().gte(0),
-    limit: z.int().gt(0)
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
+    })
 });
 
 export const zCreateHopperBody = z.object({
@@ -1241,17 +1259,11 @@ export const zGetHopperPath = z.object({
     id: z.string().min(1)
 });
 
-export const zGetHopperQuery = z.object({
-    preview: z.enum(['true']).optional()
-});
-
 /**
  * Success
  */
 export const zGetHopperResponse = z.object({
     hopper: zHopper,
-    memberships: z.array(zHopperMembership),
-    items: z.array(zImportedItem),
     total: z.int().gte(0),
     sourceCount: z.int().gte(0)
 });
@@ -1409,8 +1421,62 @@ export const zUpdateMentionResponse = z.object({
     hidden: z.boolean()
 });
 
+/**
+ * Success
+ */
+export const zGetItemSummaryResponse = z.object({
+    all: z.int().gte(0),
+    drafts: z.int().gte(0),
+    changes: z.int().gte(0),
+    public: z.int().gte(0),
+    withdrawn: z.int().gte(0)
+});
+
+export const zListItemVersionsPath = z.object({
+    id: z.string().min(1)
+});
+
+export const zListItemVersionsQuery = z.object({
+    cursor: z.string().min(1).max(8192).optional(),
+    limit: z.int().gte(1).lte(100).optional(),
+    version: z.int().gt(0).optional()
+});
+
+/**
+ * Success
+ */
+export const zListItemVersionsResponse = z.object({
+    items: z.array(zVersion),
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
+    })
+});
+
+export const zListHopperMembershipsPath = z.object({
+    id: z.string().min(1)
+});
+
+export const zListHopperMembershipsQuery = z.object({
+    cursor: z.string().min(1).max(8192).optional(),
+    limit: z.int().gte(1).lte(100).optional()
+});
+
+/**
+ * Success
+ */
+export const zListHopperMembershipsResponse = z.object({
+    items: z.array(zHopperMembership.and(z.object({
+        item: zImportedItem.nullable()
+    }))),
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
+    })
+});
+
 export const zListSignalsQuery = z.object({
-    offset: z.int().gte(0).nullish(),
+    cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(100).optional()
 });
 
@@ -1419,13 +1485,14 @@ export const zListSignalsQuery = z.object({
  */
 export const zListSignalsResponse = z.object({
     items: z.array(zSignal),
-    total: z.int().gte(0),
-    offset: z.int().gte(0),
-    limit: z.int().gt(0)
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
+    })
 });
 
 export const zListInteractionsQuery = z.object({
-    offset: z.int().gte(0).nullish(),
+    cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(100).optional(),
     kind: z.enum([
         'thumb_up',
@@ -1436,7 +1503,9 @@ export const zListInteractionsQuery = z.object({
         'stub',
         'fork',
         'quote'
-    ]).optional()
+    ]).optional(),
+    id: z.int().gt(0).optional(),
+    at: z.string().optional()
 });
 
 /**
@@ -1444,16 +1513,39 @@ export const zListInteractionsQuery = z.object({
  */
 export const zListInteractionsResponse = z.object({
     items: z.array(zInteraction),
-    total: z.int().gte(0),
-    offset: z.int().gte(0),
-    limit: z.int().gt(0)
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
+    })
+});
+
+export const zListThumbsQuery = z.object({
+    cursor: z.string().min(1).max(8192).optional(),
+    limit: z.int().gte(1).lte(100).optional(),
+    thumb: z.enum(['1', '-1']).optional(),
+    at: z.string().optional(),
+    subscriptionId: z.string().optional(),
+    remoteId: z.string().optional()
 });
 
 /**
  * Success
  */
 export const zListThumbsResponse = z.object({
-    items: z.array(zThumb)
+    items: z.array(zThumb),
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
+    })
+});
+
+/**
+ * Success
+ */
+export const zGetSignalSummaryResponse = z.object({
+    liked: z.int().gte(0),
+    disliked: z.int().gte(0),
+    activity: z.int().gte(0)
 });
 
 /**
@@ -1462,7 +1554,7 @@ export const zListThumbsResponse = z.object({
 export const zGetAiModelsResponse = zAiModels;
 
 export const zListMentionsQuery = z.object({
-    offset: z.int().gte(0).nullish(),
+    cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(100).optional(),
     direction: z.enum(['inbound', 'outbound']).optional()
 });
@@ -1472,9 +1564,10 @@ export const zListMentionsQuery = z.object({
  */
 export const zListMentionsResponse = z.object({
     items: z.array(z.union([zMention, zOutboundMention])),
-    total: z.int().gte(0),
-    offset: z.int().gte(0),
-    limit: z.int().gt(0),
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
+    }),
     direction: z.enum(['inbound', 'outbound'])
 });
 
@@ -1519,7 +1612,7 @@ export const zPreviewResponse = z.object({
 });
 
 export const zSearchQuery = z.object({
-    offset: z.int().gte(0).nullish(),
+    cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(100).optional(),
     q: z.string().optional(),
     source: z.enum([
@@ -1547,9 +1640,10 @@ export const zSearchResponse = z.object({
         subscriptionId: z.string().nullable(),
         sourceTitle: z.string().nullable()
     })),
-    total: z.number(),
-    offset: z.number(),
-    limit: z.number()
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
+    })
 });
 
 export const zGetVersionPath = z.object({
@@ -1562,10 +1656,30 @@ export const zGetVersionPath = z.object({
  */
 export const zGetVersionResponse = zVersion;
 
+export const zGetReadingSummaryQuery = z.object({
+    sub: z.string().optional(),
+    hopper: z.string().optional(),
+    kind: z.enum(['thread', 'fragment']).optional(),
+    background: z.enum(['true']).optional()
+});
+
+/**
+ * Success
+ */
+export const zGetReadingSummaryResponse = z.object({
+    counts: z.object({
+        all: z.number(),
+        own: z.number(),
+        subscriptions: z.record(z.string(), z.number())
+    }),
+    selected: z.string()
+});
+
 export const zListReadingQuery = z.object({
-    offset: z.int().gte(0).nullish(),
+    cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(50).optional(),
     sub: z.string().optional(),
+    hopper: z.string().optional(),
     kind: z.enum(['thread', 'fragment']).optional(),
     background: z.enum(['true']).optional()
 });
@@ -1575,21 +1689,16 @@ export const zListReadingQuery = z.object({
  */
 export const zListReadingResponse = z.object({
     items: z.array(zReadingEntry),
-    counts: z.object({
-        all: z.number(),
-        own: z.number(),
-        subscriptions: z.record(z.string(), z.number())
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
     }),
-    total: z.number(),
-    offset: z.number(),
-    limit: z.number(),
-    selected: z.string(),
     readState: z.literal(true),
     readStateClear: z.literal(true)
 });
 
 export const zListImportedReadingQuery = z.object({
-    cursor: z.string().max(2048).optional(),
+    cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(100).optional()
 });
 
@@ -1598,8 +1707,10 @@ export const zListImportedReadingQuery = z.object({
  */
 export const zListImportedReadingResponse = z.object({
     items: z.array(zImportedReadingEntry),
-    next: z.string().nullable(),
-    limit: z.int().gt(0)
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
+    })
 });
 
 export const zGetImportedItemPath = z.object({
@@ -1687,9 +1798,10 @@ export const zClearBrowseResponse = z.object({
 });
 
 export const zListBrowseQuery = z.object({
-    offset: z.int().gte(0).nullish(),
+    cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(100).optional(),
-    trail: z.string().optional()
+    trail: z.string().optional(),
+    id: z.int().gt(0).optional()
 });
 
 /**
@@ -1697,9 +1809,10 @@ export const zListBrowseQuery = z.object({
  */
 export const zListBrowseResponse = z.object({
     items: z.array(zBrowseStep),
-    total: z.int().gte(0),
-    offset: z.int().gte(0),
-    limit: z.int().gt(0)
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
+    })
 });
 
 export const zLogBrowseBody = z.object({

@@ -77,6 +77,7 @@ Then provision the schema, set secrets through Wrangler's prompts, and deploy:
 npx wrangler@4 d1 migrations apply DB --remote
 npx wrangler@4 secret put OWNER_PASSWORD
 npx wrangler@4 secret put COOKIE_SECRET
+node normalize-import-dates.mjs --remote  # finish pending writes first; safe to rerun
 npx wrangler@4 deploy
 ```
 
@@ -327,7 +328,7 @@ npm install ./blygger-sdk-SDK_VERSION.tgz
 import { BlyggerApi, createBlyggerClient, unwrap } from "@blygger/sdk";
 
 const client = createBlyggerClient({ baseUrl: new URL("/blyg/api", window.location.origin).href });
-const reading = await unwrap(BlyggerApi.listReading({ client, query: { offset: 0, limit: 25 } }));
+const reading = await unwrap(BlyggerApi.listReading({ client, query: { limit: 25 } }));
 ```
 
 Sign into `{mount}/studio` first: API calls use its owner session cookie. The SDK does
@@ -352,13 +353,14 @@ For the0.49.8 revision cutover, finish pending writes, including generation,
 before upgrading. Avoid edits until deployment finishes.
 
 Download the new Worker archive. Check its checksum. Extract it into a new directory.
-Keep your existing deployment config and secrets. Copy the new `worker.js` and
+Keep your existing deployment config and secrets. Copy the new `worker.js`, `normalize-import-dates.mjs` and
 `migrations/` into your deployment directory. Do not replace your config with the
 archive's generic template. Keep `main: "worker.js"` and `no_bundle: true`.
 Save a D1 backup before any required schema changes. Run these commands from your deployment directory:
 
 ```sh
 npx wrangler@4 d1 migrations apply DB --remote  # if the changelog lists migrations
+node normalize-import-dates.mjs --remote  # finish pending writes first; safe to rerun
 npx wrangler@4 deploy
 ```
 
@@ -375,6 +377,13 @@ Commit or stash local changes first, including your deployment config, then run:
 ```sh
 npm run upgrade
 ```
+
+The cursor-page cutover also repairs stored imported dates in place. If your
+installed updater predates this step, decline its deploy prompt, then run
+`node --import tsx scripts/normalize-import-dates.ts --remote` after the upgrade
+and before deployment. Keep writes stopped through normalization and deployment.
+The repair reads timestamp metadata in batches, can resume by rerunning, and
+changes no content, publication version or observation time.
 
 The script downloads upstream tags, merges the newest release, preserves your
 `wrangler.jsonc` on conflicts, installs dependencies, applies new migrations,

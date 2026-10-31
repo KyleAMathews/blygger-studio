@@ -9,7 +9,7 @@
  */
 import type { ReactNode, RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLiveQuery } from '@tanstack/react-db';
+import { useLiveQuery, useLiveInfiniteQuery, and, eq } from '@tanstack/react-db';
 import { Link, useNavigate, useBlocker } from '@tanstack/react-router';
 import { formatDateIn } from '../dates.ts';
 import { renderMarkdown } from '../markdown.ts';
@@ -21,7 +21,7 @@ import { CHANGE_CATEGORIES, composeNote, noteIsGenerated, recategorize, type Cha
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { Detail } from './data.ts';
-import { client, items, itemDetail, changed, createDraftAction, settings as settingsCollection, hoppers } from './data.ts';
+import { client, items, itemVersions, itemSummary, itemDetail, changed, createDraftAction, settings as settingsCollection, hoppers } from './data.ts';
 import {
   ActionBar,
   Button,
@@ -41,7 +41,6 @@ import { Draft } from './draft.ts';
 import { stripStaleUploads, uploadToken } from './upload-tokens.ts';
 import { FRAGMENT_MAX_CHARS as MAX } from '../client.ts';
 import { insertLink, isUrl, linkToast } from './links.ts';
-import type { Resolve } from './plain-text.ts';
 import { itemTitle, permalink, plainText, textWithLink } from './plain-text.ts';
 import { OcrScan } from './ocr.tsx';
 import { addStubQuote, passageCount, quoteCount, stubQuoteForm, withStubQuote } from './stub-quote.ts';
@@ -502,12 +501,25 @@ function ToolRow({
 
 /* ---------------- ⧉ copy + link, share… ---------------- */
 
-/** What the studio knows of another item, for plain text. Own items only. */
-const resolveOwn: Resolve = (id, form) => {
-  const row = items.get(id);
-  if (!row || row.status !== 'public') return undefined;
-  return form === 'link' ? itemTitle(row.contentMd) : plainText(row.contentMd);
-};
+/** Resolve only own references needed by this copy/share action. */
+async function ownText(md: string) {
+  const ids = new Set<string>();
+  plainText(md, id => { ids.add(id); return undefined; });
+  const resolved = new Map(await Promise.all([...ids].map(async id => {
+    let row: { status: string; contentMd: string } | undefined = items.get(id);
+    if (!row) {
+      try { row = await unwrap(BlyggerApi.getItem({ client, path: { id } })); }
+      catch (error) {
+        if (!(error instanceof Error && 'statusCode' in error && error.statusCode === 404)) throw error;
+      }
+    }
+    return [id, row?.status === 'public' ? row.contentMd : undefined] as const;
+  })));
+  return plainText(md, (id, form) => {
+    const text = resolved.get(id);
+    return text === undefined ? undefined : form === 'link' ? itemTitle(text) : plainText(text);
+  });
+}
 async function copyText(text: string, done: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -529,10 +541,10 @@ function useSharing() {
   const base = settings?.siteUrl || new URL(`${mount}/`, location.origin).href;
   const url = (item: Shareable) => permalink(base, item.kind, item.id);
   return {
-    copy: (item: Shareable) =>
-      copyText(textWithLink(plainText(item.md, resolveOwn), url(item)), 'copied text + link'),
+    copy: async (item: Shareable) =>
+      copyText(textWithLink(await ownText(item.md), url(item)), 'copied text + link'),
     async share(item: Shareable) {
-      const text = plainText(item.md, resolveOwn);
+      const text = await ownText(item.md);
       if (navigator.share) {
         try {
           await navigator.share({ title: itemTitle(item.md), text, url: url(item) });
@@ -923,12 +935,12 @@ function useNoteConfirm(write: ReturnType<typeof createDraftAction>) {
 /* ---------------- COMPOSE ---------------- */
 
 const FILTERS = {
-  all: { label: 'all', test: () => true },
-  drafts: { label: 'drafts', test: (i: Row) => i.version === 0 },
-  changes: { label: 'unpublished changes', test: (i: Row) => i.dirty && i.status === 'public' },
-  public: { label: 'public', test: (i: Row) => i.status === 'public' },
-  withdrawn: { label: 'withdrawn', test: (i: Row) => i.status === 'withdrawn' },
-} satisfies Record<string, { label: string; test: (i: Row) => boolean }>;
+  all: { label: 'all' },
+  drafts: { label: 'drafts' },
+  changes: { label: 'unpublished changes' },
+  public: { label: 'public' },
+  withdrawn: { label: 'withdrawn' },
+};
 type Filter = keyof typeof FILTERS;
 
 export function Compose() {
@@ -942,10 +954,14 @@ export function Compose() {
   const [published, setPublished] = useState<Published>();
   const [filter, setFilter] = useState<Filter>('all');
   const input = useRef<HTMLTextAreaElement>(null);
-  const result = useLiveQuery({
-    query: (q) =>
-      q.from({ item: items }).orderBy(({ item }) => item.updated, 'desc'),
-  });
+  const result = useLiveInfiniteQuery(q => {
+    let query = q.from({ item: items });
+    if (filter === 'drafts') query = query.where(({ item }) => eq(item.version, 0));
+    if (filter === 'changes') query = query.where(({ item }) => and(eq(item.dirty, true), eq(item.status, 'public')));
+    if (filter === 'public' || filter === 'withdrawn') query = query.where(({ item }) => eq(item.status, filter));
+    return query.orderBy(({ item }) => item.orderKey, { direction: 'asc', stringSort: 'lexical' });
+  }, { pageSize: 25 });
+  const totals = useLiveQuery(q => q.from({ summary: itemSummary }).findOne()).data;
   const current = useRef({ text, kind, id });
   current.current = { text, kind, id };
   const [draftKey, setDraftKey] = useState(0);
@@ -1017,7 +1033,6 @@ export function Compose() {
     return result;
   };
   const rows = result.data ?? [];
-  const shown = rows.filter(FILTERS[filter].test);
   const over = text.length > MAX && kind === 'fragment';
   return (
     <>
@@ -1131,7 +1146,7 @@ export function Compose() {
         ) : null}
       </div>
       {tools.sheet}
-      {rows.length ? (
+      {totals?.all ? (
         <div className="segmented filters" role="group" aria-label="show">
           {(Object.keys(FILTERS) as Filter[]).map((key) => (
             <button
@@ -1143,26 +1158,27 @@ export function Compose() {
               onClick={() => setFilter(key)}
             >
               {FILTERS[key].label}
-              <span className="n">{rows.filter(FILTERS[key].test).length}</span>
+              <span className="n">{totals[key]}</span>
             </button>
           ))}
         </div>
       ) : null}
-      {!result.isLoading && !rows.length ? (
+      {!result.isLoading && !rows.length && filter === 'all' ? (
         <p className="empty">
           <span className="em" aria-hidden="true">
             ✎
           </span>
           Nothing yet — compose your first fragment above.
         </p>
-      ) : rows.length && !shown.length ? (
+      ) : !result.isLoading && !rows.length ? (
         <p className="empty">Nothing here.</p>
       ) : null}
       <ol className="list items">
-        {shown.map((item) => (
+        {rows.map((item) => (
           <ItemRow key={item.id} item={item} onPublished={setPublished} />
         ))}
       </ol>
+      {result.hasNextPage ? <Button disabled={result.isFetchingNextPage} onClick={() => void result.fetchNextPage()}>load more items</Button> : null}
     </>
   );
 }
@@ -2271,85 +2287,10 @@ function Editor({ item }: { item: Detail }) {
           setOpen={setHistoryOpen}
           summary="history"
           hint={
-            item.versions.length
-              ? `${item.versions.length} version${item.versions.length === 1 ? '' : 's'}`
-              : ''
+            item.version ? `${item.version} version${item.version === 1 ? '' : 's'}` : ''
           }
         >
-          {!item.versions.length ? (
-            <p className="hint">Not yet published.</p>
-          ) : (
-            <ul className="h-list">
-              {[...item.versions].reverse().map((v) => (
-                <li className="h-row" key={v.version}>
-                  <strong className="vnum">v{v.version}</strong>{' '}
-                  <span className="h-note">{v.note}</span>
-                  {v.noteGenerated ? (
-                    <span className="badge" title="note drafted by the studio">generated</span>
-                  ) : null}
-                  {v.changeClass?.category ? (
-                    <span
-                      className="badge change-class"
-                      data-category={v.changeClass.category}
-                      title={
-                        v.changeClass.overridden
-                          ? 'kind of change, set by you (private to this studio)'
-                          : v.changeClass.model
-                            ? `kind of change, from ${v.changeClass.model}${v.changeClass.probability !== null ? ` (${Math.round(v.changeClass.probability * 100)}%)` : ''} (private to this studio)`
-                            : 'kind of change (private to this studio)'
-                      }
-                    >
-                      {v.changeClass.category}
-                    </span>
-                  ) : null}{' '}
-                  <span className="h-actions">
-                    <Button
-                      data-action="view-version"
-                      className="btn btn-ghost btn-mini"
-                      onClick={() => setVersion(v)}
-                    >
-                      view
-                    </Button>
-                    {v.pinned ? (
-                      <>
-                        <a
-                          className="badge badge-pencil"
-                          href={`${mount}/${v.kind === 'thread' ? 't' : 'f'}/${
-                            item.id
-                          }/v${v.version}/`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          📌 pinned
-                        </a>
-                        <Link className="btn btn-ghost btn-mini" to="/fork" search={{ id: item.id }}>
-                          fork
-                        </Link>
-                      </>
-                    ) : v.kind !== 'withdrawn' ? (
-                      <Button
-                        data-action="pin"
-                        className="btn btn-ghost btn-mini"
-                        disabled={action.busy}
-                        onClick={() => void action.run(() => pin(v.version))}
-                      >
-                        pin
-                      </Button>
-                    ) : null}
-                    {v.kind !== 'withdrawn' ? (
-                      <Button
-                        className="btn btn-ghost btn-mini"
-                        disabled={action.busy || upload.action.busy}
-                        onClick={() => void action.run(() => restore(v.version))}
-                      >
-                        restore → v{item.version + 1}
-                      </Button>
-                    ) : null}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          {!item.version ? <p className="hint">Not yet published.</p> : historyOpen ? <VersionHistory item={item} select={setVersion} pinBusy={action.busy} restoreBusy={action.busy || upload.action.busy} pin={version => action.run(() => pin(version))} restore={version => action.run(() => restore(version))} /> : null}
         </Card>
       </div>
       {confirmNote.element}
@@ -2784,3 +2725,86 @@ const getPreview = (
       signal,
     }),
   );
+
+function VersionHistory({ item, select, pin, restore, pinBusy, restoreBusy }: {
+  item: Detail; select: (version: Version) => void; pin: (version: number) => Promise<unknown>;
+  restore: (version: number) => Promise<unknown>; pinBusy: boolean; restoreBusy: boolean;
+}) {
+  const history = useLiveInfiniteQuery(q => q.from({ version: itemVersions })
+    .where(({ version }) => eq(version.itemId, item.id)).orderBy(({ version }) => version.version, { direction: 'desc', stringSort: 'lexical' }), { pageSize: 25 });
+  return <>
+    {history.isLoading ? <p className="hint">Loading history…</p> : null}
+    {history.status === 'error' ? <p role="alert">Could not load history.</p> : null}
+            <ul className="h-list">
+              {history.data.map((v) => (
+                <li className="h-row" key={v.version}>
+                  <strong className="vnum">v{v.version}</strong>{' '}
+                  <span className="h-note">{v.note}</span>
+                  {v.noteGenerated ? (
+                    <span className="badge" title="note drafted by the studio">generated</span>
+                  ) : null}
+                  {v.changeClass?.category ? (
+                    <span
+                      className="badge change-class"
+                      data-category={v.changeClass.category}
+                      title={
+                        v.changeClass.overridden
+                          ? 'kind of change, set by you (private to this studio)'
+                          : v.changeClass.model
+                            ? `kind of change, from ${v.changeClass.model}${v.changeClass.probability !== null ? ` (${Math.round(v.changeClass.probability * 100)}%)` : ''} (private to this studio)`
+                            : 'kind of change (private to this studio)'
+                      }
+                    >
+                      {v.changeClass.category}
+                    </span>
+                  ) : null}{' '}
+                  <span className="h-actions">
+                    <Button
+                      data-action="view-version"
+                      className="btn btn-ghost btn-mini"
+                      onClick={() => select(v)}
+                    >
+                      view
+                    </Button>
+                    {v.pinned ? (
+                      <>
+                        <a
+                          className="badge badge-pencil"
+                          href={`${mount}/${v.kind === 'thread' ? 't' : 'f'}/${
+                            item.id
+                          }/v${v.version}/`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          📌 pinned
+                        </a>
+                        <Link className="btn btn-ghost btn-mini" to="/fork" search={{ id: item.id }}>
+                          fork
+                        </Link>
+                      </>
+                    ) : v.kind !== 'withdrawn' ? (
+                      <Button
+                        data-action="pin"
+                        className="btn btn-ghost btn-mini"
+                        disabled={pinBusy}
+                        onClick={() => void pin(v.version)}
+                      >
+                        pin
+                      </Button>
+                    ) : null}
+                    {v.kind !== 'withdrawn' ? (
+                      <Button
+                        className="btn btn-ghost btn-mini"
+                        disabled={restoreBusy}
+                        onClick={() => void restore(v.version)}
+                      >
+                        restore → v{item.version + 1}
+                      </Button>
+                    ) : null}
+                  </span>
+                </li>
+              ))}
+            </ul>
+    {history.hasNextPage ? <Button disabled={history.isFetchingNextPage} onClick={() => void history.fetchNextPage()}>load older versions</Button> : null}
+  </>;
+}

@@ -43,6 +43,12 @@ try {
   for (const migration of await readD1Migrations(join(worker, "migrations"))) {
     await db.batch(migration.queries.map((query) => db.prepare(query)));
   }
+  const normalizer = await import(pathToFileURL(join(worker, 'normalize-import-dates.mjs')).href);
+  await db.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,updated,observed_at) VALUES ('legacy-date','old','fragment','current',3,'Wed, 01 Jul 2026 00:00:00 GMT','2026-08-05T00:00:00Z')").run();
+  assert.deepEqual(await normalizer.normalizeStoredImportDates((sql: string) => db.prepare(sql).all()), { scanned: 1, changed: 1 });
+  assert.equal(await db.prepare("SELECT updated FROM imported_items WHERE subscription_id='legacy-date'").first('updated'), '2026-07-01T00:00:00Z');
+  assert.deepEqual(await normalizer.normalizeStoredImportDates((sql: string) => db.prepare(sql).all()), { scanned: 1, changed: 0 });
+  await db.prepare("DELETE FROM imported_items WHERE subscription_id='legacy-date'").run();
   const homepage = await mf.dispatchFetch('http://localhost/');
   assert.equal(homepage.status, 200);
   assert.equal(homepage.headers.get('cache-control'), 'no-cache');

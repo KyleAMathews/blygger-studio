@@ -36,8 +36,9 @@ export async function verifyPersistence(worker: string, temp: string) {
     const edited = await unwrap(BlyggerApi.updateItem({ client, path: { id: published.id }, body: { contentMd: "Second edition", expectedRevision: pin.revision } }));
     await unwrap(BlyggerApi.publishItem({ client, path: { id: published.id }, body: { expectedRevision: edited.revision } }));
     const before = await unwrap(BlyggerApi.getItem({ client, path: { id: published.id } }));
-    assert.equal(before.versions.length, 2); assert.equal(before.versions[0].pinned, true);
-    assert.ok(before.versions[0].stubCite, "Citation fixture must be present before restart");
+    const history = await unwrap(BlyggerApi.listItemVersions({ client, path: { id: published.id }, query: { limit: 2 } }));
+    assert.equal(history.page.nextCursor, null); assert.equal(history.items.length, 2); assert.equal(history.items[1].pinned, true);
+    assert.ok(history.items[1].stubCite, "Citation fixture must be present before restart");
     const pinnedResponse = await fetch(`${fixture.baseUrl}/items/${published.id}/v1.json`);
     assert.equal(pinnedResponse.status, 200);
     const pinned = await pinnedResponse.text();
@@ -51,6 +52,7 @@ export async function verifyPersistence(worker: string, temp: string) {
     client = createBlyggerClient({ baseUrl: fixture.baseUrl + "/api", auth: scheme => scheme.in === 'cookie' ? token : undefined });
     assert.equal((await unwrap(BlyggerApi.getItem({ client, path: { id: draft.id } }))).contentMd, "Unpublished restart draft");
     assert.deepEqual(await unwrap(BlyggerApi.getItem({ client, path: { id: published.id } })), before);
+    assert.deepEqual(await unwrap(BlyggerApi.listItemVersions({ client, path: { id: published.id }, query: { limit: 2 } })), history);
     const retainedPin = await fetch(`${fixture.baseUrl}/items/${published.id}/v1.json`);
     assert.equal(retainedPin.status, 200);
     assert.equal(await retainedPin.text(), pinned);

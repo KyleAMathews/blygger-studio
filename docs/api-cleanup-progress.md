@@ -27,11 +27,11 @@ Update the plan when a finding changes its scope or design.
 | 1b Explicit version state | Open, all nine upstream CI jobs pass | `codex/api-version-state`, based on `codex/api-http` | [93](https://github.com/blygger/blygger-studio/pull/93) |
 | 2 HTTP behavior | Open, all nine upstream CI jobs pass | `codex/api-http`, based on `codex/api-cleanup` | [91](https://github.com/blygger/blygger-studio/pull/91) |
 | 3a Operation policies and discovery | Open, all nine upstream CI jobs pass | `codex/api-operation-policy`, after 93 | [95](https://github.com/blygger/blygger-studio/pull/95) |
-| 3b Shared operation execution | Open, eight checks pass; final mutation job running | `codex/api-operation-runner`, after 95 | [96](https://github.com/blygger/blygger-studio/pull/96) |
-| 4 Mounted API cutover | Open, local checks pass; CI in progress | `codex/api-mount-cutover`, after 96 | [97](https://github.com/blygger/blygger-studio/pull/97) |
-| 5 Conditional mutations | Planned | After 3 | Pending |
-| 6 Private resources | Planned | After 5, with 4 integrated | Pending |
-| 7 Cursor pages and TanStack loading | Planned | After 6 | Pending |
+| 3b Shared operation execution | Open, all nine upstream CI jobs pass | `codex/api-operation-runner`, after 95 | [96](https://github.com/blygger/blygger-studio/pull/96) |
+| 4 Mounted API cutover | Open, all nine upstream CI jobs pass | `codex/api-mount-cutover`, after 96 | [97](https://github.com/blygger/blygger-studio/pull/97) |
+| 5 Conditional mutations | Open, all nine upstream CI jobs pass | `codex/api-item-revisions`, after 97 | [98](https://github.com/blygger/blygger-studio/pull/98) |
+| 6 Private resources | Open, all nine upstream CI jobs pass | `codex/api-private-resources`, after 98 | [99](https://github.com/blygger/blygger-studio/pull/99) |
+| 7 Cursor pages and TanStack loading | In progress | `codex/api-cursor-pages`, after 99 | Not published |
 | 8 Hash-addressed media | Planned | After 2 | Pending |
 
 ## Findings on 2026 10 31
@@ -622,3 +622,149 @@ working and published attachment URL fields, root/nested mounts, and private/
 public fetches in one matrix when digest-bearing URLs arrive. Part6 already
 checks those component paths; preserve this combined coverage idea alongside
 the earlier private OPTIONS Cache-Control follow-up.
+
+Part6 is published as PR99 at1c3ee04, stacked on PR98. CI is running; reviews
+and inline comments are empty. Its complete desktop/mobile rerun passed399
+tests with five skipped and no flaky results. Installed SDK, persistence,
+TypeScript, generated-artifact reproduction, and relevant targeted checks pass.
+The reconciled review ledger has37 items:29 fixed, four duplicates, three
+already satisfied, and one named part8 coverage follow-up. No design decision
+or confirmed-open review item remains.
+
+Part7 begins on codex/api-cursor-pages from the published part6 head. Local
+TanStack source confirms createCursorPager owns opaque continuation acquisition
+and cancellation, while useLiveInfiniteQuery grows DB windows. Backend pages
+must bind collection/filter/order/generation and reject stale continuations.
+The existing Reading loader scans every identity before slicing, so replacing
+only its HTTP envelope would leave the bounded-loading requirement unsatisfied.
+The implementation must select identities with bounded SQL before loading bodies.
+
+PR99 CI found three stale receivers after the strict field cutover: the
+controlled draft-deletion race uploaded item_id; OAuth interoperability demanded
+site_title in MCP results; and one security mutant classifier demanded the old
+site_url assertion label. Each reproduced locally and passed on the same path
+after the spelling repair. Six multipart/race tests, all eight root/nested
+OAuth browser/Inspector cases, and the exact insecure-control rejection pass.
+Commit9448c4c is published and fast-forwarded into part7. Full raw CI logs and
+RED/GREEN receipts are in pr99-ci-ledger.jsonl under the shared evaluation
+directory. Three raw findings, three fixed, none omitted. CI reruns at the new
+head; no production behavior or design changed.
+
+The cursor primitive passes15 focused D1 cases and both TypeScript projects.
+The cases cover mixed ASC/DESC ties, NULL positions, Unicode keys, malformed
+and oversized tokens, source/filter/order/domain binding, relevant generation
+expiry, and controlled changes during projection. First-page construction
+retries once; continuation construction rejects a changed generation. Page SQL
+uses a bounded limit and no OFFSET. This is primitive verification, not evidence
+that the server/client pagination cutover is complete.
+
+All published heads90/91/93/95/96/97/98/99 now have nine successful upstream
+jobs each. PR99 is9448c4c. Complete review submissions and inline threads are
+empty, with no pagination omitted from those reads. The exact-head GraphQL
+audit is stack-final-pr99.json in the shared evaluation directory. Three CI
+findings are fixed with same-path RED/GREEN evidence. The CI heartbeat is
+paused until the next publication. Nothing was merged or deployed.
+
+Part7 implementation findings: the installed DB loader completes leading-value
+ties through separate equality demands. A timestamp-first multi-column order
+can therefore load a whole large tie. Windowed Studio sources now derive one
+unique binary order key. Exact boundary demands decode that client key into
+ordinary API equality filters; they never become backend continuation cursors.
+Items use updated DESC/id DESC so the client and server can express the same
+unique order. Public protocol ordering is unchanged. The native pager still owns
+all opaque-page acquisition. A5000-row timestamp tie stays bounded while the
+actual DB window grows25 to50 rows; all24 source-collection tests pass.
+
+A page-schema check must run inside the native page fetch, before Query stores
+it as successful. A focused witness accepted a damaged row before that check;
+it now rejects the row and retries successfully at the same generation. All
+seven pager-adapter tests pass, including cancellation and expired-acquisition
+restart. Source schemas retain their later projection checks as well.
+
+Part7 is not yet review-ready. The API/SDK and Studio cutover is in progress;
+history, collection, migration, permission-inventory, release and browser
+receivers must be brought through final checks. Hopper detail and hopper Reading
+still request complete membership cohorts through the native pager; finish
+their bounded UI demand before claiming part7 complete. No PR for this part
+has been published.
+
+Part7 now bounds hopper Reading and management windows as well as item/history
+windows. The full Worker run passed1992 with two stale receivers failing and
+five skipped. Those two receivers now pass their ten focused tests: Reading
+counts moved to the named summary; list wire DTOs require pin summaries while
+write acknowledgements do not contain them. All156 UI tests and both TypeScript
+projects pass after review repairs. All82 mutation anchors match. Nine semantic
+mutation controls fail at their intended checkpoints, including ignored cursor
+continuations and reversed tie order; mention replays still work.
+
+The prep-pr reviews reproduced first-save and fork cache insert failures caused
+by treating write DTOs as read rows. New drafts now supply known-empty pins;
+existing saves preserve cached pins or obtain authoritative summaries when the
+item is unloaded. Copy/share now point-loads only referenced own targets that
+fall outside the loaded window. Controlled actual-handler RED/GREEN probes cover
+quote/link retention, shared point demand, pending reads and HTTP failures.
+Browsing history now shows loading and query failure while preserving earlier
+walks and clear-action errors. Six small simplifications removed dead filters,
+flags/constants, an extra subscription lookup and stale comments, and shared the
+unchanged legacy pin-kind expression.
+
+One review finding changes the implementation plan: SQLite julianday cannot
+parse retained RSS date formats supported by the existing Date.parse clamp.
+The actual Reading query puts a July1 RFC822 item ahead of an August1 ISO item
+when both were observed August5. The RED witness is cursor-reading-dates.test.ts.
+A persisted JS-normalized numeric sort key plus a resumable metadata-only upgrade
+backfill preserves exact date rules and bounded reads, but all existing upgrade
+paths currently run SQL migrations only. The user is choosing this recommended
+new data step versus allowing timestamp metadata scans on each Reading request.
+Do not publish part7 until this choice is resolved and the witness is GREEN.
+Details and writer/upgrade-path inventory: b1-repair-options.md under
+/tmp/blygger-api-cursor-review. The lossless review ledger is ledger.jsonl there.
+
+The first browser snapshot confirmed the create/fork failures plus stale tests
+that assumed eagerly mounted history, HTTP offset, embedded counts, old hopper
+preview detail and complete Compose rows. It was stopped after190 passes and49
+failures;165 were skipped or unrun, so this is not a complete result. Receiver
+repairs keep their exact content/order checks and use bounded windows, named
+summaries and explicit history opening. A new isolated fixed snapshot is running
+all desktop/mobile cases; no full browser GREEN is claimed yet.
+
+Part7 review followups preserved without treating them as defects: Signals may
+avoid one bounded activity preload until its tab opens; unused internal offset
+helpers may be removed once their remaining direct test/type consumers are
+accounted for. No private HTTP offset alias remains. No merge or deploy occurred.
+
+The user selected normalization in the existing created/updated columns. There
+is no new timestamp column. Every foreign-date write now uses the existing
+ISO8601 UTC normalizer; invalid or absent dates become null. A metadata-only
+keyset repair processes at most100 rows per batch, writes one guarded batch,
+and can resume by rerunning. It preserves versions, bodies, observation time
+and read state. Source/deployment/archive upgrade paths run or document the
+repair before deployment. Old updater processes require the documented explicit
+command after declining their deploy prompt.
+
+Reading order also handles canonical signed extended years, where SQLite's date
+parser cannot represent the same range as JavaScript. Controlled SQL pages match
+the projected clamp across that range. Ordinary UTC order and hopper membership
+order retain their promised tie breaks.
+
+The complete post-normalization Worker suite passes2028 tests with five skipped
+and no failures. All156 UI tests and both type projects pass. The second full
+browser run passed395 with four failures and five skipped. The four failures
+were stale pin/history opening, wide-card injection using removed HTTP offset,
+and a buffered-response waiter registered after the native window had already
+received the fresh response. Their scoped desktop/mobile reruns pass60 plus8
+cases, with four intentional phone-only skips in the former. Production polling
+needed no repair. Final publication verification remains in progress.
+
+Supplemental review caught Wrangler remote --file returning import statistics,
+while local --file returns query rows. The normalizer now uses --command query
+mode and validates metadata row fields. The actual CLI-boundary witness is RED
+on the old path and GREEN on the same simulated remote receiving path; no live
+Cloudflare database or credentials were used. The local installed-upgrade and
+bundled-release checks remain separate receiving verification.
+
+Normalization limits: batch size bounds row count rather than SQL byte count.
+Unusually large retained identities/date strings can exceed a CLI/query size
+limit and need a smaller-batch followup. The repair does not claim online
+migration safety: writers remain drained through repair and deployment, as
+already agreed for this single-user cutover.

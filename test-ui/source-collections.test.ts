@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vi
 import type { Detail } from '../src/ui/data.ts';
 import { readFileSync, readdirSync } from 'node:fs';
 import ts from 'typescript';
-import { createLiveQueryCollection } from '@tanstack/react-db';
+import { createLiveQueryCollection, eq } from '@tanstack/react-db';
 import { sourceSchemas } from '../src/ui/data-schemas.ts';
 import { zListItemsResponse, zHopper, zSubscription, zAuthorization } from '../sdk/dist/schemas.js';
 
@@ -16,17 +16,27 @@ let failWrite = false;
 let failRead = false;
 let orphanMember = false;
 let invalidItem = false;
+let itemCount = 1;
+let itemPins: { version: number; kind: 'fragment' | 'thread' }[] = [];
+let memberCount = 4;
+let versionCount = 0;
+let pageRows = 0;
 let releaseWrite: (() => void) | undefined;
 let writeGate: Promise<void> | undefined;
 let detailGate: Promise<void> | undefined;
 let detailEntered: (() => void) | undefined;
 const requests: { path: string; params: URLSearchParams }[] = [];
 const views: { cleanup(): Promise<void> | void }[] = [];
-const item = () => ({ id: 'a', revision: itemRevision, contentMd: text, kind: 'fragment' as const, status: 'draft' as const, created: '2026-10-06', updated: '2026-10-06', version: 0, dirty: false, responses: 'default' as const, highlight: 'default' as const, provenance: [], stubOf: null, forkedFrom: null, forkCite: null, pins: [] });
-const detail = (): Detail => ({ ...item(), kind: 'fragment', media: [], publishedMedia: [], versions: [], published: null });
+const item = () => ({ id: 'a', revision: itemRevision, contentMd: text, kind: 'fragment' as const, status: 'draft' as const, created: '2026-10-06', updated: '2026-10-06', version: itemPins.length ? 1 : 0, dirty: false, responses: 'default' as const, highlight: 'default' as const, provenance: [], stubOf: null, forkedFrom: null, forkCite: null, pins: itemPins });
+const detail = (): Detail => ({ ...item(), kind: 'fragment', media: [], publishedMedia: [], published: null });
 const hopper = { id: 'h', name: 'Hopper', public: false, slug: null, created: '2026-10-06', slugFrozen: false, description: null };
-const contents = () => ({ hopper, items: Array.from({ length: 4 }, (_, i) => ({ subscriptionId: 's', remoteId: String(i), contentHtml: `${text} ${i}`, contentMd: text, kind: 'fragment', state: 'current', version: 1, created: null, updated: null, observedAt: '2026-10-06', contentHash: null, author: null, media: null, transclusions: null, l0: false, pinnedVersionRetained: null, page: null, stubOf: null, forkedFrom: null, generated: null })), memberships: Array.from({ length: 4 }, (_, i) => ({ hopperId: 'h', subscriptionId: 's', remoteId: String(i), addedAt: '2026-10-06' })), total: 4, sourceCount: 1 });
+const contents = () => ({ hopper, items: Array.from({ length: memberCount }, (_, i) => ({ subscriptionId: 's', remoteId: String(i), contentHtml: `${text} ${i}`, contentMd: text, kind: 'fragment', state: 'current', version: 1, created: null, updated: null, observedAt: '2026-10-06', contentHash: null, author: null, media: null, transclusions: null, l0: false, pinnedVersionRetained: null, page: null, stubOf: null, forkedFrom: null, generated: null })), memberships: Array.from({ length: memberCount }, (_, i) => ({ hopperId: 'h', subscriptionId: 's', remoteId: String(i), addedAt: '2026-10-06' })), total: 4, sourceCount: 1 });
 const entry = (key: string, kind = 'fragment') => ({ key, source: 'own', kind, withdrawn: false, l0: false, contentHtml: text, displayAt: '2026-10-06' });
+function page<T>(items: T[], query: URLSearchParams, defaultLimit = 100) {
+  const start = Number(query.get('cursor') ?? 0), limit = Number(query.get('limit') ?? defaultLimit);
+  pageRows += items.slice(start, start + limit).length;
+  return { items: items.slice(start, start + limit), page: { limit, nextCursor: start + limit < items.length ? String(start + limit) : null } };
+}
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
 
 beforeAll(async () => {
@@ -36,7 +46,12 @@ beforeAll(async () => {
   vi.stubGlobal('fetch', async (request: Request) => {
     const url = new URL(request.url);
     requests.push({ path: url.pathname, params: url.searchParams });
-    if (url.pathname === '/api/changes') return json({ epoch, domains: Object.fromEntries(['items', 'reading', 'hoppers', 'subscriptions', 'signals', 'settings', 'feed', 'mentions', 'responses'].map((domain) => [domain, revision])) });
+    if (url.pathname === '/api/changes') return json({ epoch, domains: Object.fromEntries(['items', 'reading', 'hoppers', 'subscriptions', 'signals', 'settings', 'feed', 'mentions', 'responses', 'interactions', 'browse'].map((domain) => [domain, revision])) });
+    if (url.pathname === '/api/items' && request.method === 'POST') {
+      const body = await request.json(); text = body.contentMd; revision++; itemCount = 1;
+      const { pins, ...created } = item();
+      return json(created, 201);
+    }
     if (url.pathname === '/api/items/a' && request.method === 'PATCH') {
       const body = await request.json();
       await writeGate;
@@ -51,42 +66,58 @@ beforeAll(async () => {
       text = 'restored text'; revision++; itemRevision++;
       return json({ ok: true, restored: 1, publishesAs: 2, revision: itemRevision });
     }
+    if (url.pathname === '/api/items/a/versions') {
+      const values = Array.from({ length: versionCount }, (_, index) => ({ itemId: 'a', version: versionCount - index, kind: 'fragment', contentMd: text, contentHtml: text, contentHash: 'hash', publishedAt: '2026-10-31', note: null, transclusions: [], pinned: false, pinnedAt: null, generated: [], stubOf: null, stubCite: null, noteGenerated: false }))
+        .filter(row => !url.searchParams.has('version') || row.version === Number(url.searchParams.get('version')));
+      return json(page(values, url.searchParams, 25));
+    }
     if (url.pathname === '/api/items/a') {
       detailEntered?.(); await detailGate;
       if (failRead) return json({ code: 'internal', message: 'read failed' }, 503);
       return missing ? json({ code: 'not-found', message: 'not found' }, 404) : json({ ...detail(), ...(invalidItem ? { contentMd: 42 } : {}) });
     }
-    if (url.pathname === '/api/items') return json({ items: missing ? [] : [{ ...item(), ...(invalidItem ? { contentMd: 42 } : {}) }], total: missing ? 0 : 1, offset: 0, limit: 100 });
-    if (url.pathname === '/api/hoppers') return json({ items: [hopper], total: 1, offset: 0, limit: 100 });
+    if (url.pathname === '/api/items') {
+      const values = missing ? [] : Array.from({ length: itemCount }, (_, i) => ({ ...item(), id: i === 0 ? 'a' : `tail-${String(i).padStart(5, '0')}`, ...(invalidItem ? { contentMd: 42 } : {}) }))
+        .sort((a, b) => a.id < b.id ? 1 : a.id > b.id ? -1 : 0)
+        .filter(row => (!url.searchParams.has('id') || row.id === url.searchParams.get('id')) && (!url.searchParams.has('updated') || row.updated === url.searchParams.get('updated')));
+      return json(page(values, url.searchParams));
+    }
+    if (url.pathname === '/api/hoppers') return json(page([hopper], url.searchParams));
     if (url.pathname === '/api/hoppers/h') {
+      if (missing) return json({ code: 'not-found', message: 'not found' }, 404);
+      return json({ hopper, total: memberCount + (orphanMember ? 1 : 0), sourceCount: 1 });
+    }
+    if (url.pathname === '/api/hoppers/h/memberships') {
       if (missing) return json({ code: 'not-found', message: 'not found' }, 404);
       const result = contents();
       if (orphanMember) result.memberships.unshift({ hopperId: 'h', subscriptionId: 's', remoteId: 'not-imported', addedAt: '2026-10-06' });
-      return json(url.searchParams.get('preview') === 'true' ? { ...result, items: result.items.slice(0, 3), memberships: result.memberships.slice(0, 3) } : result);
+      const byId = new Map(result.items.map(item => [item.remoteId, item]));
+      return json(page(result.memberships.map(member => ({ ...member, item: byId.get(member.remoteId) ?? null })), url.searchParams));
+    }
+    if (url.pathname === '/api/reading/summary') {
+      const requested = url.searchParams.get('sub') ?? 'all';
+      return json({ counts: { all: 30, own: 30, subscriptions: {} }, selected: requested === 'invalid' ? 'all' : requested });
     }
     if (url.pathname === '/api/reading') {
       const sub = url.searchParams.get('sub') ?? 'all';
-      const offset = Number(url.searchParams.get('offset') ?? 0);
       const kind = url.searchParams.get('kind') ?? 'fragment';
-      // The same entity is at rank 1 in "all" and rank 0 in "own".
-      // Another feed or lens must not overwrite either position.
-      const entries = offset > 0 ? [entry('next', kind)] :
-        sub === 'all' ? [entry('first', kind), entry('shared', kind)] : [entry('shared', kind)];
-      return json({ items: entries, offset, limit: 25, selected: sub === 'invalid' ? 'all' : sub, readState: true, readStateClear: true, total: 30, counts: { all: 30, own: 30, subscriptions: {} } });
+      const entries = sub === 'own' ? [entry('shared', kind), ...Array.from({ length: 29 }, (_, i) => entry(`own-${i}`, kind))]
+        : [entry('first', kind), entry('shared', kind), ...Array.from({ length: 23 }, (_, i) => entry(`filler-${i}`, kind)), ...Array.from({ length: 5 }, (_, i) => entry(`next-${i}`, kind))];
+      return json({ ...page(entries, url.searchParams, 50), readState: true, readStateClear: true });
     }
     if (url.pathname === '/api/mentions/m/source') return json({ holder: 's', subscription: null });
-    if (url.pathname === '/api/mentions') return json({ items: [], total: 0, offset: 0, limit: 100, direction: url.searchParams.get('direction') });
+    if (url.pathname === '/api/mentions') return json({ ...page([], url.searchParams), direction: url.searchParams.get('direction') });
     throw new Error(`Unexpected request: ${request.method} ${request.url}`);
   });
   db = await import('../src/ui/data.ts');
 });
 
-beforeEach(() => { revision = 0; itemRevision = 1; epoch = 'test'; text = 'original'; missing = false; failWrite = false; failRead = false; orphanMember = false; invalidItem = false; writeGate = undefined; detailGate = undefined; detailEntered = undefined; releaseWrite = undefined; requests.length = 0; });
+beforeEach(() => { revision = 0; itemRevision = 1; epoch = 'test'; text = 'original'; missing = false; failWrite = false; failRead = false; orphanMember = false; invalidItem = false; writeGate = undefined; detailGate = undefined; detailEntered = undefined; releaseWrite = undefined; requests.length = 0; itemCount = 1; memberCount = 4; versionCount = 0; pageRows = 0; itemPins = []; });
 afterEach(async () => {
   releaseWrite?.();
   await Promise.all(views.splice(0).map((view) => view.cleanup()));
   await Promise.all(Object.values(db.listViews).map((view) => view.cleanup()));
-  await Promise.all([db.items, db.itemHistory, db.hoppers, db.hopperStats, db.hopperEntries, db.hopperMemberships, db.reading, db.mentionSources].map((source) => source.cleanup()));
+  await Promise.all([db.items, db.itemHistory, db.itemVersions, db.hoppers, db.hopperStats, db.hopperEntries, db.hopperMemberships, db.reading, db.readingSummaries, db.mentionSources].map((source) => source.cleanup()));
   db.queryClient.clear();
 });
 afterAll(() => { db.queryClient.unmount(); vi.unstubAllGlobals(); });
@@ -149,20 +180,20 @@ test('restore read-back cannot grant a queued old-text save a foreign revision',
   expect(text).toBe('foreign edit after restore');
 });
 
-test('hopper projections share each preview and full response per revision', async () => {
+test('hopper projections share summary and membership pages per revision', async () => {
   const preview = db.hopperPreview('h'), full = db.hopperDetail('h'); views.push(preview, full);
   await preview.preload();
   const reads = () => requests.filter((request) => request.path === '/api/hoppers/h');
   expect(reads()).toHaveLength(1);
-  expect(reads()[0].params.get('preview')).toBe('true');
+  expect(requests.filter(request => request.path === '/api/hoppers/h/memberships')[0].params.get('limit')).toBe('3');
   await full.preload();
-  expect(reads()).toHaveLength(2);
-  expect(reads()[1].params.get('preview')).toBeNull();
+  expect(reads()).toHaveLength(1);
+  expect(requests.filter(request => request.path === '/api/hoppers/h/memberships')).toHaveLength(2);
   await refetch('hoppers', 'hopper-stats', 'hopper-entries', 'hopper-memberships');
-  expect(reads()).toHaveLength(2);
+  expect(reads()).toHaveLength(1);
   text = 'fresh'; revision++;
   await db.changed('hoppers');
-  expect(reads()).toHaveLength(4);
+  expect(reads()).toHaveLength(2);
   expect(full.toArray[0].items).toHaveLength(4);
   expect(preview.toArray[0].items).toHaveLength(3);
   expect(full.toArray[0].items[0].contentHtml).toBe('fresh 0');
@@ -214,24 +245,25 @@ test('item writes persist through the source and removed items leave every view'
   missing = true; revision++;
   await db.changed('items');
   expect(editor.toArray).toEqual([]);
-  expect(db.listViews.items.toArray).toEqual([]);
+  await vi.waitFor(() => expect(db.listViews.items.toArray).toEqual([]));
 });
 
 test('list polls do not start detail sources without a subscribed demand', async () => {
   await db.listViews.items.preload();
   requests.length = 0;
   await refetch('items', 'item-history');
-  expect(requests.map((request) => request.path)).toEqual(['/api/changes']);
+  expect(requests.map((request) => request.path)).toEqual(['/api/changes', '/api/changes', '/api/changes']);
 });
 
-test('route preload and locally sorted list share one backend demand', async () => {
+test('route preload and sorted list share a backend sequence and exact boundary read', async () => {
   const sorted = createLiveQueryCollection({ query: (q) => q.from({ item: db.items }).orderBy(({ item }) => item.updated, 'desc') });
   views.push(sorted);
   await Promise.all([db.listViews.items.preload(), sorted.preload()]);
-  expect(requests.filter((request) => request.path === '/api/items')).toHaveLength(1);
+  expect(requests.filter(request => request.path === '/api/items' && !request.params.has('id'))).toHaveLength(1);
+  expect(requests.filter(request => request.path === '/api/items' && request.params.get('id') === 'a')).toHaveLength(1);
   requests.length = 0;
   await refetch('items', 'item-history');
-  expect(requests.map((request) => request.path)).toEqual(['/api/changes']);
+  expect(requests.map((request) => request.path)).toEqual(['/api/changes', '/api/changes', '/api/changes', '/api/changes']);
 });
 
 test('route retry restarts a failed detail graph after the Query cache recovers', async () => {
@@ -257,7 +289,8 @@ test('all sources use generated OpenAPI schemas or explicit client extensions', 
     const source = db[name as keyof typeof sourceSchemas];
     expect(source.config.schema).toBe(schema);
   }
-  expect(sourceSchemas.items).toBe(zListItemsResponse.shape.items.element);
+  expect(sourceSchemas.items.parse(item())).toMatchObject({ ...item(), orderKey: expect.any(String) });
+  expect(zListItemsResponse.shape.items.element.safeParse(item()).success).toBe(true);
   expect(sourceSchemas.hoppers).toBe(zHopper);
   expect(sourceSchemas.subscriptions).toBe(zSubscription);
   expect(sourceSchemas.authorizations).toBe(zAuthorization);
@@ -287,7 +320,7 @@ test('reading feeds, lenses, and pages use one source with independent positions
   expect(all.toArray.find((row) => row.key === 'shared')?.rank).toBe(1);
   expect(own.toArray[0].rank).toBe(0); expect(next.toArray[0].rank).toBe(25);
   expect(threads.toArray.find((row) => row.key === 'shared')?.kind).toBe('thread');
-  expect(db.reading.size).toBe(6);
+  expect(db.reading.size).toBe(80);
   const reads = requests.filter((request) => request.path === '/api/reading').length;
   await refetch('reading');
   expect(requests.filter((request) => request.path === '/api/reading')).toHaveLength(reads);
@@ -306,7 +339,7 @@ test('hopper previews demand three entries and detail uses the same source rows'
   const full = db.hopperDetail('h'), preview = db.hopperPreview('h'); views.push(full, preview);
   await preview.preload();
   expect(preview.toArray[0].items).toHaveLength(3);
-  expect(requests.filter((request) => request.path === '/api/hoppers/h').every((request) => request.params.get('preview') === 'true')).toBe(true);
+  expect(requests.filter((request) => request.path === '/api/hoppers/h/memberships').every((request) => request.params.get('limit') === '3')).toBe(true);
   await full.preload();
   expect(full.toArray[0].items).toHaveLength(4); expect(preview.toArray[0].items).toHaveLength(3);
   expect(db.hopperEntries.size).toBe(4);
@@ -327,7 +360,7 @@ test('hopper memberships remain visible when an imported body is absent', async 
   expect(full.toArray[0].memberships).toHaveLength(5);
   expect(full.toArray[0].items).toHaveLength(4);
   expect(preview.toArray[0].memberships).toHaveLength(3);
-  expect(preview.toArray[0].items).toHaveLength(3);
+  expect(preview.toArray[0].items).toHaveLength(2);
 });
 
 test('backend source collections are top-level singletons with on-demand sync', () => {
@@ -390,8 +423,78 @@ test('mention lists and source cards re-read only when their revisions move', as
 });
 
 test('a missing reading source keeps the requested identity for the router redirect', async () => {
-  const view = db.readingView('invalid', 0); views.push(view);
+  const view = db.readingView('invalid', 0), summary = db.readingSummaryView('invalid'); views.push(view, summary);
+  await Promise.all([view.preload(), summary.preload()]);
+  expect(view.toArray).toHaveLength(25);
+  expect(view.toArray.every(row => row.view === 'invalid')).toBe(true);
+  expect(summary.toArray[0]).toMatchObject({ view: 'invalid', selected: 'all', total: 30 });
+});
+
+test('native windows stay bounded across a large timestamp tie and grow in the server order', async () => {
+  itemCount = 5_000;
+  const view = createLiveQueryCollection(q => q.from({ item: db.items })
+    .orderBy(({ item }) => item.orderKey, { direction: 'asc', stringSort: 'lexical' }).limit(25));
+  views.push(view);
   await view.preload();
-  expect(view.toArray).toHaveLength(1);
-  expect(db.queryClient.getQueriesData<{ data: { selected: string } }>({ queryKey: ['reading', 'invalid'] })[0][1]?.data.selected).toBe('all');
+  expect(view.toArray).toHaveLength(25);
+  expect(pageRows).toBeLessThanOrEqual(26);
+  await view.utils.setWindow({ offset: 0, limit: 50 });
+  expect(view.toArray.map(row => row.id)).toEqual(Array.from({ length: 50 }, (_, i) => `tail-${String(4_999 - i).padStart(5, '0')}`));
+  expect(pageRows).toBeLessThanOrEqual(52);
+  expect(db.items.size).toBeLessThanOrEqual(50);
+  expect(requests.filter(request => request.path === '/api/items').every(request => !request.params.has('offset'))).toBe(true);
+});
+
+test('membership windows acquire only their bounded cohort as the view grows', async () => {
+  memberCount = 5_000;
+  const view = createLiveQueryCollection(q => q.from({ member: db.hopperMemberships })
+    .where(({ member }) => eq(member.hopperId, 'h')).orderBy(({ member }) => member.rank, 'asc').limit(25));
+  views.push(view); await view.preload();
+  expect(view.toArray).toHaveLength(25); expect(pageRows).toBeLessThanOrEqual(26);
+  await view.utils.setWindow({ offset: 0, limit: 50 });
+  expect(view.toArray.map(row => row.remoteId)).toEqual(Array.from({ length: 50 }, (_, i) => String(i)));
+  expect(pageRows).toBeLessThanOrEqual(52); expect(db.hopperMemberships.size).toBeLessThanOrEqual(50);
+});
+
+test('history windows acquire only requested versions and exact boundaries', async () => {
+  versionCount = 5_000;
+  const view = createLiveQueryCollection(q => q.from({ version: db.itemVersions })
+    .where(({ version }) => eq(version.itemId, 'a')).orderBy(({ version }) => version.version, { direction: 'desc', stringSort: 'lexical' }).limit(25));
+  views.push(view); await view.preload();
+  expect(view.toArray).toHaveLength(25); expect(pageRows).toBeLessThanOrEqual(26);
+  await view.utils.setWindow({ offset: 0, limit: 50 });
+  expect(view.toArray.map(row => row.version)).toEqual(Array.from({ length: 50 }, (_, i) => 5_000 - i));
+  expect(pageRows).toBeLessThanOrEqual(52); expect(db.itemVersions.size).toBeLessThanOrEqual(50);
+});
+
+// Write DTOs do not carry the pin summaries projected by list/get reads.
+test('first draft save accepts a write DTO and advances the next acknowledged revision', async () => {
+  itemCount = 0; await db.listViews.items.preload();
+  const write = db.createDraftAction();
+  expect(await write({ type: 'save', text: 'first save', kind: 'fragment' })).toMatchObject({ id: 'a', revision: 1 });
+  expect(db.items.get('a')).toMatchObject({ contentMd: 'first save' });
+  expect(await write({ type: 'save', text: 'second save', kind: 'fragment' })).toMatchObject({ id: 'a', revision: 2 });
+  expect(db.items.get('a')?.contentMd).toBe('second save');
+});
+
+test('a fork write DTO can enter the item collection before its detail is loaded', async () => {
+  itemCount = 0; await db.listViews.items.preload();
+  const { pins, ...fork } = item();
+  await db.items.utils.writeUpsert({ ...fork, pins: [] });
+  expect(db.items.get('a')).toMatchObject({ id: 'a', contentMd: 'original' });
+});
+
+test('an existing item save preserves cached pin summaries', async () => {
+  itemPins = [{ version: 1, kind: 'fragment' }];
+  await db.listViews.items.preload();
+  await db.createDraftAction('a', 1)({ type: 'save', text: 'pinned save' });
+  expect(db.items.get('a')?.pins).toEqual([{ version: 1, kind: 'fragment' }]);
+});
+
+test('saving an unloaded published item obtains its pin summaries instead of clearing them', async () => {
+  itemCount = 0; await db.listViews.items.preload();
+  itemCount = 1; itemPins = [{ version: 1, kind: 'fragment' }];
+  await db.createDraftAction('a', 1)({ type: 'save', text: 'unloaded pinned save' });
+  expect(requests.filter(request => request.path === '/api/items/a').length).toBeGreaterThan(0);
+  expect(db.items.get('a')?.pins).toEqual(itemPins);
 });

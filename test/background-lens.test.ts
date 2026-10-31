@@ -26,7 +26,7 @@ describe("reading: withdrawn posts are background", () => {
     const keys = async (query: string) => {
       const res = await apiJson(cookie, "GET", `/blyg/api/reading?limit=50${query}`);
       expect(res.status).toBe(200);
-      return { keys: (res.json.items as { key: string }[]).map((e) => e.key), counts: res.json.counts };
+      return { keys: (res.json.items as { key: string }[]).map((e) => e.key), counts: (await apiJson(cookie, 'GET', `/blyg/api/reading/summary?${query.replace(/^&/, '')}`)).json.counts };
     };
     const feed = await keys("");
     expect(feed.keys).toContain(`own:${live}`);

@@ -20,6 +20,8 @@ export const triggerFamilies = [
   // status-dependent branches have their own receiving witness in the oracle.
   { table: 'mentions_in', insert: "INSERT INTO mentions_in(id,source,target,target_item_id,status,first_seen,last_seen) VALUES('matrix-mention','https://m/s','https://us/f/matrix-item/','matrix-item','verified','t','t')", update: "UPDATE mentions_in SET source_author_json='{}' WHERE id='matrix-mention'", remove: "DELETE FROM mentions_in WHERE id='matrix-mention'", domains: ['mentions', 'responses'] },
   { table: 'mentions_out', insert: "INSERT INTO mentions_out(id,item_id,version,target,status,created) VALUES('matrix-out','matrix-item',1,'https://them/','pending','t')", update: "UPDATE mentions_out SET status='sent',attempts=1 WHERE id='matrix-out'", remove: "DELETE FROM mentions_out WHERE id='matrix-out'", domains: ['mentions'] },
+  { table: 'interactions', insert: "INSERT INTO interactions(at,kind,origin,remote_id) VALUES('t','thumb_up','https://matrix-log/','remote')", update: "UPDATE interactions SET backfilled=1 WHERE origin='https://matrix-log/'", remove: "DELETE FROM interactions WHERE origin='https://matrix-log/'", domains: ['interactions'] },
+  { table: 'browse_log', insert: "INSERT INTO browse_log(at,trail,origin,remote_id,via) VALUES('t','matrix-trail','https://matrix-log/','remote','start')", update: "UPDATE browse_log SET title='title' WHERE trail='matrix-trail'", remove: "DELETE FROM browse_log WHERE trail='matrix-trail'", domains: ['browse'] },
 ] as const;
 
 // Independent one-field branches that the SQLite prototype supplied in SQL

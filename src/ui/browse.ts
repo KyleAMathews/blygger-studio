@@ -14,7 +14,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
-import { client } from './data.ts';
+import { client, changed } from './data.ts';
 
 export type Via = 'start' | 'stub' | 'quote' | 'link' | 'back';
 
@@ -122,7 +122,7 @@ export function visit(step: Omit<Step, 'stepId'>) {
       body: { trail: trail!, parentId: parentId, origin: step.origin, remoteId: step.id, version: step.version, via, title: step.title || null },
     }),
   ).then(
-    ({ id }) => {
+    async ({ id }) => {
       // The answer may arrive after the reader has moved on; label the step that is still there.
       const at = state.stack.findIndex((s) => sameStep(s, step.origin, step.id) && s.stepId === undefined);
       if (at >= 0 && state.trail === trail) {
@@ -130,6 +130,7 @@ export function visit(step: Omit<Step, 'stepId'>) {
         next[at] = { ...next[at], stepId: id };
         set({ ...state, stack: next });
       }
+      await changed('browse');
     },
     () => {},
   );

@@ -126,12 +126,12 @@ const WIDE_HTML =
   `<p><img src="${WIDE_IMAGE}" width="1600" height="300" alt="wide"></p>` +
   '<iframe width="1200" height="300" title="wide embed" srcdoc="<p>embed</p>"></iframe>' +
   Array.from({ length: 6 }, (_, i) => `<p>Filler paragraph ${i} so the card clamps.</p>`).join('');
-/** Serve the feed with one more legacy-RSS entry at the top: the wide post. */
+/** Put the wide legacy-RSS fixture at the start of the first cursor page. */
 async function injectWidePost(page: Page) {
   await page.route(/\/api\/reading(\?|$)/, async (route) => {
     const response = await route.fetch();
     const page0 = await response.json();
-    if (page0.offset === 0) {
+    if (!new URL(route.request().url()).searchParams.has('cursor')) {
       const at = '2026-10-17T00:00:00Z';
       page0.items.unshift({
         key: 'imported:["parity-rss","wide-fixture"]', source: 'imported', kind: 'fragment', withdrawn: false, l0: true, contentHtml: WIDE_HTML, displayAt: at,
@@ -145,13 +145,14 @@ async function injectWidePost(page: Page) {
 test('reading a post with wide content never scrolls the page sideways', async ({ page }) => {
   await login(page);
   await injectWidePost(page);
-  await page.goto('/studio/reading');
+  await page.goto('/studio/reading?sub=own');
   const entry = page.locator('.reading-entry').filter({ hasText: 'Wide fixture post' });
   await expect(entry).toBeVisible();
   await expect(entry.locator('img[alt=wide]')).toBeVisible();
   expect(await noSideScroll(page)).toBe(true);
   // The full view shows the whole post unclamped: still no sideways scroll.
   await entry.getByRole('button', { name: 'more', exact: true }).click();
+  await expect(page).toHaveURL(/\/studio\/reading\/parity-rss\/wide-fixture$/);
   await expect(page.locator('.reading-article')).toContainText('Filler paragraph 5');
   await expect(page.locator('.reading-article table')).toBeVisible();
   expect(await noSideScroll(page)).toBe(true);

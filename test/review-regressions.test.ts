@@ -4,7 +4,7 @@ import { contractApp, readJson } from "../src/contract/app.ts";
 import { routes } from "../src/contract/routes.ts";
 import { itemResource } from "../src/contract/resources.ts";
 import { itemShowsResponses, getSettings } from "../src/model.ts";
-import { apiJson, BASE, STUDIO, login } from "./helpers.ts";
+import { apiJson, BASE, STUDIO, login, testVersionHistory } from "./helpers.ts";
 import { createDraft, publish, getItem } from "../src/model.ts";
 import { BlyggerApi, createBlyggerClient } from "../sdk/dist/browser.js";
 import { makeApp } from "../src/index.ts";
@@ -21,7 +21,7 @@ describe("external review regressions", () => {
     await apiJson(cookie, "POST", `/blyg/api/items/${item.id}/publish`);
     await apiJson(cookie, "PUT", `/blyg/api/items/${item.id}/versions/1/pin`);
     const resource = await apiJson(cookie, 'GET', `/blyg/api/items/${item.id}`);
-    expect(resource.json.versions[0]).toMatchObject({ kind: 'thread', pinned: true, transclusions: [] });
+    expect(resource.json.published).toMatchObject({ kind: 'thread', pinned: true, transclusions: [] });
     expect((await request(cookie, `/blyg/t/${item.id}/v1/`)).status).toBe(200);
     const listed = await apiJson(cookie, 'GET', '/blyg/api/items');
     expect(listed.json.items.find((row: { id: string }) => row.id === item.id).pins).toEqual([{ version: 1, kind: 'thread' }]);
@@ -34,9 +34,11 @@ describe("external review regressions", () => {
     const content = "x".repeat(60_000);
     await env.DB.batch(Array.from({ length: 24 }, (_, i) => env.DB.prepare("INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, pinned) VALUES (?, ?, ?, ?, 'hash', '2026-09-30T00:00:00Z', 0)").bind(draft.id, i + 2, content, content)));
     expect((await request(cookie, STUDIO)).status).toBe(200);
-    const response = await request(cookie, `/blyg/api/items/${draft.id}`);
+    await env.DB.prepare('UPDATE items SET version=25 WHERE id=?').bind(draft.id).run();
+    const response = await request(cookie, `/blyg/api/items/${draft.id}/versions?limit=5`);
     expect(response.status).toBe(200);
-    expect((await response.json<any>()).versions).toHaveLength(25);
+    const first = await response.json<any>(); expect(first.items).toHaveLength(5); expect(first.page.nextCursor).toEqual(expect.any(String));
+    expect(await testVersionHistory(cookie, draft.id, 5)).toHaveLength(25);
   });
 
   it("R02 does not inflate a valid large version with SQL JSON escaping", async () => {
@@ -44,19 +46,25 @@ describe("external review regressions", () => {
     await publish(env.DB, draft, null, BASE + "/blyg/");
     const quoted = '"'.repeat(600_000);
     await env.DB.prepare("INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, pinned) VALUES (?, 2, ?, ?, 'hash', '2026-09-30T00:00:00Z', 0)").bind(draft.id, quoted, quoted).run();
-    const response = await request(cookie, `/blyg/api/items/${draft.id}`);
+    await env.DB.prepare('UPDATE items SET version=2 WHERE id=?').bind(draft.id).run();
+    const response = await request(cookie, `/blyg/api/items/${draft.id}/versions?limit=1`);
     expect(response.status).toBe(200);
-    expect((await response.json<any>()).versions[1].contentMd).toBe(quoted);
+    expect((await response.json<any>()).items[0].contentMd).toBe(quoted);
   });
 
   it("R04 pages past both historical mention caps", async () => {
     const cookie = await login();
     await env.DB.batch(Array.from({ length: 205 }, (_, i) => env.DB.prepare("INSERT INTO mentions_in (id, source, source_origin, source_id, source_kind, target, target_item_id, status, first_seen, last_seen, verified_at, hidden) VALUES (?, ?, 'https://source.example/', ?, 'fragment', 'target', 'target-id', 'verified', 'now', 'now', 'now', 0)").bind(`review-in-${i}`, `https://source.example/${i}`, String(i))));
     await env.DB.batch(Array.from({ length: 105 }, (_, i) => env.DB.prepare("INSERT INTO mentions_out (id, item_id, version, target, status, attempts, created) VALUES (?, ?, 1, ?, 'pending', 0, 'now')").bind(`review-out-${i}`, String(i), `https://target.example/${i}`)));
-    const inbound = await apiJson(cookie, "GET", "/blyg/api/mentions?direction=inbound&offset=200&limit=10");
-    expect(inbound.json.total).toBeGreaterThanOrEqual(205); expect(inbound.json.items.length).toBeGreaterThanOrEqual(5);
-    const outbound = await apiJson(cookie, "GET", "/blyg/api/mentions?direction=outbound&offset=100&limit=10");
-    expect(outbound.json.total).toBeGreaterThanOrEqual(105); expect(outbound.json.items.length).toBeGreaterThanOrEqual(5);
+    for (const [direction, minimum] of [['inbound', 205], ['outbound', 105]] as const) {
+      const seen: string[] = []; let cursor: string | null = null;
+      do {
+        const page = await apiJson(cookie, 'GET', `/blyg/api/mentions?${new URLSearchParams({ direction, limit: '10', ...(cursor ? { cursor } : {}) })}`);
+        expect(page.status).toBe(200); expect(page.json.items.length).toBeLessThanOrEqual(10);
+        seen.push(...page.json.items.map((row: { id: string }) => row.id)); cursor = page.json.page.nextCursor;
+      } while (cursor);
+      expect(seen.length).toBeGreaterThanOrEqual(minimum); expect(new Set(seen).size).toBe(seen.length);
+    }
   });
 
   it("R05 isolates malformed stored JSON without weakening scalar validation", async () => {
@@ -129,7 +137,7 @@ describe("external review regressions", () => {
       if (key === "prepare") return (sql: string) => {
         const wrap = (stmt: D1PreparedStatement): D1PreparedStatement => new Proxy(stmt, { get(statement, method) {
           if (method === "bind") return (...args: Parameters<D1PreparedStatement["bind"]>) => wrap(statement.bind(...args));
-          if (method === "all") return async () => { const result = await statement.all(); if (/SELECT ii\.\* FROM hopper_items/i.test(sql)) fetched += result.results.length; return result; };
+          if (method === "all") return async () => { const result = await statement.all(); if (/SELECT \* FROM imported_items/i.test(sql)) fetched += result.results.length; return result; };
           const value = Reflect.get(statement, method); return typeof value === "function" ? value.bind(statement) : value;
         } });
         return wrap(target.prepare(sql));
@@ -137,10 +145,11 @@ describe("external review regressions", () => {
       const value = Reflect.get(target, key); return typeof value === "function" ? value.bind(target) : value;
     } });
     const ctx = createExecutionContext();
-    const response = await makeApp("/blyg").fetch(new Request(BASE + `/blyg/api/hoppers/${hopper.id}?preview=true`, { headers: { cookie } }), { ...env, DB: db } as Env, ctx);
+    const response = await makeApp("/blyg").fetch(new Request(BASE + `/blyg/api/hoppers/${hopper.id}/memberships?limit=3`, { headers: { cookie } }), { ...env, DB: db } as Env, ctx);
     await waitOnExecutionContext(ctx);
     expect(response.status).toBe(200);
-    const page = await response.json<any>(); expect(page.total).toBe(8); expect(page.items).toHaveLength(3);
+    const page = await response.json<any>(); expect(page.items).toHaveLength(3); expect(page.items.every((row: any) => row.item !== null)).toBe(true);
+    expect((await apiJson(cookie, 'GET', `/blyg/api/hoppers/${hopper.id}`)).json.total).toBe(8);
     expect(fetched).toBe(3);
   });
 
@@ -160,10 +169,11 @@ describe("external review regressions", () => {
       const value = Reflect.get(target, key); return typeof value === "function" ? value.bind(target) : value;
     } });
     await env.DB.batch(Array.from({ length: 5000 }, (_, i) => env.DB.prepare("INSERT INTO signals (subscription_id, remote_id, thumb, at) VALUES ('review', ?, 1, 'now')").bind(String(i))));
+    const first = await apiJson(cookie, 'GET', '/blyg/api/signals?limit=100'); expect(first.status).toBe(200);
     const ctx = createExecutionContext();
-    const response = await app.fetch(new Request(BASE + "/blyg/api/signals?offset=100&limit=10", { headers: { cookie } }), { ...env, DB: db } as Env, ctx);
+    const response = await app.fetch(new Request(BASE + '/blyg/api/signals?' + new URLSearchParams({ limit: '10', cursor: first.json.page.nextCursor }), { headers: { cookie } }), { ...env, DB: db } as Env, ctx);
     await waitOnExecutionContext(ctx);
-    expect(response.status).toBe(200); expect(signalsFetched).toBe(10);
+    expect(response.status).toBe(200); expect(signalsFetched).toBe(11);
     // The unindexed query scanned at least 5,000 rows for this ten-row page.
     expect(rowsRead).toBeGreaterThan(0);
     expect(rowsRead).toBeLessThanOrEqual(500);

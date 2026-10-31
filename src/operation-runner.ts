@@ -1,4 +1,5 @@
 import { ItemRevisionConflict } from './item-revision.ts';
+import { CursorPageError } from './cursor-page.ts';
 import { z } from 'zod';
 import { schemaError } from './schema-error.ts';
 import type { OperationDefinition } from './operations.ts';
@@ -49,6 +50,7 @@ export async function runOperation(definition: OperationDefinition, input: Opera
   try {
     return await executeOperation(definition, input, context);
   } catch (error) {
+    if (error instanceof CursorPageError) return failure(error.kind, { error: error.message, code: error.code });
     if (error instanceof ItemRevisionConflict) return failure('conflict', { error: error.message, code: 'revision-conflict', itemId: error.itemId, expectedRevision: error.expectedRevision });
     if (error instanceof OperationError) return failure(error.kind, { error: error.message });
     console.error('Operation failed', { operation: definition.route.operationId, errorType: error instanceof Error ? error.name : typeof error });

@@ -16,7 +16,7 @@ export type Authorization = {
 };
 
 export type ApiError = {
-    code: 'invalid-input' | 'unauthorized' | 'forbidden' | 'not-found' | 'method-not-allowed' | 'conflict' | 'revision-conflict' | 'too-large' | 'unsupported-media' | 'unprocessable' | 'rate-limit' | 'internal' | 'bad-gateway';
+    code: 'invalid-input' | 'unauthorized' | 'forbidden' | 'not-found' | 'method-not-allowed' | 'conflict' | 'revision-conflict' | 'cursor-expired' | 'too-large' | 'unsupported-media' | 'unprocessable' | 'rate-limit' | 'internal' | 'bad-gateway';
     message: string;
     details?: {
         issues?: Array<{
@@ -70,6 +70,8 @@ export type ChangeState = {
         feed: number;
         mentions: number;
         responses: number;
+        interactions: number;
+        browse: number;
     };
 };
 
@@ -326,13 +328,6 @@ export type ChangeClass = {
     overridden: boolean;
 };
 
-export type HopperMembership = {
-    hopperId: string;
-    subscriptionId: string;
-    remoteId: string;
-    addedAt: string;
-};
-
 export type ImportedItem = {
     subscriptionId: string;
     remoteId: string;
@@ -360,6 +355,13 @@ export type ImportedItem = {
         [key: string]: unknown;
     } | null;
     generated: Array<unknown> | null;
+};
+
+export type HopperMembership = {
+    hopperId: string;
+    subscriptionId: string;
+    remoteId: string;
+    addedAt: string;
 };
 
 export type Signal = {
@@ -1016,8 +1018,16 @@ export type ListItemsData = {
     body?: never;
     path?: never;
     query?: {
-        offset?: number | null;
+        /**
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
+         */
+        cursor?: string;
         limit?: number;
+        status?: 'draft' | 'public' | 'withdrawn';
+        dirty?: 'true' | 'false';
+        version?: number | null;
+        id?: string;
+        updated?: string;
     };
     url: '/items';
 };
@@ -1081,14 +1091,15 @@ export type ListItemsResponses = {
      */
     200: {
         items: Array<Item & {
-            pins?: Array<{
+            pins: Array<{
                 version: number;
                 kind: 'fragment' | 'thread';
             }>;
         }>;
-        total: number;
-        offset: number;
-        limit: number;
+        page: {
+            limit: number;
+            nextCursor: string | null;
+        };
     };
 };
 
@@ -1343,15 +1354,18 @@ export type GetItemResponses = {
         provenance: Array<GenerationProvenance | null>;
         responses: 'default' | 'show' | 'hide';
         highlight: 'default' | 'show' | 'hide';
+        pins: Array<{
+            version: number;
+            kind: 'fragment' | 'thread';
+        }>;
         /**
-         * The working copy's attachments: what the next version lists.
+         * The working copy's attachments.
          */
         media: Array<Media>;
         /**
-         * What the live version lists, including attachments removed from the working copy since (studio#7).
+         * The live version attachments, including retained detached media.
          */
         publishedMedia: Array<Media>;
-        versions: Array<Version>;
         published: Version | null;
     };
 };
@@ -2408,7 +2422,10 @@ export type ListSubscriptionsData = {
     body?: never;
     path?: never;
     query?: {
-        offset?: number | null;
+        /**
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
+         */
+        cursor?: string;
         limit?: number;
     };
     url: '/subscriptions';
@@ -2473,9 +2490,10 @@ export type ListSubscriptionsResponses = {
      */
     200: {
         items: Array<Subscription>;
-        total: number;
-        offset: number;
-        limit: number;
+        page: {
+            limit: number;
+            nextCursor: string | null;
+        };
     };
 };
 
@@ -2943,7 +2961,10 @@ export type ListHoppersData = {
     body?: never;
     path?: never;
     query?: {
-        offset?: number | null;
+        /**
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
+         */
+        cursor?: string;
         limit?: number;
     };
     url: '/hoppers';
@@ -3008,9 +3029,10 @@ export type ListHoppersResponses = {
      */
     200: {
         items: Array<Hopper>;
-        total: number;
-        offset: number;
-        limit: number;
+        page: {
+            limit: number;
+            nextCursor: string | null;
+        };
     };
 };
 
@@ -3165,9 +3187,7 @@ export type GetHopperData = {
     path: {
         id: string;
     };
-    query?: {
-        preview?: 'true';
-    };
+    query?: never;
     url: '/hoppers/{id}';
 };
 
@@ -3230,8 +3250,6 @@ export type GetHopperResponses = {
      */
     200: {
         hopper: Hopper;
-        memberships: Array<HopperMembership>;
-        items: Array<ImportedItem>;
         total: number;
         sourceCount: number;
     };
@@ -4007,11 +4025,258 @@ export type UpdateMentionResponses = {
 
 export type UpdateMentionResponse = UpdateMentionResponses[keyof UpdateMentionResponses];
 
+export type GetItemSummaryData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/items/summary';
+};
+
+export type GetItemSummaryErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetItemSummaryError = GetItemSummaryErrors[keyof GetItemSummaryErrors];
+
+export type GetItemSummaryResponses = {
+    /**
+     * Success
+     */
+    200: {
+        all: number;
+        drafts: number;
+        changes: number;
+        public: number;
+        withdrawn: number;
+    };
+};
+
+export type GetItemSummaryResponse = GetItemSummaryResponses[keyof GetItemSummaryResponses];
+
+export type ListItemVersionsData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: {
+        /**
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
+         */
+        cursor?: string;
+        limit?: number;
+        version?: number;
+    };
+    url: '/items/{id}/versions';
+};
+
+export type ListItemVersionsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListItemVersionsError = ListItemVersionsErrors[keyof ListItemVersionsErrors];
+
+export type ListItemVersionsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        items: Array<Version>;
+        page: {
+            limit: number;
+            nextCursor: string | null;
+        };
+    };
+};
+
+export type ListItemVersionsResponse = ListItemVersionsResponses[keyof ListItemVersionsResponses];
+
+export type ListHopperMembershipsData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: {
+        /**
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
+         */
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/hoppers/{id}/memberships';
+};
+
+export type ListHopperMembershipsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListHopperMembershipsError = ListHopperMembershipsErrors[keyof ListHopperMembershipsErrors];
+
+export type ListHopperMembershipsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        items: Array<HopperMembership & {
+            item: ImportedItem | null;
+        }>;
+        page: {
+            limit: number;
+            nextCursor: string | null;
+        };
+    };
+};
+
+export type ListHopperMembershipsResponse = ListHopperMembershipsResponses[keyof ListHopperMembershipsResponses];
+
 export type ListSignalsData = {
     body?: never;
     path?: never;
     query?: {
-        offset?: number | null;
+        /**
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
+         */
+        cursor?: string;
         limit?: number;
     };
     url: '/signals';
@@ -4076,9 +4341,10 @@ export type ListSignalsResponses = {
      */
     200: {
         items: Array<Signal>;
-        total: number;
-        offset: number;
-        limit: number;
+        page: {
+            limit: number;
+            nextCursor: string | null;
+        };
     };
 };
 
@@ -4088,9 +4354,14 @@ export type ListInteractionsData = {
     body?: never;
     path?: never;
     query?: {
-        offset?: number | null;
+        /**
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
+         */
+        cursor?: string;
         limit?: number;
         kind?: 'thumb_up' | 'thumb_down' | 'thumb_clear' | 'hopper_add' | 'hopper_remove' | 'stub' | 'fork' | 'quote';
+        id?: number;
+        at?: string;
     };
     url: '/interactions';
 };
@@ -4154,9 +4425,10 @@ export type ListInteractionsResponses = {
      */
     200: {
         items: Array<Interaction>;
-        total: number;
-        offset: number;
-        limit: number;
+        page: {
+            limit: number;
+            nextCursor: string | null;
+        };
     };
 };
 
@@ -4165,7 +4437,17 @@ export type ListInteractionsResponse = ListInteractionsResponses[keyof ListInter
 export type ListThumbsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
+         */
+        cursor?: string;
+        limit?: number;
+        thumb?: '1' | '-1';
+        at?: string;
+        subscriptionId?: string;
+        remoteId?: string;
+    };
     url: '/thumbs';
 };
 
@@ -4228,10 +4510,87 @@ export type ListThumbsResponses = {
      */
     200: {
         items: Array<Thumb>;
+        page: {
+            limit: number;
+            nextCursor: string | null;
+        };
     };
 };
 
 export type ListThumbsResponse = ListThumbsResponses[keyof ListThumbsResponses];
+
+export type GetSignalSummaryData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/signals/summary';
+};
+
+export type GetSignalSummaryErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetSignalSummaryError = GetSignalSummaryErrors[keyof GetSignalSummaryErrors];
+
+export type GetSignalSummaryResponses = {
+    /**
+     * Success
+     */
+    200: {
+        liked: number;
+        disliked: number;
+        activity: number;
+    };
+};
+
+export type GetSignalSummaryResponse = GetSignalSummaryResponses[keyof GetSignalSummaryResponses];
 
 export type GetAiModelsData = {
     body?: never;
@@ -4306,7 +4665,10 @@ export type ListMentionsData = {
     body?: never;
     path?: never;
     query?: {
-        offset?: number | null;
+        /**
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
+         */
+        cursor?: string;
         limit?: number;
         direction?: 'inbound' | 'outbound';
     };
@@ -4372,9 +4734,10 @@ export type ListMentionsResponses = {
      */
     200: {
         items: Array<Mention | OutboundMention>;
-        total: number;
-        offset: number;
-        limit: number;
+        page: {
+            limit: number;
+            nextCursor: string | null;
+        };
         direction: 'inbound' | 'outbound';
     };
 };
@@ -4498,7 +4861,10 @@ export type SearchData = {
     body?: never;
     path?: never;
     query?: {
-        offset?: number | null;
+        /**
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
+         */
+        cursor?: string;
         limit?: number;
         q?: string;
         source?: 'all' | 'mine' | 'imported';
@@ -4581,9 +4947,10 @@ export type SearchResponses = {
             subscriptionId: string | null;
             sourceTitle: string | null;
         }>;
-        total: number;
-        offset: number;
-        limit: number;
+        page: {
+            limit: number;
+            nextCursor: string | null;
+        };
     };
 };
 
@@ -4661,16 +5028,109 @@ export type GetVersionResponses = {
 
 export type GetVersionResponse = GetVersionResponses[keyof GetVersionResponses];
 
+export type GetReadingSummaryData = {
+    body?: never;
+    path?: never;
+    query?: {
+        sub?: string;
+        /**
+         * Imported Reading entries held in this hopper, ordered by membership time.
+         */
+        hopper?: string;
+        kind?: 'thread' | 'fragment';
+        background?: 'true';
+    };
+    url: '/reading/summary';
+};
+
+export type GetReadingSummaryErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetReadingSummaryError = GetReadingSummaryErrors[keyof GetReadingSummaryErrors];
+
+export type GetReadingSummaryResponses = {
+    /**
+     * Success
+     */
+    200: {
+        counts: {
+            all: number;
+            own: number;
+            subscriptions: {
+                [key: string]: number;
+            };
+        };
+        selected: string;
+    };
+};
+
+export type GetReadingSummaryResponse = GetReadingSummaryResponses[keyof GetReadingSummaryResponses];
+
 export type ListReadingData = {
     body?: never;
     path?: never;
     query?: {
-        offset?: number | null;
+        /**
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
+         */
+        cursor?: string;
         limit?: number;
         sub?: string;
+        /**
+         * Imported Reading entries held in this hopper, ordered by membership time.
+         */
+        hopper?: string;
         kind?: 'thread' | 'fragment';
         /**
-         * Only withdrawn items (the Background lens). Without it, withdrawn items are left out.
+         * Only withdrawn entries.
          */
         background?: 'true';
     };
@@ -4736,23 +5196,16 @@ export type ListReadingResponses = {
      */
     200: {
         items: Array<ReadingEntry>;
-        counts: {
-            all: number;
-            own: number;
-            subscriptions: {
-                [key: string]: number;
-            };
+        page: {
+            limit: number;
+            nextCursor: string | null;
         };
-        total: number;
-        offset: number;
-        limit: number;
-        selected: string;
         /**
-         * This server stores read state: each imported entry's readVersion is meaningful.
+         * Imported readVersion values carry the owner read state.
          */
         readState: true;
         /**
-         * Read state can be cleared: DELETE /reading/{sub}/{remoteId}/read, POST /reading/unread, and readAt on reads.
+         * Read marks can be cleared.
          */
         readStateClear: true;
     };
@@ -4765,7 +5218,7 @@ export type ListImportedReadingData = {
     path?: never;
     query?: {
         /**
-         * The next value of the previous page. Opaque.
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
          */
         cursor?: string;
         limit?: number;
@@ -4832,11 +5285,10 @@ export type ListImportedReadingResponses = {
      */
     200: {
         items: Array<ImportedReadingEntry>;
-        /**
-         * Pass as cursor for the next page; null on the last page.
-         */
-        next: string | null;
-        limit: number;
+        page: {
+            limit: number;
+            nextCursor: string | null;
+        };
     };
 };
 
@@ -5302,9 +5754,13 @@ export type ListBrowseData = {
     body?: never;
     path?: never;
     query?: {
-        offset?: number | null;
+        /**
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
+         */
+        cursor?: string;
         limit?: number;
         trail?: string;
+        id?: number;
     };
     url: '/browse';
 };
@@ -5368,9 +5824,10 @@ export type ListBrowseResponses = {
      */
     200: {
         items: Array<BrowseStep>;
-        total: number;
-        offset: number;
-        limit: number;
+        page: {
+            limit: number;
+            nextCursor: string | null;
+        };
     };
 };
 

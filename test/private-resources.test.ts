@@ -1,3 +1,4 @@
+import { testVersionHistory } from './helpers.ts';
 import { env, SELF, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
 import { expect, it } from 'vitest';
 import { BASE, login } from './helpers.ts';
@@ -63,10 +64,10 @@ it('keeps a withdrawn thread authored kind in list and detail across empty repub
   const listing = await send('GET', '/items?limit=100');
   expect(detail).toMatchObject({ kind: 'thread', status: 'withdrawn', version: 2 });
   expect(listing.items.find((row: { id: string }) => row.id === item.id)).toMatchObject({ kind: 'thread', status: 'withdrawn' });
-  expect(detail.versions.map((v: { kind: string }) => v.kind)).toEqual(['thread', 'withdrawn']);
+  expect((await testVersionHistory(cookie, item.id)).map((v: { kind: string }) => v.kind)).toEqual(['thread', 'withdrawn']);
   expect(detail).not.toHaveProperty('authored_kind');
   await send('POST', `/items/${item.id}/publish`, { expectedRevision: withdrawn.revision });
   const republished = await send('GET', `/items/${item.id}`);
   expect(republished).toMatchObject({ kind: 'thread', status: 'public', version: 3 });
-  expect(republished.versions.map((v: { kind: string }) => v.kind)).toEqual(['thread', 'withdrawn', 'thread']);
+  expect((await testVersionHistory(cookie, item.id)).map((v: { kind: string }) => v.kind)).toEqual(['thread', 'withdrawn', 'thread']);
 });

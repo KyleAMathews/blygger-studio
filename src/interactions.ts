@@ -132,7 +132,7 @@ export interface InteractionView extends InteractionRow {
 }
 
 /** Labels from the local import of each target, when we still hold one. */
-async function withLabels<T extends { origin: string; remote_id: string }>(db: D1Database, rows: T[]): Promise<(T & { subscription_id: string | null; label: string | null })[]> {
+export async function withLabels<T extends { origin: string; remote_id: string }>(db: D1Database, rows: T[]): Promise<(T & { subscription_id: string | null; label: string | null })[]> {
   if (!rows.length) return [];
   const pairs = JSON.stringify([...new Map(rows.map((r) => [JSON.stringify([r.origin, r.remote_id]), { origin: r.origin, id: r.remote_id }])).values()]);
   const held = await db

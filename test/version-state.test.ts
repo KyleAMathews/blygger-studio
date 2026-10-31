@@ -19,7 +19,7 @@ describe('explicit publication state', () => {
     expect((await apiJson(cookie, 'POST', `/blyg/api/items/${id}/publish`, {})).json.version).toBe(1);
     expect((await getVersion(env.DB, id, 1))?.kind).toBe(kind);
     const detail = await apiJson(cookie, 'GET', `/blyg/api/items/${id}`);
-    expect(detail.json.versions[0]).toMatchObject({ kind, contentMd: '' });
+    expect(detail.json.published).toMatchObject({ kind, contentMd: '' });
     expect((await apiJson(cookie, 'PUT', `/blyg/api/items/${id}/versions/1/pin`)).status).toBe(200);
     const choices = await apiJson(cookie, 'GET', `/blyg/api/fork-options?id=${id}`);
     expect(choices.json.versions.map((row: { version: number }) => row.version)).toEqual([1]);
@@ -38,7 +38,7 @@ describe('explicit publication state', () => {
     const origin = `${BASE}/blyg/`;
     expect(await targetItemId(env.DB, new URL(`${origin}${segment}/${id}/`), origin)).toBe(id);
     expect(await targetItemId(env.DB, new URL(`${origin}${segment}/${id}/v1/`), origin)).toBe(id);
-    expect((await readingData(env.DB, 0, 25, 'own', kind, true)).items.find(row => row.own?.id === id)?.kind).toBe(kind);
+    expect((await readingData(env.DB, { limit: 25 }, 'own', kind, true)).items.find(row => row.own?.id === id)?.kind).toBe(kind);
     expect((await loadProvenance(env.DB, [[{ id, version: 1 }]])).localKinds.get(id)).toBe(kind);
     expect((await loadFeedHistory(env.DB)).items.find(row => row.id === id)).toMatchObject({ kind, withdrawn: true, versions: [{ version: 1 }] });
     expect((await apiJson(cookie, 'POST', `/blyg/api/items/${id}/restore`, { version: 1 })).status).toBe(200);

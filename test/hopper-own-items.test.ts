@@ -25,10 +25,11 @@ describe("own items in hoppers", () => {
     expect((await add("nosuchitem")).status).toBe(404);
     const before = await env.DB.prepare("SELECT COUNT(*) AS n FROM interactions WHERE kind = 'hopper_add'").first<{ n: number }>();
 
-    const detail = (await apiJson(cookie, "GET", `/blyg/api/hoppers/${hopper.id}`)).json;
-    expect(detail.total).toBe(2);
-    expect(detail.sourceCount).toBe(0);
-    expect(detail.memberships.map((m: { subscriptionId: string }) => m.subscriptionId)).toEqual(["~own", "~own"]);
+    const detail = (await apiJson(cookie, "GET", `/blyg/api/hoppers/${hopper.id}/memberships`)).json;
+    const summary = (await apiJson(cookie, "GET", `/blyg/api/hoppers/${hopper.id}`)).json;
+    expect(summary.total).toBe(2); expect(summary.sourceCount).toBe(0);
+    expect(detail.page.nextCursor).toBeNull();
+    expect(detail.items.map((m: { subscriptionId: string }) => m.subscriptionId)).toEqual(["~own", "~own"]);
 
     let page = await (await getPublic(`/blyg/h/${hopper.slug}/`)).text();
     expect(page).toContain(`/blyg/f/${post}/`);

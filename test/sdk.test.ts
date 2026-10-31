@@ -56,7 +56,7 @@ describe("generated SDK against the real Worker", () => {
   });
   it("does not retry when the Worker commits a creation but its response is lost", async () => {
     const cookie = await login(), ordinary = clientFor(cookie);
-    const before = await unwrap(BlyggerApi.listItems({ client: ordinary }));
+    const before = await unwrap(BlyggerApi.getItemSummary({ client: ordinary }));
     let calls = 0, committedId = "";
     const lost = createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie }, fetch: async (input, init) => {
       calls++;
@@ -69,7 +69,7 @@ describe("generated SDK against the real Worker", () => {
     expect(calls).toBe(1);
     expect(committedId).not.toBe("");
     expect((await unwrap(BlyggerApi.getItem({ client: ordinary, path: { id: committedId } }))).contentMd).toBe("committed without acknowledgement");
-    expect((await unwrap(BlyggerApi.listItems({ client: ordinary }))).total).toBe(before.total + 1);
+    expect((await unwrap(BlyggerApi.getItemSummary({ client: ordinary }))).all).toBe(before.all + 1);
     // A caller retry is a new creation; this test makes no idempotency promise.
   });
   it("matches declared response schemas for private reads and write commands", async () => {
@@ -96,7 +96,7 @@ describe("generated SDK against the real Worker", () => {
   });
   it("polling reads see new imports with distinct keys and sanitized HTML", async () => {
     const client = clientFor(await login());
-    const initial = await unwrap(BlyggerApi.listReading({ client: client }));
+    const initial = await unwrap(BlyggerApi.getReadingSummary({ client }));
     const subIds: string[] = [];
     for (const origin of ["https://a.example/feed", "https://b.example/feed"]) {
       const sub = await createSubscription(env.DB, { kind: "rss", origin, feedUrl: origin, title: origin });
@@ -111,7 +111,7 @@ describe("generated SDK against the real Worker", () => {
       expect(ReadingEntrySchema.safeParse(entry).success).toBe(true);
       expect(entry.contentHtml).not.toMatch(/onclick|script|bad\(\)/);
     }
-    expect(response.counts.all).toBe(initial.counts.all + 2);
+    expect((await unwrap(BlyggerApi.getReadingSummary({ client }))).counts.all).toBe(initial.counts.all + 2);
   });
   it("returns JSON errors for malformed JSON and unsupported media types", async () => {
     const cookie = await login();
@@ -158,13 +158,14 @@ describe("generated SDK against the real Worker", () => {
       await unwrap(BlyggerApi.publishItem({ client: client, path: { id: item.id } , body: { expectedRevision: await testItemRevision(item.id) } }));
       ids.push(item.id);
     }
+    await env.DB.batch(ids.map((id, i) => env.DB.prepare('UPDATE items SET updated = ? WHERE id = ?').bind(`2035-10-31T00:00:${String(i).padStart(2, '0')}Z`, id)));
     let queries = 0;
     const counted = new Proxy(env.DB, { get(target, key) {
       if (key === "prepare") return (sql: string) => { queries++; return target.prepare(sql); };
       const value = Reflect.get(target, key);
       return typeof value === "function" ? value.bind(target) : value;
     } });
-    const page = await readingData(counted, 0, 25, "own");
+    const page = await readingData(counted, { limit: 25 }, "own");
     expect(page.items.map((row) => row.own?.id)).toEqual(ids.slice(1).reverse());
     expect(page.items[0].contentHtml).toContain("budget 25");
     // Leave room for the SSR page's settings, hoppers and signals reads.

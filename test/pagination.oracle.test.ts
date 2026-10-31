@@ -10,7 +10,7 @@
  * History grammar: zero to twenty-five rows, three timestamps and widths one to ten.
  * Remote IDs are unique; repeated timestamps and subscriptions force tie-breaks.
  * Driver: insert fixture rows into real D1, then use the generated SDK through SELF.
- * Refinement: exact item values, order, total, offset and limit at each response;
+ * Refinement: exact item values, order, limit and opaque continuation exhaustion;
  * concatenated pages must equal the complete reference, including exhaustion.
  * Limits: the table stays static during each walk. No concurrent snapshot, arbitrary
  * Unicode collation or query-cost guarantee. Campaigns sample bounded inputs;
@@ -38,14 +38,16 @@ async function walk(times: number[], width: number) {
   if (rows.length) await env.DB.batch(rows.map(r => env.DB.prepare("INSERT INTO signals (subscription_id, remote_id, thumb, at) VALUES (?, ?, ?, ?)").bind(r.subscriptionId, r.remoteId, r.thumb, r.at)));
   const client = createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie: await login() }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
   const reference = expectedRows(rows), observed: Row[] = [];
-  // Walk past the end as well as through full pages. Exact per-page envelopes catch
-  // wrong totals and offsets; the ordered concatenation catches duplicates or loss
-  // across pages. Never normalize observations to a Set.
-  for (let offset = 0; offset <= rows.length + width; offset += width) {
-    const page = await unwrap(BlyggerApi.listSignals({ client, query: { offset, limit: width } }));
-    atCheckpoint("pagination page values and order", () => expect(page).toEqual({ items: reference.slice(offset, offset + width), offset, limit: width, total: rows.length }));
-    observed.push(...page.items);
-  }
+  // Independent position checks each page and whether the opaque walk is exhausted.
+  let cursor: string | undefined, offset = 0;
+  do {
+    const page = await unwrap(BlyggerApi.listSignals({ client, query: { cursor, limit: width } }));
+    atCheckpoint('pagination page values and order', () => expect(page.items).toEqual(reference.slice(offset, offset + width)));
+    expect(page.page.limit).toBe(width);
+    observed.push(...page.items); offset += page.items.length;
+    cursor = page.page.nextCursor ?? undefined;
+    expect(cursor !== undefined).toBe(offset < reference.length);
+  } while (cursor);
   atCheckpoint("pagination complete walk", () => expect(observed).toEqual(reference));
 }
 describe("pagination oracle", () => {

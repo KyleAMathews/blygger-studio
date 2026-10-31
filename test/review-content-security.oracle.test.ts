@@ -102,20 +102,20 @@ it('remote attribution cannot inject elements into public transclusion provenanc
 // Already-published bytes are immutable protocol history. Upgrade safety requires
 // inert presentation of old bakes without silently rewriting their stored/wire
 // snapshot. These witnesses seed the pre-fix shape, not a fresh safe publication.
-it.each(['public', 'pin', 'history', 'detail', 'reading'])('renders legacy bakes inert in %s without changing their snapshot', async surface => {
+it.each(['public', 'pin', 'history', 'history-page', 'detail', 'reading'])('renders legacy bakes inert in %s without changing their snapshot', async surface => {
   const f = await setup('<p>Safe quoted text</p>');
   const created = await f.owner('/blyg/api/items', 'POST', { kind: 'thread', contentMd: `![[${sourceId}]]` });
   expect(created.status).toBe(201); const { id } = await created.json() as { id: string };
   expect((await f.owner(`/blyg/api/items/${id}/publish`, 'POST')).status).toBe(200);
   const legacy = '<blockquote class="blyg-transclusion" data-blyg-id="' + sourceId + '"><p>Legacy safe text</p><img src="/missing" onerror="document.documentElement.dataset.compromised=1"></blockquote>';
   await env.DB.prepare('UPDATE versions SET content_html=?, pinned=1 WHERE item_id=? AND version=1').bind(legacy, id).run();
-  const paths = { public: `/blyg/t/${id}/`, pin: `/blyg/t/${id}/v1/`, history: `/blyg/api/items/${id}/versions/1`, detail: `/blyg/api/items/${id}`, reading: '/blyg/api/reading?sub=own' };
+  const paths = { public: `/blyg/t/${id}/`, pin: `/blyg/t/${id}/v1/`, history: `/blyg/api/items/${id}/versions/1`, 'history-page': `/blyg/api/items/${id}/versions?limit=1`, detail: `/blyg/api/items/${id}`, reading: '/blyg/api/reading?sub=own' };
   const response = await f.owner(paths[surface as keyof typeof paths]); expect(response.status).toBe(200);
   let html: string;
   if (surface === 'public' || surface === 'pin') html = await response.text();
   else {
     const value = await response.json() as any;
-    html = surface === 'history' ? value.contentHtml : surface === 'detail' ? value.versions[0].contentHtml : value.items.find((entry: any) => entry.own?.id === id).contentHtml;
+    html = surface === 'history' ? value.contentHtml : surface === 'detail' ? value.published.contentHtml : surface === 'history-page' ? value.items[0].contentHtml : value.items.find((entry: any) => entry.own?.id === id).contentHtml;
   }
   expect(html).toContain('Legacy safe text');
   await inert(html, 'legacy snapshot cannot regain script authority during presentation', surface === 'public' || surface === 'pin');

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from './fixture';
+import { openCard } from './editor.ts';
 async function login(page: Page) {
   await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
   await page.getByRole('button', { name: 'log in', exact: true }).click();
@@ -11,7 +12,7 @@ async function edit(page: Page) {
 }
 async function seedReading(page: Page, minimum: number) {
   await page.evaluate(async minimum => {
-    const total = (await (await fetch('/api/reading')).json()).total as number;
+    const total = (await (await fetch('/api/reading/summary')).json()).counts.all as number;
     for (let i = total; i < minimum; i++) {
       const response = await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: `Preload fixture ${i}` }) });
       const item = await response.json() as { id: string; revision: number };
@@ -27,6 +28,7 @@ test('SPA creates, edits, previews and publishes without document navigation', a
   await page.locator('#md-input').fill('React **round trip**');
   await expect(page.locator('#preview-body strong')).toHaveText('round trip');
   await page.locator('#publish-btn').click();
+  await openCard(page, 'history');
   await expect(page.locator('[data-action=view-version]')).toHaveCount(1);
   expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ version: 1, contentMd: 'React **round trip**' });
   // The editor has no tab bar (PWA phase 2A): back to compose, then reading.
@@ -74,16 +76,26 @@ test('reading walks real API pages without gaps or repeats', async ({ page }) =>
   });
   await page.goto('/studio/reading?sub=all');
   const observed: string[] = [];
-  const total = await page.evaluate(async () => (await (await fetch('/api/reading')).json()).total as number);
-  const count = Math.ceil(total / 25);
+  const expectedPages = await page.evaluate(async () => {
+    const pages: { own?: { id: string } }[][] = []; let cursor: string | undefined;
+    do {
+      const response = await fetch('/api/reading?' + new URLSearchParams({ limit: '25', ...(cursor ? { cursor } : {}) }));
+      if (!response.ok) throw new Error(`Reading page failed: ${response.status}`);
+      const value: { items: { own?: { id: string } }[]; page: { nextCursor: string | null } } = await response.json();
+      pages.push(value.items); cursor = value.page.nextCursor ?? undefined;
+    } while (cursor);
+    return pages;
+  });
+  const total = expectedPages.reduce((sum, items) => sum + items.length, 0);
+  const count = expectedPages.length;
   for (let i = 0; i < count; i++) {
-    const expectedPage = await page.evaluate(async offset => { const page = await (await fetch(`/api/reading?offset=${offset}&limit=25`)).json(); return page.items.filter((entry: { own: unknown }) => entry.own).map((entry: { own: { id: string } }) => entry.own.id) as string[]; }, i * 25);
+    const expectedPage = expectedPages[i].flatMap(entry => entry.own ? [entry.own.id] : []);
     await expect(page.locator('.reading-entry')).toHaveCount(Math.min(25, total - i * 25));
     await expect.poll(() => page.locator('.reading-entry a[href*="/edit/"]').evaluateAll(elements => elements.map(element => new URL((element as HTMLAnchorElement).href).pathname.split('/').at(-1)!))).toEqual(expectedPage);
     observed.push(...await page.locator('.reading-entry a[href*="/edit/"]').evaluateAll(elements => elements.map(element => new URL((element as HTMLAnchorElement).href).pathname.split('/').at(-1)!)));
     if (i + 1 < count) await page.getByRole('button', { name: 'older', exact: true }).click();
   }
-  const expected = await page.evaluate(async () => { const ids: string[] = []; for (let offset = 0;; offset += 25) { const page = await (await fetch(`/api/reading?offset=${offset}&limit=25`)).json(); ids.push(...page.items.filter((entry: { own: unknown }) => entry.own).map((entry: { own: { id: string } }) => entry.own.id)); if (offset + page.items.length >= page.total) return ids; } });
+  const expected = expectedPages.flat().flatMap(entry => entry.own ? [entry.own.id] : []);
   expect(observed).toEqual(expected);
   expect(observed.filter(id => ids.includes(id))).toHaveLength(52);
   expect(new Set(observed).size).toBe(observed.length);
@@ -117,12 +129,12 @@ for (const destination of ['hoppers', 'sources', 'mentions'] as const) {
     }
     const path = destination === 'mentions'
       ? '/api/mentions/parity-held/source'
-      : '/api/hoppers/parity-hopper';
+      : '/api/hoppers/parity-hopper/memberships';
     const reads: string[] = [];
     const matches = (url: string) => {
       const parsed = new URL(url);
       return parsed.pathname === path &&
-        (destination === 'mentions' || parsed.searchParams.get('preview') === 'true');
+        (destination === 'mentions' || parsed.searchParams.get('limit') === '3');
     };
     page.on('request', request => { if (matches(request.url())) reads.push(request.url()); });
     const loaded = page.waitForResponse(response => matches(response.url()) && response.ok());
@@ -146,19 +158,26 @@ for (const destination of ['hoppers', 'sources', 'mentions'] as const) {
   });
 }
 
-test('reading search survives reload and loads only the requested page', async ({ page }) => {
+test('reading view survives reload and reuses its bounded cursor page', async ({ page }) => {
   await login(page); await seedReading(page, 50);
   const reads: string[] = [];
   page.on('request', request => { if (new URL(request.url()).pathname === '/api/reading') reads.push(request.url()); });
+  const loaded = page.waitForResponse(response => new URL(response.url()).pathname === '/api/reading' && response.ok());
   await page.goto('/studio/reading?sub=own&page=2');
+  const first = (await (await loaded).json()).items as { own: { id: string } }[];
+  const visibleIds = () => page.locator('.reading-entry a[href*="/edit/"]').evaluateAll(elements => elements.map(element => new URL((element as HTMLAnchorElement).href).pathname.split('/').at(-1)!));
   await expect(page.locator('.reading-entry')).toHaveCount(25);
-  expect(reads.map(url => new URL(url).searchParams.get('offset'))).toEqual(['25']);
+  await expect.poll(visibleIds).toEqual(first.slice(25, 50).map(item => item.own.id));
+  expect(reads.map(url => { const query = new URL(url).searchParams; return { offset: query.get('offset'), cursor: query.get('cursor'), limit: query.get('limit') }; })).toEqual([{ offset: null, cursor: null, limit: '50' }]);
   await page.reload();
   await expect(page.locator('.reading-entry')).toHaveCount(25);
-  expect(reads.map(url => new URL(url).searchParams.get('offset'))).toEqual(['25', '25']);
+  await expect.poll(visibleIds).toEqual(first.slice(25, 50).map(item => item.own.id));
+  expect(reads).toHaveLength(2);
+  expect(reads.every(url => !new URL(url).searchParams.has('offset'))).toBe(true);
   await page.getByRole('button', { name: 'newer', exact: true }).click();
   await expect(page).toHaveURL(/offset=0/);
-  await expect(page.locator('.reading-entry')).toHaveCount(25);
+  await expect.poll(visibleIds).toEqual(first.slice(0, 25).map(item => item.own.id));
+  expect(reads).toHaveLength(2);
 });
 
 test('settings persist through the DB adapter and a fresh route load', async ({ page }) => {

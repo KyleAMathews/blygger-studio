@@ -3,7 +3,7 @@
 
 import type { Surface } from "../surface.ts";
 import type { HopperItemRow, HopperRow, ImportedItemRow, SignalRow, SubscriptionRow } from "../types.ts";
-import { newId, nowIso } from "../util.ts";
+import { newId, nowIso, toIsoUtc } from "../util.ts";
 import type { LocalState, TransitionEffect } from "./transition.ts";
 
 const FLAG_LOG_CAP = 20;
@@ -192,6 +192,8 @@ export async function applyEffect(
   observedAt: string,
   opts: { l0?: boolean; retainPinnedVersion?: number } = {},
 ): Promise<void> {
+  // Store foreign dates in UTC so SQL pages and Reading's display clamp agree.
+  // Observation times come from our clock; adopt-stealth keeps stored dates.
   const l0 = opts.l0 ? 1 : 0;
   switch (effect.type) {
     case "import": {
@@ -203,7 +205,7 @@ export async function applyEffect(
            VALUES (?, ?, ?, 'current', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
         )
         .bind(
-          subscriptionId, remoteId, d.kind, d.version, d.created, d.updated, observedAt,
+          subscriptionId, remoteId, d.kind, d.version, toIsoUtc(d.created) ?? null, toIsoUtc(d.updated) ?? null, observedAt,
           d.content_md, d.content_html, d.content_hash,
           JSON.stringify(d.author ?? null), JSON.stringify(d.media ?? []),
           d.transclusions ? JSON.stringify(d.transclusions) : null, l0,
@@ -227,7 +229,7 @@ export async function applyEffect(
              content_md = '', content_html = '', content_hash = NULL, author_json = NULL, media_json = NULL, transclusions_json = NULL,
              pinned_version_retained = NULL, stub_of_json = NULL, forked_from_json = NULL, generated_json = NULL`,
         )
-        .bind(subscriptionId, remoteId, effect.version, effect.updated, observedAt, l0)
+        .bind(subscriptionId, remoteId, effect.version, toIsoUtc(effect.updated) ?? null, observedAt, l0)
         .run();
       return;
     }
@@ -241,7 +243,7 @@ export async function applyEffect(
            WHERE subscription_id = ? AND remote_id = ?`,
         )
         .bind(
-          d.kind, d.version, d.updated, observedAt,
+          d.kind, d.version, toIsoUtc(d.updated) ?? null, observedAt,
           d.content_md, d.content_html, d.content_hash,
           JSON.stringify(d.author ?? null), JSON.stringify(d.media ?? []),
           d.transclusions ? JSON.stringify(d.transclusions) : null,
@@ -257,7 +259,7 @@ export async function applyEffect(
           .prepare(
             "UPDATE imported_items SET state = 'tombstone', version = ?, updated = ?, observed_at = ?, pinned_version_retained = ? WHERE subscription_id = ? AND remote_id = ?",
           )
-          .bind(effect.version, effect.updated, observedAt, opts.retainPinnedVersion, subscriptionId, remoteId)
+          .bind(effect.version, toIsoUtc(effect.updated) ?? null, observedAt, opts.retainPinnedVersion, subscriptionId, remoteId)
           .run();
         return;
       }
@@ -268,7 +270,7 @@ export async function applyEffect(
            stub_of_json = NULL, forked_from_json = NULL, generated_json = NULL
            WHERE subscription_id = ? AND remote_id = ?`,
         )
-        .bind(effect.version, effect.updated, observedAt, subscriptionId, remoteId)
+        .bind(effect.version, toIsoUtc(effect.updated) ?? null, observedAt, subscriptionId, remoteId)
         .run();
       return;
     }
@@ -282,7 +284,7 @@ export async function applyEffect(
            WHERE subscription_id = ? AND remote_id = ?`,
         )
         .bind(
-          d.kind, d.version, d.updated, observedAt,
+          d.kind, d.version, toIsoUtc(d.updated) ?? null, observedAt,
           d.content_md, d.content_html, d.content_hash,
           JSON.stringify(d.author ?? null), JSON.stringify(d.media ?? []),
           d.transclusions ? JSON.stringify(d.transclusions) : null,
@@ -331,7 +333,7 @@ export async function upsertL0Item(
          version = excluded.version, updated = excluded.updated, observed_at = excluded.observed_at,
          content_md = excluded.content_md, content_html = excluded.content_html, content_hash = excluded.content_hash`,
     )
-    .bind(subscriptionId, remoteId, row.version, row.created, row.updated, row.observedAt, row.contentMd, row.contentHtml, row.contentHash)
+    .bind(subscriptionId, remoteId, row.version, toIsoUtc(row.created) ?? null, toIsoUtc(row.updated) ?? null, row.observedAt, row.contentMd, row.contentHtml, row.contentHash)
     .run();
 }
 
@@ -350,7 +352,7 @@ export async function repairL0ItemDates(
 ): Promise<void> {
   await db
     .prepare("UPDATE imported_items SET created = ?, updated = ? WHERE subscription_id = ? AND remote_id = ?")
-    .bind(dates.created, dates.updated, subscriptionId, remoteId)
+    .bind(toIsoUtc(dates.created) ?? null, toIsoUtc(dates.updated) ?? null, subscriptionId, remoteId)
     .run();
 }
 

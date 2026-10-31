@@ -18,7 +18,7 @@ test('generated OpenAPI schemas reject extra fields on strict version references
   expect(VersionReferenceSchema.safeParse(extra).success).toBe(false);
 });
 
-test('generated item collection schema preserves both item fields and optional pins', () => {
+test('generated item collection schema preserves both item fields and required read-only pins', () => {
   const item = {
     id: 'a', revision: 1, kind: 'fragment', status: 'draft', created: '2026-10-06', updated: '2026-10-06', version: 1,
     contentMd: 'draft', dirty: false, responses: 'default', highlight: 'default',
@@ -27,7 +27,7 @@ test('generated item collection schema preserves both item fields and optional p
   expect(zItem.parse(item)).toEqual(ItemSchema.parse(item));
   const withPins = { ...item, pins: [{ version: 1, kind: 'fragment' }] };
   expect(zListItemsResponse.shape.items.element.parse(withPins)).toEqual(withPins);
-  expect(zListItemsResponse.shape.items.element.parse(item)).toEqual(item);
+  expect(zListItemsResponse.shape.items.element.safeParse(item).success).toBe(false);
 });
 
 test('generated scalar and enum constraints match their API schemas', () => {

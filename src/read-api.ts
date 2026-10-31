@@ -11,19 +11,19 @@ import { clampText } from "./preview.ts";
 import { applyInternalLinks, previewInternalLinks, previewTransclusions, resolveBlockLinks } from "./transclusion.ts";
 import { siteOrigin } from "./protocol.ts";
 import { MODELS, bindingName, configuredProviders, isDecisionModel } from "./ai/models.ts";
-import { changeClassesFor } from "./change-class.ts";
-import { INTERACTION_KINDS, listInteractions, listThumbs, type InteractionKind } from "./interactions.ts";
+import type { ChangeClassRow } from "./change-class.ts";
+import { withLabels, type InteractionRow } from "./interactions.ts";
 import { normalizeMount } from "./util.ts";
-import type { SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, MentionInRow, MentionOutRow } from "./types.ts";
+import type { SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, HopperItemRow, VersionRow, MentionInRow, MentionOutRow } from "./types.ts";
 import { itemDetail } from "./item-data.ts";
-import { readingData } from "./reading-data.ts";
+import { readingData, readingSummary } from "./reading-data.ts";
 import { IMPORTED_READING_DEFAULT, importedReading } from "./imported-reading.ts";
 import { getInbound } from "./mentions/store.ts";
 import { maybeCheckForUpdate } from "./update-check.ts";
 import { normalizeOrigin } from "./stub.ts";
 import { mentionFetchFor } from "./mentions/http.ts";
 import { platformFetchFor } from "./importer/http.ts";
-import { listBrowse, recordBrowse, clearBrowse, type BrowseVia } from "./browse-log.ts";
+import { recordBrowse, clearBrowse, type BrowseVia, type BrowseRow } from "./browse-log.ts";
 import { classifyLinks, peekItem } from "./peek.ts";
 import { fetchImportedHistory, fetchPublicVersion } from "./imported-history.ts";
 import { readChanges } from './changes.ts';
@@ -33,102 +33,127 @@ import { versionState } from './version-state.ts';
 import { operationAvailability } from './operation-availability.ts';
 import { API_CONTRACT_VERSION } from './operation-policy.ts';
 import { deploymentUrls } from './deployment-urls.ts';
+import { cursorPage } from './cursor-page.ts';
 
 const getCapabilitiesOperation = async (context: OperationContext, input: OperationInput) => {
   return success({ contractVersion: API_CONTRACT_VERSION, endpoints: deploymentUrls(context.url, context.env),
     ...await operationAvailability(context.env.DB, context.access, context.extensions) });
 };
 const getChangesOperation = async (context: OperationContext, input: OperationInput) => success(await readChanges(context.env.DB));
-async function collection<T>(db: D1Database, query: Record<string, string>, sql: string, countSql: string) {
-  const offset = Number(query.offset ?? 0), limit = Number(query.limit ?? 100);
-  const [rows, count] = await Promise.all([
-    db.prepare(`${sql} LIMIT ? OFFSET ?`).bind(limit, offset).all<T>(),
-    db.prepare(countSql).first<{ total: number }>(),
-  ]);
-  return { items: rows.results, total: count?.total ?? 0, offset, limit };
-}
-
+// Pin history retains the legacy nullness rule for unresolved version kinds.
+const pinKindSql = `CASE WHEN kind IN ('fragment','thread') THEN kind WHEN transclusions IS NULL THEN 'fragment' ELSE 'thread' END`;
 const listItemsOperation = async (context: OperationContext, input: OperationInput) => {
-  const offset = Number(input.query.offset ?? 0), limit = Number(input.query.limit ?? 100);
-  const [rows, count] = await Promise.all([
-    context.env.DB.prepare(`SELECT i.*, ${authoredItemKindSql('p')} AS authored_kind FROM items i LEFT JOIN versions p ON p.item_id=i.id AND p.version=i.version-1 ORDER BY i.updated DESC, i.rowid DESC LIMIT ? OFFSET ?`).bind(limit, offset).all<ItemRow & { authored_kind: "fragment" | "thread" }>(),
-    context.env.DB.prepare("SELECT COUNT(*) AS total FROM items").first<{ total: number }>(),
-  ]);
-  // Return frozen version links without loading history bodies into the index.
-  const pins = rows.results.length ? (await context.env.DB.prepare(`SELECT item_id, version, CASE WHEN kind IN ('fragment','thread') THEN kind WHEN transclusions IS NULL THEN 'fragment' ELSE 'thread' END AS kind FROM versions WHERE pinned = 1 AND item_id IN (${rows.results.map(() => '?').join(',')}) ORDER BY version`).bind(...rows.results.map(row => row.id)).all<{ item_id: string; version: number; kind: 'fragment' | 'thread' }>()).results : [];
-  return success({ items: rows.results.map(row => ({ ...itemResource(row, row.authored_kind), pins: pins.filter(pin => pin.item_id === row.id).map(({ version, kind }) => ({ version, kind })) })), total: count?.total ?? 0, offset, limit });
+  const filters = [input.query.status ?? null, input.query.dirty ?? null, input.query.version ?? null, input.query.id ?? null, input.query.updated ?? null];
+  const where: string[] = [], binds: (string | number)[] = [];
+  if (input.query.status) { where.push('i.status = ?'); binds.push(input.query.status); }
+  if (input.query.dirty) { where.push('i.dirty = ?'); binds.push(input.query.dirty === 'true' ? 1 : 0); }
+  if (input.query.id) { where.push('i.id = ?'); binds.push(input.query.id); }
+  if (input.query.updated) { where.push('i.updated = ?'); binds.push(input.query.updated); }
+  if (input.query.version) { where.push('i.version = ?'); binds.push(Number(input.query.version)); }
+  return success(await cursorPage<ItemRow & { authored_kind: 'fragment' | 'thread' }, ReturnType<typeof itemResource> & { pins: { version: number; kind: 'fragment' | 'thread' }[] }>(context.env.DB, input.query, {
+    name: 'items', filters, domains: ['items'], binds,
+    sql: `SELECT i.*, ${authoredItemKindSql('p')} AS authored_kind FROM items i LEFT JOIN versions p ON p.item_id=i.id AND p.version=i.version-1${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`,
+    order: [{ column: 'updated', direction: 'desc' }, { column: 'id', direction: 'desc' }],
+    project: async rows => {
+      // Frozen links, without history bodies. The projection is inside the generation guard.
+      const pins = rows.length ? (await context.env.DB.prepare(`SELECT item_id, version, ${pinKindSql} AS kind FROM versions WHERE pinned = 1 AND item_id IN (${rows.map(() => '?').join(',')}) ORDER BY version`).bind(...rows.map(row => row.id)).all<{ item_id: string; version: number; kind: 'fragment' | 'thread' }>()).results : [];
+      return rows.map(row => ({ ...itemResource(row, row.authored_kind), pins: pins.filter(pin => pin.item_id === row.id).map(({ version, kind }) => ({ version, kind })) }));
+    },
+  }));
 };
 // Owner DTOs feed HTML previews. Sanitize copies, not immutable version rows or
 // public protocol snapshots, so legacy bakes cannot regain browser authority.
 async function presentVersion(row: Parameters<typeof versionResource>[0]) {
   return versionResource({ ...row, content_html: await sanitizeHtml(row.content_html) });
 }
+async function presentVersions(db: D1Database, rows: VersionRow[]) {
+  const classes = rows.length ? (await db.prepare('SELECT * FROM change_class WHERE item_id = ? AND version IN (SELECT value FROM json_each(?))').bind(rows[0].item_id, JSON.stringify(rows.map(row => row.version))).all<ChangeClassRow>()).results : [];
+  return Promise.all(rows.map(async row => {
+    const cls = classes.find(value => value.version === row.version);
+    return { ...await presentVersion(row), changeClass: cls ? { category: cls.category, model: cls.model, probability: cls.probability, classifiedAt: cls.classified_at, overridden: cls.overridden === 1 } : null };
+  }));
+}
+const getItemSummaryOperation = async (context: OperationContext) => success(await context.env.DB.prepare(`SELECT COUNT(*) AS 'all', COALESCE(SUM(version=0),0) AS drafts, COALESCE(SUM(dirty=1 AND status='public'),0) AS changes, COALESCE(SUM(status='public'),0) AS public, COALESCE(SUM(status='withdrawn'),0) AS withdrawn FROM items`).first());
 const getItemOperation = async (context: OperationContext, input: OperationInput) => {
   const detail = await itemDetail(context.env.DB, input.path.id);
-  if (!detail) return failure('not-found', { error: "not found" });
-  // The change classifier's studio-private record rides on the owner's view of
-  // each version (migration 0030); protocol.ts never reads it.
-  const classes = await changeClassesFor(context.env.DB, detail.item.id, detail.item.version);
-  const withClass = async (row: Parameters<typeof versionResource>[0]) => {
-    const cls = classes.get(row.version);
-    return { ...(await presentVersion(row)), changeClass: cls ? { category: cls.category, model: cls.model, probability: cls.probability, classifiedAt: cls.classified_at, overridden: cls.overridden === 1 } : null };
-  };
+  if (!detail) return failure('not-found', { error: 'not found' });
   const publicBase = deploymentUrls(context.url, context.env).publicBase;
+  const pins = (await context.env.DB.prepare(`SELECT version, ${pinKindSql} AS kind FROM versions WHERE item_id = ? AND pinned = 1 ORDER BY version`).bind(detail.item.id).all<{ version: number; kind: 'fragment' | 'thread' }>()).results;
   return success({
-    ...itemResource(detail.item, detail.kind),
+    ...itemResource(detail.item, detail.kind), pins,
     media: detail.media.map(row => mediaResource(row, publicBase)),
     publishedMedia: detail.publishedMedia.map(row => mediaResource(row, publicBase)),
-    versions: await Promise.all(detail.versions.map(withClass)),
-    published: detail.published ? await withClass(detail.published) : null,
+    published: detail.published ? (await presentVersions(context.env.DB, [detail.published]))[0] : null,
   });
 };
-const getSettingsOperation = async (context: OperationContext, input: OperationInput) => success(settingsResource(await getSettings(context.env.DB)));
-const listSubscriptionsOperation = async (context: OperationContext, input: OperationInput) => {
-  const page = await collection<SubscriptionRow>(context.env.DB, input.query, "SELECT * FROM subscriptions ORDER BY created ASC, id ASC", "SELECT COUNT(*) AS total FROM subscriptions");
-  return success({ ...page, items: page.items.map(subscriptionResource) });
+const listItemVersionsOperation = async (context: OperationContext, input: OperationInput) => {
+  if (!await getItem(context.env.DB, input.path.id)) return failure('not-found', { error: 'not found' });
+  return success(await cursorPage<VersionRow, Awaited<ReturnType<typeof presentVersions>>[number]>(context.env.DB, input.query, {
+    name: 'item-versions', filters: [input.path.id, input.query.version ?? null], domains: ['items'],
+    sql: `SELECT * FROM versions WHERE item_id = ?${input.query.version ? ' AND version = ?' : ''}`, binds: [input.path.id, ...(input.query.version ? [Number(input.query.version)] : [])],
+    order: [{ column: 'version', direction: 'desc' }], project: rows => presentVersions(context.env.DB, rows),
+  }));
 };
+const getSettingsOperation = async (context: OperationContext, input: OperationInput) => success(settingsResource(await getSettings(context.env.DB)));
+const listSubscriptionsOperation = async (context: OperationContext, input: OperationInput) => success(await cursorPage<SubscriptionRow, ReturnType<typeof subscriptionResource>>(context.env.DB, input.query, {
+  name: 'subscriptions', domains: ['subscriptions'], sql: 'SELECT * FROM subscriptions',
+  order: [{ column: 'created', direction: 'asc' }, { column: 'id', direction: 'asc' }], project: rows => rows.map(subscriptionResource),
+}));
 const getSubscriptionOperation = async (context: OperationContext, input: OperationInput) => {
   const sub = await getSubscription(context.env.DB, input.path.id);
   return sub ? success(subscriptionResource(sub)) : failure('not-found', { error: "not found" });
 };
-const listHoppersOperation = async (context: OperationContext, input: OperationInput) => {
-  const page = await collection<HopperRow>(context.env.DB, input.query, "SELECT * FROM hoppers ORDER BY created ASC, id ASC", "SELECT COUNT(*) AS total FROM hoppers");
-  return success({ ...page, items: page.items.map(hopperResource) });
-};
+const listHoppersOperation = async (context: OperationContext, input: OperationInput) => success(await cursorPage<HopperRow, ReturnType<typeof hopperResource>>(context.env.DB, input.query, {
+  name: 'hoppers', domains: ['hoppers'], sql: 'SELECT * FROM hoppers',
+  order: [{ column: 'created', direction: 'asc' }, { column: 'id', direction: 'asc' }], project: rows => rows.map(hopperResource),
+}));
 const getHopperOperation = async (context: OperationContext, input: OperationInput) => {
   const hopper = await getHopper(context.env.DB, input.path.id);
-  if (!hopper) return failure('not-found', { error: "not found" });
-  const preview = input.query.preview === "true";
-  const limit = preview ? " LIMIT 3" : "";
-  const memberships = (await context.env.DB.prepare(`SELECT * FROM hopper_items WHERE hopper_id = ? ORDER BY added_at DESC, subscription_id, remote_id${limit}`).bind(hopper.id).all<import("./types.ts").HopperItemRow>()).results;
+  if (!hopper) return failure('not-found', { error: 'not found' });
   const counts = await context.env.DB.prepare("SELECT COUNT(*) AS total, COUNT(DISTINCT CASE WHEN subscription_id <> '~own' THEN subscription_id END) AS source_count FROM hopper_items WHERE hopper_id = ?").bind(hopper.id).first<{ total: number; source_count: number }>();
-  const rows = await context.env.DB.prepare(`SELECT ii.* FROM hopper_items hi JOIN imported_items ii
-    ON ii.subscription_id = hi.subscription_id AND ii.remote_id = hi.remote_id
-    WHERE hi.hopper_id = ? ORDER BY hi.added_at DESC, hi.subscription_id, hi.remote_id${limit}`).bind(hopper.id).all<ImportedItemRow>();
-  const items = await Promise.all(rows.results.map(async (r) => importedResource({ ...r, content_html: await sanitizeHtml(r.content_html) })));
-  return success({ hopper: hopperResource(hopper), memberships: memberships.map(membershipResource), items, total: counts?.total ?? 0, sourceCount: counts?.source_count ?? 0 });
+  return success({ hopper: hopperResource(hopper), total: counts?.total ?? 0, sourceCount: counts?.source_count ?? 0 });
 };
-const listSignalsOperation = async (context: OperationContext, input: OperationInput) => {
-  const page = await collection<SignalRow>(context.env.DB, input.query, "SELECT * FROM signals ORDER BY at DESC, subscription_id, remote_id", "SELECT COUNT(*) AS total FROM signals");
-  return success({ ...page, items: page.items.map(signalResource) });
+const listHopperMembershipsOperation = async (context: OperationContext, input: OperationInput) => {
+  if (!await getHopper(context.env.DB, input.path.id)) return failure('not-found', { error: 'not found' });
+  return success(await cursorPage<HopperItemRow, ReturnType<typeof membershipResource> & { item: ReturnType<typeof importedResource> | null }>(context.env.DB, input.query, {
+    name: 'hopper-memberships', filters: [input.path.id], domains: ['hoppers', 'reading', 'subscriptions'],
+    sql: 'SELECT * FROM hopper_items WHERE hopper_id = ?', binds: [input.path.id],
+    order: [{ column: 'added_at', direction: 'desc' }, { column: 'subscription_id', direction: 'asc' }, { column: 'remote_id', direction: 'asc' }],
+    project: async rows => {
+      const bodies = rows.length ? (await context.env.DB.prepare(`SELECT * FROM imported_items WHERE (subscription_id, remote_id) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`).bind(JSON.stringify(rows.map(row => [row.subscription_id, row.remote_id]))).all<ImportedItemRow>()).results : [];
+      return Promise.all(rows.map(async row => {
+        const body = bodies.find(item => item.subscription_id === row.subscription_id && item.remote_id === row.remote_id);
+        return { ...membershipResource(row), item: body ? importedResource({ ...body, content_html: await sanitizeHtml(body.content_html) }) : null };
+      }));
+    },
+  }));
 };
+const listSignalsOperation = async (context: OperationContext, input: OperationInput) => success(await cursorPage<SignalRow, ReturnType<typeof signalResource>>(context.env.DB, input.query, {
+  name: 'signals', domains: ['signals'], sql: 'SELECT * FROM signals',
+  order: [{ column: 'at', direction: 'desc' }, { column: 'subscription_id', direction: 'asc' }, { column: 'remote_id', direction: 'asc' }], project: rows => rows.map(signalResource),
+}));
 const listMentionsOperation = async (context: OperationContext, input: OperationInput) => {
-  const direction = input.query.direction ?? "inbound";
-  const where = "WHERE status IN ('verified','gone')";
-  if (direction === "outbound") {
-    const page = await collection<MentionOutRow>(context.env.DB, input.query, "SELECT * FROM mentions_out ORDER BY created DESC, id ASC", "SELECT COUNT(*) AS total FROM mentions_out");
-    return success({ ...page, items: page.items.map(outboundMentionResource), direction });
-  }
-  const page = await collection<MentionInRow>(context.env.DB, input.query, `SELECT * FROM mentions_in ${where} ORDER BY verified_at DESC, last_seen DESC, id ASC`, `SELECT COUNT(*) AS total FROM mentions_in ${where}`);
-  return success({ ...page, items: page.items.map(mentionResource), direction });
+  const direction = input.query.direction ?? 'inbound';
+  const page = direction === 'outbound'
+    ? await cursorPage<MentionOutRow, ReturnType<typeof outboundMentionResource>>(context.env.DB, input.query, {
+        name: 'mentions', filters: [direction], domains: ['mentions'], sql: 'SELECT * FROM mentions_out',
+        order: [{ column: 'created', direction: 'desc' }, { column: 'id', direction: 'asc' }], project: rows => rows.map(outboundMentionResource),
+      })
+    : await cursorPage<MentionInRow, ReturnType<typeof mentionResource>>(context.env.DB, input.query, {
+        name: 'mentions', filters: [direction], domains: ['mentions'], sql: "SELECT * FROM mentions_in WHERE status IN ('verified','gone')",
+        order: [{ column: 'verified_at', direction: 'desc' }, { column: 'last_seen', direction: 'desc' }, { column: 'id', direction: 'asc' }], project: rows => rows.map(mentionResource),
+      });
+  return success({ ...page, direction });
 };
 const listInteractionsOperation = async (context: OperationContext, input: OperationInput) => {
-  const offset = Math.max(0, Number(input.query.offset ?? 0) || 0);
-  const limit = Math.min(100, Math.max(1, Number(input.query.limit ?? 50) || 50));
-  const raw = input.query.kind;
-  const kind = INTERACTION_KINDS.includes(raw as InteractionKind) ? (raw as InteractionKind) : undefined;
-  const page = await listInteractions(context.env.DB, offset, limit, kind);
-  return success({ ...page, items: page.items.map(interactionResource), offset, limit });
+  const query = input.query, where: string[] = [], binds: (string | number)[] = [];
+  for (const field of ['kind', 'id', 'at'] as const) if (query[field] !== undefined) { where.push(`${field} = ?`); binds.push(field === 'id' ? Number(query[field]) : query[field]); }
+  return success(await cursorPage<InteractionRow, ReturnType<typeof interactionResource>>(context.env.DB, query, {
+    name: 'interactions', filters: [query.kind ?? null, query.id ?? null, query.at ?? null], domains: ['interactions', 'reading', 'subscriptions'],
+    sql: `SELECT * FROM interactions${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`, binds,
+    order: [{ column: 'at', direction: 'desc' }, { column: 'id', direction: 'desc' }],
+    project: async rows => (await withLabels(context.env.DB, rows)).map(interactionResource),
+  }));
 };
 const getAiModelsOperation = async (context: OperationContext, input: OperationInput) => {
   const configured = configuredProviders(context.env);
@@ -147,10 +172,21 @@ const getAiModelsOperation = async (context: OperationContext, input: OperationI
     local: MODELS.local,
   });
 };
-const listThumbsOperation = async (context: OperationContext, input: OperationInput) => success({ items: (await listThumbs(context.env.DB)).map(thumbResource) });
+const getSignalSummaryOperation = async (context: OperationContext) => success(await context.env.DB.prepare(`SELECT COALESCE(SUM(thumb=1),0) AS liked, COALESCE(SUM(thumb=-1),0) AS disliked, (SELECT COUNT(*) FROM interactions) AS activity FROM signals`).first());
+const listThumbsOperation = async (context: OperationContext, input: OperationInput) => {
+  const query = input.query, where: string[] = [], binds: (string | number)[] = [];
+  for (const [field, column] of [['thumb', 'thumb'], ['at', 'at'], ['subscriptionId', 'subscription_id'], ['remoteId', 'remote_id']] as const) if (query[field] !== undefined) { where.push(`sig.${column} = ?`); binds.push(field === 'thumb' ? Number(query[field]) : query[field]); }
+  return success(await cursorPage<{ thumb: 1 | -1; at: string; origin: string; remote_id: string; cursor_sub: string }, ReturnType<typeof thumbResource>>(context.env.DB, query, {
+    name: 'thumbs', filters: [query.thumb ?? null, query.at ?? null, query.subscriptionId ?? null, query.remoteId ?? null], binds, domains: ['signals', 'reading', 'subscriptions'],
+    sql: `SELECT sig.thumb, sig.at, sub.origin, sig.remote_id, sig.subscription_id AS cursor_sub FROM signals sig JOIN subscriptions sub ON sub.id = sig.subscription_id${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`,
+    order: [{ column: 'at', direction: 'desc' }, { column: 'cursor_sub', direction: 'asc' }, { column: 'remote_id', direction: 'asc' }],
+    project: async rows => (await withLabels(context.env.DB, rows)).map(row => thumbResource({ ...row, subscription_id: row.cursor_sub })),
+  }));
+};
 // `read_state: true` advertises that imported entries carry the owner's
 // readVersion, so a client can tell "unread" from "this server keeps none".
-const listReadingOperation = async (context: OperationContext, input: OperationInput) => success({ ...await readingData(context.env.DB, Number(input.query.offset ?? 0), Number(input.query.limit ?? 25), input.query.sub, readingKind(input.query.kind), input.query.background === "true"), readState: true as const, readStateClear: true as const });
+const listReadingOperation = async (context: OperationContext, input: OperationInput) => success({ ...await readingData(context.env.DB, { ...input.query, limit: input.query.limit ?? 25 }, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper), readState: true as const, readStateClear: true as const });
+const getReadingSummaryOperation = async (context: OperationContext, input: OperationInput) => success(await readingSummary(context.env.DB, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper));
 // Imported items only, keyset-paged, for clients that author from what they read (studio#11).
 const listImportedReadingOperation = async (context: OperationContext, input: OperationInput) => {
   return success(await importedReading(context.env.DB, input.query.cursor, Number(input.query.limit ?? IMPORTED_READING_DEFAULT)));
@@ -193,10 +229,14 @@ const classifyLinksOperation = async (context: OperationContext, input: Operatio
   return success({ links: await classifyLinks(context.env.DB, platformFetchFor(context.env), urls, ourOrigin, new Date().toISOString()) });
 };
 const listBrowseOperation = async (context: OperationContext, input: OperationInput) => {
-  const offset = Math.max(0, Number(input.query.offset ?? 0) || 0);
-  const limit = Math.min(100, Math.max(1, Number(input.query.limit ?? 50) || 50));
-  const page = await listBrowse(context.env.DB, offset, limit, input.query.trail);
-  return success({ ...page, items: page.items.map(browseResource), offset, limit });
+  const where: string[] = [], binds: (string | number)[] = [];
+  if (input.query.trail) { where.push('trail = ?'); binds.push(input.query.trail); }
+  if (input.query.id) { where.push('id = ?'); binds.push(Number(input.query.id)); }
+  return success(await cursorPage<BrowseRow, ReturnType<typeof browseResource>>(context.env.DB, input.query, {
+    name: 'browse', filters: [input.query.trail ?? null, input.query.id ?? null], domains: ['browse'],
+    sql: `SELECT * FROM browse_log${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`, binds,
+    order: [{ column: 'id', direction: 'desc' }], project: rows => rows.map(browseResource),
+  }));
 };
 const logBrowseOperation = async (context: OperationContext, input: OperationInput) => {
   const b = (input.body as { trail: string; parentId?: number | null; origin: string; remoteId: string; version?: number | null; via: BrowseVia; title?: string | null });
@@ -284,7 +324,7 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
   const textMatch = (text: string, id: string) => words.map(() => `(instr(lower(${text}), lower(?)) > 0 OR instr(lower(${id}), lower(?)) > 0)`).join(" AND ");
   const wordBinds = words.flatMap((w) => [w, w]);
   const parts: string[] = [];
-  const binds: unknown[] = [];
+  const binds: string[] = [];
   if (source !== "imported" && !sub) {
     parts.push(`SELECT 'mine' AS source, i.id AS id, v.content_html AS html, i.version AS version, i.updated AS updated, i.kind AS kind,
         NULL AS subscription_id, NULL AS source_title, NULL AS origin
@@ -303,16 +343,12 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
     if (sub) binds.push(sub);
     binds.push(...wordBinds);
   }
-  const offset = Math.max(0, Number(input.query.offset ?? 0) || 0);
-  const limit = Math.min(100, Math.max(1, Number(input.query.limit ?? SEARCH_PAGE) || SEARCH_PAGE));
-  if (!parts.length) return success({ items: [], total: 0, offset, limit });
-  const union = parts.join(" UNION ALL ");
-  const [rows, count] = await context.env.DB.batch([
-    context.env.DB.prepare(`SELECT * FROM (${union}) ORDER BY updated ${order}, id ${order} LIMIT ? OFFSET ?`).bind(...binds, limit, offset),
-    context.env.DB.prepare(`SELECT COUNT(*) AS n FROM (${union})`).bind(...binds),
-  ]);
-  type Row = { source: "mine" | "imported"; id: string; html: string | null; version: number; updated: string; kind: string; subscription_id: string | null; source_title: string | null; origin: string | null };
-  const items = (rows.results as Row[]).map((r) => {
+  type Row = { source: 'mine' | 'imported'; id: string; html: string | null; version: number; updated: string; kind: string; subscription_id: string | null; source_title: string | null; origin: string | null };
+  return success(await cursorPage(context.env.DB, { ...input.query, limit: input.query.limit ?? SEARCH_PAGE }, {
+    name: 'search', filters: [words, source, sub ?? null, order], domains: ['items', 'reading', 'subscriptions'],
+    sql: parts.length ? parts.join(' UNION ALL ') : 'SELECT NULL AS source, NULL AS id, NULL AS updated, NULL AS subscription_id WHERE 0', binds,
+    order: ['updated', 'id', 'source', 'subscription_id'].map(column => ({ column, direction: order === 'ASC' ? 'asc' as const : 'desc' as const })),
+    project: (rows: Row[]) => rows.map((r) => {
     // From rendered HTML, not markdown source — the picker showed literal
     // "#"/"*" markers otherwise, same bug class as the index rows.
     const excerpt = clampText(plainTextFromHtml(r.html ?? ""), 140);
@@ -331,8 +367,8 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
       subscriptionId: r.subscription_id,
       sourceTitle: sourceTitle,
     };
-  });
-  return success({ items, total: (count.results[0] as { n: number }).n, offset, limit });
+    }),
+  }));
 };
 
 
@@ -389,18 +425,23 @@ export const readOperations = {
   getCapabilities: getCapabilitiesOperation,
   getChanges: getChangesOperation,
   listItems: listItemsOperation,
+  getItemSummary: getItemSummaryOperation,
   getItem: getItemOperation,
+  listItemVersions: listItemVersionsOperation,
   getSettings: getSettingsOperation,
   listSubscriptions: listSubscriptionsOperation,
   getSubscription: getSubscriptionOperation,
   listHoppers: listHoppersOperation,
   getHopper: getHopperOperation,
+  listHopperMemberships: listHopperMembershipsOperation,
   listSignals: listSignalsOperation,
   listMentions: listMentionsOperation,
   listInteractions: listInteractionsOperation,
   getAiModels: getAiModelsOperation,
   listThumbs: listThumbsOperation,
+  getSignalSummary: getSignalSummaryOperation,
   listReading: listReadingOperation,
+  getReadingSummary: getReadingSummaryOperation,
   listImportedReading: listImportedReadingOperation,
   getImportedItem: getImportedItemOperation,
   getImportedHistory: getImportedHistoryOperation,

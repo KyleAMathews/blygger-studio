@@ -2,12 +2,12 @@
 // private interaction log (src/interactions.ts), indexed in one place. This is
 // what makes the thumbs load-bearing: a future feed agent ranks new items from
 // a prompt plus this record. Nothing here is ever published.
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import type { Interaction, Thumb } from '../../sdk/dist/browser.js';
-import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
+import type { Interaction } from '../../sdk/dist/browser.js';
+import { useLiveInfiniteQuery, useLiveQuery, eq } from '@tanstack/react-db';
 import { formatDateIn } from '../dates.ts';
-import { client } from './data.ts';
+import { thumbs, interactions, signalSummary } from './data.ts';
 import { Button, Failure, useChrome, useSettings } from './components.tsx';
 
 const VIEWS = ['liked', 'disliked', 'activity'] as const;
@@ -50,29 +50,14 @@ export function SignalsPage() {
   const settings = useSettings();
   const when = (iso: string) => formatDateIn(iso, settings?.timezone || 'UTC');
   const [view, setView] = useState<View>('liked');
-  const [thumbs, setThumbs] = useState<Thumb[]>();
-  const [log, setLog] = useState<{ items: Interaction[]; total: number; offset: number }>();
-  const [error, setError] = useState<unknown>();
-  useEffect(() => {
-    let live = true;
-    unwrap(BlyggerApi.listThumbs({ client }))
-      .then((r) => live && setThumbs(r.items))
-      .catch((e) => live && setError(e));
-    return () => {
-      live = false;
-    };
-  }, []);
-  const loadLog = (offset: number) =>
-    unwrap(BlyggerApi.listInteractions({ client, query: { offset, limit: PAGE } }))
-      .then((r) => setLog({ items: r.items, total: r.total, offset }))
-      .catch(setError);
-  useEffect(() => {
-    if (view === 'activity' && !log) void loadLog(0);
-  }, [view]);
-  const liked = (thumbs ?? []).filter((t) => t.thumb === 1);
-  const disliked = (thumbs ?? []).filter((t) => t.thumb === -1);
-  const count = (v: View) => (v === 'liked' ? liked.length : v === 'disliked' ? disliked.length : log?.total);
-  const shown = view === 'liked' ? liked : disliked;
+  const thumbRows = useLiveInfiniteQuery(q => q.from({ thumb: thumbs })
+    .where(({ thumb }) => eq(thumb.thumb, view === 'disliked' ? -1 : 1)).orderBy(({ thumb }) => thumb.orderKey, { direction: 'asc', stringSort: 'lexical' }), { pageSize: PAGE });
+  const activity = useLiveInfiniteQuery(q => q.from({ interaction: interactions })
+    .orderBy(({ interaction }) => interaction.orderKey, { direction: 'asc', stringSort: 'lexical' }), { pageSize: PAGE });
+  const totals = useLiveQuery(q => q.from({ summary: signalSummary }).findOne()).data;
+  const count = (view: View) => totals?.[view];
+  const shown = thumbRows.data;
+  const error = thumbRows.status === 'error' || activity.status === 'error' ? new Error('Could not load signals.') : undefined;
   return (
     <>
       <Link className="back-link" to="/more">
@@ -94,7 +79,7 @@ export function SignalsPage() {
         ))}
       </div>
       {view !== 'activity' ? (
-        thumbs === undefined ? (
+        thumbRows.isLoading ? (
           <p className="h-hint">Loading…</p>
         ) : shown.length ? (
           <ul className="nav-list signals-list">
@@ -114,12 +99,12 @@ export function SignalsPage() {
         ) : (
           <p className="h-hint">Nothing {view} yet. Use 👍 and 👎 on reading entries.</p>
         )
-      ) : log === undefined ? (
+      ) : activity.isLoading ? (
         <p className="h-hint">Loading…</p>
-      ) : log.items.length ? (
+      ) : activity.data.length ? (
         <>
           <ul className="nav-list signals-list">
-            {log.items.map((r) => (
+            {activity.data.map((r) => (
               <li key={r.id} data-kind={r.kind}>
                 <div className="signal-row">
                   <span className="ml">
@@ -144,18 +129,12 @@ export function SignalsPage() {
               </li>
             ))}
           </ul>
-          <div className="pager">
-            <Button className="btn btn-ghost" disabled={log.offset === 0} onClick={() => void loadLog(Math.max(0, log.offset - PAGE))}>
-              ← newer
-            </Button>
-            <Button className="btn btn-ghost" disabled={log.offset + PAGE >= log.total} onClick={() => void loadLog(log.offset + PAGE)}>
-              older →
-            </Button>
-          </div>
+          {activity.hasNextPage ? <Button disabled={activity.isFetchingNextPage} onClick={() => void activity.fetchNextPage()}>load more activity</Button> : null}
         </>
       ) : (
         <p className="h-hint">No activity yet.</p>
       )}
+      {view !== 'activity' && thumbRows.hasNextPage ? <Button disabled={thumbRows.isFetchingNextPage} onClick={() => void thumbRows.fetchNextPage()}>load more {view} items</Button> : null}
     </>
   );
 }

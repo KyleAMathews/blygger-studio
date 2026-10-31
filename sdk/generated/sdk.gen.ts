@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client/index.js';
-import type { AddHopperItemData, AddHopperItemErrors, AddHopperItemResponses, ClassifyChangeData, ClassifyChangeErrors, ClassifyChangeResponses, ClassifyLinksData, ClassifyLinksErrors, ClassifyLinksResponses, ClearBrowseData, ClearBrowseErrors, ClearBrowseResponses, CreateAuthorizationData, CreateAuthorizationErrors, CreateAuthorizationResponses, CreateHopperData, CreateHopperErrors, CreateHopperResponses, CreateItemData, CreateItemErrors, CreateItemResponses, CreateSubscriptionData, CreateSubscriptionErrors, CreateSubscriptionResponses, DeleteHopperData, DeleteHopperErrors, DeleteHopperResponses, DeleteItemData, DeleteItemErrors, DeleteItemResponses, DeleteMediaData, DeleteMediaErrors, DeleteMediaResponses, DeleteSignalData, DeleteSignalErrors, DeleteSignalResponses, DeleteSubscriptionData, DeleteSubscriptionErrors, DeleteSubscriptionResponses, DraftNoteData, DraftNoteErrors, DraftNoteResponses, ExtLineageGlyphGetLineageData, ExtLineageGlyphGetLineageErrors, ExtLineageGlyphGetLineageResponses, ExtLineageGlyphListSummariesData, ExtLineageGlyphListSummariesErrors, ExtLineageGlyphListSummariesResponses, GenerateItemData, GenerateItemErrors, GenerateItemResponses, GetAiModelsData, GetAiModelsErrors, GetAiModelsResponses, GetCapabilitiesData, GetCapabilitiesErrors, GetCapabilitiesResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetForkOptionsData, GetForkOptionsErrors, GetForkOptionsResponses, GetHopperData, GetHopperErrors, GetHopperResponses, GetImportedHistoryData, GetImportedHistoryErrors, GetImportedHistoryResponses, GetImportedItemData, GetImportedItemErrors, GetImportedItemResponses, GetImportedVersionData, GetImportedVersionErrors, GetImportedVersionResponses, GetItemData, GetItemErrors, GetItemFreshnessData, GetItemFreshnessErrors, GetItemFreshnessResponses, GetItemResponses, GetMentionSourceData, GetMentionSourceErrors, GetMentionSourceResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetSubscriptionData, GetSubscriptionErrors, GetSubscriptionResponses, GetUpdateStateData, GetUpdateStateErrors, GetUpdateStateResponses, GetVersionData, GetVersionErrors, GetVersionResponses, ListAuthorizationsData, ListAuthorizationsErrors, ListAuthorizationsResponses, ListBrowseData, ListBrowseErrors, ListBrowseResponses, ListHoppersData, ListHoppersErrors, ListHoppersResponses, ListImportedReadingData, ListImportedReadingErrors, ListImportedReadingResponses, ListInteractionsData, ListInteractionsErrors, ListInteractionsResponses, ListItemsData, ListItemsErrors, ListItemsResponses, ListMentionsData, ListMentionsErrors, ListMentionsResponses, ListReadingData, ListReadingErrors, ListReadingResponses, ListSignalsData, ListSignalsErrors, ListSignalsResponses, ListStaleThreadsData, ListStaleThreadsErrors, ListStaleThreadsResponses, ListSubscriptionsData, ListSubscriptionsErrors, ListSubscriptionsResponses, ListThumbsData, ListThumbsErrors, ListThumbsResponses, LogBrowseData, LogBrowseErrors, LogBrowseResponses, MarkReadBatchData, MarkReadBatchErrors, MarkReadBatchResponses, MarkReadData, MarkReadErrors, MarkReadResponses, MarkUnreadBatchData, MarkUnreadBatchErrors, MarkUnreadBatchResponses, MarkUnreadData, MarkUnreadErrors, MarkUnreadResponses, PeekItemData, PeekItemErrors, PeekItemResponses, PinItemData, PinItemErrors, PinItemResponses, PollAllSubscriptionsData, PollAllSubscriptionsErrors, PollAllSubscriptionsResponses, PreviewData, PreviewErrors, PreviewResponses, PublishItemData, PublishItemErrors, PublishItemResponses, RefreshItemData, RefreshItemErrors, RefreshItemResponses, RemoveHopperItemData, RemoveHopperItemErrors, RemoveHopperItemResponses, RestoreItemData, RestoreItemErrors, RestoreItemResponses, ResyncSubscriptionData, ResyncSubscriptionErrors, ResyncSubscriptionResponses, RevokeAllAuthorizationsData, RevokeAllAuthorizationsErrors, RevokeAllAuthorizationsResponses, RevokeAuthorizationData, RevokeAuthorizationErrors, RevokeAuthorizationResponses, SearchData, SearchErrors, SearchResponses, SetSignalData, SetSignalErrors, SetSignalResponses, UpdateHopperData, UpdateHopperErrors, UpdateHopperResponses, UpdateItemData, UpdateItemErrors, UpdateItemResponses, UpdateMentionData, UpdateMentionErrors, UpdateMentionResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UpdateSubscriptionData, UpdateSubscriptionErrors, UpdateSubscriptionResponses, UploadMediaData, UploadMediaErrors, UploadMediaResponses, WithdrawItemData, WithdrawItemErrors, WithdrawItemResponses } from './types.gen.js';
+import type { AddHopperItemData, AddHopperItemErrors, AddHopperItemResponses, ClassifyChangeData, ClassifyChangeErrors, ClassifyChangeResponses, ClassifyLinksData, ClassifyLinksErrors, ClassifyLinksResponses, ClearBrowseData, ClearBrowseErrors, ClearBrowseResponses, CreateAuthorizationData, CreateAuthorizationErrors, CreateAuthorizationResponses, CreateHopperData, CreateHopperErrors, CreateHopperResponses, CreateItemData, CreateItemErrors, CreateItemResponses, CreateSubscriptionData, CreateSubscriptionErrors, CreateSubscriptionResponses, DeleteHopperData, DeleteHopperErrors, DeleteHopperResponses, DeleteItemData, DeleteItemErrors, DeleteItemResponses, DeleteMediaData, DeleteMediaErrors, DeleteMediaResponses, DeleteSignalData, DeleteSignalErrors, DeleteSignalResponses, DeleteSubscriptionData, DeleteSubscriptionErrors, DeleteSubscriptionResponses, DraftNoteData, DraftNoteErrors, DraftNoteResponses, ExtLineageGlyphGetLineageData, ExtLineageGlyphGetLineageErrors, ExtLineageGlyphGetLineageResponses, ExtLineageGlyphListSummariesData, ExtLineageGlyphListSummariesErrors, ExtLineageGlyphListSummariesResponses, GenerateItemData, GenerateItemErrors, GenerateItemResponses, GetAiModelsData, GetAiModelsErrors, GetAiModelsResponses, GetCapabilitiesData, GetCapabilitiesErrors, GetCapabilitiesResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetForkOptionsData, GetForkOptionsErrors, GetForkOptionsResponses, GetHopperData, GetHopperErrors, GetHopperResponses, GetImportedHistoryData, GetImportedHistoryErrors, GetImportedHistoryResponses, GetImportedItemData, GetImportedItemErrors, GetImportedItemResponses, GetImportedVersionData, GetImportedVersionErrors, GetImportedVersionResponses, GetItemData, GetItemErrors, GetItemFreshnessData, GetItemFreshnessErrors, GetItemFreshnessResponses, GetItemResponses, GetItemSummaryData, GetItemSummaryErrors, GetItemSummaryResponses, GetMentionSourceData, GetMentionSourceErrors, GetMentionSourceResponses, GetReadingSummaryData, GetReadingSummaryErrors, GetReadingSummaryResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetSignalSummaryData, GetSignalSummaryErrors, GetSignalSummaryResponses, GetSubscriptionData, GetSubscriptionErrors, GetSubscriptionResponses, GetUpdateStateData, GetUpdateStateErrors, GetUpdateStateResponses, GetVersionData, GetVersionErrors, GetVersionResponses, ListAuthorizationsData, ListAuthorizationsErrors, ListAuthorizationsResponses, ListBrowseData, ListBrowseErrors, ListBrowseResponses, ListHopperMembershipsData, ListHopperMembershipsErrors, ListHopperMembershipsResponses, ListHoppersData, ListHoppersErrors, ListHoppersResponses, ListImportedReadingData, ListImportedReadingErrors, ListImportedReadingResponses, ListInteractionsData, ListInteractionsErrors, ListInteractionsResponses, ListItemsData, ListItemsErrors, ListItemsResponses, ListItemVersionsData, ListItemVersionsErrors, ListItemVersionsResponses, ListMentionsData, ListMentionsErrors, ListMentionsResponses, ListReadingData, ListReadingErrors, ListReadingResponses, ListSignalsData, ListSignalsErrors, ListSignalsResponses, ListStaleThreadsData, ListStaleThreadsErrors, ListStaleThreadsResponses, ListSubscriptionsData, ListSubscriptionsErrors, ListSubscriptionsResponses, ListThumbsData, ListThumbsErrors, ListThumbsResponses, LogBrowseData, LogBrowseErrors, LogBrowseResponses, MarkReadBatchData, MarkReadBatchErrors, MarkReadBatchResponses, MarkReadData, MarkReadErrors, MarkReadResponses, MarkUnreadBatchData, MarkUnreadBatchErrors, MarkUnreadBatchResponses, MarkUnreadData, MarkUnreadErrors, MarkUnreadResponses, PeekItemData, PeekItemErrors, PeekItemResponses, PinItemData, PinItemErrors, PinItemResponses, PollAllSubscriptionsData, PollAllSubscriptionsErrors, PollAllSubscriptionsResponses, PreviewData, PreviewErrors, PreviewResponses, PublishItemData, PublishItemErrors, PublishItemResponses, RefreshItemData, RefreshItemErrors, RefreshItemResponses, RemoveHopperItemData, RemoveHopperItemErrors, RemoveHopperItemResponses, RestoreItemData, RestoreItemErrors, RestoreItemResponses, ResyncSubscriptionData, ResyncSubscriptionErrors, ResyncSubscriptionResponses, RevokeAllAuthorizationsData, RevokeAllAuthorizationsErrors, RevokeAllAuthorizationsResponses, RevokeAuthorizationData, RevokeAuthorizationErrors, RevokeAuthorizationResponses, SearchData, SearchErrors, SearchResponses, SetSignalData, SetSignalErrors, SetSignalResponses, UpdateHopperData, UpdateHopperErrors, UpdateHopperResponses, UpdateItemData, UpdateItemErrors, UpdateItemResponses, UpdateMentionData, UpdateMentionErrors, UpdateMentionResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UpdateSubscriptionData, UpdateSubscriptionErrors, UpdateSubscriptionResponses, UploadMediaData, UploadMediaErrors, UploadMediaResponses, WithdrawItemData, WithdrawItemErrors, WithdrawItemResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -550,6 +550,36 @@ export const updateMention = <ThrowOnError extends boolean = false>(options: Opt
     }
 });
 
+export const getItemSummary = <ThrowOnError extends boolean = false>(options?: Options<GetItemSummaryData, ThrowOnError>): RequestResult<GetItemSummaryResponses, GetItemSummaryErrors, ThrowOnError> => (options?.client ?? client).get<GetItemSummaryResponses, GetItemSummaryErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/items/summary',
+    ...options
+});
+
+export const listItemVersions = <ThrowOnError extends boolean = false>(options: Options<ListItemVersionsData, ThrowOnError>): RequestResult<ListItemVersionsResponses, ListItemVersionsErrors, ThrowOnError> => (options.client ?? client).get<ListItemVersionsResponses, ListItemVersionsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/items/{id}/versions',
+    ...options
+});
+
+export const listHopperMemberships = <ThrowOnError extends boolean = false>(options: Options<ListHopperMembershipsData, ThrowOnError>): RequestResult<ListHopperMembershipsResponses, ListHopperMembershipsErrors, ThrowOnError> => (options.client ?? client).get<ListHopperMembershipsResponses, ListHopperMembershipsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/hoppers/{id}/memberships',
+    ...options
+});
+
 export const listSignals = <ThrowOnError extends boolean = false>(options?: Options<ListSignalsData, ThrowOnError>): RequestResult<ListSignalsResponses, ListSignalsErrors, ThrowOnError> => (options?.client ?? client).get<ListSignalsResponses, ListSignalsErrors, ThrowOnError>({
     security: [{
             in: 'cookie',
@@ -577,6 +607,16 @@ export const listThumbs = <ThrowOnError extends boolean = false>(options?: Optio
             type: 'apiKey'
         }, { scheme: 'bearer', type: 'http' }],
     url: '/thumbs',
+    ...options
+});
+
+export const getSignalSummary = <ThrowOnError extends boolean = false>(options?: Options<GetSignalSummaryData, ThrowOnError>): RequestResult<GetSignalSummaryResponses, GetSignalSummaryErrors, ThrowOnError> => (options?.client ?? client).get<GetSignalSummaryResponses, GetSignalSummaryErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/signals/summary',
     ...options
 });
 
@@ -631,6 +671,16 @@ export const getVersion = <ThrowOnError extends boolean = false>(options: Option
             type: 'apiKey'
         }, { scheme: 'bearer', type: 'http' }],
     url: '/items/{id}/versions/{v}',
+    ...options
+});
+
+export const getReadingSummary = <ThrowOnError extends boolean = false>(options?: Options<GetReadingSummaryData, ThrowOnError>): RequestResult<GetReadingSummaryResponses, GetReadingSummaryErrors, ThrowOnError> => (options?.client ?? client).get<GetReadingSummaryResponses, GetReadingSummaryErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/reading/summary',
     ...options
 });
 

@@ -1,6 +1,9 @@
+import { BasicIndex } from '@tanstack/react-db';
 import { QueryClient } from '@tanstack/query-core';
 
 export const collectionRefreshOptions = {
+  autoIndex: 'eager',
+  defaultIndexType: BasicIndex,
   refetchOnWindowFocus: 'always',
   refetchOnReconnect: 'always',
 } as const;

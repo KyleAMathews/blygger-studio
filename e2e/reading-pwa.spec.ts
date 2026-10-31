@@ -50,7 +50,7 @@ test('the sources list groups sources, hoppers and subscriptions, and opens a ti
   await expect(page.locator('.list-h > span:first-child')).toHaveText(['sources', /^hoppers · \d+$/, /^subscriptions · 2$/]);
   const sources = page.getByRole('list', { name: 'sources' });
   await expect(sources.locator('.ft')).toHaveText(['all', 'my blyg']);
-  const total = (await api(page, 'GET', '/reading?limit=1')).json.counts;
+  const total = (await api(page, 'GET', '/reading/summary')).json.counts;
   await expect(sources.locator('.fn')).toHaveText([String(total.all), String(total.own)]);
   await expect(page.getByRole('list', { name: 'hoppers' })).toContainText('Frozen hopper');
   await expect(page.getByRole('link', { name: 'manage', exact: true })).toHaveAttribute('href', '/studio/hoppers');
@@ -257,7 +257,7 @@ test('+ add to hopper… offers the hoppers and a new one, and adds the entry', 
   await answerSheet(page, { name: 'Name the new hopper:', text: name });
   await expect(page.locator('.toast')).toHaveText(`added to ${name}`);
   const hopper = (await api(page, 'GET', '/hoppers?limit=100')).json.items.find((h: { name: string }) => h.name === name);
-  expect((await api(page, 'GET', `/hoppers/${hopper.id}`)).json.memberships).toEqual([expect.objectContaining({ subscriptionId: 'parity-native', remoteId: NATIVE })]);
+  expect((await api(page, 'GET', `/hoppers/${hopper.id}/memberships`)).json.items).toEqual([expect.objectContaining({ subscriptionId: 'parity-native', remoteId: NATIVE })]);
   // The new hopper is offered next time; choosing it again is harmless.
   await entry.getByRole('button', { name: 'add to hopper', exact: true }).click();
   await sheet.getByRole('button', { name, exact: true }).click();

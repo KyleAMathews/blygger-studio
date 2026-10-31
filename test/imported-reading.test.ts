@@ -8,7 +8,6 @@ import { env, createExecutionContext, waitOnExecutionContext } from "cloudflare:
 import { beforeAll, describe, expect, it } from "vitest";
 import { Hono } from "hono";
 import { createOwnerApi } from "../src/owner-api.ts";
-import { encodeReadingCursor } from "../src/imported-reading.ts";
 import { BASE, apiJson, login } from "./helpers.ts";
 
 const db = () => env.DB;
@@ -43,7 +42,7 @@ async function walk(cookie: string, limit: number, between?: (page: number) => P
     expect(r.status).toBe(200);
     sizes.push(r.json.items.length);
     seen.push(...r.json.items.map((x: any) => `${x.subscriptionId}/${x.remoteId}`));
-    cursor = r.json.next;
+    cursor = r.json.page.nextCursor;
     if (!cursor) break;
     await between?.(page);
   }
@@ -84,7 +83,7 @@ describe("GET /reading/imported", () => {
   it("returns every imported item newest observed first, with the authoring fields", async () => {
     const { status, json } = await apiJson(cookie, "GET", "/blyg/api/reading/imported?limit=100");
     expect(status).toBe(200);
-    expect(json.limit).toBe(100);
+    expect(json.page.limit).toBe(100);
     expect(mine(json.items.map((x: any) => `${x.subscriptionId}/${x.remoteId}`))).toEqual(ORDER);
     const by = new Map<string, any>(json.items.map((x: any) => [x.remoteId, x]));
     expect(by.get("a1")).toEqual({
@@ -130,25 +129,22 @@ describe("GET /reading/imported", () => {
     expect(mine(seen)).toEqual(ORDER);
     expect(sizes.every((n) => n <= 2)).toBe(true);
     expect(sizes.slice(0, 4)).toEqual([2, 2, 2, 2]);
-    // An exact final page says so: no cursor to an empty page.
-    const last = await apiJson(cookie, "GET", `/blyg/api/reading/imported?limit=1&cursor=${encodeReadingCursor({ observedAt: T(1), sub: "irA", remoteId: "a2" })}`);
-    expect(last.json.items.map((x: any) => x.remoteId)[0]).toBe("a1");
+    expect(sizes.at(-1)).toBeGreaterThan(0);
   });
 
-  it("a poll landing between pages neither shifts nor repeats the walk", async () => {
-    await seedSub("irC", "Gamma");
-    const before = mine((await walk(cookie, 100)).seen);
-    const { seen } = await walk(cookie, 2, async (page) => {
-      // A newer poll run, and a row inside the tie the walk is crossing.
-      await seedItem("irC", `late${page}`, `2032-01-01T00:00:0${page % 10}.000Z`);
-      if (page === 1) await seedItem("irA", "t0", T(3));
-    });
-    expect(new Set(seen).size).toBe(seen.length);
-    // Every row present when the walk began is returned once, in order.
-    expect(mine(seen).filter((k) => before.includes(k))).toEqual(before);
-    // Rows observed later land ahead of the cursor and are left to the next walk.
-    expect(seen.some((k) => k.startsWith("irC/"))).toBe(false);
-    await db().prepare("DELETE FROM imported_items WHERE remote_id = 't0' OR subscription_id = 'irC'").run();
+  it('expires the old continuation when a poll changes the collection, then restarts cleanly', async () => {
+    await seedSub('irC', 'Gamma');
+    const first = await apiJson(cookie, 'GET', '/blyg/api/reading/imported?limit=2');
+    expect(first.status).toBe(200); expect(first.json.page.nextCursor).toEqual(expect.any(String));
+    await seedItem('irC', 'late', '2032-01-01T00:00:00Z');
+    await seedItem('irA', 't0', T(3));
+    const expired = await apiJson(cookie, 'GET', `/blyg/api/reading/imported?limit=2&cursor=${encodeURIComponent(first.json.page.nextCursor)}`);
+    expect(expired.status).toBe(409); expect(expired.json.code).toBe('cursor-expired');
+    const restarted = await walk(cookie, 2);
+    expect(new Set(restarted.seen).size).toBe(restarted.seen.length);
+    expect(mine(restarted.seen)).toEqual([...ORDER.slice(0, 7), 'irA/t0', ...ORDER.slice(7)]);
+    expect(restarted.seen[0]).toBe('irC/late');
+    await db().prepare("DELETE FROM imported_items WHERE remote_id='t0' OR subscription_id='irC'").run();
   });
 
   it("refuses a malformed cursor and an out-of-range limit with 400", async () => {
@@ -170,8 +166,8 @@ describe("GET /reading/imported", () => {
     await db().batch(Array.from({ length: 120 }, (_, i) => stmt.bind(`bulk${String(i).padStart(3, "0")}`)));
     const dflt = await apiJson(cookie, "GET", "/blyg/api/reading/imported");
     expect(dflt.json.items).toHaveLength(50);
-    expect(dflt.json.limit).toBe(50);
-    expect(typeof dflt.json.next).toBe("string");
+    expect(dflt.json.page.limit).toBe(50);
+    expect(typeof dflt.json.page.nextCursor).toBe("string");
     expect((await apiJson(cookie, "GET", "/blyg/api/reading/imported?limit=100")).json.items).toHaveLength(100);
     await db().prepare("DELETE FROM imported_items WHERE subscription_id = 'irBulk'").run();
   });
@@ -195,7 +191,8 @@ describe("GET /reading/imported", () => {
   it("leaves GET /reading and the read-state routes as they were", async () => {
     const reading = await apiJson(cookie, "GET", "/blyg/api/reading?limit=50");
     expect(reading.status).toBe(200);
-    expect(reading.json).toHaveProperty("counts");
+    expect(reading.json).toHaveProperty('page');
+    expect((await apiJson(cookie, 'GET', '/blyg/api/reading/summary')).json).toHaveProperty('counts');
     // A subscription named "imported" still routes to the read-state write.
     expect((await apiJson(cookie, "PUT", "/blyg/api/reading/imported/x/read", { version: 1 })).json).toEqual({ ok: true, stored: false, readVersion: null });
   });

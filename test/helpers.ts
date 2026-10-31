@@ -2,10 +2,26 @@ import { SELF, env, createExecutionContext, waitOnExecutionContext } from "cloud
 import { routes } from "../src/contract/routes.ts";
 import { makeApp } from '../src/index.ts';
 import { normalizeMount } from '../src/util.ts';
+import type { Version } from '../sdk/dist/browser.js';
 
 export const BASE = "https://example.com";
 /** Matches vitest.config.ts's default-worker MOUNT binding ("/blyg") — studio is nested under it since session 16. */
 export const STUDIO = "/blyg/studio";
+
+/** Explicitly acquire history pages for tests that compare the whole immutable history. */
+export async function testVersionHistory(cookie: string, id: string, limit = 100): Promise<Version[]> {
+  const versions: Version[] = [], seen = new Set<string>();
+  let cursor: string | null = null;
+  do {
+    const result = await apiJson(cookie, 'GET', `/blyg/api/items/${encodeURIComponent(id)}/versions?${new URLSearchParams({ limit: String(limit), ...(cursor ? { cursor } : {}) })}`);
+    if (result.status !== 200) throw new Error(`History page failed: ${result.status}`);
+    versions.push(...result.json.items);
+    cursor = result.json.page.nextCursor;
+    if (cursor && seen.has(cursor)) throw new Error('Repeated history continuation');
+    if (cursor) seen.add(cursor);
+  } while (cursor);
+  return versions.reverse();
+}
 
 /** Sequential fixture setup only. Concurrency/contract tests send their captured revision explicitly. */
 export async function testItemRevision(id: string): Promise<number> {
