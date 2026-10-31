@@ -828,3 +828,12 @@ direct restore/digest and private Bearer-CORS fixture expansion stays with
 media-security suites still cover those underlying paths. Migration0028's NULL
 hash comment describes old rows; no migration is rewritten. The local getMedia
 intersection supplies hash metadata without broadening public row DTOs.
+||||||| 662eae4
+
+
+PR100 publication CI caught a stale mount receiver after the native contract bump:
+capabilities correctly advertised5.0.0, while the root/nested mount test still
+required4.0.0. The isolated parent repair updates that strict expectation only.
+All four mount/audience cases are GREEN after same-path RED on the published
+head. Future contract bumps must rerun version-sensitive receivers after metadata
+changes; a pre-bump full suite is not evidence for the final release metadata.
