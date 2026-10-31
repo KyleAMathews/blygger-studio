@@ -49,8 +49,8 @@ mention delivery run through the same operation as Studio's REST call.
 
 ## HTTP responses
 
-Private API responses use `Cache-Control: no-store`, including errors rejected
-before dispatch. Browser bearer requests can read `ETag`, `Retry-After`, `Allow`,
+Private API responses use `Cache-Control: no-store`, including preflight and errors
+rejected before dispatch. Browser bearer requests can read `ETag`, `Retry-After`, `Allow`,
 `Location`, and `WWW-Authenticate` when those headers apply. Wrong-method
 responses identify supported methods in `Allow`.
 
@@ -62,9 +62,20 @@ access or make an absent resource available.
 
 Validators cover complete response bytes. A pinned document can get a new ETag
 when live author or origin metadata changes, even when its markdown hash stays
-the same. Legacy media URLs contain random IDs and revalidate. They do not
-promise immutable caching. OAuth discovery keeps its native public cache policy,
-and signing keys revalidate. Token responses use `no-store`.
+the same. OAuth discovery keeps its native public cache policy, and signing keys
+revalidate. Token responses use `no-store`.
+
+New uploads use `{mount}/media/{id}/{sha256}.{ext}`. The server checks the complete
+stored key and digest before serving bytes. Uploads remain private and `no-store`
+until a public use exposes them. A digest URL retained by a published version
+uses `public, max-age=31536000, immutable`; detach, withdrawal, restoration, and
+discarding a draft owner preserve its row and bytes.
+
+Legacy `{mount}/media/{id}.{ext}` URLs keep serving with ETags and
+`public, no-cache`. A duplicate upload can return that existing legacy URL.
+Current avatars and later attachments that no published version retains also
+revalidate, since their public use or storage can end. Stable Studio asset URLs
+keep revalidation because a deployment replaces their bytes.
 
 ## Private representations
 

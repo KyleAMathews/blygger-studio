@@ -31,8 +31,8 @@ Update the plan when a finding changes its scope or design.
 | 4 Mounted API cutover | Open, all nine upstream CI jobs pass | `codex/api-mount-cutover`, after 96 | [97](https://github.com/blygger/blygger-studio/pull/97) |
 | 5 Conditional mutations | Open, all nine upstream CI jobs pass | `codex/api-item-revisions`, after 97 | [98](https://github.com/blygger/blygger-studio/pull/98) |
 | 6 Private resources | Open, all nine upstream CI jobs pass | `codex/api-private-resources`, after 98 | [99](https://github.com/blygger/blygger-studio/pull/99) |
-| 7 Cursor pages and TanStack loading | In progress | `codex/api-cursor-pages`, after 99 | Not published |
-| 8 Hash-addressed media | Planned | After 2 | Pending |
+| 7 Cursor pages and TanStack loading | Open, CI running | `codex/api-cursor-pages`, after 99 | [100](https://github.com/blygger/blygger-studio/pull/100) |
+| 8 Hash-addressed media | Review and verification | `codex/api-media-digests`, after 100 | Pending |
 
 ## Findings on 2026 10 31
 
@@ -779,3 +779,52 @@ The loss audit has77 stable raw/context/footnote entries:26 fixed,41 already
 satisfied, six duplicates and four named followups. None remain open. Full raw
 reports and per-item evidence are under /tmp/blygger-api-cursor-review; the final
 audit is audit-final.md. Generated reproduction and upstream publication follow.
+
+## Part8 implementation and review
+
+New uploads, including unattached files, compute SHA256 from the exact R2 bytes.
+Their key is media/{id}/{sha256}.{ext}; duplicate uploads keep the existing row,
+URL and revision. A legacy duplicate can therefore keep its flat URL. Serving
+requires exact stored-key and digest matches before reading bytes or validating
+an ETag. No media schema or private DTO shape changes.
+
+Immutable public caching requires a durable published-version reference.
+Current avatars and attachments added after the last publication can cease to
+be public or can be deleted, so they revalidate. Private digest URLs remain
+no-store. Legacy flat URLs and stable Studio assets revalidate. A deployed asset
+bundle does not retain older fingerprinted files, so adding hashes to that
+bundle would not justify an immutable promise; this series adds no such promise.
+
+The combined part6/8 matrix reproduced an existing retention defect: discarding
+a never-published draft deleted a media row used by another published post.
+Discard now deletes only unretained non-avatar rows and detaches retained rows
+in the same guarded transaction. Serving, explicit media deletion, and draft
+discard share the historical-reference predicate. Existing object orphan cleanup
+and exporter coverage for avatar-only/historical-only assets remain separate
+pre-existing limits, not new API cleanup requirements.
+
+Private API preflight now explicitly sends no-store at root and nested mounts.
+The prep-pr simplifier and comprehensive/consumer reviews found no new design
+decision. They found strict fresh-upload regexes and two security mutation
+controls whose SQL anchors moved. Their receivers are being verified at the
+same paths; legacy cache fixtures keep their old URL and no-cache expectations.
+Raw reports and the append-only item ledger are in /tmp/blygger-api-media-review.
+
+The first complete part8 Worker run passed2037 tests, skipped five, and failed
+only the three stale contract-version checks also caught on parent PR100. The
+parent repair is pushed as1f7656c; final-source checks follow. The initial42-case
+browser receiver run passed40 and found two mobile action timeouts. A same-path
+width witness measured792px in a390px viewport after upload: digest URL text
+widened the attachment card. Narrow wrapping of its URL/hint preserves ordinary
+publish/remove clicks; no forced click or timeout waiver is used.
+
+Preserved review limits: the existing historical-HTML reference scan can grow
+with versions, and draft discard must scan for borrowed references too. A future
+reference-index work item must preserve cross-item retention before replacing
+that fallback. A borrowed-file publication racing its unrelated owner's deletion
+before commit remains the previously accepted single-user boundary. Optional
+direct restore/digest and private Bearer-CORS fixture expansion stays with
+[test/media-digest.test.ts](../test/media-digest.test.ts); existing restore and
+media-security suites still cover those underlying paths. Migration0028's NULL
+hash comment describes old rows; no migration is rewritten. The local getMedia
+intersection supplies hash metadata without broadening public row DTOs.

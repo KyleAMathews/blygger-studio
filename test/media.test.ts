@@ -21,7 +21,7 @@ describe("media (§3.3)", () => {
       alt: "a diagram",
     });
     expect(status).toBe(201);
-    expect(json.url).toMatch(/^https:\/\/example\.com\/blyg\/media\/[0-9abcdefghjkmnpqrstvwxyz]{8}\.png$/);
+    expect(json.url).toMatch(/^https:\/\/example\.com\/blyg\/media\/[0-9abcdefghjkmnpqrstvwxyz]{8}\/[a-f0-9]{64}\.png$/);
 
     expect((await getPublic(new URL(json.url).pathname)).status).toBe(404);
     const res = await SELF.fetch(`${json.url}`, { headers: { cookie } });

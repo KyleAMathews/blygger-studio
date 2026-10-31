@@ -303,13 +303,14 @@ test("an uploaded image leaves with its line, and an unused attachment can be re
   const chooser = page.waitForEvent("filechooser");
   await page.locator("#attach-btn").click();
   await (await chooser).setFiles({ name: "fig.png", mimeType: "image/png", buffer: Buffer.from("89504e470d0a1a0a", "hex") });
-  await expect(input).toHaveValue(/!\[\]\(http:\/\/127\.0\.0\.1:8787\/media\/\w+\.png\)/);
+  await expect(input).toHaveValue(/!\[\]\(http:\/\/127\.0\.0\.1:8787\/media\/[0-9abcdefghjkmnpqrstvwxyz]{8}\/[a-f0-9]{64}\.png\)/);
   const row = page.locator(".attachment");
   await expect(row).toContainText("in the text");
   await expect(row.locator('[data-action="remove-media"]')).toHaveCount(0);
   // Delete the image line: the attachment is no longer shown, and can be removed.
   await input.fill(before);
   await expect(row).toContainText("not in the text, so not shown");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => document.documentElement.clientWidth));
   const removed = page.waitForResponse((r) => r.url().includes("/api/media/") && r.request().method() === "DELETE");
   await row.locator('[data-action="remove-media"]').click();
   expect((await removed).status()).toBe(200);

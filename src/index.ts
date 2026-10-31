@@ -1,3 +1,4 @@
+import { retainedMediaSql, avatarMediaSql } from './media-retention.ts';
 import { authoredVersionKind } from './version-state.ts';
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { conditionalHtmlResponse, htmlCacheResponse, publicHtmlKey, publicHtmlRequest, publicHtmlRevision } from './html-cache.ts';
@@ -79,7 +80,7 @@ export function makeApp(mount: string) {
       c.header('Access-Control-Allow-Methods', 'GET, HEAD, POST, PATCH, PUT, DELETE, OPTIONS');
       c.header('Access-Control-Allow-Headers', 'Authorization, Content-Type, If-None-Match');
       c.header('Access-Control-Expose-Headers', EXPOSED_RESPONSE_HEADERS);
-      if (c.req.method === 'OPTIONS') return c.body(null, 204);
+      if (c.req.method === 'OPTIONS') return c.body(null, 204, { 'Cache-Control': 'no-store' });
     }
     await next();
   });
@@ -341,24 +342,20 @@ export function makeApp(mount: string) {
     return latestItems(c, settings, true);
   });
 
-  pub.get("/media/:file", async (c) => {
-    const file = c.req.param("file");
-    const media = await getMedia(c.env.DB, file.split(".")[0]);
-    if (!media || media.r2_key !== `media/${file}`) return c.notFound();
-    // §5.4: a published media URL MUST always serve the same bytes, and §9
-    // withdrawal does not cascade. Public uses: the avatar, an attachment on an
-    // item ever published (attaching there needs publish scope), anything a
-    // published version lists (migration 0031: detached rows included), and
-    // anything a published version's text shows. Unused uploads stay
-    // owner-only. Indexed checks run first; the scan of every version is the
-    // last resort.
-    const publicUse = await c.env.DB.prepare(`SELECT 1 WHERE
-      EXISTS (SELECT 1 FROM settings WHERE key='avatar_media_id' AND value=?)
-      OR EXISTS (SELECT 1 FROM items WHERE id=? AND version>0 AND ?<>1)
-      OR EXISTS (SELECT 1 FROM version_media WHERE media_id=?)
-      OR EXISTS (SELECT 1 FROM versions WHERE item_id=? AND instr(content_html, ?) > 0)
-      OR EXISTS (SELECT 1 FROM versions WHERE instr(content_html, ?) > 0)`)
-      .bind(media.id, media.item_id, media.inline ?? 0, media.id, media.item_id, media.r2_key, media.r2_key).first();
+  const serveMedia = async (c: Context<{ Bindings: Env }>) => {
+    const file = c.req.param('file'), id = c.req.param('id');
+    if (!file) return c.notFound();
+    const media = await getMedia(c.env.DB, id ?? file.split('.')[0]);
+    const key = id ? `media/${id}/${file}` : `media/${file}`;
+    if (!media || media.r2_key !== key) return c.notFound();
+    const digest = id ? /^([a-f0-9]{64})\.[a-z]+$/.exec(file)?.[1] : undefined;
+    if (id && (!digest || digest !== media.sha256)) return c.notFound();
+    // An avatar or a not-yet-published attachment can become private/deletable.
+    // Only historical references justify an immutable public cache lifetime.
+    const usage = await c.env.DB.prepare(`SELECT (${retainedMediaSql}) AS retained,
+      (${avatarMediaSql}) OR EXISTS (SELECT 1 FROM items WHERE id = media.item_id AND version > 0 AND COALESCE(media.inline,0) <> 1) AS exposed
+      FROM media WHERE id = ?`).bind(media.id).first<{ retained: number; exposed: number }>();
+    const publicUse = Boolean(usage?.retained || usage?.exposed);
     if (!publicUse) {
       c.header('Cache-Control', 'no-store');
       const url = new URL(c.req.url);
@@ -374,14 +371,14 @@ export function makeApp(mount: string) {
       // Uploaded SVG can be opened as a document. Keep it inert and give it an
       // opaque origin so delegated uploads cannot inherit an owner's authority.
       "Content-Security-Policy": "sandbox; script-src 'none'",
-      // Legacy URLs contain a random id. Hash-addressed uploads can opt into
-      // immutable caching separately; these stable URLs always revalidate.
-      "Cache-Control": publicUse ? "public, no-cache" : "no-store",
+      "Cache-Control": publicUse ? digest && usage?.retained ? "public, max-age=31536000, immutable" : "public, no-cache" : "no-store",
       "ETag": object.httpEtag,
       "X-Content-Type-Options": "nosniff",
     });
     return conditionalResponse(c.req.raw, response);
-  });
+  };
+  pub.get('/media/:file', serveMedia);
+  pub.get('/media/:id/:file', serveMedia);
 
   if (mount === "") {
     app.route("/", pub);

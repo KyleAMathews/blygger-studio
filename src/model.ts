@@ -1,3 +1,4 @@
+import { retainedMediaSql, avatarMediaSql } from './media-retention.ts';
 import { assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
 import { authoredVersionKind, versionState } from './version-state.ts';
 import { DEFAULT_FONT, isFont } from "./fonts.ts";
@@ -474,11 +475,14 @@ export async function withdraw(db: D1Database, item: ItemRow, note: string | nul
 export async function discardDraft(db: D1Database, item: ItemRow): Promise<boolean> {
   // Authorize at the atomic write boundary. A publication after the caller's
   // read must preserve both the public item and its media.
+  const owner = 'item_id = ? AND EXISTS (SELECT 1 FROM items WHERE id = ? AND version = 0 AND revision = ?)';
+  const keep = `(${retainedMediaSql}) OR (${avatarMediaSql})`;
   const results = await db.batch([
-    db.prepare("DELETE FROM media WHERE item_id = ? AND EXISTS (SELECT 1 FROM items WHERE id = ? AND version = 0 AND revision = ?)").bind(item.id, item.id, item.revision),
+    db.prepare(`DELETE FROM media WHERE ${owner} AND NOT (${keep})`).bind(item.id, item.id, item.revision),
+    db.prepare(`UPDATE media SET item_id = NULL WHERE ${owner} AND (${keep})`).bind(item.id, item.id, item.revision),
     db.prepare("DELETE FROM items WHERE id = ? AND version = 0 AND revision = ?").bind(item.id, item.revision),
   ]);
-  return results[1].meta.changes > 0;
+  return results[2].meta.changes > 0;
 }
 
 /** Thrown by restoreVersion() when the target version can't serve as a working copy. */
@@ -671,8 +675,8 @@ export async function findDuplicateMedia(db: D1Database, itemId: string, sha256:
     .first<MediaRow>();
 }
 
-export async function getMedia(db: D1Database, id: string): Promise<MediaRow | null> {
-  return db.prepare("SELECT * FROM media WHERE id = ?").bind(id).first<MediaRow>();
+export async function getMedia(db: D1Database, id: string): Promise<(MediaRow & { sha256: string | null }) | null> {
+  return db.prepare("SELECT * FROM media WHERE id = ?").bind(id).first<MediaRow & { sha256: string | null }>();
 }
 
 /** The attachments a published version shows (migration 0031), detached rows included: what that version's document and pages list. */

@@ -1,4 +1,3 @@
-import { testItemRevision } from './helpers.ts';
 import { SELF, env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import { makeApp } from '../src/index.ts';
@@ -57,14 +56,11 @@ describe('public HTTP response contract', () => {
 
   it('revalidates legacy public media URLs and keeps the same bytes', async () => {
     const { cookie, id } = await publishedFixture();
-    const form = new FormData();
-    form.set('file', new File(['fixed image bytes'], 'public.png', { type: 'image/png' }));
-    (form.set('itemId', id), form.set('expectedRevision', String(await testItemRevision(id))));
-    const uploaded = await request('/blyg/api/media', { method: 'POST', headers: { cookie }, body: form });
-    expect(uploaded.status).toBe(201);
-    const media = await uploaded.json<{ url: string }>();
+    const key = 'media/legacy-http.png';
+    await env.MEDIA.put(key, 'fixed image bytes', { httpMetadata: { contentType: 'image/png' } });
+    await env.DB.prepare("INSERT INTO media(id,item_id,r2_key,mime,created,inline) VALUES ('legacy-http',?,?,'image/png','2026-10-31',0)").bind(id, key).run();
     expect((await apiJson(cookie, 'POST', `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
-    const path = new URL(media.url).pathname;
+    const path = `/blyg/${key}`;
     const response = await request(path);
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('public, no-cache');

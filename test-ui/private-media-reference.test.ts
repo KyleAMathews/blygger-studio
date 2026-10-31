@@ -24,26 +24,28 @@ function elements(value: unknown): Element[] {
   const element = value as Element;
   return [element, ...elements(element.children)];
 }
-function render(mount: string, text: string) {
+function render(mount: string, text: string, key = 'media/draft-image.png') {
   const calls: unknown[] = [];
   const pending: Promise<unknown>[] = [];
-  const media = { id: 'draft-image', url: `https://example.test${mount}/media/draft-image.png`, mime: 'image/png', inline: true, alt: null };
+  const media = { id: 'draft-image', url: `https://example.test${mount}/${key}`, mime: 'image/png', inline: true, alt: null };
   const result = attachments({ media: [media], publishedMedia: [] }, text,
     { busy: false, run(fn: () => Promise<unknown>) { const task = fn(); pending.push(task); return task; } },
     async (command: unknown) => { calls.push(command); }, mount);
   return { nodes: elements(result), calls, settle: () => Promise.all(pending) };
 }
 for (const mount of ['', '/notes/blyg']) {
-  test.each([
-    ['legacy relative', 'media/draft-image.png'],
-    ['mounted path', `${mount}/media/draft-image.png`],
-    ['canonical URL', `https://example.test${mount}/media/draft-image.png`],
-  ])(`referenced %s attachment at ${mount || '/'} cannot be removed`, (_form, destination) => {
-    const row = render(mount, `![draft](${destination})`);
-    expect(row.nodes.filter(node => node.props['data-action'] === 'remove-media')).toEqual([]);
-    expect(row.nodes.some(node => node.children.includes('in the text — delete its line to remove it'))).toBe(true);
-    expect(row.calls).toEqual([]);
-  });
+  for (const key of ['media/draft-image.png', `media/draft-image/${'a'.repeat(64)}.png`]) {
+    test.each([
+      ['relative', key],
+      ['mounted path', `${mount}/${key}`],
+      ['canonical URL', `https://example.test${mount}/${key}`],
+    ])(`referenced %s ${key} attachment at ${mount || '/'} cannot be removed`, (_form, destination) => {
+      const row = render(mount, `![draft](${destination})`, key);
+      expect(row.nodes.filter(node => node.props['data-action'] === 'remove-media')).toEqual([]);
+      expect(row.nodes.some(node => node.children.includes('in the text — delete its line to remove it'))).toBe(true);
+      expect(row.calls).toEqual([]);
+    });
+  }
   test(`unreferenced attachment at ${mount || '/'} can still be removed`, async () => {
     const row = render(mount, 'Draft without an image');
     const remove = row.nodes.filter(node => node.props['data-action'] === 'remove-media');

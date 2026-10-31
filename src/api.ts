@@ -1,3 +1,4 @@
+import { retainedMediaSql } from './media-retention.ts';
 import { assertCurrentRevision, assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { versionState } from './version-state.ts';
@@ -456,11 +457,11 @@ const uploadMediaOperation = async (context: OperationContext, input: OperationI
   // The same file (bytes and type) uploaded to the same item in the same
   // placement is the same attachment (studio#7): return the row already
   // there, store nothing.
-  const sha256 = typeof itemId === "string" && itemId ? hex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))) : null;
-  const existing = sha256 ? await findDuplicateMedia(context.env.DB, itemId as string, sha256, file.mime, inline) : null;
+  const sha256 = hex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+  const existing = itemId ? await findDuplicateMedia(context.env.DB, itemId as string, sha256, file.mime, inline) : null;
   if (existing) return success({ id: existing.id, url: mediaUrl(existing.r2_key, deploymentUrls(context.url, context.env).publicBase), mime: existing.mime, duplicate: true, ...(item ? { revision: item.revision } : {}) });
   const id = newMediaId();
-  const r2Key = `media/${id}.${ext}`;
+  const r2Key = `media/${id}/${sha256}.${ext}`;
   await context.env.MEDIA.put(r2Key, bytes, { httpMetadata: { contentType: file.mime } });
   const alt = media?.alt;
   let row;
@@ -502,10 +503,9 @@ const deleteMediaOperation = async (context: OperationContext, input: OperationI
   }
   const guard = "id = ? AND item_id IS ? AND (? IS NULL OR EXISTS (SELECT 1 FROM items WHERE id = ? AND revision = ?)) AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'avatar_media_id' AND value = ?)";
   const args = [row.id, row.item_id, row.item_id, row.item_id, item?.revision ?? 0, row.id];
-  const retained = "EXISTS (SELECT 1 FROM version_media WHERE media_id = ?) OR EXISTS (SELECT 1 FROM versions WHERE instr(content_html, ?) > 0)";
   const committed = await db.batch([
-    db.prepare(`DELETE FROM media WHERE ${guard} AND NOT (${retained})`).bind(...args, row.id, row.r2_key),
-    db.prepare(`UPDATE media SET item_id = NULL WHERE ${guard} AND (${retained})`).bind(...args, row.id, row.r2_key),
+    db.prepare(`DELETE FROM media WHERE ${guard} AND NOT (${retainedMediaSql})`).bind(...args),
+    db.prepare(`UPDATE media SET item_id = NULL WHERE ${guard} AND (${retainedMediaSql})`).bind(...args),
     db.prepare("UPDATE items SET dirty = CASE WHEN version > 0 THEN 1 ELSE dirty END, revision = revision + 1 WHERE id = ? AND revision = ? AND NOT EXISTS (SELECT 1 FROM media WHERE id = ? AND item_id = ?) AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'avatar_media_id' AND value = ?)")
       .bind(item?.id ?? null, item?.revision ?? 0, row.id, row.item_id, row.id),
   ]);

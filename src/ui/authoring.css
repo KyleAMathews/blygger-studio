@@ -145,6 +145,7 @@
 .ed-cards { margin-top: 16px; }
 .ed-cards .card .row > input { flex: 1; min-width: 0; }
 .kv, .ed-cards .h-row { display: flex; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--rule); border-bottom: none; font-size: .84rem; flex-wrap: wrap; margin: 0; }
+.attachment > a, #attachments .hint { min-width: 0; overflow-wrap: anywhere; }
 .ed-cards .h-list { list-style: none; margin: 0; padding: 0; }
 .ed-cards .h-list > :first-child, .media > .kv:first-child { border-top: none; }
 .vnum { font-family: var(--mono); font-weight: 700; font-size: .8rem; }
