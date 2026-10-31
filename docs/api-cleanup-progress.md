@@ -768,3 +768,14 @@ Unusually large retained identities/date strings can exceed a CLI/query size
 limit and need a smaller-batch followup. The repair does not claim online
 migration safety: writers remain drained through repair and deployment, as
 already agreed for this single-user cutover.
+
+Part7 final local checks pass at the committed release candidate: extracted
+Worker/bundled normalizer, installed SDK Node/Chromium consumers, both TypeScript
+resolution modes, D1/R2 fresh-process persistence, source upgrade with explicit
+legacy-date repair and idempotent rerun,156 UI tests,23 SDK/policy cases, and34
+normalization/order cases. Studio0.49.10, SDK0.6.0 and private contract5.0.0 are
+committed. Review repairs are committed before release metadata, per prep-pr.
+The loss audit has77 stable raw/context/footnote entries:26 fixed,41 already
+satisfied, six duplicates and four named followups. None remain open. Full raw
+reports and per-item evidence are under /tmp/blygger-api-cursor-review; the final
+audit is audit-final.md. Generated reproduction and upstream publication follow.
