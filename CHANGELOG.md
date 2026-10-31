@@ -18,6 +18,30 @@ not have its own repo until session 26.
 
 ---
 
+## 0.49.10 — Bounded cursor pages
+
+Private collection reads use opaque cursor pages. Studio loads bounded item,
+history, hopper, signal and browse windows through the native TanStack pager.
+Item and hopper detail no longer include whole historical/member collections.
+Named summary reads provide counts. Relevant mutations expire continuations
+with409 cursor-expired so clients restart the acquisition.
+
+This is a hard private contract cutover to5.0.0 and SDK0.6.0. Update clients and
+API together. HTTP offset, imported-feed next, embedded history and hopper preview
+inputs are removed. Public protocol representations do not change.
+
+Imported created/updated dates normalize to ISO8601 UTC at storage. Invalid dates
+become null. Existing timestamps need the bundled resumable metadata repair before
+deployment. It preserves content, versions, observation times and read state.
+Finish pending writes and generation, then avoid edits through repair/deployment.
+
+**Migrations:**0036_cursor_generations.sql adds interactions/browse change domains
+and cursor indexes. After schema migration, run
+`node --import tsx scripts/normalize-import-dates.ts --remote` for source installs,
+or `node normalize-import-dates.mjs --remote` for Worker archives, before deploying.
+The current updater and deploy-all run this step. Older running updaters need the
+explicit command after declining their deploy prompt. See README upgrade steps.
+
 ## 0.49.9 — Explicit private resources
 
 The private API and SDK use camelCase fields and explicit resources. Imported
