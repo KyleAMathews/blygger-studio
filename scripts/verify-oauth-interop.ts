@@ -66,7 +66,7 @@ async function inspector(browser: Browser, fixture: Awaited<ReturnType<typeof st
     assert.ok(line, 'Inspector must return a structured result');
     const result = JSON.parse(line).result;
     if (method === 'tools/list') assert.ok(result.tools.some((tool: { name: string }) => tool.name === 'getSettings'));
-    else { assert.notEqual(result.isError, true); assert.ok('site_title' in JSON.parse(result.content[0].text)); }
+    else { assert.notEqual(result.isError, true); assert.ok('siteTitle' in JSON.parse(result.content[0].text)); }
     records.push({ client: 'MCP Inspector 2.10.1', mount: fixture.mount, era, method, result: 'passed' });
   } finally { clearTimeout(timer); child.kill('SIGTERM'); await context.close(); }
 }
@@ -103,7 +103,7 @@ async function genericOAuth(fixture: Awaited<ReturnType<typeof startOAuthFixture
       assert.equal(denied.status(), 401, 'Default MCP grant cannot call REST');
       const called = await backchannel.post(fixture.mcp, { headers: { Authorization: 'Bearer ' + token, Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2026-07-28', 'MCP-Method': 'tools/call', 'MCP-Name': 'getSettings' }, data: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'getSettings', arguments: {}, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } } });
       assert.equal(called.status(), 200); const value = await called.json(); assert.notEqual(value.result.isError, true);
-      assert.ok('site_title' in JSON.parse(value.result.content[0].text));
+      assert.ok('siteTitle' in JSON.parse(value.result.content[0].text));
     };
     await checkToken(tokens.access_token);
     const widened = await exchange({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, resource: fixture.origin + fixture.mount + '/api' });

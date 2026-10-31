@@ -55,7 +55,7 @@ it('draft edits and restoration leave every named public projection unchanged', 
 });
 it('a draft-only deletion cannot remove an item published during its stale-state window', async () => {
   const f = await fixture();
-  const form = new FormData(); (form.set('item_id', f.id), form.set('expectedRevision', String(await testItemRevision(f.id))));
+  const form = new FormData(); (form.set('itemId', f.id), form.set('expectedRevision', String(await testItemRevision(f.id))));
   form.set('file', new File(['disposable fixture'], 'fixture.png', { type: 'image/png' }));
   const upload = await receive(f.app, '/blyg/api/media', { method: 'POST', headers: { cookie: f.cookie }, body: form });
   expect(upload.status).toBe(201); const media = await upload.json() as { id: string };
