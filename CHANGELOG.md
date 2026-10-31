@@ -18,6 +18,21 @@ not have its own repo until session 26.
 
 ---
 
+## 0.49.11 — Digest media URLs
+
+New uploads use media/{id}/{sha256}.{ext}, including unattached files. A verified
+digest URL retained by a published version uses immutable public caching. Legacy
+URLs, current avatars, and later attachments without a published reference keep
+ETag revalidation. Private bytes stay private and no-store.
+
+Discarding a draft preserves media rows used by published posts or the current
+avatar. Digest URL text wraps in Studio attachment cards on phones. Private API
+preflight explicitly sends no-store. Existing duplicate uploads retain their URL
+and revision, including legacy URLs.
+
+**Migrations:** None. Existing media URLs and publication bytes need no rewrite.
+This release uses private contract5.0.0 and SDK0.6.0 from0.49.10.
+
 ## 0.49.10 — Bounded cursor pages
 
 Private collection reads use opaque cursor pages. Studio loads bounded item,

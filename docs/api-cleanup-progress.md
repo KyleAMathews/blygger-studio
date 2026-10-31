@@ -837,3 +837,18 @@ required4.0.0. The isolated parent repair updates that strict expectation only.
 All four mount/audience cases are GREEN after same-path RED on the published
 head. Future contract bumps must rerun version-sensitive receivers after metadata
 changes; a pre-bump full suite is not evidence for the final release metadata.
+
+Final part8 receiving checks pass108 Worker/SDK/MCP cases, all162 UI cases,
+both type projects, and44 desktop/mobile browser cases with no skips or flakes.
+The12-case digest matrix includes borrowed draft retention, draft-owned avatar
+retention, transient-public attachment deletion, and legacy known-hash duplicates.
+Both adapted withdrawal mutation controls run a passing baseline and catch the
+intended semantic regression. The first candidate's quoting error was rejected
+by the harness and is not counted as mutation sensitivity. All82 mutation anchors
+match. SDK/OpenAPI regeneration reproduces with no drift.
+
+Review fixes are committed as5fdb972, followed by merge44436e1 of the parent's
+isolated CI repair. The merge resolves only a journal append conflict and keeps
+both learning notes. Studio advances to0.49.11 using the repository's native
+version/changelog flow. SDK0.6.0 and private contract5.0.0 remain unchanged because
+this part changes no private payload schema. No new migration is needed.
