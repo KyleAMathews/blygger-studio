@@ -32,7 +32,7 @@ Update the plan when a finding changes its scope or design.
 | 5 Conditional mutations | Open, all nine upstream CI jobs pass | `codex/api-item-revisions`, after 97 | [98](https://github.com/blygger/blygger-studio/pull/98) |
 | 6 Private resources | Open, all nine upstream CI jobs pass | `codex/api-private-resources`, after 98 | [99](https://github.com/blygger/blygger-studio/pull/99) |
 | 7 Cursor pages and TanStack loading | Open, CI running | `codex/api-cursor-pages`, after 99 | [100](https://github.com/blygger/blygger-studio/pull/100) |
-| 8 Hash-addressed media | Review and verification | `codex/api-media-digests`, after 100 | Pending |
+| 8 Hash-addressed media | Open, CI running | `codex/api-media-digests`, after 100 | [101](https://github.com/blygger/blygger-studio/pull/101) |
 
 ## Findings on 2026 10 31
 
@@ -852,3 +852,19 @@ isolated CI repair. The merge resolves only a journal append conflict and keeps
 both learning notes. Studio advances to0.49.11 using the repository's native
 version/changelog flow. SDK0.6.0 and private contract5.0.0 remain unchanged because
 this part changes no private payload schema. No new migration is needed.
+
+Part8 is published as[PR101](https://github.com/blygger/blygger-studio/pull/101),
+stacked on repaired parentPR100. All planned implementation parts now have PRs.
+Final0.49.11 release checks pass: extracted Worker/checksums, bundled normalizer,
+installed Node and Chromium SDK consumers, both TypeScript resolution modes,
+and D1/R2 persistence across fresh processes. The version-sensitive mount
+receiver passes all four cases after release metadata changes. No generated
+schema drift or migration is introduced by this part.
+
+The loss audit has71 raw findings/context/footnotes:14 fixed,43 already satisfied,
+eight duplicates and six named followups. None are open or await a design
+decision. Full raw reports, evidence links and per-item dispositions are in
+/tmp/blygger-api-media-review/audit-final.md and ledger.jsonl. The CI heartbeat
+now watches all ten published heads and all reviews. Earlier eight heads were
+green at the latest audit; PR100 reruns after the strict-version fixture repair,
+and PR101 starts final CI. No PR has been merged or deployment run.
