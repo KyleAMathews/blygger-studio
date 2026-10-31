@@ -780,9 +780,9 @@ satisfied, six duplicates and four named followups. None remain open. Full raw
 reports and per-item evidence are under /tmp/blygger-api-cursor-review; the final
 audit is audit-final.md. Generated reproduction and upstream publication follow.
 
-## Part8 implementation and review
+## Part 8 implementation and review
 
-New uploads, including unattached files, compute SHA256 from the exact R2 bytes.
+New uploads, including unattached files, compute SHA-256 from the exact R2 bytes.
 Their key is media/{id}/{sha256}.{ext}; duplicate uploads keep the existing row,
 URL and revision. A legacy duplicate can therefore keep its flat URL. Serving
 requires exact stored-key and digest matches before reading bytes or validating
@@ -795,7 +795,7 @@ no-store. Legacy flat URLs and stable Studio assets revalidate. A deployed asset
 bundle does not retain older fingerprinted files, so adding hashes to that
 bundle would not justify an immutable promise; this series adds no such promise.
 
-The combined part6/8 matrix reproduced an existing retention defect: discarding
+The combined parts 6 and 8 matrix reproduced an existing retention defect: discarding
 a never-published draft deleted a media row used by another published post.
 Discard now deletes only unretained non-avatar rows and detaches retained rows
 in the same guarded transaction. Serving, explicit media deletion, and draft
@@ -810,11 +810,11 @@ controls whose SQL anchors moved. Their receivers are being verified at the
 same paths; legacy cache fixtures keep their old URL and no-cache expectations.
 Raw reports and the append-only item ledger are in /tmp/blygger-api-media-review.
 
-The first complete part8 Worker run passed2037 tests, skipped five, and failed
-only the three stale contract-version checks also caught on parent PR100. The
-parent repair is pushed as1f7656c; final-source checks follow. The initial42-case
-browser receiver run passed40 and found two mobile action timeouts. A same-path
-width witness measured792px in a390px viewport after upload: digest URL text
+The first complete part 8 Worker run passed 2037 tests, skipped five, and failed
+only the three stale contract-version checks also caught on parent PR 100. The
+parent repair is pushed as1f7656c; final-source checks follow. The initial 42-case
+browser receiver run passed 40 and found two mobile action timeouts. A same-path
+width witness measured 792px in a 390px viewport after upload: digest URL text
 widened the attachment card. Narrow wrapping of its URL/hint preserves ordinary
 publish/remove clicks; no forced click or timeout waiver is used.
 
@@ -830,40 +830,51 @@ hash comment describes old rows; no migration is rewritten. The local getMedia
 intersection supplies hash metadata without broadening public row DTOs.
 
 
-PR100 publication CI caught a stale mount receiver after the native contract bump:
-capabilities correctly advertised5.0.0, while the root/nested mount test still
-required4.0.0. The isolated parent repair updates that strict expectation only.
+PR 100 publication CI caught a stale mount receiver after the native contract bump:
+capabilities correctly advertised 5.0.0, while the root/nested mount test still
+required 4.0.0. The isolated parent repair updates that strict expectation only.
 All four mount/audience cases are GREEN after same-path RED on the published
 head. Future contract bumps must rerun version-sensitive receivers after metadata
 changes; a pre-bump full suite is not evidence for the final release metadata.
 
-Final part8 receiving checks pass108 Worker/SDK/MCP cases, all162 UI cases,
-both type projects, and44 desktop/mobile browser cases with no skips or flakes.
-The12-case digest matrix includes borrowed draft retention, draft-owned avatar
+Final part 8 receiving checks pass 108 Worker/SDK/MCP cases, all 162 UI cases,
+both type projects, and 44 desktop/mobile browser cases with no skips or flakes.
+The 12-case digest matrix includes borrowed draft retention, draft-owned avatar
 retention, transient-public attachment deletion, and legacy known-hash duplicates.
 Both adapted withdrawal mutation controls run a passing baseline and catch the
 intended semantic regression. The first candidate's quoting error was rejected
-by the harness and is not counted as mutation sensitivity. All82 mutation anchors
+by the harness and is not counted as mutation sensitivity. All 82 mutation anchors
 match. SDK/OpenAPI regeneration reproduces with no drift.
 
-Review fixes are committed as5fdb972, followed by merge44436e1 of the parent's
+Review fixes are committed as 5fdb972, followed by merge 44436e1 of the parent's
 isolated CI repair. The merge resolves only a journal append conflict and keeps
-both learning notes. Studio advances to0.49.11 using the repository's native
-version/changelog flow. SDK0.6.0 and private contract5.0.0 remain unchanged because
+both learning notes. Studio advances to 0.49.11 using the repository's native
+version/changelog flow. SDK 0.6.0 and private contract 5.0.0 remain unchanged because
 this part changes no private payload schema. No new migration is needed.
 
-Part8 is published as[PR101](https://github.com/blygger/blygger-studio/pull/101),
-stacked on repaired parentPR100. All planned implementation parts now have PRs.
-Final0.49.11 release checks pass: extracted Worker/checksums, bundled normalizer,
+Part 8 is published as [PR 101](https://github.com/blygger/blygger-studio/pull/101),
+stacked on repaired parent PR 100. All planned implementation parts now have PRs.
+Final 0.49.11 release checks pass: extracted Worker/checksums, bundled normalizer,
 installed Node and Chromium SDK consumers, both TypeScript resolution modes,
 and D1/R2 persistence across fresh processes. The version-sensitive mount
 receiver passes all four cases after release metadata changes. No generated
 schema drift or migration is introduced by this part.
 
-The loss audit has71 raw findings/context/footnotes:14 fixed,43 already satisfied,
+The loss audit has 71 raw findings/context/footnotes: 14 fixed, 43 already satisfied,
 eight duplicates and six named followups. None are open or await a design
 decision. Full raw reports, evidence links and per-item dispositions are in
 /tmp/blygger-api-media-review/audit-final.md and ledger.jsonl. The CI heartbeat
 now watches all ten published heads and all reviews. Earlier eight heads were
-green at the latest audit; PR100 reruns after the strict-version fixture repair,
-and PR101 starts final CI. No PR has been merged or deployment run.
+green at the latest audit; PR 100 reruns after the strict-version fixture repair,
+and PR 101 starts final CI. No PR has been merged or deployment run.
+
+PR 100's next CI run exposed a browser-oracle timing gap: two rendering frames
+can finish before a local missing image raises its error event. An unsafe
+legacy-navigation mutant therefore survived the negative assertion in CI. The
+unchanged local control caught it, confirming that the event timing mattered.
+The test now explicitly dispatches the DOM error before checking attempted
+owner-authority calls. Its safe baseline passes and the same unsafe control
+reaches the named assertion. Test-only parent repair 7ff584d is included in the
+final media branch. The two publication CI items are fixed in the separate
+/tmp/blygger-api-review-evaluation ledger. The plan and production behavior do
+not change. CI restarts at the new published heads.
