@@ -779,3 +779,10 @@ The loss audit has77 stable raw/context/footnote entries:26 fixed,41 already
 satisfied, six duplicates and four named followups. None remain open. Full raw
 reports and per-item evidence are under /tmp/blygger-api-cursor-review; the final
 audit is audit-final.md. Generated reproduction and upstream publication follow.
+
+PR100 publication CI caught a stale mount receiver after the native contract bump:
+capabilities correctly advertised5.0.0, while the root/nested mount test still
+required4.0.0. The isolated parent repair updates that strict expectation only.
+All four mount/audience cases are GREEN after same-path RED on the published
+head. Future contract bumps must rerun version-sensitive receivers after metadata
+changes; a pre-bump full suite is not evidence for the final release metadata.
