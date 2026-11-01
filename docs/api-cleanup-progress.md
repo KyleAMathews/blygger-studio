@@ -31,8 +31,8 @@ Update the plan when a finding changes its scope or design.
 | 4 Mounted API cutover | Open, all nine upstream CI jobs pass | `codex/api-mount-cutover`, after 96 | [97](https://github.com/blygger/blygger-studio/pull/97) |
 | 5 Conditional mutations | Open, all nine upstream CI jobs pass | `codex/api-item-revisions`, after 97 | [98](https://github.com/blygger/blygger-studio/pull/98) |
 | 6 Private resources | Open, all nine upstream CI jobs pass | `codex/api-private-resources`, after 98 | [99](https://github.com/blygger/blygger-studio/pull/99) |
-| 7 Cursor pages and TanStack loading | Open, CI running | `codex/api-cursor-pages`, after 99 | [100](https://github.com/blygger/blygger-studio/pull/100) |
-| 8 Hash-addressed media | Open, CI running | `codex/api-media-digests`, after 100 | [101](https://github.com/blygger/blygger-studio/pull/101) |
+| 7 Cursor pages and TanStack loading | Open, all nine upstream CI jobs pass | `codex/api-cursor-pages`, after 99 | [100](https://github.com/blygger/blygger-studio/pull/100) |
+| 8 Hash-addressed media | Open, all nine upstream CI jobs pass | `codex/api-media-digests`, after 100 | [101](https://github.com/blygger/blygger-studio/pull/101) |
 
 ## Findings on 2026 10 31
 
@@ -903,3 +903,33 @@ findings have fixed dispositions in /tmp/blygger-api-review-evaluation/ledger.js
 with raw logs, trace evidence, deterministic RED/GREEN, and a collateral negative
 control. Production source and the API plan do not change. Full upstream CI
 restarts at the new heads; no merge or deploy occurred.
+
+
+## Published source CI complete — 2026-11-01 00:37 UTC
+
+All ten published source heads pass all nine upstream CI jobs. The complete
+review submissions and inline review threads are empty, with no pagination left
+unread. All local review findings have dispositions; the four publication CI
+findings are fixed. No new design decision remains. PRs remain open and no
+deployment has run.
+
+| PR | Verified source head |
+| --- | --- |
+| 90 | `0d46c5cb060fa5fa0bf1184f6a9ed3bdbdf6e2d5` |
+| 91 | `9eed3a4c819e44c3682afe0538c7ad452b0f61bc` |
+| 93 | `694664ecabf960054706d181f4a0d4d8105939a6` |
+| 95 | `2dfca6efc519576b0e4719ca732c748a9a5a093a` |
+| 96 | `623a413549f09fc4915d834b6a58d663d936fe24` |
+| 97 | `6a7ff1504533afee634941303aaad835ef5920e0` |
+| 98 | `0e65c599d114dfc0b48fde38cf891b7b242226a6` |
+| 99 | `9448c4cfd4110d65d8ddf3d118557addcab2f022` |
+| 100 | `90037fd49fbc6ceee9858decfb860e8484188587` |
+| 101 | `5cc55679e6905b180e3df374554bb64e549624b9` |
+
+The lossless final snapshot is
+/tmp/blygger-api-review-evaluation/stack-api-source-complete.json. The publication
+CI audit is ci-api-publication-audit.md in that directory; the part 7 and part 8
+local audits remain in /tmp/blygger-api-cursor-review and
+/tmp/blygger-api-media-review. This receipt changes documentation only. The
+monitor will stop after its published documentation head passes CI too; that
+final receipt is kept in the scratch audit to avoid another documentation run.
