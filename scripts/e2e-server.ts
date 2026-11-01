@@ -3,6 +3,7 @@ import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { readD1Migrations } from "@cloudflare/vitest-plugin";
 import { createServer } from "node:http";
 import { importedHtmlAttacks } from "../test/fixtures/imported-html-attacks.ts";
+import { newId } from '../src/util.ts';
 const output = await build({ entryPoints: ["src/index.ts"], bundle: true, platform: "neutral", conditions: ["workerd"], external: ["cloudflare:*", "node:*"], mainFields: ["module", "main"], format: "esm", target: "es2022", loader: { ".txt": "text" }, write: false });
 const mf = new Miniflare(convertV4MiniflareOptions({ modules: [{ type: "ESModule", path: "worker.mjs", contents: output.outputFiles[0].text }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], host: "127.0.0.1", port: 8787, bindings: { OWNER_PASSWORD: "test-password", COOKIE_SECRET: "browser-test-cookie-secret", MOUNT: "", API_READ_LIMIT: "10000", API_WRITE_LIMIT: "10000" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"], outboundService: () => new Response(null, { status: 503 }) }));
 const db = await mf.getD1Database("DB");
@@ -76,6 +77,14 @@ const proxy = createServer(async (request, response) => {
       const escaped = target.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
       response.writeHead(200, { "Content-Type": "text/html" });
       response.end('<iframe src="' + escaped + '"></iframe>');
+      return;
+    }
+    if (path === '/__fixture/polling-items' && request.method === 'POST') {
+      // Only this disposable database: force cursor continuations without
+      // placing filler in the current-second cohort beside the live markers.
+      await db.batch(Array.from({ length: 30 }, (_, index) => db.prepare("INSERT INTO items(id,kind,status,created,updated,version,content_md,dirty) VALUES (?,'fragment','draft','2020-01-01T00:00:00Z','2020-01-01T00:00:00Z',0,?,1)")
+        .bind(newId(), `Buffered pagination fixture ${index}`)));
+      response.writeHead(204); response.end();
       return;
     }
     // Disposable stand-in for a sender whose claim this blyg has just verified:

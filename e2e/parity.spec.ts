@@ -45,6 +45,8 @@ test('reading preserves retained snapshots and restricts legacy actions', async 
 });
 test('hopper uses stored HTML instead of re-previewing remote markdown', async ({ page }) => {
   await login(page);
+  // Finish leaving Compose before observing requests from the hopper document.
+  await page.goto('about:blank');
   const previews: string[] = [];
   page.on('request', request => { if (new URL(request.url()).pathname === '/api/preview') previews.push(request.url()); });
   await page.goto('/studio/hoppers/parity-hopper');

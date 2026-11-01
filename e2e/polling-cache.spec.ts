@@ -50,34 +50,49 @@ test('a failed initial Reading page recovers through the existing retry control'
   await expect(page.locator('.entry').first()).toBeVisible();
 });
 
-test('a buffered query response keeps its pre-fetch revision and receives a later change next poll', async ({ page }) => {
+test('a buffered cursor page receives a later change by the next poll', async ({ page, request }) => {
   await page.clock.install();
   await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
   await page.getByRole('button', { name: 'log in', exact: true }).click(); await expect(page.locator('#composer-text')).toBeVisible();
+  // Reach continuation requests even when this case runs alone.
+  expect((await request.post('http://127.0.0.1:8789/__fixture/polling-items')).status()).toBe(204);
   const firstMarker = `First buffered client ${Date.now()}`;
   await page.evaluate(content_md => fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: content_md }) }), firstMarker);
   await page.clock.pauseAt(new Date(Date.now() + 10_000));
   let release!: () => void, captured!: () => void;
   const gate = new Promise<void>(done => { release = done; }), ready = new Promise<void>(done => { captured = done; });
   let first = true;
+  let capturedRequest!: object, capturedStatus!: number;
+  let capturedPage!: { items: { contentMd: string }[]; page: { nextCursor: string | null } };
   await page.route('**/api/items?*', async route => {
-    if (!first) return route.continue();
-    first = false; const response = await route.fetch(); captured(); await gate;
+    const query = new URL(route.request().url()).searchParams;
+    if (!first || query.has('cursor') || query.has('id') || query.has('updated')) return route.continue();
+    first = false; capturedRequest = route.request();
+    const response = await route.fetch(); capturedStatus = response.status();
+    capturedPage = await response.json(); captured(); await gate;
     await route.fulfill({ response });
   });
   try {
-    await page.clock.runFor(15_000); await ready;
+    await page.clock.fastForward(15_000); await ready;
+    expect(capturedStatus).toBe(200);
+    expect(capturedPage.items.some(item => item.contentMd === firstMarker)).toBe(true);
+    expect(capturedPage.page.nextCursor).toBeTruthy();
     const marker = `Buffered client ${Date.now()}`;
-    expect(await page.evaluate(async content_md => (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: content_md }) })).ok, marker)).toBe(true);
     // A native underfilled window may acquire the fresh generation immediately.
-    // Observe it before releasing the old page; it must arrive by the next poll.
-    const fresh = page.waitForResponse(async response => new URL(response.url()).pathname === '/api/items' && response.request().method() === 'GET' && (await response.json()).items.some((item: { contentMd: string }) => item.contentMd === marker));
-    const old = page.waitForResponse(response => new URL(response.url()).pathname === '/api/items' && response.request().method() === 'GET');
-    release(); await (await old).finished(); await page.clock.runFor(1_000);
-    // The first response can be one page of a larger collection load.
-    await expect(page.getByText(firstMarker, { exact: false }).first()).toBeVisible();
-    await page.clock.runFor(15_000); await (await fresh).finished(); await page.clock.runFor(1_000);
-    await expect(page.getByText(marker, { exact: false }).first()).toBeVisible();
+    // Observe it before the write; cursor-expired errors are not item pages.
+    const fresh = page.waitForResponse(async response => new URL(response.url()).pathname === '/api/items' && response.request().method() === 'GET' && response.status() === 200 && (await response.json()).items.some((item: { contentMd: string }) => item.contentMd === marker));
+    const old = page.waitForResponse(response => response.request() === capturedRequest);
+    expect(await page.evaluate(async content_md => (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: content_md }) })).ok, marker)).toBe(true);
+    expect(capturedPage.items.some(item => item.contentMd === marker)).toBe(false);
+    release(); await (await old).finished(); await page.clock.fastForward(1_000);
+    // A changed continuation can discard the old acquisition before any row renders.
+    await page.clock.fastForward(15_000); await (await fresh).finished();
+    // Network completions can schedule collection application after a clock advance.
+    // Advance rendering frames while waiting, without another 15-second poll.
+    await expect.poll(async () => {
+      await page.clock.runFor(16);
+      return Promise.all([firstMarker, marker].map(text => page.getByText(text, { exact: false }).first().isVisible()));
+    }).toEqual([true, true]);
   } finally { release(); }
 });
 
