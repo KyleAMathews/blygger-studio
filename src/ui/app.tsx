@@ -26,8 +26,10 @@ import {
 import {
   itemDetail,
   hopperDetail,
+  hopperInfo,
   readingView,
   readingKey,
+  readingSummaryView,
   LENSES,
   type Lens,
   queryClient,
@@ -38,7 +40,6 @@ import {
   preloadMentions,
 } from './data.ts';
 import { Button } from './components.tsx';
-import type { CachedResponse } from './revision-query.ts';
 import { SyntaxPage } from './syntax.tsx';
 import { MorePage } from './more.tsx';
 import { UpdatesPage } from './updates.tsx';
@@ -142,22 +143,26 @@ const reading = createRoute({
   loader: async ({ deps }) => {
     if (deps.hopper) {
       await Promise.all([
-        preloadDetail(hopperDetail(deps.hopper), 'Hopper'),
+        preloadDetail(hopperInfo(deps.hopper), 'Hopper'),
+        preloadView(readingSummaryView(readingKey('hopper:' + deps.hopper, deps.lens))),
+        ...(deps.lens === 'smart' ? [] : [preloadView(readingView(readingKey('hopper:' + deps.hopper, deps.lens), deps.offset))]),
         preloadView(listViews.subscriptions),
         preloadView(listViews.hoppers),
         preloadView(listViews.signals),
       ]);
+      const summary = readingSummaryView(readingKey('hopper:' + deps.hopper, deps.lens)).toArray[0];
+      if (deps.offset > 0 && summary && deps.offset >= summary.total) throw redirect({ to: '/reading', search: { hopper: deps.hopper, offset: 0, ...(deps.lens ? { lens: deps.lens } : {}) } });
       return;
     }
-    // The feed and the sources list (whose counts come from the first page
-    // of "all") both read "all". The placeholder lenses read the unfiltered
-    // key too, for the count in their header.
+    // The feed and sources list share a summary under the selected lens.
+    // The sources list needs counts without loading a feed page.
     const sub = deps.sub ?? 'all';
     const offset = deps.view === 'sources' ? 0 : deps.offset;
     const key = readingKey(sub, deps.lens);
     const view = readingView(key, offset);
     await Promise.all([
-      preloadView(view),
+      preloadView(readingSummaryView(key)),
+      ...(deps.view === 'sources' ? [] : [preloadView(view)]),
       preloadView(listViews.subscriptions),
       preloadView(listViews.hoppers),
       preloadView(listViews.signals),
@@ -166,12 +171,7 @@ const reading = createRoute({
         : []),
     ]);
     if (deps.sub === undefined || deps.lens === 'smart') return;
-    const page = queryClient
-      .getQueriesData<
-        CachedResponse<import('../../sdk/dist/browser.js').ListReadingResponses[200]>
-      >({ queryKey: ['reading', key] })
-      .map(([, data]) => data?.data)
-      .find((data) => data?.offset === offset);
+    const page = readingSummaryView(key).toArray[0];
     if (
       page &&
       (page.selected !== sub || (offset > 0 && offset >= page.total))

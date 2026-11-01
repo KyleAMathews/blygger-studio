@@ -1033,9 +1033,8 @@ export async function pageTop(db: D1Database, settings: Settings, mount: string,
  */
 async function masthead(db: D1Database, settings: Settings, mount: string, loadedAvatar?: MediaRow | null): Promise<string> {
   const bits: string[] = [];
-  // The avatar's URL is its `r2_key` (`media/{id}.{ext}`), not `media/{id}` —
-  // the `/media/:file` route matches on the full key including the extension,
-  // so an id alone 404s. Same lookup `mediaHtml` does for item images.
+  // Use the complete stored key, including any digest and extension.
+  // An id alone is not a media URL. Item images use the same lookup.
   const avatar = loadedAvatar !== undefined ? loadedAvatar : settings.avatar_media_id ? await getMedia(db, settings.avatar_media_id) : null;
   if (avatar) {
     bits.push(`<img class="avatar" src="${mount}/${avatar.r2_key}" alt="" width="48" height="48">`);

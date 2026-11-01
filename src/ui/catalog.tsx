@@ -1,6 +1,6 @@
 import { previewFromHtml } from '../preview.ts';
 import { useMemo, useState } from 'react';
-import { count, useLiveQuery } from '@tanstack/react-db';
+import { count, useLiveQuery, useLiveInfiniteQuery, eq, inArray } from '@tanstack/react-db';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type { Mention } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
@@ -12,7 +12,8 @@ import {
   items,
   createDraftAction,
   changed,
-  hopperDetail,
+  hopperInfo,
+  hopperMemberships,
   hopperPreview,
   inbound,
   outbound,
@@ -209,18 +210,18 @@ function HopperCard({ id, name }: { id: string; name: string }) {
       {row ? (
         <>
           <p className="muted small hopper-meta">
-            {row.total} items · {row.source_count} sources ·{' '}
+            {row.total} items · {row.sourceCount} sources ·{' '}
             {row.hopper.public ? 'public' : 'private'}
           </p>
           {row.items.map((item) => {
-            const preview = previewFromHtml(item.content_html);
+            const preview = previewFromHtml(item.contentHtml);
             const source = sources.find(
-              (source) => source.id === item.subscription_id,
+              (source) => source.id === item.subscriptionId,
             );
             return (
               <p
                 className="hopper-prev hopper-preview"
-                key={JSON.stringify([item.subscription_id, item.remote_id])}
+                key={JSON.stringify([item.subscriptionId, item.remoteId])}
               >
                 {preview.title ? <strong>{preview.title} · </strong> : null}
                 {preview.body}
@@ -230,8 +231,8 @@ function HopperCard({ id, name }: { id: string; name: string }) {
               </p>
             );
           })}
-          {row.total > 3 ? (
-            <p className="tiny muted hopper-more">+{row.total - 3} more</p>
+          {row.total > row.items.length ? (
+            <p className="tiny muted hopper-more">+{row.total - row.items.length} more</p>
           ) : null}
         </>
       ) : (
@@ -242,13 +243,14 @@ function HopperCard({ id, name }: { id: string; name: string }) {
 }
 export function HopperPage({ id }: { id: string }) {
   useChrome({ framed: false });
-  const collection = useMemo(() => hopperDetail(id), [id]);
+  const collection = useMemo(() => hopperInfo(id), [id]);
   const result = useLiveQuery({
     query: (q) => q.from({ hopper: collection }),
   });
   const row = result.data?.[0];
-  const ownRows =
-    useLiveQuery({ query: (q) => q.from({ item: items }) }).data ?? [];
+  const memberships = useLiveInfiniteQuery(q => q.from({ member: hopperMemberships }).where(({ member }) => eq(member.hopperId, id)).orderBy(({ member }) => member.rank, 'asc'), { pageSize: 25 });
+  const ownIds = memberships.data.filter(member => member.subscriptionId === '~own').map(member => member.remoteId);
+  const ownRows = useLiveQuery(q => q.from({ item: items }).where(({ item }) => inArray(item.id, ownIds))).data ?? [];
   const action = useAction();
   const navigate = useNavigate();
   const settings = useSettings();
@@ -348,7 +350,7 @@ export function HopperPage({ id }: { id: string }) {
             </a>
           </p>
         ) : null}
-        {row.hopper.slug_frozen ? (
+        {row.hopper.slugFrozen ? (
           <p className="hint">
             The public URL stays fixed when you rename this hopper.
           </p>
@@ -360,11 +362,11 @@ export function HopperPage({ id }: { id: string }) {
       </div>
       <div className="section-h">
         <span>
-          {row.total} items from {row.source_count} sources
+          {row.total} items from {row.sourceCount} sources
         </span>
       </div>
-      {row.memberships.map((member) => {
-        const key = JSON.stringify([member.subscription_id, member.remote_id]);
+      {memberships.data.map((member) => {
+        const key = JSON.stringify([member.subscriptionId, member.remoteId]);
         const removeButton = (
           <Button
             className="btn btn-ghost btn-mini"
@@ -373,7 +375,7 @@ export function HopperPage({ id }: { id: string }) {
                 await unwrap(
                   BlyggerApi.removeHopperItem({
                     client,
-                    path: { id, sub: member.subscription_id, remoteId: member.remote_id },
+                    path: { id, sub: member.subscriptionId, remoteId: member.remoteId },
                   }),
                 );
                 await changed('hopper', 'hoppers', 'hopper-preview');
@@ -384,22 +386,22 @@ export function HopperPage({ id }: { id: string }) {
           </Button>
         );
         // One of the owner's own items (session 47; store.ts OWN_SUBSCRIPTION).
-        if (member.subscription_id === '~own') {
-          const own = ownRows.find((row) => row.id === member.remote_id);
+        if (member.subscriptionId === '~own') {
+          const own = ownRows.find((row) => row.id === member.remoteId);
           return (
-            <article className="entry reading-entry" key={key} data-own={member.remote_id}>
+            <article className="entry reading-entry" key={key} data-own={member.remoteId}>
               <div className="entry-in">
                 <p className="byline">
                   {own ? <span className="badge">{own.kind}</span> : null}
                   <span className="src">
                     {!own ? 'deleted' : own.status === 'public' ? 'yours' : own.status === 'draft' ? 'your draft, not shown publicly' : 'yours, withdrawn'}
                   </span>
-                  <span>· added {added(member.added_at)}</span>
+                  <span>· added {added(member.addedAt)}</span>
                 </p>
                 {own ? (
                   <div className="entry-body content">
                     <p>
-                      <strong>{itemTitle(own.content_md)}</strong>
+                      <strong>{itemTitle(own.contentMd)}</strong>
                     </p>
                   </div>
                 ) : null}
@@ -416,13 +418,9 @@ export function HopperPage({ id }: { id: string }) {
             </article>
           );
         }
-        const item = row.items.find(
-          (item) =>
-            item.subscription_id === member.subscription_id &&
-            item.remote_id === member.remote_id,
-        );
+        const item = member.item;
         const source = sources.find(
-          (source) => source.id === member.subscription_id,
+          (source) => source.id === member.subscriptionId,
         );
         return (
           <article className="entry reading-entry" key={key}>
@@ -439,25 +437,25 @@ export function HopperPage({ id }: { id: string }) {
                     {source.title || source.origin}
                   </a>
                 ) : (
-                  <span className="src">{member.subscription_id}</span>
+                  <span className="src">{member.subscriptionId}</span>
                 )}
-                <span>· added {added(member.added_at)}</span>
+                <span>· added {added(member.addedAt)}</span>
               </p>
               {item?.state === 'tombstone' ? (
                 <p className="tomb">
                   withdrawn by origin
-                  {item.pinned_version_retained != null
-                    ? ` · retained pinned v${item.pinned_version_retained}`
+                  {item.pinnedVersionRetained != null
+                    ? ` · retained pinned v${item.pinnedVersionRetained}`
                     : ''}
                 </p>
               ) : null}
               <div className="entry-body content">
-                <Html html={item?.content_html || ''} />
+                <Html html={item?.contentHtml || ''} />
               </div>
               <SourceLink
                 url={
                   item && source
-                    ? sourceTitleAndUrl({ ...item, l0: item.l0 ? 1 : 0 }, source.origin).url
+                    ? sourceTitleAndUrl({ l0: item.l0 ? 1 : 0, kind: item.kind, remote_id: item.remoteId, content_html: item.contentHtml, page: item.page }, source.origin).url
                     : undefined
                 }
               />
@@ -476,8 +474,8 @@ export function HopperPage({ id }: { id: string }) {
                           body: {
                             mode: 'response',
                             source: {
-                              subscription_id: member.subscription_id,
-                              remote_id: member.remote_id,
+                              subscriptionId: member.subscriptionId,
+                              remoteId: member.remoteId,
                             },
                           },
                         }),
@@ -498,6 +496,7 @@ export function HopperPage({ id }: { id: string }) {
           </article>
         );
       })}
+      {memberships.hasNextPage ? <Button disabled={memberships.isFetchingNextPage} onClick={() => void memberships.fetchNextPage()}>load more members</Button> : null}
       <p>
         <Button
           className="btn btn-danger"
@@ -524,13 +523,9 @@ function MentionRow({ mention }: { mention: Mention }) {
   const collection = useMemo(() => mentionSource(mention.id), [mention.id]);
   const source = useLiveQuery({ query: (q) => q.from({ source: collection }) })
     .data?.[0];
-  let author = mention.source_origin || mention.source;
-  try {
-    const name = JSON.parse(mention.source_author_json || '{}')?.name;
-    if (typeof name === 'string' && name) author = name;
-  } catch {
-    /* Old stored metadata can be invalid. */
-  }
+  let author = mention.sourceOrigin || mention.source;
+  const name = mention.sourceAuthor?.name;
+  if (typeof name === 'string' && name) author = name;
   const gone = mention.status === 'gone';
   return (
     <div
@@ -539,14 +534,14 @@ function MentionRow({ mention }: { mention: Mention }) {
       <span className="rel">{mention.relation || 'mention'}</span> ·{' '}
       <a
         className="who"
-        href={mention.source_page || mention.source}
+        href={mention.sourcePage || mention.source}
         target="_blank"
         rel="noreferrer"
       >
         {author}
       </a>{' '}
       <span className="muted">
-        · v{mention.source_version ?? '?'} · first seen {mention.first_seen}
+        · v{mention.sourceVersion ?? '?'} · first seen {mention.firstSeen}
         {gone ? ' · no longer verifies' : ''}
       </span>
       {gone ? null : (
@@ -568,7 +563,7 @@ function MentionRow({ mention }: { mention: Mention }) {
           >
             {mention.hidden ? 'show on page' : 'hide from page'}
           </Button>
-          {mention.source_id && source?.holder ? (
+          {mention.sourceId && source?.holder ? (
             <Button
               className="btn btn-ghost btn-mini"
               onClick={() =>
@@ -579,8 +574,8 @@ function MentionRow({ mention }: { mention: Mention }) {
                       body: {
                         mode: 'response',
                         source: {
-                          subscription_id: source.holder!,
-                          remote_id: mention.source_id!,
+                          subscriptionId: source.holder!,
+                          remoteId: mention.sourceId!,
                         },
                       },
                     }),
@@ -592,7 +587,7 @@ function MentionRow({ mention }: { mention: Mention }) {
             >
               stub back ↗
             </Button>
-          ) : mention.source_id ? (
+          ) : mention.sourceId ? (
             source?.subscription ? (
               // Subscribed: its inspector (ⓘ on the timeline) has resync.
               <Link
@@ -609,7 +604,7 @@ function MentionRow({ mention }: { mention: Mention }) {
                 to="/reading"
                 search={{}}
               >
-                subscribe to {mention.source_origin} to stub back
+                subscribe to {mention.sourceOrigin} to stub back
               </Link>
             )
           ) : null}
@@ -619,13 +614,14 @@ function MentionRow({ mention }: { mention: Mention }) {
     </div>
   );
 }
-function ResponseVisibility({ id, mode, defaultShowing, disabled }: {
+function ResponseVisibility({ id, revision, mode, defaultShowing, disabled }: {
   id: string;
+  revision: number;
   mode: 'default' | 'show' | 'hide';
   defaultShowing: boolean;
   disabled: boolean;
 }) {
-  const write = useMemo(() => createDraftAction(id), [id]);
+  const write = useMemo(() => createDraftAction(id, revision), [id, revision]);
   const action = useAction();
   return (
     <>
@@ -673,7 +669,7 @@ export function MentionsPage() {
   useChrome({ framed: false });
   const settings = useSettings();
   const groups =
-    useLiveQuery({ query: (q) => mentionQuery(q, inbound, items, !!settings?.show_responses_default) }).data ?? [];
+    useLiveQuery({ query: (q) => mentionQuery(q, inbound, items, !!settings?.showResponsesDefault) }).data ?? [];
   const incomingStats = useLiveQuery({ query: q => q.from({ mention: inbound })
     .select(({ mention }) => ({ total: count(mention.id) })).findOne() }).data;
   const outgoingStats = useLiveQuery({ query: q => q.from({ mention: outbound })
@@ -715,10 +711,10 @@ export function MentionsPage() {
                       where the heading goes; editing is a side link. */}
                   {item?.status === 'public' ? (
                     <a href={publicPath(item)} target="_blank" rel="noreferrer">
-                      {item.content_md.slice(0, 60) || id.slice(0, 8)} ↗
+                      {item.contentMd.slice(0, 60) || id.slice(0, 8)} ↗
                     </a>
                   ) : (
-                    item?.content_md.slice(0, 60) || id.slice(0, 8)
+                    item?.contentMd.slice(0, 60) || id.slice(0, 8)
                   )}{' '}
                   <Link className="muted small" to="/edit/$id" params={{ id }}>
                     edit
@@ -728,7 +724,7 @@ export function MentionsPage() {
                   {total} responses · {visible} on the page
                   now
                 </p>
-                <ResponseVisibility id={id} mode={mode} defaultShowing={!!settings?.show_responses_default} disabled={!item} />
+                <ResponseVisibility id={id} revision={item?.revision ?? 0} mode={mode} defaultShowing={!!settings?.showResponsesDefault} disabled={!item} />
                 {rows.map((mention) => (
                   <MentionRow key={mention.id} mention={mention} />
                 ))}
@@ -746,7 +742,7 @@ export function MentionsPage() {
         </>
       ) : (
         <>
-          {!settings?.site_url ? (
+          {!settings?.siteUrl ? (
             <div className="banner banner-warn mentions-note" role="note">
               <span className="mark" aria-hidden="true">
                 !
@@ -773,8 +769,8 @@ export function MentionsPage() {
                   >
                     {mention.status.replaceAll('_', ' ')}
                   </span>{' '}
-                  <Link to="/edit/$id" params={{ id: mention.item_id }}>
-                    v{mention.version} of {mention.item_id.slice(0, 8)}…
+                  <Link to="/edit/$id" params={{ id: mention.itemId }}>
+                    v{mention.version} of {mention.itemId.slice(0, 8)}…
                   </Link>
                   <div className="small muted">
                     →{' '}
@@ -782,12 +778,12 @@ export function MentionsPage() {
                       {mention.target}
                     </a>{' '}
                     · {mention.attempts} attempts
-                    {mention.next_attempt_at && mention.status === 'pending'
-                      ? ` · retrying after ${mention.next_attempt_at}`
+                    {mention.nextAttemptAt && mention.status === 'pending'
+                      ? ` · retrying after ${mention.nextAttemptAt}`
                       : ''}
                   </div>
-                  {mention.last_error ? (
-                    <div className="small err">{mention.last_error}</div>
+                  {mention.lastError ? (
+                    <div className="small err">{mention.lastError}</div>
                   ) : null}
                 </div>
               ))}
@@ -841,7 +837,7 @@ export function ForkPage({
                         },
                       }),
                     );
-                    await items.utils.writeUpsert(draft);
+                    await items.utils.writeUpsert({ ...draft, pins: [] });
                     await navigate({
                       to: '/edit/$id',
                       params: { id: draft.id },

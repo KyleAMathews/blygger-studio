@@ -43,6 +43,12 @@ try {
   for (const migration of await readD1Migrations(join(worker, "migrations"))) {
     await db.batch(migration.queries.map((query) => db.prepare(query)));
   }
+  const normalizer = await import(pathToFileURL(join(worker, 'normalize-import-dates.mjs')).href);
+  await db.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,updated,observed_at) VALUES ('legacy-date','old','fragment','current',3,'Wed, 01 Jul 2026 00:00:00 GMT','2026-08-05T00:00:00Z')").run();
+  assert.deepEqual(await normalizer.normalizeStoredImportDates((sql: string) => db.prepare(sql).all()), { scanned: 1, changed: 1 });
+  assert.equal(await db.prepare("SELECT updated FROM imported_items WHERE subscription_id='legacy-date'").first('updated'), '2026-07-01T00:00:00Z');
+  assert.deepEqual(await normalizer.normalizeStoredImportDates((sql: string) => db.prepare(sql).all()), { scanned: 1, changed: 0 });
+  await db.prepare("DELETE FROM imported_items WHERE subscription_id='legacy-date'").run();
   const homepage = await mf.dispatchFetch('http://localhost/');
   assert.equal(homepage.status, 200);
   assert.equal(homepage.headers.get('cache-control'), 'no-cache');
@@ -57,18 +63,29 @@ try {
   assert.equal(login.status, 302);
   const token = login.headers.get("set-cookie")?.match(/blyg_session=([^;]+)/)?.[1];
   assert.ok(token);
-  const client = sdk.createBlyggerClient({ baseUrl, auth: (scheme: { in?: string }) => scheme.in === 'cookie' ? token : undefined });
-  const draft = await sdk.unwrap(sdk.BlyggerApi.createItem({ client, body: { content_md: "Packaged Node SDK" } }));
+  const client = sdk.createBlyggerClient({ baseUrl: baseUrl + "/api", auth: (scheme: { in?: string }) => scheme.in === 'cookie' ? token : undefined });
+  const draft = await sdk.unwrap(sdk.BlyggerApi.createItem({ client, body: { contentMd: "Packaged Node SDK" } }));
   const detail = await sdk.unwrap(sdk.BlyggerApi.getItem({ client, path: { id: draft.id } }));
-  assert.equal(detail.content_md, "Packaged Node SDK");
+  assert.equal(detail.contentMd, "Packaged Node SDK");
+  assert.equal(draft.revision, 1);
+  const edited = await sdk.unwrap(sdk.BlyggerApi.updateItem({ client, path: { id: draft.id }, body: { contentMd: "Conditional installed SDK edit", expectedRevision: draft.revision } }));
+  assert.equal(edited.revision, 2);
+  const stale = await sdk.BlyggerApi.publishItem({ client, path: { id: draft.id }, body: { expectedRevision: draft.revision } });
+  assert.equal(stale.response.status, 409);
+  assert.equal(stale.error.code, 'revision-conflict');
+  const retained = await sdk.unwrap(sdk.BlyggerApi.getItem({ client, path: { id: draft.id } }));
+  assert.equal(retained.contentMd, "Conditional installed SDK edit");
+  assert.equal(retained.version, 0);
+  assert.equal(retained.revision, 2);
+
   const media = await sdk.unwrap(sdk.BlyggerApi.uploadMedia({ client, body: { file: new File([new Uint8Array([1, 2, 3])], "image.png", { type: "image/png" }) } }));
   assert.equal(media.mime, "image/png");
-  const unauthorized = await sdk.BlyggerApi.getSettings({ client: sdk.createBlyggerClient({ baseUrl }) });
+  const unauthorized = await sdk.BlyggerApi.getSettings({ client: sdk.createBlyggerClient({ baseUrl: baseUrl + "/api" }) });
   assert.equal(unauthorized.response.status, 401);
-  assert.equal(unauthorized.error.error, "unauthorized");
+  assert.equal(unauthorized.error.message, "unauthorized");
   assert.ok(readFileSync(join(temp, "package/LICENSE"), "utf8").includes("MIT"));
   assert.equal(JSON.parse(readFileSync(join(temp, "package/package.json"), "utf8")).version, manifest.sdkVersion);
-  await verifySdkConsumer(temp, join(output, sdkArchive), baseUrl, token);
+  await verifySdkConsumer(temp, join(output, sdkArchive), baseUrl + "/api", token, baseUrl + "/studio");
   await verifyPersistence(worker, temp);
   console.log("Release checksums, extracted Worker, and packaged Node SDK auth/read/write/upload verified");
 } finally {

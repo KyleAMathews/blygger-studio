@@ -30,6 +30,7 @@ Then provision the schema, set secrets through Wrangler's prompts, and deploy:
 npx wrangler@4 d1 migrations apply DB --remote
 npx wrangler@4 secret put OWNER_PASSWORD
 npx wrangler@4 secret put COOKIE_SECRET
+node normalize-import-dates.mjs --remote  # finish pending writes first; safe to rerun
 npx wrangler@4 deploy
 ```
 
@@ -45,7 +46,7 @@ included `wrangler.jsonc` to offer them. This prebuilt worker
 carries the shipped model list; to use a model it does not list, choose
 *other…* in Settings and type its id.
 
-The archive includes the Worker bundle, migrations, licenses, and a deployment
+The archive includes the Worker bundle, migrations, a date-normalization tool, licenses, and a deployment
 README. It needs no `npm ci` or source build. Wrangler's
 [Cloudflare setup instructions](https://developers.cloudflare.com/r2/get-started/workers-api/)
 cover login and bucket creation.
@@ -73,9 +74,13 @@ for `Cf-Cache-Status: HIT` or `UPDATING` and matching conditional requests for 3
 
 ## Upgrading
 
+For the0.49.8 revision cutover, finish pending writes, including generation,
+before upgrading. Avoid edits until deployment finishes. Old in-flight writes
+do not participate in the new revision checks.
+
 Read every changelog entry between your installed version and the target,
 including each `Migrations:` line. Verify the new archive before extracting it.
-Copy its `worker.js` and `migrations/` into your existing deployment directory;
+Copy its `worker.js`, `normalize-import-dates.mjs` and `migrations/` into your existing deployment directory;
 keep your own `wrangler.jsonc`, Cloudflare secrets, D1 database, and R2 bucket.
 Do not overwrite your config with the generic template from the new archive.
 Keep `main: "worker.js"` and `no_bundle: true`.
@@ -84,6 +89,7 @@ Back up D1 before any required migrations, then run in your deployment directory
 
 ```sh
 npx wrangler@4 d1 migrations apply DB --remote  # if the changelog lists migrations
+node normalize-import-dates.mjs --remote  # finish pending writes first; safe to rerun
 npx wrangler@4 deploy
 ```
 

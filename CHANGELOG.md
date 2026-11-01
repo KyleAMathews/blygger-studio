@@ -18,6 +18,147 @@ not have its own repo until session 26.
 
 ---
 
+## 0.49.11 — Digest media URLs
+
+New uploads use media/{id}/{sha256}.{ext}, including unattached files. A verified
+digest URL retained by a published version uses immutable public caching. Legacy
+URLs, current avatars, and later attachments without a published reference keep
+ETag revalidation. Private bytes stay private and no-store.
+
+Discarding a draft preserves media rows used by published posts or the current
+avatar. Digest URL text wraps in Studio attachment cards on phones. Private API
+preflight explicitly sends no-store. Existing duplicate uploads retain their URL
+and revision, including legacy URLs.
+
+**Migrations:** None. Existing media URLs and publication bytes need no rewrite.
+This release uses private contract5.0.0 and SDK0.6.0 from0.49.10.
+
+## 0.49.10 — Bounded cursor pages
+
+Private collection reads use opaque cursor pages. Studio loads bounded item,
+history, hopper, signal and browse windows through the native TanStack pager.
+Item and hopper detail no longer include whole historical/member collections.
+Named summary reads provide counts. Relevant mutations expire continuations
+with409 cursor-expired so clients restart the acquisition.
+
+This is a hard private contract cutover to5.0.0 and SDK0.6.0. Update clients and
+API together. HTTP offset, imported-feed next, embedded history and hopper preview
+inputs are removed. Public protocol representations do not change.
+
+Imported created/updated dates normalize to ISO8601 UTC at storage. Invalid dates
+become null. Existing timestamps need the bundled resumable metadata repair before
+deployment. It preserves content, versions, observation times and read state.
+Finish pending writes and generation, then avoid edits through repair/deployment.
+
+**Migrations:**0036_cursor_generations.sql adds interactions/browse change domains
+and cursor indexes. After schema migration, run
+`node --import tsx scripts/normalize-import-dates.ts --remote` for source installs,
+or `node normalize-import-dates.mjs --remote` for Worker archives, before deploying.
+The current updater and deploy-all run this step. Older running updaters need the
+explicit command after declining their deploy prompt. See README upgrade steps.
+
+## 0.49.9 — Explicit private resources
+
+The private API and SDK use camelCase fields and explicit resources. Imported
+metadata contains structured values, retains unknown remote members, and falls
+back per damaged stored column. Item kind stays fragment or thread after
+withdrawal, with publication state in status. Media URLs are absolute and
+include the deployment mount. Private errors use code, message, and optional
+details. Studio and SDK0.5.0 use private contract4.0.0 together.
+
+This is a hard private API cutover. Update clients with the server. Storage and
+public Blygger protocol formats stay intact, including legacy media URLs.
+Finish pending writes and generation before upgrading, and avoid edits until
+deployment finishes.
+
+**Migrations:** none in this release. Earlier stack releases include0035.
+
+## 0.49.8 — Conditional item writes
+
+Item reads and creation return a private revision. Item commands require
+`expectedRevision` and return the resulting revision. Stale commands return409
+with `code: "revision-conflict"`. Text, generation provenance, attachment
+membership, and publication changes share the same conditional transition.
+Studio keeps the revision tied to its accepted text and serializes its writes.
+Private contract version:3.0.0. SDK version:0.4.0.
+
+**Migrations:**0035 adds the private revision and updates private item polling
+invalidation. Finish pending writes, including generation, before this upgrade.
+Avoid edits until deployment finishes. Old in-flight writes do not participate
+in the new revision checks.
+
+## 0.49.7 — Mounted private API
+
+REST now lives at `{mount}/api`. Set SDK base URLs to that full address. Mounted nodes remove host-root `/api`; replace old REST tokens or request new OAuth consent. MCP audiences stay the same. Private contract version: 2.0.0. SDK version: 0.3.0.
+
+**Migrations:** none.
+
+## 0.49.6 — 2026-10-31
+
+**Migrations: none.**
+
+- REST and MCP invoke shared domain operations after identity verification.
+  The shared runner applies scopes, conditional permissions, live extension
+  gates, validation, and work budgets. MCP no longer creates internal REST
+  requests or multipart forms.
+- Both upload adapters supply the same decoded media bytes and metadata.
+  Existing duplicate handling, published-item permissions, rollback, retained
+  bytes, publication warnings, and background effects remain part of the
+  shared operations.
+- Server extension read handlers receive a domain context and validated input,
+  and return typed outcomes. See `docs/extensions.md` for the callback change.
+  Private API payloads, paths, and generated SDK stay stable in this part.
+
+## 0.49.5 — 2026-10-31
+
+**Migrations: none.**
+
+- Authenticated clients can read `/api/capabilities` for canonical endpoints,
+  the contract version, available operations, and extension state. Each grant
+  can inspect its own capabilities, including a grant with only `reading:state`.
+- REST and MCP use each operation's declared scopes and conditional permission
+  rules. MCP discovery filters disabled and uncompiled extensions. Execution
+  checks current feature state again. Static OpenAPI and SDKs retain all routes.
+- MCP hints describe effects rather than HTTP verbs. Live previews spend the
+  read budget. Link classification retains read authority and spends the write
+  budget because it can fetch remote pages and store its probe cache.
+
+## 0.49.4 — 2026-10-31
+
+**Migrations: 0034** (`versions.kind`, nullable for unresolved legacy rows).
+
+- Normal empty and media-only publications retain their authored kind. They can
+  be pinned, restored, forked, and compared without being mistaken for withdrawal
+  endcaps. Studio history offers the same pin and restore actions.
+- New publications and withdrawals store explicit version state. The migration
+  backfills facts supported by retained data and leaves ambiguous old rows
+  unclassified. Those rows keep each reader's existing legacy interpretation.
+  Frozen publication fields remain unchanged. Old Workers can still insert rows
+  during the migration/deploy window.
+- Authored-kind reads use stored version state across private reading, public
+  pages, feeds, provenance, forks, and mentions. Publishing-history ordering
+  includes explicit empty publications and excludes withdrawals.
+
+## 0.49.3 — 2026-10-31
+
+**Migrations: none.**
+
+- Public JSON, OPML, CSS, Studio assets, and legacy media URLs provide ETags
+  and conditional GET/HEAD responses. JSON validators cover all emitted data,
+  including changelog pin flags and mutable author/origin metadata on pins.
+  Legacy random-ID media URLs revalidate rather than promise immutable caching.
+- CORS and cache policy apply to actual OAuth responses, public wire errors,
+  explicit conditional preflight, and bearer-authenticated private media reads.
+  Browser clients can inspect validators, retry delays, supported methods,
+  returned locations, and authentication challenges where CORS permits reads.
+- Authorization endpoints exclude CORS on canonical and trailing-slash routes,
+  including preflight. Early private size-limit errors and MCP origin denials
+  have an explicit no-store policy. Native OAuth discovery retains its public
+  cache lifetime, and signing-key metadata has an explicit revalidation policy.
+- Wrong-method responses include owner grant administration, schema delivery,
+  and MCP in their Allow headers. Enabled Webmention reports POST as its method;
+  disabled Webmention remains absent.
+
 ## 0.49.2 — 2026-10-31
 
 **Migrations: none.**

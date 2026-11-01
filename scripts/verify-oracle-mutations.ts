@@ -26,8 +26,8 @@ type Control = { name: string; file: string; from: string; to: string; test: str
 const controls: Control[] = [
   { name: "pin is not persisted", file: "src/model.ts", from: "UPDATE versions SET pinned = 1,", to: "UPDATE versions SET pinned = 0,", test: "test/item-lifecycle.oracle.test.ts", pattern: "preserves a pinned history", checkpoint: "lifecycle immutable history" },
   { name: "restore changes the wrong text", file: "src/model.ts", from: ".bind(row.content_md, discard ? 1 : 0,", to: '.bind("mutation: wrong restored text", discard ? 1 : 0,', test: "test/item-lifecycle.oracle.test.ts", pattern: "preserves a pinned history", checkpoint: "lifecycle owner working copy" },
-  { name: "page offset is ignored", file: "src/read-api.ts", from: ".bind(limit, offset).all<T>()", to: ".bind(limit, 0).all<T>()", test: "test/pagination.oracle.test.ts", pattern: "walks ties over more than two pages", checkpoint: "pagination page values and order" },
-  { name: "tie order is reversed", file: "src/read-api.ts", from: "signals ORDER BY at DESC, subscription_id, remote_id", to: "signals ORDER BY at DESC, subscription_id DESC, remote_id DESC", test: "test/pagination.oracle.test.ts", pattern: "walks ties over more than two pages", checkpoint: "pagination page values and order" },
+  { name: "page continuation is ignored", file: "src/cursor-page.ts", from: "const after = cursor ? afterWhere(source.order, cursor.after) : null;", to: "const after = null;", test: "test/pagination.oracle.test.ts", pattern: "walks ties over more than two pages", checkpoint: "pagination page values and order" },
+  { name: "tie order is reversed", file: "src/read-api.ts", from: "name: 'signals', domains: ['signals'], sql: 'SELECT * FROM signals',\n  order: [{ column: 'at', direction: 'desc' }, { column: 'subscription_id', direction: 'asc' }, { column: 'remote_id', direction: 'asc' }]", to: "name: 'signals', domains: ['signals'], sql: 'SELECT * FROM signals',\n  order: [{ column: 'at', direction: 'desc' }, { column: 'subscription_id', direction: 'desc' }, { column: 'remote_id', direction: 'desc' }]", test: "test/pagination.oracle.test.ts", pattern: "walks ties over more than two pages", checkpoint: "pagination page values and order" },
   { name: "mention lookup restores LIKE", file: "src/mentions/send.ts", from: "substr(?, 1, length(origin)) = origin", to: "? LIKE origin || '%'", test: "test/mention-delivery.oracle.test.ts", pattern: "mention-delivery: fixed", checkpoint: "mention delivery result", replayTarget: "mention-delivery" },
   { name: "mention lookup selects shortest origin", file: "src/mentions/send.ts", from: "ORDER BY length(origin) DESC LIMIT 1", to: "ORDER BY length(origin) ASC LIMIT 1", test: "test/mention-delivery.oracle.test.ts", pattern: "mention-delivery: fixed", checkpoint: "mention discovery trace" },
   { name: "mention lookup includes RSS", file: "src/mentions/send.ts", from: "WHERE kind = 'blyg' AND substr", to: "WHERE substr", test: "test/mention-delivery.oracle.test.ts", pattern: "mention-delivery: fixed", checkpoint: "mention discovery trace" },
@@ -40,7 +40,7 @@ try {
   }
   // Include this known receiving fixture before its first commit as well.
   cpSync(join(root, "test/mention-delivery.oracle.test.ts"), join(temp, "test/mention-delivery.oracle.test.ts"));
-  for (const file of ["src/ui/mention-order.ts", "test-ui/mention-order.oracle.test.ts"]) {
+  for (const file of ["src/ui/mention-order.ts", "test-ui/mention-order.oracle.test.ts", "src/cursor-page.ts", "src/ui/cursor-query.ts", "src/ui/sequence-order.ts", "migrations/0036_cursor_generations.sql"]) {
     const destination = join(temp, file); mkdirSync(dirname(destination), { recursive: true }); cpSync(join(root, file), destination);
   }
   cpSync(join(root, "sdk/dist"), join(temp, "sdk/dist"), { recursive: true });

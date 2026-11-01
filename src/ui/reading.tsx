@@ -23,13 +23,12 @@ import type {
   CreateItemData,
   Hopper,
   ImportedItem,
-  SignalRow,
-  ListReadingResponses,
+  Signal,
   Subscription,
 } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { Lens, Reading } from './data.ts';
-import { LENSES, lensKind, readingKey } from './data.ts';
+import { LENSES, readingKey } from './data.ts';
 import {
   reading,
   readingView,
@@ -39,7 +38,9 @@ import {
   client,
   changed,
   queryClient,
-  hopperDetail,
+  readingSummaryView,
+  readAllReading,
+  hopperInfo,
   hopperPreview,
   markReading,
   saveReadState,
@@ -68,19 +69,11 @@ import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { More, ThumbDown, ThumbUp } from './icons.tsx';
 import './reading.css';
 
-import type { CachedResponse } from './revision-query.ts';
 
 const PAGE = 25;
 
 /* ---------------- small helpers ---------------- */
 
-/** The cached page metadata (counts, total) for one reading view. */
-function readingMeta(sub: string, offset: number) {
-  return queryClient
-    .getQueriesData<CachedResponse<ListReadingResponses[200]>>({ queryKey: ['reading', sub] })
-    .map(([, value]) => value?.data)
-    .find((value) => value?.offset === offset);
-}
 /** A poll time, to the minute, in the owner's timezone. */
 function pollTime(iso: string, timeZone: string) {
   const options: Intl.DateTimeFormatOptions = {
@@ -107,12 +100,12 @@ function sourceLetter(source: Subscription) {
 }
 /** The subscription row's one-line status, in the alert colour when failing. */
 function sourceStatus(source: Subscription, timeZone: string) {
-  const polled = source.last_poll_at
-    ? `last polled ${pollTime(source.last_poll_at, timeZone)}`
+  const polled = source.lastPollAt
+    ? `last polled ${pollTime(source.lastPollAt, timeZone)}`
     : 'never polled';
   if (source.status === 'paused') return { text: 'paused', bad: false };
-  if (source.fail_count > 0)
-    return { text: `${source.fail_count} failures · ${polled}`, bad: true };
+  if (source.failCount > 0)
+    return { text: `${source.failCount} failures · ${polled}`, bad: true };
   return {
     text: `${source.kind === 'rss' ? 'legacy rss · ' : ''}${polled}`,
     bad: false,
@@ -324,9 +317,9 @@ function entryParts(entry: Reading) {
     : imported?.sourceUrl || undefined;
   // Own items are stubbed as hoppers address them, `~own` (session 50).
   const source = imported
-    ? { subscription_id: imported.subscriptionId, remote_id: imported.remoteId }
+    ? { subscriptionId: imported.subscriptionId, remoteId: imported.remoteId }
     : entry.own
-      ? { subscription_id: OWN_SUB, remote_id: entry.own.id }
+      ? { subscriptionId: OWN_SUB, remoteId: entry.own.id }
       : undefined;
   return { imported, id, url, source };
 }
@@ -417,7 +410,7 @@ function useEntryActions({
 }: {
   entry: Reading;
   actions: Actions;
-  votes: SignalRow[];
+  votes: Signal[];
   buckets: Hopper[];
   /** The owner followed the entry to its origin. */
   opened: () => void;
@@ -430,8 +423,8 @@ function useEntryActions({
   const { imported, id, url, source } = entryParts(entry);
   const signal = votes.find(
     (vote) =>
-      vote.subscription_id === imported?.subscriptionId &&
-      vote.remote_id === imported.remoteId,
+      vote.subscriptionId === imported?.subscriptionId &&
+      vote.remoteId === imported?.remoteId,
   );
   const vote = (thumb: 1 | -1) =>
     run(async () => {
@@ -446,7 +439,7 @@ function useEntryActions({
   const stub = () =>
     source ? run(() => openDraft({ mode: 'response', source })) : undefined;
   const linkPost = () =>
-    void run(() => openDraft({ content_md: `[[${id}]]\n\n`, kind: 'fragment' }));
+    void run(() => openDraft({ contentMd: `[[${id}]]\n\n`, kind: 'fragment' }));
   const forkPage = () => {
     if (imported)
       void navigate({ to: '/fork', search: { id, sub: imported.subscriptionId } });
@@ -685,7 +678,7 @@ function Entry({
 }: {
   entry: Reading;
   actions: Actions;
-  votes: SignalRow[];
+  votes: Signal[];
   buckets: Hopper[];
 }) {
   const readUi = useContext(ReadContext);
@@ -834,8 +827,8 @@ function ChangeLead({ entry }: { entry: Reading }) {
 async function ownEntry(id: string, signal?: AbortSignal): Promise<Reading> {
   const item = await unwrap(BlyggerApi.getItem({ client, path: { id }, signal }));
   const withdrawn = item.status === 'withdrawn';
-  const contentHtml = withdrawn ? '' : (item.published?.content_html ?? '');
-  const kind = item.authored_kind;
+  const contentHtml = withdrawn ? '' : (item.published?.contentHtml ?? '');
+  const kind = item.kind;
   return {
     key: `own:${id}`,
     source: 'own',
@@ -843,9 +836,50 @@ async function ownEntry(id: string, signal?: AbortSignal): Promise<Reading> {
     withdrawn,
     l0: false,
     contentHtml,
-    displayAt: item.published?.published_at ?? item.updated,
+    displayAt: item.published?.publishedAt ?? item.updated,
     rank: 0,
     own: { id, kind, withdrawn, updated: item.updated, contentHtml },
+  };
+}
+/** A standalone import when no loaded Reading row is held. */
+function importedEntry(
+  item: ImportedItem,
+  source: Subscription | undefined,
+  rank: number,
+): Reading {
+  const withdrawn = item.state === 'tombstone';
+  const displayAt =
+    item.updated && Date.parse(item.updated) < Date.parse(item.observedAt)
+      ? item.updated
+      : item.observedAt;
+  return {
+    key: `imported:${JSON.stringify([item.subscriptionId, item.remoteId])}`,
+    source: 'imported',
+    kind: item.kind,
+    withdrawn,
+    l0: item.l0,
+    contentHtml: item.contentHtml,
+    displayAt,
+    rank,
+    imported: {
+      subscriptionId: item.subscriptionId,
+      subscriptionTitle: source ? sourceName(source) : item.subscriptionId,
+      remoteId: item.remoteId,
+      kind: item.kind,
+      withdrawn,
+      l0: item.l0,
+      updated: item.updated,
+      observedAt: item.observedAt,
+      contentHtml: item.contentHtml,
+      pinnedVersionRetained: item.pinnedVersionRetained,
+      sourceUrl: source
+        ? sourceTitleAndUrl({ l0: item.l0 ? 1 : 0, kind: item.kind, remote_id: item.remoteId, content_html: item.contentHtml, page: item.page }, source.origin)
+            .url
+        : null,
+      version: item.version,
+      // The standalone import resource carries no owner read-state join.
+      readVersion: null,
+    },
   };
 }
 /** Route intent and the mounted article share their read, without polling. */
@@ -856,7 +890,7 @@ export function loadArticleEntry(sub: string, id: string): Promise<Reading> {
   return queryClient.fetchQuery({
     queryKey: ['owner-read', 'reading-article', sub, id], staleTime: 30_000,
     queryFn: ({ signal }) => sub === OWN_SUB ? ownEntry(id, signal) :
-      unwrap(BlyggerApi.getImportedItem({ client, path: { sub, id }, signal })).then(item => hopperEntry(item, subscriptions.get(sub), 0)),
+      unwrap(BlyggerApi.getImportedItem({ client, path: { sub, id }, signal })).then(item => importedEntry(item, subscriptions.get(sub), 0)),
   });
 }
 /** The entry an address names: from what reading already holds, else fetched. */
@@ -1092,13 +1126,13 @@ function Inspector({
         <dt>polled</dt>
         <dd>
           {shown.status === 'paused' ? 'paused · ' : ''}
-          {shown.last_poll_at
-            ? `last polled ${pollTime(shown.last_poll_at, timeZone)}`
+          {shown.lastPollAt
+            ? `last polled ${pollTime(shown.lastPollAt, timeZone)}`
             : 'never polled'}
         </dd>
         <dt>failures</dt>
-        <dd className={shown.fail_count ? 'bad' : undefined}>
-          {shown.fail_count}
+        <dd className={shown.failCount ? 'bad' : undefined}>
+          {shown.failCount}
         </dd>
         <dt>items</dt>
         <dd>{count ?? '…'}</dd>
@@ -1106,13 +1140,13 @@ function Inspector({
       <label className="check">
         <input
           type="checkbox"
-          checked={shown.in_blogroll}
+          checked={shown.inBlogroll}
           onChange={(event) => {
             const checked = event.target.checked;
             setError(undefined);
             subscriptions
               .update(shown.id, (row) => {
-                row.in_blogroll = checked;
+                row.inBlogroll = checked;
               })
               .when('settled').then(
                 () =>
@@ -1386,7 +1420,7 @@ function HopperSource({ id, name }: { id: string; name: string }) {
             <span className="ft">{name}</span>
             {row ? (
               <span className="fs">
-                {row.source_count} source{row.source_count === 1 ? '' : 's'} ·{' '}
+                {row.sourceCount} source{row.sourceCount === 1 ? '' : 's'} ·{' '}
                 {row.hopper.public ? 'public' : 'private'}
               </span>
             ) : null}
@@ -1437,17 +1471,16 @@ function Sources() {
   const { toggle } = useSubscriptionActions(actions);
   const [inspect, setInspect] = useState<string>();
   const [importing, setImporting] = useState(false);
-  // The first page of "all" carries the counts for every source; it is also
-  // what tapping "all" shows, so it is warm when that happens.
+  // The summary carries counts for every source under the selected lens.
   const lens = useContext(LensContext);
   const allKey = readingKey('all', lens);
-  useLiveQuery(readingView(allKey, 0));
+  const summary = useLiveQuery(readingSummaryView(allKey));
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
   const buckets =
     useLiveQuery({ query: (q) => q.from({ hopper: hoppers }) }).data ?? [];
-  const counts = readingMeta(allKey, 0)?.counts;
+  const counts = summary.data?.[0]?.counts;
   const inspected = sources.find((source) => source.id === inspect);
   return (
     <>
@@ -1484,7 +1517,7 @@ function Sources() {
       <div className="list-h">
         <span>subscriptions · {sources.length}</span>
         <span className="list-h-actions">
-          {sources.filter((source) => source.in_blogroll).length} in blogroll
+          {sources.filter((source) => source.inBlogroll).length} in blogroll
           <Button className="link-btn" id="opml-open" onClick={() => setImporting(true)}>
             import OPML
           </Button>
@@ -1662,13 +1695,7 @@ function useReadSelection(key: string, offset: number, entries: Reading[], actio
   };
   const markAll = () =>
     actions.run(async () => {
-      const [sub, kind] = key.split('~') as [string, 'thread' | 'fragment' | undefined];
-      const rows: Markable[] = [];
-      for (let at = 0; ; at += 50) {
-        const page = await unwrap(BlyggerApi.listReading({ client, query: { sub, offset: at, limit: 50, ...(kind ? { kind } : {}) } }));
-        rows.push(...page.items);
-        if (!page.items.length || at + page.items.length >= page.total) break;
-      }
+      const rows: Markable[] = await readAllReading(key);
       const unread = rows.filter((entry) => needsRead(readStatus(entry.imported)));
       if (!unread.length) {
         toast('nothing unread here');
@@ -1744,7 +1771,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
-  const metadata = readingMeta(key, offset);
+  const metadata = useLiveQuery(readingSummaryView(key)).data?.[0];
   const selected = sources.find((source) => source.id === sub);
   const title =
     sub === 'all'
@@ -1821,48 +1848,6 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
     </ReadContext.Provider>
   );
 }
-/** A hopper member as a reading entry, so it gets every entry action. */
-function hopperEntry(
-  item: ImportedItem,
-  source: Subscription | undefined,
-  rank: number,
-): Reading {
-  const withdrawn = item.state === 'tombstone';
-  const displayAt =
-    item.updated && Date.parse(item.updated) < Date.parse(item.observed_at)
-      ? item.updated
-      : item.observed_at;
-  return {
-    key: `imported:${JSON.stringify([item.subscription_id, item.remote_id])}`,
-    source: 'imported',
-    kind: item.kind,
-    withdrawn,
-    l0: item.l0,
-    contentHtml: item.content_html,
-    displayAt,
-    rank,
-    imported: {
-      subscriptionId: item.subscription_id,
-      subscriptionTitle: source ? sourceName(source) : item.subscription_id,
-      remoteId: item.remote_id,
-      kind: item.kind,
-      withdrawn,
-      l0: item.l0,
-      updated: item.updated,
-      observedAt: item.observed_at,
-      contentHtml: item.content_html,
-      pinnedVersionRetained: item.pinned_version_retained,
-      sourceUrl: source
-        ? sourceTitleAndUrl({ ...item, l0: item.l0 ? 1 : 0 }, source.origin)
-            .url
-        : null,
-      version: item.version,
-      // Hopper detail reads the stored import, which carries no read state,
-      // so a hopper shows none (HOPPER_READ); opening an entry still marks it.
-      readVersion: null,
-    },
-  };
-}
 /** Hoppers show no read state; opening a member still stores the read. */
 const HOPPER_READ: ReadUi = {
   shown: false,
@@ -1875,29 +1860,13 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
   const lensSearch = useLensSearch();
   useChrome({ framed: false, wide: false });
   const actions = useReadingActions();
-  const collection = useMemo(() => hopperDetail(id), [id]);
-  const result = useLiveQuery({ query: (q) => q.from({ hopper: collection }) });
+  const collection = useMemo(() => hopperInfo(id), [id]);
+  const result = useLiveQuery({ query: q => q.from({ hopper: collection }) });
   const row = result.data?.[0];
-  const sources =
-    useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
-    [];
   const lens = useContext(LensContext);
-  const kind = lensKind(lens);
-  const entries = useMemo(
-    () =>
-      (row?.items ?? [])
-        .filter((item) => !kind || item.kind === kind)
-        .map((item, i) =>
-          hopperEntry(
-            item,
-            sources.find((source) => source.id === item.subscription_id),
-            i,
-          ),
-        )
-        // Withdrawn members are background, as in the feed.
-        .filter((entry) => !!entry.withdrawn === (lens === 'background')),
-    [row, sources, kind, lens],
-  );
+  const key = readingKey('hopper:' + id, lens);
+  const entries = useLiveQuery(readingView(key, offset)).data ?? [];
+  const metadata = useLiveQuery(readingSummaryView(key)).data?.[0];
   useReturnPoint(entries.length > 0);
   if (!row)
     return (
@@ -1909,10 +1878,10 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
         </p>
       </>
     );
-  const start = offset < entries.length ? offset : 0;
+  const start = offset;
   return (
     <>
-      <ReadingHead title={row.hopper.name} count={kind ? entries.length : row.total}>
+      <ReadingHead title={row.hopper.name} count={metadata?.total}>
         <Link
           className="btn btn-ghost btn-mini"
           to="/hoppers/$id"
@@ -1929,7 +1898,7 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
         <>
       <ReadContext.Provider value={HOPPER_READ}>
         <EntryList
-          entries={entries.slice(start, start + PAGE)}
+          entries={entries}
           actions={actions}
         />
       </ReadContext.Provider>
@@ -1943,7 +1912,7 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
       ) : (
         <Pager
           offset={start}
-          total={entries.length}
+          total={metadata?.total}
           go={(next) =>
             void actions.navigate({
               to: '/reading',
@@ -2026,7 +1995,7 @@ function History({ sub, id }: { sub: string; id: string }) {
         loadVersion(sub, id, from),
         loadVersion(sub, id, to),
       ]);
-      setDiff({ from, to, ops: diffText(a.content_md, b.content_md) });
+      setDiff({ from, to, ops: diffText(a.contentMd, b.contentMd) });
     } catch (e) {
       setError(e);
     } finally {

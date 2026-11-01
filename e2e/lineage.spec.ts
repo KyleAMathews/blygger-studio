@@ -119,7 +119,7 @@ test('the explanation button runs the action: stub ↗ opens a response', async 
   await previewAt(page, sheet.locator('[data-vertex=stub]'));
   const created = page.waitForResponse(response => response.url().endsWith('/api/items') && response.request().method() === 'POST');
   await sheet.locator('.lg-explain').getByRole('button', { name: 'stub ↗', exact: true }).click();
-  expect((await created).request().postDataJSON()).toEqual({ mode: 'response', source: { subscription_id: 'parity-native', remote_id: NATIVE } });
+  expect((await created).request().postDataJSON()).toEqual({ mode: 'response', source: { subscriptionId: 'parity-native', remoteId: NATIVE } });
   await expect(page).toHaveURL(/\/edit\//);
 });
 
@@ -160,12 +160,16 @@ test('a node re-centres the view, and what you can do follows what is held here'
 test('our own thread lists its verified mentions as what came from it', async ({ page }) => {
   // Other suites publish into the same fixture, so find the page it is on now.
   const index = await page.evaluate(async () => {
-    for (let offset = 0; ; offset += 50) {
-      const page = await (await fetch(`/api/reading?sub=own&limit=50&offset=${offset}`)).json() as { items: { own?: { contentHtml: string } }[]; total: number };
-      const at = page.items.findIndex((row) => row.own?.contentHtml.includes('Mention target fixture'));
+    let cursor: string | undefined, offset = 0;
+    do {
+      const response = await fetch('/api/reading?' + new URLSearchParams({ sub: 'own', limit: '50', ...(cursor ? { cursor } : {}) }));
+      if (!response.ok) throw new Error(`Reading page failed: ${response.status}`);
+      const value: { items: { own?: { contentHtml: string } }[]; page: { nextCursor: string | null } } = await response.json();
+      const at = value.items.findIndex(row => row.own?.contentHtml.includes('Mention target fixture'));
       if (at >= 0) return offset + at;
-      if (offset + 50 >= page.total) return -1;
-    }
+      offset += value.items.length; cursor = value.page.nextCursor ?? undefined;
+    } while (cursor);
+    return -1;
   });
   expect(index).toBeGreaterThanOrEqual(0);
   await page.goto(`/studio/reading?sub=own&offset=${Math.floor(index / 25) * 25}`);
@@ -188,7 +192,7 @@ test('quote selection opens the stub editor', async ({ page }) => {
   await previewAt(page, sheet.locator('[data-vertex=quote]'));
   const created = page.waitForResponse(response => response.url().endsWith('/api/items') && response.request().method() === 'POST');
   await sheet.locator('.lg-explain').getByRole('button', { name: 'quote a passage' }).click();
-  expect((await created).request().postDataJSON()).toEqual({ mode: 'response', source: { subscription_id: 'parity-native', remote_id: NATIVE } });
+  expect((await created).request().postDataJSON()).toEqual({ mode: 'response', source: { subscriptionId: 'parity-native', remoteId: NATIVE } });
   await expect(page).toHaveURL(/\/edit\//);
   await expect(page.locator('[data-action=choose-passage]')).toBeVisible();
 });
