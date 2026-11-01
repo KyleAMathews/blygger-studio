@@ -41,14 +41,25 @@ it.each(['', '/blyg', '/notes/b'])('uses one API address at mount %s', async mou
   expect(preflight.status).toBe(204);
   expect(preflight.headers.get('access-control-allow-origin')).toBe('*');
   if (mount) {
+    // The host-root alias (ROADMAP row 64): same answers, marked deprecated,
+    // naming the mounted address as successor; discovery never names it.
     for (const path of ['/api/settings', '/api/openapi.json', '/api/authorizations']) {
-      expect((await fetch(origin + path, { headers: { cookie } })).status).toBe(404);
-      expect((await fetch(origin + path, { method: 'OPTIONS' })).status).toBe(404);
+      const aliased = await fetch(origin + path, { headers: { cookie } });
+      expect(aliased.status).toBe(200);
+      expect(aliased.headers.get('deprecation')).toBe('true');
+      expect(aliased.headers.get('link')).toContain(`<${api}>; rel="successor-version"`);
+      expect((await fetch(origin + path, { method: 'OPTIONS', headers: { Origin: 'https://client.example', 'Access-Control-Request-Method': 'GET' } })).status).toBe(204);
     }
+    const viaAlias = await fetch(origin + '/api/items', { method: 'POST', headers: { cookie } });
+    expect(viaAlias.status).toBe(201);
+    expect(viaAlias.headers.get('location')).toMatch(new RegExp('^' + mount + '/api/items/'));
+    expect((await fetch(origin + '/api/settings')).status).toBe(401);
+  } else {
+    expect((await fetch(origin + '/api/settings')).headers.get('deprecation')).toBeNull();
   }
 });
 
-it('rejects a trusted old REST audience and cannot retarget its stored refresh grant', async () => {
+it('accepts the pre-cutover REST audience while the alias lasts, and cannot retarget its stored refresh grant', async () => {
   const f = await flow();
   const approval = await f.decide('browser-a', true);
   const code = new URL(approval.headers.get('location')!).searchParams.get('code')!;
@@ -59,8 +70,11 @@ it('rejects a trusted old REST audience and cannot retarget its stored refresh g
   // Hold signature, issuer, lifetime, scopes and grant identity constant.
   // Only the pre-cutover audience differs from the valid neighboring token.
   const legacy = await server.api.signJWT({ body: { payload: { ...decodeJwt(tokens.access_token), aud: f.base + '/api' } } });
-  expect((await receive(legacy.token)).status).toBe(401);
-  expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + legacy.token } })).status).toBe(404);
+  expect((await receive(legacy.token)).status).toBe(200);
+  expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + legacy.token } })).status).toBe(200);
+  // Any other audience is still refused.
+  const foreign = await server.api.signJWT({ body: { payload: { ...decodeJwt(tokens.access_token), aud: f.base + '/elsewhere/api' } } });
+  expect((await receive(foreign.token)).status).toBe(401);
   const context = await server.$context;
   // Restore the native stored resource values of a pre-cutover approval.
   for (const model of ['oauthRefreshToken', 'oauthConsent']) {

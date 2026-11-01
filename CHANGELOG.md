@@ -18,6 +18,21 @@ not have its own repo until session 26.
 
 ---
 
+## 0.49.12 — Host-root `/api` alias for mounted nodes
+
+0.49.7 moved REST to `{mount}/api` with no alias. A node mounted at a path
+(`/blyg` is one of the two recommended mounts) broke every tool still calling
+host-root `/api`. The old address answers again, for two releases: requests to
+`/api/…` on a mounted node are served as `{mount}/api/…`, with
+`Deprecation: true` and a `Link: <…{mount}/api>; rel="successor-version"`
+header. Bearer tokens issued for the old `{origin}/api` audience are accepted
+on both addresses, and a stored grant for it can still refresh. Discovery
+(capabilities, OpenAPI `servers`, resource metadata, `data-api-base`) names only
+the mounted address. Root-mounted nodes are unchanged. Move tools to
+`{mount}/api` before the alias is removed.
+
+**Migrations:** none.
+
 ## 0.49.11 — Digest media URLs
 
 New uploads use media/{id}/{sha256}.{ext}, including unattached files. A verified

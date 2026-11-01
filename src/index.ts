@@ -70,6 +70,24 @@ export function makeApp(mount: string) {
     await next();
   });
 
+  // Host-root /api alias for mounted nodes (ROADMAP row 64, studio#70). REST
+  // moved to {mount}/api in 0.49.2; the old address keeps answering for two
+  // releases so tools built against it can move. Discovery advertises only the
+  // mounted address; alias answers say so with Deprecation and a successor Link.
+  if (mount) {
+    const legacyApi = async (c: Context<{ Bindings: Env }>) => {
+      const url = new URL(c.req.url);
+      url.pathname = paths.api + url.pathname.slice('/api'.length);
+      const response = await app.fetch(new Request(url, c.req.raw), c.env, c.executionCtx);
+      const headers = new Headers(response.headers);
+      headers.set('Deprecation', 'true');
+      headers.append('Link', `<${url.origin}${paths.api}>; rel="successor-version"`);
+      return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+    };
+    app.all('/api', legacyApi);
+    app.all('/api/*', legacyApi);
+  }
+
   // --- Private deployment routes precede public cache middleware. ---
 
   app.route(paths.studio + '/auth', oauthRoutes());
