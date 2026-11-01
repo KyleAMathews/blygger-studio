@@ -878,3 +878,28 @@ reaches the named assertion. Test-only parent repair 7ff584d is included in the
 final media branch. The two publication CI items are fixed in the separate
 /tmp/blygger-api-review-evaluation ledger. The plan and production behavior do
 not change. CI restarts at the new published heads.
+
+The next full browser run found two receiving-test gaps. The buffered polling
+waiter read every item-list response as a page, including expected 409
+cursor-expired errors. It could also hold a continuation or native boundary
+read rather than the intended first page. A fixture now inserts 30 older rows
+in the disposable database, so the case always reaches cursor continuations
+without depending on previous tests or placing filler beside the live markers.
+The gate verifies the unfiltered first page and correlates its exact request.
+Both markers must appear by the next poll. One-step clock advances avoid
+simulating every intervening animation frame; the 30-second timeout remains.
+The separate pre-fetch generation oracle still passes all 17 cases.
+
+The hopper parity trace's four preview requests all came from Compose while
+login finished. The observer now starts after that document exits. It still
+observes the hopper before navigation, and an injected hopper preview fails
+the exact no-preview assertion. This is document isolation, not a preview
+allowlist or a retry waiver.
+
+All 10 desktop/mobile polling and hopper receivers pass without skips, retries,
+or flakes. Both type projects pass after SDK generation completes. Parent
+repair 90037fd is merged into the final media branch. These two additional CI
+findings have fixed dispositions in /tmp/blygger-api-review-evaluation/ledger.jsonl,
+with raw logs, trace evidence, deterministic RED/GREEN, and a collateral negative
+control. Production source and the API plan do not change. Full upstream CI
+restarts at the new heads; no merge or deploy occurred.
