@@ -18,6 +18,51 @@ not have its own repo until session 26.
 
 ---
 
+## 0.50.0 — Hopper feeds, and two quoting fixes
+
+**Hopper feeds** (Aneesh Sathe, #84; spec 0.4 §16.12, decision #86). Off until
+you turn on **Settings → Network → hopper feeds**. With it on:
+
+- Each **public** hopper gets an RSS feed at `{mount}/h/{slug}/feed.xml`. The
+  feed is the whole list, newest-joined first. Each entry is an excerpt that
+  links to the member's own page, with `<source>` naming the member's blyg.
+  It carries no `blyg:` markup, so blyg-aware readers never take it for a
+  second feed of your blyg. The hopper page links to it.
+- Your manifest gains a `hoppers` list naming your public hoppers. A private
+  hopper is never listed, and its feed answers 404.
+- **Subscribing**: paste a hopper's page or feed URL from another blyg, and
+  the subscribe sheet offers that hopper, with "whole blyg instead" beside it.
+  A hopper subscription lives next to a whole-blyg subscription to the same
+  blyg. Its entries are summaries and links: they are never quoted or used as
+  a source, and they never stand in for the blyg's own citation. An entry that
+  leaves the hopper leaves your reading at the next poll. If the blyg stops
+  listing the hopper, the subscription pauses and says so. It never turns into
+  a whole-blyg subscription on its own.
+- Your feed, item documents and archive index are byte-identical with the
+  setting on or off.
+
+**Partial quotes follow CommonMark's blockquote** (Aneesh Sathe, #106, fixes
+#104; decision #76). A line written directly under a quote, without its own
+`>`, is now part of the quoted passage, as it is when the quote renders. It
+used to publish as your own words. An unprefixed `![[id]]` line still ends the
+quote. If you have a draft that relied on the old reading, add a blank line
+after the quote.
+
+**Quotes in generated text with provenance** (Aneesh Sathe, #107, fixes #105;
+decision #60). An own-line `![[id]]` in the output of a generated block that
+records its sources is now quoted at publish, inside the generated block. It
+used to stay literal text, while the publish warning said it had been quoted.
+The thread preview does the same.
+
+Private contract **5.1.0** (additive: `Subscription.hopperFeedUrl`, hopper
+subscribe proposals, `wholeBlyg` on `createSubscription`, the `hopperFeeds`
+setting); SDK **0.7.0**. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** **0038** (`subscriptions.hopper_feed`, a unique index on hopper
+subscriptions, the subscriptions change trigger recreated). Apply before
+deploying. 0037 is left unused on purpose. It is reserved for a later
+migration, and applying 0038 first is safe.
+
 ## 0.49.12 — Host-root `/api` alias for mounted nodes
 
 0.49.7 moved REST to `{mount}/api` with no alias. A node mounted at a path
