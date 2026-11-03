@@ -34,6 +34,7 @@ import { operationAvailability } from './operation-availability.ts';
 import { API_CONTRACT_VERSION } from './operation-policy.ts';
 import { deploymentUrls } from './deployment-urls.ts';
 import { cursorPage } from './cursor-page.ts';
+import { mentionGroups, mentionSummary } from './mention-groups.ts';
 
 const getCapabilitiesOperation = async (context: OperationContext, input: OperationInput) => {
   return success({ contractVersion: API_CONTRACT_VERSION, endpoints: deploymentUrls(context.url, context.env),
@@ -133,18 +134,38 @@ const listSignalsOperation = async (context: OperationContext, input: OperationI
   order: [{ column: 'at', direction: 'desc' }, { column: 'subscription_id', direction: 'asc' }, { column: 'remote_id', direction: 'asc' }], project: rows => rows.map(signalResource),
 }));
 const listMentionsOperation = async (context: OperationContext, input: OperationInput) => {
-  const direction = input.query.direction ?? 'inbound';
+  const query = input.query, direction = query.direction ?? 'inbound';
+  const inboundOnly = ['targetItemId', 'verifiedAt', 'verifiedAtNull', 'lastSeen'];
+  if (direction === 'outbound' && inboundOnly.some(key => query[key] !== undefined) ||
+      direction === 'inbound' && query.created !== undefined ||
+      query.verifiedAt !== undefined && query.verifiedAtNull !== undefined)
+    return failure('invalid-input', { error: 'Mention filters do not match the selected direction or combine verifiedAt with verifiedAtNull' });
+  const fields = direction === 'inbound'
+    ? [['targetItemId', 'target_item_id'], ['verifiedAt', 'verified_at'], ['verifiedAtNull', 'verified_at'], ['lastSeen', 'last_seen'], ['id', 'id']] as const
+    : [['created', 'created'], ['id', 'id']] as const;
+  const where: string[] = direction === 'inbound' ? ["status IN ('verified','gone')"] : [];
+  const binds: (string | null)[] = [], filters: (string | null)[] = [];
+  for (const [key, column] of fields) {
+    if (query[key] === undefined) { filters.push(null); continue; }
+    const value = key === 'verifiedAtNull' ? null : query[key];
+    where.push(`${column} IS ?`); binds.push(value); filters.push(query[key]);
+  }
+  // Preserve every existing unfiltered v1 cursor identity.
+  const identity = fields.some(([key]) => query[key] !== undefined) ? [direction, ...filters] : [direction];
+  const sql = `SELECT * FROM ${direction === 'inbound' ? 'mentions_in' : 'mentions_out'}${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`;
   const page = direction === 'outbound'
-    ? await cursorPage<MentionOutRow, ReturnType<typeof outboundMentionResource>>(context.env.DB, input.query, {
-        name: 'mentions', filters: [direction], domains: ['mentions'], sql: 'SELECT * FROM mentions_out',
+    ? await cursorPage<MentionOutRow, ReturnType<typeof outboundMentionResource>>(context.env.DB, query, {
+        name: 'mentions', filters: identity, domains: ['mentions'], sql, binds,
         order: [{ column: 'created', direction: 'desc' }, { column: 'id', direction: 'asc' }], project: rows => rows.map(outboundMentionResource),
       })
-    : await cursorPage<MentionInRow, ReturnType<typeof mentionResource>>(context.env.DB, input.query, {
-        name: 'mentions', filters: [direction], domains: ['mentions'], sql: "SELECT * FROM mentions_in WHERE status IN ('verified','gone')",
+    : await cursorPage<MentionInRow, ReturnType<typeof mentionResource>>(context.env.DB, query, {
+        name: 'mentions', filters: identity, domains: ['mentions'], sql, binds,
         order: [{ column: 'verified_at', direction: 'desc' }, { column: 'last_seen', direction: 'desc' }, { column: 'id', direction: 'asc' }], project: rows => rows.map(mentionResource),
       });
   return success({ ...page, direction });
 };
+const listMentionGroupsOperation = async (context: OperationContext, input: OperationInput) => success(await mentionGroups(context.env.DB, input.query));
+const getMentionSummaryOperation = async (context: OperationContext) => success(await mentionSummary(context.env.DB));
 const listInteractionsOperation = async (context: OperationContext, input: OperationInput) => {
   const query = input.query, where: string[] = [], binds: (string | number)[] = [];
   for (const field of ['kind', 'id', 'at'] as const) if (query[field] !== undefined) { where.push(`${field} = ?`); binds.push(field === 'id' ? Number(query[field]) : query[field]); }
@@ -256,7 +277,8 @@ const getMentionSourceOperation = async (context: OperationContext, input: Opera
   const row = await getInbound(context.env.DB, input.path.id);
   if (!row) return failure('not-found', { error: "not found" });
   const holder = await context.env.DB.prepare("SELECT s.id AS id FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id WHERE ii.remote_id = ? AND s.origin = ? AND s.hopper_feed IS NULL LIMIT 1").bind(row.source_id, row.source_origin).first<{ id: string }>();
-  const subscription = (await listSubscriptions(context.env.DB)).find((s) => s.origin === row.source_origin && !s.hopper_feed) ?? null;
+  const subscription = await context.env.DB.prepare("SELECT * FROM subscriptions WHERE origin = ? AND (hopper_feed IS NULL OR hopper_feed = '') ORDER BY created LIMIT 1")
+    .bind(row.source_origin).first<SubscriptionRow>();
   return success({ holder: holder?.id ?? null, subscription: subscription ? subscriptionResource(subscription) : null });
 };
 const getForkOptionsOperation = async (context: OperationContext, input: OperationInput) => {
@@ -436,6 +458,8 @@ export const readOperations = {
   listHopperMemberships: listHopperMembershipsOperation,
   listSignals: listSignalsOperation,
   listMentions: listMentionsOperation,
+  listMentionGroups: listMentionGroupsOperation,
+  getMentionSummary: getMentionSummaryOperation,
   listInteractions: listInteractionsOperation,
   getAiModels: getAiModelsOperation,
   listThumbs: listThumbsOperation,

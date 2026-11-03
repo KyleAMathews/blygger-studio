@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { AiModels, Settings } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import { settings, client, items } from './data.ts';
-import { useLiveQuery } from '@tanstack/react-db';
+import { uploadMedia } from './server-mutations.ts';
+import { eq, useLiveQuery } from '@tanstack/react-db';
 import { itemTitle } from './plain-text.ts';
 import {
   Button,
@@ -290,9 +291,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
             setBusy(true);
             setError(undefined);
             try {
-              const media = await unwrap(
-                BlyggerApi.uploadMedia({ client, body: { file: selected } }),
-              );
+              const media = await uploadMedia({ file: selected });
               change("avatarMediaId", media.id);
               setAvatar(media.url);
             } catch (failure) {
@@ -1207,10 +1206,9 @@ function FrontPageFields({
   change: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
 }) {
   const rows =
-    useLiveQuery({ query: (q) => q.from({ item: items }) }).data ?? [];
-  const threads = rows.filter(
-    (row) => row.status === 'public' && row.kind === 'thread',
-  );
+    useLiveQuery({ query: (q) => q.from({ item: items })
+      .where(({ item }) => eq(item.status, 'public')) }).data ?? [];
+  const threads = rows.filter((row) => row.kind === 'thread');
   const missing =
     form.frontPage && !threads.some((row) => row.id === form.frontPage);
   return (
@@ -1280,10 +1278,9 @@ function LinkedThreads({
   onChange: (ids: string[]) => void;
 }) {
   const rows =
-    useLiveQuery({ query: (q) => q.from({ item: items }) }).data ?? [];
-  const threads = rows.filter(
-    (row) => row.status === 'public' && row.kind === 'thread',
-  );
+    useLiveQuery({ query: (q) => q.from({ item: items })
+      .where(({ item }) => eq(item.status, 'public')) }).data ?? [];
+  const threads = rows.filter((row) => row.kind === 'thread');
   const title = (id: string) => {
     const row = threads.find((t) => t.id === id);
     return row ? itemTitle(row.contentMd) || id : 'a thread that is no longer published';

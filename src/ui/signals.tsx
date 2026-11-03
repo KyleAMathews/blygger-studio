@@ -50,14 +50,8 @@ export function SignalsPage() {
   const settings = useSettings();
   const when = (iso: string) => formatDateIn(iso, settings?.timezone || 'UTC');
   const [view, setView] = useState<View>('liked');
-  const thumbRows = useLiveInfiniteQuery(q => q.from({ thumb: thumbs })
-    .where(({ thumb }) => eq(thumb.thumb, view === 'disliked' ? -1 : 1)).orderBy(({ thumb }) => thumb.orderKey, { direction: 'asc', stringSort: 'lexical' }), { pageSize: PAGE });
-  const activity = useLiveInfiniteQuery(q => q.from({ interaction: interactions })
-    .orderBy(({ interaction }) => interaction.orderKey, { direction: 'asc', stringSort: 'lexical' }), { pageSize: PAGE });
   const totals = useLiveQuery(q => q.from({ summary: signalSummary }).findOne()).data;
   const count = (view: View) => totals?.[view];
-  const shown = thumbRows.data;
-  const error = thumbRows.status === 'error' || activity.status === 'error' ? new Error('Could not load signals.') : undefined;
   return (
     <>
       <Link className="back-link" to="/more">
@@ -69,7 +63,6 @@ export function SignalsPage() {
         and responded to. It is never published. A future feed agent will read it,
         with the prompt you set in Settings, to sort your Smart Feed.
       </p>
-      <Failure error={error} />
       <div className="segmented" role="group" aria-label="signals view">
         {VIEWS.map((v) => (
           <Button key={v} className={view === v ? 'seg is-active' : 'seg'} aria-pressed={view === v} onClick={() => setView(v)}>
@@ -78,28 +71,53 @@ export function SignalsPage() {
           </Button>
         ))}
       </div>
-      {view !== 'activity' ? (
-        thumbRows.isLoading ? (
-          <p className="h-hint">Loading…</p>
-        ) : shown.length ? (
-          <ul className="nav-list signals-list">
-            {shown.map((t) => (
-              <li key={`${t.origin}|${t.remoteId}`}>
-                <div className="signal-row">
-                  <span className="ml">
-                    <Target label={t.label} origin={t.origin} remoteId={t.remoteId} subscriptionId={t.subscriptionId} />
-                    <span className="md">
-                      {host(t.origin)} · {when(t.at)}
-                    </span>
+      {view === 'activity' ? <ActivitySignals when={when} /> : <ThumbSignals key={view} view={view} when={when} />}
+    </>
+  );
+}
+
+function ThumbSignals({ view, when }: { view: 'liked' | 'disliked'; when: (iso: string) => string }) {
+  const thumbRows = useLiveInfiniteQuery(q => q.from({ thumb: thumbs })
+    .where(({ thumb }) => eq(thumb.thumb, view === 'disliked' ? -1 : 1)).orderBy(({ thumb }) => thumb.orderKey, { direction: 'asc', stringSort: 'lexical' }), { pageSize: PAGE });
+  const error = thumbRows.isLoadingError || thumbRows.isCrashed || thumbRows.isSyncError
+    ? new Error('Could not load signals.') : undefined;
+  return (
+    <>
+      <Failure error={error} />
+      {thumbRows.isLoading ? (
+        <p className="h-hint">Loading…</p>
+      ) : thumbRows.data.length ? (
+        <ul className="nav-list signals-list">
+          {thumbRows.data.map((t) => (
+            <li key={`${t.origin}|${t.remoteId}`}>
+              <div className="signal-row">
+                <span className="ml">
+                  <Target label={t.label} origin={t.origin} remoteId={t.remoteId} subscriptionId={t.subscriptionId} />
+                  <span className="md">
+                    {host(t.origin)} · {when(t.at)}
                   </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="h-hint">Nothing {view} yet. Use 👍 and 👎 on reading entries.</p>
-        )
-      ) : activity.isLoading ? (
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : !error ? (
+        <p className="h-hint">Nothing {view} yet. Use 👍 and 👎 on reading entries.</p>
+      ) : null}
+      {thumbRows.hasNextPage ? <Button disabled={thumbRows.isFetchingNextPage} onClick={() => void thumbRows.fetchNextPage()}>load more {view} items</Button> : null}
+    </>
+  );
+}
+
+function ActivitySignals({ when }: { when: (iso: string) => string }) {
+  const activity = useLiveInfiniteQuery(q => q.from({ interaction: interactions })
+    .orderBy(({ interaction }) => interaction.orderKey, { direction: 'asc', stringSort: 'lexical' }), { pageSize: PAGE });
+  const error = activity.isLoadingError || activity.isCrashed || activity.isSyncError
+    ? new Error('Could not load signals.') : undefined;
+  return (
+    <>
+      <Failure error={error} />
+      {activity.isLoading ? (
         <p className="h-hint">Loading…</p>
       ) : activity.data.length ? (
         <>
@@ -131,10 +149,9 @@ export function SignalsPage() {
           </ul>
           {activity.hasNextPage ? <Button disabled={activity.isFetchingNextPage} onClick={() => void activity.fetchNextPage()}>load more activity</Button> : null}
         </>
-      ) : (
+      ) : !error ? (
         <p className="h-hint">No activity yet.</p>
-      )}
-      {view !== 'activity' && thumbRows.hasNextPage ? <Button disabled={thumbRows.isFetchingNextPage} onClick={() => void thumbRows.fetchNextPage()}>load more {view} items</Button> : null}
+      ) : null}
     </>
   );
 }

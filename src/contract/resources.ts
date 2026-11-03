@@ -134,6 +134,16 @@ export const MentionSchema = z.object({
   sourceAuthor: z.union([RemoteObjectSchema, z.null()]),
 }).openapi("Mention");
 
+/** One private inbound target group, before the item's response policy. */
+export const MentionGroupSchema = z.object({
+  targetItemId: z.string(),
+  total: z.number().int().nonnegative(),
+  visible: z.number().int().nonnegative().describe('Verified, unhidden receipts before the target item response policy is applied.'),
+  verifiedAt: z.string().describe('Latest verifiedAt with SQL NULL coalesced to an empty string.'),
+  lastSeen: z.string().describe('Latest lastSeen among receipts tied at the group verifiedAt.'),
+  firstId: z.string().describe('Smallest receipt id among receipts tied at both group timestamps.'),
+}).openapi('MentionGroup');
+
 export const OutboundMentionSchema = z.object({
   id: z.string(),
   itemId: z.string(),

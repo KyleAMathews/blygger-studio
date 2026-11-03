@@ -1,7 +1,6 @@
 import {
   createCollection,
   createLiveQueryCollection,
-  createOptimisticAction,
   and,
   gte,
   lt,
@@ -19,6 +18,8 @@ import type {
   UpdateItemData,
   Mention,
   OutboundMention,
+  ListMentionsData,
+  ListMentionGroupsData,
 } from '../../sdk/dist/browser.js';
 import {
   BlyggerApi,
@@ -32,8 +33,9 @@ import { readIfChanged, domainRevision, type Generation } from './revision-query
 import type { ChangeDomain } from '../change-state.ts';
 import { scoped } from './scoped.ts';
 import { createPacedDraftAction } from './paced-write.ts';
+import { createRowMutation } from './mutation.ts';
 import { sourceSchemas } from './data-schemas.ts';
-import { zGetItemResponse, zGetHopperResponse, zListItemsResponse, zListSubscriptionsResponse, zListHoppersResponse, zListSignalsResponse, zListReadingResponse, zListItemVersionsResponse, zListHopperMembershipsResponse, zListMentionsResponse, zListThumbsResponse, zListInteractionsResponse, zListBrowseResponse } from '../../sdk/dist/schemas.js';
+import { zGetItemResponse, zGetHopperResponse, zListItemsResponse, zListSubscriptionsResponse, zListHoppersResponse, zListSignalsResponse, zListReadingResponse, zListItemVersionsResponse, zListHopperMembershipsResponse, zListMentionsResponse, zListMentionGroupsResponse, zListThumbsResponse, zListInteractionsResponse, zListBrowseResponse } from '../../sdk/dist/schemas.js';
 import { sequenceParts } from './sequence-order.ts';
 import { readCursorWindow, type ApiPage } from './cursor-query.ts';
 import { planReadWrites, type ReadWrite, type UnreadWrite } from './read-state.ts';
@@ -41,6 +43,12 @@ import { planReadWrites, type ReadWrite, type UnreadWrite } from './read-state.t
 export const apiBase = new URL(document.getElementById('studio-root')!.dataset.apiBase!, location.origin).href;
 export const client = createBlyggerClient({ baseUrl: apiBase });
 queryClient.mount();
+/** Query resolves paused refetches without observing the server. */
+function assertNotPaused(queryKey: readonly unknown[]) {
+  if (queryClient.getQueryCache().findAll({ queryKey, type: 'active' })
+    .some(query => query.state.fetchStatus === 'paused'))
+    throw new Error('Could not confirm changes while offline. Reconnect and try again.');
+}
 function cachedQuery<S extends z.ZodType>(
   context: QueryFunctionContext,
   domain: ChangeDomain | readonly ChangeDomain[],
@@ -82,6 +90,7 @@ const cursorPageSchemas: Record<string, { parse(value: unknown): unknown }> = {
   signals: zListSignalsResponse, reading: zListReadingResponse, 'item-versions': zListItemVersionsResponse,
   'hopper-memberships': zListHopperMembershipsResponse, 'mentions-in': zListMentionsResponse,
   'mentions-out': zListMentionsResponse, thumbs: zListThumbsResponse, interactions: zListInteractionsResponse, browse: zListBrowseResponse,
+  'mention-groups': zListMentionGroupsResponse,
 };
 function cursorRows<T>(context: QueryFunctionContext, resource: string, generation: Generation, sequence: readonly unknown[], read: (cursor: string | undefined, signal: AbortSignal) => Promise<ApiPage<T>>, window: { offset?: number; limit?: number } = {}) {
   const schema = cursorPageSchemas[resource];
@@ -174,6 +183,7 @@ export const items = createCollection(
         );
       }
       await collection.utils.refetch({ throwOnError: true });
+      assertNotPaused(['items']);
     },
     onDelete: async ({ transaction, collection }) => {
       for (const mutation of transaction.mutations)
@@ -185,6 +195,7 @@ export const items = createCollection(
           }),
         );
       await collection.utils.refetch({ throwOnError: true });
+      assertNotPaused(['items']);
     },
   }),
 );
@@ -234,6 +245,7 @@ export const settings = createCollection(
         await unwrap(BlyggerApi.updateSettings({ client, body }));
       }
       await collection.utils.refetch({ throwOnError: true });
+      assertNotPaused(['settings']);
     },
   }),
 );
@@ -270,6 +282,7 @@ export const subscriptions = createCollection(
           }),
         );
       await collection.utils.refetch({ throwOnError: true });
+      assertNotPaused(['subscriptions']);
     },
     onDelete: async ({ transaction, collection }) => {
       for (const { key } of transaction.mutations)
@@ -280,6 +293,8 @@ export const subscriptions = createCollection(
           }),
         );
       await collection.utils.refetch({ throwOnError: true });
+      assertNotPaused(['subscriptions']);
+      await changed('hoppers', 'signals', 'reading');
     },
   }),
 );
@@ -311,10 +326,12 @@ export const hoppers = createCollection(
               ...(changes.public !== undefined
                 ? { public: changes.public }
                 : {}),
+              ...(changes.description !== undefined ? { description: changes.description ?? '' } : {}),
             },
           }),
         );
       await collection.utils.refetch({ throwOnError: true });
+      assertNotPaused(['hoppers']);
     },
     onDelete: async ({ transaction, collection }) => {
       for (const { key } of transaction.mutations)
@@ -322,6 +339,7 @@ export const hoppers = createCollection(
           BlyggerApi.deleteHopper({ client, path: { id: String(key) } }),
         );
       await collection.utils.refetch({ throwOnError: true });
+      assertNotPaused(['hoppers']);
     },
   }),
 );
@@ -339,6 +357,30 @@ export const signals = createCollection(
     select: (response) => response.data,
   }),
 );
+/** Update the actual signal row immediately; retain it until read-back confirms it. */
+export const setThumb = createRowMutation<{
+  sub: string; remoteId: string; thumb: 1 | -1 | null;
+}>({
+  scope: ({ sub, remoteId }) => JSON.stringify([sub, remoteId]),
+  onMutate: ({ sub, remoteId, thumb }) => {
+    const key = JSON.stringify([sub, remoteId]);
+    if (thumb === null) {
+      if (signals.has(key)) signals.delete(key);
+    } else if (signals.has(key)) {
+      signals.update(key, row => { row.thumb = thumb; });
+    } else {
+      signals.insert({ subscriptionId: sub, remoteId, thumb, at: new Date().toISOString() });
+    }
+  },
+  mutationFn: async ({ sub, remoteId, thumb }) => {
+    const path = { sub, remoteId };
+    if (thumb === null) await unwrap(BlyggerApi.deleteSignal({ client, path }));
+    else await unwrap(BlyggerApi.setSignal({ client, path, body: { thumb } }));
+    await signals.utils.refetch({ throwOnError: true });
+    assertNotPaused(['signals']);
+    await changed('thumbs', 'interactions', 'signal-summary');
+  },
+});
 export const thumbs = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.thumbs, id: 'thumbs', syncMode: 'on-demand', queryKey: ['thumbs', 'rows'], queryClient,
   getKey: row => JSON.stringify([row.subscriptionId, row.origin, row.remoteId]),
@@ -385,6 +427,18 @@ export const signalSummary = createCollection(queryCollectionOptions({
   queryFn: context => cachedQuery(context, ['signals', 'interactions'], sourceSchemas.signalSummary.array(), async ({ signal }) => [{ ...await unwrap(BlyggerApi.getSignalSummary({ client, signal })), key: 'signals' as const }]),
   select: response => response.data,
 }));
+export const staleThreads = createCollection(queryCollectionOptions({
+  ...collectionPollingOptions, schema: sourceSchemas.staleThreads, id: 'stale-threads', syncMode: 'on-demand',
+  queryKey: ['stale-threads', 'rows'], queryClient, getKey: row => row.id,
+  queryFn: context => cachedQuery(context, ['items', 'reading', 'subscriptions'], sourceSchemas.staleThreads.array(), async ({ signal }) =>
+    (await unwrap(BlyggerApi.listStaleThreads({ client, signal }))).items.map((row, rank) => ({ ...row, rank }))),
+  select: response => response.data,
+}));
+/** Only stale queue IDs demand item labels; no archive subscription is needed. */
+export const staleThreadItemsView = createLiveQueryCollection(q => q.from({ freshness: staleThreads })
+  .leftJoin({ item: items }, ({ freshness, item }) => eq(freshness.id, item.id))
+  .orderBy(({ freshness }) => freshness.rank)
+  .select(({ freshness, item }) => ({ freshness, item })));
 export type Detail = z.infer<typeof zGetItemResponse>;
 
 // History and attachments have their own row type. Mutable item fields live
@@ -463,10 +517,30 @@ export function createDraftAction(id?: string, observedRevision?: number) {
         ?? (await unwrap(BlyggerApi.getItem({ client, path: { id: itemId! } }))).pins;
       await items.utils.writeUpsert(sourceSchemas.items.parse({ ...result, pins }));
     }
-    // A delete caller refreshes after leaving the editor, so its active view
-    // does not report the discarded item as missing before navigation.
-    if (command.type !== 'delete') await changed('item', 'items', 'reading');
+    if (command.type === 'save' || command.type === 'update') {
+      // The response confirms the row. Count refresh failures stay visible
+      // in collection health without reporting this save as failed.
+      await Promise.allSettled([changed('item-summary')]);
+    } else if (command.type === 'delete') {
+      // Keep the row until refreshes finish, then apply the confirmed deletion
+      // even if a secondary read failed. The caller can navigate immediately.
+      await Promise.allSettled([changed('item-summary', 'reading')]);
+      await items.utils.writeDelete(itemId!);
+    } else if (command.type === 'draft-note' || command.type === 'classify') {
+      // These commands return suggestions without changing the item.
+    } else {
+      await changed('item', 'items', 'reading');
+    }
     return result;
+  }, command => {
+    if (!itemId || !items.has(itemId)) return;
+    if (command.type === 'save') items.update(itemId, row => {
+      row.contentMd = command.text;
+      if (command.kind) row.kind = command.kind;
+    });
+    else if (command.type === 'update') items.update(itemId, row => {
+      Object.assign(row, command.changes);
+    });
   });
 }
 
@@ -565,7 +639,7 @@ export const readingView = (sub: string, offset: number) =>
   readingViews(JSON.stringify([sub, offset]));
 
 /** Store read marks: one PUT or DELETE for a single row, else batches of ≤ 500. */
-export async function saveReadState(read: ReadWrite[], unread: UnreadWrite[]) {
+async function saveReadState(read: ReadWrite[], unread: UnreadWrite[]) {
   for (const step of planReadWrites(read, unread)) {
     if (step.op === 'put')
       await unwrap(BlyggerApi.markRead({ client, path: { sub: step.mark.sub, remoteId: step.mark.remoteId }, body: { version: step.mark.version } }));
@@ -583,11 +657,14 @@ export async function saveReadState(read: ReadWrite[], unread: UnreadWrite[]) {
  * The reading source refetches before the transaction settles, so nothing
  * flickers back.
  */
-export const markReading = createOptimisticAction<{
+export const markReading = createRowMutation<{
   keys: string[];
   read: boolean;
   writes: { read: ReadWrite[]; unread: UnreadWrite[] };
 }>({
+  // Batches can overlap with one-entry marks. Keep their server order while
+  // every loaded row still reflects the latest intent immediately.
+  scope: () => 'reading-state',
   onMutate: ({ keys, read }) => {
     const wanted = new Set(keys);
     const present = reading.toArray
@@ -695,20 +772,21 @@ export const hopperInfo = scoped(id => createLiveQueryCollection({
 }));
 export const hopperDetail = scoped((id) => hopperView(id, false));
 export const hopperPreview = scoped((id) => hopperView(id, true));
-// Cancel pending reads before invalidation, so earlier responses cannot replace
-// acknowledged writes. Query collection mutation handlers own rollback on failure.
+// Persistence handlers refresh only projections their confirmed write cannot
+// supply. UI callbacks must not invalidate after a mutation has settled.
+// Cancel older reads first so they cannot replace acknowledged writes.
 export async function changed(...keys: string[]) {
   // The old API names now refer to derived views. Invalidate their sources.
   const sourceKeys = [...new Set(keys.flatMap((key) => {
     switch (key) {
       case 'item':
       case 'items':
-        return ['items', 'item-history', 'item-versions', 'item-summary'];
+        return ['items', 'item-history', 'item-versions', 'item-summary', 'stale-threads'];
       case 'hopper':
       case 'hopper-preview':
       case 'hoppers':
         return ['hoppers', 'hopper-stats', 'hopper-entries', 'hopper-memberships', 'reading', 'reading-summary'];
-      case 'reading': return ['reading', 'reading-summary'];
+      case 'reading': return ['reading', 'reading-summary', 'stale-threads'];
       case 'signals': return ['signals', 'thumbs', 'interactions', 'signal-summary'];
       default:
         return [key];
@@ -725,9 +803,10 @@ export async function changed(...keys: string[]) {
   ]);
   await Promise.all(
     readKeys.map((queryKey) =>
-      queryClient.invalidateQueries({ queryKey, refetchType: 'active' }),
+      queryClient.invalidateQueries({ queryKey, refetchType: 'active' }, { throwOnError: true }),
     ),
   );
+  for (const queryKey of readKeys) assertNotPaused(queryKey);
 }
 
 export const updates = createCollection(
@@ -760,7 +839,29 @@ export const authorizations = createCollection(queryCollectionOptions({
 
 async function mentions(context: QueryFunctionContext, direction: 'inbound' | 'outbound', generation: Generation) {
   const resource = direction === 'inbound' ? 'mentions-in' : 'mentions-out';
-  return cursorRows(context, resource, generation, [direction], (cursor, signal) => unwrap(BlyggerApi.listMentions({ client, query: { direction, cursor, limit: 100 }, signal })), pageWindow(context, direction === 'outbound' ? [['created', 'desc'], ['id', 'asc']] : [['verifiedAt', 'desc'], ['lastSeen', 'desc'], ['id', 'asc']]));
+  const { filters } = parseLoadSubsetOptions(context.meta?.loadSubsetOptions);
+  const query: NonNullable<ListMentionsData['query']> = { direction };
+  const targets = direction === 'inbound' ? subsetIds(context, 'targetItemId') : null;
+  for (const filter of filters) {
+    const field = filter.field.join('.');
+    if (direction === 'inbound' && field === 'targetItemId' && ['eq', 'in'].includes(filter.operator)) continue;
+    if (field !== 'orderKey' || filter.operator !== 'eq' || typeof filter.value !== 'string') throw new Error('Unsupported mention predicate');
+    if (direction === 'outbound') [query.created, query.id] = sequenceParts(filter.value, ['desc', 'asc']);
+    else {
+      const [nullFlag, verifiedAt, lastSeen, id] = sequenceParts(filter.value, ['asc', 'desc', 'desc', 'asc']);
+      const flag = Number.parseInt(nullFlag, 16);
+      if (flag === 1) query.verifiedAtNull = 'true';
+      else if (flag === 0) query.verifiedAt = verifiedAt;
+      else throw new Error('Invalid mention sequence boundary');
+      Object.assign(query, { lastSeen, id });
+    }
+  }
+  const window = pageWindow(context, [['orderKey', 'asc']]);
+  return (await Promise.all((targets ?? [undefined]).map(targetItemId => {
+    const selected = { ...query, ...(targetItemId === undefined ? {} : { targetItemId }) };
+    return cursorRows(context, resource, generation, [selected], (cursor, signal) => unwrap(BlyggerApi.listMentions({ client,
+      query: { ...selected, cursor, limit: direction === 'inbound' ? 10 : 25 }, signal })), window);
+  }))).flat();
 }
 // Mentions views poll every tick, as before, but an unchanged `mentions`
 // counter (0032) answers from cache: before it, each tick re-read both lists
@@ -774,8 +875,51 @@ export const inbound = createCollection(queryCollectionOptions({
     cachedQuery(context, 'mentions', sourceSchemas.inbound.array(), async (_context, generation) =>
       (await mentions(context, 'inbound', generation)).filter((row): row is Mention => 'hidden' in row)),
   select: (response) => response.data,
+  onUpdate: async ({ transaction, collection }) => {
+    for (const mutation of transaction.mutations) {
+      const result = await unwrap(BlyggerApi.updateMention({ client,
+        path: { id: String(mutation.key) }, body: { hidden: mutation.modified.hidden },
+      }));
+      await collection.utils.writeUpdate({ id: String(mutation.key), hidden: result.hidden });
+    }
+    // The receipt is confirmed; refresh the server aggregate before settling.
+    // A failed secondary read stays visible through collection health.
+    await Promise.allSettled([changed('mention-groups')]);
+  },
 }));
 inbound.createIndex(row => row.targetItemId, { indexType: BasicIndex });
+export const mentionGroups = createCollection(queryCollectionOptions({
+  ...collectionPollingOptions, schema: sourceSchemas.mentionGroups, id: 'mention-groups', syncMode: 'on-demand',
+  queryKey: ['mention-groups', 'rows'], queryClient, getKey: row => row.targetItemId,
+  queryFn: context => cachedQuery(context, 'mentions', sourceSchemas.mentionGroups.array(), async (_context, generation) => {
+    const { filters } = parseLoadSubsetOptions(context.meta?.loadSubsetOptions);
+    const ids = subsetIds(context, 'targetItemId');
+    const query: NonNullable<ListMentionGroupsData['query']> = {};
+    for (const filter of filters) {
+      const field = filter.field.join('.');
+      if (field === 'targetItemId' && ['eq', 'in'].includes(filter.operator)) continue;
+      if (field !== 'orderKey' || filter.operator !== 'eq' || typeof filter.value !== 'string') throw new Error('Unsupported mention group predicate');
+      [query.verifiedAt, query.lastSeen, query.firstId] = sequenceParts(filter.value, ['desc', 'desc', 'asc']);
+    }
+    const window = pageWindow(context, [['orderKey', 'asc']]);
+    return (await Promise.all((ids ?? [undefined]).map(targetItemId => {
+      const selected = { ...query, ...(targetItemId === undefined ? {} : { targetItemId }) };
+      return cursorRows(context, 'mention-groups', generation, [selected], (cursor, signal) =>
+        unwrap(BlyggerApi.listMentionGroups({ client, query: { ...selected, cursor, limit: 25 }, signal })), window);
+    }))).flat();
+  }), select: response => response.data,
+}));
+export const mentionSummary = createCollection(queryCollectionOptions({
+  ...collectionPollingOptions, schema: sourceSchemas.mentionSummary, id: 'mention-summary', syncMode: 'on-demand',
+  queryKey: ['mention-summary', 'rows'], queryClient, getKey: row => row.key,
+  queryFn: context => cachedQuery(context, 'mentions', sourceSchemas.mentionSummary.array(), async ({ signal }) =>
+    [{ ...await unwrap(BlyggerApi.getMentionSummary({ client, signal })), key: 'mentions' as const }]),
+  select: response => response.data,
+}));
+export const mentionGroupItemsView = createLiveQueryCollection(q => q.from({ group: mentionGroups })
+  .leftJoin({ item: items }, ({ group, item }) => eq(group.targetItemId, item.id))
+  .orderBy(({ group }) => group.orderKey, { direction: 'asc', stringSort: 'lexical' }).limit(26)
+  .select(({ group, item }) => ({ group, item })));
 export const outbound = createCollection(queryCollectionOptions({
   ...collectionPollingOptions,
   schema: sourceSchemas.outbound,
@@ -819,8 +963,10 @@ export const listViews = {
   subscriptions: createLiveQueryCollection((q) => q.from({ subscription: subscriptions })),
   hoppers: createLiveQueryCollection((q) => q.from({ hopper: hoppers })),
   signals: createLiveQueryCollection((q) => q.from({ signal: signals })),
-  inbound: createLiveQueryCollection((q) => q.from({ mention: inbound })),
-  outbound: createLiveQueryCollection((q) => q.from({ mention: outbound })),
+  signalTotals: createLiveQueryCollection(q => q.from({ summary: signalSummary }).findOne()),
+  likedThumbs: createLiveQueryCollection(q => q.from({ thumb: thumbs }).where(({ thumb }) => eq(thumb.thumb, 1))
+    .orderBy(({ thumb }) => thumb.orderKey, { direction: 'asc', stringSort: 'lexical' }).limit(51)),
+  mentionSummary: createLiveQueryCollection(q => q.from({ summary: mentionSummary }).findOne()),
   authorizations: createLiveQueryCollection((q) => q.from({ authorization: authorizations })),
 };
 
@@ -847,11 +993,23 @@ export async function preloadHopperPreviews() {
   await Promise.all(listViews.hoppers.toArray.map((hopper) => preloadView(hopperPreview(hopper.id))));
 }
 
+export async function preloadHopperInfos() {
+  await preloadView(listViews.hoppers);
+  await Promise.all(listViews.hoppers.toArray.map(hopper => preloadView(hopperInfo(hopper.id))));
+}
+
+const hopperManagementMembers = scoped(id => createLiveQueryCollection(q => q.from({ member: hopperMemberships })
+  .where(({ member }) => eq(member.hopperId, id)).orderBy(({ member }) => member.rank, 'asc').limit(26)));
+export async function preloadHopperManagement(id: string) {
+  await Promise.all([preloadDetail(hopperInfo(id), 'Hopper'), preloadView(hopperManagementMembers(id))]);
+}
+
+export const preloadStaleThreads = () => preloadView(staleThreadItemsView);
+export const preloadSignals = () => Promise.all([preloadView(listViews.signalTotals), preloadView(listViews.likedThumbs)]);
+
 export async function preloadMentions() {
   await Promise.all([
-    preloadView(listViews.inbound),
-    preloadView(listViews.outbound),
-    preloadView(listViews.items),
+    preloadView(mentionGroupItemsView),
+    preloadView(listViews.mentionSummary),
   ]);
-  await Promise.all(listViews.inbound.toArray.map((mention) => preloadView(mentionSource(mention.id))));
 }

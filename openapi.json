@@ -1914,6 +1914,43 @@
           "created"
         ]
       },
+      "MentionGroup": {
+        "type": "object",
+        "properties": {
+          "targetItemId": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "visible": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Verified, unhidden receipts before the target item response policy is applied."
+          },
+          "verifiedAt": {
+            "type": "string",
+            "description": "Latest verifiedAt with SQL NULL coalesced to an empty string."
+          },
+          "lastSeen": {
+            "type": "string",
+            "description": "Latest lastSeen among receipts tied at the group verifiedAt."
+          },
+          "firstId": {
+            "type": "string",
+            "description": "Smallest receipt id among receipts tied at both group timestamps."
+          }
+        },
+        "required": [
+          "targetItemId",
+          "total",
+          "visible",
+          "verifiedAt",
+          "lastSeen",
+          "firstId"
+        ]
+      },
       "ReadingEntry": {
         "type": "object",
         "properties": {
@@ -12999,6 +13036,69 @@
             "required": false,
             "name": "direction",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Inbound receipts for this target item only; invalid with outbound direction."
+            },
+            "required": false,
+            "description": "Inbound receipts for this target item only; invalid with outbound direction.",
+            "name": "targetItemId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Inbound exact verifiedAt filter; empty string matches an actual empty string, not SQL NULL."
+            },
+            "required": false,
+            "description": "Inbound exact verifiedAt filter; empty string matches an actual empty string, not SQL NULL.",
+            "name": "verifiedAt",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ],
+              "description": "Inbound SQL NULL verifiedAt filter; cannot be combined with verifiedAt."
+            },
+            "required": false,
+            "description": "Inbound SQL NULL verifiedAt filter; cannot be combined with verifiedAt.",
+            "name": "verifiedAtNull",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Inbound exact lastSeen filter."
+            },
+            "required": false,
+            "description": "Inbound exact lastSeen filter.",
+            "name": "lastSeen",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Exact receipt id, including an ordered window boundary."
+            },
+            "required": false,
+            "description": "Exact receipt id, including an ordered window boundary.",
+            "name": "id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Outbound exact created filter; invalid with inbound direction."
+            },
+            "required": false,
+            "description": "Outbound exact created filter; invalid with inbound direction.",
+            "name": "created",
+            "in": "query"
           }
         ],
         "responses": {
@@ -13053,6 +13153,414 @@
                     "items",
                     "page",
                     "direction"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mention-groups": {
+      "get": {
+        "operationId": "listMentionGroups",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192,
+              "description": "The opaque nextCursor from the preceding page of this collection, filters, and order."
+            },
+            "required": false,
+            "description": "The opaque nextCursor from the preceding page of this collection, filters, and order.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "targetItemId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Exact coalesced group verifiedAt; empty string includes SQL NULL."
+            },
+            "required": false,
+            "description": "Exact coalesced group verifiedAt; empty string includes SQL NULL.",
+            "name": "verifiedAt",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "lastSeen",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "firstId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MentionGroup"
+                      }
+                    },
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "page"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mentions/summary": {
+      "get": {
+        "operationId": "getMentionSummary",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "inbound": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "outbound": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "groups": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "inbound",
+                    "outbound",
+                    "groups"
                   ]
                 }
               }

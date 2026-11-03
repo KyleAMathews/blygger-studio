@@ -7,6 +7,7 @@
  * optional on-device reader is ocr.tsx), ⧉ copy + link and share…
  * (plain-text.ts), list filters, and the published banner.
  */
+import { createHopper, addHopperItem, uploadMedia } from './server-mutations.ts';
 import type { ReactNode, RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery, useLiveInfiniteQuery, and, eq } from '@tanstack/react-db';
@@ -21,7 +22,7 @@ import { CHANGE_CATEGORIES, composeNote, noteIsGenerated, recategorize, type Cha
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { Detail } from './data.ts';
-import { client, items, itemVersions, itemSummary, itemDetail, changed, createDraftAction, settings as settingsCollection, hoppers } from './data.ts';
+import { client, items, itemVersions, itemSummary, itemDetail, createDraftAction, settings as settingsCollection, hoppers } from './data.ts';
 import {
   ActionBar,
   Button,
@@ -646,10 +647,9 @@ function useUpload(
     try {
       const media = itemId
         ? await write({ type: 'upload', file, inline: true })
-        : await unwrap(BlyggerApi.uploadMedia({ client, body: { file, inline: 'true' } }));
+        : await uploadMedia({ file, inline: 'true' });
       setText(current().replace(token, `![](${media.url})`));
       setAttached(media.url);
-      if (itemId) await changed('item');
     } catch (error) {
       const now = current();
       const i = now.indexOf(token);
@@ -1473,7 +1473,6 @@ function ItemRow({
                     void action.run(async () => {
                       acceptFresh();
                       await write({ type: 'delete' });
-                      await changed('items', 'reading');
                       toast('Draft discarded', { tone: 'ok' });
                     });
                 }}
@@ -1535,13 +1534,16 @@ function ItemRow({
 /* ---------------- EDITOR ---------------- */
 
 export function EditorPage({ id }: { id: string }) {
+  const [discarding, setDiscarding] = useState(false);
   useChrome({ tabs: false, framed: false });
   const collection = useMemo(() => itemDetail(id), [id]);
   const result = useLiveQuery({
     query: (q) => q.from({ item: collection }),
   });
   return result.data?.[0] ? (
-    <Editor key={id} item={result.data[0]} />
+    <Editor key={id} item={result.data[0]} onDiscarding={setDiscarding} />
+  ) : discarding ? (
+    <p>Discarding draft…</p>
   ) : (
     <p role={result.isReady ? 'alert' : undefined}>
       {result.isReady ? 'Item not found.' : 'Loading editor…'}
@@ -1580,7 +1582,7 @@ function Card({
   );
 }
 const initiallyOpen = (hash: string) => location.hash === `#${hash}`;
-function Editor({ item }: { item: Detail }) {
+function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: boolean) => void }) {
   const navigate = useNavigate();
   const settings = useSettings();
   const buckets =
@@ -1724,14 +1726,15 @@ function Editor({ item }: { item: Detail }) {
       return;
     clearTimeout(saveTimer.current);
     setReplacing(true);
+    onDiscarding?.(true);
     try {
       await write({ type: 'delete' });
       leaving.current = true;
       await navigate({ to: '/' });
-      await changed('items', 'reading');
       toast('Draft discarded', { tone: 'ok' });
     } finally {
       setReplacing(false);
+      onDiscarding?.(false);
     }
   };
   const withdraw = async () => {
@@ -1796,12 +1799,11 @@ function Editor({ item }: { item: Detail }) {
     if (chosen === 'new') {
       const typed = await prompt({ title: 'Name the new hopper:' });
       if (!typed?.trim()) return;
-      const hopper = await unwrap(BlyggerApi.createHopper({ client, body: { name: typed } }));
+      const hopper = await createHopper(typed);
       hopperId = hopper.id;
       name = hopper.name;
     }
-    await unwrap(BlyggerApi.addHopperItem({ client, path: { id: hopperId, sub: '~own', remoteId: item.id } }));
-    await changed('hoppers', 'hopper', 'hopper-preview');
+    await addHopperItem({ id: hopperId, sub: '~own', remoteId: item.id });
     toast(`added to ${name}`);
   };
   const edited = !saved && text !== item.contentMd;
@@ -2399,12 +2401,7 @@ function QuotedSnapshots({
   }, [stale]);
   if (failed) return <Failure error={failed} />;
   if (!report || !report.quotes.length) return null;
-  const refresh = async () => {
-    const result = await write({ type: 'refresh', note });
-    await changed('item', 'items', 'reading');
-    setReport(await loadFreshness(id));
-    return result;
-  };
+  const refresh = () => write({ type: 'refresh', note });
   return (
     <Card
       id="snapshots"

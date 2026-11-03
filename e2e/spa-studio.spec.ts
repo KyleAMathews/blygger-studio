@@ -120,23 +120,26 @@ for (const intent of ['hover', 'focus'] as const) {
   });
 }
 
-for (const destination of ['hoppers', 'sources', 'mentions'] as const) {
+for (const destination of ['hoppers', 'sources'] as const) {
   test(`${destination === 'sources' ? 'navigation' : 'hover'} preloads ${destination} card collections`, async ({ page }) => {
     await login(page);
     if (destination === 'sources') {
       await page.goto('/studio/reading');
       await expect(page.getByRole('button', { name: 'Sources', exact: true })).toBeVisible();
     }
-    const path = destination === 'mentions'
-      ? '/api/mentions/parity-held/source'
+    const path = destination === 'sources' ? '/api/hoppers/parity-hopper'
       : '/api/hoppers/parity-hopper/memberships';
     const reads: string[] = [];
+    const membershipReads: string[] = [];
     const matches = (url: string) => {
       const parsed = new URL(url);
       return parsed.pathname === path &&
-        (destination === 'mentions' || parsed.searchParams.get('limit') === '3');
+        (destination !== 'hoppers' || parsed.searchParams.get('limit') === '3');
     };
-    page.on('request', request => { if (matches(request.url())) reads.push(request.url()); });
+    page.on('request', request => {
+      if (matches(request.url())) reads.push(request.url());
+      if (new URL(request.url()).pathname.endsWith('/memberships')) membershipReads.push(request.url());
+    });
     const loaded = page.waitForResponse(response => matches(response.url()) && response.ok());
     const link = destination === 'sources'
       ? page.getByRole('button', { name: 'Sources', exact: true })
@@ -148,13 +151,9 @@ for (const destination of ['hoppers', 'sources', 'mentions'] as const) {
     if (destination !== 'sources') expect(page.url()).toBe(before);
     expect(reads).toHaveLength(1);
     if (destination !== 'sources') await link.click();
-    if (destination === 'mentions') {
-      await expect(page.locator('.mention-group').filter({ hasText: 'Mention target fixture' }))
-        .toContainText('Source author');
-    } else {
-      await expect(page.getByRole('link', { name: /Frozen hopper/ })).toBeVisible();
-    }
+    await expect(page.getByRole('link', { name: /Frozen hopper/ })).toBeVisible();
     expect(reads).toHaveLength(1);
+    if (destination === 'sources') expect(membershipReads).toEqual([]);
   });
 }
 

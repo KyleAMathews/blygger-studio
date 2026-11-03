@@ -16,13 +16,14 @@
  * do not subscribe to opens at /peek, fetched from its origin. Either way the
  * step is recorded on the trail (browse.ts) so back retraces it.
  */
+import { clearBrowse } from './server-mutations.ts';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useLiveQuery, useLiveInfiniteQuery } from '@tanstack/react-db';
 import { Link } from '@tanstack/react-router';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { ListBrowseResponses } from '../../sdk/dist/browser.js';
-import { browse, changed, client, subscriptions } from './data.ts';
+import { browse, client, subscriptions } from './data.ts';
 import { Button, Failure, mount } from './components.tsx';
 import { Sheet, confirm } from './sheets.tsx';
 import { Back } from './icons.tsx';
@@ -244,9 +245,8 @@ function HistoryPane({ open, onClose }: { open: boolean; onClose: () => void }) 
   }, [rows]);
   const clear = async () => {
     if (!(await confirm({ title: 'Clear browsing history?', body: 'The private log of what you opened by following links is deleted. Nothing public changes.', ok: 'clear', danger: true }))) return;
-    await unwrap(BlyggerApi.clearBrowse({ client }));
+    await clearBrowse();
     endTrail();
-    await changed('browse');
   };
   return (
     <Sheet open={open} onClose={onClose} title="Browsing history" className="trail-sheet" description="Where following links has taken you. Private to you.">

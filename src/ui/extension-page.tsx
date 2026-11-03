@@ -3,11 +3,11 @@
  * Answers "not enabled" for an extension this build lacks or this node has
  * turned off, so a bookmark outlives the toggle without showing anything.
  */
+import { createItem } from './server-mutations.ts';
 import { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
-import { changed, client } from './data.ts';
+import { client } from './data.ts';
 import { Failure, useChrome, useSettings } from './components.tsx';
 import type { StudioContext } from './extension-api.ts';
 import { ExtensionBoundary, enabledExtensions } from './extensions.tsx';
@@ -33,8 +33,7 @@ export function ExtensionPage({ name }: { name: string }) {
   const context: StudioContext = {
     client,
     openDraft: async (body) => {
-      const created = await unwrap(BlyggerApi.createItem({ client, body }));
-      await changed('items');
+      const created = await createItem(body);
       await navigate({ to: '/edit/$id', params: { id: created.id } });
     },
     navigate: (location) => navigate(location as never),

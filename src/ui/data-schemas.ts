@@ -21,8 +21,11 @@ import {
   zAuthorization,
   zSettings,
   zSignal,
+  zThreadFreshness,
   zHopperMembership,
   zOutboundMention,
+  zMentionGroup,
+  zGetMentionSummaryResponse,
 } from '../../sdk/dist/schemas.js';
 
 const rank = z.number().int().nonnegative();
@@ -50,9 +53,14 @@ export const sourceSchemas = {
   interactions: zInteraction.transform(row => ({ ...row, orderKey: sequenceOrder([[row.at, 'desc'], [row.id, 'desc']]) })),
   browse: zBrowseStep,
   signalSummary: zGetSignalSummaryResponse.extend({ key: z.literal('signals') }),
+  staleThreads: zThreadFreshness.extend({ rank }),
   updates: zGetUpdateStateResponse.and(z.object({ key: z.literal('updates') })),
   authorizations: zAuthorization,
-  inbound: zMention,
-  outbound: zOutboundMention,
+  inbound: zMention.transform(row => ({ ...row, orderKey: sequenceOrder([
+    [row.verifiedAt === null ? 1 : 0, 'asc'], [row.verifiedAt ?? '', 'desc'], [row.lastSeen, 'desc'], [row.id, 'asc'],
+  ]) })),
+  outbound: zOutboundMention.transform(row => ({ ...row, orderKey: sequenceOrder([[row.created, 'desc'], [row.id, 'asc']]) })),
+  mentionGroups: zMentionGroup.transform(row => ({ ...row, orderKey: sequenceOrder([[row.verifiedAt, 'desc'], [row.lastSeen, 'desc'], [row.firstId, 'asc']]) })),
+  mentionSummary: zGetMentionSummaryResponse.extend({ key: z.literal('mentions') }),
   mentionSources: zGetMentionSourceResponse.extend({ key: z.string() }),
 };

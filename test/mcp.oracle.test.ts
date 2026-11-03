@@ -30,7 +30,7 @@ import { atCheckpoint } from './oracle-campaign.ts';
 import { flow } from './oauth-flow-driver.ts';
 import { withOracleCleanup } from './oracle-cleanup.ts';
 
-const reads = ['getChanges','getItemSummary','listItemVersions','listHopperMemberships','getReadingSummary','getSignalSummary','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse'];
+const reads = ['getChanges','getItemSummary','listItemVersions','listHopperMemberships','getReadingSummary','getSignalSummary','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','listMentionGroups','getMentionSummary','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse'];
 const drafting = ['createItem','updateItem','deleteItem','restoreItem','uploadMedia','generateItem','draftNote','classifyChange','preview'];
 const publishing = ['publishItem','withdrawItem','pinItem','refreshItem','deleteMedia'];
 const management = ['updateSettings','createSubscription','updateSubscription','resyncSubscription','pollAllSubscriptions','deleteSubscription','createHopper','updateHopper','deleteHopper','addHopperItem','removeHopperItem','setSignal','deleteSignal','updateMention'];
@@ -202,6 +202,23 @@ describe('MCP contract oracles', () => {
       await withOracleCleanup(async () => { const observed = (await client.listTools()).tools.map(tool => tool.name).sort(); atCheckpoint('MCP scope capabilities', () => expect(observed).toEqual(expectedTools(scope))); }, [() => client.close()]);
     }
   }, 30_000);
+  it('returns the same bounded mention groups and exact summary as REST', async () => {
+    const d = await driver(), credential = await d.manual(['owner:read']), client = await d.connect(credential.accessToken);
+    await env.DB.prepare("INSERT INTO mentions_in(id,source,target,target_item_id,status,first_seen,last_seen,verified_at,hidden) VALUES ('mcp-group-summary','https://mcp-group/source','target','mcp-group-target','verified','first','seen','verified',0)").run();
+    await withOracleCleanup(async () => {
+      for (const [name, path, args] of [
+        ['listMentionGroups', '/api/mention-groups?targetItemId=mcp-group-target&limit=1', { query: { targetItemId: 'mcp-group-target', limit: 1 } }],
+        ['getMentionSummary', '/api/mentions/summary', {}],
+      ] as const) {
+        const rest = await (await d.owner(d.mount + path)).json();
+        const mcp = content(await client.callTool({ name, arguments: args }));
+        expect(mcp).toEqual(rest);
+      }
+      const denied = await d.manual(['owner:manage']);
+      for (const name of ['listMentionGroups', 'getMentionSummary'])
+        expect((await rawMcp(d, denied.accessToken, 'tools/call', { name, arguments: {} })).status).toBe(403);
+    }, [() => client.close(), () => env.DB.prepare("DELETE FROM mentions_in WHERE id='mcp-group-summary'").run()]);
+  });
   it('has the same item values and publication/provenance as REST', async () => {
     const d = await driver(), credential = await d.manual(all), client = await d.connect(credential.accessToken);
     await withOracleCleanup(async () => {

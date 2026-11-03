@@ -25,7 +25,6 @@ import {
 } from './catalog.tsx';
 import {
   itemDetail,
-  hopperDetail,
   hopperInfo,
   readingView,
   readingKey,
@@ -37,7 +36,11 @@ import {
   preloadView,
   preloadDetail,
   preloadHopperPreviews,
+  preloadHopperInfos,
+  preloadHopperManagement,
   preloadMentions,
+  preloadStaleThreads,
+  preloadSignals,
 } from './data.ts';
 import { Button } from './components.tsx';
 import { SyntaxPage } from './syntax.tsx';
@@ -55,7 +58,6 @@ const rootRoute = createRootRoute({
   loader: () => Promise.all([
     preloadView(listViews.settings),
     preloadView(listViews.updates),
-    preloadView(listViews.items),
   ]),
   pendingComponent: () => <p>Loading Studio…</p>,
   errorComponent: ({ error }) => (
@@ -165,9 +167,9 @@ const reading = createRoute({
       ...(deps.view === 'sources' ? [] : [preloadView(view)]),
       preloadView(listViews.subscriptions),
       preloadView(listViews.hoppers),
-      preloadView(listViews.signals),
+      ...(deps.view === 'sources' ? [] : [preloadView(listViews.signals)]),
       ...(deps.view === 'sources' && deps.lens !== 'background' && deps.lens !== 'smart'
-        ? [preloadHopperPreviews()]
+        ? [preloadHopperInfos()]
         : []),
     ]);
     if (deps.sub === undefined || deps.lens === 'smart') return;
@@ -266,7 +268,7 @@ const hopper = createRoute({
   getParentRoute: () => rootRoute,
   path: '/hoppers/$id',
   loader: ({ params }) =>
-    Promise.all([preloadDetail(hopperDetail(params.id), 'Hopper'), preloadView(listViews.subscriptions)]),
+    Promise.all([preloadHopperManagement(params.id), preloadView(listViews.subscriptions)]),
   component: () => {
     const { id } = hopper.useParams();
     return <HopperPage id={id} />;
@@ -282,13 +284,14 @@ const mentions = createRoute({
 const updates = createRoute({
   getParentRoute: () => rootRoute,
   path: '/updates',
-  loader: () => preloadView(listViews.items),
+  loader: preloadStaleThreads,
   component: UpdatesPage,
 });
 // Thumbs and the private interaction log (0.25.0).
 const signalsPage = createRoute({
   getParentRoute: () => rootRoute,
   path: '/signals',
+  loader: preloadSignals,
   component: SignalsPage,
 });
 const fork = createRoute({

@@ -17,7 +17,7 @@ function functions(path: string, names: string[]) {
   return ts.transpileModule(declarations, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 }
 const updateSource = functions('../src/ui/components.tsx', ['useUpdateState']);
-const opmlSource = functions('../src/ui/opml-import.tsx', ['errorText', 'attempt']);
+const opmlSource = functions('../src/ui/server-mutations.ts', ['importAttempt']);
 
 test('Studio update-state receiver keeps the latest release and check date from the private DTO', () => {
   const row = { updateLatestSeen: '99.0.0', updateCheckedAt: '2026-10-31T00:00:00Z' };
@@ -32,7 +32,7 @@ test('Studio update-state receiver retains empty and loading states', () => {
   expect(loading()).toBeUndefined();
 });
 
-const attempt = new Function('retryAfterMs', `${opmlSource}\nreturn attempt;`)(retryAfterMs);
+const attempt = new Function('retryAfterMs', `${opmlSource}\nreturn importAttempt;`)(retryAfterMs);
 const response = (status: number, headers?: HeadersInit) => new Response(null, { status, headers });
 
 test('OPML import receiver shows the private API failure message', async () => {

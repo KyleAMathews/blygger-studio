@@ -62,6 +62,8 @@ it("exercises every declared operation through its named SDK method, including a
     ["listInteractions", 200, async client => api.listInteractions({ client, query: { limit: 1, kind: "quote" } })],
     ["listThumbs", 200, async client => api.listThumbs({ client })],
     ["getAiModels", 200, async client => api.getAiModels({ client })],
+    ["listMentionGroups", 200, async client => api.listMentionGroups({ client, query: { limit: 1 } })],
+    ["getMentionSummary", 200, async client => api.getMentionSummary({ client })],
     ["listMentions", 200, async client => api.listMentions({ client, query: { direction: "outbound", limit: 1 } })],
     ["preview", 200, async client => api.preview({ client, body: { contentMd: "**matrix**", kind: "thread", itemId: id } })],
     ["search", 200, async client => api.search({ client, query: { q: "matrix", limit: 1 } })],

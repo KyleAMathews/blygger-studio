@@ -133,3 +133,28 @@ test('the blogroll box adds each new subscription with PATCH, and a malformed fi
   await expect(sheet.locator('.opml-summary')).toContainText('1 added · 0 already subscribed · 0 failed');
   expect(patched).toEqual([{ inBlogroll: true }]);
 });
+
+test('a failed final refresh preserves the import summary and leaves the running phase', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await login(page);
+  await page.goto('/studio/reading?view=sources');
+  await page.waitForLoadState('networkidle');
+  await page.route('**/api/changes', route => route.fulfill({ status: 503,
+    json: { code: 'internal', message: 'subscription refresh unavailable' } }));
+  await page.route('**/api/subscriptions**', async route => {
+    if (route.request().method() === 'POST') return route.fulfill({ status: 201, json: subscription('https://one.example/feed') });
+    return route.fulfill({ status: 503, json: { code: 'internal', message: 'subscription refresh unavailable' } });
+  });
+  await page.locator('#opml-open').click();
+  const sheet = page.getByRole('dialog', { name: 'import OPML' });
+  await sheet.locator('#opml-file').setInputFiles({ name: 'one.opml', mimeType: 'text/x-opml',
+    buffer: Buffer.from('<opml version="2.0"><body><outline text="One" xmlUrl="https://one.example/feed"/></body></opml>') });
+  await sheet.getByRole('button', { name: 'import 1 feed' }).click();
+  await expect(sheet.locator('.opml-summary')).toContainText('1 added · 0 already subscribed · 0 failed');
+  await expect(sheet.getByRole('alert')).toContainText('subscription refresh unavailable');
+  await expect(sheet.getByRole('button', { name: 'stop after this feed' })).toHaveCount(0);
+  await sheet.getByRole('button', { name: 'done', exact: true }).click();
+  await expect(sheet).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

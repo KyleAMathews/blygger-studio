@@ -12,9 +12,8 @@
  * A walk starts when an entry is opened from the feed or a source list, and
  * ends when the reader returns to one (`endTrail`); the log keeps it either way.
  */
+import { logBrowse } from './server-mutations.ts';
 import { useSyncExternalStore } from 'react';
-import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
-import { client, changed } from './data.ts';
 
 export type Via = 'start' | 'stub' | 'quote' | 'link' | 'back';
 
@@ -116,13 +115,9 @@ export function visit(step: Omit<Step, 'stepId'>) {
   }
   const parentId = via === 'start' ? null : top?.stepId ?? null;
   set({ trail, stack, pending: null });
-  void unwrap(
-    BlyggerApi.logBrowse({
-      client,
-      body: { trail: trail!, parentId: parentId, origin: step.origin, remoteId: step.id, version: step.version, via, title: step.title || null },
-    }),
-  ).then(
-    async ({ id }) => {
+  void logBrowse({
+    body: { trail: trail!, parentId, origin: step.origin, remoteId: step.id, version: step.version, via, title: step.title || null },
+    onLogged: id => {
       // The answer may arrive after the reader has moved on; label the step that is still there.
       const at = state.stack.findIndex((s) => sameStep(s, step.origin, step.id) && s.stepId === undefined);
       if (at >= 0 && state.trail === trail) {
@@ -130,8 +125,6 @@ export function visit(step: Omit<Step, 'stepId'>) {
         next[at] = { ...next[at], stepId: id };
         set({ ...state, stack: next });
       }
-      await changed('browse');
     },
-    () => {},
-  );
+  }).catch(() => {});
 }

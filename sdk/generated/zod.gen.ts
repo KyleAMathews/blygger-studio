@@ -475,6 +475,15 @@ export const zOutboundMention = z.object({
     created: z.string()
 });
 
+export const zMentionGroup = z.object({
+    targetItemId: z.string(),
+    total: z.int().gte(0),
+    visible: z.int().gte(0),
+    verifiedAt: z.string(),
+    lastSeen: z.string(),
+    firstId: z.string()
+});
+
 export const zReadingEntry = z.object({
     key: z.string(),
     source: z.enum(['own', 'imported']),
@@ -1570,7 +1579,13 @@ export const zGetAiModelsResponse = zAiModels;
 export const zListMentionsQuery = z.object({
     cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(100).optional(),
-    direction: z.enum(['inbound', 'outbound']).optional()
+    direction: z.enum(['inbound', 'outbound']).optional(),
+    targetItemId: z.string().optional(),
+    verifiedAt: z.string().optional(),
+    verifiedAtNull: z.enum(['true']).optional(),
+    lastSeen: z.string().optional(),
+    id: z.string().optional(),
+    created: z.string().optional()
 });
 
 /**
@@ -1583,6 +1598,35 @@ export const zListMentionsResponse = z.object({
         nextCursor: z.string().nullable()
     }),
     direction: z.enum(['inbound', 'outbound'])
+});
+
+export const zListMentionGroupsQuery = z.object({
+    cursor: z.string().min(1).max(8192).optional(),
+    limit: z.int().gte(1).lte(100).optional(),
+    targetItemId: z.string().optional(),
+    verifiedAt: z.string().optional(),
+    lastSeen: z.string().optional(),
+    firstId: z.string().optional()
+});
+
+/**
+ * Success
+ */
+export const zListMentionGroupsResponse = z.object({
+    items: z.array(zMentionGroup),
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
+    })
+});
+
+/**
+ * Success
+ */
+export const zGetMentionSummaryResponse = z.object({
+    inbound: z.int().gte(0),
+    outbound: z.int().gte(0),
+    groups: z.int().gte(0)
 });
 
 export const zPreviewBody = z.object({

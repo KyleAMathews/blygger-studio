@@ -53,7 +53,11 @@ queue and sender against real SQLite through local D1.
 | `test/pagination.oracle.test.ts` | Every signals page and the complete ordered walk match independent sorting and slicing, including row values, duplicates, and exhaustion. | Static collections of 0–25 records, three timestamp values, and page widths 1–10. No snapshot guarantee across writes and no database-cost claim. |
 | `test/patch-atomicity.oracle.test.ts` | A subsequent owner read preserves every field after rejection and changes only requested fields after acceptance. | Draft content, kind, response preference, and citation clearing. Invalid enums, malformed citations, and immutable fields. Separate controlled race cases change kind, citation, and withdrawal state before the guarded SQL write. No promise about concurrent text-edit conflicts. |
 | `test/mention-delivery.oracle.test.ts` | Discovery and successful delivery match an independent longest literal-prefix model. Check the complete request trace, stored queue state and absence of redelivery. | Generated names, source kinds, insertion orders and 49–96 byte origins. Each input includes parent/nested prefixes, an RSS decoy, a wildcard-looking nonmatch and an unrelated 58-byte origin. Controlled HTTP responses. No retry, incoming verification, cron or production DNS claim. |
-| `test-ui/mention-order.oracle.test.ts` | TanStack DB groups and orders receipts by verification time, last-seen time and ID, joins target items and computes counts and visibility. Compare complete groups, receipt sequences and computed values after the actual shared query. | Empty input, crossed IDs/recency, up to 12 extra receipts, five targets, ties, null verification, hidden/gone rows, reversed transport order, all response modes, missing targets and both site defaults. Independent numeric-rank reference. No browser, polling or delivery claim. |
+| `test/mention-order.oracle.test.ts` | Production group and target-filtered receipt APIs preserve verification, last-seen and ID order through complete cursor walks. Compare complete group/receipt sequences, total/visible counts, summary counts, exhaustion and unchanged stored rows. | Empty input, crossed IDs/recency, up to 12 extra receipts, five mandatory targets, ties, null verification, hidden/gone rows and reversed insertion. Page size two crosses more than two group and receipt pages. Independent numeric-rank reference. No concurrent-write, query-cost, UI-policy, polling or delivery claim. |
+
+The Mentions browser tests separately cover paged rendering, bounded reads and
+retry recovery. They also check all response modes, missing target joins and
+both site defaults against hidden and gone receipts in the actual page.
 
 Each normal campaign runs eight histories with seed `20261001`, then eight
 histories with a fresh random seed. Both use the same generator, recorder,
@@ -108,8 +112,8 @@ all later reads with those exact bytes. It never overwrites that reference.
 These controls calibrate comparisons. `npm run test:mutations` also checks the
 full production path in an isolated copy. Green baselines precede nine mutations:
 missing pins, wrong restored text, ignored offsets, reversed tie order, restored
-mention `LIKE` lookup, shortest-origin selection, inclusion of RSS origins and
-displaying mention groups in collection-key order, and counting hidden receipts
+mention `LIKE` lookup, shortest-origin selection, inclusion of RSS origins,
+displaying mention groups oldest first, and counting hidden receipts
 as visible.
 Each must fail at its named semantic checkpoint. Setup errors and timeouts do
 not count as caught mutations. Logs remain in `build/mutation-*.log`.
@@ -118,7 +122,7 @@ The mention `LIKE` mutation also captures its failing seed and shrink path and
 replays them through `ORACLE_TARGET=mention-delivery`. Replay must reach the same
 delivery-result checkpoint. Its log is `build/mutation-mention-replay.log`.
 The display mutation also captures and directly replays its failure through
-`ORACLE_TARGET=mention-order` with `vitest.ui.config.ts`. It must reach the same
+`ORACLE_TARGET=mention-order` with the Worker Vitest config. It must reach the same
 display-order checkpoint. Its log is `build/mutation-mention-order-replay.log`.
 
 On October 18, 2026, investigation compared 329 public item documents updated
