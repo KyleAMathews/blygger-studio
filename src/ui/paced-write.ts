@@ -42,14 +42,18 @@ const requestSchema = z.object({ key: z.string(), revision: z.number().int(), co
 type Request = z.infer<typeof requestSchema>;
 
 /** All commands share one scheduler and one persistence handler. */
-export function createPacedDraftAction(dispatch: (command: DraftWrite) => Promise<unknown>) {
+export function createPacedDraftAction(
+  dispatch: (command: DraftWrite) => Promise<unknown>,
+  onMutate?: (command: DraftWrite) => void,
+) {
   const requests = createCollection(localOnlyCollectionOptions({
     schema: requestSchema, getKey: row => row.key,
   }));
   const strategy = throttleStrategy({ wait: 0, leading: true, trailing: true });
   let sequence = 0;
   const mutationFn: Parameters<typeof createPacedMutations<DraftWrite, Request>>[0]['mutationFn'] = async ({ transaction }) => {
-    transaction.metadata.result = await dispatch(transaction.mutations[0].modified.command);
+    const request = transaction.mutations.find(mutation => mutation.collection.id === requests.id)!;
+    transaction.metadata.result = await dispatch(request.modified.command);
     // Local-only command rows record requests, even when item text is unchanged.
     requests.utils.acceptMutations(transaction as unknown as Parameters<typeof requests.utils.acceptMutations>[0]);
   };
@@ -63,6 +67,7 @@ export function createPacedDraftAction(dispatch: (command: DraftWrite) => Promis
           row.revision = revision; row.command = command;
         });
         else requests.insert({ key, revision, command });
+        onMutate?.(command);
       },
     });
   };
@@ -77,7 +82,8 @@ export function createPacedDraftAction(dispatch: (command: DraftWrite) => Promis
       if (command.type !== 'save') {
         // This command finished after every earlier save group. Drop those
         // completed request rows; later groups have larger keys.
-        const completed = [...requests.keys()].filter(key => Number(key) <= Number(transaction.mutations[0].key));
+        const request = transaction.mutations.find(mutation => mutation.collection.id === requests.id)!;
+        const completed = [...requests.keys()].filter(key => Number(key) <= Number(request.key));
         if (completed.length) void requests.delete(completed).when('settled').catch(() => undefined);
       }
       return transaction.metadata.result as Results[W['type']];

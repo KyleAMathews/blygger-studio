@@ -5,17 +5,19 @@ import {
   useEffect,
   useLayoutEffect,
   useState,
+  useSyncExternalStore,
 } from 'react';
 import { Button } from '@base-ui/react/button';
 import { Link, useLocation } from '@tanstack/react-router';
-import { useLiveQuery } from '@tanstack/react-db';
-import { CancelledError } from '@tanstack/query-core';
+import { eq, useLiveQuery, type Collection } from '@tanstack/react-db';
+import { CancelledError, type QueryClient } from '@tanstack/query-core';
 import {
   settings as settingsCollection,
   items as itemsCollection,
   queryClient,
   updates,
 } from './data.ts';
+import * as sourceData from './data.ts';
 import { readState } from '../versions.ts';
 import { displayUrl } from '../importer/util.ts';
 import { Sheet } from './sheets.tsx';
@@ -156,6 +158,39 @@ function relativePath(pathname: string) {
     : pathname;
 }
 
+type ReadSource = Pick<Collection, 'health' | 'subscriberCount' | 'on' | 'reload'>;
+function isReadSource(value: unknown): value is ReadSource {
+  return typeof value === 'object' && value !== null &&
+    'health' in value && 'subscriberCount' in value && 'on' in value && 'reload' in value;
+}
+const readSources = Object.values<unknown>(sourceData).filter(isReadSource);
+
+/** Read the current problem, including failures before the first rows arrive. */
+export function currentReadProblem(sources: readonly ReadSource[]) {
+  for (const source of sources) {
+    if (!source.subscriberCount) continue;
+    const problem = source.health.error ?? source.health.failureReason;
+    if (problem && !(problem.cause instanceof CancelledError)) return problem;
+  }
+  return undefined;
+}
+export function subscribeReadHealth(sources: readonly ReadSource[], notify: () => void) {
+  const unsubscribers = sources.flatMap(source => [
+    source.on('health:change', notify),
+    source.on('subscribers:change', notify),
+  ]);
+  return () => { for (const unsubscribe of unsubscribers) unsubscribe(); };
+}
+/** First-load and failed window requests need a new sync run; transient sync failures can refetch. */
+export async function retryReadProblems(sources: readonly ReadSource[], client: QueryClient = queryClient) {
+  await Promise.allSettled(sources
+    .filter(source => source.subscriberCount && source.health.error)
+    .map(source => source.reload()));
+  await client.refetchQueries({ type: 'active' });
+}
+const subscribeReadProblems = (notify: () => void) => subscribeReadHealth(readSources, notify);
+const readProblemSnapshot = () => currentReadProblem(readSources);
+
 export function Layout({ children }: { children: ReactNode }) {
   const settings = useSettings();
   const update = useUpdateState();
@@ -165,19 +200,8 @@ export function Layout({ children }: { children: ReactNode }) {
   const showTabs = chrome.tabs ?? true;
   const framed = chrome.framed ?? true;
   const wide = chrome.wide ?? (path === '/reading' || path.startsWith('/edit/'));
-  const [error, setError] = useState<unknown>();
-  useEffect(() => {
-    const report = (error: unknown) => {
-      if (!(error instanceof CancelledError)) setError(error);
-    };
-    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-      // Source collections report shared-read failures after handling expected 404s.
-      if (event.type === 'updated' && event.query.queryKey[0] !== 'owner-read' &&
-          event.query.state.status === 'error')
-        report(event.query.state.error);
-    });
-    return unsubscribe;
-  }, []);
+  const readProblem = useSyncExternalStore(subscribeReadProblems, readProblemSnapshot);
+  const error = readProblem?.cause ?? readProblem?.message;
   // The studio wears the reading theme. Until settings load, the theme
   // applied at startup (the last one seen on this device) stays.
   const theme = settings?.theme;
@@ -209,11 +233,11 @@ export function Layout({ children }: { children: ReactNode }) {
   // In the editor of a published item, "public page" means that item's page;
   // everywhere else it is the blyg's home.
   const editing = path.startsWith('/edit/') ? path.split('/')[2] : undefined;
-  const allItems =
-    useLiveQuery({ query: (q) => q.from({ item: itemsCollection }) }).data;
-  const editedItem = editing
-    ? allItems?.find((item) => item.id === editing)
-    : undefined;
+  const editedItem = useLiveQuery({
+    query: (q) => editing
+      ? q.from({ item: itemsCollection }).where(({ item }) => eq(item.id, editing)).findOne()
+      : undefined,
+  }).data;
   const publicHref =
     editedItem?.status === 'public' ? publicPath(editedItem) : `${mount}/`;
   const behind = !!(settings?.updateCheck && update?.behind);
@@ -257,8 +281,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <Button
               className="btn btn-ghost btn-mini"
               onClick={() => {
-                setError(undefined);
-                void queryClient.refetchQueries({ type: 'active' });
+                void retryReadProblems(readSources);
               }}
             >
               retry reads
@@ -274,6 +297,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <Link
               key={tab.label}
               to={tab.to}
+              preload={tab.label === 'mentions' ? 'viewport' : undefined}
               className={tab.label === active ? 'tab is-active' : 'tab'}
               aria-current={tab.label === active ? 'page' : undefined}
             >

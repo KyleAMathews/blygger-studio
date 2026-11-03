@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vi
 import type { Detail } from '../src/ui/data.ts';
 import { readFileSync, readdirSync } from 'node:fs';
 import ts from 'typescript';
-import { createLiveQueryCollection, eq } from '@tanstack/react-db';
+import { createLiveQueryCollection, and, eq } from '@tanstack/react-db';
+import { onlineManager } from '@tanstack/query-core';
 import { sourceSchemas } from '../src/ui/data-schemas.ts';
 import { zListItemsResponse, zHopper, zSubscription, zAuthorization } from '../sdk/dist/schemas.js';
 
@@ -14,10 +15,24 @@ let text = 'original';
 let missing = false;
 let failWrite = false;
 let failRead = false;
+let failSummary = false;
+let failReading = false;
+let importedReading = false;
+const readVersions = new Map<string, number>();
+const readWrites: { method: string; remoteId: string }[] = [];
+const signalWrites: (1 | -1 | null)[] = [];
+let signalWriteFailures = 0;
 let orphanMember = false;
 let invalidItem = false;
 let itemCount = 1;
+let mentionCount = 0;
+let mentionGroupCount = 0;
+let receiptsPerGroup = 1;
+let outboundCount = 0;
+let nullableMentions = false;
+const hiddenMentions = new Set<string>();
 let itemPins: { version: number; kind: 'fragment' | 'thread' }[] = [];
+let signalRows: { subscriptionId: string; remoteId: string; thumb: 1 | -1; at: string }[] = [];
 let memberCount = 4;
 let versionCount = 0;
 let pageRows = 0;
@@ -38,6 +53,26 @@ function page<T>(items: T[], query: URLSearchParams, defaultLimit = 100) {
   return { items: items.slice(start, start + limit), page: { limit, nextCursor: start + limit < items.length ? String(start + limit) : null } };
 }
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
+const mentionTarget = (group: number) => group === 0 ? 'a' : `tail-${String(group).padStart(5, '0')}`;
+const groupCount = () => mentionGroupCount || (mentionCount ? 1 : 0);
+function mentionRows(group: number) {
+  return Array.from({ length: receiptsPerGroup }, (_, index) => {
+    const id = group === 0 && index === 0 ? 'm' : `m-${String(group).padStart(5, '0')}-${String(index).padStart(5, '0')}`;
+    return { id, source: `https://source.test/f/${id}/`, target: `https://studio.test/f/${mentionTarget(group)}/`, targetItemId: mentionTarget(group),
+      status: 'verified', relation: 'stub', sourceOrigin: 'https://source.test/', sourceId: 'remote', sourceKind: 'fragment', sourceVersion: 1,
+      sourcePage: null, firstSeen: '2026-11-03', lastSeen: '2026-11-03',
+      verifiedAt: nullableMentions && index < 2 ? index === 0 ? null : '' : '2026-11-03',
+      attempts: 0, error: null, hidden: hiddenMentions.has(id), sourceAuthor: null };
+  }).sort((a, b) => a.verifiedAt === b.verifiedAt ? a.id.localeCompare(b.id)
+    : a.verifiedAt === null ? 1 : b.verifiedAt === null ? -1 : a.verifiedAt > b.verifiedAt ? -1 : 1);
+}
+function groupRows() {
+  return Array.from({ length: groupCount() }, (_, group) => {
+    const rows = mentionRows(group), latest = rows[0];
+    return { targetItemId: mentionTarget(group), total: rows.length, visible: rows.filter(row => !row.hidden).length,
+      verifiedAt: latest.verifiedAt ?? '', lastSeen: latest.lastSeen, firstId: latest.id };
+  }).sort((a, b) => a.firstId.localeCompare(b.firstId));
+}
 
 beforeAll(async () => {
   vi.stubGlobal('location', { origin: 'http://studio.test' });
@@ -52,6 +87,27 @@ beforeAll(async () => {
       const { pins, ...created } = item();
       return json(created, 201);
     }
+    if (url.pathname === '/api/signals') return json(page(signalRows, url.searchParams));
+    if (url.pathname === '/api/signals/s/remote') {
+      const thumb = request.method === 'DELETE' ? null : (await request.json()).thumb;
+      signalWrites.push(thumb);
+      await writeGate;
+      if (signalWriteFailures) { signalWriteFailures--; return json({ code: 'internal', message: 'write failed' }, 503); }
+      if (failWrite) return json({ code: 'internal', message: 'write failed' }, 503);
+      signalRows = thumb === null ? [] : [{ subscriptionId: 's', remoteId: 'remote', thumb, at: '2026-11-03T00:00:00Z' }];
+      revision++;
+      return json({ ok: true });
+    }
+    if (url.pathname.startsWith('/api/reading/s/') && url.pathname.endsWith('/read')) {
+      const remoteId = url.pathname.slice('/api/reading/s/'.length, -'/read'.length);
+      readWrites.push({ method: request.method, remoteId });
+      await writeGate;
+      if (failWrite) return json({ code: 'internal', message: 'write failed' }, 503);
+      if (request.method === 'DELETE') readVersions.delete(remoteId);
+      else readVersions.set(remoteId, (await request.json()).version);
+      revision++;
+      return json({ ok: true });
+    }
     if (url.pathname === '/api/items/a' && request.method === 'PATCH') {
       const body = await request.json();
       await writeGate;
@@ -60,6 +116,13 @@ beforeAll(async () => {
       text = body.contentMd; revision++; itemRevision++;
       return json(item());
     }
+    if (url.pathname === '/api/items/a' && request.method === 'DELETE') {
+      missing = true; revision++;
+      return json({ ok: true });
+    }
+    if (url.pathname === '/api/items/summary') return failSummary
+      ? json({ code: 'internal', message: 'summary unavailable' }, 503)
+      : json({ all: itemCount, drafts: itemCount, changes: 0, public: 0, withdrawn: 0 });
     if (url.pathname === '/api/items/a/restore' && request.method === 'POST') {
       const body = await request.json();
       if (body.expectedRevision !== itemRevision) return json({ code: 'revision-conflict', message: 'item revision conflict' }, 409);
@@ -76,6 +139,7 @@ beforeAll(async () => {
       if (failRead) return json({ code: 'internal', message: 'read failed' }, 503);
       return missing ? json({ code: 'not-found', message: 'not found' }, 404) : json({ ...detail(), ...(invalidItem ? { contentMd: 42 } : {}) });
     }
+    if (url.pathname.startsWith('/api/items/tail-')) return json({ ...detail(), id: url.pathname.slice('/api/items/'.length) });
     if (url.pathname === '/api/items') {
       const values = missing ? [] : Array.from({ length: itemCount }, (_, i) => ({ ...item(), id: i === 0 ? 'a' : `tail-${String(i).padStart(5, '0')}`, ...(invalidItem ? { contentMd: 42 } : {}) }))
         .sort((a, b) => a.id < b.id ? 1 : a.id > b.id ? -1 : 0)
@@ -99,25 +163,55 @@ beforeAll(async () => {
       return json({ counts: { all: 30, own: 30, subscriptions: {} }, selected: requested === 'invalid' ? 'all' : requested });
     }
     if (url.pathname === '/api/reading') {
+      if (failReading) return json({ code: 'internal', message: 'readback failed' }, 503);
       const sub = url.searchParams.get('sub') ?? 'all';
       const kind = url.searchParams.get('kind') ?? 'fragment';
       const entries = sub === 'own' ? [entry('shared', kind), ...Array.from({ length: 29 }, (_, i) => entry(`own-${i}`, kind))]
         : [entry('first', kind), entry('shared', kind), ...Array.from({ length: 23 }, (_, i) => entry(`filler-${i}`, kind)), ...Array.from({ length: 5 }, (_, i) => entry(`next-${i}`, kind))];
-      return json({ ...page(entries, url.searchParams, 50), readState: true, readStateClear: true });
+      const rows = importedReading ? entries.map(row => ({ ...row, source: 'imported', imported: {
+        subscriptionId: 's', subscriptionTitle: 'Source', remoteId: row.key, kind: row.kind,
+        withdrawn: false, l0: false, updated: null, observedAt: '2026-10-06', contentHtml: text,
+        pinnedVersionRetained: null, sourceUrl: null, version: 1, readVersion: readVersions.get(row.key) ?? null,
+      } })) : entries;
+      return json({ ...page(rows, url.searchParams, 50), readState: true, readStateClear: true });
     }
+    if (url.pathname === '/api/freshness') return json({ items: missing ? [] : [{ id: 'a', version: 1, dirty: false, quotes: [], stale: 2, blocking: 0, behind: 3 }] });
     if (url.pathname === '/api/mentions/m/source') return json({ holder: 's', subscription: null });
-    if (url.pathname === '/api/mentions') return json({ ...page([], url.searchParams), direction: url.searchParams.get('direction') });
+    if (url.pathname === '/api/mentions/m' && request.method === 'PATCH') {
+      const { hidden } = await request.json();
+      if (hidden) hiddenMentions.add('m'); else hiddenMentions.delete('m');
+      revision++;
+      return json({ ok: true, hidden });
+    }
+    if (url.pathname === '/api/mentions/summary') return json({ inbound: groupCount() * receiptsPerGroup, outbound: outboundCount, groups: groupCount() });
+    if (url.pathname === '/api/mention-groups') {
+      const rows = groupRows().filter(row => ['targetItemId', 'verifiedAt', 'lastSeen', 'firstId'].every(field =>
+        !url.searchParams.has(field) || row[field as keyof typeof row] === url.searchParams.get(field)));
+      return json(page(rows, url.searchParams));
+    }
+    if (url.pathname === '/api/mentions') {
+      const rows = url.searchParams.get('direction') === 'inbound'
+        ? Array.from({ length: groupCount() }, (_, group) => mentionRows(group)).flat().filter(row =>
+          ['targetItemId', 'verifiedAt', 'lastSeen', 'id'].every(field => !url.searchParams.has(field) || row[field as keyof typeof row] === url.searchParams.get(field))
+          && (!url.searchParams.has('verifiedAtNull') || row.verifiedAt === null))
+        : Array.from({ length: outboundCount }, (_, index) => ({ id: `out-${String(index).padStart(5, '0')}`, itemId: 'a', version: 1, targetVersion: null,
+          target: 'https://target.test/', endpoint: null, status: 'pending', attempts: 0, nextAttemptAt: null, lastError: null, created: '2026-11-03' }))
+          .filter(row => ['id', 'created'].every(field => !url.searchParams.has(field) || row[field as keyof typeof row] === url.searchParams.get(field)));
+      return json({ ...page<unknown>(rows, url.searchParams), direction: url.searchParams.get('direction') });
+    }
     throw new Error(`Unexpected request: ${request.method} ${request.url}`);
   });
   db = await import('../src/ui/data.ts');
 });
 
-beforeEach(() => { revision = 0; itemRevision = 1; epoch = 'test'; text = 'original'; missing = false; failWrite = false; failRead = false; orphanMember = false; invalidItem = false; writeGate = undefined; detailGate = undefined; detailEntered = undefined; releaseWrite = undefined; requests.length = 0; itemCount = 1; memberCount = 4; versionCount = 0; pageRows = 0; itemPins = []; });
+beforeEach(() => { revision = 0; itemRevision = 1; epoch = 'test'; text = 'original'; missing = false; failWrite = false; failRead = false; failSummary = false; failReading = false; importedReading = false; readVersions.clear(); readWrites.length = 0; signalWrites.length = 0; signalWriteFailures = 0; orphanMember = false; invalidItem = false; writeGate = undefined; detailGate = undefined; detailEntered = undefined; releaseWrite = undefined; requests.length = 0; itemCount = 1; mentionCount = 0; mentionGroupCount = 0; receiptsPerGroup = 1; outboundCount = 0; nullableMentions = false; hiddenMentions.clear(); memberCount = 4; versionCount = 0; pageRows = 0; itemPins = []; signalRows = []; });
 afterEach(async () => {
   releaseWrite?.();
   await Promise.all(views.splice(0).map((view) => view.cleanup()));
   await Promise.all(Object.values(db.listViews).map((view) => view.cleanup()));
-  await Promise.all([db.items, db.itemHistory, db.itemVersions, db.hoppers, db.hopperStats, db.hopperEntries, db.hopperMemberships, db.reading, db.readingSummaries, db.mentionSources].map((source) => source.cleanup()));
+  await db.staleThreadItemsView.cleanup();
+  await db.mentionGroupItemsView.cleanup();
+  await Promise.all(Object.keys(sourceSchemas).map(name => db[name as keyof typeof sourceSchemas].cleanup()));
   db.queryClient.clear();
 });
 afterAll(() => { db.queryClient.unmount(); vi.unstubAllGlobals(); });
@@ -160,6 +254,203 @@ test('an editor advances its revision from each acknowledged local write', async
   expect(await write({ type: 'save', text: 'one' })).toMatchObject({ revision: 2 });
   expect(await write({ type: 'save', text: 'two' })).toMatchObject({ revision: 3 });
   expect(text).toBe('two');
+});
+
+test('paced saves update every loaded item view immediately and roll back on failure', async () => {
+  const editor = db.itemDetail('a'); views.push(editor);
+  await Promise.all([db.listViews.items.preload(), editor.preload()]);
+  writeGate = new Promise<void>(resolve => { releaseWrite = resolve; });
+  const saving = db.createDraftAction('a', 1)({ type: 'save', text: 'local edit' });
+  // Register failure handling before releasing the gated persistence call.
+  const failed = expect(saving).rejects.toThrow('write failed');
+  await vi.waitFor(() => expect(editor.toArray[0].contentMd).toBe('local edit'));
+  expect(db.listViews.items.toArray[0].contentMd).toBe('local edit');
+  expect(text).toBe('original');
+  failWrite = true; releaseWrite!();
+  await failed;
+  await vi.waitFor(() => expect(editor.toArray[0].contentMd).toBe('original'));
+  expect(db.listViews.items.toArray[0].contentMd).toBe('original');
+});
+
+test('queued saves confirm rows without reloading an active archive or item detail', async () => {
+  itemCount = 251;
+  const archive = createLiveQueryCollection(q => q.from({ item: db.items }));
+  const editor = db.itemDetail('a'); views.push(archive, editor);
+  await Promise.all([archive.preload(), db.listViews.items.preload(), editor.preload()]);
+  requests.length = 0;
+  writeGate = new Promise<void>(resolve => { releaseWrite = resolve; });
+  const write = db.createDraftAction('a', 1);
+  const first = write({ type: 'save', text: 'one' });
+  await vi.waitFor(() => expect(requests.some(request => request.path === '/api/items/a')).toBe(true));
+  const second = write({ type: 'save', text: 'two' });
+  await vi.waitFor(() => expect(editor.toArray[0].contentMd).toBe('two'));
+  releaseWrite!();
+  expect(await first).toMatchObject({ revision: 2 });
+  expect(await second).toMatchObject({ revision: 3 });
+  expect(editor.toArray[0]).toMatchObject({ contentMd: 'two', revision: 3 });
+  expect(archive.toArray.find(row => row.id === 'a')?.contentMd).toBe('two');
+  expect(requests.map(request => request.path)).toEqual(['/api/items/a', '/api/items/a']);
+});
+
+test('failed aggregate reads cannot undo an acknowledged save or discard', async () => {
+  const editor = db.itemDetail('a');
+  const summary = createLiveQueryCollection(q => q.from({ summary: db.itemSummary }));
+  views.push(editor, summary);
+  await Promise.all([editor.preload(), summary.preload()]);
+  failSummary = true;
+  const write = db.createDraftAction('a', 1);
+  await expect(write({ type: 'save', text: 'acknowledged' })).resolves.toMatchObject({ revision: 2 });
+  expect(editor.toArray[0].contentMd).toBe('acknowledged');
+  expect(db.itemSummary.health.failureReason?.cause).toMatchObject({ message: 'summary unavailable' });
+  await expect(write({ type: 'delete' })).resolves.toMatchObject({ ok: true });
+  expect(missing).toBe(true);
+  expect(db.items.has('a')).toBe(false);
+  await vi.waitFor(() => expect(editor.toArray).toEqual([]));
+});
+
+test('thumbs change before acknowledgement and roll back rejected writes', async () => {
+  await db.listViews.signals.preload();
+  writeGate = new Promise<void>(resolve => { releaseWrite = resolve; });
+  const transaction = db.setThumb({ sub: 's', remoteId: 'remote', thumb: 1 });
+  const failed = expect(transaction.when('settled')).rejects.toThrow('write failed');
+  await vi.waitFor(() => expect(db.listViews.signals.toArray[0]?.thumb).toBe(1));
+  expect(signalRows).toEqual([]);
+  failWrite = true; releaseWrite!(); await failed;
+  await vi.waitFor(() => expect(db.listViews.signals.toArray).toEqual([]));
+});
+
+test('thumb read-back confirms set, change, and clear before settlement', async () => {
+  await db.listViews.signals.preload();
+  await db.setThumb({ sub: 's', remoteId: 'remote', thumb: 1 }).when('settled');
+  expect(db.listViews.signals.toArray[0]?.thumb).toBe(1);
+  await db.setThumb({ sub: 's', remoteId: 'remote', thumb: -1 }).when('settled');
+  expect(db.listViews.signals.toArray[0]?.thumb).toBe(-1);
+  await db.setThumb({ sub: 's', remoteId: 'remote', thumb: null }).when('settled');
+  expect(db.listViews.signals.toArray).toEqual([]);
+});
+
+test('rapid thumb intents show at once and persist in order, including clear', async () => {
+  await db.listViews.signals.preload();
+  writeGate = new Promise<void>(resolve => { releaseWrite = resolve; });
+  const first = db.setThumb({ sub: 's', remoteId: 'remote', thumb: 1 });
+  await vi.waitFor(() => expect(signalWrites).toEqual([1]));
+  const second = db.setThumb({ sub: 's', remoteId: 'remote', thumb: -1 });
+  expect(db.signals.toArray[0]?.thumb).toBe(-1);
+  const third = db.setThumb({ sub: 's', remoteId: 'remote', thumb: null });
+  expect(db.signals.toArray).toEqual([]);
+  // Later writes cannot reach the server while its older intent is held.
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(signalWrites).toEqual([1]);
+  releaseWrite!();
+  await Promise.all([first, second, third].map(receipt => receipt.when('settled')));
+  expect(signalWrites).toEqual([1, -1, null]);
+  expect(signalRows).toEqual([]);
+  expect(db.listViews.signals.toArray).toEqual([]);
+});
+
+test('empty and unchanged thumb captures still persist the server intent', async () => {
+  // The server has a row which this client has not materialized.
+  signalRows = [{ subscriptionId: 's', remoteId: 'remote', thumb: 1, at: '2026-11-03T00:00:00Z' }];
+  await db.setThumb({ sub: 's', remoteId: 'remote', thumb: null }).when('settled');
+  expect(signalRows).toEqual([]);
+  expect(signalWrites).toEqual([null]);
+  await db.listViews.signals.preload();
+  await db.setThumb({ sub: 's', remoteId: 'remote', thumb: 1 }).when('settled');
+  await db.setThumb({ sub: 's', remoteId: 'remote', thumb: 1 }).when('settled');
+  expect(signalWrites).toEqual([null, 1, 1]);
+});
+
+test('a rejected older thumb does not discard the newer queued intent', async () => {
+  await db.listViews.signals.preload();
+  signalWriteFailures = 1;
+  writeGate = new Promise<void>(resolve => { releaseWrite = resolve; });
+  const first = db.setThumb({ sub: 's', remoteId: 'remote', thumb: 1 });
+  const failed = expect(first.when('settled')).rejects.toThrow('write failed');
+  const second = db.setThumb({ sub: 's', remoteId: 'remote', thumb: -1 });
+  releaseWrite!();
+  await failed;
+  await second.when('settled');
+  expect(signalWrites).toEqual([1, -1]);
+  expect(signalRows[0]?.thumb).toBe(-1);
+  expect(db.signals.toArray[0]?.thumb).toBe(-1);
+});
+
+test('read marking persists off-page and unchanged rows instead of skipping its mutationFn', async () => {
+  importedReading = true;
+  const view = db.readingView('all', 0); views.push(view);
+  await view.preload();
+  expect(db.reading.toArray.some(row => row.key === 'next-4')).toBe(false);
+  const writes = { read: [{ sub: 's', remoteId: 'next-4', version: 1 }], unread: [] };
+  await db.markReading({ keys: ['next-4'], read: true, writes }).when('settled');
+  expect(readVersions.get('next-4')).toBe(1);
+  const loaded = { read: [{ sub: 's', remoteId: 'first', version: 1 }], unread: [] };
+  await db.markReading({ keys: ['first'], read: true, writes: loaded }).when('settled');
+  await db.markReading({ keys: ['first'], read: true, writes: loaded }).when('settled');
+  expect(readWrites.map(write => write.remoteId)).toEqual(['next-4', 'first', 'first']);
+});
+
+test('read marking is optimistic and rejects a failed confirmation after the server write', async () => {
+  importedReading = true;
+  const view = db.readingView('all', 0); views.push(view);
+  await view.preload();
+  writeGate = new Promise<void>(resolve => { releaseWrite = resolve; });
+  const mutation = db.markReading({ keys: ['first'], read: true,
+    writes: { read: [{ sub: 's', remoteId: 'first', version: 1 }], unread: [] } });
+  const failed = expect(mutation.when('settled')).rejects.toThrow('readback failed');
+  expect(view.toArray[0].imported?.readVersion).toBe(1);
+  failReading = true; releaseWrite!();
+  await failed;
+  expect(readVersions.get('first')).toBe(1);
+  await vi.waitFor(() => expect(view.toArray[0].imported?.readVersion).toBeNull());
+  failReading = false;
+  await db.changed('reading');
+  await vi.waitFor(() => expect(view.toArray[0].imported?.readVersion).toBe(1));
+});
+
+test('read and unread intents remain ordered when their writes overlap', async () => {
+  importedReading = true;
+  const view = db.readingView('all', 0); views.push(view);
+  await view.preload();
+  writeGate = new Promise<void>(resolve => { releaseWrite = resolve; });
+  const first = db.markReading({ keys: ['first'], read: true,
+    writes: { read: [{ sub: 's', remoteId: 'first', version: 1 }], unread: [] } });
+  await vi.waitFor(() => expect(readWrites).toHaveLength(1));
+  const last = db.markReading({ keys: ['first'], read: false,
+    writes: { read: [], unread: [{ sub: 's', remoteId: 'first' }] } });
+  expect(view.toArray[0].imported?.readVersion).toBeNull();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(readWrites).toHaveLength(1);
+  releaseWrite!();
+  await Promise.all([first.when('settled'), last.when('settled')]);
+  expect(readWrites.map(write => write.method)).toEqual(['PUT', 'DELETE']);
+  expect(readVersions.has('first')).toBe(false);
+  expect(view.toArray[0].imported?.readVersion).toBeNull();
+});
+
+test('a paused confirmation cannot acknowledge an optimistic read mark', async () => {
+  importedReading = true;
+  const view = db.readingView('all', 0); views.push(view);
+  await view.preload();
+  onlineManager.setOnline(false);
+  try {
+    const mutation = db.markReading({ keys: ['first'], read: true,
+      writes: { read: [{ sub: 's', remoteId: 'first', version: 1 }], unread: [] } });
+    await expect(mutation.when('settled')).rejects.toThrow('Could not confirm changes while offline');
+    expect(readVersions.get('first')).toBe(1);
+    expect(view.toArray[0].imported?.readVersion).toBeNull();
+  } finally { onlineManager.setOnline(true); }
+});
+
+test('updates preload only asks for labels belonging to the stale queue', async () => {
+  itemCount = 5_000;
+  await db.preloadStaleThreads();
+  expect(db.staleThreadItemsView.toArray[0]).toMatchObject({ freshness: { id: 'a', behind: 3 }, item: { id: 'a' } });
+  expect(requests.filter(request => request.path === '/api/items')).toEqual([]);
+  expect(requests.filter(request => request.path === '/api/items/a')).toHaveLength(1);
+  expect(db.items.size).toBe(1);
+  revision++; text = 'changed label';
+  await db.changed('items');
+  await vi.waitFor(() => expect(db.staleThreadItemsView.toArray[0].item?.contentMd).toBe('changed label'));
 });
 
 test('restore read-back cannot grant a queued old-text save a foreign revision', async () => {
@@ -407,18 +698,108 @@ test('mention-source views reuse one on-demand source and requested keys', async
   expect(requests.filter((request) => request.path === '/api/mentions/m/source')).toHaveLength(1);
 });
 
+test('mention preload fetches target labels without waiting for source cards or the unrelated archive', async () => {
+  itemCount = 5_000;
+  mentionCount = 1;
+  await db.preloadMentions();
+  expect(requests.filter(request => request.path === '/api/items')).toEqual([]);
+  expect(requests.filter(request => request.path === '/api/items/a')).toHaveLength(1);
+  expect(requests.filter(request => request.path === '/api/mentions/m/source')).toEqual([]);
+  expect(db.items.size).toBe(1);
+});
+
+test('mention groups stay bounded and grow beyond the preloaded window with complete counts', async () => {
+  itemCount = 5_000; mentionGroupCount = 300; receiptsPerGroup = 150; outboundCount = 800;
+  await db.preloadMentions();
+  expect(db.mentionGroupItemsView.toArray).toHaveLength(26);
+  expect(db.mentionGroups.size).toBeLessThanOrEqual(27);
+  expect(db.items.size).toBeLessThanOrEqual(27);
+  expect(db.mentionSummary.toArray[0]).toMatchObject({ inbound: 45_000, outbound: 800, groups: 300 });
+  expect(requests.filter(request => request.path === '/api/mentions')).toEqual([]);
+  await db.mentionGroupItemsView.utils.setWindow({ offset: 0, limit: 51 });
+  expect(db.mentionGroupItemsView.toArray.map(row => row.group.targetItemId)).toEqual(Array.from({ length: 51 }, (_, index) => mentionTarget(index)));
+  expect(db.mentionGroups.size).toBeLessThanOrEqual(52);
+  expect(db.items.size).toBeLessThanOrEqual(52);
+  expect(requests.filter(request => request.path === '/api/mentions')).toEqual([]);
+});
+
+test('a receipt window only loads its target and grows without draining a large group', async () => {
+  mentionGroupCount = 50; receiptsPerGroup = 150;
+  const view = createLiveQueryCollection(q => q.from({ mention: db.inbound })
+    .where(({ mention }) => eq(mention.targetItemId, 'a'))
+    .orderBy(({ mention }) => mention.orderKey, { direction: 'asc', stringSort: 'lexical' }).limit(10));
+  views.push(view); await view.preload();
+  expect(view.toArray).toHaveLength(10);
+  expect(db.inbound.size).toBeLessThanOrEqual(11);
+  expect(pageRows).toBeLessThan(30);
+  await view.utils.setWindow({ offset: 0, limit: 30 });
+  expect(view.toArray.map(row => row.id)).toEqual(mentionRows(0).slice(0, 30).map(row => row.id));
+  expect(db.inbound.size).toBeLessThanOrEqual(31);
+  expect(requests.filter(request => request.path === '/api/mentions').every(request => request.params.get('targetItemId') === 'a')).toBe(true);
+  expect(requests.filter(request => request.path === '/api/mentions/summary')).toEqual([]);
+});
+
+test('receipt boundary requests distinguish null verification dates from empty strings', async () => {
+  mentionCount = 1; receiptsPerGroup = 13; nullableMentions = true;
+  for (const value of [null, '']) {
+    const row = mentionRows(0).find(row => row.verifiedAt === value)!;
+    const key = sourceSchemas.inbound.parse(row).orderKey;
+    const view = createLiveQueryCollection(q => q.from({ mention: db.inbound })
+      .where(({ mention }) => and(eq(mention.targetItemId, 'a'), eq(mention.orderKey, key))));
+    views.push(view); await view.preload();
+    expect(view.toArray.map(row => row.verifiedAt)).toEqual([value]);
+  }
+  const reads = requests.filter(request => request.path === '/api/mentions');
+  expect(reads.some(request => request.params.get('verifiedAtNull') === 'true' && !request.params.has('verifiedAt'))).toBe(true);
+  expect(reads.some(request => request.params.has('verifiedAt') && request.params.get('verifiedAt') === '' && !request.params.has('verifiedAtNull'))).toBe(true);
+});
+
+test('a hidden receipt confirms the group visible count without changing its total', async () => {
+  mentionCount = 1; receiptsPerGroup = 150;
+  await db.preloadMentions();
+  const view = createLiveQueryCollection(q => q.from({ mention: db.inbound })
+    .where(({ mention }) => eq(mention.targetItemId, 'a'))
+    .orderBy(({ mention }) => mention.orderKey, { direction: 'asc', stringSort: 'lexical' }).limit(10));
+  views.push(view); await view.preload();
+  expect(db.mentionGroups.get('a')).toMatchObject({ total: 150, visible: 150 });
+  await db.inbound.update('m', row => { row.hidden = true; }).when('settled');
+  expect(db.mentionGroups.get('a')).toMatchObject({ total: 150, visible: 149 });
+  expect(view.toArray[0].hidden).toBe(true);
+});
+
+test('outbound mention windows remain bounded across tied creation dates', async () => {
+  outboundCount = 1_000;
+  const view = createLiveQueryCollection(q => q.from({ mention: db.outbound })
+    .orderBy(({ mention }) => mention.orderKey, { direction: 'asc', stringSort: 'lexical' }).limit(25));
+  views.push(view); await view.preload();
+  expect(view.toArray).toHaveLength(25);
+  expect(db.outbound.size).toBeLessThanOrEqual(26);
+  await view.utils.setWindow({ offset: 0, limit: 50 });
+  expect(view.toArray.map(row => row.id)).toEqual(Array.from({ length: 50 }, (_, index) => `out-${String(index).padStart(5, '0')}`));
+  expect(db.outbound.size).toBeLessThanOrEqual(51);
+});
+
 test('mention lists and source cards re-read only when their revisions move', async () => {
+  mentionCount = 1; outboundCount = 1;
   const view = db.mentionSource('m'); views.push(view);
-  await Promise.all([db.listViews.inbound.preload(), db.listViews.outbound.preload(), view.preload()]);
+  const incoming = createLiveQueryCollection(q => q.from({ mention: db.inbound })
+    .where(({ mention }) => eq(mention.targetItemId, 'a'))
+    .orderBy(({ mention }) => mention.orderKey, { direction: 'asc', stringSort: 'lexical' }).limit(10));
+  const outgoing = createLiveQueryCollection(q => q.from({ mention: db.outbound })
+    .orderBy(({ mention }) => mention.orderKey, { direction: 'asc', stringSort: 'lexical' }).limit(25));
+  views.push(incoming, outgoing);
+  await Promise.all([incoming.preload(), outgoing.preload(), view.preload()]);
   const reads = (path: string) => requests.filter((request) => request.path === path).length;
   const counts = () => [reads('/api/mentions'), reads('/api/mentions/m/source')];
-  expect(counts()).toEqual([2, 1]);
+  const initial = counts();
+  expect(initial[0]).toBeGreaterThanOrEqual(2);
+  expect(initial[1]).toBe(1);
   // An unchanged tick answers from the cached responses after one revision check each.
   await Promise.all([db.inbound.utils.refetch(), db.outbound.utils.refetch(), db.mentionSources.utils.refetch()]);
-  expect(counts()).toEqual([2, 1]);
+  expect(counts()).toEqual(initial);
   revision++;
   await Promise.all([db.inbound.utils.refetch(), db.outbound.utils.refetch(), db.mentionSources.utils.refetch()]);
-  expect(counts()).toEqual([4, 2]);
+  expect(counts()).toEqual(initial.map(count => count * 2));
   await Promise.all([db.inbound.cleanup(), db.outbound.cleanup()]);
 });
 

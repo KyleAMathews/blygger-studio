@@ -254,7 +254,10 @@ test('mentions group verified pointers, retain hidden rows and show source guida
   const group = page.locator('.mention-group').filter({ hasText: 'Mention target fixture' });
   await expect(group).toContainText('2 responses');
   await expect(group.locator('.rel')).toHaveText(['stub', 'stub']);
+  // Source cards are acquired as each row approaches the viewport.
+  await group.locator('.mention-row').first().scrollIntoViewIfNeeded();
   await expect(group.getByRole('button', { name: 'stub back ↗', exact: true })).toHaveCount(1);
+  await group.locator('.mention-row').last().scrollIntoViewIfNeeded();
   await expect(group).toContainText('subscribe to https://stranger.example/ to stub back');
   await expect(group).not.toContainText('Frozen source text');
   await expect(group.locator('.hidden-row')).toContainText('Source author');
@@ -409,4 +412,3 @@ test('whole-fragment TK wrapping keeps text and publication warnings remain visi
   await page.locator('#publish-btn').click();
   await expect(page.locator('.publish-warning')).toHaveText('Mention delivery is waiting for a site URL.');
 });
-

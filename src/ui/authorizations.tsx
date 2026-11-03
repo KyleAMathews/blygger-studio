@@ -1,7 +1,7 @@
+import { createAuthorization, revokeAuthorization } from './server-mutations.ts';
 import { useState } from 'react';
 import { useLiveQuery } from '@tanstack/react-db';
-import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
-import { authorizations, client, apiBase } from './data.ts';
+import { authorizations, apiBase } from './data.ts';
 import { Button, Failure, Modal, basepath } from './components.tsx';
 import { OWNER_SCOPES, SCOPE_DESCRIPTIONS, type OwnerScope } from '../auth-scopes.ts';
 
@@ -16,7 +16,7 @@ export function AuthorizationsPage() {
   const [remove, setRemove] = useState<string>();
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true); setError(undefined);
-    try { await action(); await authorizations.utils.refetch(); }
+    try { await action(); }
     catch (error) { setError(error); }
     finally { setBusy(false); }
   };
@@ -34,7 +34,7 @@ export function AuthorizationsPage() {
     <p>Changing the owner password logs out Studio sessions but keeps client authorizations, so use revoke-all when resetting it. Rotating the cookie secret invalidates them all.</p>
     <h2>Create a manual token</h2><p>For tools that cannot run OAuth. Tokens expire in 30 days. The token appears once; store it in your tool’s credential store.</p>
     <form onSubmit={event => { event.preventDefault(); void run(async () => {
-      const result = await unwrap(BlyggerApi.createAuthorization({ client, body: { name, scope, resource } }));
+      const result = await createAuthorization({ name, scope, resource });
       setToken(result.accessToken); setName('');
     }); }}>
       <p><label>Client name <input required maxLength={100} value={name} onChange={event => setName(event.target.value)} /></label></p>
@@ -46,8 +46,7 @@ export function AuthorizationsPage() {
     <Modal open={remove !== undefined} close={() => setRemove(undefined)} title={remove === 'all' ? 'Revoke all client access?' : 'Revoke this client?'}>
       <p>The client must get a new authorization to connect again. Your Studio login stays active.</p>
       <Button disabled={busy} onClick={() => void run(async () => {
-        if (remove === 'all') await unwrap(BlyggerApi.revokeAllAuthorizations({ client }));
-        else await unwrap(BlyggerApi.revokeAuthorization({ client, path: { id: remove! } }));
+        await revokeAuthorization(remove!);
         setRemove(undefined);
       })}>revoke</Button>
     </Modal>

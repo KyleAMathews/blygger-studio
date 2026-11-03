@@ -13,6 +13,8 @@ export interface CursorSource<Row, Result = Row> {
   domains: readonly ChangeDomain[];
   sql: string;
   binds?: readonly Key[];
+  /** Aggregate sources must be evaluated once before filtering their page. */
+  materialize?: boolean;
   order: readonly CursorOrder[];
   project?: (rows: Row[]) => Result[] | Promise<Result[]>;
 }
@@ -50,18 +52,26 @@ function column(name: string): string {
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) throw new Error('Invalid cursor source column');
   return `"${name}"`;
 }
-/** SQLite's default NULL order is first for ASC, last for DESC. */
-function afterWhere(order: readonly CursorOrder[], after: Key[]) {
-  const clauses: string[] = [], binds: Key[] = [];
+/** Disjoint ranges let SQLite seek each matching index prefix. SQLite sorts
+ * NULL first for ASC and last for DESC, so DESC's NULL tail is its own range.
+ */
+function afterRanges(order: readonly CursorOrder[], after: Key[]) {
+  const ranges: { sql: string; binds: Key[] }[] = [];
   for (let i = 0; i < order.length; i++) {
     const { column: name, direction } = order[i], value = after[i], key = column(name);
     if (value === null && direction === 'desc') continue;
-    const prefix = order.slice(0, i).map((entry, index) => { binds.push(after[index]); return `${column(entry.column)} IS ?`; });
-    const comparison = value === null ? `${key} IS NOT NULL` : direction === 'asc' ? `${key} > ?` : `(${key} < ? OR ${key} IS NULL)`;
-    if (value !== null) binds.push(value);
-    clauses.push(`(${[...prefix, comparison].join(' AND ')})`);
+    const prefix = order.slice(0, i).map(entry => `${column(entry.column)} IS ?`);
+    const prefixBinds = after.slice(0, i);
+    const append = (comparison: string, binds: Key[] = []) => {
+      ranges.push({ sql: [...prefix, comparison].join(' AND '), binds: [...prefixBinds, ...binds] });
+    };
+    if (value === null) append(`${key} IS NOT NULL`);
+    else {
+      append(`${key} ${direction === 'asc' ? '>' : '<'} ?`, [value]);
+      if (direction === 'desc') append(`${key} IS NULL`);
+    }
   }
-  return { sql: clauses.length ? clauses.join(' OR ') : '0', binds };
+  return ranges;
 }
 
 /** Read and project one bounded, totally ordered sequence page at one generation. */
@@ -78,10 +88,22 @@ export async function cursorPage<Row extends object, Result = Row>(
   for (let attempt = 0; attempt < 2; attempt++) {
     const before = generation(await readChanges(db), source.domains);
     if (cursor && !same(cursor.generation, before)) throw expired();
-    const after = cursor ? afterWhere(source.order, cursor.after) : null;
+    const ranges = cursor ? afterRanges(source.order, cursor.after) : null;
     const order = source.order.map(entry => `${column(entry.column)} ${entry.direction.toUpperCase()}`).join(', ');
-    const rows = (await db.prepare(`SELECT * FROM (${source.sql}) cursor_source${after ? ` WHERE ${after.sql}` : ''} ORDER BY ${order} LIMIT ?`)
-      .bind(...(source.binds ?? []), ...(after?.binds ?? []), limit + 1).all<Row>()).results;
+    // Keep source bindings once, and let each disjoint range use its index.
+    // Materializing the CTE would force a scan of the full source on every page.
+    // D1 limits compound SELECTs to five terms. Wider cursor orders keep
+    // the equivalent OR predicate rather than exceeding that platform limit.
+    const predicate = ranges ? ` WHERE ${ranges.length ? ranges.map(range => `(${range.sql})`).join(' OR ') : '0'}` : '';
+    const sql = source.materialize
+      ? `WITH cursor_source AS MATERIALIZED (${source.sql}) SELECT * FROM cursor_source${predicate} ORDER BY ${order} LIMIT ?`
+      : ranges && ranges.length <= 5
+      ? `WITH cursor_source AS NOT MATERIALIZED (${source.sql}) ${ranges.length
+        ? ranges.map(range => `SELECT * FROM cursor_source WHERE ${range.sql}`).join(' UNION ALL ')
+        : 'SELECT * FROM cursor_source WHERE 0'} ORDER BY ${order} LIMIT ?`
+      : `SELECT * FROM (${source.sql}) cursor_source${predicate} ORDER BY ${order} LIMIT ?`;
+    const rows = (await db.prepare(sql)
+      .bind(...(source.binds ?? []), ...(ranges?.flatMap(range => range.binds) ?? []), limit + 1).all<Row>()).results;
     const selected = rows.slice(0, limit);
     const items = source.project ? await source.project(selected) : selected as unknown as Result[];
     const current = generation(await readChanges(db), source.domains);

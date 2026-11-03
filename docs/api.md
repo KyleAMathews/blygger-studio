@@ -348,6 +348,7 @@ first page retries once before returning cursor-expired.
 | Browsing history | id DESC |
 | Inbound mentions | verifiedAt DESC, lastSeen DESC, id ASC |
 | Outbound mentions | created DESC, id ASC |
+| Inbound mention groups | coalesced verifiedAt DESC, lastSeen DESC, firstId ASC |
 | Reading | clamped display time DESC, source ASC, subscription id ASC, item id ASC |
 | Imported Reading | observedAt DESC, subscriptionId DESC, remoteId DESC |
 | Search | updated, id, source, subscription id; all DESC for newest or ASC for oldest |
@@ -364,6 +365,33 @@ Named summary reads supply counts separately:
 - `GET /reading/summary`: source counts and selected-source fallback, with the
   same `sub`, `kind`, `background` and `hopper` filters as Reading.
 - `GET /signals/summary`: thumb and activity counts.
+- `GET /mentions/summary`: inbound receipt, outbound receipt and inbound target
+  group counts. Inbound counts include verified and gone receipts, including
+  hidden receipts; outbound counts include every delivery status.
+
+`GET /mention-groups` pages inbound target groups without downloading their
+receipts. Each row has `targetItemId`, `total`, `visible`, `verifiedAt`, `lastSeen`
+and `firstId`. Pending and failed inbound claims do not contribute. `visible`
+counts verified, unhidden receipts before the target item's response policy is
+applied. Gone and hidden receipts still contribute to `total`.
+
+For group order, `verifiedAt` is the greatest receipt timestamp after SQL NULL
+coalesces to an empty string. `lastSeen` is the greatest value among receipts tied
+at that verified value; `firstId` is the smallest id among receipts tied at both
+values. Thus a newer last-seen value on an older receipt cannot move its group
+forward. Optional `targetItemId`, `verifiedAt`, `lastSeen` and `firstId` filters
+match those group fields exactly. Counts and winners are computed in one SQL
+statement; the response contains only the requested page. Computing the groups
+still visits the matching receipts and sorts their aggregates.
+
+`GET /mentions?targetItemId=…` pages one inbound group's receipts in the normal
+inbound order. Exact `verifiedAt`, `lastSeen` and `id` filters support ordered
+boundary reads. `verifiedAtNull=true` matches SQL NULL and cannot be combined
+with `verifiedAt`; `verifiedAt=` matches an actual empty string. Outbound pages
+accept exact `created` and `id` filters. Inbound-only filters with outbound
+direction, and `created` with inbound direction, return 400. Every filter stays
+part of that page sequence's cursor identity. Existing unfiltered mention
+cursors retain their identity.
 
 Poll `/reading` to read current D1 state. It does not fetch remote feeds; the
 subscription cron does that. Studio polls visible data every15 seconds and

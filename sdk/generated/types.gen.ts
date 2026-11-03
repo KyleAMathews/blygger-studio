@@ -471,6 +471,27 @@ export type OutboundMention = {
     created: string;
 };
 
+export type MentionGroup = {
+    targetItemId: string;
+    total: number;
+    /**
+     * Verified, unhidden receipts before the target item response policy is applied.
+     */
+    visible: number;
+    /**
+     * Latest verifiedAt with SQL NULL coalesced to an empty string.
+     */
+    verifiedAt: string;
+    /**
+     * Latest lastSeen among receipts tied at the group verifiedAt.
+     */
+    lastSeen: string;
+    /**
+     * Smallest receipt id among receipts tied at both group timestamps.
+     */
+    firstId: string;
+};
+
 export type ReadingEntry = {
     key: string;
     source: 'own' | 'imported';
@@ -4699,6 +4720,30 @@ export type ListMentionsData = {
         cursor?: string;
         limit?: number;
         direction?: 'inbound' | 'outbound';
+        /**
+         * Inbound receipts for this target item only; invalid with outbound direction.
+         */
+        targetItemId?: string;
+        /**
+         * Inbound exact verifiedAt filter; empty string matches an actual empty string, not SQL NULL.
+         */
+        verifiedAt?: string;
+        /**
+         * Inbound SQL NULL verifiedAt filter; cannot be combined with verifiedAt.
+         */
+        verifiedAtNull?: 'true';
+        /**
+         * Inbound exact lastSeen filter.
+         */
+        lastSeen?: string;
+        /**
+         * Exact receipt id, including an ordered window boundary.
+         */
+        id?: string;
+        /**
+         * Outbound exact created filter; invalid with inbound direction.
+         */
+        created?: string;
     };
     url: '/mentions';
 };
@@ -4771,6 +4816,167 @@ export type ListMentionsResponses = {
 };
 
 export type ListMentionsResponse = ListMentionsResponses[keyof ListMentionsResponses];
+
+export type ListMentionGroupsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
+         */
+        cursor?: string;
+        limit?: number;
+        targetItemId?: string;
+        /**
+         * Exact coalesced group verifiedAt; empty string includes SQL NULL.
+         */
+        verifiedAt?: string;
+        lastSeen?: string;
+        firstId?: string;
+    };
+    url: '/mention-groups';
+};
+
+export type ListMentionGroupsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListMentionGroupsError = ListMentionGroupsErrors[keyof ListMentionGroupsErrors];
+
+export type ListMentionGroupsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        items: Array<MentionGroup>;
+        page: {
+            limit: number;
+            nextCursor: string | null;
+        };
+    };
+};
+
+export type ListMentionGroupsResponse = ListMentionGroupsResponses[keyof ListMentionGroupsResponses];
+
+export type GetMentionSummaryData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/mentions/summary';
+};
+
+export type GetMentionSummaryErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetMentionSummaryError = GetMentionSummaryErrors[keyof GetMentionSummaryErrors];
+
+export type GetMentionSummaryResponses = {
+    /**
+     * Success
+     */
+    200: {
+        inbound: number;
+        outbound: number;
+        groups: number;
+    };
+};
+
+export type GetMentionSummaryResponse = GetMentionSummaryResponses[keyof GetMentionSummaryResponses];
 
 export type PreviewData = {
     body: {

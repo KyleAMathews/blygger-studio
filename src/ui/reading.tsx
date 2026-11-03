@@ -12,6 +12,7 @@
  * handlers, never the only way. Choosing a passage to quote happens in the
  * stub editor (session 37), not here.
  */
+import { createItem, createHopper, addHopperItem, resyncSubscription, pollSubscriptions, markUnheldRead } from './server-mutations.ts';
 import { readingPage } from '../paging.ts';
 import { linkSource } from '../grammar.ts';
 import { linkLabel } from '../link-label.ts';
@@ -36,14 +37,12 @@ import {
   hoppers,
   signals,
   client,
-  changed,
+  setThumb,
   queryClient,
   readingSummaryView,
   readAllReading,
   hopperInfo,
-  hopperPreview,
   markReading,
-  saveReadState,
 } from './data.ts';
 import { needsRead, readStatus, readWrites } from './read-state.ts';
 import {
@@ -174,8 +173,7 @@ function useReadingActions() {
     }
   };
   const openDraft = async (body: CreateItemData['body']) => {
-    const created = await unwrap(BlyggerApi.createItem({ client, body }));
-    await changed('items');
+    const created = await createItem(body);
     await navigate({ to: '/edit/$id', params: { id: created.id } });
   };
   return { error, setError, run, openDraft, navigate };
@@ -429,12 +427,11 @@ function useEntryActions({
   const vote = (thumb: 1 | -1) =>
     run(async () => {
       if (!imported) return;
-      const path = { sub: imported.subscriptionId, remoteId: id };
-      if (signal?.thumb === thumb)
-        await unwrap(BlyggerApi.deleteSignal({ client, path }));
-      else
-        await unwrap(BlyggerApi.setSignal({ client, path, body: { thumb } }));
-      await changed('signals');
+      await setThumb({
+        sub: imported.subscriptionId,
+        remoteId: id,
+        thumb: signal?.thumb === thumb ? null : thumb,
+      }).when('settled');
     });
   const stub = () =>
     source ? run(() => openDraft({ mode: 'response', source })) : undefined;
@@ -494,19 +491,11 @@ function useEntryActions({
       if (chosen === 'new') {
         const typed = await prompt({ title: 'Name the new hopper:' });
         if (!typed?.trim()) return;
-        const hopper = await unwrap(
-          BlyggerApi.createHopper({ client, body: { name: typed } }),
-        );
+        const hopper = await createHopper(typed);
         hopperId = hopper.id;
         name = hopper.name;
       }
-      await unwrap(
-        BlyggerApi.addHopperItem({
-          client,
-          path: { id: hopperId, sub: hopperSub, remoteId: id },
-        }),
-      );
-      await changed('hoppers', 'hopper', 'hopper-preview');
+      await addHopperItem({ id: hopperId, sub: hopperSub, remoteId: id });
       toast(`added to ${name}`);
     });
   const openMenu = async () => {
@@ -983,7 +972,7 @@ function Article({ entry, actions, origin }: { entry: Reading; actions: Actions;
     // one fetched by its address has no row to change, so it is written direct.
     const write = reading.toArray.some((row) => row.key === entry.key)
       ? markEntries([entry], true)
-      : saveReadState(readWrites([entry], true).read, []).then(() => changed('reading'));
+      : markUnheldRead(readWrites([entry], true));
     void write.catch(() => toast('Could not store the read mark.'));
   }, [entry.key]);
   const a = useEntryActions({ entry, actions, votes, buckets, opened: () => {} });
@@ -1187,13 +1176,7 @@ function Inspector({
               onClick={() => {
                 onClose();
                 void actions.run(async () => {
-                  const result = await unwrap(
-                    BlyggerApi.resyncSubscription({
-                      client,
-                      path: { id: shown.id },
-                    }),
-                  );
-                  await changed('subscriptions', 'reading');
+                  const result = await resyncSubscription(shown.id);
                   toast(`resynced · ${result.changed} changed`);
                 });
               }}
@@ -1220,7 +1203,6 @@ function Inspector({
               )
                 void actions.run(async () => {
                   await subscriptions.delete(shown.id).when('settled');
-                  await changed('hoppers', 'signals', 'reading');
                   toast('deleted');
                   onDeleted?.();
                 });
@@ -1406,7 +1388,7 @@ function SubscriptionRow({
 }
 function HopperSource({ id, name }: { id: string; name: string }) {
   const lensSearch = useLensSearch();
-  const collection = useMemo(() => hopperPreview(id), [id]);
+  const collection = useMemo(() => hopperInfo(id), [id]);
   const row = useLiveQuery({ query: (q) => q.from({ hopper: collection }) })
     .data?.[0];
   return (
@@ -1608,13 +1590,12 @@ function ReadingHead({
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [resyncing, setResyncing] = useState(false);
-  // Polls run in the background on the server; refresh twice as they land.
+  // Native collection polling observes the server's background work.
   const resyncAll = async () => {
     setResyncing(true);
     try {
-      const { polling } = await unwrap(BlyggerApi.pollAllSubscriptions({ client }));
+      const { polling } = await pollSubscriptions();
       toast(`Checking ${polling} feed${polling === 1 ? '' : 's'}…`);
-      for (const wait of [6000, 20000]) setTimeout(() => void changed('reading', 'subscriptions'), wait);
     } catch {
       toast('Could not start the resync. Try again in a moment.');
     } finally {

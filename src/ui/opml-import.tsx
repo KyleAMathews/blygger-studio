@@ -8,40 +8,20 @@
  */
 import { useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from '@tanstack/react-db';
-import { BlyggerApi } from '../../sdk/dist/browser.js';
-import { client, subscriptions, changed } from './data.ts';
+import { subscriptions } from './data.ts';
+import { importFeeds } from './server-mutations.ts';
 import { Button, Failure } from './components.tsx';
 import { Sheet, toast } from './sheets.tsx';
 import {
   feedKey,
   parseOpml,
-  retryAfterMs,
-  runImport,
   subscribedKeys,
-  type Attempt,
   type ImportSummary,
   type OpmlFeed,
   type RowStatus,
 } from './opml.ts';
 
 type Phase = 'pick' | 'preview' | 'running' | 'done';
-
-function errorText(error: unknown, status: number): string {
-  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') return error.message;
-  return `request failed (${status})`;
-}
-/** One answer from the server, read for the import: created, duplicate, throttled or failed. */
-async function attempt(pending: Promise<{ data?: unknown; error?: unknown; response?: Response }>): Promise<Attempt> {
-  const result = await pending;
-  const response = result.response;
-  if (!response) return { kind: 'failed', reason: result.error instanceof Error ? result.error.message : 'network error' };
-  if (response.status === 409) return { kind: 'exists', message: errorText(result.error, 409) };
-  if (response.status === 429) return { kind: 'throttled', retryAfterMs: retryAfterMs(response.headers.get('Retry-After')) };
-  if (!response.ok) return { kind: 'failed', reason: errorText(result.error, response.status) };
-  const data = result.data;
-  if (data && typeof data === 'object' && 'needsConfirm' in data) return { kind: 'failed', reason: 'the server asked for confirmation' };
-  return { kind: 'ok', id: data && typeof data === 'object' && 'id' in data ? String((data as { id: unknown }).id) : undefined };
-}
 
 function statusBadge(status: RowStatus | undefined, known: boolean) {
   const state = status?.state ?? (known ? 'exists' : 'pending');
@@ -115,23 +95,27 @@ export function OpmlImportSheet({ open, onClose }: { open: boolean; onClose: () 
   const chosen = feeds.filter((feed, index) => !excluded.has(index) && !held.has(feed.xmlUrl)).length;
   const start = async () => {
     stop.current = false;
+    setError(undefined);
     setPhase('running');
     const indices = feeds.map((_, index) => index).filter((index) => !excluded.has(index));
     const list = indices.map((index) => feeds[index]);
-    const result = await runImport(list, {
-      known: (feed) => held.has(feed.xmlUrl),
-      subscribe: (feed) =>
-        attempt(BlyggerApi.createSubscription({ client, body: { url: feed.xmlUrl, confirm: true, backfill: false } })),
-      afterAdd: blogroll
-        ? (id) => attempt(BlyggerApi.updateSubscription({ client, path: { id }, body: { inBlogroll: true } }))
-        : undefined,
-      onRow: (i, status) => setRows((prev) => ({ ...prev, [indices[i]]: status })),
-      shouldStop: () => stop.current,
-    });
-    setSummary(result);
-    setPhase('done');
-    void changed('subscriptions', 'reading');
-    if (!visible.current) toast(`OPML import: ${result.added} added, ${result.exists} already subscribed, ${result.failed} failed`);
+    let result: ImportSummary | undefined;
+    try {
+      result = await importFeeds({
+        feeds: list,
+        known: (feed) => held.has(feed.xmlUrl),
+        blogroll,
+        onRow: (i, status) => setRows((prev) => ({ ...prev, [indices[i]]: status })),
+        onImported: (imported) => { result = imported; setSummary(imported); },
+        shouldStop: () => stop.current,
+      });
+      if (!visible.current) toast(`OPML import: ${result.added} added, ${result.exists} already subscribed, ${result.failed} failed`);
+    } catch (failure) {
+      setError(failure);
+      if (!visible.current) toast('OPML import needs attention. Open import OPML for details.');
+    } finally {
+      setPhase(result ? 'done' : 'preview');
+    }
   };
 
   return (

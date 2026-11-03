@@ -80,6 +80,7 @@ describe("generated SDK against the real Worker", () => {
       ["listItems", "GET", "/blyg/api/items"], ["getItem", "GET", `/blyg/api/items/${draft.id}`],
       ["getSettings", "GET", "/blyg/api/settings"], ["listSubscriptions", "GET", "/blyg/api/subscriptions"],
       ["listHoppers", "GET", "/blyg/api/hoppers"], ["getHopper", "GET", `/blyg/api/hoppers/${hopper.id}`],
+      ["listMentionGroups", "GET", "/blyg/api/mention-groups"], ["getMentionSummary", "GET", "/blyg/api/mentions/summary"],
       ["listSignals", "GET", "/blyg/api/signals"], ["listMentions", "GET", "/blyg/api/mentions"],
       ["listReading", "GET", "/blyg/api/reading"], ["preview", "POST", "/blyg/api/preview", { contentMd: "contract" }],
       ["search", "GET", "/blyg/api/search"], ["publishItem", "POST", `/blyg/api/items/${draft.id}/publish`, {}],

@@ -72,7 +72,9 @@ errors. Cursors are opaque and bound to their collection, filters, order and
 change generation; they are not bookmarks or credentials.
 
 Use `listItemVersions` for history, `listHopperMemberships` for membership rows,
-and `getItemSummary`, `getReadingSummary` or `getSignalSummary` for counts.
+and `getItemSummary`, `getReadingSummary`, `getSignalSummary` or
+`getMentionSummary` for counts. `listMentionGroups` pages inbound target groups;
+`listMentions` accepts `targetItemId` to page the receipts of one inbound group.
 `getItem` returns current detail and its published version; `getHopper` returns
 metadata and totals. Neither returns the whole historical/member collection.
 See [API paging](../docs/api.md#read-and-poll) for limits and orders.
