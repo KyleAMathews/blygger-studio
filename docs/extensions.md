@@ -2,7 +2,7 @@
 
 Studio is the reference client: it shows each protocol construct in its plainest form, and it stays plain so that other clients do not read its interface as the expected design. Extensions are how an interface experiment runs on a real node without becoming that reference. The first one is the lineage glyph from #35.
 
-An extension is first-party TypeScript in this repository. An operator compiles it into their build, and the owner turns it on in Settings. With nothing turned on, the Studio is the reference Studio, byte for byte.
+Extensions are one of three places a mod can live; [`mods.md`](mods.md) says which to try first and what the Studio will add for a mod. An extension is first-party TypeScript in this repository. An operator compiles it into their build, and the owner turns it on in Settings. With nothing turned on, the Studio is the reference Studio, byte for byte.
 
 ## Extensions in this repository
 

@@ -346,6 +346,8 @@ Interface experiments that should not become the reference design ship as
 [Studio extensions](docs/extensions.md): first-party code an operator compiles
 in with `extensions.local.json` and the owner turns on in Settings. None is
 compiled in or on by default.
+[Modding the Studio](docs/mods.md) says where a larger change can live
+without forking, and what a hook proposed upstream has to satisfy.
 
 ### Upgrade a Worker archive installation
 
