@@ -18,6 +18,27 @@ not have its own repo until session 26.
 
 ---
 
+## 0.51.0 — Faster Studio actions, paged Mentions
+
+**Buttons act at once** (Kyle Mathews, #111). Saving, read marks, thumbs and
+other row actions now change the row you are looking at straight away, and the
+server's answer confirms it. They used to wait for the server and then reload
+whole collections, which is why many buttons felt slow. A write that fails puts
+the row back. Rapid clicks on one row are applied in order. Each view now loads
+only what it shows: the editor asks for one item, Updates only the stale ones.
+
+**Mentions opens quickly on a busy blyg.** It loads 25 posts at a time, each
+with its first 10 mentions, and "load more" fetches the rest. Totals are still
+complete. Source cards load as they scroll into view and never hold up
+navigation.
+
+Private contract **5.2.0** (additive: `GET /mention-groups`,
+`GET /mentions/summary`, `GET /mentions?targetItemId=…`); SDK **0.8.0**.
+TanStack DB 1.0.0-rc.1.2. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** **0039** (one index on `mentions_in`, no data change). Apply
+before deploying.
+
 ## 0.50.0 — Hopper feeds, and two quoting fixes
 
 **Hopper feeds** (Aneesh Sathe, #84; spec 0.4 §16.12, decision #86). Off until
