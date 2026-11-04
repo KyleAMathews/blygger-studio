@@ -62,11 +62,8 @@ test('polling updates cached reads without replacing editor text', async ({ page
     const response = await fetch(`/api/items/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: 'Changed in another client', expectedRevision: observed.revision }) });
     if (!response.ok) throw new Error('Foreign fixture edit failed');
   }, id);
-  let observed = false;
-  const polled = page.waitForResponse(response => matchesGetItemBatch(response.request(), id))
-    .then(() => { observed = true; });
+  const polled = page.waitForResponse(response => matchesGetItemBatch(response.request(), id));
   await page.clock.runFor(15_000);
-  await expect.poll(async () => { await page.clock.runFor(16); return observed; }).toBe(true);
   await polled;
   await expect(page.locator('#md-input')).toHaveValue('Local draft');
 });
@@ -229,12 +226,6 @@ test('navigation flushes the editor debounce and blocks failed saves', async ({ 
   await expect(page.locator('#composer-text')).toBeVisible();
   expect(await page.evaluate(async id => (await (await fetch(`/api/items/${id}`)).json()).contentMd, id)).toBe('saved before leaving');
   await page.goto(`/studio/edit/${id}`);
-  // The clock stays paused across reloads. Let read batching and rendering run
-  // before testing navigation with an unsaved edit and a failed PATCH.
-  await expect.poll(async () => {
-    await page.clock.runFor(16);
-    return page.locator('#md-input').isVisible();
-  }).toBe(true);
   await page.route(`**/api/items/${id}`, route => route.request().method() === 'PATCH' ? route.fulfill({ status: 503, json: { code: 'internal', message: 'cannot leave safely' } }) : route.continue());
   await page.locator('#md-input').fill('keep this local text');
   await page.getByRole('link', { name: '← compose', exact: true }).click();

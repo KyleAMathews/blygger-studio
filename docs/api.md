@@ -86,7 +86,9 @@ roll back and its waiting reads fail together; earlier completed groups remain
 committed. The adapter never retries failed batches or admission writes.
 
 Studio batches ready reads by operation with DataLoader, without caching batch
-results. Different request headers or credential settings use separate batches.
+results. Browser dispatch uses microtasks, not timers: synchronous peers share
+a batch, while reads that become ready after dispatch use a later batch.
+Different request headers or credential settings use separate batches.
 Cancelling one read preserves its peers; cancelling every consumer aborts the
 shared fetch. Concurrent freshness checks share pending work only, and Studio
 writes clear that pending check before their subsequent refreshes.

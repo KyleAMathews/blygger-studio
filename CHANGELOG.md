@@ -31,6 +31,9 @@ and admission statements share D1 calls without a timer window or query rewrites
 Logical read charges stay unchanged. Batch results are not cached, and a mutation
 starts a fresh revision check.
 
+Browser batches dispatch in microtasks, so they do not wait for timers that can
+be throttled in background tabs.
+
 The group query aggregates counts and uses indexed winner lookups instead of
 ranking every receipt with window functions. No rollup table or trigger is added.
 

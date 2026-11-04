@@ -67,7 +67,12 @@ export function createReadBatchFetch(apiBase: string, fetcher: typeof fetch = (i
           catch (error) { for (const request of group) values.set(request, error instanceof Error ? error : new Error(String(error))); }
         }));
         return requests.map(request => values.get(request)!);
-      }, { cache: false, maxBatchSize: READ_BATCH_MAX });
+      }, {
+        cache: false, maxBatchSize: READ_BATCH_MAX,
+        // Browser timers can be throttled in hidden tabs. Dispatch ready peers
+        // in a microtask instead of DataLoader's browser setTimeout fallback.
+        batchScheduleFn: dispatch => queueMicrotask(dispatch),
+      });
       loaders.set(operation, found);
     }
     return found;
