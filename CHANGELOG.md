@@ -40,8 +40,21 @@ ranking every receipt with window functions. No rollup table or trigger is added
 Private contract **5.3.0** (additive `POST /read-batch`); SDK **0.9.0**.
 Protocol version unchanged (`"0.4"`).
 
-**Migrations:** **0040** (one covering expression index on `mentions_in`). Apply
-before deploying.
+**Subscribing to a collection no longer needs your own collection feeds on**
+(Aneesh Sathe, #112). Pasting the page or feed URL of another blyg's public
+collection now proposes a collection subscription on every node; the
+`hopper_feeds` setting governs only publishing this node's own collection feeds.
+API clients that want the whole blyg send `wholeBlyg: true`.
+
+**Two lookups no longer read whole tables** (#113, reported by patwater).
+Resolving an imported item by id alone, and listing each reading entry's
+collections, each scanned a table on free-plan D1, where the reads count against
+a daily limit. Both now use an index. (The reader inbox's own ordering index
+shipped in 0.49.12; nodes older than that should upgrade for it.)
+
+**Migrations:** **0040** (one covering expression index on `mentions_in`) and
+**0041** (indexes on `imported_items(remote_id)` and `hopper_items` membership).
+Indexes only. Apply before deploying.
 
 ## 0.51.0 — Faster Studio actions, paged Mentions
 
