@@ -1,5 +1,6 @@
 import { test, expect, type Page } from './fixture';
 import { openCard } from './editor.ts';
+import { matchesGetItemBatch } from './read-batch';
 async function login(page: Page) {
   await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
   await page.getByRole('button', { name: 'log in', exact: true }).click();
@@ -61,8 +62,12 @@ test('polling updates cached reads without replacing editor text', async ({ page
     const response = await fetch(`/api/items/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: 'Changed in another client', expectedRevision: observed.revision }) });
     if (!response.ok) throw new Error('Foreign fixture edit failed');
   }, id);
-  const polled = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.request().method() === 'GET');
-  await page.clock.runFor(15_000); await polled;
+  let observed = false;
+  const polled = page.waitForResponse(response => matchesGetItemBatch(response.request(), id))
+    .then(() => { observed = true; });
+  await page.clock.runFor(15_000);
+  await expect.poll(async () => { await page.clock.runFor(16); return observed; }).toBe(true);
+  await polled;
   await expect(page.locator('#md-input')).toHaveValue('Local draft');
 });
 test('reading walks real API pages without gaps or repeats', async ({ page }) => {
@@ -190,9 +195,15 @@ test('settings persist through the DB adapter and a fresh route load', async ({ 
 
 test('route errors expose a retry that can recover an unavailable item read', async ({ page }) => {
   const id = await edit(page);
-  await page.route(`**/api/items/${id}`, route => route.request().method() === 'GET' ? route.fulfill({ status: 503, json: { code: 'internal', message: 'item unavailable' } }) : route.continue());
+  await page.route('**/api/read-batch', async route => {
+    if (!matchesGetItemBatch(route.request(), id)) return route.fallback();
+    const body = route.request().postDataJSON() as { operation: string; requests: { path?: { id?: string } }[] };
+    const response = await route.fetch(), results = await response.json();
+    await route.fulfill({ response, json: results.map((result: unknown, index: number) => body.requests[index].path?.id === id
+      ? { status: 503, body: { code: 'internal', message: 'item unavailable' }, headers: {} } : result) });
+  });
   await page.reload(); await expect(page.getByRole('alert')).toContainText('item unavailable');
-  await page.unroute(`**/api/items/${id}`);
+  await page.unroute('**/api/read-batch');
   await page.getByRole('button', { name: 'retry', exact: true }).click();
   await expect(page.locator('#md-input')).toHaveValue('Original draft');
 });

@@ -1,5 +1,7 @@
 import { fixtureJson } from './api-fixture';
 import { test, expect, type Page } from './fixture';
+import type { Request } from '@playwright/test';
+import { matchesGetItemBatch } from './read-batch';
 
 // Browsing the thicket from the reader (0.49.0): every quoted layer, at any
 // depth, and every link that names a blyg item opens in the reader; back
@@ -138,10 +140,14 @@ for (const intent of ['hover', 'focus'] as const) {
       const link = page.locator(kind === 'quote' ? '.article-body .layer-ref a' : '.article-body a[data-reader-via=link]').first();
       await expect(link).toBeVisible();
       await expect(link).toHaveAttribute('href', kind === 'peek' ? /\/studio\/peek\?/ : new RegExp(`/studio/reading/~own/${leaf}$`));
-      const matches = (url: string) => new URL(url).pathname === (kind === 'peek' ? '/api/peek' : `/api/items/${leaf}`);
+      const matches = (request: Request) => {
+        const path = new URL(request.url()).pathname;
+        if (kind === 'peek') return path === '/api/peek';
+        return matchesGetItemBatch(request, leaf);
+      };
       const reads: string[] = [];
-      page.on('request', request => { if (matches(request.url())) reads.push(request.url()); });
-      const loaded = page.waitForResponse(response => matches(response.url()) && response.ok());
+      page.on('request', request => { if (matches(request)) reads.push(request.url()); });
+      const loaded = page.waitForResponse(response => matches(response.request()) && response.ok());
       await link[intent]();
       await loaded;
       expect(page.url()).toContain(`/reading/~own/${top}`);

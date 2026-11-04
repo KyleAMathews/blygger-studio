@@ -23,6 +23,7 @@ it("exercises every declared operation through its named SDK method, including a
   const cases: Case[] = [
     ['getCapabilities', 200, async client => api.getCapabilities({ client })],
     ['getChanges', 200, async client => api.getChanges({ client })],
+    ['batchRead', 200, async client => api.batchRead({ client, body: { operation: 'getItem', requests: [{ path: { id } }] } })],
     ["createItem", 201, async client => api.createItem({ client, body: { mode: "response", source: { subscriptionId: sub.id, remoteId: "remote" } } })],
     ["updateItem", 200, async client => api.updateItem({ client, path: { id }, body: { ...({ contentMd: "matrix changed", responses: "hide" }), expectedRevision: await testItemRevision(id) } })],
     ["generateItem", 400, async client => api.generateItem({ client, path: { id }, body: { ...({ scope: 100 }), expectedRevision: await testItemRevision(id) } })],

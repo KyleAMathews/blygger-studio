@@ -8,14 +8,17 @@ import { mentionOperations } from './mentions/api.ts';
 import type { OperationHandler } from './operation-types.ts';
 import type { OperationPolicy } from './operation-policy.ts';
 import { extensionDefinitions, type ServerExtension } from './extensions/server.ts';
+import { executeReadBatch } from './read-batch.ts';
 
 export interface OperationDefinition {
   route: RouteConfig & { policy: OperationPolicy };
   handler: OperationHandler;
 }
-const handlers = { ...itemOperations, ...readOperations, ...importOperations, ...mentionOperations } satisfies Record<Exclude<keyof typeof routes, keyof typeof extensionRoutes>, OperationHandler>;
+const handlers = { ...itemOperations, ...readOperations, ...importOperations, ...mentionOperations,
+  batchRead: (context, input) => executeReadBatch(operationDefinitions(context.extensions), context, input),
+} satisfies Record<Exclude<keyof typeof routes, keyof typeof extensionRoutes>, OperationHandler>;
 
-export function operationDefinitions(extensions: readonly ServerExtension[]) {
+export function operationDefinitions(extensions: readonly ServerExtension[]): Map<string, OperationDefinition> {
   const definitions = new Map<string, OperationDefinition>(Object.entries(handlers).map(([name, handler]) =>
     [name, { route: routes[name as keyof typeof handlers], handler }]));
   for (const definition of extensionDefinitions(extensions)) definitions.set(definition.route.operationId!, definition);

@@ -29,14 +29,19 @@ export async function mentionGroups(db: D1Database, query: MentionGroupQuery) {
   return cursorPage<MentionGroup>(db, query, {
     name: 'mention-groups', domains: ['mentions'], materialize: true,
     filters: [query.targetItemId ?? null, query.verifiedAt ?? null, query.lastSeen ?? null, query.firstId ?? null],
-    sql: `WITH ranked_mentions AS (
+    sql: `WITH aggregate_mentions AS (
       SELECT target_item_id AS targetItemId,
-        COUNT(*) OVER (PARTITION BY target_item_id) AS total,
-        SUM(CASE WHEN status='verified' AND hidden=0 THEN 1 ELSE 0 END) OVER (PARTITION BY target_item_id) AS visible,
-        COALESCE(verified_at,'') AS verifiedAt, last_seen AS lastSeen, id AS firstId,
-        ROW_NUMBER() OVER (PARTITION BY target_item_id ORDER BY COALESCE(verified_at,'') DESC,last_seen DESC,id ASC) AS winner
+        COUNT(*) AS total,
+        SUM(CASE WHEN status='verified' AND hidden=0 THEN 1 ELSE 0 END) AS visible
       FROM mentions_in WHERE status IN ('verified','gone')${query.targetItemId !== undefined ? ' AND target_item_id = ?' : ''}
-    ) SELECT targetItemId,total,visible,verifiedAt,lastSeen,firstId FROM ranked_mentions WHERE winner=1${groupFilters.length ? ` AND ${groupFilters.join(' AND ')}` : ''}`,
+      GROUP BY target_item_id
+    ) SELECT aggregate_mentions.targetItemId,total,visible,
+      COALESCE(winner.verified_at,'') AS verifiedAt,winner.last_seen AS lastSeen,winner.id AS firstId
+    FROM aggregate_mentions JOIN mentions_in winner ON winner.id = (
+      SELECT candidate.id FROM mentions_in candidate
+      WHERE candidate.status IN ('verified','gone') AND candidate.target_item_id=aggregate_mentions.targetItemId
+      ORDER BY COALESCE(candidate.verified_at,'') DESC,candidate.last_seen DESC,candidate.id ASC LIMIT 1
+    )${groupFilters.length ? ` WHERE ${groupFilters.join(' AND ')}` : ''}`,
     binds,
     order: [{ column: 'verifiedAt', direction: 'desc' }, { column: 'lastSeen', direction: 'desc' }, { column: 'firstId', direction: 'asc' }],
   });

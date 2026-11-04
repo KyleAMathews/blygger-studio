@@ -6,6 +6,7 @@ import { createLiveQueryCollection, and, eq } from '@tanstack/react-db';
 import { onlineManager } from '@tanstack/query-core';
 import { sourceSchemas } from '../src/ui/data-schemas.ts';
 import { zListItemsResponse, zHopper, zSubscription, zAuthorization } from '../sdk/dist/schemas.js';
+import { READ_BATCH_PATHS, type ReadBatchOperation, type ReadBatchInput } from '../src/read-batch-policy.ts';
 
 let db: typeof import('../src/ui/data.ts');
 let revision = 0;
@@ -78,8 +79,19 @@ beforeAll(async () => {
   vi.stubGlobal('location', { origin: 'http://studio.test' });
   vi.stubGlobal('window', new EventTarget());
   vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'hidden', getElementById: (id: string) => id === 'studio-root' ? { dataset: { apiBase: '/api' } } : null }));
-  vi.stubGlobal('fetch', async (request: Request) => {
+  vi.stubGlobal('fetch', async function serve(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === '/api/read-batch') {
+      const body = await request.json() as { operation: ReadBatchOperation; requests: ReadBatchInput[] };
+      return json(await Promise.all(body.requests.map(async child => {
+        const path = READ_BATCH_PATHS[body.operation].replace(/\{(\w+)\}/g, (_, key) => encodeURIComponent(child.path?.[key] ?? ''));
+        const childUrl = new URL('/api' + path, url);
+        childUrl.search = new URLSearchParams(child.query).toString();
+        const response = await serve(new Request(childUrl));
+        return { status: response.status, body: await response.json(), headers: {} };
+      })));
+    }
+    // Logical requests after unpacking the transport; API tests own batch auth.
     requests.push({ path: url.pathname, params: url.searchParams });
     if (url.pathname === '/api/changes') return json({ epoch, domains: Object.fromEntries(['items', 'reading', 'hoppers', 'subscriptions', 'signals', 'settings', 'feed', 'mentions', 'responses', 'interactions', 'browse'].map((domain) => [domain, revision])) });
     if (url.pathname === '/api/items' && request.method === 'POST') {
@@ -543,7 +555,7 @@ test('list polls do not start detail sources without a subscribed demand', async
   await db.listViews.items.preload();
   requests.length = 0;
   await refetch('items', 'item-history');
-  expect(requests.map((request) => request.path)).toEqual(['/api/changes', '/api/changes', '/api/changes']);
+  expect(requests.map((request) => request.path)).toEqual(['/api/changes']);
 });
 
 test('route preload and sorted list share a backend sequence and exact boundary read', async () => {
@@ -554,7 +566,7 @@ test('route preload and sorted list share a backend sequence and exact boundary 
   expect(requests.filter(request => request.path === '/api/items' && request.params.get('id') === 'a')).toHaveLength(1);
   requests.length = 0;
   await refetch('items', 'item-history');
-  expect(requests.map((request) => request.path)).toEqual(['/api/changes', '/api/changes', '/api/changes', '/api/changes']);
+  expect(requests.map((request) => request.path)).toEqual(['/api/changes']);
 });
 
 test('route retry restarts a failed detail graph after the Query cache recovers', async () => {
@@ -711,9 +723,9 @@ test('mention preload fetches target labels without waiting for source cards or 
 test('mention groups stay bounded and grow beyond the preloaded window with complete counts', async () => {
   itemCount = 5_000; mentionGroupCount = 300; receiptsPerGroup = 150; outboundCount = 800;
   await db.preloadMentions();
-  expect(db.mentionGroupItemsView.toArray).toHaveLength(26);
-  expect(db.mentionGroups.size).toBeLessThanOrEqual(27);
-  expect(db.items.size).toBeLessThanOrEqual(27);
+  expect(db.mentionGroupItemsView.toArray).toHaveLength(11);
+  expect(db.mentionGroups.size).toBeLessThanOrEqual(12);
+  expect(db.items.size).toBeLessThanOrEqual(12);
   expect(db.mentionSummary.toArray[0]).toMatchObject({ inbound: 45_000, outbound: 800, groups: 300 });
   expect(requests.filter(request => request.path === '/api/mentions')).toEqual([]);
   await db.mentionGroupItemsView.utils.setWindow({ offset: 0, limit: 51 });

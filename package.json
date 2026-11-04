@@ -1,6 +1,6 @@
 {
   "name": "@blygger/studio",
-  "version": "0.51.0",
+  "version": "0.52.0",
   "private": true,
   "description": "Blygger Studio — reference client for the Blygger protocol (publish, subscribe, thread, transclude, respond)",
   "license": "MIT",
@@ -55,6 +55,7 @@
     "@tanstack/react-db": "1.0.0-rc.1.2",
     "@tanstack/react-router": "^1.170.46",
     "better-auth": "1.7.14",
+    "dataloader": "2.2.3",
     "entities": "4.5.0",
     "fast-xml-parser": "^5",
     "hono": "^4",

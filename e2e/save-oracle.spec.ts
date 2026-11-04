@@ -139,7 +139,10 @@ for (const kind of ["fragment", "thread"] as const) {
     await page.unroute(`**/api/items/${id}/publish`);
     await page.locator("#publish-btn").click();
     await openCard(page, 'history');
-    await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
+    await expect.poll(async () => {
+      await page.clock.runFor(16);
+      return page.locator('[data-action="view-version"]').count();
+    }).toBe(1);
   });
   // Hold an older save until newer editor input exists. Releasing that save must
   // not replace the newer input; the next autosave must persist that newer text.

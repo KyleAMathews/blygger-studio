@@ -12,6 +12,7 @@ import { READ_BATCH_MAX, READ_ID_MAX, READ_VERSION_MAX } from '../importer/read-
 import { BROWSE_VIA } from "../browse-log.ts";
 import { CLASSIFY_MAX } from "../peek.ts";
 import { CURSOR_MAX } from '../cursor-page.ts';
+import { READ_BATCH_MAX as COLLECTION_READ_BATCH_MAX, READ_BATCH_OPERATIONS, READ_BATCH_PATHS } from '../read-batch-policy.ts';
 
 const json = (schema: z.ZodType) => ({ "application/json": { schema } });
 export { ErrorSchema };
@@ -80,9 +81,16 @@ const readId = z.string().min(1).max(READ_ID_MAX);
 const readMark = z.object({ sub: readId, remoteId: readId, version: readVersion, readAt: readAt }).strict();
 const unreadMark = z.object({ sub: readId, remoteId: readId }).strict();
 const counts = z.object({ all: z.number(), own: z.number(), subscriptions: z.record(z.string(), z.number()) });
+const readArguments = z.record(z.string().min(1).max(64), z.string().max(CURSOR_MAX)).refine(value => Object.keys(value).length <= 32, 'Too many arguments');
 
 
 export const routes = {
+  batchRead: route('batchRead', readOperation(), 'post', '/read-batch', z.array(z.object({
+    status: z.number().int().min(200).max(599), body: z.unknown(), headers: z.record(z.string(), z.string()),
+  })), z.object({
+    operation: z.enum(READ_BATCH_OPERATIONS),
+    requests: z.array(z.object({ path: readArguments.optional(), query: readArguments.optional() }).strict()).min(1).max(COLLECTION_READ_BATCH_MAX),
+  })),
   getCapabilities: route('getCapabilities', authenticatedOperation, 'get', '/capabilities', z.object({
     contractVersion: z.string(),
     endpoints: z.object({ publicBase: z.string(), studio: z.string(), api: z.string(), issuer: z.string(), mcp: z.string(), media: z.string() }),
@@ -123,7 +131,7 @@ export const routes = {
   updateMention: route("updateMention", manageOperation({"writes":["mentions","presentation"],"destructive":true}), "patch", "/mentions/{id}", ok.extend({ hidden: z.boolean() }), z.object({ hidden: z.boolean() })),
   listItems: route('listItems', readOperation(), 'get', '/items', collection(ItemSchema.extend({ pins })), undefined, 200, page.extend({ status: z.enum(['draft', 'public', 'withdrawn']).optional(), dirty: z.enum(['true', 'false']).optional(), version: z.coerce.number().int().nonnegative().optional(), id: z.string().optional(), updated: z.string().optional() })),
   getItemSummary: route('getItemSummary', readOperation(), 'get', '/items/summary', z.object({ all: z.number().int().nonnegative(), drafts: z.number().int().nonnegative(), changes: z.number().int().nonnegative(), public: z.number().int().nonnegative(), withdrawn: z.number().int().nonnegative() })),
-  getItem: route('getItem', readOperation(), 'get', '/items/{id}', z.object({ ...ItemSchema.shape, pins, media: z.array(MediaSchema).describe("The working copy's attachments."), publishedMedia: z.array(MediaSchema).describe('The live version attachments, including retained detached media.'), published: z.union([VersionSchema, z.null()]) })),
+  getItem: route('getItem', readOperation(), 'get', READ_BATCH_PATHS.getItem, z.object({ ...ItemSchema.shape, pins, media: z.array(MediaSchema).describe("The working copy's attachments."), publishedMedia: z.array(MediaSchema).describe('The live version attachments, including retained detached media.'), published: z.union([VersionSchema, z.null()]) })),
   listItemVersions: route('listItemVersions', readOperation(), 'get', '/items/{id}/versions', collection(VersionSchema), undefined, 200, page.extend({ version: z.coerce.number().int().positive().optional() })),
   getSettings: route("getSettings", readOperation(), "get", "/settings", SettingsSchema),
   listSubscriptions: route("listSubscriptions", readOperation(), "get", "/subscriptions", collection(SubscriptionSchema), undefined, 200, page),
@@ -136,9 +144,9 @@ export const routes = {
   listThumbs: route("listThumbs", readOperation(), "get", "/thumbs", collection(ThumbSchema), undefined, 200, page.extend({ thumb: z.enum(["1", "-1"]).optional(), at: z.string().optional(), subscriptionId: z.string().optional(), remoteId: z.string().optional() })),
   getSignalSummary: route('getSignalSummary', readOperation(), 'get', '/signals/summary', z.object({ liked: z.number().int().nonnegative(), disliked: z.number().int().nonnegative(), activity: z.number().int().nonnegative() })),
   getAiModels: route("getAiModels", readOperation(), "get", "/ai/models", AiModelsSchema),
-  listMentions: route("listMentions", readOperation(), "get", "/mentions", collection(z.union([MentionSchema, OutboundMentionSchema])).extend({ direction: z.enum(["inbound", "outbound"]) }), undefined, 200, page.extend({ direction: z.enum(["inbound", "outbound"]).optional(), targetItemId: z.string().optional().describe('Inbound receipts for this target item only; invalid with outbound direction.'), verifiedAt: z.string().optional().describe('Inbound exact verifiedAt filter; empty string matches an actual empty string, not SQL NULL.'), verifiedAtNull: z.literal('true').optional().describe('Inbound SQL NULL verifiedAt filter; cannot be combined with verifiedAt.'), lastSeen: z.string().optional().describe('Inbound exact lastSeen filter.'), id: z.string().optional().describe('Exact receipt id, including an ordered window boundary.'), created: z.string().optional().describe('Outbound exact created filter; invalid with inbound direction.') })),
-  listMentionGroups: route('listMentionGroups', readOperation(), 'get', '/mention-groups', collection(MentionGroupSchema), undefined, 200, page.extend({ targetItemId: z.string().optional(), verifiedAt: z.string().optional().describe('Exact coalesced group verifiedAt; empty string includes SQL NULL.'), lastSeen: z.string().optional(), firstId: z.string().optional() })),
-  getMentionSummary: route('getMentionSummary', readOperation(), 'get', '/mentions/summary', z.object({ inbound: z.number().int().nonnegative(), outbound: z.number().int().nonnegative(), groups: z.number().int().nonnegative() })),
+  listMentions: route("listMentions", readOperation(), "get", READ_BATCH_PATHS.listMentions, collection(z.union([MentionSchema, OutboundMentionSchema])).extend({ direction: z.enum(["inbound", "outbound"]) }), undefined, 200, page.extend({ direction: z.enum(["inbound", "outbound"]).optional(), targetItemId: z.string().optional().describe('Inbound receipts for this target item only; invalid with outbound direction.'), verifiedAt: z.string().optional().describe('Inbound exact verifiedAt filter; empty string matches an actual empty string, not SQL NULL.'), verifiedAtNull: z.literal('true').optional().describe('Inbound SQL NULL verifiedAt filter; cannot be combined with verifiedAt.'), lastSeen: z.string().optional().describe('Inbound exact lastSeen filter.'), id: z.string().optional().describe('Exact receipt id, including an ordered window boundary.'), created: z.string().optional().describe('Outbound exact created filter; invalid with inbound direction.') })),
+  listMentionGroups: route('listMentionGroups', readOperation(), 'get', READ_BATCH_PATHS.listMentionGroups, collection(MentionGroupSchema), undefined, 200, page.extend({ targetItemId: z.string().optional(), verifiedAt: z.string().optional().describe('Exact coalesced group verifiedAt; empty string includes SQL NULL.'), lastSeen: z.string().optional(), firstId: z.string().optional() })),
+  getMentionSummary: route('getMentionSummary', readOperation(), 'get', READ_BATCH_PATHS.getMentionSummary, z.object({ inbound: z.number().int().nonnegative(), outbound: z.number().int().nonnegative(), groups: z.number().int().nonnegative() })),
   preview: route("preview", draftOperation({"writes":[]}, 'read'), "post", "/preview", preview, z.object({ contentMd: z.string().optional(), itemId: z.string().optional(), kind: z.enum(["fragment", "thread"]).optional() })),
   search: route("search", readOperation(), "get", "/search", z.object({ items: z.array(z.object({ id: z.string(), excerpt: z.string(), label: z.string().openapi({ description: "The text a `[[id]]` link to this item shows: its opening heading, else a short quoted excerpt. Written as the label by the picker (0.4 §10.1)." }), version: z.number(), updated: z.string(), badge: z.string(), source: z.enum(["mine", "imported"]), kind: z.enum(["fragment", "thread"]), subscriptionId: z.string().nullable(), sourceTitle: z.string().nullable() })), page: pageInfo }), undefined, 200, page.extend({ q: z.string().optional(), source: z.enum(["all", "mine", "imported"]).optional(), sub: z.string().optional(), sort: z.enum(["newest", "oldest"]).optional() })),
   getVersion: route("getVersion", readOperation(), "get", "/items/{id}/versions/{v}", VersionSchema),

@@ -905,6 +905,91 @@ export type RevokeAuthorizationResponses = {
 
 export type RevokeAuthorizationResponse = RevokeAuthorizationResponses[keyof RevokeAuthorizationResponses];
 
+export type BatchReadData = {
+    body: {
+        operation: 'getItem' | 'listMentionGroups' | 'listMentions' | 'getMentionSummary';
+        requests: Array<{
+            path?: {
+                [key: string]: string;
+            };
+            query?: {
+                [key: string]: string;
+            };
+        }>;
+    };
+    path?: never;
+    query?: never;
+    url: '/read-batch';
+};
+
+export type BatchReadErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type BatchReadError = BatchReadErrors[keyof BatchReadErrors];
+
+export type BatchReadResponses = {
+    /**
+     * Success
+     */
+    200: Array<{
+        status: number;
+        body?: unknown;
+        headers: {
+            [key: string]: string;
+        };
+    }>;
+};
+
+export type BatchReadResponse = BatchReadResponses[keyof BatchReadResponses];
+
 export type GetCapabilitiesData = {
     body?: never;
     path?: never;

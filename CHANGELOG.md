@@ -18,6 +18,28 @@ not have its own repo until session 26.
 
 ---
 
+## 0.52.0 — Collection read batches and smaller Mentions loads
+
+Mentions opens with 10 groups and 10 receipts per group. Each list keeps its
+own cursor and full counts. Corrected page sizes avoid extra continuation
+requests, and simultaneous freshness checks share one pending read.
+
+Studio batches independent reads by collection operation while retaining the
+existing endpoints, query validation, permissions, and work budgets. Each child
+keeps its own status and retry hints. Within each server read batch, ready SQL
+and admission statements share D1 calls without a timer window or query rewrites.
+Logical read charges stay unchanged. Batch results are not cached, and a mutation
+starts a fresh revision check.
+
+The group query aggregates counts and uses indexed winner lookups instead of
+ranking every receipt with window functions. No rollup table or trigger is added.
+
+Private contract **5.3.0** (additive `POST /read-batch`); SDK **0.9.0**.
+Protocol version unchanged (`"0.4"`).
+
+**Migrations:** **0040** (one covering expression index on `mentions_in`). Apply
+before deploying.
+
 ## 0.51.0 — Faster Studio actions, paged Mentions
 
 **Buttons act at once** (Kyle Mathews, #111). Saving, read marks, thumbs and

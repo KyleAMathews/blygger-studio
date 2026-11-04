@@ -101,8 +101,8 @@ it('uses one bounded group query and one count query rather than per-group reads
   const page = await mentionGroups(db, { limit: 1 });
   expect(page.items).toHaveLength(1);
   expect(queries).toHaveLength(3); // generation, one aggregate page, generation
-  expect(queries.filter(sql => sql.includes('ranked_mentions'))).toHaveLength(1);
-  expect(queries.find(sql => sql.includes('ranked_mentions'))).toContain('LIMIT ?');
+  expect(queries.filter(sql => sql.includes('aggregate_mentions'))).toHaveLength(1);
+  expect(queries.find(sql => sql.includes('aggregate_mentions'))).toContain('LIMIT ?');
   queries.length = 0;
   expect(await mentionSummary(db)).toEqual({ inbound: 9, outbound: 4, groups: 4 });
   expect(queries).toHaveLength(1);
@@ -143,7 +143,7 @@ it('aggregates once on continuation and uses the target index for point groups a
   expect(plan.filter(detail => detail.includes('MATERIALIZE cursor_source'))).toHaveLength(1);
   await mentionGroups(db, { targetItemId: 'A', limit: 1 });
   const pointPlan = (await env.DB.prepare('EXPLAIN QUERY PLAN ' + sql).bind(...binds).all<{ detail: string }>()).results.map(row => row.detail);
-  expect(pointPlan.some(detail => /SEARCH mentions_in USING INDEX mentions_in_target(?:_private_order)? \(target_item_id=\?/.test(detail))).toBe(true);
+  expect(pointPlan.some(detail => /SEARCH mentions_in USING (?:COVERING )?INDEX mentions_in_(?:target(?:_private_order)?|group_covering) \(target_item_id=\?/.test(detail))).toBe(true);
   const receiptPlan = (await env.DB.prepare("EXPLAIN QUERY PLAN SELECT * FROM mentions_in WHERE status IN ('verified','gone') AND target_item_id IS ? ORDER BY verified_at DESC,last_seen DESC,id ASC LIMIT 26").bind('A').all<{ detail: string }>()).results.map(row => row.detail);
   expect(receiptPlan.some(detail => detail.includes('SEARCH mentions_in USING INDEX mentions_in_target_private_order (target_item_id=?)'))).toBe(true);
   expect(receiptPlan.some(detail => detail.includes('TEMP B-TREE'))).toBe(false);

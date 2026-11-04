@@ -1,4 +1,5 @@
 import { test, expect, type Page } from './fixture';
+import { READ_BATCH_PATHS, type ReadBatchOperation, type ReadBatchInput } from '../src/read-batch-policy.ts';
 
 const targetId = (group: number) => `paged-target-${String(group).padStart(3, '0')}`;
 const receiptId = (group: number, index: number) => `receipt-${String(group).padStart(3, '0')}-${String(index).padStart(3, '0')}`;
@@ -19,24 +20,23 @@ async function installMentions(page: Page, options: {
   const visible = Array.from({ length: options.receipts }, (_, index) => receiptState(index)).filter(row => row.status === 'verified' && !row.hidden).length;
   const groups = Array.from({ length: options.groups }, (_, group) => ({ targetItemId: targetId(group), total: options.receipts, visible,
     verifiedAt: at, lastSeen: at, firstId: receiptId(group, 0) }));
-  await page.route(url => url.pathname === '/api/mention-groups', async route => {
-    const params = new URL(route.request().url()).searchParams;
-    stats.groupReads.push(params);
-    const result = responsePage(groups, params, ['targetItemId', 'verifiedAt', 'lastSeen', 'firstId']);
-    stats.groupRowsSent += result.items.length;
-    await route.fulfill({ json: result });
-  });
-  await page.route('**/api/mentions/summary', route => route.fulfill({ json: { inbound: options.groups * options.receipts, outbound: options.outbound, groups: options.groups } }));
-  await page.route(url => url.pathname.startsWith('/api/items/paged-target-'), async route => {
-    const id = new URL(route.request().url()).pathname.split('/').at(-1)!;
-    const group = Number(id.split('-').at(-1));
-    if (options.responses?.[group] === null) return route.fulfill({ status: 404, json: { code: 'not-found', message: 'not found' } });
-    await route.fulfill({ json: { id, revision: 1, contentMd: `Paged target ${group}`, kind: 'fragment', status: 'public',
-      created: at, updated: at, version: 1, dirty: false, responses: options.responses?.[group] ?? 'default', highlight: 'default', provenance: [], stubOf: null, forkedFrom: null,
-      forkCite: null, pins: [], media: [], publishedMedia: [], published: null } });
-  });
-  await page.route(url => url.pathname === '/api/mentions', async route => {
-    const params = new URL(route.request().url()).searchParams;
+  function read(path: string, params: URLSearchParams): { status: number; body: unknown; headers: Record<string, string> } | null {
+    if (path === '/api/mention-groups') {
+      stats.groupReads.push(params);
+      const result = responsePage(groups, params, ['targetItemId', 'verifiedAt', 'lastSeen', 'firstId']);
+      stats.groupRowsSent += result.items.length;
+      return { status: 200, body: result, headers: {} };
+    }
+    if (path === '/api/mentions/summary') return { status: 200, body: { inbound: options.groups * options.receipts, outbound: options.outbound, groups: options.groups }, headers: {} };
+    if (path.startsWith('/api/items/paged-target-')) {
+      const id = path.split('/').at(-1)!;
+      const group = Number(id.split('-').at(-1));
+      if (options.responses?.[group] === null) return { status: 404, body: { code: 'not-found', message: 'not found' }, headers: {} };
+      return { status: 200, headers: {}, body: { id, revision: 1, contentMd: `Paged target ${group}`, kind: 'fragment', status: 'public',
+        created: at, updated: at, version: 1, dirty: false, responses: options.responses?.[group] ?? 'default', highlight: 'default', provenance: [], stubOf: null, forkedFrom: null,
+        forkCite: null, pins: [], media: [], publishedMedia: [], published: null } };
+    }
+    if (path !== '/api/mentions') return null;
     stats.receiptReads.push(params);
     const direction = params.get('direction');
     const rows = direction === 'outbound'
@@ -49,7 +49,23 @@ async function installMentions(page: Page, options: {
           verifiedAt: at, attempts: 0, error: null, hidden: receiptState(index).hidden, sourceAuthor: { name: `Source ${group}-${index}` } })));
     const result = responsePage(rows, params, direction === 'outbound' ? ['id', 'created'] : ['targetItemId', 'id', 'verifiedAt', 'lastSeen']);
     stats.receiptRowsSent += result.items.length;
-    await route.fulfill({ json: { ...result, direction } });
+    return { status: 200, body: { ...result, direction }, headers: {} };
+  }
+  await page.route('**/api/read-batch', async route => {
+    const body = route.request().postDataJSON() as { operation: ReadBatchOperation; requests: ReadBatchInput[] };
+    const results = await Promise.all(body.requests.map(async child => {
+      const url = new URL('/api' + READ_BATCH_PATHS[body.operation].replace(/\{(\w+)\}/g, (_, key) => encodeURIComponent(child.path?.[key] ?? '')), route.request().url());
+      url.search = new URLSearchParams(child.query).toString();
+      const result = read(url.pathname, url.searchParams);
+      if (result) return result;
+      const response = await page.request.get(url.href);
+      return { status: response.status(), body: await response.json(), headers: {} };
+    }));
+    await route.fulfill({ json: results });
+  });
+  await page.route(url => ['/api/mention-groups', '/api/mentions', '/api/mentions/summary'].includes(url.pathname) || url.pathname.startsWith('/api/items/paged-target-'), async route => {
+    const url = new URL(route.request().url()), result = read(url.pathname, url.searchParams)!;
+    await route.fulfill({ status: result.status, json: result.body });
   });
   await page.route('**/api/mentions/receipt-*/source', async route => {
     stats.sources.push(new URL(route.request().url()).pathname);
@@ -96,7 +112,7 @@ test('mentions pages groups, their receipts, and outbound rows with complete cou
   const stats = await installMentions(page, { groups: 80, receipts: 45, outbound: 80 });
   await login(page);
   await page.getByRole('link', { name: 'mentions', exact: true }).click();
-  await expect(page.locator('.mention-group')).toHaveCount(25);
+  await expect(page.locator('.mention-group')).toHaveCount(10);
   const first = page.locator('.mention-group').first();
   await expect(first.locator('.mention-row')).toHaveCount(10);
   await expect(first.locator('.group-meta')).toContainText('45 responses');
@@ -109,11 +125,11 @@ test('mentions pages groups, their receipts, and outbound rows with complete cou
   await expect(first.locator('.mention-row')).toHaveCount(20);
   await expect(first.locator('.who')).toHaveText(Array.from({ length: 20 }, (_, index) => `Source 0-${index}`));
   await page.getByRole('button', { name: 'load more groups', exact: true }).click();
-  await expect(page.locator('.mention-group')).toHaveCount(50);
+  await expect(page.locator('.mention-group')).toHaveCount(20);
   await expect(first.locator('.mention-row')).toHaveCount(20);
   await page.getByRole('button', { name: 'load more groups', exact: true }).click();
-  await expect(page.locator('.mention-group')).toHaveCount(75);
-  await expect(page.locator('.mention-group h3')).toHaveText(Array.from({ length: 75 }, (_, index) => `Paged target ${index} ↗ edit`));
+  await expect(page.locator('.mention-group')).toHaveCount(30);
+  await expect(page.locator('.mention-group h3')).toHaveText(Array.from({ length: 30 }, (_, index) => `Paged target ${index} ↗ edit`));
   await page.getByRole('button', { name: /^outbound/ }).click();
   await expect(page.locator('.out-row')).toHaveCount(25);
   await page.getByRole('button', { name: 'load more outbound mentions', exact: true }).click();
@@ -165,18 +181,22 @@ test('a failed Mentions group continuation keeps the loaded page and recovers th
   const stats = await installMentions(page, { groups: 80, receipts: 1, outbound: 0 });
   await login(page);
   await page.getByRole('link', { name: 'mentions', exact: true }).click();
-  await expect(page.locator('.mention-group')).toHaveCount(25);
+  await expect(page.locator('.mention-group')).toHaveCount(10);
   await page.clock.pauseAt(new Date(Date.now() + 10_000));
   let fail = true;
-  await page.route(url => url.pathname === '/api/mention-groups', route => {
-    if (fail && new URL(route.request().url()).searchParams.has('cursor')) {
-      return route.fulfill({ status: 503, json: { code: 'internal', message: 'controlled mention page failure' } });
+  await page.route('**/api/read-batch', route => {
+    const body = route.request().postDataJSON() as { operation: string; requests: ReadBatchInput[] };
+    if (fail && body.operation === 'listMentionGroups' && body.requests.some(child => child.query?.cursor)) {
+      return route.fulfill({ json: body.requests.map(() => ({ status: 503, body: { code: 'internal', message: 'controlled mention page failure' }, headers: {} })) });
     }
     return route.fallback();
   });
   await page.getByRole('button', { name: 'load more groups', exact: true }).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'controlled mention page failure' })).toBeVisible();
-  await expect(page.locator('.mention-group')).toHaveCount(25);
+  await expect.poll(async () => {
+    await page.clock.runFor(16);
+    return page.getByRole('alert').filter({ hasText: 'controlled mention page failure' }).count();
+  }).toBeGreaterThan(0);
+  await expect(page.locator('.mention-group')).toHaveCount(10);
   fail = false;
   await page.getByRole('button', { name: 'retry reads', exact: true }).first().click();
   await expect.poll(async () => {
@@ -187,6 +207,6 @@ test('a failed Mentions group continuation keeps the loaded page and recovers th
   await expect.poll(async () => {
     await page.clock.runFor(16);
     return page.locator('.mention-group').count();
-  }).toBe(50);
-  expect(stats.groupReads.some(params => Number(params.get('cursor')) >= 75)).toBe(false);
+  }).toBe(20);
+  expect(stats.groupReads.some(params => Number(params.get('cursor')) >= 30)).toBe(false);
 });
