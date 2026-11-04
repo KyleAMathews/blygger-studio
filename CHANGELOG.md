@@ -18,6 +18,39 @@ not have its own repo until session 26.
 
 ---
 
+## 0.53.0 — Search, the install's theme at the door, tabs that say which studio
+
+**Search on the reading and compose pages** (#120). The search the `[[` picker
+runs, on two more pages. Type in the box at the top; the query goes in the
+address (`?q=`), so back returns to the results. `/` focuses the box and Escape
+clears it. Matched words are marked.
+
+- **Reading** searches what the picker offers: your published items and the blygs
+  you follow. With one source selected it searches that source only; a button
+  widens it to everything. Hits open in the reader.
+- **Compose** searches *this blyg only* by default, or *everything*. It finds
+  drafts and unpublished changes too, marked as such. Your own items open in the
+  editor.
+
+The picker is unchanged: it still offers only what a quote or link can name.
+
+**The login page wears the install's theme** (#119). It used to show the
+studio's own light/dark colours until you logged in; now it is painted in the
+theme the studio switches to, wrong-password page included.
+
+**Each studio's tab says which it is** (#121). The tab title is
+"blyg studio — {site title}", and the ❝ tab icon takes the theme's accent, so
+several open studios can be told apart without clicking in.
+
+**Read batches keep malformed paths to themselves** (Kyle Mathews, #116). A path
+with malformed Unicode now fails only its own read, with a 400, after the usual
+permission and quota checks; the other reads in the batch keep their results.
+
+Private contract **5.4.0** (additive: `include=drafts` on `GET /search`, `draft`
+on its results); SDK **0.10.0**. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** none.
+
 ## 0.52.0 — Collection read batches and smaller Mentions loads
 
 Mentions opens with 10 groups and 10 receipts per group. Each list keeps its
@@ -30,9 +63,6 @@ keeps its own status and retry hints. Within each server read batch, ready SQL
 and admission statements share D1 calls without a timer window or query rewrites.
 Logical read charges stay unchanged. Batch results are not cached, and a mutation
 starts a fresh revision check.
-Malformed Unicode paths return a child error without dropping valid siblings;
-they still pass through the normal permission and quota checks.
-
 Browser batches dispatch in microtasks, so they do not wait for timers that can
 be throttled in background tabs.
 
