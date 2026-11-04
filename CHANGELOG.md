@@ -30,6 +30,8 @@ keeps its own status and retry hints. Within each server read batch, ready SQL
 and admission statements share D1 calls without a timer window or query rewrites.
 Logical read charges stay unchanged. Batch results are not cached, and a mutation
 starts a fresh revision check.
+Malformed Unicode paths return a child error without dropping valid siblings;
+they still pass through the normal permission and quota checks.
 
 Browser batches dispatch in microtasks, so they do not wait for timers that can
 be throttled in background tabs.
