@@ -4,8 +4,8 @@ import type { Context } from 'hono';
 import type { Env } from './types.ts';
 import type { OperationDefinition } from './operations.ts';
 import { runOperation } from './operation-runner.ts';
-import { failure, FAILURE_STATUS, type MediaInput, type OperationInput } from './operation-types.ts';
-import { bearerChallenge } from './oauth.ts';
+import { failure, type MediaInput, type OperationInput } from './operation-types.ts';
+import { operationHttp } from './operation-http.ts';
 
 export async function multipartInput(form: FormData): Promise<MediaInput> {
   const file = form.get('file');
@@ -49,11 +49,7 @@ export async function executeRest(definition: OperationDefinition, c: Context<{ 
     }
   }
   const result = await runOperation(definition, input, { env: c.env, url: c.req.url, access: c.get('apiAccess'), extensions: c.get('apiExtensions'), defer: task => c.executionCtx.waitUntil(task) });
-  if (result.ok) {
-    if (result.location) c.header('Location', result.location);
-    return c.json(result.value as Record<string, unknown>, result.created ? 201 : 200);
-  }
-  if (result.requiredScopes) c.header('WWW-Authenticate', bearerChallenge(c.req.url, c.env, 'api', result.requiredScopes.join(' '), true));
-  if (result.kind === 'rate-limit') c.header('Retry-After', '60');
-  return c.json(result.value, FAILURE_STATUS[result.kind]);
+  const encoded = operationHttp(result, c.req.url, c.env);
+  for (const [name, value] of Object.entries(encoded.headers)) c.header(name, value);
+  return c.json(encoded.body as Record<string, unknown>, encoded.status);
 }

@@ -47,6 +47,52 @@ REST multipart and MCP Base64 decoders supply the same media byte input. MCP
 creates no internal REST request. Publication, refresh, warnings, and deferred
 mention delivery run through the same operation as Studio's REST call.
 
+## Collection read batches
+
+`POST {mount}/api/read-batch` groups independent reads of one operation. It
+requires `owner:read`, accepts 1–50 requests, and returns results in input order.
+The current opt-in operations are `getItem`, `listMentionGroups`, `listMentions`,
+and `getMentionSummary`. Existing collection endpoints remain available.
+
+```ts
+const results = await unwrap(BlyggerApi.batchRead({ client, body: {
+  operation: 'getItem',
+  requests: [{ path: { id: firstId } }, { path: { id: secondId } }],
+} }));
+```
+
+Each child accepts optional `path` and `query` records of strings. Its existing
+operation validates those arguments and returns `{ status, body, headers }`.
+An outer HTTP 200 means the envelope ran; inspect each child's status for
+not-found, invalid-input, expired-cursor, or rate-limit failures. `Retry-After`
+and scope challenges are retained in child headers. Envelope failures use the
+normal API error response. Writes, recursive batches, and arbitrary URLs are
+not accepted.
+
+The envelope and every child spend the caller's read budget. Child operations
+run through the same permission and validation checks as direct requests.
+Each cursor remains bound to its own collection, filters, and generation;
+the whole envelope is not a transaction or a cross-collection snapshot.
+
+Within one envelope, ready prepared `all()` and object `first()` calls are sent
+through D1's `batch()` in microtask-sized groups, without a timer window, SQL
+rewrites, or result caching. This includes the existing per-read admission
+statements: packing calls does not combine or waive logical charges. Dependent
+queries still run in later rounds. Explicit D1 batches and other methods retain
+their native execution behavior.
+
+Each physical D1 batch is a transaction. If it fails, that group's statements
+roll back and its waiting reads fail together; earlier completed groups remain
+committed. The adapter never retries failed batches or admission writes.
+
+Studio batches ready reads by operation with DataLoader, without caching batch
+results. Browser dispatch uses microtasks, not timers: synchronous peers share
+a batch, while reads that become ready after dispatch use a later batch.
+Different request headers or credential settings use separate batches.
+Cancelling one read preserves its peers; cancelling every consumer aborts the
+shared fetch. Concurrent freshness checks share pending work only, and Studio
+writes clear that pending check before their subsequent refreshes.
+
 ## HTTP responses
 
 Private API responses use `Cache-Control: no-store`, including preflight and errors

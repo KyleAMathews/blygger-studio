@@ -709,6 +709,28 @@ export const zRevokeAuthorizationResponse = z.object({
     ok: z.boolean()
 });
 
+export const zBatchReadBody = z.object({
+    operation: z.enum([
+        'getItem',
+        'listMentionGroups',
+        'listMentions',
+        'getMentionSummary'
+    ]),
+    requests: z.array(z.object({
+        path: z.record(z.string(), z.string().max(8192)).optional(),
+        query: z.record(z.string(), z.string().max(8192)).optional()
+    }).strict()).min(1).max(50)
+}).strict();
+
+/**
+ * Success
+ */
+export const zBatchReadResponse = z.array(z.object({
+    status: z.int().gte(200).lte(599),
+    body: z.unknown().optional(),
+    headers: z.record(z.string(), z.string())
+}));
+
 /**
  * Success
  */

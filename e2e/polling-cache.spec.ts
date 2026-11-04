@@ -123,13 +123,24 @@ test('a newly verified mention reaches the open mentions view in one poll, and a
   await expect(group).toContainText('Live responder');
   await expect(group.getByRole('button', { name: 'hide from page', exact: true })).toBeVisible();
 
+  // Seeing the new row does not mean every group's lookahead read has finished.
+  // Drain that visible read wave before testing background polling. The clock
+  // remains short of the next 15-second tick.
+  for (let frame = 0; frame < 2; frame++) {
+    await page.clock.runFor(16);
+    await page.waitForLoadState('networkidle');
+  }
+
   // Backgrounded: no reads at all, however long it stays hidden.
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
     document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
   });
   const reads: string[] = [];
-  page.on('request', r => { if (r.method() === 'GET' && new URL(r.url()).pathname.startsWith('/api/')) reads.push(new URL(r.url()).pathname); });
+  page.on('request', r => {
+    const path = new URL(r.url()).pathname;
+    if (path.startsWith('/api/') && (r.method() === 'GET' || path === '/api/read-batch')) reads.push(path);
+  });
   expect(await page.evaluate(async id => (await fetch(`/api/mentions/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ hidden: true }) })).ok, id)).toBe(true);
   await page.clock.runFor(60_000);
   expect(reads).toEqual([]);
@@ -138,6 +149,11 @@ test('a newly verified mention reaches the open mentions view in one poll, and a
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
     document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
   });
-  await expect(group.getByRole('button', { name: 'show on page', exact: true })).toBeVisible();
+  // The clock stays paused: dispatch the batch and rendering frames, without
+  // advancing to another 15-second poll.
+  await expect.poll(async () => {
+    await page.clock.runFor(16);
+    return group.getByRole('button', { name: 'show on page', exact: true }).isVisible();
+  }).toBe(true);
   expect(reads).toContain('/api/changes');
 });

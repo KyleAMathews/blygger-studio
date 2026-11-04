@@ -39,9 +39,19 @@ import { zGetItemResponse, zGetHopperResponse, zListItemsResponse, zListSubscrip
 import { sequenceParts } from './sequence-order.ts';
 import { readCursorWindow, type ApiPage } from './cursor-query.ts';
 import { planReadWrites, type ReadWrite, type UnreadWrite } from './read-state.ts';
+import { createReadBatchFetch } from './read-batch.ts';
+import { createReadFlight } from './read-flight.ts';
 
 export const apiBase = new URL(document.getElementById('studio-root')!.dataset.apiBase!, location.origin).href;
-export const client = createBlyggerClient({ baseUrl: apiBase });
+const transport = createReadBatchFetch(apiBase);
+export const client = createBlyggerClient({ baseUrl: apiBase, fetch: (input, init) => {
+  const request = new Request(input, init);
+  if (['GET', 'HEAD'].includes(request.method)) return transport(request);
+  // Mutation refreshes must not reuse checks started before a write.
+  changesFlight.invalidate();
+  return transport(request).finally(() => changesFlight.invalidate());
+} });
+const changesFlight = createReadFlight(signal => unwrap(BlyggerApi.getChanges({ client, signal })));
 queryClient.mount();
 /** Query resolves paused refetches without observing the server. */
 function assertNotPaused(queryKey: readonly unknown[]) {
@@ -60,7 +70,7 @@ function cachedQuery<S extends z.ZodType>(
   return readIfChanged(
     context,
     domain,
-    ({ signal }) => unwrap(BlyggerApi.getChanges({ client, signal })),
+    ({ signal }) => changesFlight.read(signal),
     async (context, generation) => schema.parse(await load(context, generation)),
   );
 }
@@ -860,7 +870,7 @@ async function mentions(context: QueryFunctionContext, direction: 'inbound' | 'o
   return (await Promise.all((targets ?? [undefined]).map(targetItemId => {
     const selected = { ...query, ...(targetItemId === undefined ? {} : { targetItemId }) };
     return cursorRows(context, resource, generation, [selected], (cursor, signal) => unwrap(BlyggerApi.listMentions({ client,
-      query: { ...selected, cursor, limit: direction === 'inbound' ? 10 : 25 }, signal })), window);
+      query: { ...selected, cursor, limit: direction === 'inbound' ? 11 : 26 }, signal })), window);
   }))).flat();
 }
 // Mentions views poll every tick, as before, but an unchanged `mentions`
@@ -905,7 +915,7 @@ export const mentionGroups = createCollection(queryCollectionOptions({
     return (await Promise.all((ids ?? [undefined]).map(targetItemId => {
       const selected = { ...query, ...(targetItemId === undefined ? {} : { targetItemId }) };
       return cursorRows(context, 'mention-groups', generation, [selected], (cursor, signal) =>
-        unwrap(BlyggerApi.listMentionGroups({ client, query: { ...selected, cursor, limit: 25 }, signal })), window);
+        unwrap(BlyggerApi.listMentionGroups({ client, query: { ...selected, cursor, limit: 11 }, signal })), window);
     }))).flat();
   }), select: response => response.data,
 }));
@@ -918,7 +928,7 @@ export const mentionSummary = createCollection(queryCollectionOptions({
 }));
 export const mentionGroupItemsView = createLiveQueryCollection(q => q.from({ group: mentionGroups })
   .leftJoin({ item: items }, ({ group, item }) => eq(group.targetItemId, item.id))
-  .orderBy(({ group }) => group.orderKey, { direction: 'asc', stringSort: 'lexical' }).limit(26)
+  .orderBy(({ group }) => group.orderKey, { direction: 'asc', stringSort: 'lexical' }).limit(11)
   .select(({ group, item }) => ({ group, item })));
 export const outbound = createCollection(queryCollectionOptions({
   ...collectionPollingOptions,

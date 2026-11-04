@@ -1,4 +1,5 @@
 import { test, expect, type Page } from './fixture';
+import { matchesGetItemBatch } from './read-batch';
 
 async function login(page: Page) {
   await page.goto('/studio/login');
@@ -41,6 +42,13 @@ test('saving confirms the row without waiting for sorted-window acquisition', as
     if (route.request().method() !== 'GET') return route.continue();
     reads.push(route.request().url());
     await gate;
+    await route.continue();
+  });
+  await page.route('**/api/read-batch', async route => {
+    if (matchesGetItemBatch(route.request(), id)) {
+      reads.push(new URL(`/api/items/${id}`, route.request().url()).href);
+      await gate;
+    }
     await route.continue();
   });
   await page.locator('#md-input').fill('Confirmed without a refetch');

@@ -720,7 +720,7 @@ function MentionReadFailure({ result }: { result: MentionReadResult }) {
 }
 
 function InboundMentions({ defaultShowing }: { defaultShowing: boolean }) {
-  const groups = useLiveInfiniteQuery(mentionGroupItemsView, { pageSize: 25 });
+  const groups = useLiveInfiniteQuery(mentionGroupItemsView, { pageSize: 10 });
   return <>
     <MentionReadFailure result={groups} />
     {groups.isLoading ? <p className="h-hint">Loading mentions…</p> : null}
