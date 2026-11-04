@@ -169,7 +169,7 @@ become null. Existing timestamps need the bundled resumable metadata repair befo
 deployment. It preserves content, versions, observation times and read state.
 Finish pending writes and generation, then avoid edits through repair/deployment.
 
-**Migrations:**0036_cursor_generations.sql adds interactions/browse change domains
+**Migrations:** 0036_cursor_generations.sql adds interactions/browse change domains
 and cursor indexes. After schema migration, run
 `node --import tsx scripts/normalize-import-dates.ts --remote` for source installs,
 or `node normalize-import-dates.mjs --remote` for Worker archives, before deploying.
@@ -190,7 +190,7 @@ public Blygger protocol formats stay intact, including legacy media URLs.
 Finish pending writes and generation before upgrading, and avoid edits until
 deployment finishes.
 
-**Migrations:** none in this release. Earlier stack releases include0035.
+**Migrations:** none in this release. Earlier stack releases include 0035.
 
 ## 0.49.8 — Conditional item writes
 
@@ -201,7 +201,7 @@ membership, and publication changes share the same conditional transition.
 Studio keeps the revision tied to its accepted text and serializes its writes.
 Private contract version:3.0.0. SDK version:0.4.0.
 
-**Migrations:**0035 adds the private revision and updates private item polling
+**Migrations:** 0035 adds the private revision and updates private item polling
 invalidation. Finish pending writes, including generation, before this upgrade.
 Avoid edits until deployment finishes. Old in-flight writes do not participate
 in the new revision checks.
