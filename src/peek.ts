@@ -132,7 +132,7 @@ async function probe(fetchFn: FetchLike, url: string): Promise<{ origin: string;
   }
 }
 
-async function known(db: D1Database, url: string, ownOrigin: string): Promise<{ origin: string; id: string } | null | undefined> {
+async function known(db: D1Database, url: string, ownOrigin: string, now: string): Promise<{ origin: string; id: string } | null | undefined> {
   const own = new RegExp(`^${ownOrigin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[ft]/([^/]+)/?$`).exec(url);
   if (own) return { origin: ownOrigin, id: own[1] };
   const held = await db
@@ -145,7 +145,7 @@ async function known(db: D1Database, url: string, ownOrigin: string): Promise<{ 
     .first<{ origin: string; id: string }>();
   if (held) return held;
   const cached = await db.prepare("SELECT origin, remote_id, checked_at FROM link_probe WHERE url = ?").bind(url).first<{ origin: string | null; remote_id: string | null; checked_at: string }>();
-  if (cached && Date.now() - Date.parse(cached.checked_at) < PROBE_TTL_MS) {
+  if (cached && Date.parse(now) - Date.parse(cached.checked_at) < PROBE_TTL_MS) {
     return cached.origin && cached.remote_id ? { origin: cached.origin, id: cached.remote_id } : null;
   }
   return undefined;
@@ -163,7 +163,7 @@ export async function classifyLinks(db: D1Database, fetchFn: FetchLike, rawUrls:
     const u = new URL(raw);
     u.hash = "";
     const url = u.toString();
-    let target = await known(db, url, ownOrigin);
+    let target = await known(db, url, ownOrigin, now);
     if (target === undefined) {
       target = await probe(fetchFn, url);
       await db
