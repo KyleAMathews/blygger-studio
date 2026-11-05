@@ -22,7 +22,7 @@ import { CHANGE_CATEGORIES, composeNote, noteIsGenerated, recategorize, type Cha
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { Detail } from './data.ts';
-import { client, items, itemVersions, itemSummary, itemDetail, createDraftAction, settings as settingsCollection, hoppers } from './data.ts';
+import { client, items, itemVersions, itemSummary, itemDetail, createDraftAction, settings as settingsCollection, listViews, preloadView } from './data.ts';
 import {
   ActionBar,
   Button,
@@ -1616,8 +1616,6 @@ const initiallyOpen = (hash: string) => location.hash === `#${hash}`;
 function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: boolean) => void }) {
   const navigate = useNavigate();
   const settings = useSettings();
-  const buckets =
-    useLiveQuery({ query: (q) => q.from({ hopper: hoppers }) }).data ?? [];
   const sharing = useSharing();
   const action = useAction();
   const write = useMemo(() => createDraftAction(item.id, item.revision), [item.id]);
@@ -1817,6 +1815,10 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
   // Own items can go in hoppers beside what you read (session 47); "~own" is
   // the store's marker for them (src/importer/store.ts OWN_SUBSCRIPTION).
   const addToHopper = async () => {
+    await preloadView(listViews.hoppers);
+    // Action menus retain their callbacks. Read the loaded rows here rather
+    // than capturing the editor's rows when the outer menu opens.
+    const buckets = listViews.hoppers.toArray;
     const chosen = await menu({
       title: '+ add to hopper…',
       rows: [
