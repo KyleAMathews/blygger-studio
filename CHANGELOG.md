@@ -18,6 +18,33 @@ not have its own repo until session 26.
 
 ---
 
+## 0.54.0 — Word counts, a hopper picker that waits for its list
+
+**The `word-count` extension** (#117). Each reading entry's byline shows its word
+count, published and in draft. A thread whose outline forms a clean tree (list items
+that are nothing but `[[id]]` links, as a table of contents is written) also gets
+the words in the whole document under it, again on both sides. Inline links and
+transclusions are not followed. A cycle, a repeated item, a link to anything that
+is not one of your own items, or a tree over 500 items gives no total, and the
+tooltip says why. It has a server half, so releases don't carry it: compile it in
+through `extensions.local.json`, then turn it on in Settings → extensions. Nothing
+reaches the wire. `docs/extensions.md` has the rule.
+
+**The editor's "add to hopper…" picker waits for its list** (Kyle Mathews, #122).
+Opening the actions menu before the hopper list had loaded could offer only "new
+hopper…", because the menu kept the empty list it started with. The Mentions half
+of #118 is still open.
+
+**A test that expired.** `classifyLinks` compared its cache's age with the wall clock
+rather than the `now` it was given, so `test/peek.test.ts` began to fail on
+2026-11-05 on every checkout. No effect on a running node.
+
+Private contract **5.5.0** (additive: `GET /api/ext/word-count/counts`, which answers
+404 unless the extension is compiled in and enabled); SDK **0.11.0**. Protocol
+version unchanged (`"0.4"`).
+
+**Migrations:** none.
+
 ## 0.53.0 — Search, the install's theme at the door, tabs that say which studio
 
 **Search on the reading and compose pages** (#120). The search the `[[` picker
