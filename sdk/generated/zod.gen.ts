@@ -662,6 +662,39 @@ export const zLineageGlyphSummary = z.object({
     })
 });
 
+export const zWordCount = z.object({
+    published: z.object({
+        words: z.int().gte(0),
+        cjk: z.int().gte(0),
+        document: z.object({
+            words: z.int().gte(0),
+            cjk: z.int().gte(0),
+            items: z.int().gt(0)
+        }).nullable(),
+        reason: z.enum([
+            'cycle',
+            'repeated',
+            'unavailable',
+            'too-large'
+        ]).optional()
+    }).nullable(),
+    draft: z.object({
+        words: z.int().gte(0),
+        cjk: z.int().gte(0),
+        document: z.object({
+            words: z.int().gte(0),
+            cjk: z.int().gte(0),
+            items: z.int().gt(0)
+        }).nullable(),
+        reason: z.enum([
+            'cycle',
+            'repeated',
+            'unavailable',
+            'too-large'
+        ]).optional()
+    })
+});
+
 /**
  * Success
  */
@@ -2021,4 +2054,15 @@ export const zExtLineageGlyphListSummariesQuery = z.object({
  */
 export const zExtLineageGlyphListSummariesResponse = z.object({
     summaries: z.record(z.string(), zLineageGlyphSummary)
+});
+
+export const zExtWordCountListCountsQuery = z.object({
+    keys: z.string().min(2)
+});
+
+/**
+ * Success
+ */
+export const zExtWordCountListCountsResponse = z.object({
+    counts: z.record(z.string(), zWordCount)
 });

@@ -692,6 +692,65 @@ export type LineageGlyphSummary = {
     };
 };
 
+export type WordCount = {
+    /**
+     * The current published version, and the tree its outline makes; null for an item never published.
+     */
+    published: {
+        words: number;
+        /**
+         * Han, kana and Hangul characters, counted one by one.
+         */
+        cjk: number;
+        /**
+         * The roll-up over this side's outline links; null when they do not form a strict tree of our own items.
+         */
+        document: {
+            words: number;
+            /**
+             * Han, kana and Hangul characters, counted one by one.
+             */
+            cjk: number;
+            /**
+             * Items in the outline tree, this one included.
+             */
+            items: number;
+        } | null;
+        /**
+         * Why `document` is null.
+         */
+        reason?: 'cycle' | 'repeated' | 'unavailable' | 'too-large';
+    } | null;
+    /**
+     * The working copy as publish would bake it now, and the tree its outline makes. Equal to `published` when there are no unpublished edits.
+     */
+    draft: {
+        words: number;
+        /**
+         * Han, kana and Hangul characters, counted one by one.
+         */
+        cjk: number;
+        /**
+         * The roll-up over this side's outline links; null when they do not form a strict tree of our own items.
+         */
+        document: {
+            words: number;
+            /**
+             * Han, kana and Hangul characters, counted one by one.
+             */
+            cjk: number;
+            /**
+             * Items in the outline tree, this one included.
+             */
+            items: number;
+        } | null;
+        /**
+         * Why `document` is null.
+         */
+        reason?: 'cycle' | 'repeated' | 'unavailable' | 'too-large';
+    };
+};
+
 export type RevokeAllAuthorizationsData = {
     body?: never;
     path?: never;
@@ -6842,3 +6901,81 @@ export type ExtLineageGlyphListSummariesResponses = {
 };
 
 export type ExtLineageGlyphListSummariesResponse = ExtLineageGlyphListSummariesResponses[keyof ExtLineageGlyphListSummariesResponses];
+
+export type ExtWordCountListCountsData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * A JSON array of up to 50 own reading entry keys.
+         */
+        keys: string;
+    };
+    url: '/ext/word-count/counts';
+};
+
+export type ExtWordCountListCountsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ExtWordCountListCountsError = ExtWordCountListCountsErrors[keyof ExtWordCountListCountsErrors];
+
+export type ExtWordCountListCountsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        counts: {
+            [key: string]: WordCount;
+        };
+    };
+};
+
+export type ExtWordCountListCountsResponse = ExtWordCountListCountsResponses[keyof ExtWordCountListCountsResponses];
