@@ -118,10 +118,10 @@ export function studioSpa(mount: string) {
   });
   const returnTo = (value: unknown) => typeof value === 'string' && value.startsWith(base + '/auth/oauth2/authorize?') && !value.includes('\\') ? value : base;
   const b = escapeHtml(base);
-  const head = (title: string) =>
+  const head = (title: string, themed: boolean) =>
     `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">` +
     `<title>${title}</title>` +
-    `<meta name="theme-color" content="${DEFAULT_ACCENT}">` +
+    (themed ? '' : `<meta name="theme-color" content="${DEFAULT_ACCENT}">`) +
     `<link rel="manifest" href="${b}/manifest.webmanifest">` +
     `<link rel="icon" href="${b}/icon.svg" type="image/svg+xml">` +
     `<link rel="apple-touch-icon" href="${b}/icon-180.png">` +
@@ -133,7 +133,7 @@ export function studioSpa(mount: string) {
     `<link rel="oauth-metadata" href="${b}/auth/.well-known/openid-configuration">` +
     `<link rel="stylesheet" href="${b}/app.css">`;
   const shell = (body: string, spa = false, theme = '') =>
-    `<!doctype html><html lang="en" class="js" data-theme="${theme ? 'fixed' : 'auto'}"><head>${head(`blyg studio${spa ? '' : ' — login'}`)}${theme}</head><body>${body}${spa ? `<script defer src="${b}/app.js"></script>` : ''}</body></html>`;
+    `<!doctype html><html lang="en" class="js" data-theme="${theme ? 'fixed' : 'auto'}"><head>${head(`blyg studio${spa ? '' : ' — login'}`, Boolean(theme))}${theme}</head><body>${body}${spa ? `<script defer src="${b}/app.js"></script>` : ''}</body></html>`;
   const spaShell = shell(
     `<div id="studio-root" data-mount="${escapeHtml(mount)}" data-api-base="${escapeHtml(deploymentPaths(mount).api)}"></div>`,
     true,

@@ -26,6 +26,7 @@ describe("studio login theme", () => {
     expect(html).toContain("--pencil:#88c0d0;");
     expect(html).toContain("color-scheme:dark}");
     expect(html).toContain('<meta name="theme-color" content="#88c0d0">');
+    expect(html.match(/<meta name="theme-color"/g)).toHaveLength(1);
     // One palette, chosen by the author: the reader's preference does not override it.
     expect(html).not.toContain("prefers-color-scheme");
   });
