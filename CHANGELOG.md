@@ -18,6 +18,20 @@ not have its own repo until session 26.
 
 ---
 
+## 0.54.1 — One theme colour at the door, and mention identifiers survive import
+
+**The themed login page carries one `theme-color` tag.** It had the default and
+the theme's, so which one a browser used was up to the browser.
+
+**Imported HTML keeps `<data value>`.** A mention's alternate identifiers travel
+in `<data class="u-url" value="…">` (`tn-6` section 5.3), and the sanitizer used to
+unwrap them. `value` is allowed on `<data>` only. It is inert text and is never
+fetched. Nothing in the Studio writes this markup yet.
+
+Private contract and SDK unchanged. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** none.
+
 ## 0.54.0 — Word counts, a hopper picker that waits for its list
 
 **The `word-count` extension** (#117). Each reading entry's byline shows its word
