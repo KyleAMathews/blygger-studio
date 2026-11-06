@@ -18,6 +18,22 @@ not have its own repo until session 26.
 
 ---
 
+## 0.55.1 — The address book meets you where you find people
+
+**Subscribing offers the blyg** (#124). Subscribe to one blyg by hand and the Studio
+asks "Add this blyg to address book?", filled in from its manifest. It doesn't ask for
+OPML imports, RSS feeds or hopper subscriptions, or when the URL is already in the book.
+
+**The reading menu's "add author to address book"** does the same for an entry's author.
+
+**Help text on each field, and the address book has its own form.** It used to sit
+inside the settings form, so "save settings" sat beside it and did nothing for it, and
+Enter would have saved settings. "Name" is now "Display name".
+
+Private contract and SDK unchanged. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** none.
+
 ## 0.55.0 — An address book, and @mentions that become links at publish
 
 **Type `@handle` while writing** (#123, `tn-6`). Add people in Settings → Address
