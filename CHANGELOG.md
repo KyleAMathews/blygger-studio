@@ -18,6 +18,26 @@ not have its own repo until session 26.
 
 ---
 
+## 0.55.0 — An address book, and @mentions that become links at publish
+
+**Type `@handle` while writing** (#123, `tn-6`). Add people in Settings → Address
+book. At publish, a handle that names a contact becomes a link in `content_md` and
+an h-card in `content_html`, on every write path: the editor, the API and any tool.
+Your working copy keeps the `@handle`. A handle that names nobody stays plain text,
+and publish and preview return it as `unresolvedHandles`, with a warning in the editor.
+
+A mention notifies nobody. Nothing new reaches the wire: no member, no relation,
+nothing sent.
+
+**Adding a contact reads their page** for `rel="me"` links, and those identifiers
+travel with the mention. Identifiers added by hand or through the API stay in the
+book and never go on the wire. A contact needs an `https` URL for now.
+
+Private contract **5.6.0** (additive: `/contacts`, `POST /contacts/{id}/resolve`,
+`unresolvedHandles`); SDK **0.12.0**. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** `0042` (`contacts`). Apply it before deploying.
+
 ## 0.54.1 — One theme colour at the door, and mention identifiers survive import
 
 **The themed login page carries one `theme-color` tag.** It had the default and
