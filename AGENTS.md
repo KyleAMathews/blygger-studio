@@ -95,6 +95,8 @@ npm run deploy:vgr    # wrangler deploy --config wrangler.private.jsonc --env ve
 npm run deploy:pi     # wrangler deploy --config wrangler.private.jsonc --env protocolInstitute
 ```
 
+**New Nature is not deployed from here** (Venkat, 2026-11-06). `newnature` is in the deploy manifest, but that node is migrated, deployed and changed only from `Publishing/newnature/` sessions: it vendors a private dashboard at build time, and a deploy from this checkout would remove it. So don't run `deploy:all`; roll out with the per-node commands above and the `blyggerOrg` deploy.
+
 **If you lose the private files:** every value in them is readable from the Cloudflare
 dashboard, but rebuilding by hand is how incident `2026-09-12-01` happened. `test/
 deploy-manifest.test.ts` cross-checks them on every `npm test` — and note *how* it
