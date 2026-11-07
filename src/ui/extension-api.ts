@@ -103,5 +103,13 @@ export interface StudioExtension {
   /** Rendered beside the character count, in the composer and the full editor. */
   draftCounter?: ComponentType<{ context: DraftCounterContext }>;
   /** A page of its own at /studio/ext/<name>, linked from More. */
-  page?: { title: string; component: ComponentType<{ context: StudioContext }> };
+  page?: {
+    title: string;
+    component: ComponentType<{ context: StudioContext }>;
+    /**
+     * Link it from the main menu instead, above compose, under `title` with this icon.
+     * The menu holds one such entry (see mainMenuPage); any other stays in More.
+     */
+    mainMenu?: { icon: string };
+  };
 }
