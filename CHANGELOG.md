@@ -18,6 +18,36 @@ not have its own repo until session 26.
 
 ---
 
+## 0.58.0 — Changelogs you can read, and an order that ignores the noise
+
+**Changelog display** (#140, decision #95). Settings → Feed → changelog chooses, for your
+own item pages and separately for blyg items in your reader, what to show of an item's
+changelog: the latest note (the default, as before), the full history of notes newest
+first, or an AI summary of them. A summary is written from the notes only, never from
+the text of earlier versions, so it cannot reveal what the author left unpinned. It is
+labelled with the model's name and stays in your studio, never in the item document or
+the feed. Each summary is written once per version and kept: on your pages, in the
+background on a version's first view, with the full history shown meanwhile; in your
+reader, only when you open an item. Settings → AI → changelog summaries takes your
+instructions for how summaries should read.
+
+**Summarize the history to date** (#140). The editor's note card has a new checkbox, off
+each time: a drafted note then covers every version so far, ending with this one, up to
+400 characters, under the same rule as any note against quoting unpinned text. The note
+becomes the start of that version's feed title.
+
+**The pace-layered order** (#141, RFC-3, decision #97). A version republished unchanged,
+or with an edit of a few characters, no longer climbs. A thread published together with
+the fragments it names, within 15 minutes, is one publication: it takes one place in the
+order, with the fragments beneath the thread. A withdrawn thread's fragments stand on
+their own. The order's fixtures now live in blygger-spec (`conformance/feeds/`), where
+other clients can check against them.
+
+Private contract **5.8.0** (additive: `POST /changelog-summary`, `history` on
+`draftNote`, three settings); SDK **0.14.0**. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** `0045` (`changelog_summaries`). Apply it before deploying.
+
 ## 0.57.0 — Writing a book on the studio
 
 Most of this release was asked for while writing a book on the studio (the blykker
