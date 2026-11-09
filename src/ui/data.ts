@@ -582,7 +582,7 @@ export type Reading = Omit<z.infer<typeof sourceSchemas.reading>, 'view'>;
  * counts by kind; "background" and "smart" are placeholders for features that
  * are not built yet (procedural updates with ignyr; the AI-ranked feed).
  */
-export const LENSES = ['all', 'threads', 'fragments', 'mentions', 'background', 'smart'] as const;
+export const LENSES = ['all', 'mentions', 'smart', 'fragments', 'threads', 'background'] as const;
 export type Lens = (typeof LENSES)[number];
 export const lensKind = (lens: Lens | undefined): 'thread' | 'fragment' | undefined =>
   lens === 'threads' ? 'thread' : lens === 'fragments' ? 'fragment' : undefined;
