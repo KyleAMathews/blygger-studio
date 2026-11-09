@@ -12,7 +12,7 @@
  * handlers, never the only way. Choosing a passage to quote happens in the
  * stub editor (session 37), not here.
  */
-import { createItem, createHopper, addHopperItem, resyncSubscription, pollSubscriptions, markUnheldRead } from './server-mutations.ts';
+import { createItem, createHopper, addHopperItem, resyncSubscription, pollSubscriptions, markUnheldRead, setReadingPlacement, setBlygBackground } from './server-mutations.ts';
 import { readingPage } from '../paging.ts';
 import { linkSource } from '../grammar.ts';
 import { linkLabel } from '../link-label.ts';
@@ -520,6 +520,20 @@ function useEntryActions({
       await addHopperItem({ id: hopperId, sub: hopperSub, remoteId: id });
       toast(`added to ${name}`);
     });
+  // Background and Foreground (src/background.ts): a view preference, not a
+  // judgement, so nothing here is logged as an interaction or marks anything read.
+  const inBackground = useContext(LensContext) === 'background';
+  const place = (placement: 'background' | 'foreground' | null) =>
+    run(async () => {
+      await setReadingPlacement({ source: imported ? 'imported' : 'own', ...(imported ? { sub: imported.subscriptionId } : {}), id, placement });
+      toast(placement === 'background' ? 'moved to Background' : placement === 'foreground' ? 'moved to Foreground' : 'the rules decide again');
+    });
+  const blygBackground = (background: boolean) =>
+    run(async () => {
+      if (!imported) return;
+      await setBlygBackground({ id: imported.subscriptionId, background });
+      toast(`${imported.subscriptionTitle} ${background ? 'moved to Background' : 'back in the main lenses'}`);
+    });
   const openMenu = async () => {
     await menu({
       rows: [
@@ -574,6 +588,25 @@ function useEntryActions({
           label: 'add author to address book',
           onSelect: () => void authorSeed(imported).then(addAuthorContact),
         },
+        (imported || entry.own) && {
+          key: 'placement',
+          icon: inBackground ? '↑' : '↓',
+          label: inBackground ? 'move to Foreground' : 'move to Background',
+          onSelect: () => void place(inBackground ? 'foreground' : 'background'),
+        },
+        entry.background.placement !== null && {
+          key: 'placement-clear',
+          icon: '↺',
+          label: 'clear my choice',
+          description: 'Background and Foreground follow the rules again',
+          onSelect: () => void place(null),
+        },
+        !!imported && {
+          key: 'blyg-placement',
+          icon: entry.background.blyg ? '⇈' : '⇊',
+          label: entry.background.blyg ? 'move this blyg to Foreground' : 'move this blyg to Background',
+          onSelect: () => void blygBackground(!entry.background.blyg),
+        },
         ...entryActionRows(extensions, extensionContext),
       ],
     });
@@ -612,15 +645,31 @@ async function authorSeed(imported: NonNullable<Reading['imported']>) {
   };
 }
 
+/**
+ * Why an entry is in Background, in the plan's precedence (background-plan.md
+ * §4): your choice on it, then on its blyg, then the first rule that applies.
+ */
+function backgroundLabel(entry: Reading): string | null {
+  const { placement, blyg, reasons, detail } = entry.background;
+  if (placement === 'background') return 'you moved this';
+  if (blyg) return 'blyg in Background';
+  // Withdrawn entries already say so under the body (Tomb).
+  if (reasons[0] === 'withdrawn') return null;
+  if (reasons[0] === 'minor') return typeof detail?.category === 'string' ? `minor change (${detail.category})` : 'minor change';
+  return null;
+}
+
 /** The byline: kind, legacy rss, source and date, plus the extensions' slot. */
 function Byline({ entry, a, children }: { entry: Reading; a: EntryActions; children?: ReactNode }) {
   const settings = useSettings();
   const date = formatDateIn(entry.displayAt, settings?.timezone || 'UTC');
+  const why = useContext(LensContext) === 'background' ? backgroundLabel(entry) : null;
   return (
     <p className="byline">
       {children}
       <span className="badge">{entry.kind}</span>
       {entry.l0 ? <span className="badge badge-line">legacy rss</span> : null}
+      {why ? <span className="badge badge-line badge-why" title="why this is in Background">{why}</span> : null}
       <span className="src">{a.imported?.subscriptionTitle || 'you'}</span>
       <span>· {date}</span>
       <EntryBylineSlot extensions={a.extensions} context={a.extensionContext} />
@@ -1284,6 +1333,27 @@ function Inspector({
           in blogroll
           <span className="hint">
             Listed in your public <code>blogroll.opml</code>.
+          </span>
+        </span>
+      </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={shown.background}
+          onChange={(event) => {
+            const checked = event.target.checked;
+            setError(undefined);
+            setBlygBackground({ id: shown.id, background: checked }).then(
+              () => toast(checked ? 'moved to Background' : 'back in the main lenses'),
+              setError,
+            );
+          }}
+        />
+        <span>
+          in Background
+          <span className="hint">
+            Its entries leave the other lenses for Background, except any you
+            moved to Foreground. Nothing is marked read.
           </span>
         </span>
       </label>
