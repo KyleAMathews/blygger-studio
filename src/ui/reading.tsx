@@ -958,6 +958,8 @@ async function ownEntry(id: string, signal?: AbortSignal): Promise<Reading> {
     displayAt: item.published?.publishedAt ?? item.updated,
     rank: 0,
     own: { id, kind, withdrawn, updated: item.updated, contentHtml },
+    // Opened by address, outside a list: what is known without the reader's query.
+    background: { reasons: withdrawn ? ['withdrawn'] : [], placement: null, blyg: false },
   };
 }
 /** A standalone import when no loaded Reading row is held. */
@@ -980,6 +982,7 @@ function importedEntry(
     contentHtml: item.contentHtml,
     displayAt,
     rank,
+    background: { reasons: withdrawn ? ['withdrawn'] : [], placement: null, blyg: source?.background ?? false },
     imported: {
       subscriptionId: item.subscriptionId,
       subscriptionTitle: source ? sourceName(source) : item.subscriptionId,

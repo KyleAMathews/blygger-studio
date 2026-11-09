@@ -171,6 +171,12 @@ export type Settings = {
      * Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with "summarize full history to date".
      */
     changelogSummaryPrompt: string;
+    /**
+     * Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read.
+     */
+    backgroundRules: {
+        minor: boolean;
+    };
     acceptMentions: boolean;
     updateCheck: boolean;
     showResponsesDefault: boolean;
@@ -284,6 +290,10 @@ export type Subscription = {
     }>;
     created: string;
     titleFollowsSource: boolean;
+    /**
+     * The owner moved this whole blyg to Background in the reader. An entry's own placement still wins (blygger-spec docs/background-plan.md).
+     */
+    background: boolean;
     /**
      * A hopper subscription (one public hopper at another blyg; spec 0.4 §16.12): the hopper feed's resolved absolute URL, which with origin (the blyg's identity origin) is the subscription's identity. Null for every other subscription.
      */
@@ -562,6 +572,31 @@ export type ReadingEntry = {
          * The highest version the owner has marked read; null when unread or cleared.
          */
         readVersion: number | null;
+    };
+    background: EntryBackground;
+};
+
+/**
+ * Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read.
+ */
+export type EntryBackground = {
+    /**
+     * The automatic reasons that count under Settings (withdrawn always), in order: withdrawn, then each enabled rule that applies.
+     */
+    reasons: Array<string>;
+    /**
+     * The owner's choice on this entry, which beats every rule; null when the rules decide.
+     */
+    placement: 'background' | 'foreground' | null;
+    /**
+     * The owner moved this entry's whole blyg to Background.
+     */
+    blyg: boolean;
+    /**
+     * What a reason's label says, such as the change category behind minor.
+     */
+    detail?: {
+        [key: string]: unknown;
     };
 };
 
@@ -2601,6 +2636,12 @@ export type UpdateSettingsData = {
          * Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with "summarize full history to date".
          */
         changelogSummaryPrompt?: string;
+        /**
+         * Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read.
+         */
+        backgroundRules?: {
+            minor: boolean;
+        };
         acceptMentions?: boolean;
         updateCheck?: boolean;
         showResponsesDefault?: boolean;
@@ -3076,6 +3117,10 @@ export type UpdateSubscriptionData = {
          */
         title?: string | null;
         paused?: boolean;
+        /**
+         * Move this whole blyg to Background in the reader, or back.
+         */
+        background?: boolean;
     };
     path: {
         id: string;
@@ -6027,7 +6072,7 @@ export type ListReadingData = {
         hopper?: string;
         kind?: 'thread' | 'fragment';
         /**
-         * Only withdrawn entries.
+         * Only Background entries: the owner's choice on the entry, else on its blyg, else an enabled rule (withdrawn always). Without it, every lens leaves them out.
          */
         background?: 'true';
         /**
@@ -6113,6 +6158,94 @@ export type ListReadingResponses = {
 };
 
 export type ListReadingResponse = ListReadingResponses[keyof ListReadingResponses];
+
+export type SetReadingPlacementData = {
+    body: {
+        source: 'own' | 'imported';
+        /**
+         * The subscription id, for an imported entry.
+         */
+        sub?: string;
+        /**
+         * The item id: an own item's id, or the imported item's remote id.
+         */
+        id: string;
+        /**
+         * background or foreground pins the entry there across later versions; null clears the choice and the rules decide again.
+         */
+        placement: 'background' | 'foreground' | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/reading/placement';
+};
+
+export type SetReadingPlacementErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type SetReadingPlacementError = SetReadingPlacementErrors[keyof SetReadingPlacementErrors];
+
+export type SetReadingPlacementResponses = {
+    /**
+     * Success
+     */
+    200: {
+        source: 'own' | 'imported';
+        sub: string;
+        id: string;
+        placement: 'background' | 'foreground' | null;
+    };
+};
+
+export type SetReadingPlacementResponse = SetReadingPlacementResponses[keyof SetReadingPlacementResponses];
 
 export type ListImportedReadingData = {
     body?: never;

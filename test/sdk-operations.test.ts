@@ -48,6 +48,7 @@ it("exercises every declared operation through its named SDK method, including a
     ["removeHopperItem", 200, async client => api.removeHopperItem({ client, path: member })],
     ["setSignal", 200, async client => api.setSignal({ client, path: signal, body: { thumb: -1 } })],
     ["deleteSignal", 200, async client => api.deleteSignal({ client, path: signal })],
+    ["setReadingPlacement", 200, async client => api.setReadingPlacement({ client, body: { source: "imported", sub: sub.id, id: "remote", placement: "background" } })],
     ["markRead", 200, async client => api.markRead({ client, path: signal, body: { version: 1 } })],
     ["markReadBatch", 200, async client => api.markReadBatch({ client, body: { items: [{ sub: sub.id, remoteId: "remote", version: 1 }] } })],
     ["markUnread", 200, async client => api.markUnread({ client, path: signal })],

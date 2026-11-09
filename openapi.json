@@ -695,6 +695,18 @@
             "type": "string",
             "description": "Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."
           },
+          "backgroundRules": {
+            "type": "object",
+            "properties": {
+              "minor": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "minor"
+            ],
+            "description": "Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read."
+          },
           "acceptMentions": {
             "type": "boolean"
           },
@@ -865,6 +877,7 @@
           "changelogDisplay",
           "readerChangelogDisplay",
           "changelogSummaryPrompt",
+          "backgroundRules",
           "acceptMentions",
           "updateCheck",
           "showResponsesDefault",
@@ -1016,6 +1029,10 @@
           "titleFollowsSource": {
             "type": "boolean"
           },
+          "background": {
+            "type": "boolean",
+            "description": "The owner moved this whole blyg to Background in the reader. An entry's own placement still wins (blygger-spec docs/background-plan.md)."
+          },
           "hopperFeedUrl": {
             "type": [
               "string",
@@ -1038,6 +1055,7 @@
           "flags",
           "created",
           "titleFollowsSource",
+          "background",
           "hopperFeedUrl"
         ]
       },
@@ -2177,6 +2195,9 @@
               "version",
               "readVersion"
             ]
+          },
+          "background": {
+            "$ref": "#/components/schemas/EntryBackground"
           }
         },
         "required": [
@@ -2186,8 +2207,48 @@
           "withdrawn",
           "l0",
           "contentHtml",
-          "displayAt"
+          "displayAt",
+          "background"
         ]
+      },
+      "EntryBackground": {
+        "type": "object",
+        "properties": {
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The automatic reasons that count under Settings (withdrawn always), in order: withdrawn, then each enabled rule that applies."
+          },
+          "placement": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "background",
+              "foreground",
+              null
+            ],
+            "description": "The owner's choice on this entry, which beats every rule; null when the rules decide."
+          },
+          "blyg": {
+            "type": "boolean",
+            "description": "The owner moved this entry's whole blyg to Background."
+          },
+          "detail": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "What a reason's label says, such as the change category behind minor."
+          }
+        },
+        "required": [
+          "reasons",
+          "placement",
+          "blyg"
+        ],
+        "description": "Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read."
       },
       "ImportedReadingEntry": {
         "type": "object",
@@ -7643,6 +7704,18 @@
                     "type": "string",
                     "description": "Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."
                   },
+                  "backgroundRules": {
+                    "type": "object",
+                    "properties": {
+                      "minor": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "minor"
+                    ],
+                    "description": "Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read."
+                  },
                   "acceptMentions": {
                     "type": "boolean"
                   },
@@ -8559,6 +8632,10 @@
                   },
                   "paused": {
                     "type": "boolean"
+                  },
+                  "background": {
+                    "type": "boolean",
+                    "description": "Move this whole blyg to Background in the reader, or back."
                   }
                 },
                 "additionalProperties": false
@@ -16351,10 +16428,10 @@
               "enum": [
                 "true"
               ],
-              "description": "Only withdrawn entries."
+              "description": "Only Background entries: the owner's choice on the entry, else on its blyg, else an enabled rule (withdrawn always). Without it, every lens leaves them out."
             },
             "required": false,
-            "description": "Only withdrawn entries.",
+            "description": "Only Background entries: the owner's choice on the entry, else on its blyg, else an enabled rule (withdrawn always). Without it, every lens leaves them out.",
             "name": "background",
             "in": "query"
           },
@@ -16425,6 +16502,233 @@
                     "page",
                     "readState",
                     "readStateClear"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reading/placement": {
+      "put": {
+        "operationId": "setReadingPlacement",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "own",
+                      "imported"
+                    ]
+                  },
+                  "sub": {
+                    "type": "string",
+                    "description": "The subscription id, for an imported entry."
+                  },
+                  "id": {
+                    "type": "string",
+                    "description": "The item id: an own item's id, or the imported item's remote id."
+                  },
+                  "placement": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "background",
+                      "foreground",
+                      null
+                    ],
+                    "description": "background or foreground pins the entry there across later versions; null clears the choice and the rules decide again."
+                  }
+                },
+                "required": [
+                  "source",
+                  "id",
+                  "placement"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "own",
+                        "imported"
+                      ]
+                    },
+                    "sub": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "placement": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "background",
+                        "foreground",
+                        null
+                      ]
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "sub",
+                    "id",
+                    "placement"
                   ]
                 }
               }
