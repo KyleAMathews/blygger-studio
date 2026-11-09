@@ -18,6 +18,32 @@ not have its own repo until session 26.
 
 ---
 
+## 0.58.1 — Stubs from Reading open again, and long chapters type quickly
+
+**stub ↗ on Reading could fail** with "Collection must be in 'ready' state for manual
+sync operations" (#142, reported by fredcy). It happened once the studio had dropped its
+copy of your items after you left the pages that use it: the server made the draft, but
+the editor never opened, and each try left another empty draft behind. Those drafts are
+safe to discard. The same could happen to a link post, an extension page's create, or
+adding a subscription, hopper or client token; all of them now carry on.
+
+**Comments to self** (`/* … */`, 0.57.0):
+- A comment now opens only at the start of a line or after a space, and never as `/**`.
+  So `src/*.ts` publishes as written instead of refusing, and `/**bold**/` no longer
+  disappears. A `/*` attached to a word with a `*/` after it in the same paragraph
+  (`word/*note*/`) refuses publish and says to put a space before it, so a note written
+  that way under 0.57.0 cannot slip out.
+- Typing in a long document with many comments no longer lags. The editor counts and
+  checks for unpublished changes after a pause in typing instead of on every keystroke.
+
+**Focus view keeps a fragment's tint** whether or not the text box has focus (it showed
+only while you were typing). **Quick edit shows the word count** beside the character
+count when the `word-count` extension is on, with the counts on their own row on a phone.
+
+Private contract and SDK unchanged. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** none. A node coming from before 0.58.0 needs `0045`.
+
 ## 0.58.0 — Changelogs you can read, and an order that ignores the noise
 
 **Changelog display** (#140, decision #95). Settings → Feed → changelog chooses, for your
