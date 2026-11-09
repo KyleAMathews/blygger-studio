@@ -1061,7 +1061,8 @@ export function Compose({ q }: { q?: string } = {}) {
   };
   const rows = result.data ?? [];
   // The cap measures what would publish, as publish() does.
-  const length = withoutComments(text).length;
+  const visible = useWithoutComments(text);
+  const length = visible.length;
   const over = length > MAX && kind === 'fragment';
   return (
     <>
@@ -1130,7 +1131,7 @@ export function Compose({ q }: { q?: string } = {}) {
               {saved ? 'saved' : ''}
             </span>
             <CharCount id="composer-count" fragment={kind === 'fragment'} length={length} />
-            <DraftCounter text={withoutComments(text)} run={action.run} />
+            <DraftCounter text={visible} run={action.run} />
             <span className="spacer" />
             {text.includes('[TK]') ? (
               <Button
@@ -1333,7 +1334,8 @@ function ItemRow({
     setText(value);
     setSaved(false);
   };
-  const length = withoutComments(text).length;
+  const visible = useWithoutComments(text);
+  const length = visible.length;
   const ownWords = withoutComments(item.contentMd);
   const { count, withoutDirectives } = extractDirectives(ownWords);
   const stripped = previewStrip(
@@ -1434,6 +1436,7 @@ function ItemRow({
               <div className="row qe-bar">
                 {saved ? <span className="save-state">saved</span> : null}
                 <CharCount fragment={kind === 'fragment'} length={length} />
+                <DraftCounter text={visible} item={{ id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision }} run={action.run} />
                 <span className="spacer" />
                 <Button className="btn btn-ghost btn-mini" onClick={() => setOpen(false)}>
                   done
@@ -1593,6 +1596,27 @@ function ItemRow({
 }
 
 /** The extension slot beside a character count (docs/extensions.md). */
+/**
+ * The text as it would publish. Comments make that a parse of the whole
+ * document, too slow for every keystroke on a long chapter, so it waits for a
+ * pause in typing; text with no comment is its own answer at once (#131).
+ */
+const holdsComment = (text: string) => text.includes('/*') || text.includes('*/');
+
+function useWithoutComments(text: string) {
+  const plain = !holdsComment(text);
+  const [settled, setSettled] = useState(text);
+  useEffect(() => {
+    if (plain) return;
+    const timer = setTimeout(() => setSettled(text), 300);
+    return () => clearTimeout(timer);
+  }, [plain, text]);
+  if (plain) return text;
+  // Text settled before the first comment is stale; a document holding one
+  // or two comments parses quickly enough to answer now.
+  return withoutComments(holdsComment(settled) ? settled : text);
+}
+
 function DraftCounter({ text, item, run }: { text: string; item?: DraftCounterContext['item']; run: (action: () => Promise<unknown>) => Promise<unknown> }) {
   const settings = useSettings();
   const navigate = useNavigate();
@@ -2071,16 +2095,17 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
     await addHopperItem({ id: hopperId, sub: '~own', remoteId: item.id });
     toast(`added to ${name}`);
   };
-  const length = withoutComments(text).length;
+  const visible = useWithoutComments(text);
+  const length = visible.length;
   // A comment to self is not an unpublished change.
-  const edited = !saved && withoutComments(text) !== withoutComments(item.contentMd);
+  const edited = !saved && visible !== withoutComments(item.contentMd);
   // Unpublished changes, discounting a working copy that already holds the
   // published words again (discard changes leaves `dirty` set on purpose).
   const unpublished =
     edited ||
     (item.dirty &&
       !(
-        withoutComments(text) === item.published?.contentMd &&
+        visible === item.published?.contentMd &&
         !item.published?.generated.length
       ));
   const scopes = preview?.scopes ?? [];
@@ -2369,7 +2394,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           </div>
           <div className="row ed-foot">
             <CharCount fragment={!isThread} length={length} />
-            <DraftCounter text={withoutComments(text)} item={{ id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision }} run={action.run} />
+            <DraftCounter text={visible} item={{ id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision }} run={action.run} />
             <span className="spacer" />
             {isPublic ? (
               <a href={publicPath(shareable)} target="_blank" rel="noreferrer">
