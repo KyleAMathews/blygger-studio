@@ -26,6 +26,7 @@ import { ThemeEditor, ThemeShare } from './theme-editor.tsx';
 import { FONTS } from '../fonts.ts';
 import { DEFAULT_FEED_ORDER, FEED_ALGORITHMS } from '../feeds/index.ts';
 import { CLIENT } from '../client.ts';
+import { AddressBook } from './contacts.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 
 const fields = [
@@ -59,6 +60,9 @@ const fields = [
   "aiModelClassify",
   "feedPrompt",
   "aiStylePrompt",
+  "changelogDisplay",
+  "readerChangelogDisplay",
+  "changelogSummaryPrompt",
   "acceptMentions",
   "updateCheck",
   "showResponsesDefault",
@@ -142,6 +146,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
       | "siteUrl"
       | "aiStylePrompt"
       | "feedPrompt"
+      | "changelogSummaryPrompt"
       | "updateFeedUrl",
     label: string,
     multiline = false,
@@ -154,7 +159,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
       {multiline ? (
         <textarea
           id={key}
-          rows={key === "feedPrompt" ? 4 : 3}
+          rows={key === "feedPrompt" || key === "changelogSummaryPrompt" ? 4 : 3}
           value={form[key]}
           placeholder={placeholder}
           onChange={(event) => change(key, event.target.value)}
@@ -207,6 +212,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
   return (
     <div className="settings-layout">
     <SettingsNav />
+    <div className="settings-main">
     <form
       className="settings-form"
       id="settings-form"
@@ -414,6 +420,47 @@ function SettingsForm({ initial }: { initial: Settings }) {
           </span>
         </div>
         <FrontPageFields form={form} change={change} />
+      </section>
+      <section className="card" id="changelog-display">
+        <h3 className="card-h">changelog</h3>
+        {(
+          [
+            ['changelogDisplay', 'On your item pages, show', 'changelog_display'],
+            ['readerChangelogDisplay', 'In your reader, for blyg items, show', 'reader_changelog_display'],
+          ] as const
+        ).map(([key, legend, id]) => (
+          <div className="field" role="radiogroup" aria-labelledby={`${id}-label`} key={key}>
+            <span id={`${id}-label`}>{legend}</span>
+            {(
+              [
+                ['latest', 'The latest note', 'the note for the current version, as before'],
+                ['history', 'The full history', 'every version\u2019s note, newest first'],
+                ['summary', 'An AI summary', 'written from the notes by the change-notes model; uses tokens'],
+              ] as const
+            ).map(([value, label, hint]) => (
+              <label className="check" key={value}>
+                <input
+                  type="radio"
+                  name={key}
+                  value={value}
+                  checked={form[key] === value}
+                  onChange={() => change(key, value)}
+                />
+                <span>
+                  {label} <span className="hint">{hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        ))}
+        <p className="hint">
+          A summary reads only the notes, never the text, and is written once
+          per new version and kept: on your pages when a version is first
+          viewed, in your reader when you open an item. Until it exists, the
+          full history shows. It is labelled as AI-written and never goes into
+          your feed or your item files. An item with one version and no note
+          shows just its version line.
+        </p>
       </section>
       </section>
       <section className="settings-section" id="appearance" aria-labelledby="appearance-h">
@@ -675,6 +722,20 @@ function SettingsForm({ initial }: { initial: Settings }) {
           </>,
         )}
       </section>
+      <section className="card" id="ai-changelog-summary">
+        <h3 className="card-h">changelog summaries</h3>
+        <p className="hint">
+          Uses the change-notes model above. Applies to the summaries chosen
+          under Feed → changelog, and to a change note drafted with{' '}
+          <em>summarize full history to date</em>.
+        </p>
+        {field(
+          "changelogSummaryPrompt",
+          'Instructions for roll-up summaries (optional)',
+          true,
+          'e.g. One short paragraph. Say which versions were substantial rewrites and which were small corrections, and what the piece argues now.',
+        )}
+      </section>
       <section className="card" id="ai-classify">
         <h3 className="card-h">change classifier</h3>
         <p className="hint">
@@ -750,7 +811,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
           <>
             Applies to items that have not decided for themselves. An item’s
             override keeps winning if you change this later. Set overrides and
-            hide individual responses in the mentions tab. A response list is a
+            hide individual responses in the responses tab. A response list is a
             citation trail with no count.
           </>,
         )}
@@ -765,7 +826,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
         )}
       </section>
       <section className="card" id="network-hopper-feeds">
-        <h3 className="card-h">collection feeds <span className="hint">· experimental, off by default</span></h3>
+        <h3 className="card-h">collection feeds <span className="hint">· off by default</span></h3>
         {toggle(
           'hopperFeeds',
           'Give each public collection its own RSS feed',
@@ -773,8 +834,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
             Each public collection gets a feed at <code>h/&lt;slug&gt;/feed.xml</code>,
             linked from its page, and blyg.json lists your public collections.
             Entries are curation, not reposts: an excerpt, who wrote it, and a
-            link to where it lives. Off by default: the protocol has ruled the
-            shape (spec 0.4 §16.12), and it is still being exercised.
+            link to where it lives. Off by default (spec 0.4 §13.5). Subscribing to
+            someone else's collection works either way.
           </>,
         )}
       </section>
@@ -824,6 +885,12 @@ function SettingsForm({ initial }: { initial: Settings }) {
         </Button>
       </div>
     </form>
+    {/* Its own form and its own save: "save settings" does not reach it. */}
+    <section className="settings-section" id="contacts" aria-labelledby="contacts-h">
+      <h2 className="section-title" id="contacts-h">Address book</h2>
+      <AddressBook />
+    </section>
+    </div>
     </div>
   );
 }
@@ -837,6 +904,7 @@ const SECTIONS = [
   ['ai', 'AI'],
   ['network', 'Network'],
   ...(compiledExtensions.length ? [['extensions', 'Extensions'] as const] : []),
+  ['contacts', 'Address book'],
 ] as const;
 
 /**

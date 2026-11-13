@@ -12,6 +12,9 @@
  */
 import type { ComponentType, ReactNode } from 'react';
 import type { BlyggerClient, CreateItemData, ReadingEntry } from '../../sdk/dist/browser.js';
+import type { EditorRegion } from './editor-regions.ts';
+
+export type { EditorRegion } from './editor-regions.ts';
 
 export { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 export { Sheet, confirm, toast } from './sheets.tsx';
@@ -33,6 +36,18 @@ export interface StudioContext {
   navigate(location: StudioLocation): Promise<void>;
   /** Run an action; a thrown error lands in the screen's own error line rather than escaping. */
   run(action: () => unknown): Promise<void>;
+}
+
+/**
+ * Where an extension page links from: `top`, above the Studio's own tabs; `visible`, among
+ * them, at a spot the Studio picks; `hidden`, under More.
+ */
+export type MenuZone = 'top' | 'visible' | 'hidden';
+
+/** What an extension's page is handed: the verbs, and where its link ended up. */
+export interface PageContext extends StudioContext {
+  /** The zone the page asked for, and the one it got. A full zone moves a page down, never up. */
+  menu: { asked: MenuZone; zone: MenuZone };
 }
 
 /**
@@ -66,6 +81,27 @@ export interface EntryContext extends StudioContext {
   openSheet(render: (close: () => void) => ReactNode): void;
 }
 
+/** What is being written, wherever the Studio shows a character count. */
+export interface DraftCounterContext extends StudioContext {
+  /** The text as it stands now, saved or not. */
+  text: string;
+  /** The item open in the full editor. Absent in the composer, whose text may have no server copy yet. */
+  item?: {
+    id: string;
+    kind: 'fragment' | 'thread';
+    status: 'draft' | 'public' | 'withdrawn';
+    version: number;
+    /** Moves each time the working copy reaches the server, so autosave is what a slot re-reads on. */
+    revision: number;
+  };
+}
+
+/** What `editorRegions` is handed: the full text, and the item open in the editor. */
+export interface EditorRegionsContext {
+  text: string;
+  item: NonNullable<DraftCounterContext['item']>;
+}
+
 /** A row an extension adds to an entry's ⋯ sheet, below the Studio's own. */
 export interface EntryAction {
   icon?: ReactNode;
@@ -85,6 +121,25 @@ export interface StudioExtension {
   entryByline?: ComponentType<{ context: EntryContext }>;
   /** Rows for a reading entry's ⋯ sheet. Called when the sheet opens. */
   entryActions?: (context: EntryContext) => EntryAction[];
+  /** Rendered beside the character count, in the composer and the full editor. */
+  draftCounter?: ComponentType<{ context: DraftCounterContext }>;
+  /**
+   * Parts of the full editor's text to keep out of its text box: hidden each time the
+   * editor opens, read-only when the author shows them. The draft, preview, counts and
+   * publish still have the whole text. Called on every change, so keep it quick and pure.
+   * A region should start with its own separator (a leading blank line): text typed
+   * where it was cut lands before it.
+   */
+  editorRegions?: (context: EditorRegionsContext) => EditorRegion[];
   /** A page of its own at /studio/ext/<name>, linked from More. */
-  page?: { title: string; component: ComponentType<{ context: StudioContext }> };
+  page?: {
+    title: string;
+    component: ComponentType<{ context: PageContext }>;
+    /**
+     * Ask for a link in the main menu, under `title` with this icon. `zone` is a request
+     * (default `visible`); the Studio decides, and a full zone moves the page down
+     * (see menuPlacement).
+     */
+    mainMenu?: { icon: string; zone?: MenuZone };
+  };
 }

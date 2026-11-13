@@ -354,6 +354,13 @@ async function walk(
     // data-blyg-origin appears only for remote sources, so a baked own-origin
     // blockquote is byte-identical to the 0.2 shape (decision #26).
     const originAttr = target.origin ? ` data-blyg-origin="${escapeHtml(target.origin)}"` : "";
+    // The directive's label is the author's name for the quoted item (§10.1,
+    // §10.2, decision #81): baked verbatim and escaped, after the other
+    // attributes, so it reaches subscribers and fork flatteners. It is only
+    // ever an attribution anchor, never the target's title (#46). No label, no
+    // attribute: an unlabelled bake stays byte-identical to its 0.3 form.
+    const directiveLabel = label(m[2]);
+    const labelAttr = directiveLabel ? ` data-blyg-label="${escapeHtml(directiveLabel)}"` : "";
     if (selector) {
       // P4, a build call recorded in v0.4-plan §7.3 in advance: the bake is the
       // selection's **plain text** in paragraphs, not a carved sub-range of the
@@ -366,11 +373,11 @@ async function walk(
         .map((para) => `<p>${escapeHtml(para)}</p>`)
         .join("\n");
       htmlParts.push(
-        `<blockquote class="blyg-transclusion blyg-partial" data-blyg-id="${target.id}" data-blyg-version="${target.version}"${originAttr}>\n${body}\n</blockquote>`,
+        `<blockquote class="blyg-transclusion blyg-partial" data-blyg-id="${target.id}" data-blyg-version="${target.version}"${originAttr}${labelAttr}>\n${body}\n</blockquote>`,
       );
     } else {
       htmlParts.push(
-        `<blockquote class="blyg-transclusion" data-blyg-id="${target.id}" data-blyg-version="${target.version}"${originAttr}>\n${target.contentHtml}\n</blockquote>`,
+        `<blockquote class="blyg-transclusion" data-blyg-id="${target.id}" data-blyg-version="${target.version}"${originAttr}${labelAttr}>\n${target.contentHtml}\n</blockquote>`,
       );
     }
   }
@@ -545,6 +552,15 @@ const ENCODED_TOKEN = new RegExp(`${ENCODED_SENTINEL}(\\d+)${ENCODED_SENTINEL}`,
  *
  * No sentinel character survives in any case.
  */
+/** Replace every occurrence of `literal` in a document's text with a token for `html`, as links are. */
+export function addLinkToken(doc: InternalLinkDocument, literal: string, html: string): void {
+  if (!doc.text.includes(literal)) return;
+  const token = `${LINK_SENTINEL}${linkTokenSeq++}${LINK_SENTINEL}`;
+  doc.text = doc.text.split(literal).join(token);
+  doc.replacements.set(token, html);
+  doc.labels.set(token, { text: escapeHtml(literal), literal });
+}
+
 export function applyInternalLinks(html: string, doc: InternalLinkDocument): string {
   const label = (seq: string) => doc.labels.get(`${LINK_SENTINEL}${seq}${LINK_SENTINEL}`);
   // 1. Tokens percent-encoded into attribute values: the author's literal,

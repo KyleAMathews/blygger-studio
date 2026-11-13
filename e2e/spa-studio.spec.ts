@@ -62,11 +62,8 @@ test('polling updates cached reads without replacing editor text', async ({ page
     const response = await fetch(`/api/items/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: 'Changed in another client', expectedRevision: observed.revision }) });
     if (!response.ok) throw new Error('Foreign fixture edit failed');
   }, id);
-  let observed = false;
-  const polled = page.waitForResponse(response => matchesGetItemBatch(response.request(), id))
-    .then(() => { observed = true; });
+  const polled = page.waitForResponse(response => matchesGetItemBatch(response.request(), id));
   await page.clock.runFor(15_000);
-  await expect.poll(async () => { await page.clock.runFor(16); return observed; }).toBe(true);
   await polled;
   await expect(page.locator('#md-input')).toHaveValue('Local draft');
 });

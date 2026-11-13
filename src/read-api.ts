@@ -3,11 +3,16 @@ import { itemResource, versionResource, mediaResource, subscriptionResource, hop
 import { settingsResource } from "./settings-resource.ts";
 import { fetchOnSurface, itemUrl } from "./surface.ts";
 import { annotateTkPreview, scopeSummariesWithSources } from "./authoring.ts";
+import { previewComments, withoutComments } from "./comments.ts";
+import { parseScopes } from "./tk.ts";
 import { getItem, getSettings, getSettingsMap, getVersion, listVersions } from "./model.ts";
 import { getHopper, getImportedItem, listSubscriptions, getSubscription } from "./importer/store.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
 import { renderMarkdown, plainTextFromHtml } from "./markdown.ts";
 import { clampText } from "./preview.ts";
+import { consumeHandles, withMentionCards } from "./contacts.ts";
+import { ownMentionTargets } from "./mention-targets.ts";
+import { injectNestedProvenance, injectProvenance, transclusionProvenance } from "./pages.ts";
 import { applyInternalLinks, previewInternalLinks, previewTransclusions, resolveBlockLinks } from "./transclusion.ts";
 import { siteOrigin } from "./protocol.ts";
 import { MODELS, bindingName, configuredProviders, isDecisionModel } from "./ai/models.ts";
@@ -206,8 +211,13 @@ const listThumbsOperation = async (context: OperationContext, input: OperationIn
 };
 // `read_state: true` advertises that imported entries carry the owner's
 // readVersion, so a client can tell "unread" from "this server keeps none".
-const listReadingOperation = async (context: OperationContext, input: OperationInput) => success({ ...await readingData(context.env.DB, { ...input.query, limit: input.query.limit ?? 25 }, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper), readState: true as const, readStateClear: true as const });
-const getReadingSummaryOperation = async (context: OperationContext, input: OperationInput) => success(await readingSummary(context.env.DB, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper));
+const mentioning = async (context: OperationContext, input: OperationInput) => {
+  if (input.query.mentions !== 'true') return undefined;
+  const settings = await getSettings(context.env.DB);
+  return ownMentionTargets(settings.author_url, siteOrigin(settings, context.url, normalizeMount(context.env.MOUNT)));
+};
+const listReadingOperation = async (context: OperationContext, input: OperationInput) => success({ ...await readingData(context.env.DB, { ...input.query, limit: input.query.limit ?? 25 }, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input)), readState: true as const, readStateClear: true as const });
+const getReadingSummaryOperation = async (context: OperationContext, input: OperationInput) => success(await readingSummary(context.env.DB, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input)));
 // Imported items only, keyset-paged, for clients that author from what they read (studio#11).
 const listImportedReadingOperation = async (context: OperationContext, input: OperationInput) => {
   return success(await importedReading(context.env.DB, input.query.cursor, Number(input.query.limit ?? IMPORTED_READING_DEFAULT)));
@@ -221,7 +231,7 @@ const getImportedItemOperation = async (context: OperationContext, input: Operat
 };
 // History of an imported item (#40), read from its origin on demand. Blyg
 // subscriptions only: an L0 feed has no item documents and no versions.
-async function blygSubscription(db: D1Database, id: string) {
+export async function blygSubscription(db: D1Database, id: string) {
   const sub = await getSubscription(db, id);
   return sub && sub.kind === "blyg" ? sub : null;
 }
@@ -294,15 +304,16 @@ const previewOperation = async (context: OperationContext, input: OperationInput
   const mount = normalizeMount(context.env.MOUNT);
   const body = (input.body as { contentMd?: string });
   if ((body as { kind?: string }).kind === "thread") return threadPreview(context, input);
-  const tk = annotateTkPreview(body.contentMd ?? "");
+  const handles = await consumeHandles(context.env.DB, previewComments(body.contentMd ?? ""));
+  const tk = annotateTkPreview(handles.text);
   // `[[id]]` resolves in the preview too, so an unresolvable link is visible
   // before publish rejects it — same contract as an unresolvable directive.
   const origin = siteOrigin(await getSettings(context.env.DB), context.url, mount);
-  const links = await previewInternalLinks(context.env.DB, tk.text, origin);
+  const links = withMentionCards(await previewInternalLinks(context.env.DB, tk.text, origin), handles.cards);
   // Links inside generated blocks resolve here too, as at publish (studio#14).
-  const blocks = await resolveBlockLinks(tk, (md) => previewInternalLinks(context.env.DB, md, origin));
+  const blocks = await resolveBlockLinks(tk, async (md) => withMentionCards(await previewInternalLinks(context.env.DB, md, origin), handles.cards));
   const html = [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(renderMarkdown(links.text)));
-  return success({ html, scopes: await scopeSummariesWithSources(context.env.DB, tk.scopes), linkErrors: [...links.errors, ...blocks.errors] });
+  return success({ html, scopes: await scopeSummariesWithSources(context.env.DB, parseScopes(body.contentMd ?? "").scopes), linkErrors: [...links.errors, ...blocks.errors], ...(handles.unresolved.length ? { unresolvedHandles: handles.unresolved } : {}) });
 };
 
 /**
@@ -337,6 +348,9 @@ const SEARCH_PAGE = 20;
 const searchOperation = async (context: OperationContext, input: OperationInput) => {
   const source = input.query.source === "mine" || input.query.source === "imported" ? input.query.source : "all";
   const sub = input.query.sub || undefined;
+  // Opt-in, for the compose page: own drafts and unpublished changes match by
+  // their working copy. The default stays exactly what resolveTarget accepts.
+  const drafts = input.query.include === "drafts";
   const order = input.query.sort === "oldest" ? "ASC" : "DESC";
   // Every word must appear somewhere in the item's text or id, in any order.
   // lower() folds ASCII only; that is the "rudimentary" in rudimentary
@@ -347,9 +361,19 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
   const wordBinds = words.flatMap((w) => [w, w]);
   const parts: string[] = [];
   const binds: string[] = [];
-  if (source !== "imported" && !sub) {
+  if (source !== "imported" && !sub && drafts) {
+    // A clean published item's working copy is its published text, so one
+    // match on i.content_md covers drafts, unpublished changes and the rest.
+    parts.push(`SELECT 'mine' AS source, i.id AS id, CASE WHEN i.dirty = 1 OR i.version = 0 THEN NULL ELSE v.content_html END AS html,
+        i.version AS version, i.updated AS updated, i.kind AS kind,
+        NULL AS subscription_id, NULL AS source_title, NULL AS origin,
+        CASE WHEN i.dirty = 1 OR i.version = 0 THEN i.content_md END AS draft_md
+      FROM items i LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version
+      WHERE i.status IN ('public', 'draft') AND i.kind IN ('fragment', 'thread')${words.length ? " AND " + textMatch("i.content_md", "i.id") : ""}`);
+    binds.push(...wordBinds);
+  } else if (source !== "imported" && !sub) {
     parts.push(`SELECT 'mine' AS source, i.id AS id, v.content_html AS html, i.version AS version, i.updated AS updated, i.kind AS kind,
-        NULL AS subscription_id, NULL AS source_title, NULL AS origin
+        NULL AS subscription_id, NULL AS source_title, NULL AS origin, NULL AS draft_md
       FROM items i JOIN versions v ON v.item_id = i.id AND v.version = i.version
       WHERE i.status = 'public' AND i.kind IN ('fragment', 'thread')${words.length ? " AND " + textMatch("v.content_md", "i.id") : ""}`);
     binds.push(...wordBinds);
@@ -359,22 +383,24 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
     // offers something the author then can't publish.
     parts.push(`SELECT 'imported' AS source, ii.remote_id AS id, ii.content_html AS html,
         CASE WHEN ii.state = 'current' THEN ii.version ELSE ii.pinned_version_retained END AS version,
-        ii.observed_at AS updated, ii.kind AS kind, s.id AS subscription_id, s.title AS source_title, s.origin AS origin
+        ii.observed_at AS updated, ii.kind AS kind, s.id AS subscription_id, s.title AS source_title, s.origin AS origin, NULL AS draft_md
       FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id
       WHERE ii.l0 = 0 AND (ii.state = 'current' OR ii.pinned_version_retained IS NOT NULL)${sub ? " AND s.id = ?" : ""}${words.length ? " AND " + textMatch("ii.content_md", "ii.remote_id") : ""}`);
     if (sub) binds.push(sub);
     binds.push(...wordBinds);
   }
-  type Row = { source: 'mine' | 'imported'; id: string; html: string | null; version: number; updated: string; kind: string; subscription_id: string | null; source_title: string | null; origin: string | null };
+  type Row = { source: 'mine' | 'imported'; id: string; html: string | null; version: number; updated: string; kind: string; subscription_id: string | null; source_title: string | null; origin: string | null; draft_md: string | null };
   return success(await cursorPage(context.env.DB, { ...input.query, limit: input.query.limit ?? SEARCH_PAGE }, {
-    name: 'search', filters: [words, source, sub ?? null, order], domains: ['items', 'reading', 'subscriptions'],
+    name: 'search', filters: [words, source, sub ?? null, order, drafts], domains: ['items', 'reading', 'subscriptions'],
     sql: parts.length ? parts.join(' UNION ALL ') : 'SELECT NULL AS source, NULL AS id, NULL AS updated, NULL AS subscription_id WHERE 0', binds,
     order: ['updated', 'id', 'source', 'subscription_id'].map(column => ({ column, direction: order === 'ASC' ? 'asc' as const : 'desc' as const })),
     project: (rows: Row[]) => rows.map((r) => {
     // From rendered HTML, not markdown source — the picker showed literal
     // "#"/"*" markers otherwise, same bug class as the index rows.
-    const excerpt = clampText(plainTextFromHtml(r.html ?? ""), 140);
-    const label = linkLabel(r.html ?? "", r.kind);
+    // A draft has no rendered HTML yet: its excerpt comes from the working copy.
+    const html = r.draft_md !== null ? renderMarkdown(withoutComments(r.draft_md)) : r.html ?? "";
+    const excerpt = clampText(plainTextFromHtml(html), 140);
+    const label = linkLabel(html, r.kind);
     const sourceTitle = r.source === "mine" ? null : r.source_title || (r.origin ? new URL(r.origin).host : null);
     return {
       id: r.id,
@@ -388,6 +414,7 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
       kind: r.kind === "thread" ? ("thread" as const) : ("fragment" as const),
       subscriptionId: r.subscription_id,
       sourceTitle: sourceTitle,
+      ...(drafts && r.source === "mine" ? { draft: r.draft_md !== null } : {}),
     };
     }),
   }));
@@ -396,19 +423,28 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
 
 async function threadPreview(context: OperationContext, input: OperationInput) {
   const body = (input.body as { contentMd?: string; itemId?: string });
-  const tk = annotateTkPreview(body.contentMd ?? "");
+  const handles = await consumeHandles(context.env.DB, previewComments(body.contentMd ?? ""));
+  const tk = annotateTkPreview(handles.text);
   // item_id is the thread being edited — the DAG check needs it, so the
   // preview rejects a circular quote at exactly the point publish would.
   const mount = normalizeMount(context.env.MOUNT);
   const origin = siteOrigin(await getSettings(context.env.DB), context.url, mount);
-  const links = await previewInternalLinks(context.env.DB, tk.text, origin);
-  const blocks = await resolveBlockLinks(tk, (md) => previewInternalLinks(context.env.DB, md, origin));
+  const links = withMentionCards(await previewInternalLinks(context.env.DB, tk.text, origin), handles.cards);
+  const blocks = await resolveBlockLinks(tk, async (md) => withMentionCards(await previewInternalLinks(context.env.DB, md, origin), handles.cards));
   const resolved = await previewTransclusions(context.env.DB, links.text, body.itemId, tk);
+  const html = [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(resolved.html));
   return success({
-    html: [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(resolved.html)),
+    // The lines the public page puts under its quotes. Placeholders for quotes
+    // that don't resolve have no entry to pair with, so they go without.
+    html: resolved.errors.length
+      ? html
+      : await injectNestedProvenance(context.env.DB, injectProvenance(html, await transclusionProvenance(context.env.DB, resolved.transclusions, mount)), mount),
     errors: [...resolved.errors, ...links.errors, ...blocks.errors],
     transclusions: resolved.transclusions,
-    scopes: await scopeSummariesWithSources(context.env.DB, tk.scopes),
+    // Every scope in the working copy, comments included: generate addresses
+    // them by that order, and a scope in a note can be generated like any other.
+    scopes: await scopeSummariesWithSources(context.env.DB, parseScopes(body.contentMd ?? "").scopes),
+    ...(handles.unresolved.length ? { unresolvedHandles: handles.unresolved } : {}),
   });
 }
 async function forkablePins(

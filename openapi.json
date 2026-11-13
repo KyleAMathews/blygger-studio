@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Blygger Studio API",
-    "version": "5.3.0",
+    "version": "5.8.0",
     "description": "Private authoring and reading API. Protocol files remain a separate public interface."
   },
   "servers": [
@@ -673,6 +673,28 @@
           "aiStylePrompt": {
             "type": "string"
           },
+          "changelogDisplay": {
+            "type": "string",
+            "enum": [
+              "latest",
+              "history",
+              "summary"
+            ],
+            "description": "What an item's own public page shows of its changelog: the latest note (the default), every note, or an AI summary of them. A summary is written once per new version with the change-notes model, and is studio-private: it never reaches the item document or the feed."
+          },
+          "readerChangelogDisplay": {
+            "type": "string",
+            "enum": [
+              "latest",
+              "history",
+              "summary"
+            ],
+            "description": "The same choice for blyg items in the reader. In summary mode a card shows the latest note and the summary is written when the item is opened."
+          },
+          "changelogSummaryPrompt": {
+            "type": "string",
+            "description": "Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."
+          },
           "acceptMentions": {
             "type": "boolean"
           },
@@ -761,7 +783,7 @@
           },
           "hopperFeeds": {
             "type": "boolean",
-            "description": "Off by default: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json (spec 0.4 §16.12, decision #86, a ruled shape awaiting its gate)."
+            "description": "Off by default: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json (spec 0.4 §13.5, decision #86). Publish side only: subscribing to another blyg's hopper works with this off."
           },
           "setup": {
             "type": "string",
@@ -836,6 +858,9 @@
           "changeCategoryInNote",
           "feedPrompt",
           "aiStylePrompt",
+          "changelogDisplay",
+          "readerChangelogDisplay",
+          "changelogSummaryPrompt",
           "acceptMentions",
           "updateCheck",
           "showResponsesDefault",
@@ -1009,6 +1034,63 @@
           "created",
           "titleFollowsSource",
           "hopperFeedUrl"
+        ]
+      },
+      "Contact": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "handle": {
+            "type": "string",
+            "description": "The petname typed as @handle. Never leaves the studio."
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "provenance": {
+                  "type": "string",
+                  "enum": [
+                    "self",
+                    "bound",
+                    "entered"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "provenance"
+              ]
+            },
+            "description": "Alternate identifiers. Only self and bound go on the wire; the API can only add entered ones."
+          },
+          "created": {
+            "type": "string"
+          },
+          "updated": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "handle",
+          "name",
+          "url",
+          "ids",
+          "created",
+          "updated"
         ]
       },
       "Hopper": {
@@ -2767,6 +2849,134 @@
         "required": [
           "up",
           "down"
+        ]
+      },
+      "WordCount": {
+        "type": "object",
+        "properties": {
+          "published": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "words": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cjk": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Han, kana and Hangul characters, counted one by one."
+              },
+              "document": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "words": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "cjk": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Han, kana and Hangul characters, counted one by one."
+                  },
+                  "items": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "description": "Items in the outline tree, this one included."
+                  }
+                },
+                "required": [
+                  "words",
+                  "cjk",
+                  "items"
+                ],
+                "description": "The roll-up over this side's outline links; null when they do not form a strict tree of our own items."
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "cycle",
+                  "repeated",
+                  "unavailable",
+                  "too-large"
+                ],
+                "description": "Why `document` is null."
+              }
+            },
+            "required": [
+              "words",
+              "cjk",
+              "document"
+            ],
+            "description": "The current published version, and the tree its outline makes; null for an item never published."
+          },
+          "draft": {
+            "type": "object",
+            "properties": {
+              "words": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cjk": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Han, kana and Hangul characters, counted one by one."
+              },
+              "document": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "words": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "cjk": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Han, kana and Hangul characters, counted one by one."
+                  },
+                  "items": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "description": "Items in the outline tree, this one included."
+                  }
+                },
+                "required": [
+                  "words",
+                  "cjk",
+                  "items"
+                ],
+                "description": "The roll-up over this side's outline links; null when they do not form a strict tree of our own items."
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "cycle",
+                  "repeated",
+                  "unavailable",
+                  "too-large"
+                ],
+                "description": "Why `document` is null."
+              }
+            },
+            "required": [
+              "words",
+              "cjk",
+              "document"
+            ],
+            "description": "The working copy as publish would bake it now, and the tree its outline makes. Equal to `published` when there are no unpublished edits."
+          }
+        },
+        "required": [
+          "published",
+          "draft"
         ]
       }
     },
@@ -5217,6 +5427,13 @@
                     },
                     "warning": {
                       "type": "string"
+                    },
+                    "unresolvedHandles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "@words that name no contact. They stay literal text."
                     }
                   },
                   "required": [
@@ -5620,6 +5837,10 @@
                     "type": "integer",
                     "exclusiveMinimum": 0,
                     "maximum": 9007199254740991
+                  },
+                  "history": {
+                    "type": "boolean",
+                    "description": "Summarize the item's whole revision history to date, ending with this change, from the earlier notes and the two texts; longer than a plain note (at most 400 characters). Off by default."
                   }
                 },
                 "required": [
@@ -5658,6 +5879,217 @@
                     "model",
                     "pinnedPrior",
                     "revision"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/changelog-summary": {
+      "post": {
+        "operationId": "summarizeChangelog",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:draft"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "itemId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "itemId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "subscriptionId": {
+                        "type": "string"
+                      },
+                      "remoteId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "subscriptionId",
+                      "remoteId"
+                    ],
+                    "additionalProperties": false
+                  }
+                ],
+                "description": "An own item by itemId, or an imported blyg item by its subscription and remote id. The summary reads the changelog's notes only, is written once per version with the change-notes model and kept, and is studio-private."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "summary": {
+                      "type": "string"
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "cached": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "summary",
+                    "model",
+                    "version",
+                    "cached"
                   ]
                 }
               }
@@ -7184,6 +7616,28 @@
                   "aiStylePrompt": {
                     "type": "string"
                   },
+                  "changelogDisplay": {
+                    "type": "string",
+                    "enum": [
+                      "latest",
+                      "history",
+                      "summary"
+                    ],
+                    "description": "What an item's own public page shows of its changelog: the latest note (the default), every note, or an AI summary of them. A summary is written once per new version with the change-notes model, and is studio-private: it never reaches the item document or the feed."
+                  },
+                  "readerChangelogDisplay": {
+                    "type": "string",
+                    "enum": [
+                      "latest",
+                      "history",
+                      "summary"
+                    ],
+                    "description": "The same choice for blyg items in the reader. In summary mode a card shows the latest note and the summary is written when the item is opened."
+                  },
+                  "changelogSummaryPrompt": {
+                    "type": "string",
+                    "description": "Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."
+                  },
                   "acceptMentions": {
                     "type": "boolean"
                   },
@@ -7272,7 +7726,7 @@
                   },
                   "hopperFeeds": {
                     "type": "boolean",
-                    "description": "Off by default: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json (spec 0.4 §16.12, decision #86, a ruled shape awaiting its gate)."
+                    "description": "Off by default: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json (spec 0.4 §13.5, decision #86). Publish side only: subscribing to another blyg's hopper works with this off."
                   },
                   "setup": {
                     "type": "string",
@@ -7697,7 +8151,7 @@
                         "page",
                         "feedUrl"
                       ],
-                      "description": "kind hopper: the public hopper the URL matched in the blyg's manifest (spec 0.4 §16.12 rule 4, §12.1 step 7), page and feedUrl resolved to absolute URLs. Only while the hopperFeeds setting is on."
+                      "description": "kind hopper: the public hopper the URL matched in the blyg's manifest (spec 0.4 §16.12 rule 4, §12.1 step 7), page and feedUrl resolved to absolute URLs."
                     },
                     "blygTitle": {
                       "type": "string",
@@ -8768,6 +9222,875 @@
                     "ok",
                     "changed"
                   ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/contacts": {
+      "get": {
+        "operationId": "listContacts",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "contacts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Contact"
+                      }
+                    }
+                  },
+                  "required": [
+                    "contacts"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createContact",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  }
+                },
+                "required": [
+                  "handle",
+                  "name",
+                  "url"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Contact"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/contacts/{id}": {
+      "patch": {
+        "operationId": "updateContact",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Contact"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteContact",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/contacts/{id}/resolve": {
+      "post": {
+        "operationId": "resolveContact",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Contact"
                 }
               }
             }
@@ -14076,6 +15399,12 @@
                       "items": {
                         "$ref": "#/components/schemas/Transclusion"
                       }
+                    },
+                    "unresolvedHandles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   },
                   "required": [
@@ -14288,6 +15617,19 @@
             "required": false,
             "name": "sort",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "drafts"
+              ],
+              "description": "drafts: also search own drafts and unpublished changes, by their working copy. For finding your own work (the compose page); off by default because the default scope is exactly what a quote or link can name."
+            },
+            "required": false,
+            "description": "drafts: also search own drafts and unpublished changes, by their working copy. For finding your own work (the compose page); off by default because the default scope is exactly what a quote or link can name.",
+            "name": "include",
+            "in": "query"
           }
         ],
         "responses": {
@@ -14347,6 +15689,10 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "draft": {
+                            "type": "boolean",
+                            "description": "With include=drafts: true when an own item's hit is its working copy (never published, or unpublished changes). A draft cannot be quoted or linked; the picker never asks for drafts."
                           }
                         },
                         "required": [
@@ -14741,6 +16087,19 @@
             "required": false,
             "name": "background",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ],
+              "description": "Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received."
+            },
+            "required": false,
+            "description": "Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received.",
+            "name": "mentions",
+            "in": "query"
           }
         ],
         "responses": {
@@ -14988,6 +16347,19 @@
             "required": false,
             "description": "Only withdrawn entries.",
             "name": "background",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ],
+              "description": "Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received."
+            },
+            "required": false,
+            "description": "Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received.",
+            "name": "mentions",
             "in": "query"
           }
         ],
@@ -18294,6 +19666,182 @@
                   },
                   "required": [
                     "summaries"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ext/word-count/counts": {
+      "get": {
+        "operationId": "extWordCountListCounts",
+        "tags": [
+          "extension",
+          "extension:word-count"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "description": "Extension \"word-count\". Answers only on a node that compiles the extension in and has enabled it in Settings; otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "description": "A JSON array of up to 50 own reading entry keys."
+            },
+            "required": true,
+            "description": "A JSON array of up to 50 own reading entry keys.",
+            "name": "keys",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "counts": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/WordCount"
+                      }
+                    }
+                  },
+                  "required": [
+                    "counts"
                   ]
                 }
               }

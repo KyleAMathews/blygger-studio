@@ -92,10 +92,10 @@ test('syntax links stay inside the Studio and paging rejects out-of-range bookma
   await expect(page.locator('.reading-entry').first()).toBeVisible();
 });
 
-for (const [path, current] of [['', 'compose'], ['/reading', 'reading'], ['/hoppers', 'hoppers'], ['/mentions', 'mentions'], ['/updates', 'updates'], ['/more', 'more'], ['/settings', 'more'], ['/syntax', 'more'], ['/subs', 'reading'], ['/hoppers/parity-hopper', 'hoppers']] as const) test(`navigation tab bar remains stable on ${path || 'compose'}`, async ({ page }) => {
+for (const [path, current] of [['', 'compose'], ['/reading', 'reading'], ['/hoppers', 'hoppers'], ['/mentions', 'responses'], ['/updates', 'updates'], ['/more', 'more'], ['/settings', 'more'], ['/syntax', 'more'], ['/subs', 'reading'], ['/hoppers/parity-hopper', 'hoppers']] as const) test(`navigation tab bar remains stable on ${path || 'compose'}`, async ({ page }) => {
   await login(page); await page.goto(`/studio${path}`);
   const tabs = page.getByRole('navigation', { name: 'studio' }).getByRole('link');
-  await expect(tabs.locator('.tl')).toHaveText(['reading', 'compose', 'hoppers', 'mentions', 'updates', 'more']);
+  await expect(tabs.locator('.tl')).toHaveText(['reading', 'compose', 'hoppers', 'responses', 'updates', 'more']);
   await expect(tabs.nth(1)).toHaveAttribute('href', '/studio/');
   await expect(tabs.nth(4)).toHaveAttribute('href', '/studio/updates');
   await expect(tabs.nth(5)).toHaveAttribute('href', '/studio/more');
@@ -128,7 +128,7 @@ test('the tab bar navigates between screens without a document load', async ({ p
   await tabs.getByRole('link', { name: 'hoppers', exact: true }).click();
   await expect(page).toHaveURL(/\/studio\/hoppers$/);
   await expect(page.locator('.hopper-row').first()).toBeVisible();
-  await tabs.getByRole('link', { name: 'mentions', exact: true }).click();
+  await tabs.getByRole('link', { name: 'responses', exact: true }).click();
   await expect(page.locator('.mention-group').first()).toBeVisible();
   await tabs.getByRole('link', { name: 'more', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'more', exact: true })).toBeVisible();
@@ -222,7 +222,7 @@ test('reading copy actions sit in the ⋯ sheet beside copy url, never beside st
   await expect(entry.locator('.entry-bar')).not.toContainText('copy [[id]]');
   await expect(entry.locator('.entry-bar')).not.toContainText(/respond|reply|answer/);
   const menu = await entryMenu(page, entry);
-  await expect(menu.getByRole('button')).toHaveText([/link post ↗$/, /fork$/, /copy \[\[id\]\]$/, /copy url$/, /share…$/, /source\.example.*↗/, /history$/]);
+  await expect(menu.getByRole('button')).toHaveText([/link post ↗$/, /fork$/, /copy \[\[id\]\]$/, /copy url$/, /share…$/, /source\.example.*↗/, /history$/, /add author to address book$/]);
   await expect(menu).not.toContainText(/stub|quote|respond|reply|answer/);
   const created = page.waitForResponse(response => response.url().endsWith('/api/items') && response.request().method() === 'POST');
   await menu.getByRole('button', { name: 'link post ↗', exact: true }).click();

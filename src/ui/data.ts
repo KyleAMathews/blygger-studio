@@ -11,6 +11,7 @@ import {
 import {
   parseLoadSubsetOptions,
   queryCollectionOptions,
+  SyncNotInitializedError,
 } from '@tanstack/query-db-collection';
 import type { QueryFunctionContext } from '@tanstack/query-core';
 import { z } from 'zod';
@@ -53,6 +54,15 @@ export const client = createBlyggerClient({ baseUrl: apiBase, fetch: (input, ini
 } });
 const changesFlight = createReadFlight(signal => unwrap(BlyggerApi.getChanges({ client, signal })));
 queryClient.mount();
+/** Applies a confirmed row. An on-demand source no view has started holds no
+ * rows to correct, and the view that starts it reads the server (#142). */
+export async function writeIfSyncing(write: () => unknown) {
+  try {
+    await write();
+  } catch (error) {
+    if (!(error instanceof SyncNotInitializedError)) throw error;
+  }
+}
 /** Query resolves paused refetches without observing the server. */
 function assertNotPaused(queryKey: readonly unknown[]) {
   if (queryClient.getQueryCache().findAll({ queryKey, type: 'active' })
@@ -512,7 +522,7 @@ export function createDraftAction(id?: string, observedRevision?: number) {
         case 'delete': result = await unwrap(BlyggerApi.deleteItem({ client, path, body: condition })); break;
         case 'withdraw': result = await unwrap(BlyggerApi.withdrawItem({ client, path, body: condition })); break;
         case 'pin': result = await unwrap(BlyggerApi.pinItem({ client, path: { ...path, version: command.version }, body: condition })); break;
-        case 'draft-note': result = await unwrap(BlyggerApi.draftNote({ client, path, body: condition })); break;
+        case 'draft-note': result = await unwrap(BlyggerApi.draftNote({ client, path, body: { ...condition, ...(command.history ? { history: true } : {}) } })); break;
         case 'classify': result = await unwrap(BlyggerApi.classifyChange({ client, path, body: condition })); break;
         case 'update': result = await unwrap(BlyggerApi.updateItem({ client, path, body: { ...command.changes, ...condition } })); break;
       }
@@ -525,7 +535,7 @@ export function createDraftAction(id?: string, observedRevision?: number) {
       // the summaries rather than replacing unknown pins with an empty list.
       const pins = item.version === 0 ? [] : items.get(itemId!)?.pins
         ?? (await unwrap(BlyggerApi.getItem({ client, path: { id: itemId! } }))).pins;
-      await items.utils.writeUpsert(sourceSchemas.items.parse({ ...result, pins }));
+      await writeIfSyncing(() => items.utils.writeUpsert(sourceSchemas.items.parse({ ...result, pins })));
     }
     if (command.type === 'save' || command.type === 'update') {
       // The response confirms the row. Count refresh failures stay visible
@@ -535,7 +545,7 @@ export function createDraftAction(id?: string, observedRevision?: number) {
       // Keep the row until refreshes finish, then apply the confirmed deletion
       // even if a secondary read failed. The caller can navigate immediately.
       await Promise.allSettled([changed('item-summary', 'reading')]);
-      await items.utils.writeDelete(itemId!);
+      await writeIfSyncing(() => items.utils.writeDelete(itemId!));
     } else if (command.type === 'draft-note' || command.type === 'classify') {
       // These commands return suggestions without changing the item.
     } else {
@@ -560,7 +570,7 @@ export type Reading = Omit<z.infer<typeof sourceSchemas.reading>, 'view'>;
  * counts by kind; "background" and "smart" are placeholders for features that
  * are not built yet (procedural updates with ignyr; the AI-ranked feed).
  */
-export const LENSES = ['all', 'threads', 'fragments', 'background', 'smart'] as const;
+export const LENSES = ['all', 'threads', 'fragments', 'mentions', 'background', 'smart'] as const;
 export type Lens = (typeof LENSES)[number];
 export const lensKind = (lens: Lens | undefined): 'thread' | 'fragment' | undefined =>
   lens === 'threads' ? 'thread' : lens === 'fragments' ? 'fragment' : undefined;
@@ -569,7 +579,7 @@ export const lensKind = (lens: Lens | undefined): 'thread' | 'fragment' | undefi
  * unfiltered view (so every existing key is unchanged), `sub~kind` otherwise.
  */
 export const readingKey = (sub: string, lens?: Lens) => {
-  if (lens === 'background') return `${sub}~background`;
+  if (lens === 'background' || lens === 'mentions') return `${sub}~${lens}`;
   const kind = lensKind(lens);
   return kind ? `${sub}~${kind}` : sub;
 };
@@ -601,8 +611,8 @@ function readingDomains(view: string): readonly ChangeDomain[] {
   return view.startsWith('hopper:') ? ['reading', 'subscriptions', 'hoppers'] : ['reading', 'subscriptions'];
 }
 export function readingQuery(view: string) {
-  const [sub, filter] = view.split('~') as [string, 'thread' | 'fragment' | 'background' | undefined];
-  return { ...(sub.startsWith('hopper:') ? { hopper: sub.slice('hopper:'.length) } : { sub }), ...(filter === 'background' ? { background: 'true' as const } : filter ? { kind: filter } : {}) };
+  const [sub, filter] = view.split('~') as [string, 'thread' | 'fragment' | 'background' | 'mentions' | undefined];
+  return { ...(sub.startsWith('hopper:') ? { hopper: sub.slice('hopper:'.length) } : { sub }), ...(filter === 'background' ? { background: 'true' as const } : filter === 'mentions' ? { mentions: 'true' as const } : filter ? { kind: filter } : {}) };
 }
 export const readingSummaries = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.readingSummaries, id: 'reading-summary', syncMode: 'on-demand',

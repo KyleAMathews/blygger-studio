@@ -159,6 +159,18 @@ export type Settings = {
     changeCategoryInNote: boolean;
     feedPrompt: string;
     aiStylePrompt: string;
+    /**
+     * What an item's own public page shows of its changelog: the latest note (the default), every note, or an AI summary of them. A summary is written once per new version with the change-notes model, and is studio-private: it never reaches the item document or the feed.
+     */
+    changelogDisplay: 'latest' | 'history' | 'summary';
+    /**
+     * The same choice for blyg items in the reader. In summary mode a card shows the latest note and the summary is written when the item is opened.
+     */
+    readerChangelogDisplay: 'latest' | 'history' | 'summary';
+    /**
+     * Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with "summarize full history to date".
+     */
+    changelogSummaryPrompt: string;
     acceptMentions: boolean;
     updateCheck: boolean;
     showResponsesDefault: boolean;
@@ -209,7 +221,7 @@ export type Settings = {
      */
     linksBlyggerCom: boolean;
     /**
-     * Off by default: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json (spec 0.4 §16.12, decision #86, a ruled shape awaiting its gate).
+     * Off by default: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json (spec 0.4 §13.5, decision #86). Publish side only: subscribing to another blyg's hopper works with this off.
      */
     hopperFeeds: boolean;
     /**
@@ -272,6 +284,25 @@ export type Subscription = {
      * A hopper subscription (one public hopper at another blyg; spec 0.4 §16.12): the hopper feed's resolved absolute URL, which with origin (the blyg's identity origin) is the subscription's identity. Null for every other subscription.
      */
     hopperFeedUrl: string | null;
+};
+
+export type Contact = {
+    id: string;
+    /**
+     * The petname typed as @handle. Never leaves the studio.
+     */
+    handle: string;
+    name: string;
+    url: string;
+    /**
+     * Alternate identifiers. Only self and bound go on the wire; the API can only add entered ones.
+     */
+    ids: Array<{
+        id: string;
+        provenance: 'self' | 'bound' | 'entered';
+    }>;
+    created: string;
+    updated: string;
 };
 
 export type Hopper = {
@@ -689,6 +720,65 @@ export type LineageGlyphSummary = {
         stub: number;
         transclusion: number;
         fork: number;
+    };
+};
+
+export type WordCount = {
+    /**
+     * The current published version, and the tree its outline makes; null for an item never published.
+     */
+    published: {
+        words: number;
+        /**
+         * Han, kana and Hangul characters, counted one by one.
+         */
+        cjk: number;
+        /**
+         * The roll-up over this side's outline links; null when they do not form a strict tree of our own items.
+         */
+        document: {
+            words: number;
+            /**
+             * Han, kana and Hangul characters, counted one by one.
+             */
+            cjk: number;
+            /**
+             * Items in the outline tree, this one included.
+             */
+            items: number;
+        } | null;
+        /**
+         * Why `document` is null.
+         */
+        reason?: 'cycle' | 'repeated' | 'unavailable' | 'too-large';
+    } | null;
+    /**
+     * The working copy as publish would bake it now, and the tree its outline makes. Equal to `published` when there are no unpublished edits.
+     */
+    draft: {
+        words: number;
+        /**
+         * Han, kana and Hangul characters, counted one by one.
+         */
+        cjk: number;
+        /**
+         * The roll-up over this side's outline links; null when they do not form a strict tree of our own items.
+         */
+        document: {
+            words: number;
+            /**
+             * Han, kana and Hangul characters, counted one by one.
+             */
+            cjk: number;
+            /**
+             * Items in the outline tree, this one included.
+             */
+            items: number;
+        } | null;
+        /**
+         * Why `document` is null.
+         */
+        reason?: 'cycle' | 'repeated' | 'unavailable' | 'too-large';
     };
 };
 
@@ -1647,6 +1737,10 @@ export type PublishItemResponses = {
         revision: number;
         version: number;
         warning?: string;
+        /**
+         * @words that name no contact. They stay literal text.
+         */
+        unresolvedHandles?: Array<string>;
     };
 };
 
@@ -1747,6 +1841,10 @@ export type ClassifyChangeResponse = ClassifyChangeResponses[keyof ClassifyChang
 export type DraftNoteData = {
     body: {
         expectedRevision: number;
+        /**
+         * Summarize the item's whole revision history to date, ending with this change, from the earlier notes and the two texts; longer than a plain note (at most 400 characters). Off by default.
+         */
+        history?: boolean;
     };
     path: {
         id: string;
@@ -1821,6 +1919,88 @@ export type DraftNoteResponses = {
 };
 
 export type DraftNoteResponse = DraftNoteResponses[keyof DraftNoteResponses];
+
+export type SummarizeChangelogData = {
+    /**
+     * An own item by itemId, or an imported blyg item by its subscription and remote id. The summary reads the changelog's notes only, is written once per version with the change-notes model and kept, and is studio-private.
+     */
+    body: {
+        itemId: string;
+    } | {
+        subscriptionId: string;
+        remoteId: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/changelog-summary';
+};
+
+export type SummarizeChangelogErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type SummarizeChangelogError = SummarizeChangelogErrors[keyof SummarizeChangelogErrors];
+
+export type SummarizeChangelogResponses = {
+    /**
+     * Success
+     */
+    200: {
+        summary: string;
+        model: string;
+        version: number;
+        cached: boolean;
+    };
+};
+
+export type SummarizeChangelogResponse = SummarizeChangelogResponses[keyof SummarizeChangelogResponses];
 
 export type GenerateItemData = {
     body: {
@@ -2405,6 +2585,18 @@ export type UpdateSettingsData = {
         changeCategoryInNote?: boolean;
         feedPrompt?: string;
         aiStylePrompt?: string;
+        /**
+         * What an item's own public page shows of its changelog: the latest note (the default), every note, or an AI summary of them. A summary is written once per new version with the change-notes model, and is studio-private: it never reaches the item document or the feed.
+         */
+        changelogDisplay?: 'latest' | 'history' | 'summary';
+        /**
+         * The same choice for blyg items in the reader. In summary mode a card shows the latest note and the summary is written when the item is opened.
+         */
+        readerChangelogDisplay?: 'latest' | 'history' | 'summary';
+        /**
+         * Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with "summarize full history to date".
+         */
+        changelogSummaryPrompt?: string;
         acceptMentions?: boolean;
         updateCheck?: boolean;
         showResponsesDefault?: boolean;
@@ -2455,7 +2647,7 @@ export type UpdateSettingsData = {
          */
         linksBlyggerCom?: boolean;
         /**
-         * Off by default: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json (spec 0.4 §16.12, decision #86, a ruled shape awaiting its gate).
+         * Off by default: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json (spec 0.4 §13.5, decision #86). Publish side only: subscribing to another blyg's hopper works with this off.
          */
         hopperFeeds?: boolean;
         /**
@@ -2704,7 +2896,7 @@ export type CreateSubscriptionResponses = {
             actual: string;
         };
         /**
-         * kind hopper: the public hopper the URL matched in the blyg's manifest (spec 0.4 §16.12 rule 4, §12.1 step 7), page and feedUrl resolved to absolute URLs. Only while the hopperFeeds setting is on.
+         * kind hopper: the public hopper the URL matched in the blyg's manifest (spec 0.4 §16.12 rule 4, §12.1 step 7), page and feedUrl resolved to absolute URLs.
          */
         hopper?: {
             title: string;
@@ -3090,6 +3282,371 @@ export type ResyncSubscriptionResponses = {
 };
 
 export type ResyncSubscriptionResponse = ResyncSubscriptionResponses[keyof ResyncSubscriptionResponses];
+
+export type ListContactsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/contacts';
+};
+
+export type ListContactsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListContactsError = ListContactsErrors[keyof ListContactsErrors];
+
+export type ListContactsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        contacts: Array<Contact>;
+    };
+};
+
+export type ListContactsResponse = ListContactsResponses[keyof ListContactsResponses];
+
+export type CreateContactData = {
+    body: {
+        handle: string;
+        name: string;
+        url: string;
+        ids?: Array<string>;
+    };
+    path?: never;
+    query?: never;
+    url: '/contacts';
+};
+
+export type CreateContactErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type CreateContactError = CreateContactErrors[keyof CreateContactErrors];
+
+export type CreateContactResponses = {
+    /**
+     * Success
+     */
+    201: Contact;
+};
+
+export type CreateContactResponse = CreateContactResponses[keyof CreateContactResponses];
+
+export type DeleteContactData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/contacts/{id}';
+};
+
+export type DeleteContactErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type DeleteContactError = DeleteContactErrors[keyof DeleteContactErrors];
+
+export type DeleteContactResponses = {
+    /**
+     * Success
+     */
+    200: {
+        ok: boolean;
+    };
+};
+
+export type DeleteContactResponse = DeleteContactResponses[keyof DeleteContactResponses];
+
+export type UpdateContactData = {
+    body: {
+        handle?: string;
+        name?: string;
+        url?: string;
+        ids?: Array<string>;
+    };
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/contacts/{id}';
+};
+
+export type UpdateContactErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type UpdateContactError = UpdateContactErrors[keyof UpdateContactErrors];
+
+export type UpdateContactResponses = {
+    /**
+     * Success
+     */
+    200: Contact;
+};
+
+export type UpdateContactResponse = UpdateContactResponses[keyof UpdateContactResponses];
+
+export type ResolveContactData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/contacts/{id}/resolve';
+};
+
+export type ResolveContactErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ResolveContactError = ResolveContactErrors[keyof ResolveContactErrors];
+
+export type ResolveContactResponses = {
+    /**
+     * Success
+     */
+    200: Contact;
+};
+
+export type ResolveContactResponse = ResolveContactResponses[keyof ResolveContactResponses];
 
 export type ListHoppersData = {
     body?: never;
@@ -5171,6 +5728,7 @@ export type PreviewResponses = {
             [key: string]: unknown;
         }>;
         transclusions?: Array<Transclusion>;
+        unresolvedHandles?: Array<string>;
     };
 };
 
@@ -5189,6 +5747,10 @@ export type SearchData = {
         source?: 'all' | 'mine' | 'imported';
         sub?: string;
         sort?: 'newest' | 'oldest';
+        /**
+         * drafts: also search own drafts and unpublished changes, by their working copy. For finding your own work (the compose page); off by default because the default scope is exactly what a quote or link can name.
+         */
+        include?: 'drafts';
     };
     url: '/search';
 };
@@ -5265,6 +5827,10 @@ export type SearchResponses = {
             kind: 'fragment' | 'thread';
             subscriptionId: string | null;
             sourceTitle: string | null;
+            /**
+             * With include=drafts: true when an own item's hit is its working copy (never published, or unpublished changes). A draft cannot be quoted or linked; the picker never asks for drafts.
+             */
+            draft?: boolean;
         }>;
         page: {
             limit: number;
@@ -5358,6 +5924,10 @@ export type GetReadingSummaryData = {
         hopper?: string;
         kind?: 'thread' | 'fragment';
         background?: 'true';
+        /**
+         * Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received.
+         */
+        mentions?: 'true';
     };
     url: '/reading/summary';
 };
@@ -5452,6 +6022,10 @@ export type ListReadingData = {
          * Only withdrawn entries.
          */
         background?: 'true';
+        /**
+         * Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received.
+         */
+        mentions?: 'true';
     };
     url: '/reading';
 };
@@ -6834,3 +7408,81 @@ export type ExtLineageGlyphListSummariesResponses = {
 };
 
 export type ExtLineageGlyphListSummariesResponse = ExtLineageGlyphListSummariesResponses[keyof ExtLineageGlyphListSummariesResponses];
+
+export type ExtWordCountListCountsData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * A JSON array of up to 50 own reading entry keys.
+         */
+        keys: string;
+    };
+    url: '/ext/word-count/counts';
+};
+
+export type ExtWordCountListCountsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ExtWordCountListCountsError = ExtWordCountListCountsErrors[keyof ExtWordCountListCountsErrors];
+
+export type ExtWordCountListCountsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        counts: {
+            [key: string]: WordCount;
+        };
+    };
+};
+
+export type ExtWordCountListCountsResponse = ExtWordCountListCountsResponses[keyof ExtWordCountListCountsResponses];

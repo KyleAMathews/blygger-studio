@@ -11,8 +11,8 @@ import { join } from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
 import { createElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { EntryBylineSlot, EntrySheetSlot, ExtensionBoundary, entryActionRows, enabledExtensions } from '../src/ui/extensions.tsx';
-import type { EntryContext, StudioExtension } from '../src/ui/extension-api.ts';
+import { DraftCounterSlot, EntryBylineSlot, EntrySheetSlot, ExtensionBoundary, entryActionRows, enabledExtensions, menuPlacement } from '../src/ui/extensions.tsx';
+import type { DraftCounterContext, EntryContext, MenuZone, StudioExtension } from '../src/ui/extension-api.ts';
 import { extension as example } from '../extensions/example/ui/index.tsx';
 
 afterEach(() => vi.restoreAllMocks());
@@ -30,6 +30,15 @@ const context = (): EntryContext => ({
 });
 const html = (element: ReactElement) => renderToStaticMarkup(element);
 const byline = (extensions: readonly StudioExtension[]) => html(createElement(EntryBylineSlot, { extensions, context }));
+const counterContext: DraftCounterContext = {
+  client: {} as DraftCounterContext['client'],
+  openDraft: async () => {},
+  navigate: async () => {},
+  run: async () => {},
+  text: 'x',
+  item: { id: 'x', kind: 'thread', status: 'draft', version: 0, revision: 1 },
+};
+const draftCounter = (extensions: readonly StudioExtension[]) => html(createElement(DraftCounterSlot, { extensions, context: counterContext }));
 const broken: StudioExtension = {
   name: 'broken',
   label: 'Broken',
@@ -41,6 +50,38 @@ const broken: StudioExtension = {
     throw new Error('actions exploded');
   },
 };
+
+test('menu zones: a page gets the zone it asks for or a lower one, never a higher one', () => {
+  const page = { title: 'page', component: () => null };
+  const asks = (name: string, zone?: MenuZone): StudioExtension => ({ name, label: name, description: name, page: { ...page, mainMenu: { icon: '◇', ...(zone ? { zone } : {}) } } });
+  const plain: StudioExtension = { name: 'plain', label: 'plain', description: 'plain', page };
+  const names = (list: StudioExtension[]) => list.map((extension) => extension.name);
+  const place = (list: StudioExtension[]) => {
+    const menu = menuPlacement(list);
+    return { top: names(menu.top), visible: names(menu.visible), hidden: names(menu.hidden) };
+  };
+
+  // Nobody asks: every page is in More.
+  expect(place([])).toEqual({ top: [], visible: [], hidden: [] });
+  expect(place([plain, example])).toEqual({ top: [], visible: [], hidden: ['plain', 'example'] });
+  // #133's form, with no zone, means visible; the first in compiled order wins it.
+  expect(place([plain, asks('a'), asks('b')])).toEqual({ top: [], visible: ['a'], hidden: ['plain', 'b'] });
+  expect(place(enabledExtensions([asks('a'), asks('b')], ['b']))).toEqual({ top: [], visible: ['b'], hidden: [] });
+  expect(place(enabledExtensions([asks('a')], []))).toEqual({ top: [], visible: [], hidden: [] });
+  // Asking for hidden is the same as not asking.
+  expect(place([asks('h', 'hidden')])).toEqual({ top: [], visible: [], hidden: ['h'] });
+  // Top and visible are separate places.
+  expect(place([asks('v'), asks('t', 'top')])).toEqual({ top: ['t'], visible: ['v'], hidden: [] });
+  // A full top moves the second asker down to visible, if visible has room.
+  expect(place([asks('t1', 'top'), asks('t2', 'top')])).toEqual({ top: ['t1'], visible: ['t2'], hidden: [] });
+  // A page that asked for visible keeps it over one moved down from top.
+  expect(place([asks('t1', 'top'), asks('t2', 'top'), asks('v')])).toEqual({ top: ['t1'], visible: ['v'], hidden: ['t2'] });
+  // Never up: an empty top stays empty when only visible is asked for.
+  expect(place([asks('v1'), asks('v2')])).toEqual({ top: [], visible: ['v1'], hidden: ['v2'] });
+
+  const menu = menuPlacement([asks('t1', 'top'), asks('t2', 'top'), asks('v'), plain]);
+  expect(['t1', 't2', 'v', 'plain'].map((name) => menu.zoneOf(menu.top.concat(menu.visible, menu.hidden).find((extension) => extension.name === name)!))).toEqual(['top', 'hidden', 'visible', 'hidden']);
+});
 
 test('extensions start off: nothing enabled means nothing selected, compiled or not', () => {
   expect(enabledExtensions([], undefined)).toEqual([]);
@@ -54,6 +95,7 @@ test('with none enabled, every slot renders nothing and the ⋯ sheet gains no r
   for (const compiled of [[], [example]]) {
     const extensions = enabledExtensions(compiled, []);
     expect(byline(extensions)).toBe('');
+    expect(draftCounter(extensions)).toBe('');
     expect(entryActionRows(extensions, context)).toEqual([]);
   }
   expect(html(createElement(EntrySheetSlot, { sheet: null, close: () => {} }))).toBe('');
@@ -61,6 +103,7 @@ test('with none enabled, every slot renders nothing and the ⋯ sheet gains no r
 
 test('an enabled extension fills its slots', () => {
   expect(byline([example])).toContain('data-extension="example"');
+  expect(draftCounter([example])).toContain('thread');
   const rows = entryActionRows([example], context);
   expect(rows.map((row) => row.label)).toEqual(['example']);
   const opened: string[] = [];

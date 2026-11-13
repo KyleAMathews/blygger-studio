@@ -9,6 +9,7 @@
 import { listBlogrollSubscriptions, listPublicHoppers } from "./importer/store.ts";
 import { listPublicResponses } from "./mentions/store.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
+import { decodeHTMLAttribute } from "entities";
 import { blygItemUrl } from "./importer/util.ts";
 import { isBlygStub, parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
 import { linkLabel } from "./link-label.ts";
@@ -18,6 +19,7 @@ import { authoredKind, getMedia, itemShowsResponses, listVersionMedia, published
 import type { ItemRow, MediaRow, Settings, SubscriptionRow, Transclusion, VersionRow } from "./types.ts";
 import { loadFeedData, sourceKey, type FeedCardData, type FeedProvenance, type FeedItem } from "./public-feed.ts";
 import { WEBMENTION_PATH } from "./types.ts";
+import { meaningful, ownChangelog, ownSubject, storedSummary, type ChangelogEntry } from "./changelog-summary.ts";
 import { escapeHtml, escapeHref, formatDateIn, unplacedMedia, visibleMedia } from "./util.ts";
 import { graphemePrefix } from "./text.ts";
 import { EMBED_CSS, EMBED_SCRIPT } from "./embeds.ts";
@@ -245,6 +247,14 @@ article.fragment > :first-child, article.thread > :first-child { margin-top: 0; 
 .version-line .pins a { color: var(--pencil); text-decoration: none; border-bottom: 1px solid var(--rule); }
 .version-line .pins a:hover { border-bottom-color: currentColor; }
 .version-note { font-style: italic; margin: 0.4rem 0 0; max-width: 52ch; }
+/* The changelog in full or summarized (session 61, Settings → changelog on item pages). */
+.changelog { font: var(--apparatus); color: var(--ink-soft); margin: 0.6rem 0 0; max-width: 60ch; }
+.changelog-h { margin: 0 0 0.25rem; }
+.changelog ol { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.changelog .cl-note { font-style: italic; }
+.changelog .cl-pin a { color: var(--pencil); text-decoration: none; border-bottom: 1px solid var(--rule); }
+.changelog .cl-summary { font-style: italic; margin: 0; }
+.changelog .ai-label { border: 1px solid var(--rule); border-radius: 2px; padding: 0 0.3rem; margin-left: 0.3rem; cursor: help; }
 p.permalink, p > a.permalink { margin-top: 0.3rem; }
 a.permalink { color: var(--ink-soft); text-decoration: none; border-bottom: 1px solid var(--rule); }
 a.permalink:hover { color: var(--pencil); border-bottom-color: currentColor; }
@@ -1127,6 +1137,56 @@ function mediaHtml(media: MediaRow[], mount: string, contentHtml: string): strin
     .join("\n");
 }
 
+/**
+ * What an item's own page shows of its changelog beyond the version line
+ * (Settings' changelog_display, session 61). "latest" is the note in the
+ * version line, as before. "history" lists every note, newest first, a pinned
+ * version linking to its page. "summary" shows the AI summary written for this
+ * version (src/changelog-summary.ts), labelled as such; until it exists the page
+ * shows the history, and index.ts asks for one in the background. In both of
+ * the longer modes the version line leaves out the latest note, which the
+ * section repeats. An item whose changelog has nothing worth more than that
+ * line shows the line alone.
+ */
+export interface ChangelogSection { html: string; noteless: boolean }
+const NO_SECTION: ChangelogSection = { html: "", noteless: false };
+
+export function changelogHistoryHtml(entries: readonly ChangelogEntry[], kindSeg: string, id: string, mount: string, tz: string): string {
+  const rows = [...entries].reverse().map((e) => {
+    const pin = e.pinned ? ` &middot; <span class="cl-pin"><a href="${mount}/${kindSeg}/${id}/v${e.version}/">pinned</a></span>` : "";
+    const note = e.note?.trim() ? `<span class="cl-note">&ldquo;${escapeHtml(e.note.trim())}&rdquo;</span>` : `<span class="cl-none">no note</span>`;
+    return `<li><span class="cl-v">v${e.version}</span> &middot; ${escapeHtml(formatDate(e.at, tz))} &middot; ${note}${pin}</li>`;
+  });
+  return `<section class="changelog" aria-label="changelog">
+<p class="changelog-h">Changelog</p>
+<ol>
+${rows.join("\n")}
+</ol>
+</section>`;
+}
+
+export async function changelogSection(db: D1Database, settings: Settings, item: ItemRow, isThread: boolean, mount: string): Promise<ChangelogSection> {
+  const mode = settings.changelog_display;
+  if (mode === "latest" || item.kind === "withdrawn") return NO_SECTION;
+  const entries = await ownChangelog(db, item.id);
+  if (!meaningful(entries)) return NO_SECTION;
+  const kindSeg = isThread ? "t" : "f";
+  if (mode === "summary") {
+    const stored = await storedSummary(db, ownSubject(item.id), item.version);
+    if (stored) {
+      const label = `written by ${stored.model || "a model"} from this item's changelog notes; not the author's words`;
+      return {
+        noteless: true,
+        html: `<section class="changelog summary" aria-label="changelog summary">
+<p class="changelog-h">Changes so far <span class="ai-label" title="${escapeHtml(label)}">AI summary</span></p>
+<p class="cl-summary">${escapeHtml(stored.summary)}</p>
+</section>`,
+      };
+    }
+  }
+  return { noteless: true, html: changelogHistoryHtml(entries, kindSeg, item.id, mount, settings.timezone) };
+}
+
 export function renderFragment(
   item: FeedItem,
   contentHtml: string,
@@ -1140,6 +1200,7 @@ export function renderFragment(
   compactCitations = false,
   tz: string,
   generatedJson: string | null = null,
+  changelog: ChangelogSection = NO_SECTION,
 ): string {
   return `<article class="fragment${highlightClass(item)}">
 ${forkLineage(item, tz, { compact: compactCitations })}
@@ -1147,16 +1208,37 @@ ${forkLineage(item, tz, { compact: compactCitations })}
 ${contentHtml}
 </div>
 ${mediaHtml(media, mount, contentHtml)}
-${itemMeta(item, note, pins, mount, false, tz)}
+${itemMeta(item, changelog.noteless ? null : note, pins, mount, false, tz)}
+${changelog.html}
 ${permalinkLink(item.id, false, mount)}
 </article>`;
+}
+
+/**
+ * An item's page as a microformats2 h-entry, with its byline as a p-author
+ * h-card (tn-6 section 5.4), so a parser gets the author and the mentions from
+ * one read. Page chrome, not the item: nothing here reaches the document or the
+ * feed. Hidden, because these pages show no byline of their own. It goes last so
+ * the article's first-child rules still reach the first thing you see. A
+ * withdrawn item is not an entry. No h-cite or responses markup, ever (tn-7).
+ */
+export function asHEntry(article: string, settings: Settings, origin: string, url: string, published: string): string {
+  if (!article.startsWith('<article class="') || /^<article class="[^"]*\bwithdrawn\b/.test(article)) return article;
+  const author = settings.author_name
+    ? `<a class="p-author h-card" href="${escapeHtml(settings.author_url || origin)}" hidden>${escapeHtml(settings.author_name)}</a>\n`
+    : "";
+  const meta = `<a class="u-url" href="${escapeHtml(url)}" hidden></a>\n<time class="dt-published" datetime="${escapeHtml(published)}" hidden></time>\n${author}`;
+  return article
+    .replace('<article class="', '<article class="h-entry ')
+    .replace('<div class="item-content', '<div class="e-content item-content')
+    .replace(/<\/article>$/, () => `${meta}</article>`);
 }
 
 /**
  * `titleLink` is set on the feed page and unset on the permalink page: on the
  * item's own page the title would link to the page you are already reading.
  */
-async function fragmentBlock(db: D1Database, item: FeedItem, mount: string, tz: string, titleLink = false, loaded?: FeedCardData): Promise<string> {
+async function fragmentBlock(db: D1Database, item: FeedItem, mount: string, tz: string, titleLink = false, loaded?: FeedCardData, changelog?: ChangelogSection): Promise<string> {
   const latest = loaded ? loaded.latest : await publishedVersion(db, item);
   const media = loaded ? loaded.media : await listVersionMedia(db, item.id, item.version);
   const html = latest?.content_html ?? "";
@@ -1170,6 +1252,7 @@ async function fragmentBlock(db: D1Database, item: FeedItem, mount: string, tz: 
     titleLink,
     tz,
     latest?.generated_json ?? null,
+    changelog,
   );
 }
 
@@ -1232,6 +1315,30 @@ export async function transclusionProvenance(db: D1Database, transclusions: Tran
 }
 
 /**
+ * A baked quote's `data-blyg-label` (§10.1, §10.2, decision #81): the quoting
+ * author's own name for what they quoted, decoded from the attribute and
+ * flattened to one short line. Null when the tag carries none, which is every
+ * quote baked before the label was, and every unlabelled directive.
+ */
+export function bakedLabel(tag: string): string | null {
+  const raw = /\sdata-blyg-label="([^"]*)"/.exec(tag)?.[1];
+  if (raw === undefined) return null;
+  const text = clampForeign(decodeHTMLAttribute(raw), 120);
+  return text || null;
+}
+
+/**
+ * A provenance line with the quoter's label as its anchor text (decision #81:
+ * RECOMMENDED as the attribution anchor). What the anchor said before — the
+ * source blyg's name, or the local kind — stays beside it as plain text, so a
+ * label never stands in for the source, and never for the target's title
+ * (#46): it is the quoter's words, shown where the quoter's reference is.
+ */
+function labelledProvenance(line: string, label: string): string {
+  return line.replace(/(<a\b[^>]*>)([\s\S]*?)(?: ↗)?<\/a>/, (_all, open: string, was: string) => `${open}${escapeHtml(label)} ↗</a> · ${was}`);
+}
+
+/**
  * Inject a provenance paragraph inside each *top-level* baked transclusion
  * blockquote, in document order. Presentation only — this is never stored in
  * the protocol content_html (§2.9 specifies only the blockquote + data
@@ -1249,6 +1356,7 @@ export function injectProvenance(html: string, provenance: string[]): string {
   let last = 0;
   let depth = 0;
   let inTransclusion = false;
+  let label: string | null = null;
   let i = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html))) {
@@ -1256,11 +1364,12 @@ export function injectProvenance(html: string, provenance: string[]): string {
       depth = Math.max(0, depth - 1);
       if (depth === 0 && inTransclusion) {
         const p = provenance[i++];
-        out += html.slice(last, m.index) + (p ? `\n${p}` : "");
+        out += html.slice(last, m.index) + (p ? `\n${label ? labelledProvenance(p, label) : p}` : "");
         last = m.index;
         inTransclusion = false;
       }
     } else {
+      if (depth === 0) label = bakedLabel(m[0]);
       // Match the class **token**, not the literal attribute. A partial
       // transclusion's class is `blyg-transclusion blyg-partial` (§10.1–§10.3), so a
       // substring test on the whole attribute misses it — and missing it does
@@ -1290,7 +1399,7 @@ export function injectProvenance(html: string, provenance: string[]): string {
  */
 export async function injectNestedProvenance(db: D1Database, html: string, mount: string): Promise<string> {
   if (!html.includes("data-blyg-id=")) return html;
-  type Layer = { transclusion: boolean; id: string | null; version: string | null; origin: string | null; partial: boolean; nested: boolean };
+  type Layer = { transclusion: boolean; id: string | null; version: string | null; origin: string | null; partial: boolean; nested: boolean; label: string | null };
   const attr = (tag: string, name: string) => new RegExp(`\\b${name}="([^"]*)"`).exec(tag)?.[1] ?? null;
   const stack: Layer[] = [];
   const closes: Array<{ at: number; layer: Layer }> = [];
@@ -1312,6 +1421,7 @@ export async function injectNestedProvenance(db: D1Database, html: string, mount
       origin: attr(m[0], "data-blyg-origin") ?? (enclosing ? enclosing.origin : null),
       partial: /\bblyg-partial\b/.test(cls),
       nested: !!enclosing,
+      label: transclusion ? bakedLabel(m[0]) : null,
     });
   }
   if (!closes.length) return html;
@@ -1344,7 +1454,8 @@ export async function injectNestedProvenance(db: D1Database, html: string, mount
   for (const { at, layer } of closes.sort((a, b) => b.at - a.at)) {
     const link = lines.get(`${layer.origin ?? ""}\u0000${layer.id}`)!;
     const what = layer.partial ? "excerpt of" : "snapshot of";
-    out = `${out.slice(0, at)}\n<p class="provenance nested">${link} · ${what} v${escapeHtml(layer.version ?? "?")}</p>${out.slice(at)}`;
+    const line = `<p class="provenance nested">${link} · ${what} v${escapeHtml(layer.version ?? "?")}</p>`;
+    out = `${out.slice(0, at)}\n${layer.label ? labelledProvenance(line, layer.label) : line}${out.slice(at)}`;
   }
   return out;
 }
@@ -1402,7 +1513,7 @@ ${itemMeta(item, latest?.note ?? null, loaded ? loaded.pins : await pinnedVersio
 </article>`;
 }
 
-async function threadBlock(db: D1Database, item: ItemRow, mount: string, tz: string): Promise<string> {
+async function threadBlock(db: D1Database, item: ItemRow, mount: string, tz: string, changelog: ChangelogSection = NO_SECTION): Promise<string> {
   const latest = await publishedVersion(db, item);
   const transclusions = parseTransclusions(latest?.transclusions);
   const html = await injectNestedProvenance(db, injectProvenance(await sanitizeHtml(latest?.content_html ?? ""), await transclusionProvenance(db, transclusions, mount)), mount);
@@ -1414,7 +1525,8 @@ ${forkLineage(item, tz)}
 ${html}
 </div>
 ${mediaHtml(media, mount, html)}
-${itemMeta(item, latest?.note ?? null, await pinnedVersions(db, item.id), mount, true, tz)}
+${itemMeta(item, changelog.noteless ? null : latest?.note ?? null, await pinnedVersions(db, item.id), mount, true, tz)}
+${changelog.html}
 ${permalinkLink(item.id, true, mount)}
 </article>`;
 }
@@ -1970,7 +2082,7 @@ export async function permalinkPage(db: D1Database, settings: Settings, item: It
   const latest = await publishedVersion(db, item);
   const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings);
-  const body = `${await blygPage(db, settings, mount, `${await fragmentBlock(db, item, mount, settings.timezone)}
+  const body = `${await blygPage(db, settings, mount, `${asHEntry(await fragmentBlock(db, item, mount, settings.timezone, false, undefined, await changelogSection(db, settings, item, false, mount)), settings, origin, url, item.created)}
 ${await localMentionsSection(db, item, settings, mount, origin)}
 ${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;
@@ -2006,7 +2118,7 @@ export async function threadPage(db: D1Database, settings: Settings, item: ItemR
   const latest = await publishedVersion(db, item);
   const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings, respondsToLabel(latest));
-  const body = `${await blygPage(db, settings, mount, `${await threadBlock(db, item, mount, settings.timezone)}
+  const body = `${await blygPage(db, settings, mount, `${asHEntry(await threadBlock(db, item, mount, settings.timezone, await changelogSection(db, settings, item, true, mount)), settings, origin, url, item.created)}
 ${await localMentionsSection(db, item, settings, mount, origin)}
 ${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;
@@ -2063,13 +2175,13 @@ export async function pinnedVersionPage(
   const cite = isThread ? stubCitation(row, tz) : "";
   const body = await blygPage(db, settings, mount, `<p class="pinned-banner">📌 Pinned v${row.version} — a frozen snapshot from ${formatDate(row.published_at, tz)}.
 <a href="${live}">latest version</a> &middot; <a href="${mount}/items/${item.id}/v${row.version}.json">citable JSON</a></p>
-<article class="${isThread ? "thread" : "fragment"}${highlightClass(item)}"${generatedAttr(row.generated_json)}>
+${asHEntry(`<article class="${isThread ? "thread" : "fragment"}${highlightClass(item)}"${generatedAttr(row.generated_json)}>
 ${cite}
 ${forkLineage(item, tz)}
 <div class="item-content">${html}</div>
 ${noteHtml}
 <p class="timestamps"><span>Published: ${formatDate(row.published_at, tz)}</span></p>
-</article>`);
+</article>`, settings, origin, `${origin}${isThread ? "t" : "f"}/${item.id}/v${row.version}/`, row.published_at)}`);
   // Canonical points at the live permalink (absolute — origin is the blyg
   // base URL, trailing slash included): the frozen page is a version of the
   // same work, and the living one is the page that should be indexed.

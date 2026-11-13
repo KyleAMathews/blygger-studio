@@ -86,7 +86,9 @@ roll back and its waiting reads fail together; earlier completed groups remain
 committed. The adapter never retries failed batches or admission writes.
 
 Studio batches ready reads by operation with DataLoader, without caching batch
-results. Different request headers or credential settings use separate batches.
+results. Browser dispatch uses microtasks, not timers: synchronous peers share
+a batch, while reads that become ready after dispatch use a later batch.
+Different request headers or credential settings use separate batches.
 Cancelling one read preserves its peers; cancelling every consumer aborts the
 shared fetch. Concurrent freshness checks share pending work only, and Studio
 writes clear that pending check before their subsequent refreshes.
@@ -306,7 +308,7 @@ if (result.response?.status === 409) { /* already subscribed */ }
 if (result.response?.status === 429) { /* wait Retry-After seconds, then retry */ }
 ```
 
-While the `hopperFeeds` setting is on (off by default), a URL naming one of a blyg's public hoppers (its page or its feed, as the blyg's manifest lists them) resolves to that hopper: the proposal has `kind: "hopper"`, with `hopper` (`title`, and `page` and `feedUrl` as absolute URLs) and `blygTitle`, and confirming creates a hopper subscription whose `hopperFeedUrl` is set. `wholeBlyg: true` subscribes to the whole blyg instead. Spec 0.4 §16.12 (decision #86), a ruled shape awaiting its gate: see `docs/hopper-feeds.md`.
+Whatever the `hopperFeeds` setting says (it governs only this node publishing its own hopper feeds), a URL naming one of a blyg's public hoppers (its page or its feed, as the blyg's manifest lists them) resolves to that hopper: the proposal has `kind: "hopper"`, with `hopper` (`title`, and `page` and `feedUrl` as absolute URLs) and `blygTitle`, and confirming creates a hopper subscription whose `hopperFeedUrl` is set. `wholeBlyg: true` subscribes to the whole blyg instead. Spec 0.4 §12.1 step 7 and §12.2 (decision #86, promoted from §16.12): see `docs/hopper-feeds.md`.
 
 The Studio's OPML import works this way. It reads the file in the browser, flattens folders and sends one request at a time, about one a second, which stays under the owner's write budget of 120 writes a minute (`API_WRITE_LIMIT`).
 Delegated clients have less room: 120 a minute per grant, and 60 a minute shared by every grant (`API_DELEGATED_WRITE_LIMIT`), so a token-bearing importer should go slower than one a second and honour `Retry-After` on 429.

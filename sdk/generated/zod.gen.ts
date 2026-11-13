@@ -187,6 +187,17 @@ export const zSettings = z.object({
     changeCategoryInNote: z.boolean(),
     feedPrompt: z.string(),
     aiStylePrompt: z.string(),
+    changelogDisplay: z.enum([
+        'latest',
+        'history',
+        'summary'
+    ]),
+    readerChangelogDisplay: z.enum([
+        'latest',
+        'history',
+        'summary'
+    ]),
+    changelogSummaryPrompt: z.string(),
     acceptMentions: z.boolean(),
     updateCheck: z.boolean(),
     showResponsesDefault: z.boolean(),
@@ -254,6 +265,23 @@ export const zSubscription = z.object({
     created: z.string(),
     titleFollowsSource: z.boolean(),
     hopperFeedUrl: z.string().nullable()
+});
+
+export const zContact = z.object({
+    id: z.string(),
+    handle: z.string(),
+    name: z.string(),
+    url: z.string(),
+    ids: z.array(z.object({
+        id: z.string(),
+        provenance: z.enum([
+            'self',
+            'bound',
+            'entered'
+        ])
+    })),
+    created: z.string(),
+    updated: z.string()
 });
 
 export const zHopper = z.object({
@@ -662,6 +690,39 @@ export const zLineageGlyphSummary = z.object({
     })
 });
 
+export const zWordCount = z.object({
+    published: z.object({
+        words: z.int().gte(0),
+        cjk: z.int().gte(0),
+        document: z.object({
+            words: z.int().gte(0),
+            cjk: z.int().gte(0),
+            items: z.int().gt(0)
+        }).nullable(),
+        reason: z.enum([
+            'cycle',
+            'repeated',
+            'unavailable',
+            'too-large'
+        ]).optional()
+    }).nullable(),
+    draft: z.object({
+        words: z.int().gte(0),
+        cjk: z.int().gte(0),
+        document: z.object({
+            words: z.int().gte(0),
+            cjk: z.int().gte(0),
+            items: z.int().gt(0)
+        }).nullable(),
+        reason: z.enum([
+            'cycle',
+            'repeated',
+            'unavailable',
+            'too-large'
+        ]).optional()
+    })
+});
+
 /**
  * Success
  */
@@ -926,7 +987,8 @@ export const zPublishItemResponse = z.object({
     ok: z.boolean(),
     revision: z.int().gt(0).lte(9007199254740991),
     version: z.number(),
-    warning: z.string().optional()
+    warning: z.string().optional(),
+    unresolvedHandles: z.array(z.string()).optional()
 });
 
 export const zClassifyChangeBody = z.object({
@@ -955,7 +1017,8 @@ export const zClassifyChangeResponse = z.object({
 });
 
 export const zDraftNoteBody = z.object({
-    expectedRevision: z.int().gt(0).lte(9007199254740991)
+    expectedRevision: z.int().gt(0).lte(9007199254740991),
+    history: z.boolean().optional()
 }).strict();
 
 export const zDraftNotePath = z.object({
@@ -970,6 +1033,29 @@ export const zDraftNoteResponse = z.object({
     model: z.string(),
     pinnedPrior: z.boolean(),
     revision: z.int().gt(0).lte(9007199254740991)
+});
+
+/**
+ * An own item by itemId, or an imported blyg item by its subscription and remote id. The summary reads the changelog's notes only, is written once per version with the change-notes model and kept, and is studio-private.
+ */
+export const zSummarizeChangelogBody = z.union([
+    z.object({
+        itemId: z.string()
+    }).strict(),
+    z.object({
+        subscriptionId: z.string(),
+        remoteId: z.string()
+    }).strict()
+]);
+
+/**
+ * Success
+ */
+export const zSummarizeChangelogResponse = z.object({
+    summary: z.string(),
+    model: z.string(),
+    version: z.int().gt(0),
+    cached: z.boolean()
 });
 
 export const zGenerateItemBody = z.object({
@@ -1118,6 +1204,17 @@ export const zUpdateSettingsBody = z.object({
     changeCategoryInNote: z.boolean().optional(),
     feedPrompt: z.string().optional(),
     aiStylePrompt: z.string().optional(),
+    changelogDisplay: z.enum([
+        'latest',
+        'history',
+        'summary'
+    ]).optional(),
+    readerChangelogDisplay: z.enum([
+        'latest',
+        'history',
+        'summary'
+    ]).optional(),
+    changelogSummaryPrompt: z.string().optional(),
     acceptMentions: z.boolean().optional(),
     updateCheck: z.boolean().optional(),
     showResponsesDefault: z.boolean().optional(),
@@ -1263,6 +1360,61 @@ export const zResyncSubscriptionResponse = z.object({
     ok: z.boolean(),
     changed: z.number()
 });
+
+/**
+ * Success
+ */
+export const zListContactsResponse = z.object({
+    contacts: z.array(zContact)
+});
+
+export const zCreateContactBody = z.object({
+    handle: z.string(),
+    name: z.string().min(1).max(200),
+    url: z.string(),
+    ids: z.array(z.string().min(1).max(500)).max(50).optional()
+}).strict();
+
+/**
+ * Success
+ */
+export const zCreateContactResponse = zContact;
+
+export const zDeleteContactPath = z.object({
+    id: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zDeleteContactResponse = z.object({
+    ok: z.boolean()
+});
+
+export const zUpdateContactBody = z.object({
+    handle: z.string().optional(),
+    name: z.string().min(1).max(200).optional(),
+    url: z.string().optional(),
+    ids: z.array(z.string().min(1).max(500)).max(50).optional()
+}).strict();
+
+export const zUpdateContactPath = z.object({
+    id: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zUpdateContactResponse = zContact;
+
+export const zResolveContactPath = z.object({
+    id: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zResolveContactResponse = zContact;
 
 export const zListHoppersQuery = z.object({
     cursor: z.string().min(1).max(8192).optional(),
@@ -1688,7 +1840,8 @@ export const zPreviewResponse = z.object({
         directive: z.string().optional(),
         reason: z.string().optional()
     }).catchall(z.unknown())).optional(),
-    transclusions: z.array(zTransclusion).optional()
+    transclusions: z.array(zTransclusion).optional(),
+    unresolvedHandles: z.array(z.string()).optional()
 });
 
 export const zSearchQuery = z.object({
@@ -1701,7 +1854,8 @@ export const zSearchQuery = z.object({
         'imported'
     ]).optional(),
     sub: z.string().optional(),
-    sort: z.enum(['newest', 'oldest']).optional()
+    sort: z.enum(['newest', 'oldest']).optional(),
+    include: z.enum(['drafts']).optional()
 });
 
 /**
@@ -1718,7 +1872,8 @@ export const zSearchResponse = z.object({
         source: z.enum(['mine', 'imported']),
         kind: z.enum(['fragment', 'thread']),
         subscriptionId: z.string().nullable(),
-        sourceTitle: z.string().nullable()
+        sourceTitle: z.string().nullable(),
+        draft: z.boolean().optional()
     })),
     page: z.object({
         limit: z.int().gt(0),
@@ -1740,7 +1895,8 @@ export const zGetReadingSummaryQuery = z.object({
     sub: z.string().optional(),
     hopper: z.string().optional(),
     kind: z.enum(['thread', 'fragment']).optional(),
-    background: z.enum(['true']).optional()
+    background: z.enum(['true']).optional(),
+    mentions: z.enum(['true']).optional()
 });
 
 /**
@@ -1761,7 +1917,8 @@ export const zListReadingQuery = z.object({
     sub: z.string().optional(),
     hopper: z.string().optional(),
     kind: z.enum(['thread', 'fragment']).optional(),
-    background: z.enum(['true']).optional()
+    background: z.enum(['true']).optional(),
+    mentions: z.enum(['true']).optional()
 });
 
 /**
@@ -2019,4 +2176,15 @@ export const zExtLineageGlyphListSummariesQuery = z.object({
  */
 export const zExtLineageGlyphListSummariesResponse = z.object({
     summaries: z.record(z.string(), zLineageGlyphSummary)
+});
+
+export const zExtWordCountListCountsQuery = z.object({
+    keys: z.string().min(2)
+});
+
+/**
+ * Success
+ */
+export const zExtWordCountListCountsResponse = z.object({
+    counts: z.record(z.string(), zWordCount)
 });

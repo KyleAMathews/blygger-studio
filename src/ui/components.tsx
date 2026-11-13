@@ -22,7 +22,11 @@ import { readState } from '../versions.ts';
 import { displayUrl } from '../importer/util.ts';
 import { Sheet } from './sheets.tsx';
 import { SetupBanner } from './setup.tsx';
+import { compiledExtensions } from '../../build/extensions.ui.ts';
+import type { StudioExtension } from './extension-api.ts';
+import { enabledExtensions, menuPlacement } from './extensions.tsx';
 import { applyTheme } from './theme.ts';
+import { applyTitle } from './tab.ts';
 import type { CustomTheme } from '../themes.ts';
 export { Button };
 export const mount =
@@ -135,7 +139,7 @@ const tabs = [
   { label: 'reading', to: '/reading', icon: '◫' },
   { label: 'compose', to: '/', icon: '✎' },
   { label: 'hoppers', to: '/hoppers', icon: '▤' },
-  { label: 'mentions', to: '/mentions', icon: '↩' },
+  { label: 'responses', to: '/mentions', icon: '↩' },
   { label: 'updates', to: '/updates', icon: '↻' },
   { label: 'more', to: '/more', icon: '⋯' },
 
@@ -147,7 +151,7 @@ export function tabFor(path: string): Tab | null {
   if (p === '/' || p.startsWith('/edit/')) return 'compose';
   if (p === '/reading' || p.startsWith('/reading/') || p === '/subs' || p === '/fork') return 'reading';
   if (p === '/hoppers' || p.startsWith('/hoppers/')) return 'hoppers';
-  if (p === '/mentions') return 'mentions';
+  if (p === '/mentions') return 'responses';
   if (p === '/updates') return 'updates';
   if (p === '/more' || p === '/settings' || p === '/syntax' || p === '/signals' || p === '/access') return 'more';
   return null;
@@ -226,6 +230,10 @@ export function Layout({ children }: { children: ReactNode }) {
     media.addEventListener('change', flip);
     return () => media.removeEventListener('change', flip);
   }, [theme, customKey, customDarkKey]);
+  const siteTitle = settings?.siteTitle;
+  useEffect(() => {
+    if (settings) applyTitle(siteTitle);
+  }, [siteTitle, settings === undefined]);
   useEffect(() => {
     document.body.classList.toggle('has-tabs', showTabs);
     document.body.classList.toggle('no-tabs', !showTabs);
@@ -242,6 +250,24 @@ export function Layout({ children }: { children: ReactNode }) {
     editedItem?.status === 'public' ? publicPath(editedItem) : `${mount}/`;
   const behind = !!(settings?.updateCheck && update?.behind);
   const unacked = !!(settings?.updateCheck && !settings.updateNoticeAck);
+  const menu = menuPlacement(enabledExtensions(compiledExtensions, settings?.extensions));
+  const extensionTab = (extension: StudioExtension) => {
+    const current = path.replace(/\/+$/, '') === `/ext/${extension.name}`;
+    return (
+      <Link
+        key={`ext-${extension.name}`}
+        to="/ext/$name"
+        params={{ name: extension.name }}
+        className={current ? 'tab is-active' : 'tab'}
+        aria-current={current ? 'page' : undefined}
+      >
+        <span className="ti" aria-hidden="true">
+          {extension.page!.mainMenu!.icon}
+        </span>
+        <span className="tl">{extension.page!.title}</span>
+      </Link>
+    );
+  };
   return (
     <ChromeContext.Provider value={setChrome}>
       <header className="topbar">
@@ -292,12 +318,15 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className={framed ? 'screen framed' : 'screen'}>{children}</div>
       </main>
       {showTabs ? (
-        <nav className="tabbar" aria-label="studio">
-          {tabs.map((tab) => (
+        <nav className={menu.top.length || menu.visible.length ? 'tabbar has-extension-tab' : 'tabbar'} aria-label="studio">
+          {menu.top.map(extensionTab)}
+          {tabs.flatMap((tab) => [
+            // The Studio's spot for visible extension pages: just above compose.
+            ...(tab.label === 'compose' ? menu.visible.map(extensionTab) : []),
             <Link
               key={tab.label}
               to={tab.to}
-              preload={tab.label === 'mentions' ? 'viewport' : undefined}
+              preload={tab.label === 'responses' ? 'viewport' : undefined}
               className={tab.label === active ? 'tab is-active' : 'tab'}
               aria-current={tab.label === active ? 'page' : undefined}
             >
@@ -308,8 +337,8 @@ export function Layout({ children }: { children: ReactNode }) {
               {tab.label === 'more' && (behind || unacked) ? (
                 <span className="flag" aria-hidden="true" />
               ) : null}
-            </Link>
-          ))}
+            </Link>,
+          ])}
         </nav>
       ) : null}
     </ChromeContext.Provider>

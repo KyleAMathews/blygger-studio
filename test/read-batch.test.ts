@@ -22,6 +22,22 @@ it('returns the same item resources and ordered errors as individual reads throu
   expect(result[2].body).toEqual(await unwrap(BlyggerApi.getItem({ client, path: { id: first.id } })));
 });
 
+it('isolates malformed Unicode paths without losing siblings or bypassing read charges', async () => {
+  const item = await apiJson(cookie, 'POST', '/blyg/api/items', { contentMd: 'Valid sibling' });
+  await env.DB.prepare('DELETE FROM security_budgets').run();
+  const result = await batch('getItem', [
+    { path: { id: item.json.id } }, { path: { id: '\ud800' } },
+    { path: { id: '\udc00' } }, { path: { id: 'missing-😀' } }, { path: { id: item.json.id } },
+  ]);
+  expect(result.status).toBe(200);
+  expect(result.json.map((row: { status: number }) => row.status)).toEqual([200, 400, 400, 404, 200]);
+  expect(result.json[0].body).toMatchObject({ id: item.json.id, contentMd: 'Valid sibling' });
+  expect(result.json[4].body).toEqual(result.json[0].body);
+  for (const index of [1, 2]) expect(result.json[index].body).toMatchObject({ code: 'invalid-input' });
+  const counters = (await env.DB.prepare('SELECT used FROM security_budgets').all<{ used: number }>()).results;
+  expect(counters.map(row => row.used)).toEqual([6]); // Envelope plus all five children.
+});
+
 it('keeps validation, independent cursors, expiry, and fresh post-write counts', async () => {
   await env.DB.batch(Array.from({ length: 4 }, (_, n) => env.DB.prepare(`INSERT INTO mentions_in
     (id,source,target,target_item_id,status,first_seen,last_seen,verified_at,hidden)

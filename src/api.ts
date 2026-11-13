@@ -1,5 +1,6 @@
 import { retainedMediaSql } from './media-retention.ts';
 import { assertCurrentRevision, assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
+import { consumeHandles, contactResource, createContact, deleteContact, getContact, handleTaken, HANDLE, listContacts, resolveContact, updateContact } from './contacts.ts';
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { versionState } from './version-state.ts';
 import { isFont } from "./fonts.ts";
@@ -38,6 +39,7 @@ import {
   TkPublishError,
   TransclusionResolveError,
   withdraw,
+  keepsPublishedWords,
 } from "./model.ts";
 import { mentionFetchFor } from "./mentions/http.ts";
 import { drainOutbound, enqueueForVersion } from "./mentions/send.ts";
@@ -47,14 +49,19 @@ import { blygItemUrl } from "./importer/util.ts";
 import { siteOrigin } from "./protocol.ts";
 import { parseForkedFrom, parseStoredFork, parseStoredStub, parseStubOf } from "./stub.ts";
 import { parseScopes, unrequestedOutputDirectives } from './tk.ts';
+import { CommentPublishError, withoutComments } from './comments.ts';
 import { runGenerateScope } from "./tk-generate.ts";
 import type { ItemRow, SubscriptionRow } from "./types.ts";
+import { CHANGELOG_DISPLAYS } from "./types.ts";
 import { BLOCKING, staleThreads, threadFreshness } from "./freshness.ts";
 import { draftChangeNote } from "./change-note.ts";
 import { classifyChange, settleChangeClass } from "./change-class.ts";
 import type { ChangeCategory } from "./change-category.ts";
 import { isDecisionModel } from "./ai/models.ts";
 import { platformFetchFor } from "./importer/http.ts";
+import { importedSubject, ownChangelog, ownSubject, summarizeChangelog, type ChangelogEntry } from "./changelog-summary.ts";
+import { blygSubscription } from "./read-api.ts";
+import { fetchImportedHistory } from "./imported-history.ts";
 import { reconcileIndex } from "./importer/poll.ts";
 import { deploymentPaths, hex, isFollowableUrl, isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
 
@@ -172,7 +179,8 @@ const updateItemOperation = async (context: OperationContext, input: OperationIn
   if ("stubOf" in body) { assignments.push("stub_of = ?"); values.push(stubJson); }
   if (body.responses !== undefined) { assignments.push("responses_override = ?"); values.push(body.responses === "default" ? null : Number(body.responses === "show")); }
   if (body.highlight !== undefined) { assignments.push("highlight_override = ?"); values.push(body.highlight === "default" ? null : Number(body.highlight === "show")); }
-  if (changesDraft) { assignments.push("dirty = 1", "updated = CASE WHEN version = 0 THEN ? ELSE updated END"); values.push(nowIso()); }
+  const onlyComments = body.contentMd !== undefined && body.provenance === undefined && body.kind === undefined && !("stubOf" in body) && await keepsPublishedWords(context.env.DB, item, body.contentMd);
+  if (changesDraft) { assignments.push(onlyComments ? "dirty = 0" : "dirty = 1", "updated = CASE WHEN version = 0 THEN ? ELSE updated END"); values.push(nowIso()); }
   if (!assignments.length) return success(itemResource(item, await authoredKind(context.env.DB, item)));
   // Write only requested fields. Guard the state used for validation, so a
   // concurrent publication or citation edit cannot invalidate that check.
@@ -235,17 +243,19 @@ async function publishAndNotify(context: OperationContext, item: ItemRow, note: 
   // Decision #60: an own-line `![[id]]` left in generated output is a real
   // quote at publish. Warn when the instruction never named it — the usual
   // cause is a model echoing a directive — since it also notifies that origin.
-  const echoed = unrequestedOutputDirectives(item.content_md);
+  const echoed = unrequestedOutputDirectives(withoutComments(item.content_md));
   const echoNote = echoed.length
     ? `Generated text contains ${echoed.map((id) => `![[${id}]]`).join(", ")} on its own line, which the instruction did not ask for. It was published as a quote and its author notified. Edit the output and republish if that was not intended.`
     : undefined;
   const warning = [lineageNote, echoNote].filter(Boolean).join(" ") || undefined;
+  // Literal prose on the wire, never an error; every client hears (tn-6 section 5.2).
+  const { unresolved: unresolvedHandles } = await consumeHandles(context.env.DB, withoutComments(item.content_md));
   try {
     const version = await publish(context.env.DB, item, note, origin, noteGenerated);
     // Studio-private bookkeeping must never fail a publish that has happened.
     if (settle) await settle(version).catch((e) => console.error("change class not settled", e));
     await sendMentionsFor(context, item.id, version);
-    return success({ ok: true, version, revision: item.revision + 1, ...extra, ...(warning ? { warning } : {}) });
+    return success({ ok: true, version, revision: item.revision + 1, ...extra, ...(warning ? { warning } : {}), ...(unresolvedHandles.length ? { unresolvedHandles } : {}) });
   } catch (e) {
     if (e instanceof TransclusionResolveError) {
       // Both bracket forms report here: `![[id]]` directives and `[[id]]`
@@ -253,6 +263,9 @@ async function publishAndNotify(context: OperationContext, item: ItemRow, note: 
       // message names both rather than only the one that predates the other —
       // each entry's `directive` shows the author which they wrote.
       return failure('invalid-input', { error: "one or more references do not resolve", errors: e.errors });
+    }
+    if (e instanceof CommentPublishError) {
+      return failure('invalid-input', { error: e.issues.map((issue) => issue.reason).join("; "), errors: e.issues });
     }
     if (e instanceof TkPublishError) {
       return failure('invalid-input', { error: "one or more TK scopes are not publish-ready", errors: e.issues });
@@ -297,10 +310,39 @@ const classifyChangeOperation = async (context: OperationContext, input: Operati
 const draftNoteOperation = async (context: OperationContext, input: OperationInput) => {
   const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
-  const result = await draftChangeNote(context.env, item);
+  const result = await draftChangeNote(context.env, item, undefined, { history: (input.body as { history?: boolean }).history === true });
   if (!result.ok) return modelFailure({ error: result.error }, result.status);
   await assertCurrentRevision(context.env.DB, item);
   return success({ revision: item.revision, note: result.note, model: result.model, pinnedPrior: result.pinnedPrior });
+};
+
+// A changelog summary for the reader (session 61): an own item from its
+// versions, an imported one from its origin's changelog, read now.
+const summarizeChangelogOperation = async (context: OperationContext, input: OperationInput) => {
+  const body = input.body as { itemId?: string; subscriptionId?: string; remoteId?: string };
+  let subject: string;
+  let version: number;
+  let entries: ChangelogEntry[];
+  if (body.itemId) {
+    const item = await getItem(context.env.DB, body.itemId);
+    if (!item || item.version === 0) return failure('not-found', { error: "no published item with that id" });
+    if (item.kind === "withdrawn") return failure('conflict', { error: "a withdrawn item's changelog is not summarized" });
+    subject = ownSubject(item.id);
+    version = item.version;
+    entries = await ownChangelog(context.env.DB, item.id);
+  } else {
+    const sub = await blygSubscription(context.env.DB, body.subscriptionId!);
+    if (!sub) return failure('not-found', { error: "not a blyg subscription" });
+    const got = await fetchImportedHistory(platformFetchFor(context.env), sub, body.remoteId!);
+    if (!got.ok) return modelFailure({ error: got.error }, got.status);
+    if (got.value.withdrawn) return failure('conflict', { error: "a withdrawn item's changelog is not summarized" });
+    subject = importedSubject(sub.id, body.remoteId!);
+    version = got.value.current;
+    entries = got.value.changelog;
+  }
+  const result = await summarizeChangelog(context.env, subject, version, entries);
+  if (!result.ok) return modelFailure({ error: result.error }, result.status);
+  return success({ summary: result.summary, model: result.model, version: result.version, cached: result.cached });
 };
 
 // --- Snapshot freshness (decision #33's direct check; #38: detect always,
@@ -536,6 +578,9 @@ const SETTINGS_KEYS = [
   "ai_model_classify",
   "feed_prompt",
   "ai_style_prompt",
+  "changelog_display",
+  "reader_changelog_display",
+  "changelog_summary_prompt",
   "picker_typing",
   "feed_order",
   "front_page",
@@ -566,6 +611,9 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
     if (patch[key]?.trim() && isDecisionModel(patch[key].trim())) return failure('invalid-input', { error: `${field} cannot be a decision model ("${patch[key]}"): decision models write no text` });
   }
   if (typeof patch.picker_typing === "string" && !["auto", "editor", "panel"].includes(patch.picker_typing)) return failure('invalid-input', { error: "pickerTyping must be auto, editor or panel" });
+  for (const [field, key] of [["changelogDisplay", "changelog_display"], ["readerChangelogDisplay", "reader_changelog_display"]] as const) {
+    if (typeof patch[key] === "string" && !(CHANGELOG_DISPLAYS as readonly string[]).includes(patch[key])) return failure('invalid-input', { error: `${field} must be latest, history or summary` });
+  }
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return failure('invalid-input', { error: `unknown timezone: ${patch.timezone}` });
   if (patch.author_url && !(URL.canParse(patch.author_url) && ["http:", "https:"].includes(new URL(patch.author_url).protocol))) return failure('invalid-input', { error: "authorUrl must be an absolute http(s) URL" });
   if (patch.site_url && !(URL.canParse(patch.site_url) && ["http:", "https:"].includes(new URL(patch.site_url).protocol))) return failure('invalid-input', { error: "siteUrl must be an absolute http(s) URL" });
@@ -653,12 +701,60 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
   return success(settingsResource(await getSettings(context.env.DB)));
 };
 
+const contactInput = (body: { handle?: string; url?: string }) => {
+  if (body.handle !== undefined && !HANDLE.test(body.handle)) return "a handle is letters, digits, - and _, starting with a letter or digit, at most 39 characters";
+  if (body.url !== undefined) {
+    try {
+      if (new URL(body.url).protocol !== "https:") return "a contact's url must be https";
+    } catch {
+      return "a contact's url must be an absolute https URL";
+    }
+  }
+  return null;
+};
+type ContactBody = { handle?: string; name?: string; url?: string; ids?: string[] };
+const listContactsOperation = async (context: OperationContext) =>
+  success({ contacts: (await listContacts(context.env.DB)).map(contactResource) });
+const createContactOperation = async (context: OperationContext, input: OperationInput) => {
+  const body = input.body as Required<Pick<ContactBody, "handle" | "name" | "url">> & ContactBody;
+  const bad = contactInput(body);
+  if (bad) return failure('invalid-input', { error: bad });
+  if (await handleTaken(context.env.DB, body.handle)) return failure('conflict', { error: `@${body.handle} is already in the book` });
+  return created(contactResource(await createContact(context.env.DB, body)));
+};
+const updateContactOperation = async (context: OperationContext, input: OperationInput) => {
+  const row = await getContact(context.env.DB, input.path.id);
+  if (!row) return failure('not-found', { error: "not found" });
+  const body = input.body as ContactBody;
+  const bad = contactInput(body);
+  if (bad) return failure('invalid-input', { error: bad });
+  if (body.handle && await handleTaken(context.env.DB, body.handle, row.id)) return failure('conflict', { error: `@${body.handle} is already in the book` });
+  return success(contactResource(await updateContact(context.env.DB, row, body)));
+};
+const resolveContactOperation = async (context: OperationContext, input: OperationInput) => {
+  const row = await getContact(context.env.DB, input.path.id);
+  if (!row) return failure('not-found', { error: "not found" });
+  try {
+    return success(contactResource(await resolveContact(context.env.DB, platformFetchFor(context.env), row)));
+  } catch (e) {
+    return failure('bad-gateway', { error: `could not read ${row.url}: ${e instanceof Error ? e.message : String(e)}` });
+  }
+};
+const deleteContactOperation = async (context: OperationContext, input: OperationInput) =>
+  await deleteContact(context.env.DB, input.path.id) ? success({ ok: true }) : failure('not-found', { error: "not found" });
+
 export const itemOperations = {
+  listContacts: listContactsOperation,
+  createContact: createContactOperation,
+  updateContact: updateContactOperation,
+  resolveContact: resolveContactOperation,
+  deleteContact: deleteContactOperation,
   createItem: createItemOperation,
   updateItem: updateItemOperation,
   publishItem: publishItemOperation,
   classifyChange: classifyChangeOperation,
   draftNote: draftNoteOperation,
+  summarizeChangelog: summarizeChangelogOperation,
   listStaleThreads: listStaleThreadsOperation,
   getItemFreshness: getItemFreshnessOperation,
   refreshItem: refreshItemOperation,
