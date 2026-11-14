@@ -157,6 +157,23 @@ describe("a formula cannot hold a link, a mention or a generated span", () => {
     expect(item.json.version).toBe(0);
   });
 
+  // Session 70, R1a: after a `%` TeX reads nothing, so these parse; the
+  // placeholder is refused whether or not the formula draws.
+  it.each([
+    (id: string) => `Comment hides it $x % [[${id}]]$ end`,
+    (id: string) => `Labelled $x % [[${id} | y]]$ end`,
+    () => "Gen $a % [TK]impyrt=b[/TK]$ end",
+    (id: string) => `Display\n\n$$x % [[${id}]]\ny^2$$\n\nend`,
+  ])("a TeX comment does not hide it (%#)", async (make) => {
+    const cookie = await login();
+    const target = await createAndPublish(cookie, "A target fragment.");
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: make(target), kind: "fragment" });
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/publish`, {});
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.json)).toContain("cannot contain a link, a mention or a generated span");
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${created.json.id}`)).json.version).toBe(0);
+  });
+
   it("a thread quoting HTML that says math-error still publishes: the HTML is never searched", async () => {
     const cookie = await login();
     const theirs = "https://errors.example/";
@@ -181,12 +198,12 @@ describe("a formula cannot hold a link, a mention or a generated span", () => {
 });
 
 describe("the review of studio#149, R2 and the dollar scan", () => {
-  it.each(["a\\hspace{9999em}b", "\\raisebox{-30em}{x}"])("%s moves too far, and publish refuses it", async (tex) => {
+  it.each(["a\\hspace{9999em}b", "\\raisebox{-30em}{x}", "\\raisebox{20em}{x}", "\\raisebox{-2em}{\\raisebox{-2em}{\\raisebox{-2em}{x}}}"])("%s moves too far, and publish refuses it", async (tex) => {
     const cookie = await login();
     const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `Far $${tex}$`, kind: "fragment" });
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/publish`, {})).status).toBe(400);
   });
-  it.each(["\\quad x", "a\\!b", "\\hspace{3em}", "\\smash{x}", "\\llap{x}", "\\genfrac{}{}{2pt}{}{a}{b}"])("%s still draws", (tex) => {
+  it.each(["\\quad x", "a\\!b", "\\hspace{3em}", "\\smash{x}", "\\llap{x}", "\\genfrac{}{}{2pt}{}{a}{b}", "\\raisebox{0.5em}{x}", "\\raisebox{-2em}{x}\\raisebox{2em}{y}"])("%s still draws", (tex) => {
     expect(renderMarkdown(`$${tex}$`)).toContain("<math>");
   });
   it("a paragraph of lone dollars costs linear time, and dollars far apart are prose", () => {

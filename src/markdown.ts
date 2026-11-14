@@ -64,30 +64,44 @@ function mathAsTex(html: string): string {
  * what `/<(a|b)[^>]*>[\s\S]*?<\/\1>/gi` matched, `\b` after the name if
  * `bounded`: an opener with no closer is left alone, and so is every later
  * opener of that name, which cannot have one either.
+ *
+ * Linear (session 70, R3b): each name's next opener is remembered and searched
+ * for again only once the scan has passed it, so a far `<style` is not sought
+ * once per `<script>…</script>`. Positions come from a copy with only ASCII
+ * lowered, which keeps every index (R3a): `toLowerCase` turns `İ` into two
+ * code units and would slice the original in the wrong place.
  */
 function replaceElements(html: string, names: string[], bounded: boolean, replace: (name: string, open: string, inner: string, whole: string) => string): string {
-  const lower = html.toLowerCase();
-  const live = new Set(names);
+  const lower = html.replace(/[A-Z]+/g, (s) => s.toLowerCase());
+  const opener = (name: string, from: number) => {
+    let i = lower.indexOf(`<${name}`, from);
+    while (bounded && i >= 0 && /[a-z0-9_]/.test(lower[i + name.length + 1] ?? "")) i = lower.indexOf(`<${name}`, i + 1);
+    return i;
+  };
+  const next = new Map<string, number>();
+  for (const name of names) {
+    const i = opener(name, 0);
+    if (i >= 0) next.set(name, i);
+  }
   let out = "";
   let from = 0;
-  let pos = 0;
-  while (live.size) {
+  while (next.size) {
     let at = -1;
     let name = "";
-    for (const candidate of live) {
-      let i = lower.indexOf(`<${candidate}`, pos);
-      while (bounded && i >= 0 && /[a-z0-9_]/.test(lower[i + candidate.length + 1] ?? "")) i = lower.indexOf(`<${candidate}`, i + 1);
-      if (i < 0) { live.delete(candidate); continue; }
-      if (at < 0 || i < at) { at = i; name = candidate; }
-    }
-    if (at < 0) break;
+    for (const [candidate, i] of next) if (at < 0 || i < at) { at = i; name = candidate; }
     const openEnd = lower.indexOf(">", at);
     if (openEnd < 0) break;
     const close = lower.indexOf(`</${name}>`, openEnd + 1);
-    if (close < 0) { live.delete(name); pos = at + 1; continue; }
+    if (close < 0) { next.delete(name); continue; }
     const end = close + name.length + 3;
     out += html.slice(from, at) + replace(name, html.slice(at, openEnd + 1), html.slice(openEnd + 1, close), html.slice(at, end));
-    from = pos = end;
+    from = end;
+    for (const [candidate, i] of next) {
+      if (i >= end) continue;
+      const j = opener(candidate, end);
+      if (j < 0) next.delete(candidate);
+      else next.set(candidate, j);
+    }
   }
   return out + html.slice(from);
 }

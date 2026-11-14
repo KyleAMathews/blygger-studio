@@ -10,6 +10,10 @@ export function renderTex(tex: string, display: boolean): { html: string; error?
   return { html: escapeHtml(display ? `$$${tex}$$` : `$${tex}$`) };
 }
 
+export function refusedTex(tex: string, display: boolean, _reason: string): string {
+  return renderTex(tex, display).html;
+}
+
 /** The browser never publishes: nothing to record. */
 export const noteMathFailure = (_failure: { formula: string; reason: string }) => {};
 /** Kept equal to math-render.ts's, which the finder in math.ts imports. */

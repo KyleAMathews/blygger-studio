@@ -10,7 +10,7 @@ const BLOCK = /<\/(?:p|h[1-6]|li|blockquote|pre|div|tr|section|article)>|<br\s*\
 const decode = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/g, " ").replace(/&hellip;/g, "…").replace(/&mdash;/g, "—").replace(/&ndash;/g, "–").replace(/&ldquo;|&rdquo;/g, '"').replace(/&lsquo;|&rsquo;/g, "'").replace(/&amp;/g, "&");
 const oldSelection = (html: string) => decode(html.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ").replace(BLOCK, "\u0000").replace(/<[^>]+>/g, "")).split("\u0000").map((s) => s.replace(/\s+/g, " ").trim()).filter(Boolean).join("\n");
 it("agrees with the regex normalizer on a fuzzed corpus", () => {
-  const parts = ["<script>", "</script>", "<style>", "</style>", "<SCRIPT x>", "</SCRIPT>", "<scripts>", "<p>", "</p>", "a", " b ", "<br>", "&amp;", "<math>", "</math>", ">", "<", "</style >", "<style", "\n"];
+  const parts = ["<script>", "</script>", "<style>", "</style>", "<SCRIPT x>", "</SCRIPT>", "<scripts>", "<p>", "</p>", "a", " b ", "<br>", "&amp;", "<math>", "</math>", ">", "<", "</style >", "<style", "\n", "İ", "ẞ", "😀", "<İ>"];
   let seed = 7;
   const rnd = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
   for (let n = 0; n < 20000; n++) {
@@ -30,4 +30,32 @@ it.each([
   selectionText(html);
   selectionTouchesMath(html, "zzz");
   expect(performance.now() - started).toBeLessThan(150);
+});
+
+// Session 70, R3a: positions come from a copy that keeps every index. `İ`
+// lowercases to two code units, which sliced the original in the wrong place.
+it.each([
+  "İ<script>SECRET</script>tail",
+  "İİİİ<p>a</p><style>b{}</style><p>c</p>",
+  "ẞİ<SCRIPT>x</SCRIPT>after",
+])("%s reads as the regex read it", (html) => {
+  expect(selectionText(html)).toBe(oldSelection(html));
+  expect(plainTextFromHtml(html)).not.toMatch(/SECRET|<sty|</);
+});
+it("an İ before a formula leaves its excerpt whole", () => {
+  const html = 'İ <math><semantics><mi>x</mi><annotation encoding="application/x-tex">x</annotation></semantics></math> after';
+  expect(plainTextFromHtml(html)).toBe("İ $x$ after");
+  expect(selectionTouchesMath(html, "after")).toBe(false);
+});
+
+// Session 70, R3b: with two names, a far opener of one is not sought again for
+// every element of the other.
+it.each([
+  ["closed scripts, then one style", "<script></script>".repeat(20000) + "<style></style>"],
+  ["closed styles, then one script", "<style></style>".repeat(20000) + "<script></script>"],
+])("%s cost linear time", (_, html) => {
+  const started = performance.now();
+  plainTextFromHtml(html);
+  selectionText(html);
+  expect(performance.now() - started).toBeLessThan(50);
 });

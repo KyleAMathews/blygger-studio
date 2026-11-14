@@ -98,3 +98,57 @@ test('an overline is drawn: a bar of real width over the expression, unlike the 
   const withoutBar = await page.locator('article math').screenshot();
   expect(withBar.equals(withoutBar)).toBe(false);
 });
+
+// Session 70, R2a (v0.4-plan §23.6): a formula paints inside its own box. A
+// smashed array sets no length a bound could catch, so the stylesheet's
+// `math { overflow: clip }` is what keeps its rows off the paragraphs around it.
+// Hit-tested: a leaf counts as escaped where the browser paints it outside its
+// paragraph. The same page with the rule switched off proves the test can fail.
+// The rule sits behind @supports (overflow-clip-margin), so it is checked where
+// the engine has the margin; the suite runs Chromium.
+const escapedLeaves = (page: Page) => page.evaluate(() => {
+  const host = document.querySelector('article math')!.closest('p')!;
+  let escaped = 0;
+  for (const leaf of host.querySelectorAll('mi, mn, mtext')) {
+    leaf.scrollIntoView({ block: 'center' });
+    const r = leaf.getBoundingClientRect();
+    const [x, y] = [r.left + r.width / 2, r.top + r.height / 2];
+    const hit = document.elementFromPoint(x, y);
+    const painted = !!hit && (hit === leaf || leaf.contains(hit) || hit.closest('math') === leaf.closest('math'));
+    const box = host.getBoundingClientRect();
+    if (painted && (y < box.top - 2 || y > box.bottom + 2 || x > box.right + 2)) escaped++;
+  }
+  return escaped;
+});
+
+test('a formula paints nothing outside its own box', async ({ page }) => {
+  await login(page);
+  const rows = Array.from({ length: 40 }, (_, i) => `W_{${i}}`).join(' \\\\ ');
+  const { json } = await api(page, 'POST', '/items', { contentMd: `Above.\n\nTall $\\smash{\\begin{array}{c} ${rows} \\end{array}}$ here.\n\nBelow.`, kind: 'fragment' });
+  expect((await api(page, 'POST', `/items/${json.id}/publish`, {})).status).toBe(200);
+  await page.goto(`/f/${json.id}/`);
+  await expect(page.locator('article math')).toBeAttached();
+  test.skip(!(await page.evaluate(() => CSS.supports('overflow-clip-margin', '0.25em'))), 'no clip margin in this engine');
+  expect(await escapedLeaves(page)).toBe(0);
+  await page.addStyleTag({ content: 'math { overflow: visible !important; }' });
+  expect(await escapedLeaves(page)).toBeGreaterThan(0);
+});
+
+test('ordinary formulas lose no pixels to the clip', async ({ page }, info) => {
+  await login(page);
+  const corpus = [
+    'Inline $\\frac{a}{b}$, $\\sum_{i=0}^{n} x_i$, $\\hat{x}$, $\\widehat{xyz}$, $\\overrightarrow{AB}$, $\\overline{AB}$, $x^{2^{k}}$, $\\sqrt[3]{y}$ and $\\left(\\frac{1}{2}\\right)$.',
+    '$$\\int_0^1 \\frac{f(x)}{g(x)}\\,dx$$',
+    '$$\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$$',
+    '$$\\lim_{n\\to\\infty} \\left(1 + \\frac{1}{n}\\right)^{n} = e$$',
+  ].join('\n\n');
+  const { json } = await api(page, 'POST', '/items', { contentMd: corpus, kind: 'fragment' });
+  expect((await api(page, 'POST', `/items/${json.id}/publish`, {})).status).toBe(200);
+  await page.goto(`/f/${json.id}/`);
+  await expect(page.locator('article math').first()).toBeVisible();
+  const article = page.locator('article');
+  const clipped = await article.screenshot({ animations: 'disabled' });
+  await page.addStyleTag({ content: 'math { overflow: visible !important; }' });
+  const unclipped = await article.screenshot({ animations: 'disabled' });
+  expect(clipped.equals(unclipped), `${info.project.name}: the clip changed an ordinary formula's pixels`).toBe(true);
+});

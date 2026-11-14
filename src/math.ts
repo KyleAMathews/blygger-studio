@@ -12,7 +12,7 @@
 // holds the owner's session.
 import type MarkdownIt from "markdown-it";
 import type { StateInline } from "markdown-it";
-import { noteMathFailure, renderTex, TEX_MAX } from "./math-render.ts";
+import { noteMathFailure, refusedTex, renderTex, TEX_MAX } from "./math-render.ts";
 
 export interface MathSpan {
   /** The TeX between the delimiters, as written. */
@@ -95,16 +95,19 @@ export function mathPlugin(md: MarkdownIt) {
   md.renderer.rules.math_inline = (tokens, idx) => {
     const token = tokens[idx];
     const display = Boolean(token.meta?.display);
-    const { html, error } = renderTex(token.content, display);
-    if (error) {
-      // By the time a formula renders at publish, a link, a mention or a
-      // generated span inside it has become a private sentinel character.
-      const inner = SENTINEL.test(token.content);
-      noteMathFailure({
-        formula: `${token.markup}${token.content.replace(SENTINELS, "…")}${token.markup}`,
-        reason: inner ? "a formula cannot contain a link, a mention or a generated span" : error,
-      });
+    const formula = `${token.markup}${token.content.replace(SENTINELS, "…")}${token.markup}`;
+    // By the time a formula renders at publish, a link, a mention or a
+    // generated span inside it has become a private sentinel character. Refused
+    // whether or not the formula draws: after a `%` TeX reads nothing, so
+    // `$x % [[id]]$` parses, and the anchor would be spliced into its annotation
+    // (session 70, R1a).
+    if (SENTINEL.test(token.content)) {
+      const reason = "a formula cannot contain a link, a mention or a generated span";
+      noteMathFailure({ formula, reason });
+      return refusedTex(token.content, display, reason);
     }
+    const { html, error } = renderTex(token.content, display);
+    if (error) noteMathFailure({ formula, reason: error });
     return html;
   };
 }

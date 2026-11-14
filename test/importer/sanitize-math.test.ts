@@ -152,6 +152,13 @@ describe('the review of studio#149, R4 and the small fixes', () => {
     expect(out.match(/<math/g)).toHaveLength(26);
     expect(out.match(/class="math-source"/g)).toHaveLength(4);
   });
+  it('a formula too long to draw spends none of the budget (session 70)', async () => {
+    const huge = `<math><annotation encoding="application/x-tex">${'x'.repeat(TEX_MAX + 1)}</annotation></math>`;
+    const small = '<math><annotation encoding="application/x-tex">y</annotation></math>';
+    const out = await sanitizeHtml(huge.repeat(30) + small);
+    expect(out.match(/class="math-source"/g)).toHaveLength(30);
+    expect(out.endsWith(drawing('y'))).toBe(true);
+  });
   it('encoding and display are read whatever their case', async () => {
     expect(await sanitizeHtml('<math DISPLAY="BLOCK"><annotation ENCODING="Application/X-TeX">x</annotation></math>')).toBe(drawing('x', true));
   });

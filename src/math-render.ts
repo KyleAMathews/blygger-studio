@@ -53,22 +53,41 @@ export const MATH_ATTRIBUTES = new Set(
  */
 const LENGTHS = new Set("width height depth voffset lspace rspace minsize maxsize linethickness".split(" "));
 const EM: Record<string, number> = { em: 1, ex: 0.5, px: 1 / 16, pt: 1 / 12, "%": 0.2 };
+/** A length in em, by rough equivalence; null if it is not one a formula may write. */
+function lengthEm(value: string): number | null {
+  const m = /^(-?\d*\.?\d+)(em|ex|px|pt|%)?$/.exec(value.trim());
+  return m ? Number(m[1]) * (m[2] ? EM[m[2]] : 1) : null;
+}
 export function allowedLength(value: string): boolean {
   if (value === "-1width") return true; // temml's \llap: back by its own width, never more
-  const m = /^(-?\d*\.?\d+)(em|ex|px|pt|%)?$/.exec(value.trim());
-  if (!m) return false;
-  const em = Number(m[1]) * (m[2] ? EM[m[2]] : 1);
-  return em <= 20 && em >= -2;
+  const em = lengthEm(value);
+  return em !== null && em <= 20 && em >= -2;
 }
+
+/**
+ * How far a formula may move its text up or down (session 70, R2b): each
+ * `voffset` within 2em, and all of them in one formula together within 4em, so
+ * nesting `\\raisebox` gains nothing. The second line: `math { overflow: clip }`
+ * in the stylesheets is what contains a formula (v0.4-plan §23.6).
+ */
+const VOFFSET_MAX = 2;
+const VOFFSET_TOTAL = 4;
 
 /** Whether rendered MathML uses only allowed element and attribute names, and bounded lengths. */
 export function allowedMath(html: string): boolean {
+  let moved = 0;
   for (const tag of html.matchAll(/<\/?([^\s/>]+)([^>]*)>/g)) {
     if (!MATH_ELEMENTS.has(tag[1].toLowerCase())) return false;
     for (const attribute of tag[2].matchAll(/([^\s=/]+)\s*(?:=\s*("[^"]*"|'[^']*'|[^\s>]+))?/g)) {
       const name = attribute[1].toLowerCase();
       if (!MATH_ATTRIBUTES.has(name)) return false;
-      if (LENGTHS.has(name) && !allowedLength((attribute[2] ?? "").replace(/^["']|["']$/g, ""))) return false;
+      const value = (attribute[2] ?? "").replace(/^["']|["']$/g, "");
+      if (LENGTHS.has(name) && !allowedLength(value)) return false;
+      if (name === "voffset") {
+        const em = Math.abs(lengthEm(value) ?? Infinity);
+        moved += em;
+        if (em > VOFFSET_MAX || moved > VOFFSET_TOTAL) return false;
+      }
     }
   }
   return true;
@@ -172,12 +191,13 @@ function temmlDraw(tex: string, display: boolean): string {
   return temml.renderToString(tex, { displayMode: display, annotate: true, trust: false, throwOnError: true });
 }
 
+/** A refused formula as preview shows it; publish refuses before it would be baked. */
+export function refusedTex(tex: string, display: boolean, reason: string): string {
+  return `<code class="math-error" title="${escapeHtml(reason)}">${escapeHtml(written(tex, display))}</code>`;
+}
+
 function drawChecked(tex: string, display: boolean, draw: (tex: string, display: boolean) => string): { html: string; error?: string } {
-  const failed = (reason: string) => ({
-    // Shown in preview; publish refuses before it would be baked.
-    html: `<code class="math-error" title="${escapeHtml(reason)}">${escapeHtml(written(tex, display))}</code>`,
-    error: reason,
-  });
+  const failed = (reason: string) => ({ html: refusedTex(tex, display, reason), error: reason });
   if (tex.length > TEX_MAX) return failed(`a formula is limited to ${TEX_MAX} characters`);
   let html: string;
   try {

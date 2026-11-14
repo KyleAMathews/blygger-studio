@@ -1,7 +1,7 @@
 // Publisher HTML is untrusted. Keep ordinary editorial HTML, not active or
 // foreign documents. Raw rows remain unchanged; sanitize every receiving render.
 import { decodeHTML, decodeHTMLAttribute } from 'entities';
-import { renderTex, texAsText } from '../math-render.ts';
+import { renderTex, TEX_MAX, texAsText } from '../math-render.ts';
 
 const TAGS = new Set('a abbr address article aside b bdi bdo blockquote br caption cite code col colgroup data dd del details dfn div dl dt em figcaption figure footer h1 h2 h3 h4 h5 h6 header hr i img ins kbd li main mark nav ol p pre q rp rt ruby s samp section small span strong sub summary sup table tbody td th thead time tr u ul var wbr'.split(' '));
 // Unlisted tags are unwrapped so their text and listed children survive
@@ -92,8 +92,15 @@ export async function sanitizeHtml(html: string, makeNonce: () => string = nonce
   return out.replace(new RegExp(`${token}(\\d+)x`, 'g'), (_, index: string) => {
     const formula = formulas[Number(index)];
     if (!formula?.tex) return '';
+    // Only what is drawn is charged: a formula over TEX_MAX is never drawn, and
+    // must not turn the rest of a thread to text (session 70).
+    if (formula.tex.length > TEX_MAX) return texAsText(formula.tex, formula.display);
+    if (drawn >= FORMULAS_MAX || spent + formula.tex.length > TEX_BUDGET) {
+      spent = TEX_BUDGET; // the budget is spent: every later formula is text too
+      return texAsText(formula.tex, formula.display);
+    }
+    drawn++;
     spent += formula.tex.length;
-    if (++drawn > FORMULAS_MAX || spent > TEX_BUDGET) return texAsText(formula.tex, formula.display);
     const { html: drawing, error } = renderTex(formula.tex, formula.display);
     return error ? texAsText(formula.tex, formula.display) : drawing;
   });
