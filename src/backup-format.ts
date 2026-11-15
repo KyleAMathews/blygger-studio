@@ -9,7 +9,7 @@ export const BACKUP_FORMAT_VERSION = 1;
 export const BACKUP_TABLES: ReadonlySet<string> = new Set([
   'browse_log', 'change_class', 'change_state', 'changelog_summaries', 'contacts', 'hopper_items', 'hoppers',
   'imported_items', 'imported_mentions', 'imported_mentions_backfill', 'interactions', 'items', 'link_probe',
-  'media', 'mentions_in', 'mentions_out', 'read_state', 'settings', 'signals', 'subscriptions', 'version_media', 'versions',
+  'media', 'mentions_in', 'mentions_out', 'read_state', 'settings', 'shelf', 'shelf_revision', 'signals', 'subscriptions', 'version_media', 'versions',
 ]);
 /** Migration tables deliberately left out: credentials, grants and abuse budgets. */
 export const CREDENTIAL_TABLES: ReadonlySet<string> = new Set([
