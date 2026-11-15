@@ -834,6 +834,10 @@
           "updateNoticeAck": {
             "type": "boolean"
           },
+          "discoverSeenAt": {
+            "type": "string",
+            "description": "Discover: the listing date of the newest blygger.com listing the owner has been shown, ISO; empty until Discover is first opened. Listings after it are new."
+          },
           "extensions": {
             "type": "array",
             "items": {
@@ -887,6 +891,7 @@
           "setup",
           "updateFeedUrl",
           "updateNoticeAck",
+          "discoverSeenAt",
           "extensions"
         ]
       },
@@ -7791,6 +7796,10 @@
                   },
                   "updateNoticeAck": {
                     "type": "boolean"
+                  },
+                  "discoverSeenAt": {
+                    "type": "string",
+                    "description": "Discover: the listing date of the newest blygger.com listing the owner has been shown, ISO; empty until Discover is first opened. Listings after it are new."
                   },
                   "extensions": {
                     "type": "array",
