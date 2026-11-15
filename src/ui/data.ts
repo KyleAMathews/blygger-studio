@@ -309,6 +309,8 @@ export const shelf = createCollection(
         throw error;
       }
       await collection.utils.refetch({ throwOnError: true });
+      // Reading's Shelf lens is a projection of the shelf the write cannot supply.
+      await changed('reading');
       assertNotPaused(['shelf']);
     },
   }),
@@ -621,10 +623,10 @@ export function createDraftAction(id?: string, observedRevision?: number) {
 export type Reading = Omit<z.infer<typeof sourceSchemas.reading>, 'view'>;
 /**
  * Reading lenses (0.25.0). "threads" and "fragments" narrow a timeline and its
- * counts by kind; "background" and "smart" are placeholders for features that
- * are not built yet (procedural updates with ignyr; the AI-ranked feed).
+ * counts by kind; "shelf" is the shelved entries in the owner's order (row 115);
+ * "smart" is a placeholder for the AI-ranked feed.
  */
-export const LENSES = ['all', 'threads', 'fragments', 'mentions', 'background', 'smart'] as const;
+export const LENSES = ['all', 'mentions', 'smart', 'fragments', 'threads', 'shelf', 'background'] as const;
 export type Lens = (typeof LENSES)[number];
 export const lensKind = (lens: Lens | undefined): 'thread' | 'fragment' | undefined =>
   lens === 'threads' ? 'thread' : lens === 'fragments' ? 'fragment' : undefined;
@@ -633,7 +635,7 @@ export const lensKind = (lens: Lens | undefined): 'thread' | 'fragment' | undefi
  * unfiltered view (so every existing key is unchanged), `sub~kind` otherwise.
  */
 export const readingKey = (sub: string, lens?: Lens) => {
-  if (lens === 'background' || lens === 'mentions') return `${sub}~${lens}`;
+  if (lens === 'background' || lens === 'mentions' || lens === 'shelf') return `${sub}~${lens}`;
   const kind = lensKind(lens);
   return kind ? `${sub}~${kind}` : sub;
 };
@@ -662,16 +664,16 @@ export const reading = createCollection(queryCollectionOptions({
   select: response => response.data,
 }));
 function readingDomains(view: string): readonly ChangeDomain[] {
-  return view.startsWith('hopper:') ? ['reading', 'subscriptions', 'hoppers'] : ['reading', 'subscriptions'];
+  return ['reading', 'subscriptions', ...(view.startsWith('hopper:') ? ['hoppers' as const] : []), ...(view.split('~')[1] === 'shelf' ? ['shelf' as const] : [])];
 }
 export function readingQuery(view: string) {
-  const [sub, filter] = view.split('~') as [string, 'thread' | 'fragment' | 'background' | 'mentions' | undefined];
-  return { ...(sub.startsWith('hopper:') ? { hopper: sub.slice('hopper:'.length) } : { sub }), ...(filter === 'background' ? { background: 'true' as const } : filter === 'mentions' ? { mentions: 'true' as const } : filter ? { kind: filter } : {}) };
+  const [sub, filter] = view.split('~') as [string, 'thread' | 'fragment' | 'background' | 'mentions' | 'shelf' | undefined];
+  return { ...(sub.startsWith('hopper:') ? { hopper: sub.slice('hopper:'.length) } : { sub }), ...(filter === 'background' ? { background: 'true' as const } : filter === 'mentions' ? { mentions: 'true' as const } : filter === 'shelf' ? { shelf: 'true' as const } : filter ? { kind: filter } : {}) };
 }
 export const readingSummaries = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.readingSummaries, id: 'reading-summary', syncMode: 'on-demand',
   queryKey: ['reading-summary', 'rows'], queryClient, getKey: row => row.view,
-  queryFn: context => cachedQuery(context, ['reading', 'subscriptions', 'hoppers'], sourceSchemas.readingSummaries.array(), async ({ signal }) => {
+  queryFn: context => cachedQuery(context, ['reading', 'subscriptions', 'hoppers', 'shelf'], sourceSchemas.readingSummaries.array(), async ({ signal }) => {
     const views = subsetIds(context, 'view');
     if (!views) throw new Error('Reading summary requires a view predicate');
     return Promise.all(views.map(async view => {

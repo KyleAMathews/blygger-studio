@@ -12,7 +12,7 @@
  * handlers, never the only way. Choosing a passage to quote happens in the
  * stub editor (session 37), not here.
  */
-import { createItem, createHopper, addHopperItem, resyncSubscription, pollSubscriptions, markUnheldRead } from './server-mutations.ts';
+import { createItem, createHopper, addHopperItem, resyncSubscription, pollSubscriptions, markUnheldRead, setReadingPlacement, setBlygBackground } from './server-mutations.ts';
 import { readingPage } from '../paging.ts';
 import { linkSource } from '../grammar.ts';
 import { linkLabel } from '../link-label.ts';
@@ -55,6 +55,7 @@ import {
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { IconButton, Tooltip } from './primitives.tsx';
+import { shelfLabel, toggleShelf, useShelf } from './shelf.tsx';
 import { displayUrl, sourceTitleAndUrl } from '../importer/util.ts';
 import { ReaderBody, TrailBar, ownOrigin, useEndTrail, useSubscriptionRows } from './reader-links.tsx';
 import { currentTrail, visit } from './browse.ts';
@@ -493,6 +494,12 @@ function useEntryActions({
     openSheet: (render) => setExtensionSheet({ name: extension.name, render }),
   });
   const hopperSub = imported?.subscriptionId ?? (entry.own ? OWN_SUB : undefined);
+  // The shelf keeps only what resolves (src/shelf.ts): never a withdrawn own item, nor a tombstone without its pin.
+  const shelved = useShelf();
+  const shelfEntry = hopperSub && (!entry.withdrawn || imported?.pinnedVersionRetained != null) ? { sub: hopperSub, remoteId: id } : null;
+  const shelf = shelfEntry
+    ? { label: shelfLabel(shelved, shelfEntry), on: shelfLabel(shelved, shelfEntry) === 'remove from shelf', toggle: () => run(() => toggleShelf(shelved, shelfEntry)) }
+    : null;
   const addToHopper = () =>
     run(async () => {
       if (!hopperSub) return;
@@ -519,6 +526,20 @@ function useEntryActions({
       }
       await addHopperItem({ id: hopperId, sub: hopperSub, remoteId: id });
       toast(`added to ${name}`);
+    });
+  // Background and Foreground (src/background.ts): a view preference, not a
+  // judgement, so nothing here is logged as an interaction or marks anything read.
+  const inBackground = useContext(LensContext) === 'background';
+  const place = (placement: 'background' | 'foreground' | null) =>
+    run(async () => {
+      await setReadingPlacement({ source: imported ? 'imported' : 'own', ...(imported ? { sub: imported.subscriptionId } : {}), id, placement });
+      toast(placement === 'background' ? 'moved to Background' : placement === 'foreground' ? 'moved to Foreground' : 'the rules decide again');
+    });
+  const blygBackground = (background: boolean) =>
+    run(async () => {
+      if (!imported) return;
+      await setBlygBackground({ id: imported.subscriptionId, background });
+      toast(`${imported.subscriptionTitle} ${background ? 'moved to Background' : 'back in the main lenses'}`);
     });
   const openMenu = async () => {
     await menu({
@@ -574,6 +595,25 @@ function useEntryActions({
           label: 'add author to address book',
           onSelect: () => void authorSeed(imported).then(addAuthorContact),
         },
+        (imported || entry.own) && {
+          key: 'placement',
+          icon: inBackground ? '↑' : '↓',
+          label: inBackground ? 'move to Foreground' : 'move to Background',
+          onSelect: () => void place(inBackground ? 'foreground' : 'background'),
+        },
+        entry.background.placement !== null && {
+          key: 'placement-clear',
+          icon: '↺',
+          label: 'clear my choice',
+          description: 'Background and Foreground follow the rules again',
+          onSelect: () => void place(null),
+        },
+        !!imported && {
+          key: 'blyg-placement',
+          icon: entry.background.blyg ? '⇈' : '⇊',
+          label: entry.background.blyg ? 'move this blyg to Foreground' : 'move this blyg to Background',
+          onSelect: () => void blygBackground(!entry.background.blyg),
+        },
         ...entryActionRows(extensions, extensionContext),
       ],
     });
@@ -586,6 +626,7 @@ function useEntryActions({
     vote,
     stub,
     addToHopper,
+    shelf,
     openMenu,
     historyOpen,
     extensions,
@@ -612,15 +653,31 @@ async function authorSeed(imported: NonNullable<Reading['imported']>) {
   };
 }
 
+/**
+ * Why an entry is in Background, in the plan's precedence (background-plan.md
+ * §4): your choice on it, then on its blyg, then the first rule that applies.
+ */
+function backgroundLabel(entry: Reading): string | null {
+  const { placement, blyg, reasons, detail } = entry.background;
+  if (placement === 'background') return 'you moved this';
+  if (blyg) return 'blyg in Background';
+  // Withdrawn entries already say so under the body (Tomb).
+  if (reasons[0] === 'withdrawn') return null;
+  if (reasons[0] === 'minor') return typeof detail?.category === 'string' ? `minor change (${detail.category})` : 'minor change';
+  return null;
+}
+
 /** The byline: kind, legacy rss, source and date, plus the extensions' slot. */
 function Byline({ entry, a, children }: { entry: Reading; a: EntryActions; children?: ReactNode }) {
   const settings = useSettings();
   const date = formatDateIn(entry.displayAt, settings?.timezone || 'UTC');
+  const why = useContext(LensContext) === 'background' ? backgroundLabel(entry) : null;
   return (
     <p className="byline">
       {children}
       <span className="badge">{entry.kind}</span>
       {entry.l0 ? <span className="badge badge-line">legacy rss</span> : null}
+      {why ? <span className="badge badge-line badge-why" title="why this is in Background">{why}</span> : null}
       <span className="src">{a.imported?.subscriptionTitle || 'you'}</span>
       <span>· {date}</span>
       <EntryBylineSlot extensions={a.extensions} context={a.extensionContext} />
@@ -682,9 +739,14 @@ function EntryBar({ entry, a }: { entry: Reading; a: EntryActions }) {
             aria-label="add to hopper"
             onClick={() => void a.addToHopper()}
           >
-            + add to hopper…
+            + <span className="act-wide">add to </span>hopper…
           </Button>
         </>
+      ) : null}
+      {a.shelf ? (
+        <Button className="act" data-action="shelf" aria-label={a.shelf.label} onClick={() => void a.shelf?.toggle()}>
+          {a.shelf.on ? '−' : '+'} <span className="act-wide">{a.shelf.on ? 'remove from' : 'add to'} </span>shelf
+        </Button>
       ) : null}
       <Tooltip label="more actions">
         <Button
@@ -958,6 +1020,8 @@ async function ownEntry(id: string, signal?: AbortSignal): Promise<Reading> {
     displayAt: item.published?.publishedAt ?? item.updated,
     rank: 0,
     own: { id, kind, withdrawn, updated: item.updated, contentHtml },
+    // Opened by address, outside a list: what is known without the reader's query.
+    background: { reasons: withdrawn ? ['withdrawn'] : [], placement: null, blyg: false },
   };
 }
 /** A standalone import when no loaded Reading row is held. */
@@ -980,6 +1044,7 @@ function importedEntry(
     contentHtml: item.contentHtml,
     displayAt,
     rank,
+    background: { reasons: withdrawn ? ['withdrawn'] : [], placement: null, blyg: source?.background ?? false },
     imported: {
       subscriptionId: item.subscriptionId,
       subscriptionTitle: source ? sourceName(source) : item.subscriptionId,
@@ -1284,6 +1349,27 @@ function Inspector({
           </span>
         </span>
       </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={shown.background}
+          onChange={(event) => {
+            const checked = event.target.checked;
+            setError(undefined);
+            setBlygBackground({ id: shown.id, background: checked }).then(
+              () => toast(checked ? 'moved to Background' : 'back in the main lenses'),
+              setError,
+            );
+          }}
+        />
+        <span>
+          in Background
+          <span className="hint">
+            Its entries leave the other lenses for Background, except any you
+            moved to Foreground. Nothing is marked read.
+          </span>
+        </span>
+      </label>
       <Failure error={error} />
       <ul className="menu-list">
         <li>
@@ -1393,6 +1479,7 @@ const LENS_LABELS: Record<Lens, string> = {
   all: 'All',
   threads: 'Threads',
   fragments: 'Fragments',
+  shelf: 'Shelf',
   mentions: 'Mentions',
   background: 'Background',
   smart: 'Smart Feed',
@@ -1441,6 +1528,7 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
     </div>
   );
 }
+const SHELF_NOTE = 'What you put on your shelf, yours and the blygs you read, in your order. Your drafts on it are under compose.';
 const MENTIONS_NOTE = 'Items you already read that name you. A find, not a notification: nobody told you, and nothing here is verified.';
 /** Withdrawn posts are background: every other lens leaves them out. */
 export const BACKGROUND_NOTE = 'Withdrawn posts, yours and the blygs you read. They are kept out of the other views.';
@@ -1916,6 +2004,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
         <>
           {lens === 'background' ? <p className="view-sub">{BACKGROUND_NOTE}</p> : null}
           {lens === 'mentions' ? <p className="view-sub">{MENTIONS_NOTE}</p> : null}
+          {lens === 'shelf' ? <p className="view-sub">{SHELF_NOTE}</p> : null}
           {entries.isLoading ? <p className="view-sub">Loading reading…</p> : null}
           <EntryList entries={entries.data ?? []} actions={actions} />
           {!entries.isLoading && !entries.data?.length ? (
@@ -1923,7 +2012,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
               <span className="em" aria-hidden="true">
                 ◫
               </span>
-              {lens === 'background' ? 'Nothing withdrawn.' : lens === 'mentions' ? 'Nothing you read mentions you yet.' : 'No items yet.'}
+              {lens === 'background' ? 'Nothing withdrawn.' : lens === 'mentions' ? 'Nothing you read mentions you yet.' : lens === 'shelf' ? 'Nothing on your shelf yet: “add to shelf” on any entry puts it here.' : 'No items yet.'}
             </div>
           ) : null}
           <Pager

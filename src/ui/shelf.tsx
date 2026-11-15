@@ -15,6 +15,7 @@ import { itemTitle } from './plain-text.ts';
 import { useState } from 'react';
 import { Button, Failure } from './components.tsx';
 import { toast } from './sheets.tsx';
+import { Tooltip } from './primitives.tsx';
 
 function useAction() {
   const [error, setError] = useState<unknown>();
@@ -90,12 +91,18 @@ export function Shelf() {
               </Link>
               {item ? <span className="shelf-meta">{item.kind === 'thread' ? 'thread · ' : ''}{item.version === 0 ? 'draft' : `v${item.version}`}</span> : null}
               <span className="shelf-actions">
-                <Button className="btn btn-ghost btn-mini" aria-label="move up" title="move up" disabled={action.busy || index === 0}
-                  onClick={() => void action.run(() => setShelf(move(entries, id, -1)))}>↑</Button>
-                <Button className="btn btn-ghost btn-mini" aria-label="move down" title="move down" disabled={action.busy || index === ids.length - 1}
-                  onClick={() => void action.run(() => setShelf(move(entries, id, 1)))}>↓</Button>
-                <Button className="btn btn-ghost btn-mini" aria-label="remove from shelf" title="remove from shelf" disabled={action.busy}
-                  onClick={() => void action.run(() => toggleShelf(entries, ownEntry(id)))}>✕</Button>
+                <Tooltip label="move up">
+                  <Button className="btn btn-ghost btn-mini" aria-label="move up" disabled={action.busy || index === 0}
+                    onClick={() => void action.run(() => setShelf(move(entries, id, -1)))}>↑</Button>
+                </Tooltip>
+                <Tooltip label="move down">
+                  <Button className="btn btn-ghost btn-mini" aria-label="move down" disabled={action.busy || index === ids.length - 1}
+                    onClick={() => void action.run(() => setShelf(move(entries, id, 1)))}>↓</Button>
+                </Tooltip>
+                <Tooltip label="remove from shelf">
+                  <Button className="btn btn-ghost btn-mini" aria-label="remove from shelf" disabled={action.busy}
+                    onClick={() => void action.run(() => toggleShelf(entries, ownEntry(id)))}>✕</Button>
+                </Tooltip>
               </span>
             </li>
           );

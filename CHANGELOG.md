@@ -18,6 +18,49 @@ not have its own repo until session 26.
 
 ---
 
+## 0.61.0 — The Reading redesign: Shelf, Background, lenses in a new order
+
+**Lenses in a new order:** All, Mentions, Smart Feed, Fragments, Threads, Shelf,
+Background (ROADMAP row 115).
+
+**The Shelf** (#137, Aneesh Sathe; rows 114 and 115): a private, owner-ordered list of
+items, synced across clients through `GET`/`PUT {mount}/api/shelf`. An entry is
+`{ sub, remoteId }`, named the way hopper membership names an item (`"~own"` for your
+own). A `PUT` replaces the whole list and must send `expectedRevision`; a stale one is
+a 409 `revision-conflict` carrying the current list. Entries that do not resolve
+(a withdrawn own item, an imported tombstone without its pin, an unknown
+subscription) are dropped quietly. The shelf never reaches an item document, a feed,
+the manifest or a public page, and never will. In the studio:
+
+- every reading entry has *+ add to shelf* beside *+ add to hopper…* (below 430 px
+  both shorten to *+ shelf* and *+ hopper…*);
+- the **Shelf lens** lists shelved entries in your order, whatever their Background
+  placement (`GET /reading?shelf=true`);
+- your own shelved items, drafts included, sit at the top of the compose list, with
+  move up, move down and remove; each compose row and the editor's ⋯ menu add or
+  remove one.
+
+**Background, phase 1** (row 112; plan in blygger-spec `docs/background-plan.md`): an
+entry is in Background by your choice on it, else on its blyg, else an enabled rule;
+withdrawn posts always are. An entry's ⋯ menu moves it to Background or Foreground,
+clears the choice, or moves its whole blyg; the source inspector has an *in
+Background* checkbox; in the Background lens the byline says why. Settings → Feed
+has a Background card: withdrawn always on, your own minor changes (typo, minor,
+refresh) on by default. `PUT /reading/placement`, `background` on
+`PATCH /subscriptions/{id}`, the `backgroundRules` setting.
+
+**A stub of an item this blyg does not hold** (row 116) froze `f/{id}/` as its
+citation, a 404 for every thread. It now names the item's document, as a mention
+does; publishing stays network-free.
+
+The download backup includes the shelf and Background placements.
+
+Private contract 5.10.0, SDK 0.16.0. **Migrations: 0044 (the shelf) and 0046
+(Background).** Apply both before deploying: `/changes` selects every change domain by
+name, and the reading queries read the new columns. 0044 sorts before 0.58.0's 0045;
+wrangler applies migrations by name, so a node that has 0045 still applies 0044.
+Both were proven on a remote D1 (the `CASE … END;` splitter check) before release.
+
 ## 0.60.1 — Discover offers only blygs you do not follow; tooltips
 
 **Discover's "new" view offered blygs you already follow** (on a first visit, all of

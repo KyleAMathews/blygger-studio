@@ -78,6 +78,7 @@ export const SubscriptionSchema = z.object({
   flags: z.array(z.object({ type: z.string(), at: z.string(), detail: z.string().optional() })),
   created: z.string(),
   titleFollowsSource: z.boolean(),
+  background: z.boolean().describe("The owner moved this whole blyg to Background in the reader. An entry's own placement still wins (blygger-spec docs/background-plan.md)."),
   hopperFeedUrl: z.string().nullable().describe("A hopper subscription (one public hopper at another blyg; spec 0.4 §16.12): the hopper feed's resolved absolute URL, which with origin (the blyg's identity origin) is the subscription's identity. Null for every other subscription."),
 }).openapi("Subscription");
 
@@ -262,6 +263,7 @@ export const subscriptionResource = (row: SubscriptionRow) => SubscriptionSchema
   flags: stored(row.flags, SubscriptionSchema.shape.flags, []),
   created: row.created,
   titleFollowsSource: row.title_auto !== 0,
+  background: row.background === 1,
   hopperFeedUrl: row.hopper_feed ?? null,
 });
 
