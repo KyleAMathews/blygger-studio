@@ -200,6 +200,9 @@ export const zSettings = z.object({
     ]),
     changelogSummaryPrompt: z.string(),
     backgroundRules: z.object({
+        burst: z.boolean(),
+        wordless: z.boolean(),
+        maintenance: z.boolean(),
         minor: z.boolean()
     }),
     acceptMentions: z.boolean(),
@@ -568,7 +571,12 @@ export const zReadingEntry = z.object({
         version: z.int(),
         readVersion: z.int().nullable()
     }).optional(),
-    background: zEntryBackground
+    background: zEntryBackground,
+    parts: z.array(z.object({
+        sub: z.string(),
+        id: z.string(),
+        label: z.string()
+    })).optional()
 });
 
 export const zImportedReadingEntry = z.object({
@@ -1243,8 +1251,11 @@ export const zUpdateSettingsBody = z.object({
     ]).optional(),
     changelogSummaryPrompt: z.string().optional(),
     backgroundRules: z.object({
-        minor: z.boolean()
-    }).optional(),
+        burst: z.boolean().optional(),
+        wordless: z.boolean().optional(),
+        maintenance: z.boolean().optional(),
+        minor: z.boolean().optional()
+    }).strict().optional(),
     acceptMentions: z.boolean().optional(),
     updateCheck: z.boolean().optional(),
     showResponsesDefault: z.boolean().optional(),
