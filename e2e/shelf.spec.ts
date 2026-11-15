@@ -73,10 +73,12 @@ test('reading entries go on the shelf, and the Shelf lens lists them in order', 
     await api(page, 'POST', `/api/items/${mine}/publish`, {});
     const native = '.reading-entry[data-key="imported:[\\"parity-native\\",\\"00000000000000000000000001\\"]"]';
 
-    await page.goto('/studio/reading');
+    // Each from its own source: earlier tests can push the old fixture off All's first page.
+    await page.goto('/studio/reading?sub=parity-native');
     const imported = page.locator(native);
     await imported.locator('[data-action="shelf"]').click();
     await expect(imported.locator('[data-action="shelf"]')).toHaveAccessibleName('remove from shelf');
+    await page.goto('/studio/reading?sub=own');
     const own = page.locator(`.reading-entry[data-key="own:${mine}"]`);
     await own.locator('[data-action="shelf"]').click();
     await expect(own.locator('[data-action="shelf"]')).toHaveAccessibleName('remove from shelf');
@@ -85,6 +87,7 @@ test('reading entries go on the shelf, and the Shelf lens lists them in order', 
       { sub: '~own', remoteId: mine },
     ]);
 
+    await page.goto('/studio/reading');
     const bar = page.getByRole('group', { name: 'reading lens' });
     await bar.getByRole('button', { name: 'Shelf' }).click();
     await expect(page).toHaveURL(/lens=shelf/);
