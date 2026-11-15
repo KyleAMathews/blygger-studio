@@ -198,6 +198,14 @@ button.link { background: none; border: none; padding: 0; font: inherit; color: 
 .icon-btn { background: none; border: 1px solid transparent; border-radius: 8px; padding: 5px 8px; cursor: pointer; color: var(--ink-soft); font-size: .95rem; line-height: 1; }
 .icon-btn:hover { border-color: var(--rule); color: var(--ink); }
 .icon-btn[aria-pressed=true] { background: var(--pencil-bg); color: var(--pencil); border-color: var(--pencil); }
+/* Tooltip and IconButton (primitives.tsx): the rules from studio#88, on today's
+   tokens (its --color-background-inverse / --color-text-inverse are --ink / --card). */
+.tooltip-content { z-index: 80; width: max-content; max-width: min(240px, 80vw); padding: 5px 8px; border-radius: 6px; background: var(--ink); color: var(--card); box-shadow: var(--shadow); font-family: var(--sans); font-size: .75rem; font-weight: 500; line-height: 1.35; pointer-events: none; transition: opacity .12s ease; }
+.tooltip-content[data-starting-style], .tooltip-content[data-ending-style] { opacity: 0; }
+.tooltip-content[data-instant] { transition: none; }
+.icon-button { display: inline-grid; place-items: center; min-width: var(--hit); min-height: var(--hit); padding: 0; border: 1px solid transparent; border-radius: var(--radius-sm); color: var(--ink-soft); background: transparent; cursor: pointer; }
+.icon-button:hover:not(:disabled) { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.icon-button:disabled { opacity: .48; cursor: not-allowed; }
 
 /* ---------- COMPACT CONTROLS ----------
    Substack-scale: small muted glyphs and labels, no boxes. The visual is
@@ -344,7 +352,7 @@ button.link { background: none; border: none; padding: 0; font: inherit; color: 
 .menu-list button:disabled { opacity: .45; cursor: not-allowed; }
 @keyframes up { from { transform: translateY(30px); opacity: .4; } to { transform: none; opacity: 1; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .sheet, .backdrop, .toast { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .sheet, .backdrop, .toast { animation: none; } .tooltip-content { transition: none; } }
 
 .toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 70;
   background: var(--ink); color: var(--card); padding: 7px 8px 7px 16px; border-radius: 999px; font-size: .85rem; box-shadow: 0 6px 20px rgba(0,0,0,.25); animation: up .2s ease-out; max-width: calc(100vw - 32px); text-align: center;

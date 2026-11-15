@@ -2,6 +2,7 @@ import { retainedMediaSql } from './media-retention.ts';
 import { httpsUrl, listSyndication, refuseSyndication, replaceSyndication, type SyndicationEntry } from './syndication.ts';
 import { assertCurrentRevision, assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
 import { consumeHandles, contactResource, createContact, deleteContact, getContact, handleTaken, HANDLE, listContacts, resolveContact, updateContact } from './contacts.ts';
+import { readShelf, replaceShelf, type ShelfEntry } from './shelf.ts';
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { versionState } from './version-state.ts';
 import { isFont } from "./fonts.ts";
@@ -17,6 +18,7 @@ import { z } from "@hono/zod-openapi";
 import { createResponseDraft } from "./item-create.ts";
 import { ItemCreateSchema, ItemEditSchema } from "./contract/routes.ts";
 import { compiledExtensionNames } from "../build/extensions.names.ts";
+import { BACKGROUND_RULES, settleOwnBackground } from "./background.ts";
 // Owner API (cookie auth, JSON) — v0.1-plan §3.3.
 
 import { canBeFrontPage, MAX_LINKS, postsPathError } from "./front-page.ts";
@@ -255,6 +257,8 @@ async function publishAndNotify(context: OperationContext, item: ItemRow, note: 
     const version = await publish(context.env.DB, item, note, origin, noteGenerated);
     // Studio-private bookkeeping must never fail a publish that has happened.
     if (settle) await settle(version).catch((e) => console.error("change class not settled", e));
+    // After the category settles: an own version's Background reasons (4a).
+    await settleOwnBackground(context.env.DB, item.id, version).catch((e) => console.error("background reasons not settled", e));
     await sendMentionsFor(context, item.id, version);
     return success({ ok: true, version, revision: item.revision + 1, ...extra, ...(warning ? { warning } : {}), ...(unresolvedHandles.length ? { unresolvedHandles } : {}) });
   } catch (e) {
@@ -653,6 +657,14 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
     patch.extensions = JSON.stringify([...new Set(names as string[])].sort());
   }
   if (patch.discover_seen_at && Number.isNaN(Date.parse(patch.discover_seen_at))) return failure('invalid-input', { error: "discoverSeenAt must be an ISO date, or empty" });
+  if (body.bg_rules !== undefined) {
+    // Merged into what is stored, so turning one rule off leaves the others.
+    const rules = body.bg_rules as Record<string, unknown>;
+    if (!rules || typeof rules !== "object" || Array.isArray(rules)) return failure('invalid-input', { error: "backgroundRules must be an object of rule names to booleans" });
+    const unknown = Object.entries(rules).filter(([rule, on]) => !(BACKGROUND_RULES as readonly string[]).includes(rule) || typeof on !== "boolean");
+    if (unknown.length) return failure('invalid-input', { error: `backgroundRules takes ${BACKGROUND_RULES.join(", ")}, each true or false` });
+    patch.bg_rules = JSON.stringify({ ...(await getSettings(context.env.DB)).bg_rules, ...rules });
+  }
   if (typeof patch.setup === "string" && !["pending", "notice", "done"].includes(patch.setup)) return failure('invalid-input', { error: "setup must be pending, notice or done" });
   if (typeof patch.feed_order === "string") {
     // Against the extensions as they will be after this patch.
@@ -767,7 +779,19 @@ const resolveContactOperation = async (context: OperationContext, input: Operati
 const deleteContactOperation = async (context: OperationContext, input: OperationInput) =>
   await deleteContact(context.env.DB, input.path.id) ? success({ ok: true }) : failure('not-found', { error: "not found" });
 
+// The shelf (#135): see src/shelf.ts for the rules both operations share.
+const getShelfOperation = async (context: OperationContext) => success(await readShelf(context.env.DB));
+const putShelfOperation = async (context: OperationContext, input: OperationInput) => {
+  const body = input.body as { entries: ShelfEntry[]; expectedRevision: number };
+  const stored = await replaceShelf(context.env.DB, body.entries, body.expectedRevision);
+  if (stored) return success(stored);
+  // The current list rides in the error so a client can merge and retry.
+  return failure('conflict', { error: 'shelf revision conflict; reload and try again', code: 'revision-conflict', current: await readShelf(context.env.DB) });
+};
+
 export const itemOperations = {
+  getShelf: getShelfOperation,
+  putShelf: putShelfOperation,
   listContacts: listContactsOperation,
   createContact: createContactOperation,
   updateContact: updateContactOperation,

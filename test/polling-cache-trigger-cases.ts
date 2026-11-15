@@ -24,6 +24,9 @@ export const triggerFamilies = [
   { table: 'browse_log', insert: "INSERT INTO browse_log(at,trail,origin,remote_id,via) VALUES('t','matrix-trail','https://matrix-log/','remote','start')", update: "UPDATE browse_log SET title='title' WHERE trail='matrix-trail'", remove: "DELETE FROM browse_log WHERE trail='matrix-trail'", domains: ['browse'] },
   // 0047: a syndication row is on the live item document and its public page (§16.14); never the feed.
   { table: 'item_syndication', insert: "INSERT INTO item_syndication(item_id,url,version,position) VALUES('matrix-item','https://copy.example/p',1,0)", update: "UPDATE item_syndication SET position=1 WHERE item_id='matrix-item'", remove: "DELETE FROM item_syndication WHERE item_id='matrix-item'", domains: ['items'] },
+  // 0044: the shelf and its revision are Studio-private and move only `shelf`.
+  { table: 'shelf', insert: "INSERT INTO shelf(subscription_id,remote_id,position) VALUES('~own','matrix-item',0)", update: "UPDATE shelf SET position=1 WHERE remote_id='matrix-item'", remove: "DELETE FROM shelf WHERE remote_id='matrix-item'", domains: ['shelf'] },
+  { table: 'shelf_revision', insert: "INSERT INTO shelf_revision(id,revision) VALUES(1,0)", update: "UPDATE shelf_revision SET revision=revision+1 WHERE id=1", remove: "DELETE FROM shelf_revision WHERE id=1", domains: ['shelf'] },
 ] as const;
 
 // Independent one-field branches that the SQLite prototype supplied in SQL

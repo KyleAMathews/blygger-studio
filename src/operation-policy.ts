@@ -4,7 +4,7 @@ export const API_CONTRACT_VERSION = '5.11.0';
 export type WorkBudget = 'read' | 'write';
 export interface ScopeInput { body?: unknown }
 export interface OperationEffects {
-  writes: readonly ('items' | 'publication' | 'presentation' | 'media' | 'settings' | 'subscriptions' | 'imports' | 'hoppers' | 'signals' | 'mentions' | 'readingState' | 'browse' | 'cache' | 'changeClass')[];
+  writes: readonly ('items' | 'publication' | 'presentation' | 'media' | 'settings' | 'subscriptions' | 'imports' | 'hoppers' | 'signals' | 'mentions' | 'readingState' | 'browse' | 'shelf' | 'cache' | 'changeClass')[];
   destructive?: boolean;
   network?: boolean;
   background?: boolean;

@@ -4,14 +4,19 @@
  * CORS-open), so there is no server route of its own. Subscribing goes through
  * the OPML import's paced createSubscription walk.
  *
- * "New" is one timestamp, not a list of everything seen: the listing date of
- * the newest listing Discover has shown (the discoverSeenAt setting). Anything
- * listed after it has never been shown. Listing dates come from the directory,
- * so a clock on this device that is wrong does not hide or repeat anything.
+ * The "new" view is the blygs the owner does not follow yet, newest listing
+ * first, a page at a time (session 72: it had offered followed blygs too).
+ * Which of them are new since the last visit is one timestamp, not a list of
+ * everything seen: the listing date of the newest listing Discover has shown
+ * (the discoverSeenAt setting), and a row listed after it gets a badge.
+ * Listing dates come from the directory, so a clock on this device that is
+ * wrong does not hide or repeat anything.
  */
 import { feedKey } from './opml.ts';
 
 export const DIRECTORY_URL = 'https://blygger.com/blygs.json';
+/** Rows the "new" view shows at first, and adds on each "show more". */
+export const PAGE_SIZE = 5;
 
 export type ActivityLevel = 'high' | 'medium' | 'low';
 export interface DirectoryBlyg {
@@ -63,6 +68,11 @@ export function parseDirectory(json: unknown): DirectoryBlyg[] {
     });
   }
   return out;
+}
+
+/** Newest listing first; the directory's own order (most active first) breaks ties. */
+export function byListing(blygs: readonly DirectoryBlyg[]): DirectoryBlyg[] {
+  return blygs.map((b, i) => ({ b, i, at: Date.parse(b.listedAt) })).sort((x, y) => y.at - x.at || x.i - y.i).map(({ b }) => b);
 }
 
 /** Listed after the newest listing already shown; with nothing shown yet, every listing is new. */

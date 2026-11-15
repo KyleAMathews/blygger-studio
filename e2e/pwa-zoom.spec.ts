@@ -136,6 +136,7 @@ async function injectWidePost(page: Page) {
       page0.items.unshift({
         key: 'imported:["parity-rss","wide-fixture"]', source: 'imported', kind: 'fragment', withdrawn: false, l0: true, contentHtml: WIDE_HTML, displayAt: at,
         imported: { subscriptionId: 'parity-rss', subscriptionTitle: 'Legacy source', remoteId: 'wide-fixture', kind: 'fragment', withdrawn: false, l0: true, updated: at, observedAt: at, contentHtml: WIDE_HTML, pinnedVersionRetained: null, sourceUrl: 'https://legacy.example/' + 'very-long-path-segment/'.repeat(12), version: 1, readVersion: 1 },
+        background: { reasons: [], placement: null, blyg: false },
       });
     }
     await route.fulfill({ response, json: page0 });

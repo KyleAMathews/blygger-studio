@@ -3,6 +3,7 @@ import { BROWSE_VIA, type BrowseRow } from '../browse-log.ts';
 import { versionState } from '../version-state.ts';
 import { z } from '@hono/zod-openapi';
 import { readSyndication, SYNDICATION_URL_MAX } from '../syndication.ts';
+import { OWN_SUBSCRIPTION } from '../own-subscription.ts';
 import { ItemRevisionSchema } from './schemas.ts';
 import { CHANGE_CATEGORIES } from '../change-category.ts';
 import type { ItemRow, VersionRow, MediaRow, SubscriptionRow, HopperRow, ImportedItemRow, MentionInRow, MentionOutRow, HopperItemRow, SignalRow } from '../types.ts';
@@ -78,6 +79,7 @@ export const SubscriptionSchema = z.object({
   flags: z.array(z.object({ type: z.string(), at: z.string(), detail: z.string().optional() })),
   created: z.string(),
   titleFollowsSource: z.boolean(),
+  background: z.boolean().describe("The owner moved this whole blyg to Background in the reader. An entry's own placement still wins (blygger-spec docs/background-plan.md)."),
   hopperFeedUrl: z.string().nullable().describe("A hopper subscription (one public hopper at another blyg; spec 0.4 §16.12): the hopper feed's resolved absolute URL, which with origin (the blyg's identity origin) is the subscription's identity. Null for every other subscription."),
 }).openapi("Subscription");
 
@@ -105,6 +107,15 @@ export const SyndicationEntrySchema = z.object({
   url: z.string().min(1).max(SYNDICATION_URL_MAX).describe("An absolute https: URL at which the copy can be read. Use the most stable URL the network offers."),
   version: z.number().int().positive().describe("The version of the item the copy was made from."),
 }).strict().openapi("SyndicationEntry");
+export const ShelfEntrySchema = z.object({
+  sub: z.string().min(1).max(128).describe(`The subscription the item is held under, or "${OWN_SUBSCRIPTION}" (OWN_SUBSCRIPTION) for one of the owner's own items.`),
+  remoteId: z.string().min(1).max(256).describe(`The item's id: the own item's id under "${OWN_SUBSCRIPTION}", else the imported item's remote id.`),
+}).strict().openapi("ShelfEntry");
+
+export const ShelfSchema = z.object({
+  entries: z.array(ShelfEntrySchema).describe(`The shelved items, in the owner's order, each named as hopper membership names an item. Own drafts may be shelved; a withdrawn own item, or an imported tombstone with no retained pin, is omitted. A discarded draft, an imported item no longer held, and every entry of a deleted subscription leave the shelf. Studio-private for good: never in an item document, feed, manifest or public page, and the shelf never gains a public mode.`),
+  revision: z.number().int().nonnegative().describe("The shelf's revision. Send it back as expectedRevision for a conditional replace; every successful PUT bumps it."),
+}).openapi("Shelf");
 
 export const ImportedItemSchema = z.object({
   subscriptionId: z.string(),
@@ -258,6 +269,7 @@ export const subscriptionResource = (row: SubscriptionRow) => SubscriptionSchema
   flags: stored(row.flags, SubscriptionSchema.shape.flags, []),
   created: row.created,
   titleFollowsSource: row.title_auto !== 0,
+  background: row.background === 1,
   hopperFeedUrl: row.hopper_feed ?? null,
 });
 

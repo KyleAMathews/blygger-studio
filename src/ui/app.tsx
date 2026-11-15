@@ -54,6 +54,7 @@ import { SetupPage } from './setup.tsx';
 import { applyCachedTheme } from './theme.ts';
 import { applyCachedTitle } from './tab.ts';
 import { errorLog, watchUncaughtErrors } from './error-log.ts';
+import { TooltipProvider } from './primitives.tsx';
 // Paint the last theme this device saw before the first render; settings
 // repaint it once they load (see theme.ts).
 applyCachedTheme();
@@ -386,10 +387,10 @@ declare module '@tanstack/react-router' {
   }
 }
 createRoot(document.getElementById('studio-root')!).render(
-  <>
+  <TooltipProvider>
     <RouterProvider router={router} />
     <SheetHost />
-  </>,
+  </TooltipProvider>,
 );
 // Installable PWA: the worker caches only the shell's static assets (see
 // studioServiceWorker in src/spa.ts). Its scope is the studio base itself,

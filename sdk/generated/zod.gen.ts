@@ -82,7 +82,8 @@ export const zChangeState = z.object({
         mentions: z.int().gte(0).lte(9007199254740991),
         responses: z.int().gte(0).lte(9007199254740991),
         interactions: z.int().gte(0).lte(9007199254740991),
-        browse: z.int().gte(0).lte(9007199254740991)
+        browse: z.int().gte(0).lte(9007199254740991),
+        shelf: z.int().gte(0).lte(9007199254740991)
     })
 });
 
@@ -208,6 +209,9 @@ export const zSettings = z.object({
         'summary'
     ]),
     changelogSummaryPrompt: z.string(),
+    backgroundRules: z.object({
+        minor: z.boolean()
+    }),
     acceptMentions: z.boolean(),
     updateCheck: z.boolean(),
     showResponsesDefault: z.boolean(),
@@ -275,7 +279,18 @@ export const zSubscription = z.object({
     })),
     created: z.string(),
     titleFollowsSource: z.boolean(),
+    background: z.boolean(),
     hopperFeedUrl: z.string().nullable()
+});
+
+export const zShelfEntry = z.object({
+    sub: z.string().min(1).max(128),
+    remoteId: z.string().min(1).max(256)
+}).strict();
+
+export const zShelf = z.object({
+    entries: z.array(zShelfEntry),
+    revision: z.int().gte(0)
 });
 
 export const zContact = z.object({
@@ -524,6 +539,16 @@ export const zMentionGroup = z.object({
     firstId: z.string()
 });
 
+/**
+ * Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read.
+ */
+export const zEntryBackground = z.object({
+    reasons: z.array(z.string()),
+    placement: z.enum(['background', 'foreground']).nullable(),
+    blyg: z.boolean(),
+    detail: z.record(z.string(), z.unknown()).optional()
+});
+
 export const zReadingEntry = z.object({
     key: z.string(),
     source: z.enum(['own', 'imported']),
@@ -554,7 +579,8 @@ export const zReadingEntry = z.object({
         version: z.int(),
         readVersion: z.int().nullable(),
         syndication: z.array(zSyndicationEntry).optional()
-    }).optional()
+    }).optional(),
+    background: zEntryBackground
 });
 
 export const zImportedReadingEntry = z.object({
@@ -1252,6 +1278,9 @@ export const zUpdateSettingsBody = z.object({
         'summary'
     ]).optional(),
     changelogSummaryPrompt: z.string().optional(),
+    backgroundRules: z.object({
+        minor: z.boolean()
+    }).optional(),
     acceptMentions: z.boolean().optional(),
     updateCheck: z.boolean().optional(),
     showResponsesDefault: z.boolean().optional(),
@@ -1368,7 +1397,8 @@ export const zGetSubscriptionResponse = zSubscription;
 export const zUpdateSubscriptionBody = z.object({
     inBlogroll: z.boolean().optional(),
     title: z.string().min(1).nullish(),
-    paused: z.boolean().optional()
+    paused: z.boolean().optional(),
+    background: z.boolean().optional()
 }).strict();
 
 export const zUpdateSubscriptionPath = z.object({
@@ -1398,6 +1428,21 @@ export const zResyncSubscriptionResponse = z.object({
     ok: z.boolean(),
     changed: z.number()
 });
+
+/**
+ * Success
+ */
+export const zGetShelfResponse = zShelf;
+
+export const zPutShelfBody = z.object({
+    entries: z.array(zShelfEntry).max(50),
+    expectedRevision: z.int().gte(0)
+}).strict();
+
+/**
+ * Success
+ */
+export const zPutShelfResponse = zShelf;
 
 /**
  * Success
@@ -1934,7 +1979,8 @@ export const zGetReadingSummaryQuery = z.object({
     hopper: z.string().optional(),
     kind: z.enum(['thread', 'fragment']).optional(),
     background: z.enum(['true']).optional(),
-    mentions: z.enum(['true']).optional()
+    mentions: z.enum(['true']).optional(),
+    shelf: z.enum(['true']).optional()
 });
 
 /**
@@ -1956,7 +2002,8 @@ export const zListReadingQuery = z.object({
     hopper: z.string().optional(),
     kind: z.enum(['thread', 'fragment']).optional(),
     background: z.enum(['true']).optional(),
-    mentions: z.enum(['true']).optional()
+    mentions: z.enum(['true']).optional(),
+    shelf: z.enum(['true']).optional()
 });
 
 /**
@@ -1970,6 +2017,23 @@ export const zListReadingResponse = z.object({
     }),
     readState: z.literal(true),
     readStateClear: z.literal(true)
+});
+
+export const zSetReadingPlacementBody = z.object({
+    source: z.enum(['own', 'imported']),
+    sub: z.string().optional(),
+    id: z.string(),
+    placement: z.enum(['background', 'foreground']).nullable()
+}).strict();
+
+/**
+ * Success
+ */
+export const zSetReadingPlacementResponse = z.object({
+    source: z.enum(['own', 'imported']),
+    sub: z.string(),
+    id: z.string(),
+    placement: z.enum(['background', 'foreground']).nullable()
 });
 
 export const zListImportedReadingQuery = z.object({

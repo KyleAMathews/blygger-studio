@@ -47,7 +47,7 @@ const item = () => ({ id: 'a', revision: itemRevision, contentMd: text, kind: 'f
 const detail = (): Detail => ({ ...item(), kind: 'fragment', media: [], publishedMedia: [], published: null });
 const hopper = { id: 'h', name: 'Hopper', public: false, slug: null, created: '2026-10-06', slugFrozen: false, description: null };
 const contents = () => ({ hopper, items: Array.from({ length: memberCount }, (_, i) => ({ subscriptionId: 's', remoteId: String(i), contentHtml: `${text} ${i}`, contentMd: text, kind: 'fragment', state: 'current', version: 1, created: null, updated: null, observedAt: '2026-10-06', contentHash: null, author: null, media: null, transclusions: null, l0: false, pinnedVersionRetained: null, page: null, stubOf: null, forkedFrom: null, generated: null })), memberships: Array.from({ length: memberCount }, (_, i) => ({ hopperId: 'h', subscriptionId: 's', remoteId: String(i), addedAt: '2026-10-06' })), total: 4, sourceCount: 1 });
-const entry = (key: string, kind = 'fragment') => ({ key, source: 'own', kind, withdrawn: false, l0: false, contentHtml: text, displayAt: '2026-10-06' });
+const entry = (key: string, kind = 'fragment') => ({ key, source: 'own', kind, withdrawn: false, l0: false, contentHtml: text, displayAt: '2026-10-06', background: { reasons: [], placement: null, blyg: false } });
 function page<T>(items: T[], query: URLSearchParams, defaultLimit = 100) {
   const start = Number(query.get('cursor') ?? 0), limit = Number(query.get('limit') ?? defaultLimit);
   pageRows += items.slice(start, start + limit).length;
@@ -93,7 +93,7 @@ beforeAll(async () => {
     }
     // Logical requests after unpacking the transport; API tests own batch auth.
     requests.push({ path: url.pathname, params: url.searchParams });
-    if (url.pathname === '/api/changes') return json({ epoch, domains: Object.fromEntries(['items', 'reading', 'hoppers', 'subscriptions', 'signals', 'settings', 'feed', 'mentions', 'responses', 'interactions', 'browse'].map((domain) => [domain, revision])) });
+    if (url.pathname === '/api/changes') return json({ epoch, domains: Object.fromEntries(['items', 'reading', 'hoppers', 'subscriptions', 'signals', 'settings', 'feed', 'mentions', 'responses', 'interactions', 'browse', 'shelf'].map((domain) => [domain, revision])) });
     if (url.pathname === '/api/items' && request.method === 'POST') {
       const body = await request.json(); text = body.contentMd; revision++; itemCount = 1;
       const { pins, ...created } = item();

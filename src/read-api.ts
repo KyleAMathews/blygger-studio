@@ -22,6 +22,7 @@ import { normalizeMount } from "./util.ts";
 import type { SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, HopperItemRow, VersionRow, MentionInRow, MentionOutRow } from "./types.ts";
 import { itemDetail } from "./item-data.ts";
 import { readingData, readingSummary } from "./reading-data.ts";
+import { enabledRules } from "./background.ts";
 import { IMPORTED_READING_DEFAULT, importedReading } from "./imported-reading.ts";
 import { getInbound } from "./mentions/store.ts";
 import { maybeCheckForUpdate } from "./update-check.ts";
@@ -216,8 +217,9 @@ const mentioning = async (context: OperationContext, input: OperationInput) => {
   const settings = await getSettings(context.env.DB);
   return ownMentionTargets(settings.author_url, siteOrigin(settings, context.url, normalizeMount(context.env.MOUNT)));
 };
-const listReadingOperation = async (context: OperationContext, input: OperationInput) => success({ ...await readingData(context.env.DB, { ...input.query, limit: input.query.limit ?? 25 }, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input)), readState: true as const, readStateClear: true as const });
-const getReadingSummaryOperation = async (context: OperationContext, input: OperationInput) => success(await readingSummary(context.env.DB, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input)));
+const backgroundRules = async (context: OperationContext) => enabledRules((await getSettings(context.env.DB)).bg_rules);
+const listReadingOperation = async (context: OperationContext, input: OperationInput) => success({ ...await readingData(context.env.DB, { ...input.query, limit: input.query.limit ?? 25 }, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), await backgroundRules(context), input.query.shelf === 'true'), readState: true as const, readStateClear: true as const });
+const getReadingSummaryOperation = async (context: OperationContext, input: OperationInput) => success(await readingSummary(context.env.DB, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), await backgroundRules(context), input.query.shelf === 'true'));
 // Imported items only, keyset-paged, for clients that author from what they read (studio#11).
 const listImportedReadingOperation = async (context: OperationContext, input: OperationInput) => {
   return success(await importedReading(context.env.DB, input.query.cursor, Number(input.query.limit ?? IMPORTED_READING_DEFAULT)));

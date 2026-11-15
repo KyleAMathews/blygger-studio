@@ -72,6 +72,7 @@ export type ChangeState = {
         responses: number;
         interactions: number;
         browse: number;
+        shelf: number;
     };
 };
 
@@ -190,6 +191,12 @@ export type Settings = {
      * Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with "summarize full history to date".
      */
     changelogSummaryPrompt: string;
+    /**
+     * Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read.
+     */
+    backgroundRules: {
+        minor: boolean;
+    };
     acceptMentions: boolean;
     updateCheck: boolean;
     showResponsesDefault: boolean;
@@ -304,9 +311,35 @@ export type Subscription = {
     created: string;
     titleFollowsSource: boolean;
     /**
+     * The owner moved this whole blyg to Background in the reader. An entry's own placement still wins (blygger-spec docs/background-plan.md).
+     */
+    background: boolean;
+    /**
      * A hopper subscription (one public hopper at another blyg; spec 0.4 §16.12): the hopper feed's resolved absolute URL, which with origin (the blyg's identity origin) is the subscription's identity. Null for every other subscription.
      */
     hopperFeedUrl: string | null;
+};
+
+export type Shelf = {
+    /**
+     * The shelved items, in the owner's order, each named as hopper membership names an item. Own drafts may be shelved; a withdrawn own item, or an imported tombstone with no retained pin, is omitted. A discarded draft, an imported item no longer held, and every entry of a deleted subscription leave the shelf. Studio-private for good: never in an item document, feed, manifest or public page, and the shelf never gains a public mode.
+     */
+    entries: Array<ShelfEntry>;
+    /**
+     * The shelf's revision. Send it back as expectedRevision for a conditional replace; every successful PUT bumps it.
+     */
+    revision: number;
+};
+
+export type ShelfEntry = {
+    /**
+     * The subscription the item is held under, or "~own" (OWN_SUBSCRIPTION) for one of the owner's own items.
+     */
+    sub: string;
+    /**
+     * The item's id: the own item's id under "~own", else the imported item's remote id.
+     */
+    remoteId: string;
 };
 
 export type Contact = {
@@ -589,6 +622,31 @@ export type ReadingEntry = {
          * The origin's `syndication` member (spec 0.4 §16.14) as last fetched, https: entries only: copies the publisher says they made on other networks. The publisher's claim; absent when none.
          */
         syndication?: Array<SyndicationEntry>;
+    };
+    background: EntryBackground;
+};
+
+/**
+ * Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read.
+ */
+export type EntryBackground = {
+    /**
+     * The automatic reasons that count under Settings (withdrawn always), in order: withdrawn, then each enabled rule that applies.
+     */
+    reasons: Array<string>;
+    /**
+     * The owner's choice on this entry, which beats every rule; null when the rules decide.
+     */
+    placement: 'background' | 'foreground' | null;
+    /**
+     * The owner moved this entry's whole blyg to Background.
+     */
+    blyg: boolean;
+    /**
+     * What a reason's label says, such as the change category behind minor.
+     */
+    detail?: {
+        [key: string]: unknown;
     };
 };
 
@@ -2783,6 +2841,12 @@ export type UpdateSettingsData = {
          * Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with "summarize full history to date".
          */
         changelogSummaryPrompt?: string;
+        /**
+         * Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read.
+         */
+        backgroundRules?: {
+            minor: boolean;
+        };
         acceptMentions?: boolean;
         updateCheck?: boolean;
         showResponsesDefault?: boolean;
@@ -3258,6 +3322,10 @@ export type UpdateSubscriptionData = {
          */
         title?: string | null;
         paused?: boolean;
+        /**
+         * Move this whole blyg to Background in the reader, or back.
+         */
+        background?: boolean;
     };
     path: {
         id: string;
@@ -3472,6 +3540,153 @@ export type ResyncSubscriptionResponses = {
 };
 
 export type ResyncSubscriptionResponse = ResyncSubscriptionResponses[keyof ResyncSubscriptionResponses];
+
+export type GetShelfData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/shelf';
+};
+
+export type GetShelfErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetShelfError = GetShelfErrors[keyof GetShelfErrors];
+
+export type GetShelfResponses = {
+    /**
+     * Success
+     */
+    200: Shelf;
+};
+
+export type GetShelfResponse = GetShelfResponses[keyof GetShelfResponses];
+
+export type PutShelfData = {
+    body: {
+        /**
+         * The whole list, in order (at most 50). Replaces the stored list. An entry that does not resolve (an unknown subscription, an item not held under it, a withdrawn own item, an imported tombstone with no retained pin) is dropped quietly, never refused, and a repeated entry keeps its first position; the response is what was stored.
+         */
+        entries: Array<ShelfEntry>;
+        /**
+         * Required. Replace only if the shelf is still at this revision (read it with GET /shelf; a never-written shelf is at 0); otherwise 409 revision-conflict with the current { entries, revision } in details.current. There is no unconditional replace: several clients share the shelf, and one must not silently undo another's reorder.
+         */
+        expectedRevision: number;
+    };
+    path?: never;
+    query?: never;
+    url: '/shelf';
+};
+
+export type PutShelfErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type PutShelfError = PutShelfErrors[keyof PutShelfErrors];
+
+export type PutShelfResponses = {
+    /**
+     * Success
+     */
+    200: Shelf;
+};
+
+export type PutShelfResponse = PutShelfResponses[keyof PutShelfResponses];
 
 export type ListContactsData = {
     body?: never;
@@ -6118,6 +6333,10 @@ export type GetReadingSummaryData = {
          * Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received.
          */
         mentions?: 'true';
+        /**
+         * Only shelved entries (GET /shelf), in the owner's shelf order, whatever their Background placement. Own drafts are left out: they are not reading entries.
+         */
+        shelf?: 'true';
     };
     url: '/reading/summary';
 };
@@ -6209,13 +6428,17 @@ export type ListReadingData = {
         hopper?: string;
         kind?: 'thread' | 'fragment';
         /**
-         * Only withdrawn entries.
+         * Only Background entries: the owner's choice on the entry, else on its blyg, else an enabled rule (withdrawn always). Without it, every lens leaves them out.
          */
         background?: 'true';
         /**
          * Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received.
          */
         mentions?: 'true';
+        /**
+         * Only shelved entries (GET /shelf), in the owner's shelf order, whatever their Background placement. Own drafts are left out: they are not reading entries.
+         */
+        shelf?: 'true';
     };
     url: '/reading';
 };
@@ -6295,6 +6518,94 @@ export type ListReadingResponses = {
 };
 
 export type ListReadingResponse = ListReadingResponses[keyof ListReadingResponses];
+
+export type SetReadingPlacementData = {
+    body: {
+        source: 'own' | 'imported';
+        /**
+         * The subscription id, for an imported entry.
+         */
+        sub?: string;
+        /**
+         * The item id: an own item's id, or the imported item's remote id.
+         */
+        id: string;
+        /**
+         * background or foreground pins the entry there across later versions; null clears the choice and the rules decide again.
+         */
+        placement: 'background' | 'foreground' | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/reading/placement';
+};
+
+export type SetReadingPlacementErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type SetReadingPlacementError = SetReadingPlacementErrors[keyof SetReadingPlacementErrors];
+
+export type SetReadingPlacementResponses = {
+    /**
+     * Success
+     */
+    200: {
+        source: 'own' | 'imported';
+        sub: string;
+        id: string;
+        placement: 'background' | 'foreground' | null;
+    };
+};
+
+export type SetReadingPlacementResponse = SetReadingPlacementResponses[keyof SetReadingPlacementResponses];
 
 export type ListImportedReadingData = {
     body?: never;
