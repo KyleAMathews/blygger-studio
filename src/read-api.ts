@@ -218,8 +218,8 @@ const mentioning = async (context: OperationContext, input: OperationInput) => {
   return ownMentionTargets(settings.author_url, siteOrigin(settings, context.url, normalizeMount(context.env.MOUNT)));
 };
 const backgroundRules = async (context: OperationContext) => enabledRules((await getSettings(context.env.DB)).bg_rules);
-const listReadingOperation = async (context: OperationContext, input: OperationInput) => success({ ...await readingData(context.env.DB, { ...input.query, limit: input.query.limit ?? 25 }, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), await backgroundRules(context)), readState: true as const, readStateClear: true as const });
-const getReadingSummaryOperation = async (context: OperationContext, input: OperationInput) => success(await readingSummary(context.env.DB, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), await backgroundRules(context)));
+const listReadingOperation = async (context: OperationContext, input: OperationInput) => success({ ...await readingData(context.env.DB, { ...input.query, limit: input.query.limit ?? 25 }, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), await backgroundRules(context), input.query.shelf === 'true'), readState: true as const, readStateClear: true as const });
+const getReadingSummaryOperation = async (context: OperationContext, input: OperationInput) => success(await readingSummary(context.env.DB, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), await backgroundRules(context), input.query.shelf === 'true'));
 // Imported items only, keyset-paged, for clients that author from what they read (studio#11).
 const listImportedReadingOperation = async (context: OperationContext, input: OperationInput) => {
   return success(await importedReading(context.env.DB, input.query.cursor, Number(input.query.limit ?? IMPORTED_READING_DEFAULT)));

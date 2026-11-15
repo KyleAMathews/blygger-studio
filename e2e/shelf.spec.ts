@@ -52,3 +52,53 @@ test('items go on the shelf, reorder, and come off again', async ({ page }) => {
   expect((await api(page, 'GET', '/api/shelf')).json.entries).toEqual([]);
   expect(errors).toEqual([]);
 });
+
+// ROADMAP row 115: "add to shelf" beside "+ add to hopper" on every reading
+// entry, and the Shelf lens listing the shelf in its order.
+test('reading entries go on the shelf, and the Shelf lens lists them in order', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/studio/login');
+  await page.locator('[name="password"]').fill('test-password');
+  await page.getByRole('button', { name: 'log in', exact: true }).click();
+  await expect(page.locator('#composer-text')).toBeVisible();
+  const clear = async () => {
+    const { revision } = (await api(page, 'GET', '/api/shelf')).json as { revision: number };
+    expect((await api(page, 'PUT', '/api/shelf', { entries: [], expectedRevision: revision })).status).toBe(200);
+  };
+  await clear();
+  try {
+    const tag = crypto.randomUUID().slice(0, 8);
+    const mine = (await api(page, 'POST', '/api/items', { contentMd: `Shelved from reading ${tag}` })).json.id as string;
+    await api(page, 'POST', `/api/items/${mine}/publish`, {});
+    const native = '.reading-entry[data-key="imported:[\\"parity-native\\",\\"00000000000000000000000001\\"]"]';
+
+    await page.goto('/studio/reading');
+    const imported = page.locator(native);
+    await imported.locator('[data-action="shelf"]').click();
+    await expect(imported.locator('[data-action="shelf"]')).toHaveAccessibleName('remove from shelf');
+    const own = page.locator(`.reading-entry[data-key="own:${mine}"]`);
+    await own.locator('[data-action="shelf"]').click();
+    await expect(own.locator('[data-action="shelf"]')).toHaveAccessibleName('remove from shelf');
+    await expect.poll(async () => (await api(page, 'GET', '/api/shelf')).json.entries).toEqual([
+      { sub: 'parity-native', remoteId: '00000000000000000000000001' },
+      { sub: '~own', remoteId: mine },
+    ]);
+
+    const bar = page.getByRole('group', { name: 'reading lens' });
+    await bar.getByRole('button', { name: 'Shelf' }).click();
+    await expect(page).toHaveURL(/lens=shelf/);
+    await expect(page.locator('.reading-entry')).toHaveCount(2);
+    await expect(page.locator('.reading-entry').nth(0)).toHaveAttribute('data-key', /parity-native/);
+    await expect(page.locator('.reading-entry').nth(1)).toHaveAttribute('data-key', `own:${mine}`);
+
+    // Taking one off empties it from the lens.
+    await page.locator(native).locator('[data-action="shelf"]').click();
+    await expect(page.locator('.reading-entry')).toHaveCount(1);
+    await page.locator(`.reading-entry[data-key="own:${mine}"]`).locator('[data-action="shelf"]').click();
+    await expect(page.locator('.empty')).toContainText('Nothing on your shelf yet');
+    expect(errors).toEqual([]);
+  } finally {
+    await clear();
+  }
+});

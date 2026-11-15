@@ -188,3 +188,26 @@ describe("GET/PUT /shelf", () => {
     }
   });
 });
+
+// ROADMAP row 115: the Shelf lens in Reading lists the shelved entries in shelf order.
+describe("GET /reading?shelf=true", () => {
+  const keys = (json: { items: { key: string }[] }) => json.items.map((entry) => entry.key);
+  it("lists shelved own and imported entries in the owner's order, leaving out drafts and unresolved ones", async () => {
+    await importedFixture();
+    const a = await createAndPublish(cookie, "a shelved post");
+    const d = await draft();
+    await put({ entries: [{ sub: SUB, remoteId: "r2" }, ...own([d, a]), { sub: SUB, remoteId: "kept" }, { sub: SUB, remoteId: "r1" }] });
+    const page = await apiJson(cookie, "GET", "/blyg/api/reading?shelf=true");
+    expect(page.status).toBe(200);
+    expect(keys(page.json)).toEqual([`imported:${JSON.stringify([SUB, "r2"])}`, `own:${a}`, `imported:${JSON.stringify([SUB, "kept"])}`, `imported:${JSON.stringify([SUB, "r1"])}`]);
+
+    // Reordering the shelf reorders the lens; the summary counts follow it.
+    await put({ entries: [{ sub: SUB, remoteId: "r1" }, ...own([a])] });
+    expect(keys((await apiJson(cookie, "GET", "/blyg/api/reading?shelf=true")).json)).toEqual([`imported:${JSON.stringify([SUB, "r1"])}`, `own:${a}`]);
+    const summary = (await apiJson(cookie, "GET", "/blyg/api/reading/summary?shelf=true")).json;
+    expect(summary.counts).toMatchObject({ all: 2, own: 1 });
+    expect(summary.counts.subscriptions[SUB]).toBe(1);
+    // One source under the lens.
+    expect(keys((await apiJson(cookie, "GET", `/blyg/api/reading?shelf=true&sub=${SUB}`)).json)).toEqual([`imported:${JSON.stringify([SUB, "r1"])}`]);
+  });
+});

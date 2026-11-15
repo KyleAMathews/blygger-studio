@@ -6151,6 +6151,10 @@ export type GetReadingSummaryData = {
          * Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received.
          */
         mentions?: 'true';
+        /**
+         * Only shelved entries (GET /shelf), in the owner's shelf order, whatever their Background placement. Own drafts are left out: they are not reading entries.
+         */
+        shelf?: 'true';
     };
     url: '/reading/summary';
 };
@@ -6249,6 +6253,10 @@ export type ListReadingData = {
          * Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received.
          */
         mentions?: 'true';
+        /**
+         * Only shelved entries (GET /shelf), in the owner's shelf order, whatever their Background placement. Own drafts are left out: they are not reading entries.
+         */
+        shelf?: 'true';
     };
     url: '/reading';
 };

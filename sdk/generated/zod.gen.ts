@@ -1943,7 +1943,8 @@ export const zGetReadingSummaryQuery = z.object({
     hopper: z.string().optional(),
     kind: z.enum(['thread', 'fragment']).optional(),
     background: z.enum(['true']).optional(),
-    mentions: z.enum(['true']).optional()
+    mentions: z.enum(['true']).optional(),
+    shelf: z.enum(['true']).optional()
 });
 
 /**
@@ -1965,7 +1966,8 @@ export const zListReadingQuery = z.object({
     hopper: z.string().optional(),
     kind: z.enum(['thread', 'fragment']).optional(),
     background: z.enum(['true']).optional(),
-    mentions: z.enum(['true']).optional()
+    mentions: z.enum(['true']).optional(),
+    shelf: z.enum(['true']).optional()
 });
 
 /**

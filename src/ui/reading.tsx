@@ -55,6 +55,7 @@ import {
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { IconButton, Tooltip } from './primitives.tsx';
+import { shelfLabel, toggleShelf, useShelf } from './shelf.tsx';
 import { displayUrl, sourceTitleAndUrl } from '../importer/util.ts';
 import { ReaderBody, TrailBar, ownOrigin, useEndTrail, useSubscriptionRows } from './reader-links.tsx';
 import { currentTrail, visit } from './browse.ts';
@@ -493,6 +494,12 @@ function useEntryActions({
     openSheet: (render) => setExtensionSheet({ name: extension.name, render }),
   });
   const hopperSub = imported?.subscriptionId ?? (entry.own ? OWN_SUB : undefined);
+  // The shelf keeps only what resolves (src/shelf.ts): never a withdrawn own item, nor a tombstone without its pin.
+  const shelved = useShelf();
+  const shelfEntry = hopperSub && (!entry.withdrawn || imported?.pinnedVersionRetained != null) ? { sub: hopperSub, remoteId: id } : null;
+  const shelf = shelfEntry
+    ? { label: shelfLabel(shelved, shelfEntry), on: shelfLabel(shelved, shelfEntry) === 'remove from shelf', toggle: () => run(() => toggleShelf(shelved, shelfEntry)) }
+    : null;
   const addToHopper = () =>
     run(async () => {
       if (!hopperSub) return;
@@ -619,6 +626,7 @@ function useEntryActions({
     vote,
     stub,
     addToHopper,
+    shelf,
     openMenu,
     historyOpen,
     extensions,
@@ -731,9 +739,14 @@ function EntryBar({ entry, a }: { entry: Reading; a: EntryActions }) {
             aria-label="add to hopper"
             onClick={() => void a.addToHopper()}
           >
-            + add to hopper…
+            + <span className="act-wide">add to </span>hopper…
           </Button>
         </>
+      ) : null}
+      {a.shelf ? (
+        <Button className="act" data-action="shelf" aria-label={a.shelf.label} onClick={() => void a.shelf?.toggle()}>
+          {a.shelf.on ? '−' : '+'} <span className="act-wide">{a.shelf.on ? 'remove from' : 'add to'} </span>shelf
+        </Button>
       ) : null}
       <Tooltip label="more actions">
         <Button
@@ -1466,6 +1479,7 @@ const LENS_LABELS: Record<Lens, string> = {
   all: 'All',
   threads: 'Threads',
   fragments: 'Fragments',
+  shelf: 'Shelf',
   mentions: 'Mentions',
   background: 'Background',
   smart: 'Smart Feed',
@@ -1514,6 +1528,7 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
     </div>
   );
 }
+const SHELF_NOTE = 'What you put on your shelf, yours and the blygs you read, in your order. Your drafts on it are under compose.';
 const MENTIONS_NOTE = 'Items you already read that name you. A find, not a notification: nobody told you, and nothing here is verified.';
 /** Withdrawn posts are background: every other lens leaves them out. */
 export const BACKGROUND_NOTE = 'Withdrawn posts, yours and the blygs you read. They are kept out of the other views.';
@@ -1989,6 +2004,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
         <>
           {lens === 'background' ? <p className="view-sub">{BACKGROUND_NOTE}</p> : null}
           {lens === 'mentions' ? <p className="view-sub">{MENTIONS_NOTE}</p> : null}
+          {lens === 'shelf' ? <p className="view-sub">{SHELF_NOTE}</p> : null}
           {entries.isLoading ? <p className="view-sub">Loading reading…</p> : null}
           <EntryList entries={entries.data ?? []} actions={actions} />
           {!entries.isLoading && !entries.data?.length ? (
@@ -1996,7 +2012,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
               <span className="em" aria-hidden="true">
                 ◫
               </span>
-              {lens === 'background' ? 'Nothing withdrawn.' : lens === 'mentions' ? 'Nothing you read mentions you yet.' : 'No items yet.'}
+              {lens === 'background' ? 'Nothing withdrawn.' : lens === 'mentions' ? 'Nothing you read mentions you yet.' : lens === 'shelf' ? 'Nothing on your shelf yet: “add to shelf” on any entry puts it here.' : 'No items yet.'}
             </div>
           ) : null}
           <Pager

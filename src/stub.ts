@@ -4,6 +4,7 @@
 // decide whether something is a stub.
 
 import { blygItemUrl } from "./importer/util.ts";
+import { itemUrl, storedSurface } from "./surface.ts";
 import { excerptFromHtml } from "./markdown.ts";
 import type { ForkedFrom, StubCite, StubOf, Transclusion } from "./types.ts";
 import { graphemePrefix } from "./text.ts";
@@ -247,7 +248,12 @@ export async function composeTransclusionCite(
   return composeStubCite(db, { origin: entry.origin, id: entry.id, version: entry.version }, ourOrigin, ourTitle, now);
 }
 
-/** The cited item's URL: its origin's own declared `page` when we hold one, the convention otherwise. */
+/**
+ * The cited item's URL: its origin's own declared `page` when we hold the item.
+ * When we do not (a stub made through the API of an unsubscribed blyg's post),
+ * its item document, as a mention names one (decision #85): guessing `f/{id}/`
+ * froze a 404 for every thread (ROADMAP row 116), and publish stays network-free.
+ */
 async function citedUrl(db: D1Database, stub: { origin: string; id: string }, ourOrigin: string): Promise<string> {
   if (stub.origin === ourOrigin) {
     const own = await db.prepare("SELECT kind FROM items WHERE id = ?").bind(stub.id).first<{ kind: string }>();
@@ -260,7 +266,7 @@ async function citedUrl(db: D1Database, stub: { origin: string; id: string }, ou
     )
     .bind(stub.id, stub.origin)
     .first<{ kind: string; page: string | null }>();
-  return blygItemUrl(stub.origin, row?.kind ?? "fragment", stub.id, row?.page ?? null);
+  return row ? blygItemUrl(stub.origin, row.kind, stub.id, row.page) : itemUrl(stub.origin, await storedSurface(db, stub.origin), stub.id);
 }
 
 function safeHost(url: string): string {

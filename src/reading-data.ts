@@ -4,6 +4,7 @@ import { buildReadingFeed, type OwnEntryInput, type ImportedEntryInput } from ".
 import { sourceTitleAndUrl } from "./importer/util.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
 import type { ImportedItemRow } from "./types.ts";
+import { OWN_SUBSCRIPTION } from "./own-subscription.ts";
 import { BACKGROUND_RULES, entryBackground, importedBackgroundSql, ownBackgroundSql, type BackgroundRule } from "./background.ts";
 
 type Identity = { source: 'own' | 'imported'; id: string; sub: string; at: number | string | null };
@@ -16,7 +17,8 @@ function dateOrderSql(column: string) {
     ELSE '1' || strftime('%Y-%m-%dT%H:%M:%SZ', ${column}) END`;
 }
 /** Background (src/background.ts) is the owner's choice, then the blyg's, then the enabled rules. */
-function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolean, rules: readonly BackgroundRule[], hopper?: string, mentioning?: string[]) {
+function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolean, rules: readonly BackgroundRule[], hopper?: string, mentioning?: string[], shelf = false) {
+  if (shelf) return shelfIdentitySql(hopper);
   const enabled = JSON.stringify(rules);
   const binds = [enabled, ...(kind ? [kind] : []), ...(hopper ? [hopper] : []), enabled, ...(kind ? [kind] : []), ...(mentioning ? [JSON.stringify(mentioning)] : [])];
   const updated = dateOrderSql('ii.updated'), observed = dateOrderSql('ii.observed_at');
@@ -30,9 +32,28 @@ function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolea
       WHERE m.subscription_id = ii.subscription_id AND m.remote_id = ii.remote_id AND m.target IN (SELECT value FROM json_each(?)))` : ''}`;
   return { sql, binds };
 }
+/**
+ * The Shelf lens (ROADMAP row 115): the shelved entries (src/shelf.ts) in the
+ * owner's order, whatever their Background placement, since shelving one is an
+ * explicit choice. The shelf's own resolve rule applies: a published own item,
+ * an imported one current or with a retained pin. Own drafts are shelved too but
+ * are not reading entries; the Write list's shelf shows them. "at" is the
+ * negated position, so the page's newest-first order is the shelf's order.
+ */
+function shelfIdentitySql(hopper?: string) {
+  // Inside a hopper, the shelved entries it holds; own items are left out there, as under every lens.
+  const sql = `SELECT 'own' AS source, i.id, '' AS sub, -s.position AS at
+    FROM shelf s JOIN items i ON s.subscription_id = '${OWN_SUBSCRIPTION}' AND i.id = s.remote_id
+    WHERE i.status = 'public'${hopper ? ' AND 0' : ''}
+    UNION ALL SELECT 'imported', ii.remote_id, ii.subscription_id, -s.position
+    FROM shelf s JOIN imported_items ii ON ii.subscription_id = s.subscription_id AND ii.remote_id = s.remote_id
+    ${hopper ? 'JOIN hopper_items hi ON hi.subscription_id = ii.subscription_id AND hi.remote_id = ii.remote_id AND hi.hopper_id = ?' : ''}
+    WHERE (ii.state = 'current' OR ii.pinned_version_retained IS NOT NULL)`;
+  return { sql, binds: hopper ? [hopper] : [] };
+}
 /** Counts are a named summary. Page construction never materializes the full identity set. */
-export async function readingSummary(db: D1Database, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES) {
-  const { sql, binds } = identitySql(kind, background, rules, hopper, mentioning);
+export async function readingSummary(db: D1Database, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES, shelf = false) {
+  const { sql, binds } = identitySql(kind, background, rules, hopper, mentioning, shelf);
   const [counts, subs] = await Promise.all([
     db.prepare(`SELECT source, sub, COUNT(*) AS total FROM (${sql}) GROUP BY source, sub`).bind(...binds).all<{ source: string; sub: string; total: number }>(),
     db.prepare('SELECT id FROM subscriptions').all<{ id: string }>(),
@@ -47,11 +68,11 @@ export async function readingSummary(db: D1Database, source: string | undefined,
   return { counts: result, selected };
 }
 /** Select one bounded keyset of identities before loading or sanitizing bodies. */
-export async function readingData(db: D1Database, query: CursorQuery, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES) {
+export async function readingData(db: D1Database, query: CursorQuery, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES, shelf = false) {
   const selected = source ?? 'all';
-  const identities = identitySql(kind, background, rules, hopper, mentioning);
+  const identities = identitySql(kind, background, rules, hopper, mentioning, shelf);
   return cursorPage(db, { ...query, limit: query.limit ?? 25 }, {
-    name: 'reading', filters: [selected, kind ?? null, background, hopper ?? null, mentioning?.join(' ') ?? null, rules.join(' ')], domains: hopper ? ['reading', 'subscriptions', 'hoppers'] : ['reading', 'subscriptions'],
+    name: 'reading', filters: [selected, kind ?? null, background, hopper ?? null, mentioning?.join(' ') ?? null, rules.join(' '), shelf], domains: ['reading', 'subscriptions', ...(hopper ? ['hoppers' as const] : []), ...(shelf ? ['shelf' as const] : [])],
     sql: `SELECT * FROM (${identities.sql})${selected === 'all' ? '' : selected === 'own' ? " WHERE source = 'own'" : ' WHERE sub = ? OR NOT EXISTS (SELECT 1 FROM subscriptions WHERE id = ?)'}`,
     binds: [...identities.binds, ...(selected !== 'all' && selected !== 'own' ? [selected, selected] : [])],
     order: [{ column: 'at', direction: 'desc' }, { column: 'source', direction: 'asc' }, { column: 'sub', direction: 'asc' }, { column: 'id', direction: 'asc' }],

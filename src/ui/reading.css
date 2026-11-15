@@ -96,6 +96,8 @@
 .entry-bar .act { padding: 0 7px; }
 .entry-bar .act.icon-only { padding: 0; }
 .entry-bar .thumb .ico { width: 18px; height: 18px; }
+/* A phone keeps one row: "+ hopper…" and "+ shelf"; the accessible names stay whole. */
+@media (max-width: 430px) { .entry-bar .act-wide { display: none; } }
 
 /* ---------- THE FULL VIEW (/reading/{sub}/{id}) ---------- */
 .article-head { display: flex; align-items: center; margin: 0 0 var(--s2) -8px; }
