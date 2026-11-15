@@ -175,6 +175,19 @@
 .opml-row[data-state=added] .opml-reason, .opml-row[data-state=working] .opml-reason { color: var(--warn); }
 .opml-progress { margin: 0; font-size: .86rem; color: var(--ink-soft); text-align: center; }
 .opml-summary p { margin: 0 0 8px; }
+/* Discover (discover.tsx): the OPML sheet's rows, plus activity and a preview link. */
+.discover .segmented.compact { margin-bottom: 10px; }
+.discover .seg .n { margin-left: 4px; opacity: .7; }
+.discover-list { max-height: 50vh; }
+.discover-activity { display: block; font-size: .74rem; color: var(--ink-soft); margin-top: 2px; }
+.discover-activity .badge { font-size: .6rem; padding: 1px 6px; }
+.discover-preview { flex: 0 0 auto; font-size: .8rem; white-space: nowrap; }
+.discover-one { flex: 0 0 auto; min-height: 0; padding: 4px 10px; font-size: .8rem; }
+@media (max-width: 480px) {
+  .discover .opml-row { flex-wrap: wrap; }
+  .discover .opml-text { flex-basis: calc(100% - 34px); }
+  .discover-preview { margin-left: 30px; }
+}
 
 /* ---------- HOPPERS ---------- */
 .hopper-row { position: relative; }

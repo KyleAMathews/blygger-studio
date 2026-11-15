@@ -239,6 +239,7 @@ export const zSettings = z.object({
     })).optional(),
     updateFeedUrl: z.string(),
     updateNoticeAck: z.boolean(),
+    discoverSeenAt: z.string(),
     extensions: z.array(z.string())
 });
 
@@ -1250,6 +1251,7 @@ export const zUpdateSettingsBody = z.object({
     ]).optional(),
     updateFeedUrl: z.string().optional(),
     updateNoticeAck: z.boolean().optional(),
+    discoverSeenAt: z.string().optional(),
     extensions: z.array(z.string()).optional()
 }).strict();
 
