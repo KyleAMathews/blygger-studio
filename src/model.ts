@@ -178,6 +178,8 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     update_feed_url: map.update_feed_url ?? "",
     /** Cleared until the operator has seen the "alerts are on" notice once. */
     update_notice_ack: map.update_notice_ack === "on",
+    // Discover (session 71): listings after this are new; empty, all of them are.
+    discover_seen_at: map.discover_seen_at ?? "",
     // Studio extensions this node has turned on (docs/extensions.md). Empty by default.
     extensions: parseEnabledExtensions(map.extensions),
     // The setup wizard (session 46): pending on a fresh install, a one-time

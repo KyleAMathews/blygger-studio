@@ -609,6 +609,7 @@ const SETTINGS_KEYS = [
   "posts_path",
   "links_position",
   "setup",
+  "discover_seen_at",
 ] as const;
 
 const updateSettingsOperation = async (context: OperationContext, input: OperationInput) => {
@@ -651,6 +652,7 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
     if (unknown.length) return failure('invalid-input', { error: `not an extension compiled into this build: ${unknown.map(String).join(", ")}` });
     patch.extensions = JSON.stringify([...new Set(names as string[])].sort());
   }
+  if (patch.discover_seen_at && Number.isNaN(Date.parse(patch.discover_seen_at))) return failure('invalid-input', { error: "discoverSeenAt must be an ISO date, or empty" });
   if (typeof patch.setup === "string" && !["pending", "notice", "done"].includes(patch.setup)) return failure('invalid-input', { error: "setup must be pending, notice or done" });
   if (typeof patch.feed_order === "string") {
     // Against the extensions as they will be after this patch.

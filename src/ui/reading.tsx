@@ -61,6 +61,7 @@ import { currentTrail, visit } from './browse.ts';
 import { formatDateIn } from '../dates.ts';
 import { AddFeedForm } from './catalog.tsx';
 import { OpmlImportSheet } from './opml-import.tsx';
+import { DiscoverSheet } from './discover.tsx';
 import { diffText, type DiffOp } from '../word-diff.ts';
 import { useSwipe } from './swipe.ts';
 import type { EntryContext, StudioExtension } from './extension-api.ts';
@@ -1724,6 +1725,7 @@ function ReadingHead({
 }) {
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
   const [resyncing, setResyncing] = useState(false);
   // Native collection polling observes the server's background work.
   const resyncAll = async () => {
@@ -1758,6 +1760,15 @@ function ReadingHead({
           </Button>
           <Button
             className="icon-btn"
+            id="discover-open"
+            aria-label="discover blygs on blygger.com"
+            title="discover blygs on blygger.com"
+            onClick={() => setDiscovering(true)}
+          >
+            ✦
+          </Button>
+          <Button
+            className="icon-btn"
             aria-label="subscribe"
             title="subscribe"
             onClick={() => setAdding(true)}
@@ -1768,6 +1779,7 @@ function ReadingHead({
       </div>
       <SubscribeSheet open={adding} onClose={() => setAdding(false)} onImport={() => setImporting(true)} />
       <OpmlImportSheet open={importing} onClose={() => setImporting(false)} />
+      <DiscoverSheet open={discovering} onClose={() => setDiscovering(false)} />
     </>
   );
 }

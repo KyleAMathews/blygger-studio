@@ -560,6 +560,8 @@ export interface Settings {
    * saying so plainly is what buys the default.
    */
   update_notice_ack: boolean;
+  /** The newest blygger.com listing the owner has seen in Discover (ISO), or "" for never. */
+  discover_seen_at: string;
   /** Studio extensions enabled on this node (docs/extensions.md). Every extension starts disabled. */
   extensions: string[];
 }

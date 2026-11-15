@@ -264,6 +264,10 @@ export type Settings = {
     updateFeedUrl: string;
     updateNoticeAck: boolean;
     /**
+     * Discover: the listing date of the newest blygger.com listing the owner has been shown, ISO; empty until Discover is first opened. Listings after it are new.
+     */
+    discoverSeenAt: string;
+    /**
      * Studio extensions enabled on this node (docs/extensions.md). Only names compiled into this build are accepted; every extension starts disabled.
      */
     extensions: Array<string>;
@@ -2838,6 +2842,10 @@ export type UpdateSettingsData = {
         setup?: 'pending' | 'notice' | 'done';
         updateFeedUrl?: string;
         updateNoticeAck?: boolean;
+        /**
+         * Discover: the listing date of the newest blygger.com listing the owner has been shown, ISO; empty until Discover is first opened. Listings after it are new.
+         */
+        discoverSeenAt?: string;
         /**
          * Studio extensions enabled on this node (docs/extensions.md). Only names compiled into this build are accepted; every extension starts disabled.
          */

@@ -20,6 +20,7 @@ import type { Env } from './types.ts';
 import { getSettings } from './model.ts';
 import { themeAccent, themeIsDark, themeVars, type ThemeVars } from './studio-theme.ts';
 import { validatedResponse } from './http-response.ts';
+import { backupResponse } from './backup.ts';
 
 /** The pencil accent of the default (auto, light) palette — the shell's
  *  theme-color until settings load and the studio repaints it. */
@@ -257,6 +258,12 @@ export function studioSpa(mount: string) {
   app.post('/logout', (c) => {
     c.header('Set-Cookie', clearSessionCookie());
     return c.redirect(`${base}/login`);
+  });
+  // The full backup (ROADMAP row 15): the owner's browser session only, never
+  // a delegated token, since it carries every draft, contact and signal.
+  app.get('/backup', async (c) => {
+    if (!(await verifySession(c.env, c.req.header('cookie')))) return c.text('Sign in to download a backup.', 401);
+    return backupResponse(c.env, `${new URL(c.req.url).origin}${mount}/`, mount, (work) => c.executionCtx.waitUntil(work));
   });
   app.get('*', async (c) => {
     if (!(await verifySession(c.env, c.req.header('cookie'))))
