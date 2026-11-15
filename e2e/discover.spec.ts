@@ -23,7 +23,8 @@ const DIRECTORY = {
   version: 1,
   blygs: [
     blyg('busy.example', 'Busy Blyg', '2026-11-10T00:00:00.000Z', 'high', day(1)),
-    blyg('legacy.example', 'Legacy Again', '2026-09-01T00:00:00.000Z', 'medium', day(9)),
+    // Followed (the fixture's legacy feed) and listed after the mark: never in "new" (session 72's bug).
+    blyg('legacy.example', 'Legacy Again', '2026-11-11T00:00:00.000Z', 'medium', day(9)),
     blyg('quiet.example', 'Quiet Blyg', '2026-11-12T00:00:00.000Z', null, null),
     blyg('older.example', 'Older Blyg', '2026-08-01T00:00:00.000Z', 'low', day(80)),
     blyg('127.0.0.1:8787', 'This Blyg', '2026-08-01T00:00:00.000Z', 'high', day(0)),
@@ -36,7 +37,8 @@ const subscription = (url: string) => ({
 });
 
 test.afterEach(async ({ page }) => {
-  await setSeen(page, '');
+  // A test skipped before login never left about:blank.
+  if (page.url().startsWith('http')) await setSeen(page, '');
 });
 
 test('discover lists new blygs with activity, toggles to all, and subscribes one or a batch', async ({ page }) => {
@@ -58,11 +60,13 @@ test('discover lists new blygs with activity, toggles to all, and subscribes one
   const sheet = page.getByRole('dialog', { name: 'discover blygs' });
   const list = sheet.getByRole('list', { name: 'blygs listed on blygger.com' });
 
-  // New: listed after the mark, the owner's own blyg never offered.
-  await expect(list.locator('.opml-title')).toHaveText(['Busy Blyg', 'Quiet Blyg']);
-  await expect(list.locator('.opml-row').nth(0)).toContainText('high');
-  await expect(list.locator('.opml-row').nth(0)).toContainText('last post yesterday');
-  await expect(list.locator('.opml-row').nth(1)).toContainText('activity not measured yet');
+  // New: not followed, newest listing first, the owner's own blyg never offered;
+  // those listed after the mark say so.
+  await expect(list.locator('.opml-title')).toHaveText(['Quiet Blygnew', 'Busy Blygnew', 'Older Blyg']);
+  await expect(list.locator('.opml-row').nth(1)).toContainText('high');
+  await expect(list.locator('.opml-row').nth(1)).toContainText('last post yesterday');
+  await expect(list.locator('.opml-row').nth(0)).toContainText('activity not measured yet');
+  await expect(sheet.locator('#discover-more')).toHaveCount(0);
   await expect(sheet.getByRole('link', { name: 'preview Busy Blyg in a new tab' })).toHaveAttribute('target', '_blank');
   await expect(sheet.getByRole('link', { name: 'preview Busy Blyg in a new tab' })).toHaveAttribute('href', 'https://busy.example/');
   // Opening it moved the mark to the newest listing shown.
@@ -70,7 +74,8 @@ test('discover lists new blygs with activity, toggles to all, and subscribes one
 
   // All: every listing, the fixture's legacy feed marked as followed.
   await sheet.locator('[data-view=all]').click();
-  await expect(list.locator('.opml-title')).toHaveText(['Busy Blyg', 'Legacy Again', 'Quiet Blyg', 'Older Blyg']);
+  await expect(sheet.locator('[data-view=new] .n')).toHaveText('3');
+  await expect(list.locator('.opml-title')).toHaveText(['Busy Blygnew', 'Legacy Again', 'Quiet Blygnew', 'Older Blyg']);
   await expect(list.locator('.opml-row').nth(1)).toContainText('subscribed');
   await expect(sheet.getByRole('checkbox', { name: 'choose Legacy Again' })).toBeDisabled();
 
@@ -87,18 +92,52 @@ test('discover lists new blygs with activity, toggles to all, and subscribes one
   expect(errors).toEqual([]);
 });
 
-test('with nothing new, discover opens on all; an unreachable directory says so', async ({ page }) => {
+test('new pages five at a time until the unfollowed run out', async ({ page }) => {
   await login(page);
-  await setSeen(page, '2026-12-01T00:00:00.000Z');
+  const many = Array.from({ length: 7 }, (_, i) => blyg(`b${i}.example`, `Blyg ${i}`, `2026-10-0${i + 1}T00:00:00.000Z`, 'low', day(3)));
+  await page.route('https://blygger.com/blygs.json', (route) => route.fulfill({ json: { version: 1, blygs: [...many, DIRECTORY.blygs[1]] }, headers: { 'access-control-allow-origin': '*' } }));
+  await page.goto('/studio/reading');
+  await page.locator('#discover-open').click();
+  const sheet = page.getByRole('dialog', { name: 'discover blygs' });
+  const titles = sheet.getByRole('list', { name: 'blygs listed on blygger.com' }).locator('.opml-title');
+  await expect(titles).toHaveText(['Blyg 6', 'Blyg 5', 'Blyg 4', 'Blyg 3', 'Blyg 2']);
+  await expect(sheet.locator('[data-view=new] .n')).toHaveText('7');
+  await sheet.locator('#discover-more').click();
+  await expect(titles).toHaveCount(7);
+  // Never looked before: nothing is badged new, since everything would be.
+  await expect(sheet.locator('.discover-new')).toHaveCount(0);
+  await expect(sheet.locator('#discover-more')).toHaveCount(0);
+});
+
+test('the header icons have tooltips on hover and on keyboard focus', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'touch screens have no hover');
+  await login(page);
+  await page.goto('/studio/reading');
+  const tip = page.locator('.tooltip-content');
+  await page.locator('#discover-open').hover();
+  await expect(tip).toHaveText('discover blygs on blygger.com');
+  await page.mouse.move(0, 0);
+  await expect(tip).toHaveCount(0);
+  await page.getByRole('button', { name: 'subscribe', exact: true }).focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  // The tooltip the Shift+Tab opened may still be fading out beside it.
+  await expect(tip.filter({ hasText: /^subscribe$/ })).toBeVisible();
+});
+
+test('following everything, discover opens on all; an unreachable directory says so', async ({ page }) => {
+  await login(page);
   let fail = false;
-  await page.route('https://blygger.com/blygs.json', (route) => fail ? route.abort() : route.fulfill({ json: DIRECTORY, headers: { 'access-control-allow-origin': '*' } }));
+  // Only the fixture's followed legacy feed and the owner's own blyg.
+  const followedOnly = { version: 1, blygs: [DIRECTORY.blygs[1], DIRECTORY.blygs[4]] };
+  await page.route('https://blygger.com/blygs.json', (route) => fail ? route.abort() : route.fulfill({ json: followedOnly, headers: { 'access-control-allow-origin': '*' } }));
   await page.goto('/studio/reading');
   await page.locator('#discover-open').click();
   const sheet = page.getByRole('dialog', { name: 'discover blygs' });
   await expect(sheet.locator('[data-view=all]')).toHaveAttribute('aria-pressed', 'true');
   await expect(sheet.locator('[data-view=new] .n')).toHaveText('0');
   await sheet.locator('[data-view=new]').click();
-  await expect(sheet).toContainText('Nothing new since you last looked.');
+  await expect(sheet).toContainText('You follow every blyg listed on blygger.com.');
 
   await page.keyboard.press('Escape');
   fail = true;

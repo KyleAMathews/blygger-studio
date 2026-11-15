@@ -1,7 +1,7 @@
 /*
- * Discover (ROADMAP row 17): the blygs listed on blygger.com, new since last
- * time or all of them, each with its activity, a preview link and its
- * subscribe state. Subscribing, one or a ticked batch, is the OPML import's
+ * Discover (ROADMAP row 17): the blygs listed on blygger.com, the ones not
+ * followed yet (newest first, a page at a time) or all of them, each with its
+ * activity, a preview link and its subscribe state. Subscribing, one or a ticked batch, is the OPML import's
  * paced walk (opml.ts), so the owner's write budget and the next poll's
  * backfill work the same way. Nothing here is published, and nothing reaches
  * the public blogroll unless the box is ticked.
@@ -13,7 +13,7 @@ import { importFeeds } from './server-mutations.ts';
 import { Button, Failure, mount, useSettings } from './components.tsx';
 import { Sheet, toast } from './sheets.tsx';
 import { subscribedKeys, type ImportSummary, type OpmlFeed, type RowStatus } from './opml.ts';
-import { DIRECTORY_URL, activityLine, isNew, isSelf, isSubscribed, nextSeenAt, parseDirectory, type DirectoryBlyg } from './discover.ts';
+import { DIRECTORY_URL, PAGE_SIZE, activityLine, byListing, isNew, isSelf, isSubscribed, nextSeenAt, parseDirectory, type DirectoryBlyg } from './discover.ts';
 
 type View = 'new' | 'all';
 
@@ -37,13 +37,18 @@ const levelClass = { high: 'badge-ok', medium: 'badge-pencil', low: 'badge' } as
 
 export function DiscoverSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const settings = useSettings();
-  const current = useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ?? [];
+  const followedResult = useLiveQuery({ query: (q) => q.from({ source: subscriptions }) });
+  const current = followedResult.data ?? [];
+  // Until subscriptions have loaded, every blyg would look unfollowed and land in "new".
+  const keysReady = followedResult.isReady;
   const keys = useMemo(() => subscribedKeys(current), [current]);
   const [blygs, setBlygs] = useState<DirectoryBlyg[]>();
   const [error, setError] = useState<unknown>();
-  // The seen mark as it stood when this visit began: "new" stays put while the sheet is open.
+  // The seen mark as it stood when this visit began: the "new" badges stay put while the sheet is open.
   const [baseline, setBaseline] = useState<string>();
   const [view, setView] = useState<View>('new');
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  const opened = useRef(false);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [rows, setRows] = useState<Record<string, RowStatus>>({});
   const [blogroll, setBlogroll] = useState(false);
@@ -65,7 +70,6 @@ export function DiscoverSheet({ open, onClose }: { open: boolean; onClose: () =>
         const listed = parseDirectory(await res.json()).filter((b) => !isSelf(b, ownOrigin));
         if (gone) return;
         setBlygs(listed);
-        if (!listed.some((b) => isNew(b, seen))) setView('all');
         const next = nextSeenAt(listed, seen);
         if (next !== seen) {
           await settingsCollection.update('settings', (row) => {
@@ -89,13 +93,28 @@ export function DiscoverSheet({ open, onClose }: { open: boolean; onClose: () =>
       setPicked(new Set());
       setRows({});
       setView('new');
+      setLimit(PAGE_SIZE);
+      opened.current = false;
     }
     onClose();
   };
 
-  const fresh = blygs?.filter((b) => baseline !== undefined && isNew(b, baseline)) ?? [];
-  const shown = view === 'new' ? fresh : blygs ?? [];
   const followed = (b: DirectoryBlyg) => isSubscribed(b, keys) || rows[b.origin]?.state === 'added';
+  // Not followed yet; a row subscribed during this visit stays, showing "added", rather than vanishing.
+  const unfollowed = useMemo(
+    () => (blygs && keysReady ? byListing(blygs).filter((b) => !isSubscribed(b, keys) || rows[b.origin]) : []),
+    [blygs, keysReady, keys, rows],
+  );
+  const shown = view === 'new' ? unfollowed.slice(0, limit) : blygs ?? [];
+  const more = view === 'new' ? Math.min(PAGE_SIZE, unfollowed.length - limit) : 0;
+  const ready = blygs !== undefined && keysReady;
+
+  // Follow everything already: open on all, once per visit, so a later subscribe does not flip the view.
+  useEffect(() => {
+    if (!ready || opened.current) return;
+    opened.current = true;
+    if (!unfollowed.length) setView('all');
+  }, [ready, unfollowed.length]);
   const chosen = shown.filter((b) => picked.has(b.origin) && !followed(b));
 
   const subscribe = async (list: DirectoryBlyg[]) => {
@@ -129,25 +148,23 @@ export function DiscoverSheet({ open, onClose }: { open: boolean; onClose: () =>
   return (
     <Sheet open={open} onClose={close} title="discover blygs" className="opml-import discover">
       <Failure error={error} />
-      {!blygs && !error ? <p className="sheet-body" role="status">Reading the directory at blygger.com…</p> : null}
-      {blygs ? (
+      {!ready && !error ? <p className="sheet-body" role="status">Reading the directory at blygger.com…</p> : null}
+      {ready ? (
         <>
           <div className="segmented compact" role="group" aria-label="show">
             {(['new', 'all'] as const).map((v) => (
               <Button key={v} className={view === v ? 'seg is-active' : 'seg'} aria-pressed={view === v} data-view={v} onClick={() => setView(v)}>
-                {v} <span className="n">{v === 'new' ? fresh.length : blygs.length}</span>
+                {v} <span className="n">{v === 'new' ? unfollowed.length : blygs.length}</span>
               </Button>
             ))}
           </div>
           <p className="opml-head">
             {view === 'new'
-              ? baseline
-                ? 'Listed on blygger.com since you last looked.'
-                : 'Everything listed on blygger.com: you have not looked before.'
-              : 'Every blyg listed on blygger.com, most active first.'}
+              ? 'Blygs on blygger.com you do not follow yet, newest listing first.'
+              : 'Every blyg listed on blygger.com, most active first, followed ones included.'}
           </p>
           {shown.length ? (
-            <ul className="opml-list discover-list" aria-label="blygs listed on blygger.com">
+            <ul className="opml-list discover-list" data-list={view} aria-label="blygs listed on blygger.com">
               {shown.map((b) => {
                 const isFollowed = followed(b);
                 const status = rows[b.origin];
@@ -166,7 +183,10 @@ export function DiscoverSheet({ open, onClose }: { open: boolean; onClose: () =>
                       }}
                     />
                     <span className="opml-text">
-                      <span className="opml-title">{b.title}</span>
+                      <span className="opml-title">
+                        {b.title}
+                        {baseline && isNew(b, baseline) && !isFollowed ? <span className="badge badge-pencil discover-new">new</span> : null}
+                      </span>
                       <span className="opml-url">{new URL(b.home).host + new URL(b.home).pathname.replace(/\/$/, '')}</span>
                       <span className="discover-activity">
                         {b.activity.level ? <span className={`badge ${levelClass[b.activity.level]}`}>{b.activity.level}</span> : null}{' '}
@@ -188,12 +208,20 @@ export function DiscoverSheet({ open, onClose }: { open: boolean; onClose: () =>
             </ul>
           ) : (
             <p className="sheet-body">
-              Nothing new since you last looked.{' '}
+              You follow every blyg listed on blygger.com.{' '}
               <Button className="link" onClick={() => setView('all')}>
                 show all {blygs.length}
               </Button>
             </p>
           )}
+          {more > 0 ? (
+            <p className="discover-more">
+              <Button className="btn btn-ghost" id="discover-more" onClick={() => setLimit(limit + PAGE_SIZE)}>
+                show {more} more
+              </Button>
+              {unfollowed.length - limit > more ? <span className="hint">{unfollowed.length - limit} not shown yet</span> : null}
+            </p>
+          ) : null}
           <label className="check">
             <input type="checkbox" checked={blogroll} disabled={running} onChange={(event) => setBlogroll(event.target.checked)} />
             <span>

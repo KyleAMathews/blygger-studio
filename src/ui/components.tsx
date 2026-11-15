@@ -28,6 +28,7 @@ import type { StudioExtension } from './extension-api.ts';
 import { enabledExtensions, menuPlacement } from './extensions.tsx';
 import { applyTheme } from './theme.ts';
 import { applyTitle } from './tab.ts';
+import { Tooltip } from './primitives.tsx';
 import type { CustomTheme } from '../themes.ts';
 export { Button };
 export const mount =
@@ -295,14 +296,15 @@ export function Layout({ children }: { children: ReactNode }) {
         </h1>
         <div className="topbar-actions">
           {behind ? (
-            <Link
-              to="/more"
-              className="tb-badge warn"
-              id="update-badge"
-              title="A newer release exists"
-            >
-              update
-            </Link>
+            <Tooltip label="A newer release exists">
+              <Link
+                to="/more"
+                className="tb-badge warn"
+                id="update-badge"
+              >
+                update
+              </Link>
+            </Tooltip>
           ) : null}
           <a
             className="tb-btn"

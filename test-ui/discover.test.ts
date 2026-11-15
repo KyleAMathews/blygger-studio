@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { activityLine, isNew, isSelf, isSubscribed, nextSeenAt, parseDirectory, type DirectoryBlyg } from '../src/ui/discover.ts';
+import { activityLine, byListing, isNew, isSelf, isSubscribed, nextSeenAt, parseDirectory, type DirectoryBlyg } from '../src/ui/discover.ts';
 import { subscribedKeys } from '../src/ui/opml.ts';
 
 const row = (origin: string, listedAt: string, extra: Record<string, unknown> = {}) => ({
@@ -51,4 +51,14 @@ test('the activity line says how active and how recent', () => {
   const [blyg] = parseDirectory({ blygs: [row('https://a.example/', '2026-10-01T00:00:00.000Z')] }) as [DirectoryBlyg];
   expect(activityLine(blyg, now)).toBe('last post 2 days ago');
   expect(activityLine({ ...blyg, activity: { level: null, events: 0, lastPost: null } }, now)).toBe('activity not measured yet');
+});
+
+test('byListing puts the newest listing first and keeps the directory order on ties', () => {
+  const blygs = parseDirectory({ blygs: [
+    row('https://a.example/', '2026-10-01T00:00:00.000Z'),
+    row('https://b.example/', '2026-11-01T00:00:00.000Z'),
+    row('https://c.example/', '2026-10-01T00:00:00.000Z'),
+  ] });
+  expect(byListing(blygs).map((b) => b.origin)).toEqual(['https://b.example/', 'https://a.example/', 'https://c.example/']);
+  expect(blygs[0].origin).toBe('https://a.example/');
 });

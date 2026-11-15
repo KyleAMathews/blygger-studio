@@ -54,6 +54,7 @@ import {
   SourceLink,
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
+import { IconButton, Tooltip } from './primitives.tsx';
 import { displayUrl, sourceTitleAndUrl } from '../importer/util.ts';
 import { ReaderBody, TrailBar, ownOrigin, useEndTrail, useSubscriptionRows } from './reader-links.tsx';
 import { currentTrail, visit } from './browse.ts';
@@ -647,16 +648,16 @@ function EntryBar({ entry, a }: { entry: Reading; a: EntryActions }) {
     <div className="entry-bar">
       {imported
         ? ([1, -1] as const).map((thumb) => (
-            <Button
-              key={thumb}
-              className="act icon-only thumb"
-              aria-label={thumb === 1 ? 'thumbs up' : 'thumbs down'}
-              title={thumb === 1 ? 'thumbs up' : 'thumbs down'}
-              aria-pressed={signal?.thumb === thumb}
-              onClick={() => void a.vote(thumb)}
-            >
-              {thumb === 1 ? <ThumbUp /> : <ThumbDown />}
-            </Button>
+            <Tooltip key={thumb} label={thumb === 1 ? 'thumbs up' : 'thumbs down'}>
+              <Button
+                className="act icon-only thumb"
+                aria-label={thumb === 1 ? 'thumbs up' : 'thumbs down'}
+                aria-pressed={signal?.thumb === thumb}
+                onClick={() => void a.vote(thumb)}
+              >
+                {thumb === 1 ? <ThumbUp /> : <ThumbDown />}
+              </Button>
+            </Tooltip>
           ))
         : null}
       <span className="spacer" />
@@ -679,23 +680,23 @@ function EntryBar({ entry, a }: { entry: Reading; a: EntryActions }) {
           <Button
             className="act"
             aria-label="add to hopper"
-            title="add to hopper"
             onClick={() => void a.addToHopper()}
           >
             + add to hopper…
           </Button>
         </>
       ) : null}
-      <Button
-        className="act icon-only more-btn"
-        aria-label="more actions"
-        title="more actions"
-        // Keep a text selection alive through the press.
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={() => void a.openMenu()}
-      >
-        <More />
-      </Button>
+      <Tooltip label="more actions">
+        <Button
+          className="act icon-only more-btn"
+          aria-label="more actions"
+          // Keep a text selection alive through the press.
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => void a.openMenu()}
+        >
+          <More />
+        </Button>
+      </Tooltip>
     </div>
   );
 }
@@ -1747,32 +1748,15 @@ function ReadingHead({
         </h2>
         <div className="view-actions">
           {children}
-          <Button
-            className="icon-btn"
-            aria-label="resync all feeds"
-            title="resync all feeds"
-            disabled={resyncing}
-            onClick={() => void resyncAll()}
-          >
+          <IconButton className="icon-btn" label="resync all feeds" disabled={resyncing} onClick={() => void resyncAll()}>
             ↻
-          </Button>
-          <Button
-            className="icon-btn"
-            id="discover-open"
-            aria-label="discover blygs on blygger.com"
-            title="discover blygs on blygger.com"
-            onClick={() => setDiscovering(true)}
-          >
+          </IconButton>
+          <IconButton className="icon-btn" id="discover-open" label="discover blygs on blygger.com" onClick={() => setDiscovering(true)}>
             ✦
-          </Button>
-          <Button
-            className="icon-btn"
-            aria-label="subscribe"
-            title="subscribe"
-            onClick={() => setAdding(true)}
-          >
+          </IconButton>
+          <IconButton className="icon-btn" label="subscribe" onClick={() => setAdding(true)}>
             ＋
-          </Button>
+          </IconButton>
         </div>
       </div>
       <SubscribeSheet open={adding} onClose={() => setAdding(false)} onImport={() => setImporting(true)} />
@@ -1849,15 +1833,11 @@ function useReadSelection(key: string, offset: number, entries: Reading[], actio
       ],
     });
   const button = (
-    <Button
-      className="icon-btn"
-      aria-label="read state"
-      title="select, mark read or unread"
-      aria-pressed={selecting}
-      onClick={openMenu}
-    >
-      ☑
-    </Button>
+    <Tooltip label="select, mark read or unread">
+      <Button className="icon-btn" aria-label="read state" aria-pressed={selecting} onClick={openMenu}>
+        ☑
+      </Button>
+    </Tooltip>
   );
   const allPicked = importedRows.length > 0 && importedRows.every((entry) => picked.has(entry.key));
   const bar = selecting ? (
@@ -1915,13 +1895,9 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
       <ReadingHead title={title} count={lens === 'mentions' ? undefined : metadata?.total}>
         {readable ? read.button : null}
         {selected ? (
-          <Button
-            className="icon-btn"
-            aria-label="about this source"
-            onClick={() => setInspecting(true)}
-          >
+          <IconButton className="icon-btn" label="about this source" onClick={() => setInspecting(true)}>
             ⓘ
-          </Button>
+          </IconButton>
         ) : null}
       </ReadingHead>
       <LensBar sub={sub} />
