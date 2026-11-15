@@ -18,6 +18,28 @@ not have its own repo until session 26.
 
 ---
 
+## 0.60.1 — Discover offers only blygs you do not follow; tooltips
+
+**Discover's "new" view offered blygs you already follow** (on a first visit, all of
+them): it filtered on the seen mark alone. It now lists only the blygs you do not
+follow, newest listing first, five at a time with *show more* until they run out;
+rows listed since your last visit carry a *new* badge. *All* is unchanged and still
+shows followed blygs. The sheet waits for your subscriptions to load, so a followed
+blyg never flashes into "new".
+
+**The setup walk-through ends with Discover**: the finish screen offers *discover
+blygs*. It is not a step, because subscribing writes at once and the steps write
+nothing until the end.
+
+**Tooltips are one pattern.** Every hover hint on a control (the reading page's
+icons, thumbs and ⋯ on entries, the composer and editor toolbars, *copy + link*, the
+update badge) is a styled tooltip that shows on hover and on keyboard focus, after a
+shared 300 ms delay, instead of the browser's slow `title`. `Tooltip` and
+`IconButton` in `src/ui/primitives.tsx` are taken from the design-system work in
+#88, with the same names and classes.
+
+Contract and SDK unchanged. **Migrations:** none.
+
 ## 0.60.0 — Download a backup, discover blygs
 
 **Download backup** (ROADMAP row 15). More → *download backup* streams the whole blyg as
