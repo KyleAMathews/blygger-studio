@@ -18,7 +18,7 @@ not have its own repo until session 26.
 
 ---
 
-## Unreleased — Download a backup, discover blygs
+## 0.60.0 — Download a backup, discover blygs
 
 **Download backup** (ROADMAP row 15). More → *download backup* streams the whole blyg as
 one `.tar` from `{studio}/backup`: every database table as JSON lines under `tables/`,
@@ -29,6 +29,19 @@ finish. Plain tar, since media is already compressed. The owner's browser sessio
 never a delegated token. Left out: the OAuth and security tables (grants, tokens, signing
 keys, rate-limit budgets), wrangler's migration ledger and the feed cache. Restoring one
 into a fresh node is row 53 and not built.
+
+The button is marked beta: it runs inside one Worker request, which caps storage reads,
+so on a blyg with very many files it can stop partway (and then has no `backup.json`).
+For those, **`npm run backup -- --base https://your.blyg/ [--env NAME]`** makes the same
+archive from a deployment checkout through `wrangler`, one request per table page and per
+file with retries, so the cap does not apply; a large blyg is only slower. It uses your
+`wrangler login` session and the deployment's wrangler config. `npm run export` is still
+the public site only, for moving to a static host, not a backup.
+
+Tables are copied by allow-list. The auth library makes its own tables at runtime
+(`session`, `jwks`, `oauthAccessToken`, `user` and kin), outside `migrations/`; a
+deny-list missed them on a live node before release. A new test makes every migration's
+table either backed up or named as left out.
 
 **Discover** (ROADMAP row 17). ✦ beside ＋ on every reading screen opens the blygs listed
 on blygger.com, read from the browser through blygger.com's `/blygs.json`: *new* (listed

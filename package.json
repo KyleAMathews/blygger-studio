@@ -1,6 +1,6 @@
 {
   "name": "@blygger/studio",
-  "version": "0.59.0",
+  "version": "0.60.0",
   "private": true,
   "description": "Blygger Studio — reference client for the Blygger protocol (publish, subscribe, thread, transclude, respond)",
   "license": "MIT",
@@ -15,6 +15,7 @@
     "upgrade": "node --experimental-strip-types scripts/upgrade.ts",
     "test": "vitest run",
     "export": "node --experimental-strip-types scripts/export.ts",
+    "backup": "node --import tsx scripts/backup.ts",
     "deploy": "wrangler deploy",
     "deploy:all": "node --experimental-strip-types scripts/deploy-all.ts",
     "deploy:vgr": "wrangler deploy --config wrangler.private.jsonc --env venkateshrao",

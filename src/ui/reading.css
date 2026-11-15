@@ -182,6 +182,8 @@
 .discover-activity { display: block; font-size: .74rem; color: var(--ink-soft); margin-top: 2px; }
 .discover-activity .badge { font-size: .6rem; padding: 1px 6px; }
 .discover-preview { flex: 0 0 auto; font-size: .8rem; white-space: nowrap; }
+.backup-beta { margin-top: 4px; font-style: normal; }
+.backup-beta code { font-size: .92em; overflow-wrap: anywhere; }
 .discover-one { flex: 0 0 auto; min-height: 0; padding: 4px 10px; font-size: .8rem; }
 @media (max-width: 480px) {
   .discover .opml-row { flex-wrap: wrap; }

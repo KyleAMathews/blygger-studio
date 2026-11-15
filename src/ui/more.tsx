@@ -166,6 +166,12 @@ export function MorePage() {
             <span className="ml">
               download backup
               <span className="md">every post, version, setting and file, as one .tar</span>
+              <span className="md backup-beta">
+                Beta: may not work properly on large blygs due to read limits. Use{' '}
+                <code>npm run backup -- --base {publicUrl}</code> from your deployment
+                checkout instead: it makes the same archive through wrangler, one request
+                per file, so the limit does not apply.
+              </span>
             </span>
           </a>
         </li>

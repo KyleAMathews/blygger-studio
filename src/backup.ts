@@ -14,26 +14,27 @@
 // aborts the download rather than ending it cleanly, so a truncated archive
 // never looks finished; backup.json's absence says the same thing.
 //
-// Left out: the OAuth and security tables (grants, tokens, signing keys,
-// rate-limit budgets) and wrangler's own migration ledger. A restored node
-// mints its own credentials; the owner password is a Worker secret and was
-// never in D1. The latest applied migration is recorded instead, so a restore
-// knows which schema the rows belong to.
+// Tables are copied by allow-list, BACKUP_TABLES. The auth library creates its
+// own tables at runtime (session, jwks, oauthAccessToken, user and kin), none
+// in migrations/, and a deny-list missed every one of them on a live node
+// (session 71). Left out, then: those, the older oauth_ and security_ tables
+// (grants, tokens, signing keys, rate-limit budgets), wrangler's migration
+// ledger and anything not named here. A restored node mints its own
+// credentials; the owner password is a Worker secret and was never in D1.
+// test-ui/backup-tables.test.ts makes every migration's table choose a side,
+// so a new content table cannot drop out of backups unnoticed. The latest
+// applied migration is recorded, so a restore knows the rows' schema.
 
 import { CLIENT } from './client.ts';
 import type { Env } from './types.ts';
+import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, backupFileName, excludedTable, type BackupManifest, type TableCount } from './backup-format.ts';
 
-export const BACKUP_FORMAT = 'blygger-studio-backup';
-export const BACKUP_FORMAT_VERSION = 1;
+export { BACKUP_TABLES, CREDENTIAL_TABLES, backupFileName, excludedTable } from './backup-format.ts';
+
 const ROOT = 'blyg-backup/';
 const PAGE_ROWS = 500;
 /** R2 keys under this prefix are the feed cache (feed-cache.ts): derived, rebuilt on demand. */
 const SKIPPED_R2_PREFIX = '__cache/';
-
-/** Tables that hold credentials or abuse budgets, never copied out. */
-export function excludedTable(name: string): boolean {
-  return /^(sqlite_|_cf_|d1_migrations$|oauth_|security_)/.test(name);
-}
 
 const encoder = new TextEncoder();
 
@@ -81,29 +82,6 @@ export function tarHeader(path: string, size: number, mtime: Date): Uint8Array {
 }
 
 const padding = (size: number) => new Uint8Array((512 - (size % 512)) % 512);
-
-interface TableCount { rows: number; files: number }
-export interface BackupManifest {
-  format: typeof BACKUP_FORMAT;
-  formatVersion: number;
-  client: string;
-  clientVersion: string;
-  createdAt: string;
-  origin: string;
-  mount: string;
-  migration: string | null;
-  tables: Record<string, TableCount>;
-  excludedTables: string[];
-  media: { objects: number; bytes: number };
-  complete: true;
-}
-
-/** `blyg-backup-example.com-blyg-2026-11-14.tar`: host, mount and day, so two nodes' backups never share a name. */
-export function backupFileName(origin: string, mount: string, now: Date): string {
-  const host = new URL(origin).host.replace(/[^a-z0-9.-]/gi, '-');
-  const path = mount.replace(/^\//, '').replace(/[^a-z0-9.-]/gi, '-');
-  return `blyg-backup-${host}${path ? '-' + path : ''}-${now.toISOString().slice(0, 10)}.tar`;
-}
 
 /**
  * Stream the archive. The caller has already checked the owner session; this

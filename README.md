@@ -140,6 +140,23 @@ To export an existing site's public pages for a static host:
 npm run export -- --out exported-blyg --base https://blyg.example.com/
 ```
 
+That is the public site only. For a full backup (drafts, every version,
+settings, subscriptions, contacts and every uploaded file), use More → download
+backup in the studio, or from your deployment checkout:
+
+```sh
+npm run backup -- --base https://blyg.example.com/ [--env NAME] [--out backups]
+```
+
+Both write the same `.tar`: every table as JSON lines, every file, and a
+`backup.json` written last (a backup without it did not finish). OAuth grants,
+tokens, signing keys and rate-limit budgets are left out. The studio's button
+runs inside one Worker request, which caps storage reads, so on a large blyg it
+can stop partway; `npm run backup` uses your `wrangler login` session, makes one
+request per file and retries, so it has no such cap, only Cloudflare's API rate
+limit, which makes a large backup slower rather than incomplete. Restoring a
+backup into a fresh node is not built yet.
+
 ### Local development
 
 Clone the repository and run `npm ci`. Create an ignored `.dev.vars` file with

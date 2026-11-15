@@ -53,6 +53,7 @@ describe("backup", () => {
     expect(manifest).toMatchObject({ format: "blygger-studio-backup", formatVersion: 1, origin: "https://example.com/blyg/", mount: "/blyg", complete: true });
     expect(manifest.tables.items.rows).toBeGreaterThan(0);
     expect(manifest.excludedTables).toEqual(expect.arrayContaining(["oauth_records"]));
+    expect(Object.keys(manifest.tables).some((t) => /^(jwks|session|user|account|verification|oauth)/i.test(t))).toBe(false);
     expect(Object.keys(manifest.tables).filter(excludedTable)).toEqual([]);
 
     const items = [...files].filter(([path]) => path.startsWith("blyg-backup/tables/items/"))
