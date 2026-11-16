@@ -74,6 +74,12 @@
 .entry-body blockquote.blyg-partial { border-left-style: dashed; }
 .entry-body blockquote > :last-child { margin-bottom: 0; }
 .entry-body pre { overflow-x: auto; max-width: 100%; background: var(--sunk); border-radius: 8px; padding: 8px 10px; font-size: .85rem; }
+/* A formula paints inside its own box (v0.4-plan 23.6): no raised, smashed or lapped
+   text over another author's words. The margin keeps glyph ink that overhangs the box
+   (italics, accents); 0.25em was the least that left ordinary formulas pixel-identical.
+   A browser without the margin is not clipped at all, since the clip would cut every
+   formula there; the voffset bound in math-render.ts is its containment. */
+@supports (overflow-clip-margin: 0.25em) { math { overflow: clip; overflow-clip-margin: 0.25em; } }
 /* Imported HTML carries fixed-width media, tables and embeds. They shrink or
    scroll inside the card; none may widen the page (a wider page is laid out
    zoomed out on iOS, which reads as the studio zooming at random). */

@@ -233,6 +233,12 @@ article.fragment > :first-child, article.thread > :first-child { margin-top: 0; 
 .blyg h3 { font-size: 1.0625rem; }
 .blyg code, .blyg pre { font-size: 0.9em; }
 .blyg pre { background: var(--paper-sunk); padding: 0.85rem 1rem; border-radius: 3px; overflow-x: auto; }
+/* A formula paints inside its own box (v0.4-plan 23.6): no raised, smashed or lapped
+   text over another author's words. The margin keeps glyph ink that overhangs the box
+   (italics, accents); 0.25em was the least that left ordinary formulas pixel-identical.
+   A browser without the margin is not clipped at all, since the clip would cut every
+   formula there; the voffset bound in math-render.ts is its containment. */
+@supports (overflow-clip-margin: 0.25em) { math { overflow: clip; overflow-clip-margin: 0.25em; } }
 .blyg hr { border: none; border-top: 1px solid var(--rule); margin: 2rem 0; }
 
 /* ---- the apparatus -----------------------------------------------------

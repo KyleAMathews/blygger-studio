@@ -152,6 +152,12 @@
    page out zoomed out, which reads as a random zoom). */
 .preview :is(img, video, iframe, embed, object, svg, canvas), #h-viewer-body :is(video, iframe, embed, object, svg, canvas) { max-width: 100%; height: auto; }
 .preview :is(pre, table), #h-viewer-body :is(pre, table) { display: block; max-width: 100%; overflow-x: auto; }
+/* A formula paints inside its own box (v0.4-plan 23.6): no raised, smashed or lapped
+   text over another author's words. The margin keeps glyph ink that overhangs the box
+   (italics, accents); 0.25em was the least that left ordinary formulas pixel-identical.
+   A browser without the margin is not clipped at all, since the clip would cut every
+   formula there; the voffset bound in math-render.ts is its containment. */
+@supports (overflow-clip-margin: 0.25em) { math { overflow: clip; overflow-clip-margin: 0.25em; } }
 /* Quotes as the public page shows them (pages.ts STYLE_CSS). */
 .preview blockquote.blyg-transclusion { margin: 1.5rem 0; padding: .25rem 0 .25rem 1.1rem; border-left: 2px solid var(--pencil); background: none; }
 .preview blockquote.blyg-transclusion > :first-child { margin-top: 0; }
@@ -270,3 +276,4 @@ html.focus-view { overflow: hidden; scrollbar-gutter: auto; }
 }
 .stub-help p[tabindex] { outline: none; }
 .stub-help pre code { padding: 0; background: none; border: none; font-size: inherit; }
+.preview .math-error, #preview-body .math-error { color: var(--alert); background: var(--alert-bg); border-radius: 4px; }
