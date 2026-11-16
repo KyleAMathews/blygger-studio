@@ -18,7 +18,22 @@ not have its own repo until session 26.
 
 ---
 
-## 0.62.0 — Bursts fold under their thread, ahead of tangling
+## 0.62.0 — Mathematics, and bursts fold under their thread
+
+**Mathematics** (decision #105; spec 0.4 §2, §5.2, §14; studio#149). Write `$…$` inline and
+`$$…$$` on their own lines, by pandoc's `tex_math_dollars` rule: money, lone dollars,
+escaped `\$` and anything in code render exactly as before. A formula publishes as MathML
+Core with its TeX in an `application/x-tex` annotation, and nothing else: no stylesheet,
+script or font. A formula that does not parse shows in red in the preview and blocks
+publishing, naming it; a partial quote that cuts through a formula is refused. Excerpts,
+titles and labels show a formula as its TeX in dollars. A Σ button and a Mathematics
+section on the syntax page. Drawing is `temml` 0.14.0 (MIT, no dependencies), in the
+Worker only; the build fails if it reaches the browser bundle. **In the reader**, every
+formula in an imported or quoted document is discarded and redrawn from its TeX
+annotation by the same renderer, so nothing inside a formula is ever the publisher's
+markup; one with no annotation is dropped, and past 1,000 formulas or on any error a
+formula shows as its TeX in code. Reviewed twice by Fable (sessions 69–70) and checked on
+an iPad.
 
 **A thread published with its parts folds them** (spec §13.7; ROADMAP row 112, Background
 phase 3, pulled forward so readers fold a tangle before the studio can publish one). When a
