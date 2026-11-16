@@ -1,6 +1,7 @@
 // D1 access for the subscribe side (migration 0004) — the importer-side
 // counterpart to ../model.ts, which owns the publish side's items/versions.
 
+import { settleImportedBackground, type HeldVersion } from "../background.ts";
 import { syncImportedMentions } from "./mention-index.ts";
 import type { Surface } from "../surface.ts";
 import type { HopperItemRow, HopperRow, ImportedItemRow, SignalRow, SubscriptionRow } from "../types.ts";
@@ -215,8 +216,17 @@ export async function applyEffect(
   observedAt: string,
   opts: { l0?: boolean; retainPinnedVersion?: number } = {},
 ): Promise<void> {
+  // What was held, read before the write replaces it: Background measures a version against it.
+  const held = "doc" in effect && !opts.l0 && effect.type !== "import"
+    ? await db.prepare("SELECT content_hash AS hash, transclusions_json AS quotes FROM imported_items WHERE subscription_id = ? AND remote_id = ?")
+      .bind(subscriptionId, remoteId).first<HeldVersion>()
+    : null;
   await writeEffect(db, subscriptionId, remoteId, effect, observedAt, opts);
   if (opts.l0) return;
+  if ("doc" in effect) {
+    // Studio-private bookkeeping (background-plan.md §2): never fails an import.
+    await settleImportedBackground(db, subscriptionId, remoteId, effect.doc, held, observedAt).catch((e) => console.error("background reasons not settled", e));
+  }
   if ("doc" in effect) await syncImportedMentions(db, subscriptionId, remoteId, effect.doc.content_html);
   else if (effect.type === "record-tombstone" || effect.type === "rollup-null") await syncImportedMentions(db, subscriptionId, remoteId, null);
 }

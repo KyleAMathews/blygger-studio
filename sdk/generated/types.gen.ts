@@ -176,6 +176,9 @@ export type Settings = {
      * Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read.
      */
     backgroundRules: {
+        burst: boolean;
+        wordless: boolean;
+        maintenance: boolean;
         minor: boolean;
     };
     acceptMentions: boolean;
@@ -597,6 +600,17 @@ export type ReadingEntry = {
         readVersion: number | null;
     };
     background: EntryBackground;
+    /**
+     * A thread's burst (spec §13.7's fold): the items of its blyg it was first to name, published with it, now in Background as `burst`. Present only on a thread that has them, while the burst rule is on.
+     */
+    parts?: Array<{
+        /**
+         * The subscription the part is held under, or "~own".
+         */
+        sub: string;
+        id: string;
+        label: string;
+    }>;
 };
 
 /**
@@ -2660,10 +2674,13 @@ export type UpdateSettingsData = {
          */
         changelogSummaryPrompt?: string;
         /**
-         * Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read.
+         * Background rules to turn on or off; rules not named keep their stored value.
          */
         backgroundRules?: {
-            minor: boolean;
+            burst?: boolean;
+            wordless?: boolean;
+            maintenance?: boolean;
+            minor?: boolean;
         };
         acceptMentions?: boolean;
         updateCheck?: boolean;

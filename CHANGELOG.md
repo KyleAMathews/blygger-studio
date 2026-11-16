@@ -18,6 +18,43 @@ not have its own repo until session 26.
 
 ---
 
+## 0.62.0 — Mathematics, and bursts fold under their thread
+
+**Mathematics** (decision #105; spec 0.4 §2, §5.2, §14; studio#149). Write `$…$` inline and
+`$$…$$` on their own lines, by pandoc's `tex_math_dollars` rule: money, lone dollars,
+escaped `\$` and anything in code render exactly as before. A formula publishes as MathML
+Core with its TeX in an `application/x-tex` annotation, and nothing else: no stylesheet,
+script or font. A formula that does not parse shows in red in the preview and blocks
+publishing, naming it; a partial quote that cuts through a formula is refused. Excerpts,
+titles and labels show a formula as its TeX in dollars. A Σ button and a Mathematics
+section on the syntax page. Drawing is `temml` 0.14.0 (MIT, no dependencies), in the
+Worker only; the build fails if it reaches the browser bundle. **In the reader**, every
+formula in an imported or quoted document is discarded and redrawn from its TeX
+annotation by the same renderer, so nothing inside a formula is ever the publisher's
+markup; one with no annotation is dropped, and past 1,000 formulas or on any error a
+formula shows as its TeX in code. Reviewed twice by Fable (sessions 69–70) and checked on
+an iPad.
+
+**A thread published with its parts folds them** (spec §13.7; ROADMAP row 112, Background
+phase 3, pulled forward so readers fold a tangle before the studio can publish one). When a
+thread version is the first to name items from its own blyg that were first published
+within 15 minutes before it, those items go to Background as *part of a burst*, and the
+thread shows **+N parts**, listing them in place. Times are clamped to when this reader
+first saw them, so a future-dated item folds nothing. A part's later version is an ordinary
+update and leaves Background; a thread quoting an older item, or another blyg's, folds
+nothing. Your own tangles fold the same way in your own reading feed. The rule is one
+definition shared with the public pace-layered order (`src/burst.ts`). Public pages and
+`feed.xml` are unchanged: every part is still published and imported (§7, §13.1).
+
+**Two more Background rules:** *no words of its own* (a version that is only quotes of
+other posts, §15.4's repost test as §13.2 allows) and *republished unchanged* (the same
+text and the same quotes, §13.2). Each rule has its own toggle in Settings → Feed →
+Background, on by default; turning one off moves its items back at once. They apply to
+versions that arrive from now on; nothing already held is reclassified.
+
+`ReadingEntry.parts` lists a thread's burst; a settings `PATCH` may name only the
+Background rules it changes. Private contract 5.11.0, SDK 0.17.0. **Migrations:** none.
+
 ## 0.61.0 — The Reading redesign: Shelf, Background, lenses in a new order
 
 **Lenses in a new order:** All, Mentions, Smart Feed, Fragments, Threads, Shelf,

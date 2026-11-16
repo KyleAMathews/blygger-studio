@@ -5,6 +5,7 @@ import { sourceTitleAndUrl } from "./importer/util.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
 import type { ImportedItemRow } from "./types.ts";
 import { OWN_SUBSCRIPTION } from "./own-subscription.ts";
+import { linkLabel } from "./link-label.ts";
 import { BACKGROUND_RULES, entryBackground, importedBackgroundSql, ownBackgroundSql, type BackgroundRule } from "./background.ts";
 
 type Identity = { source: 'own' | 'imported'; id: string; sub: string; at: number | string | null };
@@ -117,5 +118,29 @@ async function readingEntries(db: D1Database, selectedRows: Identity[], rules: r
     const background = entryBackground({ withdrawn: row.state === "tombstone", reasons: row.bg_reasons, detail: row.bg_detail, placement: placementOf('imported', row.subscription_id, row.remote_id), blyg: row.sub_background === 1 }, rules);
     return { ...buildReadingFeed([], [input])[0], key: `imported:${JSON.stringify([row.subscription_id, row.remote_id])}`, background };
   }));
-  return entries.filter((e) => e !== null);
+  const shown = entries.filter((e) => e !== null);
+  if (!rules.includes("burst")) return shown;
+  // A thread's burst, listed on the thread (plan §2, "+N parts"); the parts themselves sit in Background.
+  const ownThreads = shown.filter((e) => e.source === "own" && e.kind === "thread" && e.own).map((e) => e.own!.id);
+  const importedThreads = shown.filter((e) => e.source === "imported" && e.kind === "thread" && e.imported).map((e) => [e.imported!.subscriptionId, e.imported!.remoteId]);
+  if (!ownThreads.length && !importedThreads.length) return shown;
+  const isBurst = (column: string) => `EXISTS (SELECT 1 FROM json_each(COALESCE(${column}, '[]')) WHERE value = 'burst')`;
+  const [ownParts, importedParts] = await Promise.all([
+    ownThreads.length ? db.prepare(`SELECT i.id, i.kind, json_extract(i.bg_detail, '$.thread') AS thread, v.content_html FROM items i
+      LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version
+      WHERE i.status = 'public' AND ${isBurst("i.bg_reasons")} AND json_extract(i.bg_detail, '$.thread') IN (SELECT value FROM json_each(?))
+      ORDER BY i.created`).bind(JSON.stringify(ownThreads)).all<{ id: string; kind: string; thread: string; content_html: string | null }>() : { results: [] },
+    importedThreads.length ? db.prepare(`SELECT subscription_id, remote_id, kind, json_extract(bg_detail, '$.thread') AS thread, content_html FROM imported_items
+      WHERE state = 'current' AND ${isBurst("bg_reasons")}
+        AND (subscription_id, json_extract(bg_detail, '$.thread')) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))
+      ORDER BY created`).bind(JSON.stringify(importedThreads)).all<{ subscription_id: string; remote_id: string; kind: string; thread: string; content_html: string }>() : { results: [] },
+  ]);
+  return shown.map((e) => {
+    const parts = e.source === "own" && e.own
+      ? ownParts.results.filter((p) => p.thread === e.own!.id).map((p) => ({ sub: OWN_SUBSCRIPTION, id: p.id, label: linkLabel(p.content_html ?? "", p.kind) }))
+      : e.imported
+        ? importedParts.results.filter((p) => p.subscription_id === e.imported!.subscriptionId && p.thread === e.imported!.remoteId).map((p) => ({ sub: p.subscription_id, id: p.remote_id, label: linkLabel(p.content_html, p.kind) }))
+        : [];
+    return parts.length ? { ...e, parts } : e;
+  });
 }
