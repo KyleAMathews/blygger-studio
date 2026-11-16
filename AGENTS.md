@@ -634,6 +634,15 @@ Deferred when the session wrapped, not blocked on anything.
 
 ### New features
 
+- [ ] **A responses count on public pages** (session 73, decision #107; ROADMAP row 127;
+  shape fixed in `blygger-spec/docs/opus-brief.md` § session 73). The count is the length
+  of the public responses list the page already renders (verified, unhidden, list switched
+  on for the item), shown as text on the item's page and on same-origin lists that show the
+  item; nothing at zero or with the list off. **Never data:** not in any protocol document
+  or feed, no `data-` attribute, microformat, JSON-LD or meta tag, with a test that says
+  so. Nothing public sorted or selected by it; no blyg-wide total, no per-responder tally.
+  Build with the studio-private counts and the Responses tab (Venkat, session 72), which
+  need no ruling.
 - [x] **`cited` on `{url}` stubs** — **done 0.18.0 (session 33)**. Finding: a hostname-only `cited` had been emitted since 0.4 (live on three venkateshrao stubs); what was missing was the import half (studio#12, now kept verbatim) and a useful citation (feed name + entry title, frozen at creation). Original entry: (session 31, decision #55; spec §16.1a — a ruled shape,
   normative once this ships and an import retains it): when a stub targets a plain URL, emit
   the §5.9 `cited` object on `stub_of` — `retrieved` always; `source`, `author`, `excerpt`
