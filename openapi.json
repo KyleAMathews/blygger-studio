@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Blygger Studio API",
-    "version": "5.10.0",
+    "version": "5.11.0",
     "description": "Private authoring and reading API. Protocol files remain a separate public interface."
   },
   "servers": [
@@ -704,11 +704,23 @@
           "backgroundRules": {
             "type": "object",
             "properties": {
+              "burst": {
+                "type": "boolean"
+              },
+              "wordless": {
+                "type": "boolean"
+              },
+              "maintenance": {
+                "type": "boolean"
+              },
               "minor": {
                 "type": "boolean"
               }
             },
             "required": [
+              "burst",
+              "wordless",
+              "maintenance",
               "minor"
             ],
             "description": "Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read."
@@ -2247,6 +2259,30 @@
           },
           "background": {
             "$ref": "#/components/schemas/EntryBackground"
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sub": {
+                  "type": "string",
+                  "description": "The subscription the part is held under, or \"~own\"."
+                },
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sub",
+                "id",
+                "label"
+              ]
+            },
+            "description": "A thread's burst (spec §13.7's fold): the items of its blyg it was first to name, published with it, now in Background as `burst`. Present only on a thread that has them, while the burst rule is on."
           }
         },
         "required": [
@@ -7756,14 +7792,21 @@
                   "backgroundRules": {
                     "type": "object",
                     "properties": {
+                      "burst": {
+                        "type": "boolean"
+                      },
+                      "wordless": {
+                        "type": "boolean"
+                      },
+                      "maintenance": {
+                        "type": "boolean"
+                      },
                       "minor": {
                         "type": "boolean"
                       }
                     },
-                    "required": [
-                      "minor"
-                    ],
-                    "description": "Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read."
+                    "additionalProperties": false,
+                    "description": "Background rules to turn on or off; rules not named keep their stored value."
                   },
                   "acceptMentions": {
                     "type": "boolean"

@@ -18,6 +18,28 @@ not have its own repo until session 26.
 
 ---
 
+## 0.62.0 — Bursts fold under their thread, ahead of tangling
+
+**A thread published with its parts folds them** (spec §13.7; ROADMAP row 112, Background
+phase 3, pulled forward so readers fold a tangle before the studio can publish one). When a
+thread version is the first to name items from its own blyg that were first published
+within 15 minutes before it, those items go to Background as *part of a burst*, and the
+thread shows **+N parts**, listing them in place. Times are clamped to when this reader
+first saw them, so a future-dated item folds nothing. A part's later version is an ordinary
+update and leaves Background; a thread quoting an older item, or another blyg's, folds
+nothing. Your own tangles fold the same way in your own reading feed. The rule is one
+definition shared with the public pace-layered order (`src/burst.ts`). Public pages and
+`feed.xml` are unchanged: every part is still published and imported (§7, §13.1).
+
+**Two more Background rules:** *no words of its own* (a version that is only quotes of
+other posts, §15.4's repost test as §13.2 allows) and *republished unchanged* (the same
+text and the same quotes, §13.2). Each rule has its own toggle in Settings → Feed →
+Background, on by default; turning one off moves its items back at once. They apply to
+versions that arrive from now on; nothing already held is reclassified.
+
+`ReadingEntry.parts` lists a thread's burst; a settings `PATCH` may name only the
+Background rules it changes. Private contract 5.11.0, SDK 0.17.0. **Migrations:** none.
+
 ## 0.61.0 — The Reading redesign: Shelf, Background, lenses in a new order
 
 **Lenses in a new order:** All, Mentions, Smart Feed, Fragments, Threads, Shelf,

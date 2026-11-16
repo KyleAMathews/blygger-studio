@@ -1,3 +1,4 @@
+import { withinBurst } from "../burst.ts";
 import type { FeedAlgorithm, FeedHistory, FeedVersion } from "./types.ts";
 
 /**
@@ -26,12 +27,10 @@ export function climbFor(version: FeedVersion): number {
   return version.maintenance ? 0 : 1;
 }
 
-/**
- * How long before a thread version its fragments may have been published and
- * still count as one burst with it (RFC-3 R3, decision #97; spec §13.7's fold).
- * A reference constant, as the reader's burst window is (background-plan.md).
- */
-export const BURST_WINDOW_MS = 15 * 60 * 1000;
+// How long before a thread version its parts may have been published and still
+// count as one burst with it (RFC-3 R3, decision #97; spec §13.7's fold). One
+// definition, shared with the reader's Background (src/burst.ts).
+export { BURST_WINDOW_MS } from "../burst.ts";
 
 /**
  * Bursts: a thread version and the own items it is the first to name whose
@@ -54,8 +53,7 @@ function findBursts(history: FeedHistory, visible: Set<string>): { byThread: Map
     const members = v.quotes.filter((q) => {
       const t = first.get(q);
       if (q === id || !t || member.has(q)) return false;
-      const ms = Date.parse(t);
-      return ms <= at && at - ms <= BURST_WINDOW_MS;
+      return withinBurst(Date.parse(t), at);
     });
     if (!members.length) continue;
     members.sort((a, b) => first.get(a)!.localeCompare(first.get(b)!));

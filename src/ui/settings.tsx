@@ -479,6 +479,22 @@ function SettingsForm({ initial }: { initial: Settings }) {
             Withdrawn items <span className="hint">always in Background</span>
           </span>
         </label>
+        {([
+          ['burst', 'Parts published with a thread', 'items a thread names that were published with it, within 15 minutes; the thread lists them as “+N parts”'],
+          ['wordless', 'Posts with no words of their own', 'only quotes of other posts, nothing the author wrote'],
+          ['maintenance', 'Republished unchanged', 'a new version with the same text and the same quotes'],
+        ] as const).map(([rule, label, hint]) => (
+          <label className="check" key={rule} data-rule={rule}>
+            <input
+              type="checkbox"
+              checked={form.backgroundRules?.[rule] ?? true}
+              onChange={(event) => change('backgroundRules', { ...form.backgroundRules, [rule]: event.target.checked })}
+            />
+            <span>
+              {label} <span className="hint">{hint}</span>
+            </span>
+          </label>
+        ))}
         <label className="check">
           <input
             type="checkbox"

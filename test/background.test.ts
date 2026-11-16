@@ -111,7 +111,7 @@ describe("own items' minor change (4a)", () => {
 
     expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { backgroundRules: { minor: false } })).status).toBe(200);
     expect(keys(await reading(cookie, "sub=own"))).toContain(key);
-    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.backgroundRules).toEqual({ minor: false });
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.backgroundRules).toEqual({ burst: true, wordless: true, maintenance: true, minor: false });
     await apiJson(cookie, "PATCH", "/blyg/api/settings", { backgroundRules: { minor: true } });
     expect(keys(await reading(cookie, "sub=own&background=true"))).toContain(key);
 

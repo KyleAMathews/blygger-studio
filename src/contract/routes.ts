@@ -4,7 +4,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { ErrorSchema, route } from "./route.ts";
 import { extensionRoutes } from "../../extensions/catalog.ts";
 import { ItemRevisionSchema } from "./schemas.ts";
-import { SettingsSchema } from './settings.ts';
+import { BackgroundRulesPatchSchema, SettingsSchema } from './settings.ts';
 import { ShelfEntrySchema, ShelfSchema, ContactSchema, HopperMembershipSchema, SignalSchema, OutboundMentionSchema, InteractionSchema, ThumbSchema, BrowseStepSchema } from './resources.ts';
 import { CHANGE_DOMAINS } from '../change-state.ts';
 import { CHANGE_CATEGORIES } from "../change-category.ts";
@@ -27,7 +27,7 @@ export const ItemCreateSchema = z.union([
   z.object({ mode: z.literal("fork"), source: ref }).strict(),
   z.object({ mode: z.literal("response"), source: z.object({ subscriptionId: z.string().min(1), remoteId: z.string().min(1) }).strict(), selection: z.string().optional() }).strict(),
 ]);
-const settingsBody = SettingsSchema.omit({ defaults: true, feedOrders: true }).partial().strict();
+const settingsBody = SettingsSchema.omit({ defaults: true, feedOrders: true }).partial().extend({ backgroundRules: BackgroundRulesPatchSchema.optional() }).strict();
 const condition = z.object({ expectedRevision: ItemRevisionSchema });
 const note = condition.extend({ note: z.string().optional() });
 const changeCategory = z.enum(CHANGE_CATEGORIES);
@@ -63,7 +63,7 @@ export const EntryBackgroundSchema = z.object({
   blyg: z.boolean().describe("The owner moved this entry's whole blyg to Background."),
   detail: z.record(z.string(), z.unknown()).optional().describe("What a reason's label says, such as the change category behind minor."),
 }).openapi("EntryBackground");
-export const ReadingEntrySchema = z.object({ key: z.string(), source: z.enum(["own", "imported"]), kind: z.enum(["fragment", "thread"]), withdrawn: z.boolean(), l0: z.boolean(), contentHtml: z.string(), displayAt: z.string(), own: ownEntry.optional(), imported: importedEntry.optional(), background: EntryBackgroundSchema.describe("Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read.") }).openapi("ReadingEntry");
+export const ReadingEntrySchema = z.object({ key: z.string(), source: z.enum(["own", "imported"]), kind: z.enum(["fragment", "thread"]), withdrawn: z.boolean(), l0: z.boolean(), contentHtml: z.string(), displayAt: z.string(), own: ownEntry.optional(), imported: importedEntry.optional(), background: EntryBackgroundSchema.describe("Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read."), parts: z.array(z.object({ sub: z.string().describe('The subscription the part is held under, or "~own".'), id: z.string(), label: z.string() })).optional().describe("A thread's burst (spec §13.7's fold): the items of its blyg it was first to name, published with it, now in Background as `burst`. Present only on a thread that has them, while the burst rule is on.") }).openapi("ReadingEntry");
 const subscribed = SubscriptionSchema;
 const confirmation = z.object({ needsConfirm: z.literal(true), kind: z.enum(["blyg", "rss", "hopper"]), origin: z.string().optional(), feedUrl: z.string().optional(), title: z.string(), siteMismatch: z.object({ asserted: z.string(), actual: z.string() }).optional(), hopper: z.object({ title: z.string(), page: z.string(), feedUrl: z.string() }).optional().describe("kind hopper: the public hopper the URL matched in the blyg's manifest (spec 0.4 §16.12 rule 4, §12.1 step 7), page and feedUrl resolved to absolute URLs."), blygTitle: z.string().optional().describe("kind hopper: the whole blyg's title, for the subscribe-to-the-whole-blyg-instead choice.") });
 const quoteFreshness = z.object({ id: z.string(), origin: z.string().optional(), baked: z.number().int(), held: z.number().int().nullable(), live: z.number().int().nullable(), partial: z.boolean(), status: z.enum(["current", "refreshable", "behind", "passage-missing", "unresolvable", "retained"]), reason: z.string().optional() }).openapi("QuoteFreshness");

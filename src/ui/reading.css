@@ -98,6 +98,12 @@
 /* The action row (Substack-scale): small line-icon thumbs, quiet text
    actions, ⋯. The controls are .act (studio.css): ~20px to the eye, 40px to
    the finger. */
+/* A thread's burst (§13.7 fold): its parts, folded until opened. */
+.burst-parts { margin: 6px 0 2px; font-size: .86rem; }
+.burst-toggle { font-size: .86rem; }
+.burst-list { margin: 4px 0 0; padding-left: 1.4em; color: var(--page-ink-soft); }
+.burst-list li { margin: 2px 0; }
+.burst-list a { color: var(--page-ink); }
 .entry-bar { display: flex; align-items: center; gap: 0; padding: 0 6px 2px; flex-wrap: wrap; }
 .entry-bar .act { padding: 0 7px; }
 .entry-bar .act.icon-only { padding: 0; }

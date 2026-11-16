@@ -69,6 +69,8 @@ describe("lineage of our own items", () => {
   });
 
   it("one summaries request counts both ends for a page of reading entries, by their keys", async () => {
+  // A fragment quoted by a thread published just after it is a burst, and a quote-only thread is wordless (session 72): both would sit in Background. This test is about something else.
+  await putSettings(env.DB, { bg_rules: JSON.stringify({ burst: false, wordless: false }) });
     const cookie = await login();
     const frag = await createAndPublish(cookie, "Counted fragment.");
     const thread = await publishThread(cookie, `![[${frag}]]\n\nCounting.`);

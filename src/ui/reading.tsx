@@ -663,6 +663,9 @@ function backgroundLabel(entry: Reading): string | null {
   if (blyg) return 'blyg in Background';
   // Withdrawn entries already say so under the body (Tomb).
   if (reasons[0] === 'withdrawn') return null;
+  if (reasons[0] === 'burst') return 'part of a burst';
+  if (reasons[0] === 'wordless') return 'no words of its own';
+  if (reasons[0] === 'maintenance') return 'republished unchanged';
   if (reasons[0] === 'minor') return typeof detail?.category === 'string' ? `minor change (${detail.category})` : 'minor change';
   return null;
 }
@@ -682,6 +685,33 @@ function Byline({ entry, a, children }: { entry: Reading; a: EntryActions; child
       <span>· {date}</span>
       <EntryBylineSlot extensions={a.extensions} context={a.extensionContext} />
     </p>
+  );
+}
+/**
+ * A thread published with its parts (spec §13.7's fold): the parts wait in
+ * Background as `burst`, and the thread lists them here, folded until opened.
+ */
+function BurstParts({ entry, open = false }: { entry: Reading; open?: boolean }) {
+  const [shown, setShown] = useState(open);
+  const parts = entry.parts ?? [];
+  if (!parts.length) return null;
+  return (
+    <div className="burst-parts" data-parts={parts.length}>
+      <Button className="link-btn burst-toggle" aria-expanded={shown} onClick={() => setShown(!shown)}>
+        {shown ? '−' : '+'}{parts.length} {parts.length === 1 ? 'part' : 'parts'}
+      </Button>
+      {shown ? (
+        <ol className="burst-list">
+          {parts.map((part) => (
+            <li key={`${part.sub}/${part.id}`}>
+              <Link to="/reading/$sub/$id" params={{ sub: part.sub, id: part.id }}>
+                {part.label || part.id.slice(0, 8)}
+              </Link>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </div>
   );
 }
 function Tomb({ entry }: { entry: Reading }) {
@@ -844,6 +874,7 @@ function Entry({
           <ChangeLead entry={entry} />
           <Body html={entry.contentHtml} url={url} l0={entry.l0} onMore={openArticle} />
           <SourceLink url={url} />
+          <BurstParts entry={entry} />
         </div>
         {imported && !entry.l0 && a.historyOpen ? (
           <History sub={imported.subscriptionId} id={id} />
@@ -1181,6 +1212,7 @@ function Article({ entry, actions, origin }: { entry: Reading; actions: Actions;
         <EntryTitle title={content.title} url={a.url} as="h2" className="entry-title article-title" />
         <ReaderBody html={content.html} origin={origin} className="content entry-body article-body" />
         <SourceLink url={a.url} />
+        <BurstParts entry={entry} open />
       </div>
       {a.imported && !entry.l0 && a.historyOpen ? (
         <History sub={a.imported.subscriptionId} id={a.id} />

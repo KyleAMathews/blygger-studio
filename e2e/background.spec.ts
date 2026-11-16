@@ -64,3 +64,38 @@ test('Settings has a Background card whose rule toggles', async ({ page }) => {
   await expect(card.getByRole('checkbox', { name: /Withdrawn items/ })).toBeDisabled();
   await expect(card.getByRole('checkbox', { name: /Your own minor changes/ })).toBeChecked();
 });
+
+// Session 72: a thread published with its parts (§13.7's fold). The parts wait
+// in Background as "part of a burst"; the thread lists them, folded.
+test('a thread published with its parts folds them under "+N parts"', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await login(page);
+  const tag = crypto.randomUUID().slice(0, 8);
+  const a = await publish(page, `Burst part one ${tag}`);
+  const b = await publish(page, `Burst part two ${tag}`);
+  const thread = await page.evaluate(async ({ a, b, tag }) => {
+    const created = await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'thread', contentMd: `# Burst whole ${tag}\n\n![[${a}]]\n\n![[${b}]]\n` }) });
+    const { id, revision } = await created.json();
+    await fetch(`/api/items/${id}/publish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: revision }) });
+    return id as string;
+  }, { a, b, tag });
+
+  await page.goto('/studio/reading?sub=own');
+  const entry = page.locator(`.reading-entry[data-key="own:${thread}"]`);
+  await expect(page.locator(`.reading-entry[data-key="own:${a}"]`)).toHaveCount(0);
+  const toggle = entry.locator('.burst-toggle');
+  await expect(toggle).toHaveText('+2 parts');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(entry.locator('.burst-list li')).toHaveCount(2);
+  await expect(entry.locator('.burst-list')).toContainText(`Burst part one ${tag}`);
+  await entry.locator('.burst-list a').first().click();
+  await expect(page).toHaveURL(new RegExp(`/studio/reading/~own/${a}$`));
+
+  await page.goto('/studio/reading?sub=own&lens=background');
+  const part = page.locator(`.reading-entry[data-key="own:${a}"]`);
+  await expect(part).toBeVisible();
+  await expect(part.locator('.badge-why')).toHaveText('part of a burst');
+  expect(errors).toEqual([]);
+});
