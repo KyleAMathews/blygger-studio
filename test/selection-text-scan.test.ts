@@ -57,5 +57,7 @@ it.each([
   const started = performance.now();
   plainTextFromHtml(html);
   selectionText(html);
-  expect(performance.now() - started).toBeLessThan(50);
+  // The same bound as the cases above: CI measured 59 ms against an earlier 50,
+  // while a quadratic rescan of 20,000 elements takes seconds.
+  expect(performance.now() - started).toBeLessThan(150);
 });

@@ -37,11 +37,13 @@ import {
   publicPath,
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
+import { Tooltip } from './primitives.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { DraftCounterSlot, editorRegions, enabledExtensions, type HostContext } from './extensions.tsx';
 import { join, rebase, split, toFull, toShown, touches } from './editor-regions.ts';
 import type { EditorRegion } from './editor-regions.ts';
 import { HandlePicker } from './contacts.tsx';
+import { ownEntry, ownIds, Shelf, shelfLabel, toggleShelf, useShelf } from './shelf.tsx';
 import { applyEdit, breakEdit, codeBlockEdit, formulaEdit, indentEdit, onFormatKey } from './format-shortcuts.ts';
 import { BracketPicker } from './picker.tsx';
 import { revealCaret, setTextAt } from './caret.ts';
@@ -459,67 +461,73 @@ function ToolRow({
 }) {
   return (
     <div className={className}>
-      <Button
-        id={attachId}
-        className="act icon-only tool"
-        disabled={disabled}
-        title="Upload an image and insert it at the cursor"
-        onClick={attach}
-      >
-        <ImageIcon />
-        <span className="sr-only">attach image</span>
-      </Button>
-      <Button
-        className="act icon-only tool"
-        data-action="link-clipboard"
-        disabled={disabled}
-        title="Read a URL from the clipboard, strip its trackers, and insert it at the cursor — or over the selected text"
-        onClick={() => void tools.linkFromClipboard()}
-      >
-        <LinkIcon />
-        <span className="sr-only">link from clipboard</span>
-      </Button>
-      <Button
-        className="act icon-only tool"
-        data-action="scan"
-        disabled={disabled}
-        title="Scan printed text into the text box with your phone's camera"
-        onClick={tools.openScan}
-      >
-        <Scan />
-        <span className="sr-only">scan text</span>
-      </Button>
-      <Button
-        className="act mono tool"
-        data-action="bracket-link"
-        disabled={disabled}
-        aria-label="[[ link an item"
-        title="Link to an item, inline anywhere: an ordinary link to its page that notifies no one"
-        onClick={() => tools.bracket('[[')}
-      >
-        [[
-      </Button>
+      <Tooltip label="Upload an image and insert it at the cursor">
+        <Button
+          id={attachId}
+          className="act icon-only tool"
+          disabled={disabled}
+          onClick={attach}
+        >
+          <ImageIcon />
+          <span className="sr-only">attach image</span>
+        </Button>
+      </Tooltip>
+      <Tooltip label="Read a URL from the clipboard, strip its trackers, and insert it at the cursor — or over the selected text">
+        <Button
+          className="act icon-only tool"
+          data-action="link-clipboard"
+          disabled={disabled}
+          onClick={() => void tools.linkFromClipboard()}
+        >
+          <LinkIcon />
+          <span className="sr-only">link from clipboard</span>
+        </Button>
+      </Tooltip>
+      <Tooltip label="Scan printed text into the text box with your phone's camera">
+        <Button
+          className="act icon-only tool"
+          data-action="scan"
+          disabled={disabled}
+          onClick={tools.openScan}
+        >
+          <Scan />
+          <span className="sr-only">scan text</span>
+        </Button>
+      </Tooltip>
+      <Tooltip label="Link to an item, inline anywhere: an ordinary link to its page that notifies no one">
+        <Button
+          className="act mono tool"
+          data-action="bracket-link"
+          disabled={disabled}
+          aria-label="[[ link an item"
+          onClick={() => tools.bracket('[[')}
+        >
+          [[
+        </Button>
+      </Tooltip>
       {/* Greyed rather than removed in a fragment, so the row doesn't shift when the kind changes. */}
-      <Button
-        className="act mono tool"
-        data-action="bracket-quote"
-        disabled={disabled || !thread}
-        aria-label="![[ quote an item"
-        title={thread ? 'Quote an item on its own line: bakes a snapshot of it into this thread and tells its author' : 'Quotes are for threads. Make this a thread to quote an item.'}
-        onClick={() => tools.bracket('![[')}
-      >
-        ![[
-      </Button>
-      <Button
-        className="act mono tool"
-        data-action="tk"
-        disabled={disabled}
-        aria-label="[TK] instruction"
-        title="Write an instruction for the model; the generated text publishes disclosed as machine-written"
-        onClick={tools.tk}
-      >
-        [TK]
-      </Button>
+      <Tooltip label={thread ? 'Quote an item on its own line: bakes a snapshot of it into this thread and tells its author' : 'Quotes are for threads. Make this a thread to quote an item.'}>
+        <Button
+          className="act mono tool"
+          data-action="bracket-quote"
+          disabled={disabled || !thread}
+          aria-label="![[ quote an item"
+          onClick={() => tools.bracket('![[')}
+        >
+          ![[
+        </Button>
+      </Tooltip>
+      <Tooltip label="Write an instruction for the model; the generated text publishes disclosed as machine-written">
+        <Button
+          className="act mono tool"
+          data-action="tk"
+          disabled={disabled}
+          aria-label="[TK] instruction"
+          onClick={tools.tk}
+        >
+          [TK]
+        </Button>
+      </Tooltip>
       {children}
     </div>
   );
@@ -619,14 +627,11 @@ function PublishedBanner({
         >
           public permalink ↗
         </a>
-        <Button
-          className="btn btn-ghost btn-mini"
-          data-action="copy-link"
-          title="This item's text plus its permalink, ready to paste into another app"
-          onClick={() => void sharing.copy(published)}
-        >
-          ⧉ copy + link
-        </Button>
+        <Tooltip label="This item's text plus its permalink, ready to paste into another app">
+          <Button className="btn btn-ghost btn-mini" data-action="copy-link" onClick={() => void sharing.copy(published)}>
+            ⧉ copy + link
+          </Button>
+        </Tooltip>
         <Button
           className="btn btn-ghost btn-mini"
           data-action="share"
@@ -1123,7 +1128,6 @@ export function Compose({ q }: { q?: string } = {}) {
             <Button
               id="composer-full"
               className="act full-editor"
-              title="Full Editor →"
               disabled={action.busy}
               onClick={() => void action.run(openEditor)}
             >
@@ -1206,6 +1210,7 @@ export function Compose({ q }: { q?: string } = {}) {
       {q ? (
         <SearchResults filters={{ q, source: scope, include: 'drafts' }} ownOpens="editor" />
       ) : <>
+      <Shelf />
       {totals?.all ? (
         <div className="segmented filters" role="group" aria-label="show">
           {(Object.keys(FILTERS) as Filter[]).map((key) => (
@@ -1258,6 +1263,7 @@ function ItemRow({
   const settings = useSettings();
   const sharing = useSharing();
   const action = useAction();
+  const shelved = useShelf();
   const [expanded, setExpanded] = useState(false);
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(item.contentMd);
@@ -1517,6 +1523,16 @@ function ItemRow({
             <Link className="btn btn-ghost btn-mini" to="/edit/$id" params={{ id: item.id }}>
               full editor
             </Link>
+            {item.status !== 'withdrawn' ? (
+              <Button
+                className="btn btn-ghost btn-mini"
+                data-action="shelf"
+                disabled={action.busy}
+                onClick={() => void action.run(() => toggleShelf(shelved, ownEntry(item.id)))}
+              >
+                {shelfLabel(shelved, ownEntry(item.id))}
+              </Button>
+            ) : null}
             {item.version === 0 || item.dirty || item.status === 'withdrawn' ? (
               <Button
                 className="btn btn-primary btn-mini"
@@ -1549,14 +1565,15 @@ function ItemRow({
               </Button>
             ) : item.status === 'public' ? (
               <>
-                <Button
-                  className="btn btn-ghost btn-mini"
-                  data-action="copy-link"
-                  title="This item's text plus its permalink, ready to paste into another app"
-                  onClick={() => void action.run(async () => sharing.copy(await publishedOf(item)))}
-                >
-                  ⧉ copy + link
-                </Button>
+                <Tooltip label="This item's text plus its permalink, ready to paste into another app">
+                  <Button
+                    className="btn btn-ghost btn-mini"
+                    data-action="copy-link"
+                    onClick={() => void action.run(async () => sharing.copy(await publishedOf(item)))}
+                  >
+                    ⧉ copy + link
+                  </Button>
+                </Tooltip>
                 <Button
                   className="btn btn-ghost btn-mini"
                   data-action="share"
@@ -2195,6 +2212,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
   useEffect(() => {
     if (upload.attached) setMediaOpen(true);
   }, [upload.attached]);
+  const shelved = useShelf();
   const shareable: Shareable = {
     id: item.id,
     kind: item.kind,
@@ -2241,6 +2259,13 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
               }).when('settled');
               toast(front ? 'This thread is now your front page' : 'Your home page shows your latest items again', { tone: 'ok' });
             }),
+        },
+        item.status !== 'withdrawn' && {
+          icon: '⊤',
+          label: shelfLabel(shelved, ownEntry(item.id)),
+          description: ownIds(shelved).includes(item.id) ? undefined : 'keep it at the top of your compose list, in your order',
+          disabled: action.busy,
+          onSelect: () => void action.run(() => toggleShelf(shelved, ownEntry(item.id))),
         },
         item.status !== 'withdrawn' && {
           icon: '▤',
@@ -2293,28 +2318,29 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
                   ['preview', 'preview'],
                 ] as const
               ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  data-tab={value}
-                  aria-pressed={pane === value}
-                  className={pane === value ? 'seg is-active' : 'seg'}
-                  title="Switch tab (⌘⌥↩ or Ctrl+Alt+Enter)"
-                  onClick={() => setPane(value)}
-                >
-                  {label}
-                </button>
+                <Tooltip key={value} label="Switch tab (⌘⌥↩ or Ctrl+Alt+Enter)">
+                  <button
+                    type="button"
+                    data-tab={value}
+                    aria-pressed={pane === value}
+                    className={pane === value ? 'seg is-active' : 'seg'}
+                    onClick={() => setPane(value)}
+                  >
+                    {label}
+                  </button>
+                </Tooltip>
               ))}
             </div>
-            <Button
-              className="act icon-only focus-exit"
-              data-action="exit-focus"
-              aria-label="exit focus view"
-              title="Exit focus view (Esc)"
-              onClick={focus.toggle}
-            >
-              <ExitFocus />
-            </Button>
+            <Tooltip label="Exit focus view (Esc)">
+              <Button
+                className="act icon-only focus-exit"
+                data-action="exit-focus"
+                aria-label="exit focus view"
+                onClick={focus.toggle}
+              >
+                <ExitFocus />
+              </Button>
+            </Tooltip>
           </div>
         </>
       ) : null}
@@ -2329,15 +2355,16 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             </span>
           </>
         ) : null}
-        <Button
-          className="act icon-only tool focus-enter"
-          data-action="enter-focus"
-          aria-label="focus view"
-          title="Focus view: only your text, full screen (⌘⇧↩ or Ctrl+Shift+Enter)"
-          onClick={focus.toggle}
-        >
-          <EnterFocus />
-        </Button>
+        <Tooltip label="Focus view: only your text, full screen (⌘⇧↩ or Ctrl+Shift+Enter)">
+          <Button
+            className="act icon-only tool focus-enter"
+            data-action="enter-focus"
+            aria-label="focus view"
+            onClick={focus.toggle}
+          >
+            <EnterFocus />
+          </Button>
+        </Tooltip>
       </p>
       <PublishedBanner published={published} dismiss={() => setPublished(undefined)} />
       <div id="error-banner-slot">
@@ -2414,36 +2441,38 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           className="ed-tools"
         >
           {item.status === 'draft' ? (
-            <Button
-              className="act icon-only tool"
-              data-action="switch-kind"
-              title={`make this a ${isThread ? 'fragment' : 'thread'}`}
-              onClick={() => operation(switchKind)}
-            >
-              <Swap />
-              <span className="sr-only">make this a {isThread ? 'fragment' : 'thread'}</span>
-            </Button>
+            <Tooltip label={`make this a ${isThread ? 'fragment' : 'thread'}`}>
+              <Button
+                className="act icon-only tool"
+                data-action="switch-kind"
+                onClick={() => operation(switchKind)}
+              >
+                <Swap />
+                <span className="sr-only">make this a {isThread ? 'fragment' : 'thread'}</span>
+              </Button>
+            </Tooltip>
           ) : null}
-          <Button
-            id="tk-impyrt-btn"
-            className="act icon-only tool"
-            disabled={replacing}
-            title="Wrap the selected text as machine-generated text from another tool"
-            onClick={() => {
-              const el = input.current;
-              if (!el) return;
-              const value = el.value;
-              const [from, to] = [el.selectionStart, el.selectionEnd];
-              if (from === to) {
-                toast('Select the pasted generated text first, then mark it.');
-                return;
-              }
-              held.change(markImported(value, from, to));
-            }}
-          >
-            <Sparkle />
-            <span className="sr-only">mark selection as generated</span>
-          </Button>
+          <Tooltip label="Wrap the selected text as machine-generated text from another tool">
+            <Button
+              id="tk-impyrt-btn"
+              className="act icon-only tool"
+              disabled={replacing}
+              onClick={() => {
+                const el = input.current;
+                if (!el) return;
+                const value = el.value;
+                const [from, to] = [el.selectionStart, el.selectionEnd];
+                if (from === to) {
+                  toast('Select the pasted generated text first, then mark it.');
+                  return;
+                }
+                held.change(markImported(value, from, to));
+              }}
+            >
+              <Sparkle />
+              <span className="sr-only">mark selection as generated</span>
+            </Button>
+          </Tooltip>
           {/* Markdown's structure, for a keyboard with no Tab key (an iPad's). */}
           {([
             ['indent', <IndentIn />, 'move list item in', 'Move the list item under the cursor in a level, making it a sublist (Tab)'],
@@ -2452,28 +2481,28 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             ['code', <CodeBlock />, 'code block', 'Put the selected lines in a code block, or start an empty one'],
             ['formula', <Formula />, 'formula', 'Write a formula in LaTeX between dollars: $x^2$ inline, $$…$$ on its own lines'],
           ] as const).map(([kind, icon, label, title]) => (
-            <Button
-              key={kind}
-              className="act icon-only tool"
-              data-action={`md-${kind}`}
-              disabled={replacing}
-              title={title}
-              onClick={() => {
-                const el = input.current;
-                if (!el) return;
-                const [from, to] = [el.selectionStart, el.selectionEnd];
-                const change =
-                  kind === 'break' ? breakEdit(el.value, from, to)
-                  : kind === 'code' ? codeBlockEdit(el.value, from, to)
-                  : kind === 'formula' ? formulaEdit(el.value, from, to)
-                  : indentEdit(el.value, from, to, kind === 'outdent');
-                if (change) applyEdit(el, change);
-                else toast(kind === 'indent' ? 'Put the cursor on a list item that has another above it.' : 'Put the cursor on an indented list item.');
-              }}
-            >
-              {icon}
-              <span className="sr-only">{label}</span>
-            </Button>
+            <Tooltip key={kind} label={title}>
+              <Button
+                className="act icon-only tool"
+                data-action={`md-${kind}`}
+                disabled={replacing}
+                onClick={() => {
+                  const el = input.current;
+                  if (!el) return;
+                  const [from, to] = [el.selectionStart, el.selectionEnd];
+                  const change =
+                    kind === 'break' ? breakEdit(el.value, from, to)
+                    : kind === 'code' ? codeBlockEdit(el.value, from, to)
+                    : kind === 'formula' ? formulaEdit(el.value, from, to)
+                    : indentEdit(el.value, from, to, kind === 'outdent');
+                  if (change) applyEdit(el, change);
+                  else toast(kind === 'indent' ? 'Put the cursor on a list item that has another above it.' : 'Put the cursor on an indented list item.');
+                }}
+              >
+                {icon}
+                <span className="sr-only">{label}</span>
+              </Button>
+            </Tooltip>
           ))}
         </ToolRow>
         <div className="editor-pane">
@@ -2540,21 +2569,22 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
               onChange={(e) => setNote(e.target.value)}
             />
             {item.version > 0 && isPublic ? (
-              <Button
-                id="draft-note-btn"
-                className="btn btn-ghost btn-mini"
-                disabled={action.busy}
-                title="Describe the change from the published version; you can edit it before publishing"
-                onClick={() =>
-                  operation(async () => {
-                    const result = await write({ type: 'draft-note', history: historyNote });
-                    setNote(result.note);
-                    setDrafted(result.note);
-                  })
-                }
-              >
-                draft note
-              </Button>
+              <Tooltip label="Describe the change from the published version; you can edit it before publishing">
+                <Button
+                  id="draft-note-btn"
+                  className="btn btn-ghost btn-mini"
+                  disabled={action.busy}
+                  onClick={() =>
+                    operation(async () => {
+                      const result = await write({ type: 'draft-note', history: historyNote });
+                      setNote(result.note);
+                      setDrafted(result.note);
+                    })
+                  }
+                >
+                  draft note
+                </Button>
+              </Tooltip>
             ) : null}
           </div>
           {item.version > 0 ? (
@@ -2782,15 +2812,16 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
         <span className="state">
           {saved ? <b className="save-state">saved</b> : null}
         </span>
-        <Button
-          className="act icon-only more-btn"
-          aria-label="more actions"
-          title="more actions"
-          data-action="editor-more"
-          onClick={more}
-        >
-          <More />
-        </Button>
+        <Tooltip label="more actions">
+          <Button
+            className="act icon-only more-btn"
+            aria-label="more actions"
+            data-action="editor-more"
+            onClick={more}
+          >
+            <More />
+          </Button>
+        </Tooltip>
         <Button
           id="save-draft-btn"
           className="btn btn-compact btn-neutral"

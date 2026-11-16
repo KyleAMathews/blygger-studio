@@ -63,6 +63,7 @@ const fields = [
   "aiStylePrompt",
   "changelogDisplay",
   "readerChangelogDisplay",
+  "backgroundRules",
   "changelogSummaryPrompt",
   "acceptMentions",
   "updateCheck",
@@ -462,6 +463,36 @@ function SettingsForm({ initial }: { initial: Settings }) {
           your feed or your item files. An item with one version and no note
           shows just its version line.
         </p>
+      </section>
+      <section className="card" id="background">
+        <h3 className="card-h">Background</h3>
+        <p className="hint">
+          The Background lens in your reader holds what you have moved there,
+          blygs you have moved there, and entries these rules send there. Every
+          other lens leaves them out. Background never marks anything read and
+          never changes what you publish. Use an entry&rsquo;s ⋯ menu to move it
+          either way; your choice beats the rules.
+        </p>
+        <label className="check">
+          <input type="checkbox" checked disabled />
+          <span>
+            Withdrawn items <span className="hint">always in Background</span>
+          </span>
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={form.backgroundRules?.minor ?? true}
+            onChange={(event) => change('backgroundRules', { ...form.backgroundRules, minor: event.target.checked })}
+          />
+          <span>
+            Your own minor changes
+            <span className="hint">
+              a version the change classifier calls a typo, minor or refresh
+              (Settings → AI → change classifier)
+            </span>
+          </span>
+        </label>
       </section>
       </section>
       <section className="settings-section" id="appearance" aria-labelledby="appearance-h">

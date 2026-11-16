@@ -124,6 +124,18 @@ describe("cited rides all three references", () => {
   });
 });
 
+describe("a stub of an item not held here", () => {
+  it("cites the item document, never a guessed page (ROADMAP row 116)", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
+    const unheld = newId();
+    const stub = (await apiJson(cookie, "POST", "/blyg/api/items", { kind: "thread", contentMd: "A reply to a thread I do not hold.", stubOf: { origin: "https://stranger.example/", id: unheld, version: 1 } })).json.id as string;
+    await apiJson(cookie, "POST", `/blyg/api/items/${stub}/publish`, {});
+    // The f/ guess 404s for a thread; the item document exists for either kind.
+    expect((await itemDoc(stub)).stub_of.cited.url).toBe(`https://stranger.example/items/${unheld}.json`);
+  });
+});
+
 describe("cited is never authority", () => {
   it("mention verification reads the bare reference and ignores the citation entirely", () => {
     const targetId = newId();

@@ -26,6 +26,7 @@ import {
 import type { ChangelogDisplay, ForkedFrom, ItemRow, MediaRow, ScopeProvenance, Settings, StubCite, StubOf, Transclusion, VersionRow } from "./types.ts";
 import { FRAGMENT_MAX_CHARS } from "./types.ts";
 import { parseEnabledExtensions } from "./extensions/names.ts";
+import { parseBackgroundRules } from "./background.ts";
 import { absolutizeHtml, authoredText, contentHash, isFollowableUrl, newId, nowIso, visibleMedia } from "./util.ts";
 
 export { MathPublishError, TkPublishError, TransclusionResolveError };
@@ -149,6 +150,8 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     changelog_display: changelogDisplay(map.changelog_display),
     reader_changelog_display: changelogDisplay(map.reader_changelog_display),
     changelog_summary_prompt: map.changelog_summary_prompt ?? "",
+    // Background rules in the reader (migration 0046): all on until turned off.
+    bg_rules: parseBackgroundRules(map.bg_rules),
     // Default on: an existing deployment's behaviour must not change under it.
     accept_mentions: map.accept_mentions !== "off",
     // On by default (Venkat, session 28). The argument for off was that a
@@ -180,6 +183,8 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     update_feed_url: map.update_feed_url ?? "",
     /** Cleared until the operator has seen the "alerts are on" notice once. */
     update_notice_ack: map.update_notice_ack === "on",
+    // Discover (session 71): listings after this are new; empty, all of them are.
+    discover_seen_at: map.discover_seen_at ?? "",
     // Studio extensions this node has turned on (docs/extensions.md). Empty by default.
     extensions: parseEnabledExtensions(map.extensions),
     // The setup wizard (session 46): pending on a fresh install, a one-time

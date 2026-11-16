@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import { CustomThemeSchema } from "./schemas.ts";
+import { BACKGROUND_RULES, type BackgroundRule } from "../background.ts";
 
 /** Private settings fields are independent of stored column names. */
 export const SettingsSchema = z.object({
@@ -27,6 +28,7 @@ export const SettingsSchema = z.object({
   changelogDisplay: z.enum(["latest", "history", "summary"]).describe("What an item's own public page shows of its changelog: the latest note (the default), every note, or an AI summary of them. A summary is written once per new version with the change-notes model, and is studio-private: it never reaches the item document or the feed."),
   readerChangelogDisplay: z.enum(["latest", "history", "summary"]).describe("The same choice for blyg items in the reader. In summary mode a card shows the latest note and the summary is written when the item is opened."),
   changelogSummaryPrompt: z.string().describe("Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."),
+  backgroundRules: z.object(Object.fromEntries(BACKGROUND_RULES.map((rule) => [rule, z.boolean()])) as Record<BackgroundRule, z.ZodBoolean>).describe("Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read."),
   acceptMentions: z.boolean(),
   updateCheck: z.boolean(),
   showResponsesDefault: z.boolean(),
@@ -49,6 +51,7 @@ export const SettingsSchema = z.object({
   feedOrders: z.array(z.object({ id: z.string(), title: z.string(), description: z.string() })).optional().describe("Read-only: the home page orders this node can use now (core, plus enabled extensions')."),
   updateFeedUrl: z.string(),
   updateNoticeAck: z.boolean(),
+  discoverSeenAt: z.string().describe("Discover: the listing date of the newest blygger.com listing the owner has been shown, ISO; empty until Discover is first opened. Listings after it are new."),
   extensions: z.array(z.string()).describe("Studio extensions enabled on this node (docs/extensions.md). Only names compiled into this build are accepted; every extension starts disabled."),
 }).openapi("Settings");
 
@@ -78,6 +81,7 @@ export const settingsStorageKeys = {
   "changelogDisplay": "changelog_display",
   "readerChangelogDisplay": "reader_changelog_display",
   "changelogSummaryPrompt": "changelog_summary_prompt",
+  "backgroundRules": "bg_rules",
   "acceptMentions": "accept_mentions",
   "updateCheck": "update_check",
   "showResponsesDefault": "show_responses_default",
@@ -98,6 +102,7 @@ export const settingsStorageKeys = {
   "setup": "setup",
   "updateFeedUrl": "update_feed_url",
   "updateNoticeAck": "update_notice_ack",
+  "discoverSeenAt": "discover_seen_at",
   "extensions": "extensions"
 } as const;
 

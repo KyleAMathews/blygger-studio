@@ -18,6 +18,109 @@ not have its own repo until session 26.
 
 ---
 
+## 0.61.0 — The Reading redesign: Shelf, Background, lenses in a new order
+
+**Lenses in a new order:** All, Mentions, Smart Feed, Fragments, Threads, Shelf,
+Background (ROADMAP row 115).
+
+**The Shelf** (#137, Aneesh Sathe; rows 114 and 115): a private, owner-ordered list of
+items, synced across clients through `GET`/`PUT {mount}/api/shelf`. An entry is
+`{ sub, remoteId }`, named the way hopper membership names an item (`"~own"` for your
+own). A `PUT` replaces the whole list and must send `expectedRevision`; a stale one is
+a 409 `revision-conflict` carrying the current list. Entries that do not resolve
+(a withdrawn own item, an imported tombstone without its pin, an unknown
+subscription) are dropped quietly. The shelf never reaches an item document, a feed,
+the manifest or a public page, and never will. In the studio:
+
+- every reading entry has *+ add to shelf* beside *+ add to hopper…* (below 430 px
+  both shorten to *+ shelf* and *+ hopper…*);
+- the **Shelf lens** lists shelved entries in your order, whatever their Background
+  placement (`GET /reading?shelf=true`);
+- your own shelved items, drafts included, sit at the top of the compose list, with
+  move up, move down and remove; each compose row and the editor's ⋯ menu add or
+  remove one.
+
+**Background, phase 1** (row 112; plan in blygger-spec `docs/background-plan.md`): an
+entry is in Background by your choice on it, else on its blyg, else an enabled rule;
+withdrawn posts always are. An entry's ⋯ menu moves it to Background or Foreground,
+clears the choice, or moves its whole blyg; the source inspector has an *in
+Background* checkbox; in the Background lens the byline says why. Settings → Feed
+has a Background card: withdrawn always on, your own minor changes (typo, minor,
+refresh) on by default. `PUT /reading/placement`, `background` on
+`PATCH /subscriptions/{id}`, the `backgroundRules` setting.
+
+**A stub of an item this blyg does not hold** (row 116) froze `f/{id}/` as its
+citation, a 404 for every thread. It now names the item's document, as a mention
+does; publishing stays network-free.
+
+The download backup includes the shelf and Background placements.
+
+Private contract 5.10.0, SDK 0.16.0. **Migrations: 0044 (the shelf) and 0046
+(Background).** Apply both before deploying: `/changes` selects every change domain by
+name, and the reading queries read the new columns. 0044 sorts before 0.58.0's 0045;
+wrangler applies migrations by name, so a node that has 0045 still applies 0044.
+Both were proven on a remote D1 (the `CASE … END;` splitter check) before release.
+
+## 0.60.1 — Discover offers only blygs you do not follow; tooltips
+
+**Discover's "new" view offered blygs you already follow** (on a first visit, all of
+them): it filtered on the seen mark alone. It now lists only the blygs you do not
+follow, newest listing first, five at a time with *show more* until they run out;
+rows listed since your last visit carry a *new* badge. *All* is unchanged and still
+shows followed blygs. The sheet waits for your subscriptions to load, so a followed
+blyg never flashes into "new".
+
+**The setup walk-through ends with Discover**: the finish screen offers *discover
+blygs*. It is not a step, because subscribing writes at once and the steps write
+nothing until the end.
+
+**Tooltips are one pattern.** Every hover hint on a control (the reading page's
+icons, thumbs and ⋯ on entries, the composer and editor toolbars, *copy + link*, the
+update badge) is a styled tooltip that shows on hover and on keyboard focus, after a
+shared 300 ms delay, instead of the browser's slow `title`. `Tooltip` and
+`IconButton` in `src/ui/primitives.tsx` are taken from the design-system work in
+#88, with the same names and classes.
+
+Contract and SDK unchanged. **Migrations:** none.
+
+## 0.60.0 — Download a backup, discover blygs
+
+**Download backup** (ROADMAP row 15). More → *download backup* streams the whole blyg as
+one `.tar` from `{studio}/backup`: every database table as JSON lines under `tables/`,
+paged so no table is held in memory, every uploaded file under `media/` by its storage
+key, a `README.txt`, and `backup.json` last, naming the client, the latest applied
+migration and the counts, with `complete: true`. A backup without `backup.json` did not
+finish. Plain tar, since media is already compressed. The owner's browser session only,
+never a delegated token. Left out: the OAuth and security tables (grants, tokens, signing
+keys, rate-limit budgets), wrangler's migration ledger and the feed cache. Restoring one
+into a fresh node is row 53 and not built.
+
+The button is marked beta: it runs inside one Worker request, which caps storage reads,
+so on a blyg with very many files it can stop partway (and then has no `backup.json`).
+For those, **`npm run backup -- --base https://your.blyg/ [--env NAME]`** makes the same
+archive from a deployment checkout through `wrangler`, one request per table page and per
+file with retries, so the cap does not apply; a large blyg is only slower. It uses your
+`wrangler login` session and the deployment's wrangler config. `npm run export` is still
+the public site only, for moving to a static host, not a backup.
+
+Tables are copied by allow-list. The auth library makes its own tables at runtime
+(`session`, `jwks`, `oauthAccessToken`, `user` and kin), outside `migrations/`; a
+deny-list missed them on a live node before release. A new test makes every migration's
+table either backed up or named as left out.
+
+**Discover** (ROADMAP row 17). ✦ beside ＋ on every reading screen opens the blygs listed
+on blygger.com, read from the browser through blygger.com's `/blygs.json`: *new* (listed
+since you last looked) or *all*, most active first, each with its activity level and last
+post, a *preview ↗* link that opens the blyg in a new tab, and whether you already follow
+it. Subscribe one at a time or tick several; both go through the OPML import's paced walk
+with `backfill: false`, and stay out of the blogroll unless the box is ticked. Your own
+blyg is never offered. "New" is one timestamp, the newest listing date shown, in the new
+`discoverSeenAt` setting.
+
+Private contract 5.9.0, SDK 0.15.0 (`discoverSeenAt`). **Migrations:** none.
+
+---
+
 ## 0.59.0 — Extensions from other repositories, menu zones and editor regions
 
 Three changes for extension authors and operators, held on `main` since 0.58.1. It also

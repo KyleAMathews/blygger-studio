@@ -1,5 +1,5 @@
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
-import type { AddHopperItemData, CreateAuthorizationData, CreateItemData, CreateSubscriptionData, LogBrowseData, UploadMediaData } from '../../sdk/dist/browser.js';
+import type { AddHopperItemData, CreateAuthorizationData, CreateItemData, CreateSubscriptionData, LogBrowseData, SetReadingPlacementData, UploadMediaData } from '../../sdk/dist/browser.js';
 import { authorizations, browse, changed, client, hoppers, items, markReading, subscriptions, writeIfSyncing } from './data.ts';
 import { serverMutation } from './mutation.ts';
 import { sourceSchemas } from './data-schemas.ts';
@@ -29,6 +29,20 @@ export const resyncSubscription = serverMutation(async (id: string) => {
   const result = await unwrap(BlyggerApi.resyncSubscription({ client, path: { id } }));
   await changed('subscriptions', 'reading');
   return result;
+});
+
+// Background and Foreground (src/background.ts): the owner's choice on one
+// entry, or on a whole blyg. Each moves entries between lenses, so the
+// reading views refresh.
+export const setReadingPlacement = serverMutation(async (body: SetReadingPlacementData['body']) => {
+  await unwrap(BlyggerApi.setReadingPlacement({ client, body }));
+  await changed('reading');
+});
+
+export const setBlygBackground = serverMutation(async ({ id, background }: { id: string; background: boolean }) => {
+  const result = await unwrap(BlyggerApi.updateSubscription({ client, path: { id }, body: { background } }));
+  await writeIfSyncing(() => subscriptions.utils.writeUpsert(result));
+  await changed('reading');
 });
 
 export const pollSubscriptions = serverMutation(async (_: void) => {
