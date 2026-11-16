@@ -16,6 +16,10 @@ const api = (page: Page, method: string, path: string, body?: unknown) =>
 
 test('lenses filter by kind, keep themselves across screens, keep withdrawn posts to Background, and show the Smart Feed placeholder', async ({ page }) => {
   await login(page);
+  // The fragment and the thread quoting it are published seconds apart: a burst
+  // (session 72) would fold the fragment into Background. This test is about the lenses.
+  await api(page, 'PATCH', '/settings', { backgroundRules: { burst: false } });
+  try {
   const stamp = Date.now();
   const frag = (await api(page, 'POST', '/items', { contentMd: `Lens fragment ${stamp}` })).json.id;
   await api(page, 'POST', `/items/${frag}/publish`, {});
@@ -64,6 +68,9 @@ test('lenses filter by kind, keep themselves across screens, keep withdrawn post
   await expect(page.getByRole('button', { name: 'subscribe', exact: true })).toBeVisible();
   await page.locator('.lens-placeholder').getByRole('link', { name: 'Settings' }).click();
   await expect(page).toHaveURL(/\/studio\/settings$/);
+  } finally {
+    await api(page, 'PATCH', '/settings', { backgroundRules: { burst: true } });
+  }
 });
 
 test('signals lists current thumbs and the activity log', async ({ page }) => {
