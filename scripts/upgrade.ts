@@ -23,6 +23,7 @@ import { spawnSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import path from "node:path";
 import { stdin, stdout } from "node:process";
+import { describePatches, listLocalPatches } from "./patches-lib.ts";
 
 const root = path.join(import.meta.dirname, "..");
 const UPSTREAM = "https://github.com/blygger/blygger-studio.git";
@@ -57,7 +58,11 @@ if (git(["rev-parse", "--git-dir"], true).status !== 0) {
   );
 }
 if (`${git(["status", "--porcelain"]).stdout}`.trim()) {
-  die("you have uncommitted changes. Commit or stash them first — a merge on top\n  of a dirty tree is how work gets lost.");
+  die(
+    "you have uncommitted changes. Commit them first — a merge on top of a dirty\n" +
+      "  tree is how work gets lost. A local patch is a commit whose message starts\n" +
+      "  `local:` (docs/where-does-it-go.md); a stash is how a patch gets lost.",
+  );
 }
 
 // ── 2. Point at upstream ─────────────────────────────────────────────────────
@@ -139,6 +144,11 @@ if (touchesYours.length) {
   console.log(`\n  ${touchesYours.join(", ")} changed upstream. Yours will be kept — see below.`);
 }
 
+// Your local patches ride along with the merge as commits. Say which they are
+// before merging, so a conflict below is never a surprise.
+const patches = listLocalPatches(root);
+console.log(`\n${describePatches(patches)}`);
+
 if (!yes(await ask("\nMerge these?"))) {
   console.log("Nothing changed.");
   rl.close();
@@ -163,6 +173,15 @@ if (merged.status !== 0) {
   }
 
   if (theirs.length) {
+    // Name the local patches behind each conflict, so the operator knows which
+    // of their own commits to re-read against upstream's change.
+    if (patches.known) {
+      const behind = patches.patches.filter((p) => p.files.some((f) => theirs.includes(f)));
+      if (behind.length) {
+        console.error("\n  Local patches in the conflicting files:");
+        for (const p of behind) console.error(`    ${p.sha.slice(0, 7)} ${p.subject}  (${p.files.filter((f) => theirs.includes(f)).join(", ")})`);
+      }
+    }
     die(
       `merge conflicts this script will not guess at:\n    ${theirs.join("\n    ")}\n\n` +
         `  These are files you have edited that upstream also changed. Resolve them,\n` +

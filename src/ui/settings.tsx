@@ -29,6 +29,7 @@ import { CLIENT } from '../client.ts';
 import { AddressBook } from './contacts.tsx';
 import { ERROR_LOG_MAX, describeEntry, diagnostics, errorLog, exportLog, thisDevice } from './error-log.ts';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
+import { localPatches } from '../../build/patches.ts';
 
 const fields = [
   "siteTitle",
@@ -391,6 +392,15 @@ function SettingsForm({ initial }: { initial: Settings }) {
           Only change this if you have modified the client and track your own
           versions. Point it at your releases, or turn the check off.
         </p>
+        {localPatches === null ? null : (
+          <p className="hint">
+            {localPatches === 0
+              ? 'This build carries no local patches.'
+              : `This build carries ${localPatches} local patch${localPatches === 1 ? '' : 'es'}.`}{' '}
+            <code>npm run patches</code> lists them. Nothing about patches is
+            published.
+          </p>
+        )}
       </section>
       </section>
       <section className="settings-section" id="feed" aria-labelledby="feed-h">
