@@ -1148,7 +1148,7 @@ export function Compose({ q }: { q?: string } = {}) {
               </Button>
             ) : null}
             <DesignButton
-              size="medium"
+              size="small"
               id="save-draft-btn"
               disabled={action.busy}
               onClick={() => void action.run(save)}
@@ -1156,7 +1156,7 @@ export function Compose({ q }: { q?: string } = {}) {
               save draft
             </DesignButton>
             <DesignButton
-              size="medium"
+              size="small"
               id="publish-btn"
               variant="primary"
               disabled={action.busy}
@@ -2816,7 +2816,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           </Button>
         </Tooltip>
         <DesignButton
-          size="medium"
+          size="small"
           id="save-draft-btn"
           disabled={action.busy}
           onClick={() => void action.run(save)}
@@ -2824,7 +2824,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           save draft
         </DesignButton>
         <DesignButton
-          size="medium"
+          size="small"
           id="publish-btn"
           variant="primary"
           disabled={action.busy}

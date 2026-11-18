@@ -28,7 +28,7 @@ test('discarding a draft from the compose list says so, with no error', async ({
   await page.getByRole('button', { name: new RegExp(text) }).click();
   await page.getByRole('button', { name: 'discard', exact: true }).first().click();
   await page.getByRole('button', { name: 'discard', exact: true }).last().click();
-  const toast = page.getByRole('status').filter({ hasText: 'Draft discarded' });
+  const toast = page.getByRole('dialog', { description: 'Draft discarded' });
   await expect(toast).toBeVisible();
   await expect(toast).toHaveAttribute('data-tone', 'ok');
   await expect(page.getByRole('button', { name: new RegExp(text) })).toHaveCount(0);
@@ -46,9 +46,9 @@ test('discarding from the editor says so too, and ✕ dismisses it', async ({ pa
   await page.getByRole('button', { name: 'more actions' }).click();
   await page.getByRole('dialog', { name: 'actions' }).getByRole('button', { name: 'discard draft', exact: true }).click();
   await page.getByRole('button', { name: 'discard draft', exact: true }).last().click();
-  const toast = page.getByRole('status').filter({ hasText: 'Draft discarded' });
+  const toast = page.getByRole('dialog', { description: 'Draft discarded' });
   await expect(toast).toBeVisible();
-  await toast.getByRole('button', { name: 'dismiss message' }).click();
+  await toast.locator('.toast-x').click();
   await expect(toast).toHaveCount(0);
   expect(await alerts(page)).toEqual([]);
 });
@@ -60,7 +60,7 @@ test('the reading header resyncs every feed at once', async ({ page }) => {
   // Answered here: a real poll would change the shared fixture subscriptions other tests read.
   await page.route('**/api/subscriptions/poll', async (route) => { polled = route.request().method() === 'POST'; await route.fulfill({ json: { polling: 3 } }); });
   await page.getByRole('button', { name: 'resync all feeds' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Checking 3 feeds…' })).toBeVisible();
+  await expect(page.getByRole('dialog', { description: 'Checking 3 feeds…' })).toBeVisible();
   expect(polled).toBe(true);
   await expect(page.getByRole('button', { name: 'resync all feeds' })).toBeDisabled();
 });
@@ -69,7 +69,7 @@ test('the composer counts a thread without the fragment limit', async ({ page })
   await login(page);
   await page.locator('#composer-text').fill('x'.repeat(1200));
   await expect(page.locator('#composer-count')).toHaveText('1200 / 1000');
-  await page.getByRole('radio', { name: 'thread', exact: true }).click();
+  await page.getByRole('button', { name: 'thread', exact: true }).click();
   await expect(page.locator('#composer-count')).toHaveText('1200 chars');
 });
 

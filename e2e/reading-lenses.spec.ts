@@ -63,7 +63,7 @@ test('lenses filter by kind, keep themselves across screens, keep withdrawn post
   await bar.getByRole('button', { name: 'Smart Feed' }).click();
   await expect(page.locator('.lens-placeholder')).toContainText('Coming soon. Feed sorted and filtered by your AI agent.');
   // The placeholder keeps the screen's head: tabs, title and count, ＋.
-  await expect(page.getByRole('group', { name: 'reading view' })).toBeVisible();
+  await expect(page.getByRole('tablist', { name: 'reading view' })).toBeVisible();
   await expect(page.getByRole('heading', { name: /^my blyg/ })).toContainText(/\d+ items/);
   await expect(page.getByRole('button', { name: 'subscribe', exact: true })).toBeVisible();
   await page.locator('.lens-placeholder').getByRole('link', { name: 'Settings' }).click();
@@ -83,7 +83,7 @@ test('signals lists current thumbs and the activity log', async ({ page }) => {
     await expect(page.locator('.signals-note')).toContainText('never published');
     const liked = page.locator('.signals-list li').filter({ hasText: 'Native title' });
     await expect(liked).toBeVisible();
-    await page.getByRole('button', { name: /activity/ }).click();
+    await page.getByRole('tab', { name: /activity/ }).click();
     await expect(page.locator('.signals-list li[data-kind="thumb_up"]').filter({ hasText: 'Native title' }).first()).toBeVisible();
   } finally {
     await api(page, 'DELETE', `/signals/parity-native/${NATIVE}`);

@@ -508,7 +508,11 @@ main.login .btn { width: 100%; }
   .item-row, .reading-entry, .mention-row, .out-row, .hopper-row, .preview, .stub-head { overflow-wrap: anywhere; }
   .screen.framed { padding: 12px; }
   /* ~44px tap targets on the legacy screens' bare buttons. */
-  :where(.screen) :where(button:not(.link):not(.btn):not(.tab):not(.entry-copy):not(.stub-btn):not(.vis-btn)) { min-height: 2.6rem; padding: 0.4rem 0.8rem; }
+  :where(.screen) :where(button:not(.link):not(.btn):not(.button):not(.toggle-group-item):not(.tab):not(.entry-copy):not(.stub-btn):not(.vis-btn)) { min-height: 2.6rem; padding: 0.4rem 0.8rem; }
+  /* A filter group has more labels than fit side-by-side on a phone. Wrap
+     whole items instead of shrinking their hit areas until labels overlap. */
+  .toggle-group.filters { display: flex; flex-wrap: wrap; width: 100%; }
+  .toggle-group.filters .toggle-group-item { flex: 0 0 auto; }
   .item-row .actions, .qe-bar, .entry-actions, .edit-bar { gap: 0.5rem; }
   .hopper-row, .hopper-head { flex-direction: column; gap: 0.5rem; }
   .hopper-row .actions, .hopper-head .actions { flex-wrap: wrap; }

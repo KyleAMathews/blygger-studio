@@ -24,7 +24,7 @@ test('an own post goes in a hopper from its menu and shows in the hopper', async
   await page.goto(`/studio/edit/${id}`);
   await editorMenu(page, 'add to hopper…');
   await page.getByRole('dialog').getByRole('button', { name, exact: true }).click();
-  await expect(page.getByRole('status').filter({ hasText: `added to ${name}` })).toBeVisible();
+  await expect(page.getByRole('dialog', { description: `added to ${name}` })).toBeVisible();
 
   await page.goto(`/studio/hoppers/${hopper.id}`);
   const entry = page.locator(`[data-own="${id}"]`);

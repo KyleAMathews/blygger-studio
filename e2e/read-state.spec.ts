@@ -118,12 +118,12 @@ test('mark all read covers the whole view after a confirm sheet', async ({ page 
     await expect(native(page)).toHaveAttribute('data-read', 'unread');
     await readMenu(page, 'mark all read…');
     await answerSheet(page, { name: 'Mark 2 items read?' });
-    await expect(page.locator('.toast')).toHaveText('marked 2 read');
+    await expect(page.getByRole('dialog', { description: 'marked 2 read' })).toBeVisible();
     await expect(native(page)).toHaveAttribute('data-read', 'read');
     await expect(retained(page)).toHaveAttribute('data-read', 'read');
     expect(await serverRead(page)).toEqual({ [NATIVE]: 1, [RETAINED]: 1 });
     await readMenu(page, 'mark all read…');
-    await expect(page.locator('.toast')).toHaveText('nothing unread here');
+    await expect(page.getByRole('dialog', { description: 'nothing unread here' })).toBeVisible();
   } finally {
     await clearAll(page);
   }
