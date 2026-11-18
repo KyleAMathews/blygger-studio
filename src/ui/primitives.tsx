@@ -2,8 +2,6 @@ import type {
   AnchorHTMLAttributes,
   ButtonHTMLAttributes,
   ComponentProps,
-  InputHTMLAttributes,
-  KeyboardEvent,
   ReactElement,
   ReactNode,
   TextareaHTMLAttributes,
@@ -18,7 +16,6 @@ import { Accordion as BaseAccordion } from '@base-ui/react/accordion';
 import { Checkbox as BaseCheckbox } from '@base-ui/react/checkbox';
 import { Radio as BaseRadio } from '@base-ui/react/radio';
 import { RadioGroup as BaseRadioGroup } from '@base-ui/react/radio-group';
-import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
 export { Select } from '@base-ui/react/select';
 
 const classes = (...names: Array<string | false | null | undefined>) =>

@@ -15,6 +15,14 @@ const serverOnly: Plugin = {
 };
 
 const componentGallery = process.env.BLYG_COMPONENT_GALLERY === '1';
+const excludeComponentGallery: Plugin = {
+  name: 'exclude-component-gallery',
+  setup(build) {
+    build.onResolve({ filter: /^\.\/component-library\.tsx$/ }, (args) => ({
+      path: resolve(args.resolveDir, 'component-library.stub.tsx'),
+    }));
+  },
+};
 await build({
   entryPoints: ['src/ui/app.tsx'],
   outfile: 'build/studio-spa.js',
@@ -34,14 +42,7 @@ await build({
   // enter an ordinary production build.
   plugins: [
     serverOnly,
-    ...(componentGallery ? [] : [{
-        name: 'exclude-component-gallery',
-        setup(build) {
-          build.onResolve({ filter: /^\.\/component-library\.tsx$/ }, (args) => ({
-            path: resolve(args.resolveDir, 'component-library.stub.tsx'),
-          }));
-        },
-      }]),
+    ...(componentGallery ? [] : [excludeComponentGallery]),
   ],
 });
 if (/temml/i.test(readFileSync('build/studio-spa.js', 'utf8'))) throw new Error('build-spa: the formula renderer reached the browser bundle');
