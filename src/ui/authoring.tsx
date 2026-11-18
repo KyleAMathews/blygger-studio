@@ -21,7 +21,7 @@ import { extractDirectives } from '../directives.ts';
 import { previewFromHtml } from '../preview.ts';
 import { CHANGE_CATEGORIES, composeNote, noteIsGenerated, recategorize, type ChangeCategory } from '../change-category.ts';
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
-import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
+import { BlyggerApi, BlyggerApiError, unwrap } from '../../sdk/dist/browser.js';
 import type { DraftCounterContext } from './extension-api.ts';
 import type { Detail } from './data.ts';
 import { client, items, itemVersions, itemSummary, itemDetail, createDraftAction, settings as settingsCollection, listViews, preloadView } from './data.ts';
@@ -790,6 +790,44 @@ type Classified = {
   probability: number | null;
   reason?: string;
 };
+type PublishCommand = { type: 'publish'; note: string; generated: boolean; category?: ChangeCategory | null };
+
+/**
+ * Publish, and when the thread's `![[+ …]]` spans would make new items, say
+ * how many and ask first (tangling-plan §2.2): the server refuses without
+ * `tangle: true`, so the count is shown to every caller. Resolves undefined if
+ * the author declines. After a tangle the source holds a directive per span,
+ * so `source` is the rewritten working copy for the caller to take up; an
+ * editor that kept its own text would otherwise save the spans back.
+ */
+async function publishTangle(write: ReturnType<typeof createDraftAction>, command: PublishCommand, itemId: () => string | undefined) {
+  try {
+    return { result: await write(command) };
+  } catch (error) {
+    const body = error instanceof BlyggerApiError ? (error.body as { code?: string; details?: { count?: number; parts?: string[] } }) : undefined;
+    if (body?.code !== 'tangle-confirmation-required') throw error;
+    const count = body.details?.count ?? 0;
+    const ok = await confirm({
+      title: `This will publish ${count} new item${count === 1 ? '' : 's'} and this thread`,
+      body: (
+        <>
+          <ol className="tangle-parts">{(body.details?.parts ?? []).map((label, i) => <li key={i}>{label}</li>)}</ol>
+          <p className="hint">
+            Each <code>![[+ …]]</code> becomes a thread of its own, published first, and this thread quotes it.
+            To change a quoted passage later, open that item.
+          </p>
+        </>
+      ),
+      ok: 'publish all',
+    });
+    if (!ok) return undefined;
+    const result = await write({ ...command, tangle: true });
+    const id = itemId();
+    const source = id ? (await unwrap(BlyggerApi.getItem({ client, path: { id } }))).contentMd : undefined;
+    return { result, source };
+  }
+}
+
 function useNoteConfirm(write: ReturnType<typeof createDraftAction>) {
   const settings = useSettings();
   const [state, setState] = useState<{
@@ -1057,8 +1095,10 @@ export function Compose({ q }: { q?: string } = {}) {
   const publish = async () => {
     const savedId = await save();
     if (!savedId) return;
-    const result = await write({ type: 'publish', note: '', generated: false });
-    setPublished({ id: savedId, kind, md: text, version: result.version });
+    const done = await publishTangle(write, { type: 'publish', note: '', generated: false }, () => savedId);
+    if (!done) return;
+    const { result } = done;
+    setPublished({ id: savedId, kind, md: done.source ?? text, version: result.version });
     if (current.current.text === text) {
       setText('');
       setId(undefined);
@@ -1314,10 +1354,14 @@ function ItemRow({
   const publishRow = async () => {
     const choice = await confirmNote.request(item, '');
     if (!choice) return;
-    const md = draft.current!.text;
-    const result = await write({ type: 'publish', note: choice.note, generated: choice.generated, category: choice.category });
-    onPublished({ id: item.id, kind, md, version: result.version });
-    return result;
+    const done = await publishTangle(write, { type: 'publish', note: choice.note, generated: choice.generated, category: choice.category }, () => item.id);
+    if (!done) return;
+    if (done.source !== undefined) {
+      draft.current!.accept(done.source);
+      setText(done.source);
+    }
+    onPublished({ id: item.id, kind, md: draft.current!.text, version: done.result.version });
+    return done.result;
   };
   const save = async () => {
     acceptFresh();
@@ -2148,13 +2192,17 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
     operation(async () => {
       const choice = await confirmNote.request(item, note, drafted, historyNote);
       if (!choice) return;
-      const md = draft.current!.text;
-      const result = await write({ type: 'publish', note: choice.note, generated: choice.generated, category: choice.category });
+      const done = await publishTangle(write, { type: 'publish', note: choice.note, generated: choice.generated, category: choice.category }, () => item.id);
+      if (!done) return;
+      if (done.source !== undefined) {
+        draft.current!.accept(done.source);
+        setText(done.source);
+      }
       // A note describes one change; it must not ride along on the next.
       setNote('');
       setDrafted(undefined);
-      setPublished({ id: item.id, kind: item.kind, md, version: result.version });
-      return result;
+      setPublished({ id: item.id, kind: item.kind, md: draft.current!.text, version: done.result.version });
+      return done.result;
     });
   const focus = useFocusView(input, held.box, pane, setPane);
   const isThread = item.kind === 'thread';

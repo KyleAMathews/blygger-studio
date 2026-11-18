@@ -105,6 +105,12 @@ export interface ItemRow {
   forked_from: string | null;
   /** JSON `StubCite` (migration 0010) — the lineage citation's human half, frozen at fork. Client-side only. */
   fork_cite: string | null;
+  /**
+   * The thread whose `![[+ …]]` span minted this item (migration 0047,
+   * tangling-plan §2.7), or null. Studio-private, never on the wire: it lets a
+   * thread publish finish a tangle that stopped partway (§2.3 recovery).
+   */
+  tangled_from: string | null;
 }
 
 export interface Transclusion {

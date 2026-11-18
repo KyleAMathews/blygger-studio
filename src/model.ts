@@ -359,12 +359,16 @@ function publishedProvenance(item: ItemRow, working: string, ranges: CommentRang
  * Throws TkPublishError for malformed/unresolved TK scopes, FragmentTooLongError
  * if the published fragment exceeds the studio cap, or TransclusionResolveError
  * if a thread directive fails to resolve — nothing is written in any case.
+ *
+ * With `dryRun`, every check runs and nothing is written: tangling's
+ * pre-flight (tangling-plan §2.1) raises here whatever the real publish would,
+ * before any new item is minted. Everything up to the final batch only reads.
  */
-export function publish(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string, noteGenerated = false): Promise<number> {
-  return withMathFailures(() => publishScoped(db, item, note, ourOrigin, noteGenerated));
+export function publish(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string, noteGenerated = false, opts: { dryRun?: boolean } = {}): Promise<number> {
+  return withMathFailures(() => publishScoped(db, item, note, ourOrigin, noteGenerated, opts.dryRun === true));
 }
 
-async function publishScoped(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string, noteGenerated = false): Promise<number> {
+async function publishScoped(db: D1Database, item: ItemRow, note: string | null, ourOrigin: string | undefined, noteGenerated: boolean, dryRun: boolean): Promise<number> {
   const now = nowIso();
   const version = item.version + 1;
   const kind = await authoredKind(db, item);
@@ -493,6 +497,7 @@ async function publishScoped(db: D1Database, item: ItemRow, note: string | null,
   // reading correctly. Not on the wire — see StubCite.
   const citeJson = agreed ? JSON.stringify(await composeStubCite(db, agreed, normalizedOrigin(origin), settings.site_title, now)) : null;
 
+  if (dryRun) return version;
   const hash = await contentHash(strippedMd);
   // The attachments this version shows (§5.4, studio#7): appended ones, and
   // inline ones its text places. Frozen with the version, so dropping one from

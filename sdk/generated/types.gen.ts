@@ -16,7 +16,7 @@ export type Authorization = {
 };
 
 export type ApiError = {
-    code: 'invalid-input' | 'unauthorized' | 'forbidden' | 'not-found' | 'method-not-allowed' | 'conflict' | 'revision-conflict' | 'cursor-expired' | 'too-large' | 'unsupported-media' | 'unprocessable' | 'rate-limit' | 'internal' | 'bad-gateway';
+    code: 'invalid-input' | 'unauthorized' | 'forbidden' | 'not-found' | 'method-not-allowed' | 'conflict' | 'revision-conflict' | 'tangle-confirmation-required' | 'cursor-expired' | 'too-large' | 'unsupported-media' | 'unprocessable' | 'rate-limit' | 'internal' | 'bad-gateway';
     message: string;
     details?: {
         issues?: Array<{
@@ -1738,6 +1738,10 @@ export type PublishItemData = {
     body: {
         expectedRevision: number;
         note?: string;
+        /**
+         * Confirms publishing the new items a thread's `![[+ text]]` spans make. Without it, a working copy with spans gets 409 tangle-confirmation-required, listing them in details.parts and their number in details.count, and nothing is written.
+         */
+        tangle?: boolean;
         noteGenerated?: boolean;
         /**
          * The change category the author confirmed in the publish dialog: kept with the version in studio-private storage (never on the wire). Omitted: a classification made for these words stands; null: cleared.
@@ -1817,6 +1821,13 @@ export type PublishItemResponses = {
          * @words that name no contact. They stay literal text.
          */
         unresolvedHandles?: Array<string>;
+        /**
+         * Items this publish made from the thread's `![[+ text]]` spans, or finished making, in source order. Each was published before the thread.
+         */
+        parts?: Array<{
+            id: string;
+            version: number;
+        }>;
     };
 };
 

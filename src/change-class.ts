@@ -24,6 +24,7 @@ import { parseComments } from "./comments.ts";
 import type { Env, ItemRow } from "./types.ts";
 import { authoredText, contentHash, nowIso } from "./util.ts";
 import { diffText } from "./word-diff.ts";
+import { withoutTangleMarkers } from "./tangle.ts";
 
 /**
  * The one question asked of the model. Three options; `refresh` is not among
@@ -68,7 +69,8 @@ export function classifierState(prior: string, next: string, priorVersion: numbe
 
 /** The working copy as publish() would store it: authored text, TK scopes stripped to their output. */
 function publishableText(contentMd: string): string | null {
-  const comments = parseComments(authoredText(contentMd));
+  // A `![[+ …]]` span is the author's words either way: kept, markers gone (tangling-plan §2.6).
+  const comments = parseComments(withoutTangleMarkers(authoredText(contentMd)));
   if (comments.errors.length) return null;
   const source = comments.text;
   const { scopes, errors } = parseScopes(source);

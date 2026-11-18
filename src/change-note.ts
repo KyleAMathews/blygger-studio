@@ -20,6 +20,7 @@ import { changelogLines, ownChangelog, ownerInstructions, capText } from "./chan
 import { parseScopes, stripToOutput } from "./tk.ts";
 import { parseComments } from "./comments.ts";
 import type { Env, ItemRow } from "./types.ts";
+import { withoutTangleMarkers } from "./tangle.ts";
 
 /** A run this long, copied from removed text, counts as reproducing it. */
 export const QUOTE_RUN_WORDS = 6;
@@ -76,7 +77,8 @@ export type DraftNoteResult =
 
 /** The working copy as it would publish: TK scopes stripped to their output. */
 function publishableText(contentMd: string): string | null {
-  const comments = parseComments(contentMd);
+  // A `![[+ …]]` span is the author's words either way: kept, markers gone (tangling-plan §2.6).
+  const comments = parseComments(withoutTangleMarkers(contentMd));
   if (comments.errors.length) return null;
   const { scopes, errors } = parseScopes(comments.text);
   if (errors.length || scopes.some((s) => s.output === null)) return null;
