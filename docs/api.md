@@ -85,18 +85,20 @@ Each physical D1 batch is a transaction. If it fails, that group's statements
 roll back and its waiting reads fail together; earlier completed groups remain
 committed. The adapter never retries failed batches or admission writes.
 
-Studio batches ready reads by operation with DataLoader, without caching batch
-results. Browser dispatch uses microtasks, not timers: synchronous peers share
-a batch, while reads that become ready after dispatch use a later batch.
+Studio groups ready reads in a pending queue for each operation, without caching
+batch results. Browser dispatch uses microtasks, not timers: synchronous peers
+share a batch, while reads that become ready after dispatch use a later batch.
 Different request headers or credential settings use separate batches.
 Cancelling one read preserves its peers; cancelling every consumer aborts the
-shared fetch. Concurrent freshness checks share pending work only, and Studio
-writes clear that pending check before their subsequent refreshes.
+shared fetch. Concurrent resource reads share pending work only, and Studio
+writes clear pending-read registrations before their subsequent refreshes.
 
 ## HTTP responses
 
-Private API responses use `Cache-Control: no-store`, including preflight and errors
-rejected before dispatch. Browser bearer requests can read `ETag`, `Retry-After`, `Allow`,
+Private API responses default to `Cache-Control: no-store`, including preflight
+responses and errors rejected before dispatch. Successful resource GETs use
+`private, no-cache` with ETags, as described below.
+Browser bearer requests can read `ETag`, `Retry-After`, `Allow`,
 `Location`, and `WWW-Authenticate` when those headers apply. Wrong-method
 responses identify supported methods in `Allow`.
 
@@ -105,6 +107,19 @@ GET/HEAD. Save the returned ETag and send it as `If-None-Match` on a later read.
 A matching current representation returns 304 without a body. Resource and
 access checks precede validation, so a validator does not bypass private media
 access or make an absent resource available.
+
+Private operation GETs also return an `ETag` and accept `If-None-Match`.
+Successful resource reads use `Cache-Control: private, no-cache`; errors,
+authentication endpoints, writes and batch envelopes retain `no-store`.
+Authentication, scope checks, quotas, feature checks and input validation run
+before conditional evaluation. A matching read returns a bodyless `304` with
+its current `ETag`. Contract 6.0.0 removes `GET /changes` without an alias.
+Clients revalidate resource GETs directly.
+
+Each `/read-batch` child accepts an optional `ifNoneMatch` field. Child results
+use the same validators as direct GETs: a match returns `{ status: 304,
+body: null, headers: { ETag: ... } }`. Validators belong to individual children,
+not the POST envelope, and conditional child reads remain batchable.
 
 Validators cover complete response bytes. A pinned document can get a new ETag
 when live author or origin metadata changes, even when its markdown hash stays
@@ -165,7 +180,6 @@ Consult `openapi.json` for every field and response.
 | Imported items | `GET /imports/{sub}/{id}`, `GET /imports/{sub}/{id}/history`, `GET /imports/{sub}/{id}/versions/{v}` (history and public versions, read from the origin) | The subscription importer manages these items |
 | Reading | `GET /reading`, `GET /reading/imported` (imported items only; see below) | Read only |
 | Read state | `readVersion` on each imported Reading entry | `PUT`/`DELETE /reading/{sub}/{remoteId}/read`, `POST /reading/read`, `POST /reading/unread` |
-| Change revisions | `GET /changes` | Maintained by database triggers |
 | Quote freshness | `GET /freshness`, `GET /items/{id}/freshness` | `POST /items/{id}/refresh` |
 
 Publication, withdrawal, restoration, and generation remain explicit operations:
@@ -230,10 +244,9 @@ Rules:
   in `details.current: { entries, revision }`: merge and retry. There is no
   unconditional replace, because one client's `PUT` would silently undo
   another's reorder.
-- The `shelf` change domain in `GET /changes` moves on every `PUT`, when a
-  shelved own item is withdrawn or republished, when a shelved imported item
-  becomes a tombstone without a retained pin or comes back, and when a shelved
-  entry's row is deleted (discarded draft, unsubscribe).
+- Revalidate `GET /shelf` after a `PUT`, a withdrawal or republication, an
+  imported item becoming unavailable or returning, or an entry being deleted.
+  Its ETag reflects the current shelf representation.
 - Shelving is not an interaction: nothing goes in the interaction log.
 - The Studio's compose list shows the `~own` entries. Reordering or removing
   them there leaves imported entries where they are.
@@ -307,13 +320,8 @@ readers only as words in the note the author confirmed.
 document keys as an unclassified one.
 
 Preview and search use `/preview` and `/search`.
-`GET /changes` returns `{ epoch, domains }`, with revision counters for items,
-Reading, subscriptions, hoppers, signals, settings, the public feed, mentions,
-responses, interactions, browsing history and the shelf. It uses
-the same current owner/delegated read authorization as other private reads.
-Clients can skip unchanged data refreshes, but must capture their target before
-loading and acknowledge it only after successful installation. These are change
-signals, not row-delta cursors or permission to cache authorization decisions.
+Poll resource GETs with their accepted ETags. A 304 reuses only the body paired
+with that validator; errors do not validate cached data or authorization.
 The old fork, stub, pause, resume, response-policy, and pin routes no longer exist.
 Studio calls the canonical routes through the generated SDK.
 
@@ -622,8 +630,7 @@ last-write-wins.
 
 Version is an integer from 1 (items start there) to 2^32 − 1. All four writes need `reading:state`,
 a scope of their own so a sync-only reader app need not hold `owner:manage`. Read state goes with its imported item or subscription when either
-is deleted, and a change, including a clear, advances the `reading` revision in
-`GET /changes`.
+is deleted. Revalidate Reading resources after a read-state change or clear.
 
 ## Quote freshness
 

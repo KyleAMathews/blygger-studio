@@ -35,3 +35,14 @@ const config = await defineConfig({
 rmSync("sdk/generated", { recursive: true, force: true });
 await createClient(config);
 writeFileSync("sdk/generation.json", `${JSON.stringify({ generator, version, input: "openapi.json", importExtension: ".js", plugins, zodAdditionalProperties: "preserve" }, null, 2)}\n`);
+
+// Generate the conditional-read inventory from the same GET contracts as the SDK.
+const document = JSON.parse(readFileSync("openapi.json", "utf8"));
+const reads = Object.entries(document.paths).sort(([a], [b]) => (a.match(/\{/g)?.length ?? 0) - (b.match(/\{/g)?.length ?? 0)).flatMap(([path, methods]) => {
+  const get = (methods as { get?: { operationId: string; responses: Record<string, unknown> } }).get;
+  if (!get?.responses['304']) return [];
+  const name = `z${get.operationId[0].toUpperCase()}${get.operationId.slice(1)}Response`;
+  const pattern = '^' + path.split(/(\{\w+\})/).map(part => /^\{\w+\}$/.test(part) ? '[^/]+' : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('') + '$';
+  return [{ name, pattern }];
+});
+writeFileSync('sdk/generated/read-validators.gen.ts', `// Generated from OpenAPI. Do not edit.\nimport { ${reads.map(read => read.name).join(', ')} } from './zod.gen.js';\nexport const readValidators = [\n${reads.map(read => `  { pattern: new RegExp(${JSON.stringify(read.pattern)}), schema: ${read.name} },`).join('\n')}\n];\n`);

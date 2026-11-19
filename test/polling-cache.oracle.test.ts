@@ -1,7 +1,7 @@
 /**
  * Contract: design v3 P1–P10/R1–R9 and minute feed/daily maintenance jobs.
  * Reference: polling-cache-oracle-model.ts.
- * Driver: real D1/R2 bindings, real makeApp feed/change HTTP routes, and direct
+ * Driver: real D1/R2 bindings, real makeApp feed HTTP routes and internal change-state reads, and direct
  * source SQL. Provider gates delay completed reads/conditional puts, never
  * manufacture expected XML or source revisions. Comparisons observe parsed
  * RSS, saved bytes/generation, HTTP validators and counted statement work.
@@ -54,12 +54,10 @@ async function request(bindings: Env = env, headers: HeadersInit = {}, method = 
   return { response, finish: () => waitOnExecutionContext(ctx) };
 }
 type Observe = (checkpoint: string, value: unknown) => void;
-async function changes(cookie: string, observe: Observe): Promise<OracleToken> {
-  const ctx = createExecutionContext();
-  const response = await app.fetch(new Request(`${BASE}/blyg/api/changes`, { headers: { cookie } }), env, ctx);
-  await waitOnExecutionContext(ctx);
-  observe('change response status', response.status);
-  return response.json();
+async function changes(_cookie: string, observe: Observe): Promise<OracleToken> {
+  const state = await readChanges(env.DB);
+  observe('change-state read', typeof state.epoch === 'string' && typeof state.domains === 'object');
+  return state;
 }
 function facts(xml: string, observe: Observe): FeedFacts {
   observe('RSS syntax', XMLValidator.validate(xml) === true);
@@ -155,7 +153,8 @@ async function saved(observe: Observe, ids: ReturnType<typeof identities>) {
 const values = (trace: readonly Observation[], checkpoint: string) => trace.filter(entry => entry.checkpoint === checkpoint).map(entry => entry.value);
 function common(trace: readonly Observation[], law: string): Verdict | undefined {
   for (const entry of trace) {
-    if (entry.checkpoint === 'change response status' || entry.checkpoint === 'receiving response status') {
+    if (entry.checkpoint === 'change-state read') { const mismatch = differs(entry.checkpoint, law, entry.value, true); if (mismatch) return mismatch; }
+    if (entry.checkpoint === 'receiving response status') {
       const mismatch = differs(entry.checkpoint, law, entry.value, 200); if (mismatch) return mismatch;
     }
     if (entry.checkpoint === 'RSS syntax') { const mismatch = differs('RSS syntax', law, entry.value, true); if (mismatch) return mismatch; }
@@ -549,12 +548,12 @@ oracleProperty({
 });
 oracleProperty({
   id: 'polling-cache-state-readers', owns: ['src/changes.ts'],
-  law: { statement: 'For every change-state reader, a native SQLite blob epoch is rejected as unavailable; unauthenticated HTTP change reads expose no state and forbid caching.', authority: 'docs/d1-polling-cache-design.md R1/P8 and original native-blob/auth receiving witnesses', limits: 'Native D1 blob epoch and real unauthenticated /changes route only.' },
+  law: { statement: 'For every change-state reader, a native SQLite blob epoch is rejected as unavailable; the removed private /changes endpoint has no authenticated compatibility alias.', authority: 'docs/d1-polling-cache-design.md R1/P8 and original native-blob receiving witnesses; Kyle Mathews, 2026-11-18: delete /changes with no compatibility alias', limits: 'Native D1 blob epoch and real authenticated removed-endpoint request only.' },
   histories: [{ receiver: 'private' }, { receiver: 'feed' }, { receiver: 'http' }],
-  model: plan => plan.receiver === 'http' ? { status: 401, cache: 'no-store' } : { message: plan.receiver === 'private' ? 'change state unavailable' : 'feed revision unavailable' },
+  model: plan => plan.receiver === 'http' ? { status: 404 } : { message: plan.receiver === 'private' ? 'change state unavailable' : 'feed revision unavailable' },
   driver: async (plan, observe) => stored(observe, async () => {
     if (plan.receiver === 'http') {
-      const ctx = createExecutionContext(), response = await app.fetch(new Request(`${BASE}/blyg/api/changes`), env, ctx); observe('change reader result', { status: response.status, cache: response.headers.get('cache-control') }); await waitOnExecutionContext(ctx);
+      const cookie = await login(), ctx = createExecutionContext(), response = await app.fetch(new Request(`${BASE}/blyg/api/changes`, { headers: { cookie } }), env, ctx); observe('change reader result', { status: response.status }); await waitOnExecutionContext(ctx);
     } else {
       await env.DB.prepare('UPDATE change_state SET epoch=? WHERE id=1').bind(new Uint8Array([1, 2])).run();
       observe('change reader result', await thrown(() => plan.receiver === 'private' ? readChanges(env.DB) : readFeedRevision(env.DB)));
@@ -590,8 +589,6 @@ type FeedAction =
   | { op: 'join-tick'; track: string }
   | { op: 'work'; track: string };
 type FeedPlan = { name: string; actions: FeedAction[] };
-// The unchanged request history observes work both before and after HEAD:
-// its empty body alone cannot show that the mandatory cheap check ran.
 const feedPlans: FeedPlan[] = [
   { name: 'same-valued generations cannot hide a stored revision regression', actions: [{ op: 'fetch', label: 'cold' }, { op: 'write', value: 'B' }, { op: 'begin', label: 'old', boundary: 'put' }, { op: 'write', value: 'A' }, { op: 'write', value: 'B' }, { op: 'fetch', label: 'winner' }, { op: 'finish' }, { op: 'artifact', label: 'winner' }] },
   { name: 'epoch changes with reused counters replace cached source identity', actions: [{ op: 'fetch', label: 'cold' }, { op: 'write', value: 'B' }, { op: 'restore', epoch: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }, { op: 'fetch', label: 'refresh' }, { op: 'artifact', label: 'restored' }] },
@@ -824,9 +821,6 @@ oracleProperty({
   calibrations: [
     { name: 'mixed source values', law: 'feed publication', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'feed artifact' ? { ...entry, value: { ...(entry.value as object), facts: { title: 'B', bio: 'bio-B', body: '<p>body-A</p>' } } } : entry) },
     { name: 'same-valued artifact carries old revision', law: 'feed publication', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'feed artifact' ? { ...entry, value: { ...(entry.value as object), generation: { epoch: 0, revision: -1 } } } : entry) },
-    { name: 'HEAD skips its source revision read', law: 'feed publication', history: { enumerated: 4 }, corrupt: trace => { let work = 0; return trace.map(entry => { if (entry.checkpoint !== 'feed counted work' || ++work !== 2) return entry; const value = entry.value as { sql: string[] }; return { ...entry, value: { ...value, sql: value.sql.slice(0, -1) } }; }); } },
-    { name: 'unchanged HEAD performs a full render', law: 'feed publication', history: { enumerated: 4 }, corrupt: trace => { let work = 0; return trace.map(entry => { if (entry.checkpoint !== 'feed counted work' || ++work !== 2) return entry; const value = entry.value as { sql: string[] }; return { ...entry, value: { ...value, sql: [...value.sql, 'SELECT key, value FROM settings'] } }; }); } },
-    { name: 'unchanged HEAD rewrites saved XML', law: 'feed publication', history: { enumerated: 4 }, corrupt: trace => { let work = 0; return trace.map(entry => entry.checkpoint === 'feed counted work' && ++work === 2 ? { ...entry, value: { ...(entry.value as object), puts: 1 } } : entry); } },
   ],
 });
 

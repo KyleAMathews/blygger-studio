@@ -4,7 +4,8 @@ import type { OwnerAccess } from './permissions.ts';
 import type { ServerExtension } from './extensions/server.ts';
 
 export interface MediaInput {
-  file?: { bytes: Uint8Array; mime: string; name: string };
+  /** REST multipart and MCP decoding allocate an ArrayBuffer-backed file. */
+  file?: { bytes: Uint8Array<ArrayBuffer>; mime: string; name: string };
   itemId?: string;
   expectedRevision?: number;
   alt?: string;

@@ -73,6 +73,7 @@ jobs:
       - run: npm run lint:oracles
       - run: npm run check:oracle-migration
       - run: npm run test:oracles:studio
+      - run: npm run test:oracles:conditional:worker
       - run: npm run test:oracles:contracts
       - run: npm run test:oracles:runtime
       - run: npm run test:oracles:worker

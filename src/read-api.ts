@@ -33,7 +33,6 @@ import { platformFetchFor } from "./importer/http.ts";
 import { recordBrowse, clearBrowse, type BrowseVia, type BrowseRow } from "./browse-log.ts";
 import { classifyLinks, peekItem } from "./peek.ts";
 import { fetchImportedHistory, fetchPublicVersion } from "./imported-history.ts";
-import { readChanges } from './changes.ts';
 import { linkLabel } from "./link-label.ts";
 import { authoredItemKindSql } from './version-state.ts';
 import { versionState } from './version-state.ts';
@@ -47,7 +46,6 @@ const getCapabilitiesOperation = async (context: OperationContext, input: Operat
   return success({ contractVersion: API_CONTRACT_VERSION, endpoints: deploymentUrls(context.url, context.env),
     ...await operationAvailability(context.env.DB, context.access, context.extensions) });
 };
-const getChangesOperation = async (context: OperationContext, input: OperationInput) => success(await readChanges(context.env.DB));
 // Pin history retains the legacy nullness rule for unresolved version kinds.
 const pinKindSql = `CASE WHEN kind IN ('fragment','thread') THEN kind WHEN transclusions IS NULL THEN 'fragment' ELSE 'thread' END`;
 const listItemsOperation = async (context: OperationContext, input: OperationInput) => {
@@ -517,7 +515,6 @@ async function forkablePins(
 
 export const readOperations = {
   getCapabilities: getCapabilitiesOperation,
-  getChanges: getChangesOperation,
   listItems: listItemsOperation,
   getItemSummary: getItemSummaryOperation,
   getItem: getItemOperation,

@@ -54,3 +54,21 @@ test('the picker still never offers a draft', async ({ page }) => {
   const search = await api(page, 'GET', `/api/search?q=${word}`);
   expect((search.json.items as unknown[]).length).toBe(0);
 });
+
+test('search revalidates resources and loads the final partial page without changes preflights', async ({ page }) => {
+  const paths: string[] = [];
+  page.on('request', request => paths.push(new URL(request.url()).pathname));
+  await login(page);
+  const word = `pagedsearch${crypto.randomUUID().replaceAll('-', '')}`;
+  for (let i = 0; i < 21; i++) {
+    expect((await api(page, 'POST', '/api/items', { contentMd: `${word} result ${i}` })).status).toBe(201);
+  }
+  await page.goto(`/studio/?q=${word}`);
+  const results = page.getByRole('region', { name: 'search results' });
+  await expect(results.getByRole('link')).toHaveCount(20);
+  await results.getByRole('button', { name: 'load more', exact: true }).click();
+  await expect(results.getByRole('link')).toHaveCount(21);
+  await expect(results.getByRole('button', { name: 'load more', exact: true })).toHaveCount(0);
+  expect(paths).toContain('/api/search');
+  expect(paths).not.toContain('/api/changes');
+});

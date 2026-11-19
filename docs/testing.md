@@ -17,6 +17,7 @@ npm run check:oracle-migration
 npm run lint:oracles
 npm run test:oracles:worker
 npm run test:oracles:studio
+npm run test:oracles:conditional:worker
 npm run test:oracles:contracts
 npm run test:oracles:browser
 npm run release:build
@@ -46,10 +47,16 @@ The lifecycle, pagination and PATCH oracles keep their laws beside the model and
 
 ## Independent oracles
 
-All 38 product oracle suites use the pinned `@tanstack/oracles` framework. See
+Product oracle suites use the pinned `@tanstack/oracles` framework. See
 [the migration map](oracle-migration.md) for the inventory, preservation audit,
 runtime adapters and sampled gaps. Ordinary Worker/UI commands exclude oracle files; run those files through the gap gates above. The generated oracles follow the
 [oracle-writing guide](oracle-tests.md).
+The Studio gap gate runs the full six-source mutation campaign for conditional
+reads. The supplementary `test:oracles:conditional:worker` gate runs every
+derived-validator receiving history against real local D1, plus the four
+authored controls that restore stale counter shortcuts. Cache capacity, work
+and ordering mutations remain in the full Studio gate. Both gates run in Check
+and the release fallback.
 Their models do not import production transitions, comparators, schemas, or
 resource projectors. The lifecycle, pagination and PATCH oracles call the
 generated SDK against the actual Worker. Mention delivery calls the production

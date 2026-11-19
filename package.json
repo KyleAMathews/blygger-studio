@@ -1,6 +1,6 @@
 {
   "name": "@blygger/studio",
-  "version": "0.62.0",
+  "version": "0.63.0",
   "private": true,
   "description": "Blygger Studio — reference client for the Blygger protocol (publish, subscribe, thread, transclude, respond)",
   "license": "MIT",
@@ -58,7 +58,8 @@
     "check:oracle-migration": "node --import tsx scripts/check-oracle-migration.ts",
     "lint:oracles": "eslint . --max-warnings=0",
     "test:oracles:gaps": "node --import tsx scripts/run-oracle-gaps.ts",
-    "test:oracles:contracts": "npm run test:oracles:gaps -- --runtime worker --files test/oauth-storage.oracle.test.ts,test/mention-order.oracle.test.ts,test/api-mount-cutover.oracle.test.ts --source src/oauth-storage.ts,src/mention-groups.ts,src/oauth.ts --only oauth-storage.ts:M51,mention-groups.ts:M12,oauth.ts:M1"
+    "test:oracles:contracts": "npm run test:oracles:gaps -- --runtime worker --files test/oauth-storage.oracle.test.ts,test/mention-order.oracle.test.ts,test/api-mount-cutover.oracle.test.ts --source src/oauth-storage.ts,src/mention-groups.ts,src/oauth.ts --only oauth-storage.ts:M51,mention-groups.ts:M12,oauth.ts:M1",
+    "test:oracles:conditional:worker": "npm run test:oracles:gaps -- --runtime worker --files test/derived-validators.oracle.test.ts --source src/conditional-operation.ts --mutants test-oracles/mutants --only authored:unsafe-getItem-counter-shortcut,authored:unsafe-listItemVersions-counter-shortcut,authored:unsafe-listReading-counter-shortcut,authored:unsafe-getReadingSummary-counter-shortcut"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

@@ -68,6 +68,8 @@ jobs:
       - if: steps.checked.outputs.tested != 'true'
         run: npm run test:oracles:studio
       - if: steps.checked.outputs.tested != 'true'
+        run: npm run test:oracles:conditional:worker
+      - if: steps.checked.outputs.tested != 'true'
         run: npm run test:oracles:contracts
       - if: steps.checked.outputs.tested != 'true'
         run: npm run test:oracles:runtime

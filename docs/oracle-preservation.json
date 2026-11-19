@@ -31772,7 +31772,7 @@
             "polling-cache-maintenance",
             "polling-cache"
           ],
-          "predicate": "change response status200; RSS syntax; saved cardinality; generation comment present and equal metadata",
+          "predicate": "Historical /changes success observation is superseded by approved internal change-state read availability after endpoint deletion; RSS syntax, saved cardinality and generation/metadata equality remain unchanged.",
           "checkpointHints": [
             "checkpoint-1",
             "checkpoint-2"
@@ -31905,7 +31905,7 @@
           "properties": [
             "polling-cache-state-readers"
           ],
-          "predicate": "change reader result: real unauthenticated HTTP401 and no-store",
+          "predicate": "Original unauthenticated401/no-store obligation is obsolete after Kyle Mathews approved deletion of /changes without compatibility,2026-11-18. Replacement receives authenticatedGET /blyg/api/changes and requires404, so auth cannot hide an alias.",
           "checkpointHints": [
             "checkpoint-14",
             "checkpoint-14"
@@ -32132,7 +32132,7 @@
         {
           "id": "checkpoint-1",
           "file": "test/polling-cache.oracle.test.ts",
-          "value": "change response status"
+          "value": "change-state read"
         },
         {
           "id": "checkpoint-2",
@@ -32270,6 +32270,31 @@
         "cases": 38,
         "comparisonHash": "0ab51925c43c2e570ba6d2490b162b7a2e1bf5c3821da2ed0ca93e4bb008059a",
         "caseHash": "a54902f9815b4cf202b99d1961aa8ba900da2a651f890820b34daf4361f5e926"
+      },
+      "etagReplacement": {
+        "authority": "Kyle Mathews,2026-11-18: replace /changes preflights with conditional resource GETs; delete /changes with no backwards compatibility. Keep cancellation boundaries; Query owns acceptance.",
+        "serverPreservation": "All123 original server comparison records, triggerFields/family/event rows, source/read/mention/time/restore histories,17D1/R2 publication schedules and feed generated grammar remain. Direct readChanges(DB) replaces removed HTTP transport only. Nativeblob rejection remains. Auth401/no-store is explicitly superseded by authenticated404 deletion check.",
+        "clientGrammar": "Preserve write/poll/fail/restore/evict arrays1\u201320 plus finalpoll,50runs,fixedseed20261001 and random campaigns, constructedunchanged/failedretry/restore/evict. StudioQueryReference retains source vs fetched state; opaqueETag+body replaces client epoch/revision label. Evict discards the reusable SDK representation; ordinary Query eviction separately preserves it.",
+        "joinedGrammar": "Preserve items/reading arrays0\u20134 and counters0\u201310, empty/joined/repeated constructions. Obsolete client counter-sum policy becomes selecteddependency changes vs unrelateddependency reuse under opaque conditional representation identities.",
+        "integrationCases": [
+          "unchanged/changed rows and countedHTTP/body work",
+          "held oldresponse keeps its pairedvalidator while source changes",
+          "failedcontent keeps cachedpair and retry",
+          "either joineddependency moves, unrelateddomains do not loadbody",
+          "failedconditionaltransport keepsrows and retries",
+          "cancelledbody does not acceptpair and retry",
+          "opaquevalidator travels with receivedbody; restore identity invalidates reusedcounter; Query eviction retains separatelyowned SDKbody",
+          "concurrentqueryFns each GET without preflight querycache",
+          "optimisticlocaledit survives remoterefresh and later mutationacceptance",
+          "exactondemand subset caching",
+          "overlappingsubsets keep sharedrow until lastowner dropsit",
+          "mutationrefresh starts freshGET despite olderpendingGET",
+          "subscriptiondiagnostics do not fetch unchangedReadingbody",
+          "obsolete tokenbounds checker replaced by model rejecting differentbodies under oneopaquevalidator",
+          "releasedReadingpages are notrefetched on sourcechange"
+        ],
+        "cancellation": "Original before-revision/after-revision/after-content/live fourphase grammar50runs maps to before-request/after-headers/after-body/live on realconditionaltransport, and beforeacquisition/afterfirstpage/aftercontinuation/live on realcursorreceiving. Helperoutcome observed independently of Queryacceptance.",
+        "mutationControls": "Sixfeedcontrols retain their source edits and frameworklaw/replay checks. Threeobsolete revisionhelper controls transfer to ETag/bodypairing, wrongoutgoingvalidator and invalidbodyprematureacceptance; generatedStudio control captures/replays native seed/path/unit."
       }
     }
   ]

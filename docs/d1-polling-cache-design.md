@@ -251,8 +251,9 @@ The configured minute cron can retry after readers stop. Endless writes, missing
 configuration and failed providers still have no unconditional progress guarantee.
 
 Triggers remove caller notification obligations, not dependency maintenance.
-The implementation uses a migration, one change endpoint, ordinary Query
-functions, a feed read/revalidation helper and tests. Auth/admission writes remain.
+The implementation uses trigger revisions, conditional resource GETs, ordinary
+Query functions, a feed read/revalidation helper and tests. Change-state reads
+remain internal to server validators and cursors. Auth/admission writes remain.
 The fixed counters add row writes per mutation; batches/imports can amplify them.
 
 ## Provider basis and receiving checks
@@ -276,8 +277,9 @@ behavior before any production correctness or quota claim.
 ### Cancellation work boundaries
 
 Kyle Mathews approved the helper work boundaries on 2026-11-18.
-`readIfChanged` rejects an already-aborted signal before reading revisions,
-checks again after the revision read before loading content, and checks after
-content loading before returning a result. QueryClient separately prevents
-canceled results from entering its cache. The `studio-cancellation-work` oracle
-checks read/load counts and the helper outcome for each boundary and a live call.
+Conditional resource reads reject an already-aborted signal before transport,
+check cancellation after receiving headers, and check again after validating
+the body before returning a result. Cursor acquisitions check the corresponding
+first-page and continuation boundaries. QueryClient separately prevents canceled
+results from entering its cache. The `studio-cancellation-work` oracle checks
+work counts and the helper outcome for each receiving path and a live call.

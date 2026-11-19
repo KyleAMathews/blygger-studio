@@ -1,0 +1,34 @@
+[
+  {
+    "id": "unsafe-getItem-counter-shortcut",
+    "source": "src/conditional-operation.ts",
+    "find": "const revisioned = revisionReads.has(definition.route.operationId!);",
+    "replace": "const revisioned = revisionReads.has(definition.route.operationId!) || definition.route.operationId === 'getItem';",
+    "intent": "Reintroduce stale counter-only shortcuts for getItem after derived data changes.",
+    "author": "Codex (self-generated from confirmed derived-writer counterexamples)"
+  },
+  {
+    "id": "unsafe-listItemVersions-counter-shortcut",
+    "source": "src/conditional-operation.ts",
+    "find": "const revisioned = revisionReads.has(definition.route.operationId!);",
+    "replace": "const revisioned = revisionReads.has(definition.route.operationId!) || definition.route.operationId === 'listItemVersions';",
+    "intent": "Reintroduce stale counter-only shortcuts for listItemVersions after derived data changes.",
+    "author": "Codex (self-generated from confirmed derived-writer counterexamples)"
+  },
+  {
+    "id": "unsafe-listReading-counter-shortcut",
+    "source": "src/conditional-operation.ts",
+    "find": "const revisioned = revisionReads.has(definition.route.operationId!);",
+    "replace": "const revisioned = revisionReads.has(definition.route.operationId!) || definition.route.operationId === 'listReading';",
+    "intent": "Reintroduce stale counter-only shortcuts for listReading after derived data changes.",
+    "author": "Codex (self-generated from confirmed derived-writer counterexamples)"
+  },
+  {
+    "id": "unsafe-getReadingSummary-counter-shortcut",
+    "source": "src/conditional-operation.ts",
+    "find": "const revisioned = revisionReads.has(definition.route.operationId!);",
+    "replace": "const revisioned = revisionReads.has(definition.route.operationId!) || definition.route.operationId === 'getReadingSummary';",
+    "intent": "Reintroduce stale counter-only shortcuts for getReadingSummary after derived data changes.",
+    "author": "Codex (self-generated from confirmed derived-writer counterexamples)"
+  }
+]

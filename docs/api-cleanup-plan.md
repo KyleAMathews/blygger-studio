@@ -164,8 +164,8 @@ generation, reject a continuation when that generation changes, and have the
 adapter discard that acquisition and restart. Page construction must check its
 generation against the rows it returns. Do not present partial pages as a
 successful complete demand or treat a short response as authoritative exhaustion
-when a continuation remains. `/changes` remains an invalidation signal, not a
-row-delta or durable synchronization cursor.
+when a continuation remains. Resource ETags validate reads; they are not
+row-delta or durable synchronization cursors.
 
 Verify this integration against the lockfile's TanStack versions before changing
 the loader. Source inspection alone is not a runtime compatibility check.

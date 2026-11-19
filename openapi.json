@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Blygger Studio API",
-    "version": "5.11.0",
+    "version": "6.0.0",
     "description": "Private authoring and reading API. Protocol files remain a separate public interface."
   },
   "servers": [
@@ -259,98 +259,6 @@
           "endpoints",
           "operations",
           "extensions"
-        ]
-      },
-      "ChangeState": {
-        "type": "object",
-        "properties": {
-          "epoch": {
-            "type": "string",
-            "minLength": 1
-          },
-          "domains": {
-            "type": "object",
-            "properties": {
-              "items": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              },
-              "reading": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              },
-              "subscriptions": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              },
-              "hoppers": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              },
-              "signals": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              },
-              "settings": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              },
-              "feed": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              },
-              "mentions": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              },
-              "responses": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              },
-              "interactions": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              },
-              "browse": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              },
-              "shelf": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              }
-            },
-            "required": [
-              "items",
-              "reading",
-              "subscriptions",
-              "hoppers",
-              "signals",
-              "settings",
-              "feed",
-              "mentions",
-              "responses",
-              "interactions",
-              "browse",
-              "shelf"
-            ]
-          }
-        },
-        "required": [
-          "epoch",
-          "domains"
         ]
       },
       "Item": {
@@ -3666,6 +3574,11 @@
                             "type": "string",
                             "maxLength": 8192
                           }
+                        },
+                        "ifNoneMatch": {
+                          "type": "string",
+                          "maxLength": 8192,
+                          "description": "Child resource validator; a matching representation returns status 304 and null body."
                         }
                       },
                       "additionalProperties": false
@@ -3852,9 +3765,29 @@
             "ownerOAuth": []
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3863,152 +3796,12 @@
               }
             }
           },
-          "400": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "405": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "Request failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/changes": {
-      "get": {
-        "operationId": "getChanges",
-        "tags": [
-          "studio"
-        ],
-        "security": [
-          {
-            "ownerSession": []
-          },
-          {
-            "ownerOAuth": [
-              "owner:read"
-            ]
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChangeState"
+                  "type": "string"
                 }
               }
             }
@@ -4503,11 +4296,29 @@
             "required": false,
             "name": "updated",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4578,6 +4389,16 @@
                     "items",
                     "page"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -5171,11 +4992,29 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -5363,6 +5202,16 @@
                     "publishedMedia",
                     "published"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -8102,13 +7951,43 @@
             ]
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -8534,11 +8413,29 @@
             "required": false,
             "name": "limit",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -8574,6 +8471,16 @@
                     "items",
                     "page"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -9083,15 +8990,43 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -9567,13 +9502,43 @@
             ]
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Shelf"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -9895,9 +9860,29 @@
             ]
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -9913,6 +9898,16 @@
                   "required": [
                     "contacts"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -10953,11 +10948,29 @@
             "required": false,
             "name": "limit",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -10993,6 +11006,16 @@
                     "items",
                     "page"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -11495,11 +11518,29 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -11522,6 +11563,16 @@
                     "total",
                     "sourceCount"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -13434,9 +13485,29 @@
             ]
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -13470,6 +13541,16 @@
                     "public",
                     "withdrawn"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -13653,11 +13734,29 @@
             "required": false,
             "name": "version",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -13693,6 +13792,16 @@
                     "items",
                     "page"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -13867,11 +13976,29 @@
             "required": false,
             "name": "limit",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -13929,6 +14056,16 @@
                     "items",
                     "page"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -14094,11 +14231,29 @@
             "required": false,
             "name": "limit",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -14134,6 +14289,16 @@
                     "items",
                     "page"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -14334,11 +14499,29 @@
             "required": false,
             "name": "at",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -14374,6 +14557,16 @@
                     "items",
                     "page"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -14575,11 +14768,29 @@
             "required": false,
             "name": "remoteId",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -14615,6 +14826,16 @@
                     "items",
                     "page"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -14758,9 +14979,29 @@
             ]
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -14784,6 +15025,16 @@
                     "disliked",
                     "activity"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -14927,13 +15178,43 @@
             ]
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AiModels"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -15174,11 +15455,29 @@
             "description": "Outbound exact created filter; invalid with inbound direction.",
             "name": "created",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -15229,6 +15528,16 @@
                     "page",
                     "direction"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -15428,11 +15737,29 @@
             "required": false,
             "name": "firstId",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -15468,6 +15795,16 @@
                     "items",
                     "page"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -15611,9 +15948,29 @@
             ]
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -15637,6 +15994,16 @@
                     "outbound",
                     "groups"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -16160,11 +16527,29 @@
             "description": "drafts: also search own drafts and unpublished changes, by their working copy. For finding your own work (the compose page); off by default because the default scope is exactly what a quote or link can name.",
             "name": "include",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -16263,6 +16648,16 @@
                     "items",
                     "page"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -16424,15 +16819,43 @@
             "required": true,
             "name": "v",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -16643,11 +17066,29 @@
             "description": "Only shelved entries (GET /shelf), in the owner's shelf order, whatever their Background placement. Own drafts are left out: they are not reading entries.",
             "name": "shelf",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -16683,6 +17124,16 @@
                     "counts",
                     "selected"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -16917,11 +17368,29 @@
             "description": "Only shelved entries (GET /shelf), in the owner's shelf order, whatever their Background placement. Own drafts are left out: they are not reading entries.",
             "name": "shelf",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -16973,6 +17442,16 @@
                     "readState",
                     "readStateClear"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -17365,11 +17844,29 @@
             "required": false,
             "name": "limit",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -17405,6 +17902,16 @@
                     "items",
                     "page"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -17566,15 +18073,43 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ImportedItem"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -17736,11 +18271,29 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -17791,6 +18344,16 @@
                     "withdrawn",
                     "changelog"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -17961,11 +18524,29 @@
             "required": true,
             "name": "v",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -17993,6 +18574,16 @@
                     "note",
                     "pinned"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -18152,15 +18743,43 @@
             "required": true,
             "name": "id",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PeekItem"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -18559,11 +19178,29 @@
             "required": false,
             "name": "id",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -18599,6 +19236,16 @@
                     "items",
                     "page"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -19128,9 +19775,29 @@
             ]
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -19143,6 +19810,16 @@
                       "type": "string"
                     }
                   }
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -19295,11 +19972,29 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -19326,6 +20021,16 @@
                     "holder",
                     "subscription"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -19469,9 +20174,29 @@
             ]
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -19487,6 +20212,16 @@
                   "required": [
                     "items"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -19651,15 +20386,43 @@
             "required": false,
             "name": "probe",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ThreadFreshness"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -20045,11 +20808,29 @@
             "required": false,
             "name": "origin",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -20095,6 +20876,16 @@
                     "ourOrigin",
                     "versions"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -20265,15 +21056,43 @@
             "required": false,
             "name": "origin",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LineageGlyphLineage"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -20430,11 +21249,29 @@
             "description": "A JSON array of up to 50 reading entry keys.",
             "name": "keys",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -20450,6 +21287,16 @@
                   "required": [
                     "summaries"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -20606,11 +21453,29 @@
             "description": "A JSON array of up to 50 own reading entry keys.",
             "name": "keys",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -20626,6 +21491,16 @@
                   "required": [
                     "counts"
                   ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }

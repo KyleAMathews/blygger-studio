@@ -15,7 +15,7 @@ function take(name: string) {
 const runtime = take('--runtime') ?? 'worker';
 const runtimes = {
   worker: { config: 'vitest.worker-oracles.config.ts', prefix: 'WORKER_ORACLE', source: 'src/oauth-storage.ts,src/mention-groups.ts' },
-  studio: { config: 'vitest.oracles.config.ts', prefix: 'STUDIO_ORACLE', source: 'src/ui/revision-query.ts' },
+  studio: { config: 'vitest.oracles.config.ts', prefix: 'STUDIO_ORACLE', source: 'sdk/conditional-reads.ts,src/ui/cursor-query.ts,src/ui/read-batch.ts,src/conditional-operation.ts,sdk/index.ts,src/ui/data.ts' },
 };
 if (!(runtime in runtimes)) throw new Error(`Unknown oracle runtime: ${runtime}`);
 const selected = runtimes[runtime as keyof typeof runtimes];
@@ -29,7 +29,8 @@ if (requestedOutput) mkdirSync(requestedOutput, { recursive: true });
 const output = realpathSync(requestedOutput ?? mkdtempSync(join(tmpdir(), `blygger-${runtime}-gaps-`)));
 const child = spawn(process.execPath, [resolve('node_modules/@tanstack/oracles/oracle-gaps/index.mjs'),
   '--package', '.', '--source', source, '--config', config,
-  '--env-prefix', selected.prefix, '--seed', seed, '--contexts', contexts, '--out', output, ...args], {
+  '--env-prefix', selected.prefix, '--seed', seed, '--contexts', contexts, '--out', output,
+  ...(runtime === 'studio' ? ['--pool', 'forks', '--mutants', 'test-oracles/mutants'] : []), ...args], {
   stdio: 'inherit', env: { ...process.env, ...(files ? { BLYG_ORACLE_FILES: files } : {}),
     WRANGLER_LOG_PATH: join(output, 'wrangler.log') },
 });

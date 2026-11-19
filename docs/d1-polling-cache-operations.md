@@ -35,17 +35,23 @@ anyone can POST a claim, and if claims rolled the key a stranger could empty
 the edge cache at the receiver's rate cap. They still write the state row once,
 like every tracked table, and are refused if it is missing.
 
-Apply 0032 before deploying a Worker that reads these columns: `/api/changes`
-selects every domain by name and fails without them, which stops Studio from
-loading new data, and public pages fall back to the plain cache key (the
+Apply 0032 before deploying a Worker that reads these columns: revision-backed
+resource validators select every domain by name and fail without them. Public
+pages fall back to the plain cache key (the
 pre-0.46.1 60-second behaviour) until the migration lands. The first deploy
 after 0032 changes every public cache key once, so each page renders fresh on
 its next read.
 
-Studio already polled the mentions view every 15 seconds, re-reading both lists
-in full and every row's source card on each tick. Those reads are now gated on
-the counters like every other owner read, so an unchanged tick costs one
-`/api/changes` read per collection. Polls stop while the tab or installed PWA is
+Studio polls active collections every 15 seconds with conditional resource GETs.
+It retains each validated body with its ETag and reuses that body on `304`.
+Conditional reads remain eligible for `/read-batch`, with a validator for each
+child. Studio makes no `/changes` preflight. The server may skip resource loads
+when its stored validator still belongs to the current trigger revisions;
+authentication, scopes, admission and input validation still run on every read.
+Each database retains at most 1,000 validator stamps in the Worker isolate;
+installing a stamp refreshes its eviction order. Shortcut 304s can keep the
+existing order. These stamps contain revisions and hashes, without response bodies.
+Polls stop while the tab or installed PWA is
 hidden. TanStack Query refreshes active queries when the page becomes visible
 or the network reconnects (`src/ui/query-client.ts`). Live collections opt
 into timers individually. Settings and authorizations have no polling timer.
@@ -105,8 +111,9 @@ stale age is guaranteed. XML can remain stale after withdrawal during this windo
 Live Studio collections opt into TanStack Query's built-in 15-second polling.
 Query Client defaults do not enable polling for other queries.
 Hidden tabs pause polling; return and reconnect trigger a refresh.
-Each query function makes a fresh change check, then returns its cached response
-or fetches changed data. Several mounted queries can each read the revision row. Timed update-state and
+Each query function revalidates its resource with the retained ETag. A matching
+304 reuses its validated body; changed data replaces the body and validator
+together. Several mounted queries can each read the revision row on the server. Timed update-state and
 unclassified/security views retain their existing polls. Authentication and
 admission still execute on private requests. Counters add one state-row write
 per changed source row, even when multiple domains advance. Measure read and
@@ -131,7 +138,9 @@ missing singleton. Resume requests and restore cron triggers only after this ste
 ordinary upgrades: clients' cursors should survive code deployments. The
 implementation work does not run this remote command or deploy production.
 
-Clients reload on epoch change. The feed background check treats a different
+Revision-based clients reload on epoch change. Studio revalidates its resource
+representations; an old continuation cursor expires and the acquisition restarts
+from its first page. The feed background check treats a different
 epoch as a changed generation, and an old builder cannot replace a newer
 installed generation using its old ETag. The first SWR response may still contain
 saved pre-restore XML; this is not an immediate-removal or fail-closed public-feed
@@ -140,20 +149,22 @@ policy. Apply a separate stale-age/withdrawal policy if that contract is needed.
 ## Schema changes
 
 Keep the migration's null-safe changed-column guards and table/column-to-domain
-map current when adding response fields. Keep each collection's query-to-domain choice current
-when adding revision-aware query functions. Unknown views keep polling. The receiving oracle
+map current when adding response fields. Only operations whose complete dependencies
+are tracked may use the revision shortcut in `src/conditional-operation.ts`.
+Other resource GETs load and hash their current representation on every request.
+The receiving oracle
 checks current column guards, direct effects, joined response dependencies,
 failed/canceled Query responses, generation races and matching work observations.
 
 ## Review follow-ups
 
-Revision checks are required for the current freshness contract. If `/changes`
-fails, Studio keeps its cached data and the timer retries; it cannot fetch new
-content until that check succeeds. A missing migration also blocks a cold feed.
-A future Studio fallback could do a full read without a revision label, so a
-later successful check cannot mistake it for validated cached data. Choosing
-that fallback trades extra reads during outages for availability. A cold feed
-fallback needs its own consistency policy: rendering without the stability
+Studio's freshness contract uses resource ETags rather than `/changes` preflights.
+A failed or invalid read preserves its last accepted body/ETag pair, and later
+acquisitions revalidate the resource again. Writes separate pending reads so an
+older response cannot replace a newer accepted representation. Revision-backed
+server shortcuts still require valid trigger state, and a missing migration also
+blocks a cold feed. A cold feed fallback needs its own consistency policy:
+rendering without the stability
 check can mix settings and item versions from different source states.
 
 Feed triggers deliberately over-invalidate some unrelated imports,

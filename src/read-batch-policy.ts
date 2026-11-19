@@ -8,4 +8,4 @@ export const READ_BATCH_PATHS = {
 export type ReadBatchOperation = keyof typeof READ_BATCH_PATHS;
 export const READ_BATCH_OPERATIONS = Object.keys(READ_BATCH_PATHS) as ReadBatchOperation[];
 export const READ_BATCH_MAX = 50;
-export interface ReadBatchInput { path?: Record<string, string>; query?: Record<string, string> }
+export interface ReadBatchInput { ifNoneMatch?: string; path?: Record<string, string>; query?: Record<string, string> }

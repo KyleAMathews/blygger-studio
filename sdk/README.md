@@ -51,6 +51,30 @@ Node callers can use a Blob from `node:fs`'s `openAsBlob()` with native FormData
 handling. Filesystem streams are not accepted. Requests take a standard `signal`
 for cancellation. Ordinary API calls do not retry automatically.
 
+## Conditional reads
+
+Opt in with `createBlyggerClient({ baseUrl, conditionalReads: true })` to
+revalidate resource GETs with ETags. The absolute `baseUrl` is required.
+The client validates JSON with the generated wire schema before retaining a
+body and validator together. A `304` reuses that validated body and appears to
+SDK methods as a successful `200`; ordinary clients expose raw HTTP responses.
+An explicit `If-None-Match` header also keeps raw HTTP behavior.
+
+Cache entries belong to one client and include the exact URL, request headers,
+and Fetch context. Keep separate clients for separate owners or server requests.
+Failed reads and cancelled reads cannot replace entries. Writes prevent reads
+started before their completion from installing old data. Reads still contact
+the resource on every acquisition; Studio no longer preflights `/changes`.
+Eligible calls with an already-aborted signal reject with its original reason
+before transport. Each client retains at most 500 reusable representations;
+accepting an entry refreshes its eviction order. Overlapping readers retain the
+newest accepted answer until they settle, even if that entry is evicted.
+
+For `/read-batch`, each child may supply `ifNoneMatch`. A matching child has
+`status: 304`, `body: null`, and its `ETag` in `headers`. Other children retain
+their independent status, body, and headers. An outer `200` does not mean every
+child succeeded.
+
 ## Cursor pages
 
 Collection methods return `{ items, page: { limit, nextCursor } }`. Pass
