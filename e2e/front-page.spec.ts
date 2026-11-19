@@ -25,7 +25,7 @@ test('a thread becomes the front page from its menu, and back', async ({ page })
 
   await page.goto(`/studio/edit/${id}`);
   await editorMenu(page, 'set as front page');
-  await expect(page.getByRole('status').filter({ hasText: 'now your front page' })).toBeVisible();
+  await expect(page.getByRole('dialog', { description: 'This thread is now your front page' })).toBeVisible();
   expect((await api(page, 'GET', '/api/settings')).json.frontPage).toBe(id);
 
   await page.goto('/');
@@ -36,7 +36,7 @@ test('a thread becomes the front page from its menu, and back', async ({ page })
 
   await page.goto(`/studio/edit/${id}`);
   await editorMenu(page, 'stop using as front page');
-  await expect(page.getByRole('status').filter({ hasText: 'latest items again' })).toBeVisible();
+  await expect(page.getByRole('dialog', { description: 'Your home page shows your latest items again' })).toBeVisible();
   expect((await api(page, 'GET', '/api/settings')).json.frontPage).toBe('');
 
   // Settings finds the thread by search, and can go back to the latest items.

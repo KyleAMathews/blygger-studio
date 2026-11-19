@@ -329,7 +329,8 @@ export async function pruneFailedInbound(db: D1Database, now: number = Date.now(
 export async function listPublicResponses(db: D1Database, itemId: string): Promise<MentionInRow[]> {
   const rows = await db
     .prepare(
-      `SELECT * FROM mentions_in WHERE target_item_id = ? AND status = 'verified' AND hidden = 0
+      // A `link` is a notice and MUST NOT appear in a responses list (§15.5).
+      `SELECT * FROM mentions_in WHERE target_item_id = ? AND status = 'verified' AND hidden = 0 AND relation IS NOT 'link'
        ORDER BY verified_at, first_seen`,
     )
     .bind(itemId)

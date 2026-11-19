@@ -127,7 +127,7 @@ for (const destination of ['hoppers', 'sources'] as const) {
     await login(page);
     if (destination === 'sources') {
       await page.goto('/studio/reading');
-      await expect(page.getByRole('button', { name: 'Sources', exact: true })).toBeVisible();
+      await expect(page.getByRole('tab', { name: 'Sources', exact: true })).toBeVisible();
     }
     const path = destination === 'sources' ? '/api/hoppers/parity-hopper'
       : '/api/hoppers/parity-hopper/memberships';
@@ -144,7 +144,7 @@ for (const destination of ['hoppers', 'sources'] as const) {
     });
     const loaded = page.waitForResponse(response => matches(response.url()) && response.ok());
     const link = destination === 'sources'
-      ? page.getByRole('button', { name: 'Sources', exact: true })
+      ? page.getByRole('tab', { name: 'Sources', exact: true })
       : page.getByRole('link', { name: destination, exact: true });
     const before = page.url();
     if (destination === 'sources') await link.click();

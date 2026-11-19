@@ -70,6 +70,24 @@ export const zCapabilities = z.object({
     }))
 });
 
+export const zChangeState = z.object({
+    epoch: z.string().min(1),
+    domains: z.object({
+        items: z.int().gte(0).lte(9007199254740991),
+        reading: z.int().gte(0).lte(9007199254740991),
+        subscriptions: z.int().gte(0).lte(9007199254740991),
+        hoppers: z.int().gte(0).lte(9007199254740991),
+        signals: z.int().gte(0).lte(9007199254740991),
+        settings: z.int().gte(0).lte(9007199254740991),
+        feed: z.int().gte(0).lte(9007199254740991),
+        mentions: z.int().gte(0).lte(9007199254740991),
+        responses: z.int().gte(0).lte(9007199254740991),
+        interactions: z.int().gte(0).lte(9007199254740991),
+        browse: z.int().gte(0).lte(9007199254740991),
+        shelf: z.int().gte(0).lte(9007199254740991)
+    })
+});
+
 export const zCitation = z.object({
     source: z.string(),
     author: z.string().optional(),
@@ -470,7 +488,8 @@ export const zMention = z.object({
         'stub',
         'transclusion',
         'fork',
-        'source'
+        'source',
+        'link'
     ]).nullable(),
     sourceOrigin: z.string().nullable(),
     sourceId: z.string().nullable(),
@@ -509,6 +528,7 @@ export const zMentionGroup = z.object({
     targetItemId: z.string(),
     total: z.int().gte(0),
     visible: z.int().gte(0),
+    links: z.int().gte(0),
     verifiedAt: z.string(),
     lastSeen: z.string(),
     firstId: z.string()
@@ -819,6 +839,11 @@ export const zGetCapabilitiesHeaders = z.object({
  * Success
  */
 export const zGetCapabilitiesResponse = zCapabilities;
+
+/**
+ * Success
+ */
+export const zGetChangesResponse = zChangeState;
 
 export const zListItemsHeaders = z.object({
     'if-none-match': z.string().optional()

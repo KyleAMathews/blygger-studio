@@ -1,0 +1,10 @@
+[
+  {
+    "id": "legacy-endpoint-disappears",
+    "source": "src/read-api.ts",
+    "find": "success(await readChanges(context.env.DB))",
+    "replace": "failure('not-found', { error: 'Legacy endpoint removed' })",
+    "intent": "Make the retained legacy read unavailable before the migration window ends.",
+    "author": "Codex, self-generated from approved compatibility restoration"
+  }
+]

@@ -248,6 +248,8 @@ export interface VersionRow {
   stub_cite: string | null;
   /** 1 when the studio drafted this version's note and the author published it unedited (migration 0015, #40). */
   note_generated: number;
+  /** JSON `LinkEntry[]` (migration 0048, §10.3a): the plain internal links this version resolved; null for none. */
+  links_json: string | null;
 }
 
 export interface MediaRow {
@@ -316,6 +318,8 @@ export interface ImportedItemRow {
   author_json: string | null;
   media_json: string | null;
   transclusions_json: string | null;
+  /** JSON `LinkEntry[]` as the item document published it (migration 0048, §10.3a); null for none. */
+  links_json: string | null;
   l0: number;
   pinned_version_retained: number | null;
   /** Origin-relative permalink as the origin itself declares it (item doc `page`, v0.3-plan §2.3.2); null when the origin omits it and the f/·t/ convention applies. */
@@ -357,7 +361,8 @@ export interface SignalRow {
 // --- v0.3 "Trunk" Webmention (migration 0007, v0.3-plan.md §4.1) ---
 
 /** Why a mention relates to us — read out of the source document's own structure, never from body text (§2.3.5). */
-export type MentionRelation = "stub" | "transclusion" | "fork" | "source";
+/** `link` (§10.3a, #79) is a notice, never a response (§15.5): kept off every public responses list. */
+export type MentionRelation = "stub" | "transclusion" | "fork" | "source" | "link";
 
 /**
  * An inbound mention. `pending` → `verified` | `failed` | `gone`; a row that

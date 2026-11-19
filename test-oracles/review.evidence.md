@@ -14,12 +14,30 @@ The selected release follows current main 0.64.0: Studio 0.65.0, private contrac
 5.14.0 and SDK 0.20.0. The deprecated operations remain in 0.65.0 and 0.66.0;
 removal belongs to Studio 0.67.0 and private contract 6.0.0.
 
-Worker and public SDK owners are establishing assertion RED on unchanged
-removed-endpoint production before restoration. Resource ETag, Studio no-preflight,
-raw HTTP, authentication and existing trigger-model promises remain. The exact
-RED/GREEN, deprecation declarations, release integration and new-head CI receipts
-will be appended after execution. No earlier zero-gap receipt covers this law
-revision. The five internal cursor guard decisions remain separate and pending.
+Worker, SDK and controlled adapter owners established assertion RED on unchanged
+removed-endpoint production before restoration. The restored source follows
+companion merge `bf12caa`, including main's releases and its separate host-root
+API-alias CHANGELOG entry. SDK generation/build and deprecation metadata checks
+pass. Worker receiving passes 374 stable checks in the broader diagnostic;
+focused receiving `fdce62e89c97` passes 355 stable checks and rejects the retained
+endpoint's removal control. The broader diagnostic was stopped after finding
+three unchanged counter-guard gaps; it is not a completed mutation gate.
+
+Kyle separately approved rejection of invalid provider counters. New oracle
+`change-state-counters` passes 184 stable Node checks and rejects all three
+identified guards in focused run `a14583730185`. Its mathematical model,
+180-input grammar, eight reach states, controls, runtime limitations and source
+hashes are in the [compatibility record](../docs/oracle-legacy-changes-review.md).
+The restored full Studio run `3a640be84302` passes 1,735 stable checks twice
+and rejects 746 mutations. Its 2,376 entries also contain five cursor guard
+survivors, one batching timeout and 1,624 unowned warnings, with no crash or
+nondeterminism. Both new legacy controls are rejected by their intended laws.
+Focused follow-up `195297eb329e` passes 976 stable checks and rejects that same
+batching mutation under `work bound` plus three permanent counter controls.
+The timeout remains in its original report; the replay changes no oracle or
+production code. It is a partial four-control supplement, not another full
+campaign. The five internal cursor guard decisions remain separate and pending,
+and no receipt here establishes new-head CI.
 
 ## Recovery/search and Worker CI repair cut
 
@@ -31,9 +49,9 @@ Search now requests exactly the current demand and reads continuation availabili
 
 Independent receiving run:36/36 desktop/mobile cases pass, workers1/retries0,48.3s, covering all29 original failed/flaky identities. Navigation asserts actual200,200,304, matching validators, exactly two bodies and preserved visible order. Per-retry seed identity and global Reading counters were corrected without weakening those observations. The complete intake and final identity mapping live in the scratch `ci/e2e-failure-class-ledger.{md,json}`. Independent final review has no unresolved search/recovery issue. Cleanup-fidelity and stale-model prose findings are closed.
 
-SDK generation/build, root/UI/oracle TypeScript, configured full ESLint, preservation and ordinary UI307/307 pass at this repair cut. TypeScript caught a Node config ambient collision, fixed by importing `URL` from `node:url`. The first browser save rerun omitted the temporary Chromium cache path and failed setup (run `5df8d1131ff6`); it supplies no product RED or kill credit. The corrected pinned run passes both48-check baselines and rejects the required-save control with zero gaps or nondeterminism. Its canonical output is `blygger-browser-gaps-hPMEBv`; the failed setup output is `blygger-browser-gaps-OSOa6O`. Both share input-derived ID `5df8d1131ff6`, so the distinct output identities matter. The first seven-source integration run `dac26eec690f` passes1,251 stable baseline checks across eight files and rejects530 owned/authored mutations. It reports five surviving gaps (three cursor metadata optional guards and two new generation-handoff paths), zero crashes/timeouts/nondeterminism and1,624 separate unowned warnings across2,145 entries. The283-file source manifest is unchanged. This is an intermediate receipt, not zero-gap evidence. Final gap closure, Worker receiving results, commit/push and pushed-head CI remain pending.
+SDK generation/build, root/UI/oracle TypeScript, configured full ESLint, preservation and ordinary UI307/307 pass at this repair cut. TypeScript caught a Node config ambient collision, fixed by importing `URL` from `node:url`. The first browser save rerun omitted the temporary Chromium cache path and failed setup (run `5df8d1131ff6`); it supplies no product RED or kill credit. The corrected pinned run passes both48-check baselines and rejects the required-save control with zero gaps or nondeterminism. Its canonical output is `blygger-browser-gaps-hPMEBv`; the failed setup output is `blygger-browser-gaps-OSOa6O`. Both share input-derived ID `5df8d1131ff6`, so the distinct output identities matter. The first seven-source integration run `dac26eec690f` passes1,251 stable baseline checks across eight files and rejects530 owned/authored mutations. It reports five surviving gaps (three cursor metadata optional guards and two new generation-handoff paths), zero crashes/timeouts/nondeterminism and 1,624 separate unowned warnings across2,145 entries. The283-file source manifest is unchanged. This is an intermediate receipt, not zero-gap evidence. Final gap closure, Worker receiving results, commit/push and pushed-head CI remain pending.
 
-The later full ordinary Worker suite passes166 files/1,851 tests, with five existing skips, in413.04s. The following full UI suite passes32 files/307 tests in23.76s. Both share a stable production cut before the cursor helper cleanup. The [generation handoff review](../docs/oracle-generation-handoff-review.md) records the repaired physical D1-call regression,98 stable receiving checks and nine rejected authored controls. These results supplement the intermediate integration receipt; they do not replace the final eight-source gap gate or pushed-head CI. The contributor guide now recommends conditional resource GETs instead of the removed endpoint, matching the API contract.
+The later full ordinary Worker suite passes166 files/1,851 tests, with five existing skips, in413.04s. The following full UI suite passes32 files/307 tests in23.76s. Both share a stable production cut before the cursor helper cleanup. The [generation handoff review](../docs/oracle-generation-handoff-review.md) records the repaired physical D1-call regression,98 stable receiving checks and nine rejected authored controls. These results supplement the intermediate integration receipt; they do not replace the final eight-source gap gate or pushed-head CI. The contributor guide now recommends conditional resource GETs instead of legacy change-counter preflights, matching the API contract.
 
 ## Latest eight-source integration cut
 

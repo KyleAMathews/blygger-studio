@@ -543,6 +543,32 @@ export async function resolveInternalLinks(
   return { text: out, replacements, labels, errors };
 }
 
+/** One `links[]` entry (§10.3a): not a reference, so an id and, for another blyg's item, its origin. */
+export interface LinkEntry {
+  id: string;
+  origin?: string;
+}
+
+/**
+ * The item document's `links` array (§10.3a, decision #79): every plain
+ * internal link the published `content_md` resolves, in document order, one
+ * entry per link. Read from the markdown the version publishes, never from its
+ * HTML, which §10.3a forbids. Links in code are text (§10.1, #54) and are not
+ * entries. Publish has already refused any link that does not resolve, so an
+ * unresolved one here is skipped rather than reported again.
+ */
+export async function linkEntries(db: D1Database, contentMd: string): Promise<LinkEntry[]> {
+  const code = codeRanges(contentMd);
+  const entries: LinkEntry[] = [];
+  for (const m of contentMd.matchAll(LINK_INLINE)) {
+    if (inRanges(code, m.index ?? 0)) continue;
+    const resolved = await resolveTarget(db, m[1]);
+    if (!resolved.ok) continue;
+    entries.push(resolved.target.origin ? { id: resolved.target.id, origin: resolved.target.origin } : { id: resolved.target.id });
+  }
+  return entries;
+}
+
 const ENCODED_SENTINEL = encodeURIComponent(LINK_SENTINEL);
 const ENCODED_TOKEN = new RegExp(`${ENCODED_SENTINEL}(\\d+)${ENCODED_SENTINEL}`, "g");
 

@@ -1,10 +1,11 @@
-// `[[id]]` plain internal links — 0.3 §16.2, decision #32 (session 27, Fable).
+// `[[id]]` plain internal links — 0.3 §16.2, decision #32 (session 27, Fable),
+// as revised by 0.4 §10.3a, decision #79 (the fourth revision, 2026-10-19).
 //
-// The ruling in one line: a link resolves like a transclusion directive and is
-// **silent on the wire** — no `transclusions[]` entry, no mention, no wire
-// class. The negatives are the feature here, exactly as they are for inbound
-// mentions: this is the one citation form in the medium that does not notify,
-// and §16.2 calls that affordance necessary rather than accidental.
+// A link resolves like a transclusion directive and is never a quote: no
+// `transclusions[]` entry and no wire class in the HTML. Since #79 it is
+// disclosed in the item document's `links[]`, and a remote one sends a mention
+// its origin files as a `link` notice, never a response (§15.5). The citation
+// that stays wholly silent is now a plain markdown link to the page.
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { applyEffect, createSubscription } from "../src/importer/store.ts";
@@ -62,7 +63,7 @@ describe("[[id]] links a local item, absolutely and silently", () => {
     expect((await itemDoc(id)).content_html).toContain(`<a href="${OURS}t/${thread}/">`);
   });
 
-  it("does not notify the target — a link asserts nothing on its behalf", async () => {
+  it("notifies the target as a link notice, listing it in links[] (#79, superseding #32's silence)", async () => {
     const cookie = await login();
     await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const remoteId = newId();
@@ -76,8 +77,12 @@ describe("[[id]] links a local item, absolutely and silently", () => {
     // Remote: origin + the target's own declared page (§16.2).
     expect(doc.content_html).toContain(`<a href="${THEIRS}f/${remoteId}/">`);
     expect(doc.transclusions ?? []).toEqual([]);
-    // The whole point of the ruling: this is the citation form that stays quiet.
-    expect((await listOutbound(env.DB)).filter((r) => r.item_id === id)).toHaveLength(0);
+    // §10.3a (0.4, fourth revision): the link is disclosed in links[] and its
+    // origin is told, which files it as a `link` notice, never a response
+    // (§15.5). A plain markdown link to the page is the form that stays quiet.
+    expect(doc.links).toEqual([{ id: remoteId, origin: THEIRS }]);
+    const queued = (await listOutbound(env.DB)).filter((r) => r.item_id === id);
+    expect(queued.map((r) => [r.target, r.target_version])).toEqual([[`${THEIRS}f/${remoteId}/`, null]]);
   });
 });
 

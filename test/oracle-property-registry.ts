@@ -112,6 +112,7 @@ export const workerOracleProperties = [
 ] as const;
 
 export const studioOracleProperties = [
+  "change-state-counters",
   "batch-contexts-and-failures",
   "batch-reader-cancellation",
   "batch-reader-settlement",

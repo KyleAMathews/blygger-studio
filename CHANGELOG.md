@@ -18,6 +18,101 @@ not have its own repo until session 26.
 
 ---
 
+## 0.65.0 — Conditional resource reads and shared-read recovery
+
+**Poll resources with ETags** (#152). Private resource GETs accept
+`If-None-Match` and return a bodyless `304` when their representation is
+unchanged. Validators are opaque. The SDK's optional `conditionalReads`
+setting reuses a schema-validated body with its matching validator; ordinary
+HTTP clients can use the same endpoints directly. Studio refreshes resources
+after writes without a `/changes` preflight and automatically reacquires reads
+superseded by a write while preserving explicit cancellation and real failures.
+
+**Change counters deprecated, with two releases to migrate.** `GET /changes`
+and SDK `getChanges` retain their existing behavior in 0.65.0 and 0.66.0, marked
+deprecated in OpenAPI and the SDK. They will be removed in 0.67.0 with private
+contract 6.0.0. Tools should poll the resources they need with conditional GETs.
+
+Private contract 5.14.0, SDK 0.20.0. **Migrations:** none.
+
+## Unreleased
+
+**Expired API compatibility removed.** Mounted installations now serve the private API
+only at `{mount}/api`. Tools using the former host-root `/api` address or token audience
+must rediscover the endpoint and authorize access to the mounted resource again.
+**Migrations:** none.
+
+## 0.64.0 — Shared components, link notices apart, two tangling fixes
+
+**Shared UI components** (Shannon's studio#88). The studio's controls now come from one set
+of primitives, most of them on [Base UI](https://base-ui.com/): buttons, icon buttons,
+toggles and toggle groups, tabs, fields and inputs, checkboxes, radios, selects,
+accordions, tooltips, dialogs, sheets and toasts. Each has documented names, variants and
+states, with better keyboard and screen-reader behaviour. Two things look different: the
+reading filters are a toggle group instead of pills, and the secondary button is a lighter
+shade. Everything else looks and behaves as before. On a phone, toasts now appear at the
+top of the screen, so one that appears under the last tap is not held open by the hover
+Safari keeps there; a WebKit browser test guards it.
+
+**Link notices apart** (spec 0.4 §15.5; ROADMAP row 77). On the responses page, each item's
+links from other blygs are listed under "Linked from", after its responses, labelled as
+notices that are never shown on the public page. The counts line says how many blygs link
+there, and "on the page now" no longer counts them.
+
+**Tangling fixes** (tangling plan §2.4, §2.6). A thread version that no longer quotes or
+links a part it made publishes as before, and the publish warning names the part, which
+stays published on its own. In a stub, the passage chooser leaves alone a quote inside a
+`![[+ …]]` span, since that quote belongs to the new item, and a quote added with the
+cursor inside a span goes after it.
+
+`MentionGroup` gains `links`, and its `visible` no longer counts link notices. Private
+contract 5.13.0, SDK 0.19.0. **Migrations:** none.
+
+## 0.63.0 — Tangling, placeholders, and links on the wire
+
+**Tangling** (decisions #78, #100; ROADMAP row 45). Wrap a passage in `![[+ …]]` and
+publishing makes it a new item of its own, quoted back where it stood: the thread keeps
+reading the same, and the passage gains its own page, version history and feed entry. Each
+new item is a thread. Publish shows a count first ("this will create N new items") and
+asks before minting them, for the studio and for any client on the API (a publish that
+would tangle answers `409 tangle-confirmation-required` until it sends `tangle: true`).
+Nothing is minted unless every new item and the thread itself would publish; the new items
+publish first, then the thread, so the thread is the newest entry (§13.7). A tangle that
+stopped part way is finished by the next publish. Up to 10 spans per publish. The preview
+shows a span as a dashed quote; spans are inert in code, TK scopes and comments.
+
+**Placeholders.** `[[+ text]]` inline makes a new thread for an idea not yet written and
+turns the sentence's text into a link to it, `[[id | text]]`. The new thread's text is the
+anchor text as a heading, and its working copy carries a comment naming the thread and
+the sentence it came from (comments never publish). Placeholders share tangling's count,
+cap and confirmation.
+
+**Links on the wire** (spec 0.4 §10.3a, decision #79; ROADMAP row 77). Every version
+records the items its `[[id]]` links resolve to, in text order, and item documents carry
+them as `links[]`, each with an `origin` when it is another blyg's. Imports store them.
+**A link to another blyg's item now sends it a mention**; the receiver files it as `link`,
+the last of the §15.4 relations. A `link` is a notice: it is never listed among an item's
+public responses (§15.5). The syntax page says so beside `[[id]]`.
+
+**Folding** (spec §13.7, eighteenth revision, decision #112). A thread's placeholders fold
+under it as its parts do, but only when published in the same act **and** saying no more
+than the link's own text. A chapter linked by a contents page published seconds later is
+its own arrival. Your own items fold by link only when the thread minted them.
+
+**Local patches.** `npm run patches` lists the commits this install carries that upstream
+does not, and flags the ones that touch the wire. Settings shows "This build carries N
+local patches". `npm run upgrade` lists them before merging and names the local commits in
+any file that conflicts. The bug template asks for the count. The developers' guide,
+[Where does my change belong?](docs/where-does-it-go.md), says when a change should be a
+patch, a mod, an extension or a pull request.
+
+Publish takes `tangle` and answers `parts: [{id, version}]`; items carry `tangled_from`;
+versions carry `links_json`; the mention relation enum gains `link`. Private contract
+5.12.0, SDK 0.18.0. **Migrations:** two. `0047_tangled_from.sql` adds `items.tangled_from`;
+`0048_links.sql` adds `versions.links_json` and `imported_items.links_json`. Both recreate
+their tables' change triggers. Versions published before 0048 carry no `links[]` until
+they are next published.
+
 ## 0.62.0 — Mathematics, and bursts fold under their thread
 
 **Mathematics** (decision #105; spec 0.4 §2, §5.2, §14; studio#149). Write `$…$` inline and

@@ -591,7 +591,7 @@ const legacyTokens: OracleToken[] = [
   { epoch: 'legacy-counter-boundary', domains: Object.fromEntries(oracleDomains.map((domain, index) => [domain, index === 0 ? 0 : Number.MAX_SAFE_INTEGER - index])) as OracleToken['domains'] },
 ];
 oracleProperty({
-  id: 'polling-cache-legacy-response', owns: ['src/changes.ts', 'src/read-api.ts'],
+  id: 'polling-cache-legacy-response', owns: ['src/changes.ts', 'src/read-api.ts#getChangesOperation'],
   law: {
     statement: 'For every authorized legacy /changes read during the two-release deprecation window, return the full epoch and every non-negative safe-integer domain revision as JSON with 200, no-store and no ETag, even when If-None-Match is supplied.',
     authority: 'Decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-19: retain /changes unchanged for two releases and remove in the third; docs/api.md legacy change polling; docs/d1-polling-cache-design.md P2/P3/P8.',

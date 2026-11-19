@@ -52,8 +52,8 @@ import { blygItemUrl } from "./importer/util.ts";
 import { siteOrigin } from "./protocol.ts";
 import { parseForkedFrom, parseStoredFork, parseStoredStub, parseStubOf } from "./stub.ts";
 import { parseScopes, unrequestedOutputDirectives } from './tk.ts';
-import { parseTangles, rewriteTangles, tangleLabel, type TangleSpan } from './tangle.ts';
-import { directiveOwnLine } from './grammar.ts';
+import { parseTangles, partBody, rewriteTangles, tangleLabel, type TangleSpan } from './tangle.ts';
+import { directiveOwnLine, linkInline } from './grammar.ts';
 import { CommentPublishError, withoutComments } from './comments.ts';
 import { runGenerateScope } from "./tk-generate.ts";
 import type { ItemRow, SubscriptionRow } from "./types.ts";
@@ -226,6 +226,33 @@ async function sendMentionsFor(
 }
 
 /**
+ * Parts this thread minted (`tangled_from`) that its previous version quoted or
+ * linked and this one does not (tangling plan §2.4): deleting a directive
+ * leaves the part published and quoted by nothing, so the publish says which.
+ */
+async function droppedPartsNote(db: D1Database, threadId: string, version: number): Promise<string | undefined> {
+  if (version < 2) return undefined;
+  const rows = (await db.prepare("SELECT version, transclusions AS transclusions_json, links_json FROM versions WHERE item_id = ? AND version IN (?, ?)")
+    .bind(threadId, version - 1, version).all<{ version: number; transclusions_json: string | null; links_json: string | null }>()).results;
+  const named = (version: number) => {
+    const row = rows.find((r) => r.version === version);
+    const ids = new Set<string>();
+    for (const json of [row?.transclusions_json, row?.links_json]) {
+      try { for (const e of JSON.parse(json ?? "[]") as { id?: unknown; origin?: unknown }[]) if (typeof e?.id === "string" && !e.origin) ids.add(e.id); } catch { /* unreadable: names nothing */ }
+    }
+    return ids;
+  };
+  const before = named(version - 1), now = named(version);
+  const gone = [...before].filter((id) => !now.has(id));
+  if (!gone.length) return undefined;
+  const parts = (await db.prepare("SELECT id, content_md FROM items WHERE tangled_from = ? AND id IN (SELECT value FROM json_each(?))")
+    .bind(threadId, JSON.stringify(gone)).all<{ id: string; content_md: string }>()).results;
+  if (!parts.length) return undefined;
+  const names = parts.map((p) => `"${tangleLabel(withoutComments(p.content_md)) || p.id}"`).join(", ");
+  return `This version no longer quotes or links ${parts.length === 1 ? "a part" : `${parts.length} parts`} it made: ${names}. ${parts.length === 1 ? "It stays" : "They stay"} published on ${parts.length === 1 ? "its" : "their"} own; withdraw from ${parts.length === 1 ? "its page" : "each page"} if ${parts.length === 1 ? "it" : "they"} should go.`;
+}
+
+/**
  * Publish an item and send what it owes — the one path both `publish` and
  * `refresh` take, so a refresh gets exactly a publish's checks and error
  * mapping. Returns the response to send.
@@ -262,7 +289,9 @@ async function publishAndNotify(context: OperationContext, item: ItemRow, note: 
     // After the category settles: an own version's Background reasons (4a).
     await settleOwnBackground(context.env.DB, item.id, version).catch((e) => console.error("background reasons not settled", e));
     await sendMentionsFor(context, item.id, version);
-    return success({ ok: true, version, revision: item.revision + 1, ...extra, ...(warning ? { warning } : {}), ...(unresolvedHandles.length ? { unresolvedHandles } : {}) });
+    const dropped = await droppedPartsNote(context.env.DB, item.id, version).catch(() => undefined);
+    const said = [warning, dropped].filter(Boolean).join(" ") || undefined;
+    return success({ ok: true, version, revision: item.revision + 1, ...extra, ...(said ? { warning: said } : {}), ...(unresolvedHandles.length ? { unresolvedHandles } : {}) });
   } catch (e) {
     return publishFailure(e);
   }
@@ -323,8 +352,9 @@ const publishItemOperation = async (context: OperationContext, input: OperationI
 
 // ── Tangling (blygger-spec docs/tangling-plan.md §2; decisions #78, #100) ──
 //
-// A `![[+ text]]` span in a thread's working copy publishes as a new item,
-// a "part", which is always a thread (#100: kind is fixed once published, and
+// A `![[+ text]]` span in a thread's working copy publishes as a new item the
+// thread quotes, and an inline `[[+ text]]` as a new item it links (a
+// placeholder, its text as a heading). Either is a "part", which is always a thread (#100: kind is fixed once published, and
 // the client must not declare a leaf for the author). The sequence is
 // pre-flight (nothing written), the count gate, one batch that mints the parts
 // as drafts and rewrites the thread, then each part, then the thread last
@@ -336,11 +366,12 @@ function draftPart(thread: ItemRow, text: string): ItemRow {
   return { ...thread, id: newId(), revision: 1, kind: "thread", status: "draft", version: 0, content_md: text, dirty: 1, tk_provenance_json: null, stub_of: null, forked_from: null, fork_cite: null, tangled_from: thread.id };
 }
 
-/** The drafts this thread minted and still names, in the order it names them. */
+/** The drafts this thread minted and still names, by quote or by link, in the order it names them. */
 async function pendingParts(db: D1Database, thread: ItemRow): Promise<ItemRow[]> {
   const { results } = await db.prepare("SELECT * FROM items WHERE tangled_from = ? AND version = 0").bind(thread.id).all<ItemRow>();
   if (!results.length) return [];
-  const named = [...new Set([...thread.content_md.matchAll(directiveOwnLine())].map((m) => m[1]))];
+  const md = thread.content_md;
+  const named = [...new Set([...md.matchAll(directiveOwnLine()), ...md.matchAll(linkInline())].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)).map((m) => m[1]))];
   return named.flatMap((id) => results.filter((row) => row.id === id));
 }
 
@@ -368,19 +399,20 @@ async function publishTangled(
 
   // 1. Pre-flight (§2.1): every error the real publishes would raise, raised
   // now. Each part dry-runs as the thread it will be; the thread dry-runs with
-  // its spans taken out, since the directives that replace them name items
-  // that will be published first and so always resolve.
+  // its spans taken out (a placeholder's words kept), since the directives and
+  // links that replace them name items published first, which always resolve.
   for (const [i, span] of spans.entries()) {
     try {
-      await publish(db, draftPart(item, span.text), null, origin, false, { dryRun: true });
+      await publish(db, draftPart(item, partBody(span, item.id)), null, origin, false, { dryRun: true });
     } catch (e) {
-      return publishFailure(e, `new item ${i + 1} (${tangleLabel(span.text)}): `);
+      return publishFailure(e, `new item ${i + 1} (${tangleLabel(span)}): `);
     }
   }
   let withoutSpans = "";
   let last = 0;
   for (const span of spans) {
-    withoutSpans += item.content_md.slice(last, span.start);
+    // A placeholder's words stay in the sentence; a quoted span leaves.
+    withoutSpans += item.content_md.slice(last, span.start) + (span.kind === "link" ? span.text : "");
     last = span.end;
   }
   withoutSpans += item.content_md.slice(last);
@@ -402,7 +434,7 @@ async function publishTangled(
       error: `publishing this thread also publishes ${spans.length} new item${spans.length === 1 ? "" : "s"}; send tangle: true to confirm`,
       code: 'tangle-confirmation-required',
       count: spans.length,
-      parts: spans.map((span) => tangleLabel(span.text)),
+      parts: spans.map((span) => (span.kind === "link" ? `${tangleLabel(span)} (linked)` : tangleLabel(span))),
     });
   }
 
@@ -414,7 +446,7 @@ async function publishTangled(
   const committed = await db.batch([
     ...spans.map((span, i) =>
       db.prepare(`INSERT INTO items (id, kind, status, created, updated, version, content_md, dirty, tangled_from) SELECT ?, 'thread', 'draft', ?, ?, 0, ?, 1, ? WHERE ${guard}`)
-        .bind(ids[i], now, now, span.text, item.id, item.id, item.revision),
+        .bind(ids[i], now, now, partBody(span, item.id), item.id, item.id, item.revision),
     ),
     db.prepare("UPDATE items SET content_md = ?, dirty = 1, updated = ?, revision = revision + 1 WHERE id = ? AND revision = ?")
       .bind(rewriteTangles(item.content_md, spans, ids), now, item.id, item.revision),

@@ -227,6 +227,10 @@ export function relationTo(doc: Doc, ourOrigin: string, targetId: string): Menti
     const sources = g && typeof g === "object" && Array.isArray((g as { sources?: unknown }).sources) ? ((g as { sources: unknown[] }).sources) : [];
     if (sources.some((s) => s && typeof s === "object" && normalizeOrigin((s as { origin?: unknown }).origin) === ourOrigin && (s as { id?: unknown }).id === targetId)) return "source";
   }
+  // 0.4 (§15.4, decision #79): a `links[]` entry naming this item. A notice,
+  // not a response (§15.5), and the weakest claim, so it ranks after `source`.
+  const links = Array.isArray(doc.links) ? (doc.links as unknown[]) : [];
+  if (links.some((l) => l && typeof l === "object" && normalizeOrigin((l as { origin?: unknown }).origin) === ourOrigin && (l as { id?: unknown }).id === targetId)) return "link";
   return null;
 }
 

@@ -60,7 +60,7 @@ const legacyLaw = 'retained raw changes SDK';
 type LegacyOperation = (options: { client: ReturnType<typeof createBlyggerClient>; headers?: Record<string, string> }) => Promise<{ data?: unknown; error?: unknown; response?: Response }>;
 
 oracleProperty({
-  id: 'sdk-legacy-changes-window', owns: ['sdk/index.ts#createBlyggerClient', 'sdk/index.ts#unwrap'],
+  id: 'sdk-legacy-changes-window', owns: ['sdk/index.ts#createBlyggerClient', 'sdk/index.ts#unwrap', 'sdk/generated/sdk.gen.ts#getChanges'],
   law: {
     statement: 'For every ordinary or opted-in public SDK client during Studio0.65 and0.66, getChanges remains callable as the original GET /changes and preserves successive no-store ChangeState bodies and raw HTTP status/error fields without automatic validators or304 materialization.',
     authority: 'Decision by Kyle Mathews (GitHub KyleAMathews),2026-11-19: retain /changes and generated getChanges unchanged for two releases, deprecated now, remove in Studio0.67/API6. Original generated operation and ChangeState declarations at1290176^; sdk/README.md raw generated result and conditional opt-in contract.',

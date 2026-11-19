@@ -19,7 +19,7 @@ import { siteOrigin } from "./protocol.ts";
 import { MODELS, bindingName, configuredProviders, isDecisionModel } from "./ai/models.ts";
 import type { ChangeClassRow } from "./change-class.ts";
 import { withLabels, type InteractionRow } from "./interactions.ts";
-import { normalizeMount } from "./util.ts";
+import { escapeHtml, normalizeMount } from "./util.ts";
 import type { SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, HopperItemRow, VersionRow, MentionInRow, MentionOutRow } from "./types.ts";
 import { itemDetail } from "./item-data.ts";
 import { readingData, readingSummary } from "./reading-data.ts";
@@ -33,6 +33,7 @@ import { platformFetchFor } from "./importer/http.ts";
 import { recordBrowse, clearBrowse, type BrowseVia, type BrowseRow } from "./browse-log.ts";
 import { classifyLinks, peekItem } from "./peek.ts";
 import { fetchImportedHistory, fetchPublicVersion } from "./imported-history.ts";
+import { readChanges } from './changes.ts';
 import { linkLabel } from "./link-label.ts";
 import { authoredItemKindSql } from './version-state.ts';
 import { versionState } from './version-state.ts';
@@ -46,6 +47,7 @@ const getCapabilitiesOperation = async (context: OperationContext, input: Operat
   return success({ contractVersion: API_CONTRACT_VERSION, endpoints: deploymentUrls(context.url, context.env),
     ...await operationAvailability(context.env.DB, context.access, context.extensions) });
 };
+const getChangesOperation = async (context: OperationContext, input: OperationInput) => success(await readChanges(context.env.DB));
 // Pin history retains the legacy nullness rule for unresolved version kinds.
 const pinKindSql = `CASE WHEN kind IN ('fragment','thread') THEN kind WHEN transclusions IS NULL THEN 'fragment' ELSE 'thread' END`;
 const listItemsOperation = async (context: OperationContext, input: OperationInput) => {
@@ -425,6 +427,7 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
 /** A line no author writes, standing in for a `![[+ …]]` span while the rest renders. */
 const tangleToken = (i: number) => `\uE010tangle${i}\uE010`;
 const TANGLE_TOKEN_P = /<p>\uE010tangle(\d+)\uE010<\/p>/g;
+const TANGLE_TOKEN = /\uE010tangle(\d+)\uE010/g;
 
 /**
  * A thread's `![[+ …]]` spans as the preview shows them (tangling-plan §2.6):
@@ -437,19 +440,23 @@ async function previewTangles(db: D1Database, md: string, origin: string) {
   let text = "";
   let last = 0;
   spans.forEach((span, i) => {
-    text += `${md.slice(last, span.start)}\n${tangleToken(i)}\n\n`;
+    // A quoted span is a block of its own; a placeholder stays in its sentence.
+    text += span.kind === "link" ? `${md.slice(last, span.start)}${tangleToken(i)}` : `${md.slice(last, span.start)}\n${tangleToken(i)}\n\n`;
     last = span.end;
   });
   text += md.slice(last);
   const errors: unknown[] = [];
   const rendered = await Promise.all(spans.map(async (span) => {
+    if (span.kind === "link") return "";
     const links = await previewInternalLinks(db, span.text, origin);
     const resolved = await previewTransclusions(db, links.text);
     errors.push(...links.errors, ...resolved.errors);
     return applyInternalLinks(resolved.html, links);
   }));
   const finish = (html: string) =>
-    html.replace(TANGLE_TOKEN_P, (_whole, i: string) => `<blockquote class="blyg-tangle-new"><p class="blyg-tangle-label">new item</p>${rendered[Number(i)]}</blockquote>`);
+    html
+      .replace(TANGLE_TOKEN_P, (_whole, i: string) => `<blockquote class="blyg-tangle-new"><p class="blyg-tangle-label">new item</p>${rendered[Number(i)]}</blockquote>`)
+      .replace(TANGLE_TOKEN, (_whole, i: string) => `<span class="blyg-tangle-link" title="new item, linked">${escapeHtml(spans[Number(i)].text)}</span>`);
   return { md: text, finish, errors };
 }
 
@@ -515,6 +522,7 @@ async function forkablePins(
 
 export const readOperations = {
   getCapabilities: getCapabilitiesOperation,
+  getChanges: getChangesOperation,
   listItems: listItemsOperation,
   getItemSummary: getItemSummaryOperation,
   getItem: getItemOperation,

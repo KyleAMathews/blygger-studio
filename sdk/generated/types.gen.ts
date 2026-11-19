@@ -58,6 +58,24 @@ export type Capabilities = {
     }>;
 };
 
+export type ChangeState = {
+    epoch: string;
+    domains: {
+        items: number;
+        reading: number;
+        subscriptions: number;
+        hoppers: number;
+        signals: number;
+        settings: number;
+        feed: number;
+        mentions: number;
+        responses: number;
+        interactions: number;
+        browse: number;
+        shelf: number;
+    };
+};
+
 export type Item = {
     id: string;
     revision: number;
@@ -493,7 +511,7 @@ export type Mention = {
     target: string;
     targetItemId: string;
     status: 'pending' | 'verified' | 'failed' | 'gone';
-    relation: 'stub' | 'transclusion' | 'fork' | 'source' | null;
+    relation: 'stub' | 'transclusion' | 'fork' | 'source' | 'link' | null;
     sourceOrigin: string | null;
     sourceId: string | null;
     sourceKind: string | null;
@@ -528,9 +546,13 @@ export type MentionGroup = {
     targetItemId: string;
     total: number;
     /**
-     * Verified, unhidden receipts before the target item response policy is applied.
+     * Verified, unhidden responses before the target item response policy is applied. `link` notices are never responses (spec 0.4 §15.5) and are not counted.
      */
     visible: number;
+    /**
+     * Verified `link` notices: other blygs linking to the target. Counted in total, never in visible.
+     */
+    links: number;
     /**
      * Latest verifiedAt with SQL NULL coalesced to an empty string.
      */
@@ -1216,6 +1238,75 @@ export type GetCapabilitiesResponses = {
 };
 
 export type GetCapabilitiesResponse = GetCapabilitiesResponses[keyof GetCapabilitiesResponses];
+
+export type GetChangesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/changes';
+};
+
+export type GetChangesErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetChangesError = GetChangesErrors[keyof GetChangesErrors];
+
+export type GetChangesResponses = {
+    /**
+     * Success
+     */
+    200: ChangeState;
+};
+
+export type GetChangesResponse = GetChangesResponses[keyof GetChangesResponses];
 
 export type ListItemsData = {
     body?: never;

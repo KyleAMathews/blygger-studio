@@ -73,7 +73,7 @@ function mentionRows(group: number) {
 function groupRows() {
   return Array.from({ length: groupCount() }, (_, group) => {
     const rows = mentionRows(group), latest = rows[0];
-    return { targetItemId: mentionTarget(group), total: rows.length, visible: rows.filter(row => !row.hidden).length,
+    return { targetItemId: mentionTarget(group), total: rows.length, visible: rows.filter(row => !row.hidden).length, links: 0,
       verifiedAt: latest.verifiedAt ?? '', lastSeen: latest.lastSeen, firstId: latest.id };
   }).sort((a, b) => a.firstId.localeCompare(b.firstId));
 }

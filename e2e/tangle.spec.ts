@@ -69,3 +69,40 @@ test('a thread with two spans asks with a count, publishes both, and keeps the r
     expect([partDoc.kind, partDoc.version, partDoc.content_md]).toEqual(['thread', 1, `${i ? 'Second' : 'First'} part ${tag}`]);
   }
 });
+
+test('a [[+ text]] placeholder previews as a link, is counted as linked, and becomes [[id | text]]', async ({ page }) => {
+  const tag = `idea${Date.now().toString(36)}`;
+  await login(page);
+  const { json } = await api(page, 'POST', '/api/items', { contentMd: 'placeholder', kind: 'thread' });
+  const id = json.id as string;
+  await page.goto(`/studio/edit/${id}`);
+  await editor(page).fill(`We should write about [[+ ${tag} later]] someday.\n`);
+
+  const phone = test.info().project.name === 'mobile';
+  if (phone) await page.getByRole('button', { name: 'preview', exact: true }).click();
+  const link = page.locator('#preview-body .blyg-tangle-link');
+  await expect(link).toHaveText(`${tag} later`);
+  await expect(page.locator('#preview-body')).not.toContainText('[[+');
+  await shot(page, 'editor-with-placeholder');
+  if (phone) await page.getByRole('button', { name: 'draft', exact: true }).click();
+
+  await page.getByRole('button', { name: /^publish/i }).first().click();
+  const count = page.getByRole('dialog', { name: 'This will publish 1 new item and this thread' });
+  const note = page.getByRole('dialog').filter({ hasNot: page.locator('.tangle-parts') });
+  await expect(count.or(note).first()).toBeVisible();
+  if (!(await count.isVisible())) await note.getByRole('button', { name: /publish/i }).last().click();
+  await expect(count.locator('.tangle-parts li')).toHaveText([`${tag} later (linked)`]);
+  await count.getByRole('button', { name: 'publish all' }).click();
+
+  await expect.poll(async () => (await api(page, 'GET', `/api/items/${id}`)).json.version).toBe(1);
+  const source = (await api(page, 'GET', `/api/items/${id}`)).json.contentMd as string;
+  expect(source).toMatch(new RegExp(`^We should write about \\[\\[\\w{26} \\| ${tag} later\\]\\] someday\\.\\n$`));
+  await expect(editor(page)).toHaveValue(source);
+
+  // On the wire: the thread lists the new item in links[], which carries the heading.
+  const doc = await (await page.request.get(`/items/${id}.json`)).json();
+  const links = doc.links as { id: string }[];
+  expect(links).toHaveLength(1);
+  const part = await (await page.request.get(`/items/${links[0].id}.json`)).json();
+  expect([part.kind, part.content_md.trim()]).toEqual(['thread', `# ${tag} later`]);
+});

@@ -12,6 +12,7 @@ import { BROWSE_VIA } from "../browse-log.ts";
 import { CLASSIFY_MAX } from "../peek.ts";
 import { CURSOR_MAX } from '../cursor-page.ts';
 import { SHELF_MAX } from '../shelf.ts';
+import { CHANGE_DOMAINS } from '../change-state.ts';
 import { READ_BATCH_MAX as COLLECTION_READ_BATCH_MAX, READ_BATCH_OPERATIONS, READ_BATCH_PATHS } from '../read-batch-policy.ts';
 
 const json = (schema: z.ZodType) => ({ "application/json": { schema } });
@@ -104,6 +105,7 @@ export const routes = {
     operations: z.array(z.string()),
     extensions: z.array(z.object({ name: z.string(), declared: z.boolean(), compiled: z.boolean(), enabled: z.boolean(), granted: z.boolean() })),
   }).openapi('Capabilities')),
+  getChanges: { ...route('getChanges', readOperation(), 'get', '/changes', z.object({ epoch: z.string().min(1), domains: z.object(Object.fromEntries(CHANGE_DOMAINS.map(domain => [domain, z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)])) as Record<typeof CHANGE_DOMAINS[number], z.ZodNumber>) }).openapi('ChangeState')), deprecated: true, description: 'Deprecated: retained unchanged in Studio 0.65 and 0.66; removed in Studio 0.67 / private contract 6.0.0. Poll the resources you need with conditional GETs instead. This legacy endpoint always returns its complete change state with 200 and Cache-Control: no-store; it does not support ETags or 304.' },
   createItem: route("createItem", draftOperation({"writes":["items"],"network":true}), "post", "/items", created, ItemCreateSchema, 201, undefined, true),
   updateItem: route("updateItem", draftOperation({"writes":["items","presentation"],"destructive":true}, 'write', presentationScopes), "patch", "/items/{id}", ItemSchema, ItemEditSchema.extend({ expectedRevision: ItemRevisionSchema })),
   publishItem: route("publishItem", publishOperation({"writes":["items","publication","mentions"],"destructive":true,"network":true,"background":true}), "post", "/items/{id}/publish", ok.extend({ revision: ItemRevisionSchema, version: z.number(), warning: z.string().optional(), unresolvedHandles: z.array(z.string()).optional().describe("@words that name no contact. They stay literal text."), parts: z.array(z.object({ id: z.string(), version: z.number() })).optional().describe("Items this publish made from the thread's `![[+ text]]` spans, or finished making, in source order. Each was published before the thread.") }), note.extend({ tangle: z.boolean().optional().describe("Confirms publishing the new items a thread's `![[+ text]]` spans make. Without it, a working copy with spans gets 409 tangle-confirmation-required, listing them in details.parts and their number in details.count, and nothing is written."), noteGenerated: z.boolean().optional(), changeCategory: changeCategory.nullable().optional().describe("The change category the author confirmed in the publish dialog: kept with the version in studio-private storage (never on the wire). Omitted: a classification made for these words stands; null: cleared.") }), 200),
