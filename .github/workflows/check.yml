@@ -111,7 +111,10 @@ jobs:
     needs: scope
     if: needs.scope.outputs.e2e == 'true'
     runs-on: ubuntu-latest
-    # Passing runs took 16-22 minutes on 2026-11-19 (WebKit added); two hit 25.
+    # Passing runs took 16-22 minutes on 2026-11-19. WebKit has its own job below:
+    # its apt packages came off a slow Ubuntu mirror that day and three runs timed
+    # out before a test ran. The browser oracles (#151, #152) run here: they drive
+    # Chromium.
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -120,14 +123,34 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npx playwright install --with-deps chromium webkit
-      - run: npm run test:e2e
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e -- --project=desktop --project=mobile
       - run: npm run test:oracles:browser
       - run: npm run test:oracles:browser:search
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: e2e-failure-evidence
+          path: test-results/
+
+  e2e-webkit:
+    needs: scope
+    if: needs.scope.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx playwright install --with-deps webkit
+      - run: npm run test:e2e -- --project=mobile-webkit
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-webkit-failure-evidence
           path: test-results/
   mutations:
     needs: scope
