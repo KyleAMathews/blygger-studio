@@ -22,6 +22,7 @@ export const zApiError = z.object({
         'method-not-allowed',
         'conflict',
         'revision-conflict',
+        'tangle-confirmation-required',
         'cursor-expired',
         'too-large',
         'unsupported-media',
@@ -1002,6 +1003,7 @@ export const zUpdateItemResponse = zItem;
 export const zPublishItemBody = z.object({
     expectedRevision: z.int().gt(0).lte(9007199254740991),
     note: z.string().optional(),
+    tangle: z.boolean().optional(),
     noteGenerated: z.boolean().optional(),
     changeCategory: z.enum([
         'refresh',
@@ -1023,7 +1025,11 @@ export const zPublishItemResponse = z.object({
     revision: z.int().gt(0).lte(9007199254740991),
     version: z.number(),
     warning: z.string().optional(),
-    unresolvedHandles: z.array(z.string()).optional()
+    unresolvedHandles: z.array(z.string()).optional(),
+    parts: z.array(z.object({
+        id: z.string(),
+        version: z.number()
+    })).optional()
 });
 
 export const zClassifyChangeBody = z.object({

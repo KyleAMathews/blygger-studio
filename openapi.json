@@ -89,6 +89,7 @@
               "method-not-allowed",
               "conflict",
               "revision-conflict",
+              "tangle-confirmation-required",
               "cursor-expired",
               "too-large",
               "unsupported-media",
@@ -5531,6 +5532,10 @@
                   "note": {
                     "type": "string"
                   },
+                  "tangle": {
+                    "type": "boolean",
+                    "description": "Confirms publishing the new items a thread's `![[+ text]]` spans make. Without it, a working copy with spans gets 409 tangle-confirmation-required, listing them in details.parts and their number in details.count, and nothing is written."
+                  },
                   "noteGenerated": {
                     "type": "boolean"
                   },
@@ -5585,6 +5590,25 @@
                         "type": "string"
                       },
                       "description": "@words that name no contact. They stay literal text."
+                    },
+                    "parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "version"
+                        ]
+                      },
+                      "description": "Items this publish made from the thread's `![[+ text]]` spans, or finished making, in source order. Each was published before the thread."
                     }
                   },
                   "required": [
