@@ -1,5 +1,11 @@
 import { CHANGE_DOMAINS, type ChangeState } from './change-state.ts';
 
+export interface ChangeSnapshot {
+  before: ChangeState;
+  /** Set only after the complete cursor projection passes its generation guard. */
+  after?: ChangeState;
+}
+
 // These reads use the ordinary D1 binding, which reads the primary. A refactor
 // to replicas must carry the changes bookmark through every dependent load.
 export async function readChanges(db: D1Database): Promise<ChangeState> {

@@ -16,7 +16,7 @@ A tool that acts as an editor would: it creates threads and fragments, edits set
 
 This surface costs the Studio nothing, and a mod owns everything it does here outright. blykker's whole first phase is a `book.json` and a script on this surface.
 
-A tool that needs to react to changes polls `GET /api/changes`. There are no webhooks (decision #39c).
+A tool that needs to react to changes polls resource GETs with `If-None-Match`. There are no webhooks (decision #39c).
 
 ### 2. Compiled-in extensions
 
@@ -49,7 +49,7 @@ When a mod needs a surface the Studio lacks, propose it as a pull request to thi
 | A custom label on a links-section entry | Accepted | A setting, not a hook. |
 | Hiding the feed apparatus on some threads | Accepted | Presentation of the publisher's own page. The item document and the feed are untouched. |
 | Dropping marked fragments from `feed.xml` | Refused | The spec says every published item is one event and nothing publishes quietly (§7). To keep notes off the home page, use a home page order, which may leave items out. Readers decide what to bury (§13.7). |
-| A server hook that runs on publish | Refused | Poll `GET /api/changes` from a tool on a token, or add an extension action that writes through `client` in the browser. |
+| A server hook that runs on publish | Refused | Poll resource GETs with ETags from a tool on a token, or add an extension action that writes through `client` in the browser. |
 
 ## Two promises a mod keeps
 

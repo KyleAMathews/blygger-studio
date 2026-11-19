@@ -1,3 +1,4 @@
+import { readChanges } from '../src/changes.ts';
 // #135: the shelf, an owner-ordered list of { sub, remoteId } entries (own
 // items under "~own", imported items under their subscription), synced across clients.
 // Studio-private: nothing about it reaches the wire. Scopes for getShelf and
@@ -37,7 +38,7 @@ const raw = (body: unknown) => apiJson(cookie, "PUT", SHELF, body);
 const put = async (body: { entries: unknown; expectedRevision?: number; [key: string]: unknown }) =>
   raw("expectedRevision" in body ? body : { ...body, expectedRevision: (await get()).json.revision });
 const own = (ids: string[]) => ids.map(remoteId => ({ sub: "~own", remoteId }));
-const changes = async () => (await apiJson(cookie, "GET", "/blyg/api/changes")).json.domains as Record<string, number>;
+const changes = async () => (await readChanges(env.DB)).domains;
 
 describe("GET/PUT /shelf", () => {
   it("stores the owner's order and replaces the whole list", async () => {
@@ -169,7 +170,7 @@ describe("GET/PUT /shelf", () => {
     const after = await changes();
     for (const [domain, value] of Object.entries(after))
       if (domain === "shelf") expect(value).toBeGreaterThan(before.shelf);
-      else expect(value, domain).toBe(before[domain]);
+      else expect(value, domain).toBe(before[domain as keyof typeof before]);
   });
 
   it("needs the owner", async () => {

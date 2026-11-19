@@ -1,3 +1,4 @@
+import { readChanges } from '../src/changes.ts';
 // Clearing read state (migration 0026): DELETE /reading/{sub}/{remoteId}/read,
 // POST /reading/unread, the unread_at tombstone that read_at is checked
 // against, and the read_state_clear flag. The shapes here were agreed with an
@@ -43,9 +44,7 @@ async function readingVersion(cookie: string, sub: string, remote: string) {
 }
 
 async function readingRevision(cookie: string): Promise<number> {
-  const { status, json } = await apiJson(cookie, "GET", "/blyg/api/changes");
-  expect(status).toBe(200);
-  return json.domains.reading;
+  return (await readChanges(db())).domains.reading;
 }
 
 const PAST = "2000-01-01T00:00:00Z";
@@ -206,19 +205,19 @@ describe("clearing read state", () => {
     await seedSub("rcRev");
     await seedItem("rcRev", "r1", 2);
     await apiJson(cookie, "PUT", "/blyg/api/reading/rcRev/r1/read", { version: 2 });
-    const before = await apiJson(cookie, "GET", "/blyg/api/changes");
+    const before = await readChanges(db());
     await apiJson(cookie, "DELETE", "/blyg/api/reading/rcRev/r1/read");
-    const cleared = await apiJson(cookie, "GET", "/blyg/api/changes");
-    expect(cleared.json.domains.reading).toBeGreaterThan(before.json.domains.reading);
-    for (const d of Object.keys(before.json.domains)) if (d !== "reading") expect(cleared.json.domains[d], d).toBe(before.json.domains[d]);
+    const cleared = await readChanges(db());
+    expect(cleared.domains.reading).toBeGreaterThan(before.domains.reading);
+    for (const d of Object.keys(before.domains) as (keyof typeof before.domains)[]) if (d !== "reading") expect(cleared.domains[d], d).toBe(before.domains[d]);
 
     await apiJson(cookie, "PUT", "/blyg/api/reading/rcRev/r1/read", { version: 2, readAt: PAST });
     await apiJson(cookie, "POST", "/blyg/api/reading/read", { items: [{ sub: "rcRev", remoteId: "r1", version: 2, readAt: PAST }] });
-    expect((await apiJson(cookie, "GET", "/blyg/api/changes")).json).toEqual(cleared.json);
+    expect(await readChanges(db())).toEqual(cleared);
 
     // A clear of something unknown changes nothing either.
     await apiJson(cookie, "DELETE", "/blyg/api/reading/rcRev/unknown/read");
-    expect(await readingRevision(cookie)).toBe(cleared.json.domains.reading);
+    expect(await readingRevision(cookie)).toBe(cleared.domains.reading);
   });
 
   it("cascades hold for cleared rows too: read state still goes with its import and its subscription", async () => {

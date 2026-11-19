@@ -14,8 +14,7 @@ import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import { zSearchResponse } from '../../sdk/dist/schemas.js';
 import { client, queryClient } from './data.ts';
 import { Button, Failure } from './components.tsx';
-import { readCursorWindow } from './cursor-query.ts';
-import { domainRevision } from './revision-query.ts';
+import { readCursorWindowResult } from './cursor-query.ts';
 import './search.css';
 
 export type Hit = SearchResponses[200]['items'][number];
@@ -72,17 +71,13 @@ export function useSearch(filters: SearchFilters | undefined, delay = 150) {
     setLoading(true);
     setError(undefined);
     try {
-      const changes = await unwrap(BlyggerApi.getChanges({ client, signal: controller.signal }));
-      const generation = { epoch: changes.epoch, revision: domainRevision(changes, ['items', 'reading', 'subscriptions']) };
-      const pageKey = ['search', 'pages', f, generation];
-      const rows = await readCursorWindow<Hit>({ queryClient, queryKey: pageKey, signal: controller.signal,
+      const pageKey = ['search', 'pages', f];
+      const { rows, hasMore } = await readCursorWindowResult<Hit>({ queryClient, queryKey: pageKey, signal: controller.signal, revalidate: true,
         window: { limit: offset + PAGE }, validate: page => { zSearchResponse.parse(page); }, read: (cursor, signal) => unwrap(BlyggerApi.search({ client, query: { ...f, cursor, limit: PAGE }, signal })),
       });
       if (controller.signal.aborted || request.current !== controller) return;
       setHits(rows.slice(0, offset + PAGE));
-      const cached = queryClient.getQueryData<{ pages: { rows: readonly Hit[]; nextCursor: string | null }[] }>(pageKey);
-      const acquired = cached?.pages.reduce((sum, page) => sum + page.rows.length, 0) ?? rows.length;
-      setHasMore(acquired > offset + PAGE || cached?.pages.at(-1)?.nextCursor != null);
+      setHasMore(hasMore ?? false);
     } catch (failure) {
       if (!controller.signal.aborted && request.current === controller) setError(failure);
     } finally {

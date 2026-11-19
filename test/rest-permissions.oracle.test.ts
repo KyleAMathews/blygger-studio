@@ -8,6 +8,8 @@
  * ```
  * A draft grant cannot acquire publication authority through a PATCH. Decision
  * #52 separates the capabilities; RFC6750 §3 requires the scope challenge.
+ * The deprecated getChanges read remains during its two-release window
+ * (Kyle Mathews, GitHub KyleAMathews, 2026-11-19).
  * For every scope subset and declared operation, the independent permission
  * inventory below decides whether the guard must deny before business work.
  * For every public edit, both its base capability and publish are required.
@@ -70,7 +72,10 @@ async function driver(history: History, observe: (checkpoint: string, value: unk
       observe('public edit receiving decision', response.status); return;
     }
     for (const operations of Object.values(permissionGroups)) for (const operation of operations) {
-      const route = routes[operation as keyof typeof routes];
+      // The retained contract still supplies its receiving URL when the
+      // implementation accidentally drops it; absence must reach real HTTP.
+      const route = routes[operation as keyof typeof routes] ?? (operation === 'getChanges' ? { method: 'get', path: '/changes' } : undefined);
+      if (!route) throw new Error(`Missing receiving route for ${operation}`);
       const path = route.path.replace(/\{(\w+)\}/g, (_, name) => ['v', 'version'].includes(name) ? '1' : 'missing-oracle-resource');
       const response = await receive(app, route.method.toUpperCase(), path, ['get','delete'].includes(route.method) ? undefined : {});
       observe('REST receiving permission', { operation, status: response.status, challenge: response.headers.get('www-authenticate') });
@@ -95,7 +100,7 @@ function check(_history: History, trace: readonly Observation[], expected: Retur
 }
 oracleProperty({
   id: 'rest-permissions', owns: ['src/owner-api.ts#createOwnerApi', 'src/operation-policy.ts#resolve'],
-  law: { statement: 'For every defined REST operation and scope subset, permission guards require its explicit independent capability, and a public edit requires its base capability plus publication.', authority: 'Decision #52; docs/auth-oracles.md complete REST permission inventory; RFC6750 §3 https://www.rfc-editor.org/rfc/rfc6750.html#section-3', limits: 'All 32 subsets and current operations; empty/missing-resource arguments exercise guard admission, not successful business effects; native JWT verification is separate.' },
+  law: { statement: 'For every defined REST operation and scope subset, permission guards require its explicit independent capability, and a public edit requires its base capability plus publication.', authority: 'Decision #52; Kyle Mathews (KyleAMathews), 2026-11-19, retain getChanges unchanged for two releases; docs/auth-oracles.md complete REST permission inventory; RFC6750 §3 https://www.rfc-editor.org/rfc/rfc6750.html#section-3', limits: 'All 32 subsets and current operations; empty/missing-resource arguments exercise guard admission, not successful business effects; native JWT verification is separate.' },
   histories, label, model, driver, check,
   calibrations: [{ name: 'scope-denied operation admitted', law: 'independent capabilities', history: { enumerated: 1 }, corrupt: trace => trace.map((entry, index) => index === 1 ? { ...entry, value: { ...(entry.value as object), status: 200 } } : entry) }],
 });

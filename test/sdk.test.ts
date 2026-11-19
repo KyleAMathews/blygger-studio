@@ -12,6 +12,21 @@ import { ReadingEntrySchema } from "../src/contract/routes.ts";
 const clientFor = (cookie = "") => createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
 
 describe("generated SDK against the real Worker", () => {
+  it("retains the deprecated changes endpoint in HTTP, OpenAPI and the generated SDK", async () => {
+    const cookie = await login();
+    const response = await SELF.fetch(`${BASE}/blyg/api/changes`, { headers: { cookie, 'if-none-match': '*' } });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('etag')).toBeNull();
+    const changes = await response.json();
+    expect(await unwrap(BlyggerApi.getChanges({ client: clientFor(cookie) }))).toEqual(changes);
+    const document = await SELF.fetch(`${BASE}/blyg/api/openapi.json`, { headers: { cookie } });
+    expect(document.status).toBe(200);
+    const operation = (await document.json<{ paths: Record<string, { get: { deprecated?: boolean; responses: Record<string, unknown> } }> }>()).paths['/changes'].get;
+    expect(operation.deprecated).toBe(true);
+    expect(operation.responses).not.toHaveProperty('304');
+    expect(routes.getChanges.deprecated).toBe(true);
+  });
   it("creates, reads, edits, publishes, pins, restores and withdraws through named methods", async () => {
     const client = clientFor(await login());
     const created = await BlyggerApi.createItem({ client, body: { contentMd: "SDK draft" }, throwOnError: true });
@@ -181,4 +196,35 @@ describe("generated SDK against the real Worker", () => {
     expect(queries).toBeLessThanOrEqual(ids.length);
   }, 30_000);
 
+});
+
+it('revalidates private resources through direct GETs, batch children, and the opt-in SDK', async () => {
+  const cookie = await login(), path = '/blyg/api/items/summary';
+  const get = (etag?: string, authenticated = true) => SELF.fetch(BASE + path, { headers: { ...(authenticated ? { cookie } : {}), ...(etag ? { 'If-None-Match': etag } : {}) } });
+  const first = await get(), etag = first.headers.get('etag')!;
+  expect(first.status).toBe(200); expect(etag).toBeTruthy();
+  expect(first.headers.get('cache-control')).toBe('private, no-cache');
+  const before = await first.json() as { all: number };
+  for (const validator of [etag, etag.replace(/^W\//, ''), `"other", ${etag}`, '*']) {
+    const unchanged = await get(validator);
+    expect(unchanged.status).toBe(304); expect(await unchanged.text()).toBe('');
+    expect(unchanged.headers.get('etag')).toBe(etag);
+  }
+  expect((await get(etag, false)).status).toBe(401);
+  const statuses: number[] = [], paths: string[] = [];
+  const client = createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie }, conditionalReads: true, fetch: async (input, init) => {
+    const request = new Request(input, init); paths.push(new URL(request.url).pathname);
+    const response = await SELF.fetch(request); statuses.push(response.status); return response;
+  } });
+  expect(await unwrap(BlyggerApi.getItemSummary({ client }))).toEqual(before);
+  expect(await unwrap(BlyggerApi.getItemSummary({ client }))).toEqual(before);
+  expect(statuses).toEqual([200, 304]);
+  const item = await unwrap(BlyggerApi.createItem({ client, body: { contentMd: 'ETag receiving witness' } }));
+  expect((await unwrap(BlyggerApi.getItemSummary({ client }))).all).toBe(before.all + 1);
+  expect(paths.some(path => path.endsWith('/changes'))).toBe(false);
+  const detail = await SELF.fetch(`${BASE}/blyg/api/items/${item.id}`, { headers: { cookie } });
+  const detailTag = detail.headers.get('etag')!;
+  const batch = await unwrap(BlyggerApi.batchRead({ client, body: { operation: 'getItem', requests: [{ path: { id: item.id }, ifNoneMatch: detailTag }, { path: { id: 'missing-etag-witness' }, ifNoneMatch: '*' }] } }));
+  expect(batch[0]).toMatchObject({ status: 304, body: null, headers: { ETag: detailTag } });
+  expect(batch[1]).toMatchObject({ status: 404, body: { code: 'not-found' } });
 });

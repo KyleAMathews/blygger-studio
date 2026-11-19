@@ -8,7 +8,7 @@ import { copyFileSync, readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { browserSources } from './production-sources.ts';
 const originalSchemata = `globalThis.__oracleGaps={m:()=>false,v:v=>v,not:(id,v)=>!v,b:(id,v)=>v,cond:(a,b,v)=>v,chain:(id,v)=>v,open:()=>{},ran:()=>[],cmp:(id,a,b,op)=>({"===":()=>a===b,"!==":()=>a!==b,"==":()=>a==b,"!=":()=>a!=b,"<":()=>a<b,">":()=>a>b,"<=":()=>a<=b,">=":()=>a>=b})[op]()};`;
-export async function buildBrowserOracleSpa() {
+export async function buildBrowserOracleBundle(entryPoint: string, outfile: string) {
   const receivingSources: Plugin = {
     name: 'oracle-browser-receiving-sources',
     setup(builder) {
@@ -22,8 +22,11 @@ export async function buildBrowserOracleSpa() {
       builder.onResolve({ filter: /^\.\/component-library\.tsx$/ }, args => ({ path: resolve(args.resolveDir, 'component-library.stub.tsx') }));
     },
   };
-  await build({ entryPoints: ['src/ui/app.tsx'], outfile: 'build/studio-spa.js', bundle: true, jsx: 'automatic', tsconfig: 'tsconfig.ui.json', format: 'iife', platform: 'browser', target: 'es2022', minify: true, define: { 'process.env.NODE_ENV': JSON.stringify('production'), 'process.env.BLYG_COMPONENT_GALLERY': JSON.stringify('') }, banner: { js: originalSchemata }, plugins: [receivingSources] });
-  if (/temml/i.test(readFileSync('build/studio-spa.js', 'utf8'))) throw new Error('Browser oracle build included the Worker formula renderer');
+  await build({ entryPoints: [entryPoint], outfile, bundle: true, jsx: 'automatic', tsconfig: 'tsconfig.ui.json', format: 'iife', platform: 'browser', target: 'es2022', minify: true, define: { 'process.env.NODE_ENV': JSON.stringify('production'), 'process.env.BLYG_COMPONENT_GALLERY': JSON.stringify('') }, banner: { js: originalSchemata }, plugins: [receivingSources] });
+  if (/temml/i.test(readFileSync(outfile, 'utf8'))) throw new Error('Browser oracle build included the Worker formula renderer');
+}
+export async function buildBrowserOracleSpa() {
+  await buildBrowserOracleBundle('src/ui/app.tsx', 'build/studio-spa.js');
   copyFileSync('build/studio-spa.js', 'build/studio-spa.txt');
   copyFileSync('build/studio-spa.css', 'build/studio-spa-style.txt');
 }

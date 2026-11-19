@@ -1,0 +1,18 @@
+[
+  {
+    "id": "legacy-sdk-route-removed",
+    "source": "sdk/generated/sdk.gen.ts",
+    "find": "url: '/changes'",
+    "replace": "url: '/changes-removed'",
+    "intent": "Send the retained generated SDK method to an absent endpoint instead of the original /changes URL.",
+    "author": "Codex, self-generated from approved compatibility restoration"
+  },
+  {
+    "id": "legacy-read-enters-revalidation",
+    "source": "src/conditional-operation.ts",
+    "find": "definition.route.method !== 'get' || definition.route.operationId === 'getChanges'",
+    "replace": "definition.route.method !== 'get'",
+    "intent": "Apply resource ETag/304 behavior to legacy change-counter reads instead of preserving their raw response.",
+    "author": "Codex, self-generated from confirmed pre-restoration RED"
+  }
+]

@@ -12,21 +12,27 @@
 export const oracleDomains = ['items', 'reading', 'subscriptions', 'hoppers', 'signals', 'settings', 'feed', 'mentions', 'responses', 'interactions', 'browse', 'shelf'] as const;
 export type OracleDomain = typeof oracleDomains[number];
 export type OracleToken = { epoch: string; domains: Record<OracleDomain, number> };
+/** The deprecated receiver keeps the legacy full response for two releases.
+ * Conditional headers do not turn this no-store polling read into resource
+ * validation. The token is a fixture input, not a captured production result. */
+export function legacyChangesResponse(token: OracleToken) {
+  return { status: 200, cache: 'no-store', etag: null, body: token };
+}
 export function changedDomains(before: OracleToken, after: OracleToken) {
   return oracleDomains.filter(d => before.epoch !== after.epoch || before.domains[d] !== after.domains[d]);
 }
-/** The query cache owns fetched responses. Collection publication and local
- * overlays are receiving-adapter behavior, not a second application cursor. */
+/** Source identity and accepted representation stay distinct. The validator is
+ * opaque: equality permits reuse only with the body received under that tag. */
 export class StudioQueryReference {
-  readonly fetched = new Map<string, { epoch: string; revision: number; value: number }>();
-  needsFetch(key: string, source: { epoch: string; revision: number }) {
-    const cached = this.fetched.get(key);
-    return !cached || cached.epoch !== source.epoch || cached.revision !== source.revision;
+  readonly fetched = new Map<string, { etag: string; value: number }>();
+  needsFetch(key: string, source: { etag: string }) {
+    return this.fetched.get(key)?.etag !== source.etag;
   }
-  receive(key: string, target: { epoch: string; revision: number }, value: number, source: number) {
-    if (target.revision > value) throw new Error('cached token outruns fetched data');
-    if (value > source) throw new Error('cached data absent from source');
-    this.fetched.set(key, { ...target, value });
+  receive(key: string, source: { etag: string; value: number }) {
+    const prior = this.fetched.get(key);
+    if (prior?.etag === source.etag && prior.value !== source.value)
+      throw new Error('one validator names different representations');
+    this.fetched.set(key, { ...source });
   }
 }
 export type FeedFacts = { title: string; bio: string; body: string };

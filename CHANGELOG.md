@@ -18,6 +18,23 @@ not have its own repo until session 26.
 
 ---
 
+## 0.65.0 — Conditional resource reads and shared-read recovery
+
+**Poll resources with ETags** (#152). Private resource GETs accept
+`If-None-Match` and return a bodyless `304` when their representation is
+unchanged. Validators are opaque. The SDK's optional `conditionalReads`
+setting reuses a schema-validated body with its matching validator; ordinary
+HTTP clients can use the same endpoints directly. Studio refreshes resources
+after writes without a `/changes` preflight and automatically reacquires reads
+superseded by a write while preserving explicit cancellation and real failures.
+
+**Change counters deprecated, with two releases to migrate.** `GET /changes`
+and SDK `getChanges` retain their existing behavior in 0.65.0 and 0.66.0, marked
+deprecated in OpenAPI and the SDK. They will be removed in 0.67.0 with private
+contract 6.0.0. Tools should poll the resources they need with conditional GETs.
+
+Private contract 5.14.0, SDK 0.20.0. **Migrations:** none.
+
 ## Unreleased
 
 **Expired API compatibility removed.** Mounted installations now serve the private API

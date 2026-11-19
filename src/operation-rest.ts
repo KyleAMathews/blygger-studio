@@ -3,9 +3,8 @@ import { schemaError } from './schema-error.ts';
 import type { Context } from 'hono';
 import type { Env } from './types.ts';
 import type { OperationDefinition } from './operations.ts';
-import { runOperation } from './operation-runner.ts';
+import { conditionalOperation } from './conditional-operation.ts';
 import { failure, type MediaInput, type OperationInput } from './operation-types.ts';
-import { operationHttp } from './operation-http.ts';
 
 export async function multipartInput(form: FormData): Promise<MediaInput> {
   const file = form.get('file');
@@ -48,8 +47,8 @@ export async function executeRest(definition: OperationDefinition, c: Context<{ 
       }
     }
   }
-  const result = await runOperation(definition, input, { env: c.env, url: c.req.url, access: c.get('apiAccess'), extensions: c.get('apiExtensions'), defer: task => c.executionCtx.waitUntil(task) });
-  const encoded = operationHttp(result, c.req.url, c.env);
+  const encoded = await conditionalOperation(definition, input, { env: c.env, url: c.req.url, access: c.get('apiAccess'), extensions: c.get('apiExtensions'), defer: task => c.executionCtx.waitUntil(task) }, c.req.header('if-none-match'));
   for (const [name, value] of Object.entries(encoded.headers)) c.header(name, value);
+  if (encoded.status === 304) return c.body(null, 304);
   return c.json(encoded.body as Record<string, unknown>, encoded.status);
 }

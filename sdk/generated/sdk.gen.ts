@@ -86,6 +86,11 @@ export const getCapabilities = <ThrowOnError extends boolean = false>(options?: 
     ...options
 });
 
+/**
+ * Deprecated: retained unchanged in Studio 0.65 and 0.66; removed in Studio 0.67 / private contract 6.0.0. Poll the resources you need with conditional GETs instead. This legacy endpoint always returns its complete change state with 200 and Cache-Control: no-store; it does not support ETags or 304.
+ *
+ * @deprecated
+ */
 export const getChanges = <ThrowOnError extends boolean = false>(options?: Options<GetChangesData, ThrowOnError>): RequestResult<GetChangesResponses, GetChangesErrors, ThrowOnError> => (options?.client ?? client).get<GetChangesResponses, GetChangesErrors, ThrowOnError>({
     security: [{
             in: 'cookie',

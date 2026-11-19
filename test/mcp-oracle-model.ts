@@ -1,3 +1,5 @@
+// getChanges remains an owner:read tool during its two-release deprecation
+// (Kyle Mathews, GitHub KyleAMathews, 2026-11-19); other capability laws are unchanged.
 const reads = ['getShelf','listContacts','batchRead','getChanges','getItemSummary','listItemVersions','listHopperMemberships','getReadingSummary','getSignalSummary','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','listMentionGroups','getMentionSummary','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse'];
 const drafting = ['createItem','updateItem','deleteItem','restoreItem','uploadMedia','generateItem','draftNote','summarizeChangelog','classifyChange','preview'];
 const publishing = ['publishItem','withdrawItem','pinItem','refreshItem','deleteMedia'];

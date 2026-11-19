@@ -41,7 +41,7 @@ What review looks like:
 
 ### 3. A tool or configuration
 
-A tool that acts as an editor would. It creates items, edits settings and pins versions through `{mount}/api` on a [scoped token](client-access.md), from anywhere and in any language, and the Studio never knows it exists. To react to changes, poll `GET /api/changes`; there are no webhooks. See [`mods.md`](mods.md#1-configuration-through-the-owner-api) and the [owner API guide](api.md).
+A tool that acts as an editor would. It creates items, edits settings and pins versions through `{mount}/api` on a [scoped token](client-access.md), from anywhere and in any language, and the Studio never knows it exists. To react to changes, poll the resources you need with conditional GETs and their ETags. There are no webhooks. See [`mods.md`](mods.md#1-configuration-through-the-owner-api) and the [owner API guide](api.md).
 
 ### 4. An extension
 

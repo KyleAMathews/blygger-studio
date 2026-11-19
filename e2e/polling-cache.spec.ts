@@ -1,6 +1,6 @@
 import { test, expect } from './fixture';
 
-test('unchanged Studio polls check revisions without refetching collections, then receive another client change', async ({ page }) => {
+test('unchanged Studio polls revalidate resources with 304, then receive another client change', async ({ page }) => {
   test.setTimeout(60_000);
   await page.clock.install();
   await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
@@ -13,23 +13,35 @@ test('unchanged Studio polls check revisions without refetching collections, the
       if (response.request().method() !== 'GET' || new URL(response.url()).pathname !== path || seen.has(response)) return false;
       seen.add(response); return true;
     }));
-    await page.clock.runFor(15_000);
-    await Promise.all(responses.map(async response => (await response).finished()));
+    // Coalesce idle cleanup callbacks while advancing one native polling interval.
+    await page.clock.fastForward(15_000);
+    await Promise.all(responses.map(async response => {
+      const received = await response;
+      // A 304 is bodyless; Chromium can leave its loading-finished event pending.
+      if (received.status() !== 304) await received.finished();
+    }));
     await page.clock.runFor(1); // Let query-collection application finish before the next tick.
     await page.evaluate(() => Promise.resolve());
   }
-  await tick(['/api/changes', '/api/update-state']);
-  const requests: string[] = [];
+  const polledResources = ['/api/items', '/api/items/summary', '/api/shelf', '/api/update-state'];
+  await tick(polledResources);
+  const requests: string[] = [], resources: { path: string; status: number; validator: string | undefined }[] = [];
   page.on('request', request => { if (request.method() === 'GET' && new URL(request.url()).pathname.startsWith('/api/')) requests.push(new URL(request.url()).pathname); });
-  await tick(['/api/changes', '/api/update-state']);
-  // Each native window/boundary/summary observer checks revisions. An unchanged
-  // poll must still fetch no collection bodies or summaries.
-  expect(requests.filter(path => path === '/api/changes').length).toBeGreaterThan(0);
-  expect(requests.filter(path => path !== '/api/changes')).toEqual(['/api/update-state']);
+  page.on('response', response => {
+    const path = new URL(response.url()).pathname;
+    if (response.request().method() === 'GET' && polledResources.includes(path))
+      resources.push({ path, status: response.status(), validator: response.request().headers()['if-none-match'] });
+  });
+  await tick(polledResources);
+  // Revalidate each active resource, reusing accepted bodies on 304.
+  expect(requests).not.toContain('/api/changes');
+  expect(requests.every(path => polledResources.includes(path))).toBe(true);
+  expect(resources.length).toBeGreaterThan(0);
+  expect(resources.every(response => response.status === 304 && response.validator)).toBe(true);
   requests.length = 0;
   const marker = `Other client ${Date.now()}`;
   await page.evaluate(content_md => fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: content_md }) }), marker);
-  await tick(['/api/changes', '/api/items', '/api/update-state']);
+  await tick(['/api/items', '/api/items/summary', '/api/update-state']);
   expect(requests).toContain('/api/items');
   await expect(page.getByText(marker, { exact: false }).first()).toBeVisible();
 });
@@ -155,5 +167,6 @@ test('a newly verified mention reaches the open mentions view in one poll, and a
     await page.clock.runFor(16);
     return group.getByRole('button', { name: 'show on page', exact: true }).isVisible();
   }).toBe(true);
-  expect(reads).toContain('/api/changes');
+  expect(reads).toContain('/api/read-batch');
+  expect(reads).not.toContain('/api/changes');
 });

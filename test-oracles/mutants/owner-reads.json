@@ -1,0 +1,10 @@
+[
+  {
+    "id": "older-owner-read-detaches-newer-pending-read",
+    "source": "src/ui/data.ts",
+    "find": "ownerFlights.clear();\n    return transport(request).finally(() => { ownerFlights.clear(); });",
+    "replace": "for (const flight of ownerFlights.values()) flight.invalidate();\n    return transport(request).finally(() => { for (const flight of ownerFlights.values()) flight.invalidate(); });",
+    "intent": "Restore in-place invalidation at write boundaries, allowing an older read's cleanup to delete the newer period's pending registry entry.",
+    "author": "Codex (self-generated after observing the public-collection counterexample)"
+  }
+]

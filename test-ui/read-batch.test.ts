@@ -42,7 +42,7 @@ test('groups reads by operation and retains child order, queries, status and ret
   expect(await results[1].json()).toEqual({ path: { id: 'missing' }, query: {} });
 });
 
-test('does not cache across reads or batch writes, conditional requests, reserved routes, or foreign URLs', async () => {
+test('does not cache across reads or batch writes, non-ETag conditional requests, reserved routes, or foreign URLs', async () => {
   let version = 1;
   const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init);
@@ -56,7 +56,7 @@ test('does not cache across reads or batch writes, conditional requests, reserve
   for (const url of ['https://test/api/items/summary', 'https://test/api/settings', 'https://other.test/api/items/one', 'https://test/api/mentions?id=one&id=two'])
     expect(await (await fetch(url)).json()).toEqual({ method: 'GET', url });
   expect(await (await fetch('https://test/api/items/one', { method: 'PATCH' })).json()).toMatchObject({ method: 'PATCH' });
-  expect(await (await fetch('https://test/api/items/one', { headers: { 'If-None-Match': 'fixture' } })).json()).toMatchObject({ method: 'GET' });
+  expect(await (await fetch('https://test/api/items/one', { headers: { 'If-Match': 'fixture' } })).json()).toMatchObject({ method: 'GET' });
 });
 
 test('never combines different credential contexts and bounds each batch at 50 reads', async () => {

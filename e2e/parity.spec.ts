@@ -154,7 +154,7 @@ test('more offers settings, syntax, the public page and a log out that posts', a
 
 test('palette pages all candidates and applies bracket grammar in each composer', async ({ page }) => {
   await login(page);
-  const token = `${test.info().project.name}-palettetoken`;
+  const token = `${test.info().project.name}-palettetoken-${crypto.randomUUID()}`;
   await page.evaluate(async token => {
     for (let i = 0; i < 23; i++) {
       const item = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: `${token} ${i}` }) })).json();

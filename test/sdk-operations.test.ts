@@ -121,6 +121,6 @@ it("exercises every declared operation through its named SDK method, including a
     const media = definition && "content" in definition ? definition.content?.["application/json"] : undefined;
     const schema = media && "schema" in media ? media.schema : undefined;
     expect(schema && "safeParse" in schema && schema.safeParse(result.data ?? result.error).success, name).toBe(true);
-    expect(result.response?.headers.get("cache-control"), name).toBe("no-store");
+    expect(result.response?.headers.get("cache-control"), name).toBe(routes[name].method === "get" && status === 200 && result.response?.headers.has("etag") ? "private, no-cache" : "no-store");
   }
 }, 60_000);

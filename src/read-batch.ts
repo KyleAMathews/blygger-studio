@@ -1,7 +1,6 @@
 import type { OperationDefinition } from './operations.ts';
-import { runOperation } from './operation-runner.ts';
+import { conditionalOperation } from './conditional-operation.ts';
 import { success, failure, type OperationContext, type OperationInput, type OperationFailure } from './operation-types.ts';
-import { operationHttp } from './operation-http.ts';
 import { authLocations } from './oauth.ts';
 import { READ_BATCH_PATHS, type ReadBatchOperation, type ReadBatchInput } from './read-batch-policy.ts';
 import { packReadDatabase } from './read-batch-db.ts';
@@ -28,7 +27,6 @@ export async function executeReadBatch(definitions: Map<string, OperationDefinit
       inputFailure = failure('invalid-input', { error: 'Path contains invalid Unicode' });
     }
     // Invalid paths still pass through child permissions and admission charges.
-    const result = await runOperation(definition, { path, query, inputFailure }, { ...context, env, url });
-    return operationHttp(result, url, context.env);
+    return conditionalOperation(definition, { path, query, inputFailure }, { ...context, env, url }, request.ifNoneMatch, context.env.DB);
   })));
 }

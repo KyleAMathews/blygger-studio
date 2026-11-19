@@ -5,8 +5,12 @@
 import draft from '../src/ui/draft.ts?browser-source';
 import authoring from '../src/ui/authoring.tsx?browser-source';
 import pacedWrite from '../src/ui/paced-write.ts?browser-source';
+import search from '../src/ui/search.tsx?browser-source';
+import cursorQuery from '../src/ui/cursor-query.ts?browser-source';
 export const browserSources: Readonly<Record<string, string>> = {
   'src/ui/draft.ts': draft,
   'src/ui/authoring.tsx': authoring,
   'src/ui/paced-write.ts': pacedWrite,
+  'src/ui/search.tsx': search,
+  'src/ui/cursor-query.ts': cursorQuery,
 };

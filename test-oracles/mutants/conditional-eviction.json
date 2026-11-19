@@ -1,0 +1,26 @@
+[
+  {
+    "id": "evicted-body-forgets-newer-read",
+    "source": "sdk/conditional-reads.ts",
+    "find": "const newer = ticket.superseded;",
+    "replace": "const newer = ticket.superseded && entries.get(key);",
+    "intent": "An older 200 forgets the newer accepted representation when unrelated activity evicts its reusable cache entry.",
+    "author": "Codex (self-generated after inspecting the oracle)"
+  },
+  {
+    "id": "evicted-confirmation-forgets-newer-read",
+    "source": "sdk/conditional-reads.ts",
+    "find": "const latest = flight.accepted ?? cached;",
+    "replace": "const latest = entries.get(key) ?? cached;",
+    "intent": "An older 304 restores its captured body after the newer accepted representation is evicted.",
+    "author": "Codex (self-generated after inspecting the oracle)"
+  },
+  {
+    "id": "query-key-order-splits-shared-readers",
+    "source": "src/ui/cursor-query.ts",
+    "find": "const key = query;",
+    "replace": "const key = options.queryKey;",
+    "intent": "Treat object property order as request identity even when TanStack shares the native query. Cancelling one reader then cancels a live peer.",
+    "author": "Codex (self-generated after inspecting the oracle)"
+  }
+]

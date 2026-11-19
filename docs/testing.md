@@ -4,6 +4,11 @@ The Worker suite runs against local workerd, D1, and R2 bindings. Browser tests
 run the bundled Worker in Miniflare. Release verification extracts the actual
 Worker and SDK downloads before exercising them.
 
+Run `npm run test:oracles:studio` with Node.js 24.19.0, as CI does. Its native
+SQLite fixtures include text with embedded NUL bytes, which Node 22.18's
+`node:sqlite` truncates when reading. The build, SDK, Worker and browser checks
+continue to run on the supported Node 22.18 baseline.
+
 ```sh
 npm ci --legacy-peer-deps
 npm run typecheck
@@ -17,6 +22,7 @@ npm run check:oracle-migration
 npm run lint:oracles
 npm run test:oracles:worker
 npm run test:oracles:studio
+npm run test:oracles:conditional:worker
 npm run test:oracles:contracts
 npm run test:oracles:browser
 npm run release:build
@@ -46,10 +52,16 @@ The lifecycle, pagination and PATCH oracles keep their laws beside the model and
 
 ## Independent oracles
 
-All 38 product oracle suites use the pinned `@tanstack/oracles` framework. See
+Product oracle suites use the pinned `@tanstack/oracles` framework. See
 [the migration map](oracle-migration.md) for the inventory, preservation audit,
 runtime adapters and sampled gaps. Ordinary Worker/UI commands exclude oracle files; run those files through the gap gates above. The generated oracles follow the
 [oracle-writing guide](oracle-tests.md).
+The Studio gap gate runs the full eight-source mutation campaign for conditional
+reads. The supplementary `test:oracles:conditional:worker` gate runs every
+derived-validator receiving history against real local D1, plus the four
+authored controls that restore stale counter shortcuts. Cache capacity, work
+and ordering mutations remain in the full Studio gate. Both gates run in Check
+and the release fallback.
 Their models do not import production transitions, comparators, schemas, or
 resource projectors. The lifecycle, pagination and PATCH oracles call the
 generated SDK against the actual Worker. Mention delivery calls the production
