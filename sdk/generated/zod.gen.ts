@@ -488,7 +488,8 @@ export const zMention = z.object({
         'stub',
         'transclusion',
         'fork',
-        'source'
+        'source',
+        'link'
     ]).nullable(),
     sourceOrigin: z.string().nullable(),
     sourceId: z.string().nullable(),

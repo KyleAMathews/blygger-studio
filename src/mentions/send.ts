@@ -11,6 +11,7 @@ import { itemUrl, manifestUrl, parseSurface, surfaceFromManifest, type Surface }
 import { discoverEndpoint } from "./discover.ts";
 import { boundedText } from "./http.ts";
 import { dueOutbound, enqueueOutbound, markOutbound, RETRY_SCHEDULE_MS } from "./store.ts";
+import type { LinkEntry } from "../transclusion.ts";
 
 /** One reference worth telling someone about: where it points, and (for a blyg) whose origin that is. */
 export interface RemoteRef {
@@ -160,6 +161,12 @@ export async function remoteReferences(
       if (!src.origin || src.origin === ourOrigin) continue;
       refs.push({ ...(await remoteTarget(db, src.origin, src.id, fetchFn, cache)), origin: src.origin, targetVersion: src.version });
     }
+  }
+  // §10.3a: a remote `links[]` entry is a remote reference (§15.2 SHOULD); its
+  // origin files it as a `link` notice. A link names a page, not a version.
+  for (const l of (JSON.parse(row.links_json ?? "[]") as LinkEntry[])) {
+    if (!l.origin || l.origin === ourOrigin) continue;
+    refs.push({ ...(await remoteTarget(db, l.origin, l.id, fetchFn, cache)), origin: l.origin, targetVersion: null });
   }
   // §2.3.3: lineage is a remote reference like any other. It lives on the
   // item rather than the version (§2.4), so it is read from there — and it

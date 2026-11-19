@@ -361,7 +361,8 @@ export interface SignalRow {
 // --- v0.3 "Trunk" Webmention (migration 0007, v0.3-plan.md §4.1) ---
 
 /** Why a mention relates to us — read out of the source document's own structure, never from body text (§2.3.5). */
-export type MentionRelation = "stub" | "transclusion" | "fork" | "source";
+/** `link` (§10.3a, #79) is a notice, never a response (§15.5): kept off every public responses list. */
+export type MentionRelation = "stub" | "transclusion" | "fork" | "source" | "link";
 
 /**
  * An inbound mention. `pending` → `verified` | `failed` | `gone`; a row that

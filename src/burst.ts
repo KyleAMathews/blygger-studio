@@ -16,6 +16,20 @@ export function withinBurst(memberMs: number, threadMs: number): boolean {
 }
 
 /**
+ * The window for an item a thread names by link rather than quote (session 74,
+ * Venkat: placeholders only). A `[[+ text]]` placeholder is published seconds
+ * before its thread, in the same publish; a chapter a contents thread links was
+ * usually published minutes earlier and should stay its own arrival. Nothing on
+ * the wire marks a placeholder, so the reader goes by time.
+ */
+export const LINK_BURST_WINDOW_MS = 2 * 60 * 1000;
+
+/** `withinBurst` for an item named by link: the same publish, not the same quarter hour. */
+export function withinLinkBurst(memberMs: number, threadMs: number): boolean {
+  return withinBurst(memberMs, threadMs) && threadMs - memberMs <= LINK_BURST_WINDOW_MS;
+}
+
+/**
  * A publisher's own timestamp, clamped to when this reader first saw it, so a
  * future-dated item cannot pull a blyg's history into a burst (plan §2).
  */

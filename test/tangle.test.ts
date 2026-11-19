@@ -214,6 +214,17 @@ describe("publishing a tangled thread", () => {
     expect(doc.transclusions).toEqual([]);
   });
 
+  it("in our own Reading, a placeholder folds under its thread and a chapter a contents thread links does not", async () => {
+    const cookie = await login();
+    const chapter = await createAndPublish(cookie, `Chapter ${Date.now()}: words.`);
+    const id = await thread(cookie, `- [[${chapter} | The chapter]]\n- [[+ a chapter to write]]\n`);
+    const done = await publish(cookie, id, { tangle: true });
+    const [placeholder] = done.json.parts as { id: string }[];
+    const reasons = async (item: string) => JSON.parse((await db().prepare("SELECT bg_reasons FROM items WHERE id = ?").bind(item).first<{ bg_reasons: string | null }>())!.bg_reasons ?? "[]");
+    expect(await reasons(placeholder.id)).toContain("burst");
+    expect(await reasons(chapter)).not.toContain("burst");
+  });
+
   it("links[] lists resolved links in order, skips code, and is absent without links", async () => {
     const cookie = await login();
     const a = await createAndPublish(cookie, "Target A.");

@@ -141,7 +141,7 @@ export const MentionSchema = z.object({
   target: z.string(),
   targetItemId: z.string(),
   status: z.enum(["pending", "verified", "failed", "gone"]),
-  relation: z.enum(["stub", "transclusion", "fork", "source"]).nullable(),
+  relation: z.enum(["stub", "transclusion", "fork", "source", "link"]).nullable(),
   sourceOrigin: z.string().nullable(),
   sourceId: z.string().nullable(),
   sourceKind: z.string().nullable(),

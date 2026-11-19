@@ -511,7 +511,7 @@ export type Mention = {
     target: string;
     targetItemId: string;
     status: 'pending' | 'verified' | 'failed' | 'gone';
-    relation: 'stub' | 'transclusion' | 'fork' | 'source' | null;
+    relation: 'stub' | 'transclusion' | 'fork' | 'source' | 'link' | null;
     sourceOrigin: string | null;
     sourceId: string | null;
     sourceKind: string | null;

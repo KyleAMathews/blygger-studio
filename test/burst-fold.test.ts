@@ -121,6 +121,15 @@ describe("a burst from a blyg you read", () => {
     expect(background.map((e) => e.key).sort()).toEqual([key(sub, idea), key(sub, quoted)].sort());
   });
 
+  it("does not fold an item a thread links that was published minutes before (a chapter, not a placeholder)", async () => {
+    const cookie = await login();
+    const sub = await subscription();
+    const [chapter, contents] = [newId(), newId()];
+    await arrive(sub, { id: chapter, kind: "thread", created: at(10), md: "# Chapter one\n\nWords." });
+    await arrive(sub, { id: contents, kind: "thread", created: at(30), updated: at(1), md: `- [[${chapter} | Chapter one]]\n`, links: [{ id: chapter }] });
+    expect((await reading(cookie, `sub=${sub}`)).map((e) => e.key).sort()).toEqual([key(sub, chapter), key(sub, contents)].sort());
+  });
+
   it("folds a part that arrives after its thread", async () => {
     const cookie = await login();
     const sub = await subscription();
