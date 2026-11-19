@@ -1,7 +1,22 @@
 /**
+ * This oracle owns source invalidation and feed publication at the real Worker
+ * HTTP boundary, including the deprecated /changes receiver for two releases.
+ * It owns src/changes.ts and src/feed-cache.ts with their receiving handlers.
+ *
+ * GET /blyg/api/changes // → full epoch/domain token, no-store with owner access
+ * GET /blyg/api/changes // → 401, no-store without owner access
+ * GET /blyg/api/changes + If-None-Match: * // → full token, 200, no-store
+ * GET /blyg/feed.xml // → a complete saved legal source rendering
+ *
+ * Resource validators do not replace the legacy polling response: its existing
+ * callers must still receive source identities while Studio polls resources.
+ * For every authorized legacy read, the complete epoch/domain token is returned
+ * with no-store and no ETag, including when a caller supplies If-None-Match. Decision by
+ * Kyle Mathews (GitHub KyleAMathews), 2026-11-19: retain /changes unchanged for
+ * two releases, deprecate it now and remove it in the third release.
  * Contract: design v3 P1–P10/R1–R9 and minute feed/daily maintenance jobs.
  * Reference: polling-cache-oracle-model.ts.
- * Driver: real D1/R2 bindings, real makeApp feed HTTP routes and internal change-state reads, and direct
+ * Driver: real D1/R2 bindings, real makeApp feed/change HTTP routes, and direct
  * source SQL. Provider gates delay completed reads/conditional puts, never
  * manufacture expected XML or source revisions. Comparisons observe parsed
  * RSS, saved bytes/generation, HTTP validators and counted statement work.
@@ -24,7 +39,7 @@ import { readChanges, readFeedRevision } from '../src/changes.ts';
 import type { Env } from '../src/types.ts';
 import { BASE, login } from './helpers.ts';
 
-import { changedDomains, FeedReference, type FeedFacts, type OracleDomain, type OracleToken } from './polling-cache-oracle-model.ts';
+import { changedDomains, FeedReference, legacyChangesResponse, oracleDomains, type FeedFacts, type OracleDomain, type OracleToken } from './polling-cache-oracle-model.ts';
 import { triggerFamilies, triggerFields } from './polling-cache-trigger-cases.ts';
 import resetEpochSql from '../scripts/reset-change-epoch.sql?raw';
 
@@ -54,10 +69,26 @@ async function request(bindings: Env = env, headers: HeadersInit = {}, method = 
   return { response, finish: () => waitOnExecutionContext(ctx) };
 }
 type Observe = (checkpoint: string, value: unknown) => void;
-async function changes(_cookie: string, observe: Observe): Promise<OracleToken> {
-  const state = await readChanges(env.DB);
-  observe('change-state read', typeof state.epoch === 'string' && typeof state.domains === 'object');
-  return state;
+// An unavailable HTTP boundary ends this driver history after its observations.
+// It supplies no substitute token, so only the check judges the failed response.
+const unavailableChangeResponse = Symbol('unavailable change response');
+async function changes(cookie: string, observe: Observe): Promise<OracleToken> {
+  const ctx = createExecutionContext();
+  const response = await app.fetch(new Request(`${BASE}/blyg/api/changes`, { headers: { cookie } }), env, ctx);
+  const body: unknown = await response.json().catch(() => null);
+  await waitOnExecutionContext(ctx);
+  observe('change response status', response.status);
+  observe('change response cache', response.headers.get('cache-control'));
+  const token = body as Partial<OracleToken> | null;
+  const valid = token !== null && typeof token === 'object' &&
+    Object.keys(token).sort().join(',') === 'domains,epoch' &&
+    typeof token.epoch === 'string' && token.epoch.length > 0 &&
+    token.domains !== null && typeof token.domains === 'object' &&
+    Object.keys(token.domains).sort().join(',') === [...oracleDomains].sort().join(',') &&
+    oracleDomains.every(domain => Number.isSafeInteger(token.domains![domain]) && token.domains![domain] >= 0);
+  observe('change response token shape', valid);
+  if (response.status !== 200 || !valid) throw unavailableChangeResponse;
+  return token as OracleToken;
 }
 function facts(xml: string, observe: Observe): FeedFacts {
   observe('RSS syntax', XMLValidator.validate(xml) === true);
@@ -153,8 +184,9 @@ async function saved(observe: Observe, ids: ReturnType<typeof identities>) {
 const values = (trace: readonly Observation[], checkpoint: string) => trace.filter(entry => entry.checkpoint === checkpoint).map(entry => entry.value);
 function common(trace: readonly Observation[], law: string): Verdict | undefined {
   for (const entry of trace) {
-    if (entry.checkpoint === 'change-state read') { const mismatch = differs(entry.checkpoint, law, entry.value, true); if (mismatch) return mismatch; }
-    if (entry.checkpoint === 'receiving response status') {
+    if (entry.checkpoint === 'change response token shape') { const mismatch = differs(entry.checkpoint, law, entry.value, true); if (mismatch) return mismatch; }
+    if (entry.checkpoint === 'change response cache') { const mismatch = differs(entry.checkpoint, law, entry.value, 'no-store'); if (mismatch) return mismatch; }
+    if (entry.checkpoint === 'change response status' || entry.checkpoint === 'receiving response status') {
       const mismatch = differs(entry.checkpoint, law, entry.value, 200); if (mismatch) return mismatch;
     }
     if (entry.checkpoint === 'RSS syntax') { const mismatch = differs('RSS syntax', law, entry.value, true); if (mismatch) return mismatch; }
@@ -173,7 +205,10 @@ async function thrown(operation: () => Promise<unknown>) {
 }
 
 async function stored(observe: Observe, operation: () => Promise<void>) {
-  await withOracleStorage(operation);
+  await withOracleStorage(async () => {
+    try { await operation(); }
+    catch (error) { if (error !== unavailableChangeResponse) throw error; }
+  });
   observe('history complete', true);
 }
 const complete = (trace: readonly Observation[]) => values(trace, 'history complete').length > 0;
@@ -546,14 +581,63 @@ oracleProperty({
   },
   calibrations: [{ name: 'deadline read does not advance settings', law: 'timed update-state effect', history: { enumerated: 0 }, corrupt: trace => { let index = 0; return trace.map(entry => entry.checkpoint === 'timed update-state effect' && ++index === 2 ? { ...entry, value: { ...(entry.value as object), settingsAdvanced: false } } : entry); } }],
 });
+// Fixture tokens vary every domain independently of the source classifier.
+// Reusing all counters under another epoch distinguishes restored identity from
+// a stable snapshot; unequal/max-safe counters detect projection or truncation.
+// Each explicit conditional header is a legacy full-read neighbor, never a 304.
+const legacyTokens: OracleToken[] = [
+  { epoch: 'legacy-before-restore', domains: Object.fromEntries(oracleDomains.map((domain, index) => [domain, index + 1])) as OracleToken['domains'] },
+  { epoch: 'legacy-after-restore', domains: Object.fromEntries(oracleDomains.map((domain, index) => [domain, index + 1])) as OracleToken['domains'] },
+  { epoch: 'legacy-counter-boundary', domains: Object.fromEntries(oracleDomains.map((domain, index) => [domain, index === 0 ? 0 : Number.MAX_SAFE_INTEGER - index])) as OracleToken['domains'] },
+];
+oracleProperty({
+  id: 'polling-cache-legacy-response', owns: ['src/changes.ts', 'src/read-api.ts'],
+  law: {
+    statement: 'For every authorized legacy /changes read during the two-release deprecation window, return the full epoch and every non-negative safe-integer domain revision as JSON with 200, no-store and no ETag, even when If-None-Match is supplied.',
+    authority: 'Decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-19: retain /changes unchanged for two releases and remove in the third; docs/api.md legacy change polling; docs/d1-polling-cache-design.md P2/P3/P8.',
+    limits: 'Real mounted Worker receiver with owner cookie and controlled D1 token inputs; mutation dependencies are checked by the adjacent original source-effect histories. No future removal release or deployed cache behavior is simulated.',
+  },
+  histories: [{ condition: null }, { condition: '*' }, { condition: 'W/"legacy-validator"' }],
+  label: plan => plan.condition === null ? 'legacy ordinary full read' : `legacy conditional full read ${plan.condition}`,
+  model: () => legacyTokens.map(legacyChangesResponse),
+  driver: async (plan, observe) => stored(observe, async () => {
+    const cookie = await login();
+    for (const token of legacyTokens) {
+      await env.DB.prepare(`UPDATE change_state SET epoch=?,${oracleDomains.map(domain => `${domain}=?`).join(',')} WHERE id=1`).bind(token.epoch, ...oracleDomains.map(domain => token.domains[domain])).run();
+      const ctx = createExecutionContext();
+      const response = await app.fetch(new Request(`${BASE}/blyg/api/changes`, { headers: { cookie, ...(plan.condition === null ? {} : { 'If-None-Match': plan.condition }) } }), env, ctx);
+      const body: unknown = await response.json().catch(() => null);
+      await waitOnExecutionContext(ctx);
+      observe('legacy full response', { status: response.status, cache: response.headers.get('cache-control'), etag: response.headers.get('etag'), body });
+    }
+  }),
+  check: (_plan, trace, expected) => {
+    const rows = values(trace, 'legacy full response');
+    for (let index = 0; index < rows.length; index++) {
+      const bad = differs('legacy full response', 'legacy full response', rows[index], expected[index]); if (bad) return bad;
+    }
+    return complete(trace) ? differs('history complete', 'legacy full response', rows.length, expected.length) ?? pass : pass;
+  },
+  calibrations: [
+    { name: 'legacy conditional read becomes 304', law: 'legacy full response', history: { enumerated: 1 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'legacy full response' ? { ...entry, value: { ...(entry.value as object), status: 304 } } : entry) },
+    { name: 'legacy response becomes cacheable', law: 'legacy full response', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'legacy full response' ? { ...entry, value: { ...(entry.value as object), cache: 'private, no-cache' } } : entry) },
+    { name: 'legacy response receives an ETag', law: 'legacy full response', history: { enumerated: 1 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'legacy full response' ? { ...entry, value: { ...(entry.value as object), etag: '"legacy"' } } : entry) },
+    { name: 'legacy source identity is replaced', law: 'legacy full response', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'legacy full response' ? { ...entry, value: { ...(entry.value as object), body: { ...((entry.value as { body: OracleToken }).body), epoch: 'wrong-epoch' } } } : entry) },
+    { name: 'legacy response loses one domain', law: 'legacy full response', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'legacy full response' ? { ...entry, value: { ...(entry.value as object), body: { ...((entry.value as { body: OracleToken }).body), domains: Object.fromEntries(Object.entries((entry.value as { body: OracleToken }).body.domains).filter(([domain]) => domain !== 'shelf')) } } } : entry) },
+    { name: 'legacy response truncates a counter', law: 'legacy full response', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'legacy full response' ? { ...entry, value: { ...(entry.value as object), body: { ...((entry.value as { body: OracleToken }).body), domains: { ...((entry.value as { body: OracleToken }).body.domains), items: 0 } } } } : entry) },
+  ],
+});
+
 oracleProperty({
   id: 'polling-cache-state-readers', owns: ['src/changes.ts'],
-  law: { statement: 'For every change-state reader, a native SQLite blob epoch is rejected as unavailable; the removed private /changes endpoint has no authenticated compatibility alias.', authority: 'docs/d1-polling-cache-design.md R1/P8 and original native-blob receiving witnesses; Kyle Mathews, 2026-11-18: delete /changes with no compatibility alias', limits: 'Native D1 blob epoch and real authenticated removed-endpoint request only.' },
+  law: { statement: 'For every change-state reader, a native SQLite blob epoch is rejected as unavailable; unauthenticated legacy /changes reads expose no state and forbid caching during the two-release deprecation window.', authority: 'docs/d1-polling-cache-design.md R1/P8 and original native-blob/auth receiving witnesses; Decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-19: retain /changes unchanged for two releases and remove in the third.', limits: 'Native D1 blob epoch and real unauthenticated /changes receiver only; authorized output and mutation semantics are checked by adjacent properties.' },
   histories: [{ receiver: 'private' }, { receiver: 'feed' }, { receiver: 'http' }],
-  model: plan => plan.receiver === 'http' ? { status: 404 } : { message: plan.receiver === 'private' ? 'change state unavailable' : 'feed revision unavailable' },
+  model: plan => plan.receiver === 'http' ? { status: 401, cache: 'no-store', stateExposed: false } : { message: plan.receiver === 'private' ? 'change state unavailable' : 'feed revision unavailable' },
   driver: async (plan, observe) => stored(observe, async () => {
     if (plan.receiver === 'http') {
-      const cookie = await login(), ctx = createExecutionContext(), response = await app.fetch(new Request(`${BASE}/blyg/api/changes`, { headers: { cookie } }), env, ctx); observe('change reader result', { status: response.status }); await waitOnExecutionContext(ctx);
+      const ctx = createExecutionContext(), response = await app.fetch(new Request(`${BASE}/blyg/api/changes`), env, ctx);
+      const body: unknown = await response.json().catch(() => null);
+      observe('change reader result', { status: response.status, cache: response.headers.get('cache-control'), stateExposed: body !== null && typeof body === 'object' && ('epoch' in body || 'domains' in body) }); await waitOnExecutionContext(ctx);
     } else {
       await env.DB.prepare('UPDATE change_state SET epoch=? WHERE id=1').bind(new Uint8Array([1, 2])).run();
       observe('change reader result', await thrown(() => plan.receiver === 'private' ? readChanges(env.DB) : readFeedRevision(env.DB)));
@@ -567,7 +651,12 @@ oracleProperty({
     }
     return complete(trace) ? differs('history complete', law, rows.length, 1) ?? pass : pass;
   },
-  calibrations: [{ name: 'blob epoch accepted', law: 'change reader result', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'change reader result' ? { ...entry, value: undefined } : entry) }],
+  calibrations: [
+    { name: 'blob epoch accepted', law: 'change reader result', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'change reader result' ? { ...entry, value: undefined } : entry) },
+    { name: 'anonymous legacy reader accepted', law: 'change reader result', history: { enumerated: 2 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'change reader result' ? { ...entry, value: { ...(entry.value as object), status: 200 } } : entry) },
+    { name: 'anonymous legacy read cacheable', law: 'change reader result', history: { enumerated: 2 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'change reader result' ? { ...entry, value: { ...(entry.value as object), cache: 'private, no-cache' } } : entry) },
+    { name: 'anonymous legacy read exposes source token', law: 'change reader result', history: { enumerated: 2 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'change reader result' ? { ...entry, value: { ...(entry.value as object), stateExposed: true } } : entry) },
+  ],
 });
 
 // The publication model keeps source, saved artifact and pending attempt

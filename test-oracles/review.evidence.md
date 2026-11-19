@@ -5,6 +5,22 @@ Evidence cut: 2026-11-18. Recovery/search repair worktree starts at `1ffc706` ov
 **Historical post-R4 Node/browser cut:** post-R4 run `3b382a68ed73` passes all six files/1,158 baseline checks with stable repeat traces and rejects all 502 owned/authored mutants. Of 2,126 total entries (2,115 enumerated + 11 authored), zero are gaps/timeouts/crashes and 1,624 are explicit unowned warnings. All 502 prior owned semantic keys remain present and killed; all 471 first native property/unit reach histograms are unchanged. Selected browser receiving 30/30, ordinary polling integration 15/15 and historical polling controls 9/9 pass, including both native replays. R4's 167 repeated/200 expanded actual-judge controls pass. The exact checked-in Worker script passes 17 stable checks/four receiving controls; all six ordinary Worker files pass 66/66. Mandatory review evaluation is complete. Optional documentation decisions and commit/push/PR/CI gates remain. This is not a final readiness claim. The allowed-policy positive-control reporting issue supplies no kill credit or gap waiver.
 
 
+## Compatibility law revision — 2026-11-19
+
+Kyle Mathews (GitHub KyleAMathews) approved retaining `/changes` and `getChanges`
+unchanged for two releases, marked deprecated, then removing them in the third.
+This supersedes the immediate-removal law and its historical 404 receipts below.
+The selected release follows current main 0.64.0: Studio 0.65.0, private contract
+5.14.0 and SDK 0.20.0. The deprecated operations remain in 0.65.0 and 0.66.0;
+removal belongs to Studio 0.67.0 and private contract 6.0.0.
+
+Worker and public SDK owners are establishing assertion RED on unchanged
+removed-endpoint production before restoration. Resource ETag, Studio no-preflight,
+raw HTTP, authentication and existing trigger-model promises remain. The exact
+RED/GREEN, deprecation declarations, release integration and new-head CI receipts
+will be appended after execution. No earlier zero-gap receipt covers this law
+revision. The five internal cursor guard decisions remain separate and pending.
+
 ## Recovery/search and Worker CI repair cut
 
 The full published-head run `44462861040` passed the Studio/Worker/contract oracle gates, all four mutation jobs, SDK generation, OAuth, release verification and UI307/307. It exposed three ordinary Worker failures: two obsolete successful-GET cache-header expectations and one physical D1-call regression. The browser intake from the preceding run contains29 failed/flaky identities. These failures remained open despite the earlier passing bounded receipts.
