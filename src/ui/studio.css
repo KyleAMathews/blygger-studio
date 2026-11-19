@@ -465,6 +465,11 @@ button.link { background: none; border: none; padding: 0; font: inherit; color: 
 .toast-x { background: none; border: 0; color: inherit; opacity: .75; font-size: .8rem; line-height: 1; padding: 4px 6px; border-radius: 999px; cursor: pointer; }
 .toast-x::before { content: "✕"; }
 .toast-x:hover, .toast-x:focus-visible { opacity: 1; background: rgba(255,255,255,.15); }
+@media (max-width: 899px) {
+  /* Clear the bottom sheet's buttons: WebKit can keep a hover at the last
+     touch point, which pauses a toast that appears under that point. */
+  .toast-viewport { bottom: auto; top: calc(76px + env(safe-area-inset-top)); }
+}
 
 /* ---------- LOGIN (server-rendered shell) ---------- */
 main.login { max-width: 360px; margin: 12vh auto 0; padding: 24px 20px; background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: var(--shadow); }

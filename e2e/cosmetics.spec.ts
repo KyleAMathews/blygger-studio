@@ -1,4 +1,4 @@
-import { test, expect, type Page } from './fixture';
+import { test, expect, type Locator, type Page } from './fixture';
 
 // Session 36: discarding a draft confirms in a green toast instead of a red
 // "not found", and the reading header can resync every feed at once.
@@ -18,16 +18,19 @@ async function watchAlerts(page: Page) {
 }
 const alerts = (page: Page) => page.evaluate(() => (window as any).__alerts ?? []);
 
-test('discarding a draft from the compose list says so, with no error', async ({ page }, info) => {
+test('discarding a draft from the compose list says so, with no error', async ({ page, hasTouch }, info) => {
   await watchAlerts(page);
   await login(page);
   const text = `${info.project.name} list discard probe`;
   await page.locator('#composer-text').fill(text);
+  // A mobile viewport alone still makes click() send mouse events. Use real
+  // touch input so WebKit's hover after the confirm tap exercises the timer.
+  const activate = (control: Locator) => hasTouch ? control.tap() : control.click();
   // The composer's own button comes first; a draft row left open by another test may have one too.
-  await page.getByRole('button', { name: 'save draft' }).first().click();
-  await page.getByRole('button', { name: new RegExp(text) }).click();
-  await page.getByRole('button', { name: 'discard', exact: true }).first().click();
-  await page.getByRole('button', { name: 'discard', exact: true }).last().click();
+  await activate(page.getByRole('button', { name: 'save draft' }).first());
+  await activate(page.getByRole('button', { name: new RegExp(text) }));
+  await activate(page.getByRole('button', { name: 'discard', exact: true }).first());
+  await activate(page.getByRole('button', { name: 'discard', exact: true }).last());
   const toast = page.getByRole('dialog', { description: 'Draft discarded' });
   await expect(toast).toBeVisible();
   await expect(toast).toHaveAttribute('data-tone', 'ok');
