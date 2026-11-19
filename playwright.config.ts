@@ -10,6 +10,14 @@ export default defineConfig({
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile", use: { ...devices["iPhone 13"], defaultBrowserType: "chromium" } },
+    // WebKit sends compatibility mouse events after a touch tap. Keep this
+    // toast timeout check on Safari's engine as well as mobile Chromium.
+    {
+      name: "mobile-webkit",
+      testMatch: "cosmetics.spec.ts",
+      grep: /discarding a draft from the compose list/,
+      use: { ...devices["iPhone 13"], browserName: "webkit" },
+    },
   ],
   // The studio registers a service worker (PWA). page.route() cannot see requests a
   // worker handles, so suites run with workers blocked; pwa-chrome.spec.ts allows

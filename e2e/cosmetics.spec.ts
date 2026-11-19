@@ -6,6 +6,16 @@ async function login(page: Page) {
   await page.goto('/studio/login');
   await page.locator('[name=password]').fill('test-password');
   await page.getByRole('button', { name: 'log in', exact: true }).click();
+  // The suite serves plain http. Chromium keeps the Secure session cookie on
+  // 127.0.0.1; WebKit drops it and the login bounces. Hand WebKit the cookie
+  // the server set, without Secure.
+  if (page.context().browser()?.browserType().name() === 'webkit' && (await page.context().cookies()).length === 0) {
+    const res = await page.request.post('/studio/login', { form: { password: 'test-password' }, maxRedirects: 0 });
+    const value = /blyg_session=([^;]+)/.exec(res.headers()['set-cookie'] ?? '')?.[1];
+    if (!value) throw new Error(`no session cookie from login (${res.status()})`);
+    await page.context().addCookies([{ name: 'blyg_session', value, url: new URL(page.url()).origin, httpOnly: true, sameSite: 'Lax' }]);
+    await page.goto('/studio');
+  }
   await expect(page.locator('#composer-text')).toBeVisible();
 }
 async function watchAlerts(page: Page) {
