@@ -574,7 +574,7 @@ export function createDraftAction(id?: string, observedRevision?: number) {
           if (result.revision !== revision) throw new BlyggerApiError(409, { message: 'item changed after restore; reload and try again', code: 'revision-conflict', details: { itemId, expectedRevision: revision } });
           break;
         }
-        case 'publish': result = await unwrap(BlyggerApi.publishItem({ client, path, body: { ...condition, note: command.note, noteGenerated: command.generated, ...(command.category !== undefined ? { changeCategory: command.category } : {}) } })); break;
+        case 'publish': result = await unwrap(BlyggerApi.publishItem({ client, path, body: { ...condition, note: command.note, noteGenerated: command.generated, ...(command.category !== undefined ? { changeCategory: command.category } : {}), ...(command.tangle ? { tangle: true } : {}) } })); break;
         case 'delete': result = await unwrap(BlyggerApi.deleteItem({ client, path, body: condition })); break;
         case 'withdraw': result = await unwrap(BlyggerApi.withdrawItem({ client, path, body: condition })); break;
         case 'pin': result = await unwrap(BlyggerApi.pinItem({ client, path: { ...path, version: command.version }, body: condition })); break;

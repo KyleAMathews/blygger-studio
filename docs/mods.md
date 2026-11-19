@@ -1,5 +1,7 @@
 # Modding the Studio
 
+> **New here?** [Where does my change belong?](where-does-it-go.md) puts a mod among the other places a change can go, from a spec question to a local patch, and says how to pick.
+
 A **mod** is anything that makes a Studio node behave differently from the reference Studio without becoming a different client: a tool that sets up a blyg as a book, an extension that adds a lineage view, a home page order. This page says where a mod can live, what the Studio will add for one, and what it will not. It is the program's position (decision #89 in [blygger-spec](https://github.com/blygger/blygger-spec/blob/main/CLAUDE.md), reasoning in `docs/v0.4-plan.md` §17.1).
 
 The first mod is [blykker](https://github.com/blygger/blykker), which keeps a blyg arranged as a book. The examples below come from it.

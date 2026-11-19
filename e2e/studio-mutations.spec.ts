@@ -101,7 +101,7 @@ test('signals loads only the visible tab and does not fetch the compose archive'
   expect(reads).toContain('/api/thumbs');
   expect(reads).not.toContain('/api/interactions');
   expect(reads).not.toContain('/api/items');
-  await page.getByRole('button', { name: /^activity/ }).click();
+  await page.getByRole('tab', { name: /^activity/ }).click();
   await expect.poll(() => reads.includes('/api/interactions')).toBe(true);
   await expect(page.getByRole('alert')).toHaveCount(0);
 });

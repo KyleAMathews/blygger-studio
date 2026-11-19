@@ -21,7 +21,7 @@ import { extractDirectives } from '../directives.ts';
 import { previewFromHtml } from '../preview.ts';
 import { CHANGE_CATEGORIES, composeNote, noteIsGenerated, recategorize, type ChangeCategory } from '../change-category.ts';
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
-import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
+import { BlyggerApi, BlyggerApiError, unwrap } from '../../sdk/dist/browser.js';
 import type { DraftCounterContext } from './extension-api.ts';
 import type { Detail } from './data.ts';
 import { client, items, itemVersions, itemSummary, itemDetail, createDraftAction, settings as settingsCollection, listViews, preloadView } from './data.ts';
@@ -36,6 +36,7 @@ import {
   useSettings,
   publicPath,
 } from './components.tsx';
+import { Button as DesignButton, Toggle, ToggleGroup } from './buttons.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { Tooltip } from './primitives.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
@@ -45,7 +46,7 @@ import type { EditorRegion } from './editor-regions.ts';
 import { HandlePicker } from './contacts.tsx';
 import { editSyndication } from './syndication.tsx';
 import { ownEntry, ownIds, Shelf, shelfLabel, toggleShelf, useShelf } from './shelf.tsx';
-import { applyEdit, breakEdit, codeBlockEdit, indentEdit, onFormatKey } from './format-shortcuts.ts';
+import { applyEdit, breakEdit, codeBlockEdit, formulaEdit, indentEdit, onFormatKey } from './format-shortcuts.ts';
 import { BracketPicker } from './picker.tsx';
 import { revealCaret, setTextAt } from './caret.ts';
 import { Draft } from './draft.ts';
@@ -56,7 +57,7 @@ import { insertLink, isUrl, linkToast } from './links.ts';
 import { itemTitle, permalink, plainText, textWithLink } from './plain-text.ts';
 import { OcrScan } from './ocr.tsx';
 import { addStubQuote, passageCount, quoteCount, stubQuoteForm, withStubQuote } from './stub-quote.ts';
-import { CodeBlock, EnterFocus, ExitFocus, Image as ImageIcon, IndentIn, IndentOut, LineBreak, LinkIcon, More, Scan, Sparkle, Swap } from './icons.tsx';
+import { CodeBlock, EnterFocus, Formula, ExitFocus, Image as ImageIcon, IndentIn, IndentOut, LineBreak, LinkIcon, More, Scan, Sparkle, Swap } from './icons.tsx';
 import { SearchBox, SearchResults, store, stored } from './search.tsx';
 import './authoring.css';
 
@@ -135,7 +136,7 @@ function Help({ thread, className = 'compose-help' }: { thread?: boolean; classN
       paste or drop an image, to insert one there. Paste a URL over selected
       text to link it. Cmd/Ctrl+B, I and K make bold, italics and a link. Tab
       and Shift+Tab move a list item in and out; Shift+Enter breaks a line
-      without ending the paragraph.{' '}
+      without ending the paragraph. <code>$x^2$</code> writes a formula.{' '}
       <Link to="/syntax">full syntax reference</Link>
     </p>
   ) : (
@@ -791,6 +792,44 @@ type Classified = {
   probability: number | null;
   reason?: string;
 };
+type PublishCommand = { type: 'publish'; note: string; generated: boolean; category?: ChangeCategory | null };
+
+/**
+ * Publish, and when the thread's `![[+ …]]` spans would make new items, say
+ * how many and ask first (tangling-plan §2.2): the server refuses without
+ * `tangle: true`, so the count is shown to every caller. Resolves undefined if
+ * the author declines. After a tangle the source holds a directive per span,
+ * so `source` is the rewritten working copy for the caller to take up; an
+ * editor that kept its own text would otherwise save the spans back.
+ */
+async function publishTangle(write: ReturnType<typeof createDraftAction>, command: PublishCommand, itemId: () => string | undefined) {
+  try {
+    return { result: await write(command) };
+  } catch (error) {
+    const body = error instanceof BlyggerApiError ? (error.body as { code?: string; details?: { count?: number; parts?: string[] } }) : undefined;
+    if (body?.code !== 'tangle-confirmation-required') throw error;
+    const count = body.details?.count ?? 0;
+    const ok = await confirm({
+      title: `This will publish ${count} new item${count === 1 ? '' : 's'} and this thread`,
+      body: (
+        <>
+          <ol className="tangle-parts">{(body.details?.parts ?? []).map((label, i) => <li key={i}>{label}</li>)}</ol>
+          <p className="hint">
+            Each new item is a thread of its own, published first: this thread quotes each <code>![[+ …]]</code>
+            and links each <code>[[+ …]]</code>. To change one later, open that item.
+          </p>
+        </>
+      ),
+      ok: 'publish all',
+    });
+    if (!ok) return undefined;
+    const result = await write({ ...command, tangle: true });
+    const id = itemId();
+    const source = id ? (await unwrap(BlyggerApi.getItem({ client, path: { id } }))).contentMd : undefined;
+    return { result, source };
+  }
+}
+
 function useNoteConfirm(write: ReturnType<typeof createDraftAction>) {
   const settings = useSettings();
   const [state, setState] = useState<{
@@ -1058,8 +1097,10 @@ export function Compose({ q }: { q?: string } = {}) {
   const publish = async () => {
     const savedId = await save();
     if (!savedId) return;
-    const result = await write({ type: 'publish', note: '', generated: false });
-    setPublished({ id: savedId, kind, md: text, version: result.version });
+    const done = await publishTangle(write, { type: 'publish', note: '', generated: false }, () => savedId);
+    if (!done) return;
+    const { result } = done;
+    setPublished({ id: savedId, kind, md: done.source ?? text, version: result.version });
     if (current.current.text === text) {
       setText('');
       setId(undefined);
@@ -1082,21 +1123,18 @@ export function Compose({ q }: { q?: string } = {}) {
       </SyntaxHelp>
       <PublishedBanner published={published} dismiss={() => setPublished(undefined)} />
       <div className="card composer">
-        <div className="segmented compact" role="radiogroup" aria-label="kind">
+        <ToggleGroup aria-label="kind" value={[kind]}>
           {(['fragment', 'thread'] as const).map((value) => (
-            <button
+            <Toggle
               key={value}
-              type="button"
-              role="radio"
-              aria-checked={kind === value}
               data-kind={value}
-              className={kind === value ? 'seg is-active' : 'seg'}
+              value={value}
               onClick={() => setKindTo(value)}
             >
               {value}
-            </button>
+            </Toggle>
           ))}
-        </div>
+        </ToggleGroup>
         <div className="ta-wrap">
           <textarea
             ref={input}
@@ -1150,22 +1188,23 @@ export function Compose({ q }: { q?: string } = {}) {
                 generate in editor →
               </Button>
             ) : null}
-            <Button
+            <DesignButton
+              size="small"
               id="save-draft-btn"
-              className="btn btn-compact btn-neutral"
               disabled={action.busy}
               onClick={() => void action.run(save)}
             >
               save draft
-            </Button>
-            <Button
+            </DesignButton>
+            <DesignButton
+              size="small"
               id="publish-btn"
-              className="btn btn-compact btn-primary"
+              variant="primary"
               disabled={action.busy}
               onClick={() => void action.run(publish)}
             >
               publish
-            </Button>
+            </DesignButton>
           </div>
         </div>
         {over ? (
@@ -1189,22 +1228,20 @@ export function Compose({ q }: { q?: string } = {}) {
         <div className="page-search-row">
           <SearchBox value={q ?? ''} onChange={setQuery} label="search your items" />
           {q ? (
-            <div className="segmented" role="group" aria-label="search scope">
+            <ToggleGroup aria-label="search scope" value={[scope]}>
               {(['mine', 'all'] as const).map((value) => (
-                <button
+                <Toggle
                   key={value}
-                  type="button"
-                  aria-pressed={scope === value}
-                  className={scope === value ? 'seg is-active' : 'seg'}
+                  value={value}
                   onClick={() => {
                     setScope(value);
                     store('blyg.compose.searchScope', value);
                   }}
                 >
                   {value === 'mine' ? 'this blyg only' : 'everything'}
-                </button>
+                </Toggle>
               ))}
-            </div>
+            </ToggleGroup>
           ) : null}
         </div>
       ) : null}
@@ -1213,21 +1250,19 @@ export function Compose({ q }: { q?: string } = {}) {
       ) : <>
       <Shelf />
       {totals?.all ? (
-        <div className="segmented filters" role="group" aria-label="show">
+        <ToggleGroup className="filters" aria-label="show" value={[filter]}>
           {(Object.keys(FILTERS) as Filter[]).map((key) => (
-            <button
+            <Toggle
               key={key}
-              type="button"
               data-filter={key}
-              aria-pressed={filter === key}
-              className={filter === key ? 'seg is-active' : 'seg'}
+              value={key}
+              count={totals[key]}
               onClick={() => setFilter(key)}
             >
               {FILTERS[key].label}
-              <span className="n">{totals[key]}</span>
-            </button>
+            </Toggle>
           ))}
-        </div>
+        </ToggleGroup>
       ) : null}
       {!result.isLoading && !rows.length && filter === 'all' ? (
         <p className="empty">
@@ -1315,10 +1350,14 @@ function ItemRow({
   const publishRow = async () => {
     const choice = await confirmNote.request(item, '');
     if (!choice) return;
-    const md = draft.current!.text;
-    const result = await write({ type: 'publish', note: choice.note, generated: choice.generated, category: choice.category });
-    onPublished({ id: item.id, kind, md, version: result.version });
-    return result;
+    const done = await publishTangle(write, { type: 'publish', note: choice.note, generated: choice.generated, category: choice.category }, () => item.id);
+    if (!done) return;
+    if (done.source !== undefined) {
+      draft.current!.accept(done.source);
+      setText(done.source);
+    }
+    onPublished({ id: item.id, kind, md: draft.current!.text, version: done.result.version });
+    return done.result;
   };
   const save = async () => {
     acceptFresh();
@@ -2149,13 +2188,17 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
     operation(async () => {
       const choice = await confirmNote.request(item, note, drafted, historyNote);
       if (!choice) return;
-      const md = draft.current!.text;
-      const result = await write({ type: 'publish', note: choice.note, generated: choice.generated, category: choice.category });
+      const done = await publishTangle(write, { type: 'publish', note: choice.note, generated: choice.generated, category: choice.category }, () => item.id);
+      if (!done) return;
+      if (done.source !== undefined) {
+        draft.current!.accept(done.source);
+        setText(done.source);
+      }
       // A note describes one change; it must not ride along on the next.
       setNote('');
       setDrafted(undefined);
-      setPublished({ id: item.id, kind: item.kind, md, version: result.version });
-      return result;
+      setPublished({ id: item.id, kind: item.kind, md: draft.current!.text, version: done.result.version });
+      return done.result;
     });
   const focus = useFocusView(input, held.box, pane, setPane);
   const isThread = item.kind === 'thread';
@@ -2424,20 +2467,18 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           fork of {item.forkedFrom.id} v{item.forkedFrom.version}
         </p>
       ) : null}
-      <div className="segmented compact pane-toggle" role="group" aria-label="pane">
+      <ToggleGroup className="pane-toggle" aria-label="pane" value={[pane]}>
         {(['draft', 'preview'] as const).map((value) => (
-          <button
+          <Toggle
             key={value}
-            type="button"
             data-pane={value}
-            aria-pressed={pane === value}
-            className={pane === value ? 'seg is-active' : 'seg'}
+            value={value}
             onClick={() => setPane(value)}
           >
             {value}
-          </button>
+          </Toggle>
         ))}
-      </div>
+      </ToggleGroup>
       <div className="editor-grid" data-pane={pane}>
         {/* Above both panes, so the text box and the preview start level. */}
         <ToolRow
@@ -2487,6 +2528,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             ['outdent', <IndentOut />, 'move list item out', 'Move the list item under the cursor out a level (Shift+Tab)'],
             ['break', <LineBreak />, 'line break', 'Break the line without ending the paragraph, for verse (Shift+Enter)'],
             ['code', <CodeBlock />, 'code block', 'Put the selected lines in a code block, or start an empty one'],
+            ['formula', <Formula />, 'formula', 'Write a formula in LaTeX between dollars: $x^2$ inline, $$…$$ on its own lines'],
           ] as const).map(([kind, icon, label, title]) => (
             <Tooltip key={kind} label={title}>
               <Button
@@ -2500,6 +2542,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
                   const change =
                     kind === 'break' ? breakEdit(el.value, from, to)
                     : kind === 'code' ? codeBlockEdit(el.value, from, to)
+                    : kind === 'formula' ? formulaEdit(el.value, from, to)
                     : indentEdit(el.value, from, to, kind === 'outdent');
                   if (change) applyEdit(el, change);
                   else toast(kind === 'indent' ? 'Put the cursor on a list item that has another above it.' : 'Put the cursor on an indented list item.');
@@ -2828,22 +2871,23 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             <More />
           </Button>
         </Tooltip>
-        <Button
+        <DesignButton
+          size="small"
           id="save-draft-btn"
-          className="btn btn-compact btn-neutral"
           disabled={action.busy}
           onClick={() => void action.run(save)}
         >
           save draft
-        </Button>
-        <Button
+        </DesignButton>
+        <DesignButton
+          size="small"
           id="publish-btn"
-          className="btn btn-compact btn-primary"
+          variant="primary"
           disabled={action.busy}
           onClick={publish}
         >
           {item.status === 'withdrawn' ? 'republish' : 'publish'}
-        </Button>
+        </DesignButton>
       </ActionBar>
     </div>
   );
@@ -3024,6 +3068,8 @@ function StubQuote({
   // destroy it, so it goes.
   const passages = passageCount(text, target);
   const [chosen, setChosen] = useState<{ passage: string; nth: number } | null>(null);
+  // A passage that takes in any part of a formula is refused here, as publish would (#105).
+  const [acrossFormula, setAcrossFormula] = useState(false);
   const [help, setHelp] = useState(() => fresh && !stubHelpDismissed());
   const [never, setNever] = useState(false);
   const replaceButton = useRef<HTMLButtonElement>(null);
@@ -3042,10 +3088,17 @@ function StubQuote({
         return found && pane?.contains(found) ? found : null;
       };
       const within = selection && !selection.isCollapsed ? quote(selection.anchorNode) : null;
+      setAcrossFormula(false);
       if (!within || within !== quote(selection!.focusNode) || !selection!.toString().trim()) return setChosen(null);
-      // Only the target's own top-level quotes map to its directives, in order.
+      const range = selection!.getRangeAt(0);
+      if ([...within.querySelectorAll('math')].some((formula) => range.intersectsNode(formula))) {
+        setAcrossFormula(true);
+        return setChosen(null);
+      }
+      // Only the target's own top-level quotes map to its directives, in order;
+      // one inside a `![[+ …]]` span's preview belongs to the new item.
       const quotes = [...(pane?.querySelectorAll(`blockquote.blyg-transclusion[data-blyg-id="${CSS.escape(target)}"]`) ?? [])].filter(
-        (node) => !node.parentElement?.closest('blockquote.blyg-transclusion'),
+        (node) => !node.parentElement?.closest('blockquote.blyg-transclusion, .blyg-tangle-new'),
       );
       const nth = quotes.indexOf(within);
       // A stale or unresolved preview would pair the wrong directive.
@@ -3139,6 +3192,11 @@ function StubQuote({
           how stubs work
         </button>
       </p>
+      {acrossFormula ? (
+        <p className="hint" data-note="quote-formula" role="status">
+          A passage can’t include a formula. Quote the whole post, or the prose either side of it.
+        </p>
+      ) : null}
       {chosen !== null ? (
         <div className="quote-pills">
           <button

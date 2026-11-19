@@ -2,7 +2,7 @@
  * `syndication` (spec 0.4 §16.14, decision #98; a ruled shape awaiting its
  * gate): copies of an item that its publisher made on other networks. Each
  * entry is { url, version }: an absolute https: URL at which the copy can be
- * read, and the version of the item it was made from. Migration 0047.
+ * read, and the version of the item it was made from. Migration 0049.
  *
  * Publisher side (own items):
  * - The list is written in place. It never publishes a version, never adds a

@@ -47,9 +47,9 @@ test('typing [[ opens the panel; source, sort, Escape and Enter work from the ed
   await panel.getByRole('combobox', { name: 'sort' }).selectOption('oldest');
   await expect(options(page).first()).toContainText('First of two');
   // Imported only: these are both ours, so nothing.
-  await panel.getByRole('radio', { name: 'imported' }).check();
+  await panel.getByRole('button', { name: 'imported' }).click();
   await expect(panel.getByText('0 items')).toBeVisible();
-  await panel.getByRole('radio', { name: 'both' }).check();
+  await panel.getByRole('button', { name: 'both' }).click();
   await expect(options(page)).toHaveCount(2);
   await page.screenshot({ path: info.outputPath(`picker-${info.project.name}.png`) });
   // The keyboard never left the editor: arrows and Enter pick.

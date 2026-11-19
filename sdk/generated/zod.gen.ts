@@ -22,6 +22,7 @@ export const zApiError = z.object({
         'method-not-allowed',
         'conflict',
         'revision-conflict',
+        'tangle-confirmation-required',
         'cursor-expired',
         'too-large',
         'unsupported-media',
@@ -210,6 +211,9 @@ export const zSettings = z.object({
     ]),
     changelogSummaryPrompt: z.string(),
     backgroundRules: z.object({
+        burst: z.boolean(),
+        wordless: z.boolean(),
+        maintenance: z.boolean(),
         minor: z.boolean()
     }),
     acceptMentions: z.boolean(),
@@ -495,7 +499,8 @@ export const zMention = z.object({
         'stub',
         'transclusion',
         'fork',
-        'source'
+        'source',
+        'link'
     ]).nullable(),
     sourceOrigin: z.string().nullable(),
     sourceId: z.string().nullable(),
@@ -534,6 +539,7 @@ export const zMentionGroup = z.object({
     targetItemId: z.string(),
     total: z.int().gte(0),
     visible: z.int().gte(0),
+    links: z.int().gte(0),
     verifiedAt: z.string(),
     lastSeen: z.string(),
     firstId: z.string()
@@ -580,7 +586,12 @@ export const zReadingEntry = z.object({
         readVersion: z.int().nullable(),
         syndication: z.array(zSyndicationEntry).optional()
     }).optional(),
-    background: zEntryBackground
+    background: zEntryBackground,
+    parts: z.array(z.object({
+        sub: z.string(),
+        id: z.string(),
+        label: z.string()
+    })).optional()
 });
 
 export const zImportedReadingEntry = z.object({
@@ -1007,6 +1018,7 @@ export const zUpdateItemResponse = zItem;
 export const zPublishItemBody = z.object({
     expectedRevision: z.int().gt(0).lte(9007199254740991),
     note: z.string().optional(),
+    tangle: z.boolean().optional(),
     noteGenerated: z.boolean().optional(),
     changeCategory: z.enum([
         'refresh',
@@ -1028,7 +1040,11 @@ export const zPublishItemResponse = z.object({
     revision: z.int().gt(0).lte(9007199254740991),
     version: z.number(),
     warning: z.string().optional(),
-    unresolvedHandles: z.array(z.string()).optional()
+    unresolvedHandles: z.array(z.string()).optional(),
+    parts: z.array(z.object({
+        id: z.string(),
+        version: z.number()
+    })).optional()
 });
 
 export const zClassifyChangeBody = z.object({
@@ -1279,8 +1295,11 @@ export const zUpdateSettingsBody = z.object({
     ]).optional(),
     changelogSummaryPrompt: z.string().optional(),
     backgroundRules: z.object({
-        minor: z.boolean()
-    }).optional(),
+        burst: z.boolean().optional(),
+        wordless: z.boolean().optional(),
+        maintenance: z.boolean().optional(),
+        minor: z.boolean().optional()
+    }).strict().optional(),
     acceptMentions: z.boolean().optional(),
     updateCheck: z.boolean().optional(),
     showResponsesDefault: z.boolean().optional(),

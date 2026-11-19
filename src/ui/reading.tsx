@@ -54,6 +54,8 @@ import {
   SourceLink,
   CopiesElsewhere,
 } from './components.tsx';
+import { Toggle, ToggleGroup } from './buttons.tsx';
+import { Tab, Tabs } from './primitives.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { IconButton, Tooltip } from './primitives.tsx';
 import { shelfLabel, toggleShelf, useShelf } from './shelf.tsx';
@@ -664,6 +666,9 @@ function backgroundLabel(entry: Reading): string | null {
   if (blyg) return 'blyg in Background';
   // Withdrawn entries already say so under the body (Tomb).
   if (reasons[0] === 'withdrawn') return null;
+  if (reasons[0] === 'burst') return 'part of a burst';
+  if (reasons[0] === 'wordless') return 'no words of its own';
+  if (reasons[0] === 'maintenance') return 'republished unchanged';
   if (reasons[0] === 'minor') return typeof detail?.category === 'string' ? `minor change (${detail.category})` : 'minor change';
   return null;
 }
@@ -683,6 +688,33 @@ function Byline({ entry, a, children }: { entry: Reading; a: EntryActions; child
       <span>· {date}</span>
       <EntryBylineSlot extensions={a.extensions} context={a.extensionContext} />
     </p>
+  );
+}
+/**
+ * A thread published with its parts (spec §13.7's fold): the parts wait in
+ * Background as `burst`, and the thread lists them here, folded until opened.
+ */
+function BurstParts({ entry, open = false }: { entry: Reading; open?: boolean }) {
+  const [shown, setShown] = useState(open);
+  const parts = entry.parts ?? [];
+  if (!parts.length) return null;
+  return (
+    <div className="burst-parts" data-parts={parts.length}>
+      <Button className="link-btn burst-toggle" aria-expanded={shown} onClick={() => setShown(!shown)}>
+        {shown ? '−' : '+'}{parts.length} {parts.length === 1 ? 'part' : 'parts'}
+      </Button>
+      {shown ? (
+        <ol className="burst-list">
+          {parts.map((part) => (
+            <li key={`${part.sub}/${part.id}`}>
+              <Link to="/reading/$sub/$id" params={{ sub: part.sub, id: part.id }}>
+                {part.label || part.id.slice(0, 8)}
+              </Link>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </div>
   );
 }
 function Tomb({ entry }: { entry: Reading }) {
@@ -845,6 +877,7 @@ function Entry({
           <ChangeLead entry={entry} />
           <Body html={entry.contentHtml} url={url} l0={entry.l0} onMore={openArticle} />
           <SourceLink url={url} />
+          <BurstParts entry={entry} />
         </div>
         {imported && !entry.l0 && a.historyOpen ? (
           <History sub={imported.subscriptionId} id={id} />
@@ -1183,6 +1216,7 @@ function Article({ entry, actions, origin }: { entry: Reading; actions: Actions;
         <ReaderBody html={content.html} origin={origin} className="content entry-body article-body" />
         <SourceLink url={a.url} />
         <CopiesElsewhere entries={entry.imported?.syndication} />
+        <BurstParts entry={entry} open />
       </div>
       {a.imported && !entry.l0 && a.historyOpen ? (
         <History sub={a.imported.subscriptionId} id={a.id} />
@@ -1497,7 +1531,7 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
   const bar = useRef<HTMLDivElement>(null);
   // On a phone the bar scrolls sideways; keep the chosen lens in view.
   useEffect(() => {
-    const el = bar.current?.querySelector<HTMLElement>('[aria-pressed=true]');
+    const el = bar.current?.querySelector<HTMLElement>('[aria-checked=true]');
     const box = bar.current;
     if (!el || !box) return;
     // Scroll only the bar, never the page.
@@ -1514,20 +1548,20 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
   // Buttons, not router Links: a Link to /reading counts as "current" under
   // every lens, which would mark All active alongside the real choice.
   return (
-    <div ref={bar} className="segmented lens-bar" role="group" aria-label="reading lens">
+    <ToggleGroup ref={bar} className="lens-bar" aria-label="reading lens" value={[lens]}>
       {LENSES.map((value) => (
-        <Button
+        <Toggle
           key={value}
-          className={`seg${lens === value ? ' is-active' : ''}${value === 'smart' ? ' seg-dashed' : ''}`}
-          aria-pressed={lens === value}
+          className={value === 'background' || value === 'smart' ? 'seg-dashed' : undefined}
+          value={value}
           onClick={() =>
             void navigate({ to: '/reading', search: { ...place, ...(value === 'all' ? {} : { lens: value }) } })
           }
         >
           {LENS_LABELS[value]}
-        </Button>
+        </Toggle>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }
 const SHELF_NOTE = 'What you put on your shelf, yours and the blygs you read, in your order. Your drafts on it are under compose.';
@@ -1775,23 +1809,22 @@ function ReadingTabs({ active }: { active: 'feed' | 'sources' }) {
   const navigate = useNavigate();
   const lensSearch = useLensSearch();
   return (
-    <div className="segmented reading-tabs" role="group" aria-label="reading view">
+    <Tabs className="reading-tabs" label="reading view" value={active} onValueChange={(value) => {
+      const next = value as 'feed' | 'sources';
+      void navigate({
+        to: '/reading',
+        search: { ...(next === 'sources' ? { view: 'sources' as const } : {}), ...lensSearch },
+      });
+    }}>
       {(['feed', 'sources'] as const).map((value) => (
-        <Button
+        <Tab
           key={value}
-          className={`seg${active === value ? ' is-active' : ''}`}
-          aria-pressed={active === value}
-          onClick={() =>
-            void navigate({
-              to: '/reading',
-              search: { ...(value === 'sources' ? { view: 'sources' as const } : {}), ...lensSearch },
-            })
-          }
+          value={value}
         >
           {value === 'feed' ? 'Feed' : 'Sources'}
-        </Button>
+        </Tab>
       ))}
-    </div>
+    </Tabs>
   );
 }
 /**

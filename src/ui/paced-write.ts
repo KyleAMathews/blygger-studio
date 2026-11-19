@@ -16,7 +16,8 @@ export const draftWriteSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('generate'), scope: z.number().int().nonnegative() }),
   z.object({ type: z.literal('restore'), version: z.number().int().positive() }),
   // category: the change category the author confirmed (studio-private); omitted when the classifier did not run.
-  z.object({ type: z.literal('publish'), note: z.string(), generated: z.boolean(), category: z.enum(CHANGE_CATEGORIES).nullable().optional() }),
+  // tangle: the author confirmed the new items a thread's `![[+ …]]` spans make (tangling-plan §2.2).
+  z.object({ type: z.literal('publish'), note: z.string(), generated: z.boolean(), category: z.enum(CHANGE_CATEGORIES).nullable().optional(), tangle: z.boolean().optional() }),
   z.object({ type: z.literal('delete') }),
   z.object({ type: z.literal('withdraw') }),
   z.object({ type: z.literal('pin'), version: z.number().int().positive() }),

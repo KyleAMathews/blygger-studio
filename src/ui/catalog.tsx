@@ -560,7 +560,7 @@ function MentionRow({ mention }: { mention: Mention }) {
       ref={element}
       className={`mention-row ${mention.hidden ? 'hidden-row' : ''} ${gone ? 'gone' : ''}`}
     >
-      <span className="rel">{mention.relation || 'mention'}</span> ·{' '}
+      <span className="rel">{mention.relation === 'link' ? 'linked' : mention.relation || 'mention'}</span> ·{' '}
       <a
         className="who"
         href={mention.sourcePage || mention.source}
@@ -763,6 +763,10 @@ function MentionGroup({ row: { group, item }, defaultShowing }: {
   const mode = item?.responses ?? 'default';
   const showing = mode === 'show' || mode === 'default' && defaultShowing;
   const visible = showing ? group.visible : 0;
+  // A link is a notice (spec 0.4 §15.5): another blyg says it linked here.
+  // It is never one of the page's responses, so it is listed apart.
+  const responses = receipts.data.filter(mention => mention.relation !== 'link');
+  const notices = receipts.data.filter(mention => mention.relation === 'link');
   return (
     <section className="card mention-group">
       <h3 className="card-h">
@@ -775,12 +779,17 @@ function MentionGroup({ row: { group, item }, defaultShowing }: {
         <Link className="muted small" to="/edit/$id" params={{ id }}>edit</Link>
       </h3>
       <p className="muted small group-meta">
-        {group.total} responses · {visible} on the page now
+        {group.total - group.links} responses · {visible} on the page now
+        {group.links ? ` · ${group.links} ${group.links === 1 ? 'blyg links' : 'blygs link'} here` : ''}
       </p>
       <ResponseVisibility id={id} revision={item?.revision ?? 0} mode={mode} defaultShowing={defaultShowing} disabled={!item} />
       <MentionReadFailure result={receipts} />
       {receipts.isLoading ? <p className="h-hint">Loading responses…</p> : null}
-      {receipts.data.map(mention => <MentionRow key={mention.id} mention={mention} />)}
+      {responses.map(mention => <MentionRow key={mention.id} mention={mention} />)}
+      {notices.length ? <>
+        <h4 className="mention-notices-h">Linked from <span className="muted small">· notices, never shown on the page</span></h4>
+        {notices.map(mention => <MentionRow key={mention.id} mention={mention} />)}
+      </> : null}
       {receipts.hasNextPage ? <Button className="btn btn-ghost btn-mini" disabled={receipts.isFetchingNextPage} onClick={() => void receipts.fetchNextPage().catch(() => {})}>load more mentions</Button> : null}
     </section>
   );

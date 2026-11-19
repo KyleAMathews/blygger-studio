@@ -1,6 +1,7 @@
 // D1 access for the subscribe side (migration 0004) — the importer-side
 // counterpart to ../model.ts, which owns the publish side's items/versions.
 
+import { settleImportedBackground, type HeldVersion } from "../background.ts";
 import { syncImportedMentions } from "./mention-index.ts";
 import type { Surface } from "../surface.ts";
 import type { SyndicationEntry } from "../syndication.ts";
@@ -207,8 +208,10 @@ export function toLocalState(row: ImportedItemRow | null): LocalState {
 const lineage = (v: Record<string, unknown> | undefined) => (v ? JSON.stringify(v) : null);
 /** `generated` likewise (migration 0027): disclosure the reading view and the imports API pass on as published. */
 const generatedJson = (v: unknown[] | undefined) => (v?.length ? JSON.stringify(v) : null);
+/** `links` likewise (migration 0048, §10.3a): what Background folds a placeholder by. */
+const linksJson = (v: unknown[] | undefined) => (v?.length ? JSON.stringify(v) : null);
 
-/** A held item's §16.14 member (migration 0047); unchanged values write nothing. */
+/** A held item's §16.14 member (migration 0049); unchanged values write nothing. */
 export async function storeImportedSyndication(db: D1Database, subscriptionId: string, remoteId: string, entries: SyndicationEntry[] | null): Promise<void> {
   const json = entries ? JSON.stringify(entries) : null;
   await db.prepare("UPDATE imported_items SET syndication_json = ? WHERE subscription_id = ? AND remote_id = ? AND syndication_json IS NOT ?")
@@ -223,8 +226,17 @@ export async function applyEffect(
   observedAt: string,
   opts: { l0?: boolean; retainPinnedVersion?: number } = {},
 ): Promise<void> {
+  // What was held, read before the write replaces it: Background measures a version against it.
+  const held = "doc" in effect && !opts.l0 && effect.type !== "import"
+    ? await db.prepare("SELECT content_hash AS hash, transclusions_json AS quotes, links_json AS links FROM imported_items WHERE subscription_id = ? AND remote_id = ?")
+      .bind(subscriptionId, remoteId).first<HeldVersion>()
+    : null;
   await writeEffect(db, subscriptionId, remoteId, effect, observedAt, opts);
   if (opts.l0) return;
+  if ("doc" in effect) {
+    // Studio-private bookkeeping (background-plan.md §2): never fails an import.
+    await settleImportedBackground(db, subscriptionId, remoteId, effect.doc, held, observedAt).catch((e) => console.error("background reasons not settled", e));
+  }
   if ("doc" in effect) await syncImportedMentions(db, subscriptionId, remoteId, effect.doc.content_html);
   else if (effect.type === "record-tombstone" || effect.type === "rollup-null") await syncImportedMentions(db, subscriptionId, remoteId, null);
 }
@@ -246,15 +258,15 @@ async function writeEffect(
       await db
         .prepare(
           `INSERT INTO imported_items
-           (subscription_id, remote_id, kind, state, version, created, updated, observed_at, content_md, content_html, content_hash, author_json, media_json, transclusions_json, l0, pinned_version_retained, page, stub_of_json, forked_from_json, generated_json)
-           VALUES (?, ?, ?, 'current', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
+           (subscription_id, remote_id, kind, state, version, created, updated, observed_at, content_md, content_html, content_hash, author_json, media_json, transclusions_json, l0, pinned_version_retained, page, stub_of_json, forked_from_json, generated_json, links_json)
+           VALUES (?, ?, ?, 'current', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
         )
         .bind(
           subscriptionId, remoteId, d.kind, d.version, toIsoUtc(d.created) ?? null, toIsoUtc(d.updated) ?? null, observedAt,
           d.content_md, d.content_html, d.content_hash,
           JSON.stringify(d.author ?? null), JSON.stringify(d.media ?? []),
           d.transclusions ? JSON.stringify(d.transclusions) : null, l0,
-          d.page ?? null, lineage(d.stub_of), lineage(d.forked_from), generatedJson(d.generated),
+          d.page ?? null, lineage(d.stub_of), lineage(d.forked_from), generatedJson(d.generated), linksJson(d.links),
         )
         .run();
       return;
@@ -272,7 +284,7 @@ async function writeEffect(
            ON CONFLICT (subscription_id, remote_id) DO UPDATE SET
              state = 'tombstone', version = excluded.version, updated = excluded.updated, observed_at = excluded.observed_at,
              content_md = '', content_html = '', content_hash = NULL, author_json = NULL, media_json = NULL, transclusions_json = NULL,
-             pinned_version_retained = NULL, stub_of_json = NULL, forked_from_json = NULL, generated_json = NULL`,
+             pinned_version_retained = NULL, stub_of_json = NULL, forked_from_json = NULL, generated_json = NULL, links_json = NULL`,
         )
         .bind(subscriptionId, remoteId, effect.version, toIsoUtc(effect.updated) ?? null, observedAt, l0)
         .run();
@@ -284,7 +296,7 @@ async function writeEffect(
         .prepare(
           `UPDATE imported_items SET kind = ?, version = ?, updated = ?, observed_at = ?,
            content_md = ?, content_html = ?, content_hash = ?, author_json = ?, media_json = ?, transclusions_json = ?,
-           page = COALESCE(?, page), stub_of_json = ?, forked_from_json = ?, generated_json = ?
+           page = COALESCE(?, page), stub_of_json = ?, forked_from_json = ?, generated_json = ?, links_json = ?
            WHERE subscription_id = ? AND remote_id = ?`,
         )
         .bind(
@@ -292,7 +304,7 @@ async function writeEffect(
           d.content_md, d.content_html, d.content_hash,
           JSON.stringify(d.author ?? null), JSON.stringify(d.media ?? []),
           d.transclusions ? JSON.stringify(d.transclusions) : null,
-          d.page ?? null, lineage(d.stub_of), lineage(d.forked_from), generatedJson(d.generated),
+          d.page ?? null, lineage(d.stub_of), lineage(d.forked_from), generatedJson(d.generated), linksJson(d.links),
           subscriptionId, remoteId,
         )
         .run();
@@ -312,7 +324,7 @@ async function writeEffect(
         .prepare(
           `UPDATE imported_items SET state = 'tombstone', version = ?, updated = ?, observed_at = ?,
            content_md = '', content_html = '', content_hash = NULL, author_json = NULL, media_json = NULL, transclusions_json = NULL, pinned_version_retained = NULL,
-           stub_of_json = NULL, forked_from_json = NULL, generated_json = NULL
+           stub_of_json = NULL, forked_from_json = NULL, generated_json = NULL, links_json = NULL
            WHERE subscription_id = ? AND remote_id = ?`,
         )
         .bind(effect.version, toIsoUtc(effect.updated) ?? null, observedAt, subscriptionId, remoteId)
@@ -325,7 +337,7 @@ async function writeEffect(
         .prepare(
           `UPDATE imported_items SET state = 'current', kind = ?, version = ?, updated = ?, observed_at = ?,
            content_md = ?, content_html = ?, content_hash = ?, author_json = ?, media_json = ?, transclusions_json = ?, pinned_version_retained = NULL,
-           page = COALESCE(?, page), stub_of_json = ?, forked_from_json = ?, generated_json = ?
+           page = COALESCE(?, page), stub_of_json = ?, forked_from_json = ?, generated_json = ?, links_json = ?
            WHERE subscription_id = ? AND remote_id = ?`,
         )
         .bind(
@@ -333,7 +345,7 @@ async function writeEffect(
           d.content_md, d.content_html, d.content_hash,
           JSON.stringify(d.author ?? null), JSON.stringify(d.media ?? []),
           d.transclusions ? JSON.stringify(d.transclusions) : null,
-          d.page ?? null, lineage(d.stub_of), lineage(d.forked_from), generatedJson(d.generated),
+          d.page ?? null, lineage(d.stub_of), lineage(d.forked_from), generatedJson(d.generated), linksJson(d.links),
           subscriptionId, remoteId,
         )
         .run();
@@ -344,14 +356,14 @@ async function writeEffect(
       await db
         .prepare(
           `UPDATE imported_items SET content_md = ?, content_html = ?, content_hash = ?, author_json = ?, media_json = ?, transclusions_json = ?, observed_at = ?,
-           page = COALESCE(?, page), stub_of_json = ?, forked_from_json = ?, generated_json = ?
+           page = COALESCE(?, page), stub_of_json = ?, forked_from_json = ?, generated_json = ?, links_json = ?
            WHERE subscription_id = ? AND remote_id = ?`,
         )
         .bind(
           d.content_md, d.content_html, d.content_hash,
           JSON.stringify(d.author ?? null), JSON.stringify(d.media ?? []),
           d.transclusions ? JSON.stringify(d.transclusions) : null,
-          observedAt, d.page ?? null, lineage(d.stub_of), lineage(d.forked_from), generatedJson(d.generated), subscriptionId, remoteId,
+          observedAt, d.page ?? null, lineage(d.stub_of), lineage(d.forked_from), generatedJson(d.generated), linksJson(d.links), subscriptionId, remoteId,
         )
         .run();
       return;

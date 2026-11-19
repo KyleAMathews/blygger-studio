@@ -5,7 +5,7 @@ import { attachedQuote } from "./directives.ts";
 import { codeRanges, inRanges, lineOffsets } from "./code-ranges.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
 import { blygItemUrl } from "./importer/util.ts";
-import { renderMarkdown, selectionText } from "./markdown.ts";
+import { renderMarkdown, selectionTouchesMath, selectionText } from "./markdown.ts";
 import type { ImportedItemRow, ItemRow, TextQuoteSelector, Transclusion, VersionRow } from "./types.ts";
 import { absolutizeHtml, escapeHtml } from "./util.ts";
 import { DIRECTIVE_LINE, label, LINK_INLINE, RESERVED_LINE } from "./grammar.ts";
@@ -343,6 +343,14 @@ async function walk(
         });
         continue;
       }
+      // §5.2 (#105): a passage across a formula would bake as stripped symbols.
+      if (selectionTouchesMath(target.contentHtml, selection)) {
+        fail({
+          directive: line.trim(),
+          reason: "the quoted passage includes part of a formula; quote the whole post, or the prose either side of it",
+        });
+        continue;
+      }
     }
 
     transclusions.push({
@@ -533,6 +541,32 @@ export async function resolveInternalLinks(
   }
   out += contentMd.slice(last);
   return { text: out, replacements, labels, errors };
+}
+
+/** One `links[]` entry (§10.3a): not a reference, so an id and, for another blyg's item, its origin. */
+export interface LinkEntry {
+  id: string;
+  origin?: string;
+}
+
+/**
+ * The item document's `links` array (§10.3a, decision #79): every plain
+ * internal link the published `content_md` resolves, in document order, one
+ * entry per link. Read from the markdown the version publishes, never from its
+ * HTML, which §10.3a forbids. Links in code are text (§10.1, #54) and are not
+ * entries. Publish has already refused any link that does not resolve, so an
+ * unresolved one here is skipped rather than reported again.
+ */
+export async function linkEntries(db: D1Database, contentMd: string): Promise<LinkEntry[]> {
+  const code = codeRanges(contentMd);
+  const entries: LinkEntry[] = [];
+  for (const m of contentMd.matchAll(LINK_INLINE)) {
+    if (inRanges(code, m.index ?? 0)) continue;
+    const resolved = await resolveTarget(db, m[1]);
+    if (!resolved.ok) continue;
+    entries.push(resolved.target.origin ? { id: resolved.target.id, origin: resolved.target.origin } : { id: resolved.target.id });
+  }
+  return entries;
 }
 
 const ENCODED_SENTINEL = encodeURIComponent(LINK_SENTINEL);

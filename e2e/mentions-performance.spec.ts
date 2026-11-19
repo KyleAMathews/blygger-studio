@@ -13,12 +13,14 @@ function responsePage(rows: Record<string, unknown>[], params: URLSearchParams, 
 async function installMentions(page: Page, options: {
   groups: number; receipts: number; outbound: number; sourceGate?: Promise<void>;
   responses?: ('default' | 'show' | 'hide' | null)[];
-  receiptStates?: { status: 'verified' | 'gone'; hidden: boolean }[];
+  receiptStates?: { status: 'verified' | 'gone'; hidden: boolean; relation?: 'stub' | 'link' }[];
 }) {
   const stats = { groupReads: [] as URLSearchParams[], receiptReads: [] as URLSearchParams[], sources: [] as string[], groupRowsSent: 0, receiptRowsSent: 0 };
   const receiptState = (index: number) => options.receiptStates?.[index] ?? { status: 'verified', hidden: false };
-  const visible = Array.from({ length: options.receipts }, (_, index) => receiptState(index)).filter(row => row.status === 'verified' && !row.hidden).length;
-  const groups = Array.from({ length: options.groups }, (_, group) => ({ targetItemId: targetId(group), total: options.receipts, visible,
+  const states = Array.from({ length: options.receipts }, (_, index) => receiptState(index));
+  const visible = states.filter(row => row.status === 'verified' && !row.hidden && row.relation !== 'link').length;
+  const links = states.filter(row => row.status === 'verified' && row.relation === 'link').length;
+  const groups = Array.from({ length: options.groups }, (_, group) => ({ targetItemId: targetId(group), total: options.receipts, visible, links,
     verifiedAt: at, lastSeen: at, firstId: receiptId(group, 0) }));
   function read(path: string, params: URLSearchParams): { status: number; body: unknown; headers: Record<string, string> } | null {
     if (path === '/api/mention-groups') {
@@ -44,7 +46,7 @@ async function installMentions(page: Page, options: {
         target: `https://remote.test/out/${index}`, endpoint: null, status: 'sent', attempts: 1, nextAttemptAt: null, lastError: null, created: at }))
       : Array.from({ length: options.groups }, (_, group) => group).filter(group => !params.has('targetItemId') || targetId(group) === params.get('targetItemId'))
         .flatMap(group => Array.from({ length: options.receipts }, (_, index) => ({ id: receiptId(group, index), source: `https://source.test/${receiptId(group, index)}`,
-          target: `https://site.test/f/${targetId(group)}/`, targetItemId: targetId(group), status: receiptState(index).status, relation: 'stub', sourceOrigin: 'https://source.test/',
+          target: `https://site.test/f/${targetId(group)}/`, targetItemId: targetId(group), status: receiptState(index).status, relation: receiptState(index).relation ?? 'stub', sourceOrigin: 'https://source.test/',
           sourceId: options.sourceGate ? 'remote' : null, sourceKind: 'fragment', sourceVersion: 1, sourcePage: null, firstSeen: at, lastSeen: at,
           verifiedAt: at, attempts: 0, error: null, hidden: receiptState(index).hidden, sourceAuthor: { name: `Source ${group}-${index}` } })));
     const result = responsePage(rows, params, direction === 'outbound' ? ['id', 'created'] : ['targetItemId', 'id', 'verifiedAt', 'lastSeen']);
@@ -209,4 +211,17 @@ test('a failed Mentions group continuation keeps the loaded page and recovers th
     return page.locator('.mention-group').count();
   }).toBe(20);
   expect(stats.groupReads.some(params => Number(params.get('cursor')) >= 30)).toBe(false);
+});
+
+test('a link is a notice: listed apart from the responses and left out of the page count (§15.5)', async ({ page }) => {
+  await installMentions(page, { groups: 1, receipts: 3, outbound: 0, responses: ['show'], receiptStates: [
+    { status: 'verified', hidden: false }, { status: 'verified', hidden: false, relation: 'link' }, { status: 'verified', hidden: false },
+  ] });
+  await login(page);
+  await page.goto('/studio/mentions');
+  const group = page.locator('.mention-group');
+  await expect(group.locator('.group-meta')).toHaveText('2 responses · 2 on the page now · 1 blyg links here');
+  await expect(group.locator('.mention-row')).toHaveCount(3);
+  await expect(group.locator('.mention-row .rel')).toHaveText(['stub', 'stub', 'linked']);
+  await expect(group.getByRole('heading', { name: /Linked from/ })).toBeVisible();
 });

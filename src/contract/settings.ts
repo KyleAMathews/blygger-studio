@@ -3,6 +3,10 @@ import { CustomThemeSchema } from "./schemas.ts";
 import { BACKGROUND_RULES, type BackgroundRule } from "../background.ts";
 
 /** Private settings fields are independent of stored column names. */
+/** A settings PATCH may name only the rules it changes; the server merges them into what is stored. */
+export const BackgroundRulesPatchSchema = z.object(Object.fromEntries(BACKGROUND_RULES.map((rule) => [rule, z.boolean().optional()])) as Record<BackgroundRule, z.ZodOptional<z.ZodBoolean>>).strict()
+  .describe("Background rules to turn on or off; rules not named keep their stored value.");
+
 export const SettingsSchema = z.object({
   siteTitle: z.string(),
   theme: z.string(),

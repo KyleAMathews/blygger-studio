@@ -15,6 +15,7 @@ import { env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:
 import { expect, it } from 'vitest';
 import { decodeHTMLAttribute } from 'entities';
 import { makeApp } from '../src/index.ts';
+import { putSettings } from "../src/model.ts";
 const sourceId = '00000000000000000000000001';
 const app = makeApp('/blyg'), base = 'https://review-content.example.test';
 async function receive(path: string, init: RequestInit = {}) {
@@ -103,6 +104,8 @@ it('remote attribution cannot inject elements into public transclusion provenanc
 // inert presentation of old bakes without silently rewriting their stored/wire
 // snapshot. These witnesses seed the pre-fix shape, not a fresh safe publication.
 it.each(['public', 'pin', 'history', 'history-page', 'detail', 'reading'])('renders legacy bakes inert in %s without changing their snapshot', async surface => {
+  // A fragment quoted by a thread published just after it is a burst, and a quote-only thread is wordless (session 72): both would sit in Background. This test is about something else.
+  await putSettings(env.DB, { bg_rules: JSON.stringify({ burst: false, wordless: false }) });
   const f = await setup('<p>Safe quoted text</p>');
   const created = await f.owner('/blyg/api/items', 'POST', { kind: 'thread', contentMd: `![[${sourceId}]]` });
   expect(created.status).toBe(201); const { id } = await created.json() as { id: string };

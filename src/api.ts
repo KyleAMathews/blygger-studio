@@ -39,6 +39,7 @@ import {
   putSettings,
   RestoreVersionError,
   restoreVersion,
+  MathPublishError,
   TkPublishError,
   TransclusionResolveError,
   withdraw,
@@ -52,6 +53,8 @@ import { blygItemUrl } from "./importer/util.ts";
 import { siteOrigin } from "./protocol.ts";
 import { parseForkedFrom, parseStoredFork, parseStoredStub, parseStubOf } from "./stub.ts";
 import { parseScopes, unrequestedOutputDirectives } from './tk.ts';
+import { parseTangles, partBody, rewriteTangles, tangleLabel, type TangleSpan } from './tangle.ts';
+import { directiveOwnLine, linkInline } from './grammar.ts';
 import { CommentPublishError, withoutComments } from './comments.ts';
 import { runGenerateScope } from "./tk-generate.ts";
 import type { ItemRow, SubscriptionRow } from "./types.ts";
@@ -66,7 +69,7 @@ import { importedSubject, ownChangelog, ownSubject, summarizeChangelog, type Cha
 import { blygSubscription } from "./read-api.ts";
 import { fetchImportedHistory } from "./imported-history.ts";
 import { reconcileIndex } from "./importer/poll.ts";
-import { deploymentPaths, hex, isFollowableUrl, isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
+import { deploymentPaths, hex, isFollowableUrl, isValidTimeZone, newId, newMediaId, normalizeMount, nowIso } from "./util.ts";
 
 const MEDIA_TYPES: Record<string, string> = {
   "image/png": "png",
@@ -224,6 +227,33 @@ async function sendMentionsFor(
 }
 
 /**
+ * Parts this thread minted (`tangled_from`) that its previous version quoted or
+ * linked and this one does not (tangling plan §2.4): deleting a directive
+ * leaves the part published and quoted by nothing, so the publish says which.
+ */
+async function droppedPartsNote(db: D1Database, threadId: string, version: number): Promise<string | undefined> {
+  if (version < 2) return undefined;
+  const rows = (await db.prepare("SELECT version, transclusions AS transclusions_json, links_json FROM versions WHERE item_id = ? AND version IN (?, ?)")
+    .bind(threadId, version - 1, version).all<{ version: number; transclusions_json: string | null; links_json: string | null }>()).results;
+  const named = (version: number) => {
+    const row = rows.find((r) => r.version === version);
+    const ids = new Set<string>();
+    for (const json of [row?.transclusions_json, row?.links_json]) {
+      try { for (const e of JSON.parse(json ?? "[]") as { id?: unknown; origin?: unknown }[]) if (typeof e?.id === "string" && !e.origin) ids.add(e.id); } catch { /* unreadable: names nothing */ }
+    }
+    return ids;
+  };
+  const before = named(version - 1), now = named(version);
+  const gone = [...before].filter((id) => !now.has(id));
+  if (!gone.length) return undefined;
+  const parts = (await db.prepare("SELECT id, content_md FROM items WHERE tangled_from = ? AND id IN (SELECT value FROM json_each(?))")
+    .bind(threadId, JSON.stringify(gone)).all<{ id: string; content_md: string }>()).results;
+  if (!parts.length) return undefined;
+  const names = parts.map((p) => `"${tangleLabel(withoutComments(p.content_md)) || p.id}"`).join(", ");
+  return `This version no longer quotes or links ${parts.length === 1 ? "a part" : `${parts.length} parts`} it made: ${names}. ${parts.length === 1 ? "It stays" : "They stay"} published on ${parts.length === 1 ? "its" : "their"} own; withdraw from ${parts.length === 1 ? "its page" : "each page"} if ${parts.length === 1 ? "it" : "they"} should go.`;
+}
+
+/**
  * Publish an item and send what it owes — the one path both `publish` and
  * `refresh` take, so a refresh gets exactly a publish's checks and error
  * mapping. Returns the response to send.
@@ -260,26 +290,36 @@ async function publishAndNotify(context: OperationContext, item: ItemRow, note: 
     // After the category settles: an own version's Background reasons (4a).
     await settleOwnBackground(context.env.DB, item.id, version).catch((e) => console.error("background reasons not settled", e));
     await sendMentionsFor(context, item.id, version);
-    return success({ ok: true, version, revision: item.revision + 1, ...extra, ...(warning ? { warning } : {}), ...(unresolvedHandles.length ? { unresolvedHandles } : {}) });
+    const dropped = await droppedPartsNote(context.env.DB, item.id, version).catch(() => undefined);
+    const said = [warning, dropped].filter(Boolean).join(" ") || undefined;
+    return success({ ok: true, version, revision: item.revision + 1, ...extra, ...(said ? { warning: said } : {}), ...(unresolvedHandles.length ? { unresolvedHandles } : {}) });
   } catch (e) {
-    if (e instanceof TransclusionResolveError) {
-      // Both bracket forms report here: `![[id]]` directives and `[[id]]`
-      // links share the resolver, so they share the failure channel. The
-      // message names both rather than only the one that predates the other —
-      // each entry's `directive` shows the author which they wrote.
-      return failure('invalid-input', { error: "one or more references do not resolve", errors: e.errors });
-    }
-    if (e instanceof CommentPublishError) {
-      return failure('invalid-input', { error: e.issues.map((issue) => issue.reason).join("; "), errors: e.issues });
-    }
-    if (e instanceof TkPublishError) {
-      return failure('invalid-input', { error: "one or more TK scopes are not publish-ready", errors: e.issues });
-    }
-    if (e instanceof FragmentTooLongError) {
-      return failure('invalid-input', { error: `fragment exceeds ${e.max} characters` });
-    }
-    throw e;
+    return publishFailure(e);
   }
+}
+
+/** The response for a publish that threw: a refusal the author can act on, or a rethrow. */
+function publishFailure(e: unknown, prefix = "") {
+  if (e instanceof TransclusionResolveError) {
+    // Both bracket forms report here: `![[id]]` directives and `[[id]]`
+    // links share the resolver, so they share the failure channel. The
+    // message names both rather than only the one that predates the other —
+    // each entry's `directive` shows the author which they wrote.
+    return failure('invalid-input', { error: `${prefix}one or more references do not resolve`, errors: e.errors });
+  }
+  if (e instanceof CommentPublishError) {
+    return failure('invalid-input', { error: prefix + e.issues.map((issue) => issue.reason).join("; "), errors: e.issues });
+  }
+  if (e instanceof TkPublishError) {
+    return failure('invalid-input', { error: `${prefix}one or more TK scopes are not publish-ready`, errors: e.issues });
+  }
+  if (e instanceof MathPublishError) {
+    return failure('invalid-input', { error: `${prefix}a formula does not parse: ${e.errors.map((m) => `${m.formula} (${m.reason})`).join("; ")}`, errors: e.errors });
+  }
+  if (e instanceof FragmentTooLongError) {
+    return failure('invalid-input', { error: `${prefix}fragment exceeds ${e.max} characters` });
+  }
+  throw e;
 }
 
 const publishItemOperation = async (context: OperationContext, input: OperationInput) => {
@@ -288,14 +328,138 @@ const publishItemOperation = async (context: OperationContext, input: OperationI
   // TK-stripped (published) length, not the raw working copy — see FragmentTooLongError.
   const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
-  const body = (input.body as { note?: string; noteGenerated?: boolean; changeCategory?: ChangeCategory | null });
+  const body = (input.body as { note?: string; noteGenerated?: boolean; changeCategory?: ChangeCategory | null; tangle?: boolean });
   // note_generated is the studio's own assertion that the note is the drafted
   // text, unedited (#40) — self-asserted, like every provenance member.
   // change_category is studio-private (migration 0030): settled after the
   // version exists, and never part of what publish() writes to the wire.
   const requested = "changeCategory" in body ? body.changeCategory ?? null : undefined;
-  return publishAndNotify(context, item, body.note?.trim() || null, {}, body.noteGenerated === true, (version) => settleChangeClass(context.env.DB, item.id, version, requested));
+  const note = body.note?.trim() || null;
+  const settle = (version: number) => settleChangeClass(context.env.DB, item.id, version, requested);
+  const { spans, issues } = parseTangles(item.content_md);
+  if (spans.length || issues.length) {
+    if ((await authoredKind(context.env.DB, item)) === "fragment") {
+      return failure('invalid-input', { error: "tangling makes a thread; switch this draft to a thread" });
+    }
+    if (issues.length) return failure('invalid-input', { error: issues.map((i) => i.reason).join("; "), errors: issues });
+    return publishTangled(context, item, spans, note, body.noteGenerated === true, settle, body.tangle === true);
+  }
+  // A tangle that stopped after minting (tangling-plan §2.3) is finished here:
+  // the parts this thread names are published first, then the thread.
+  const parts = await publishPendingParts(context, item);
+  if (!parts.ok) return parts.failed;
+  return publishAndNotify(context, item, note, parts.published.length ? { parts: parts.published } : {}, body.noteGenerated === true, settle);
 };
+
+// ── Tangling (blygger-spec docs/tangling-plan.md §2; decisions #78, #100) ──
+//
+// A `![[+ text]]` span in a thread's working copy publishes as a new item the
+// thread quotes, and an inline `[[+ text]]` as a new item it links (a
+// placeholder, its text as a heading). Either is a "part", which is always a thread (#100: kind is fixed once published, and
+// the client must not declare a leaf for the author). The sequence is
+// pre-flight (nothing written), the count gate, one batch that mints the parts
+// as drafts and rewrites the thread, then each part, then the thread last
+// (§7). After the batch the thread holds no spans, so a retry can never mint
+// twice: a crash partway is repaired by publishing the thread again.
+
+/** A part as publish() would see it, for the pre-flight's dry run. Never stored. */
+function draftPart(thread: ItemRow, text: string): ItemRow {
+  return { ...thread, id: newId(), revision: 1, kind: "thread", status: "draft", version: 0, content_md: text, dirty: 1, tk_provenance_json: null, stub_of: null, forked_from: null, fork_cite: null, tangled_from: thread.id };
+}
+
+/** The drafts this thread minted and still names, by quote or by link, in the order it names them. */
+async function pendingParts(db: D1Database, thread: ItemRow): Promise<ItemRow[]> {
+  const { results } = await db.prepare("SELECT * FROM items WHERE tangled_from = ? AND version = 0").bind(thread.id).all<ItemRow>();
+  if (!results.length) return [];
+  const md = thread.content_md;
+  const named = [...new Set([...md.matchAll(directiveOwnLine()), ...md.matchAll(linkInline())].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)).map((m) => m[1]))];
+  return named.flatMap((id) => results.filter((row) => row.id === id));
+}
+
+async function publishPendingParts(context: OperationContext, thread: ItemRow) {
+  const published: { id: string; version: number }[] = [];
+  for (const part of await pendingParts(context.env.DB, thread)) {
+    const result = await publishAndNotify(context, part, null);
+    if (!result.ok) return { ok: false as const, failed: result };
+    published.push({ id: part.id, version: (result.value as { version: number }).version });
+  }
+  return { ok: true as const, published };
+}
+
+async function publishTangled(
+  context: OperationContext,
+  item: ItemRow,
+  spans: TangleSpan[],
+  note: string | null,
+  noteGenerated: boolean,
+  settle: (version: number) => Promise<void>,
+  confirmed: boolean,
+) {
+  const db = context.env.DB;
+  const origin = siteOrigin(await getSettings(db), context.url, normalizeMount(context.env.MOUNT));
+
+  // 1. Pre-flight (§2.1): every error the real publishes would raise, raised
+  // now. Each part dry-runs as the thread it will be; the thread dry-runs with
+  // its spans taken out (a placeholder's words kept), since the directives and
+  // links that replace them name items published first, which always resolve.
+  for (const [i, span] of spans.entries()) {
+    try {
+      await publish(db, draftPart(item, partBody(span, item.id)), null, origin, false, { dryRun: true });
+    } catch (e) {
+      return publishFailure(e, `new item ${i + 1} (${tangleLabel(span)}): `);
+    }
+  }
+  let withoutSpans = "";
+  let last = 0;
+  for (const span of spans) {
+    // A placeholder's words stay in the sentence; a quoted span leaves.
+    withoutSpans += item.content_md.slice(last, span.start) + (span.kind === "link" ? span.text : "");
+    last = span.end;
+  }
+  withoutSpans += item.content_md.slice(last);
+  try {
+    await publish(db, { ...item, content_md: withoutSpans }, note, origin, noteGenerated, { dryRun: true });
+  } catch (e) {
+    return publishFailure(e);
+  }
+  const fork = parseStoredFork(item.forked_from);
+  if (fork) {
+    const check = await checkForkTarget(db, fork, origin, mentionFetchFor(context.env));
+    if (!check.ok) return failure('invalid-input', { error: check.reason });
+  }
+
+  // 2. The count gate (§2.2): every caller sees the count before anything is
+  // minted, the studio's dialog and an API or MCP client alike.
+  if (!confirmed) {
+    return failure('conflict', {
+      error: `publishing this thread also publishes ${spans.length} new item${spans.length === 1 ? "" : "s"}; send tangle: true to confirm`,
+      code: 'tangle-confirmation-required',
+      count: spans.length,
+      parts: spans.map((span) => (span.kind === "link" ? `${tangleLabel(span)} (linked)` : tangleLabel(span))),
+    });
+  }
+
+  // 3. One batch: the parts as drafts, and the thread with each span replaced
+  // by a labelled directive. Guarded by the thread's revision, as publish() is.
+  const ids = spans.map(() => newId());
+  const now = nowIso();
+  const guard = "EXISTS (SELECT 1 FROM items WHERE id = ? AND revision = ?)";
+  const committed = await db.batch([
+    ...spans.map((span, i) =>
+      db.prepare(`INSERT INTO items (id, kind, status, created, updated, version, content_md, dirty, tangled_from) SELECT ?, 'thread', 'draft', ?, ?, 0, ?, 1, ? WHERE ${guard}`)
+        .bind(ids[i], now, now, partBody(span, item.id), item.id, item.id, item.revision),
+    ),
+    db.prepare("UPDATE items SET content_md = ?, dirty = 1, updated = ?, revision = revision + 1 WHERE id = ? AND revision = ?")
+      .bind(rewriteTangles(item.content_md, spans, ids), now, item.id, item.revision),
+  ]);
+  if (!committed[committed.length - 1].meta.changes) throw new ItemRevisionConflict(item.id, item.revision);
+
+  // 4. Each part in source order, then the thread last (§7).
+  const thread = (await getItem(db, item.id))!;
+  const parts = await publishPendingParts(context, thread);
+  if (!parts.ok) return parts.failed;
+  return publishAndNotify(context, thread, note, { parts: parts.published }, noteGenerated, settle);
+}
 
 /**
  * Classify the change the working copy would publish (session 49). Never

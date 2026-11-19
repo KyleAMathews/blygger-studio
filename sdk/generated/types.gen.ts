@@ -16,7 +16,7 @@ export type Authorization = {
 };
 
 export type ApiError = {
-    code: 'invalid-input' | 'unauthorized' | 'forbidden' | 'not-found' | 'method-not-allowed' | 'conflict' | 'revision-conflict' | 'cursor-expired' | 'too-large' | 'unsupported-media' | 'unprocessable' | 'rate-limit' | 'internal' | 'bad-gateway';
+    code: 'invalid-input' | 'unauthorized' | 'forbidden' | 'not-found' | 'method-not-allowed' | 'conflict' | 'revision-conflict' | 'tangle-confirmation-required' | 'cursor-expired' | 'too-large' | 'unsupported-media' | 'unprocessable' | 'rate-limit' | 'internal' | 'bad-gateway';
     message: string;
     details?: {
         issues?: Array<{
@@ -195,6 +195,9 @@ export type Settings = {
      * Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read.
      */
     backgroundRules: {
+        burst: boolean;
+        wordless: boolean;
+        maintenance: boolean;
         minor: boolean;
     };
     acceptMentions: boolean;
@@ -531,7 +534,7 @@ export type Mention = {
     target: string;
     targetItemId: string;
     status: 'pending' | 'verified' | 'failed' | 'gone';
-    relation: 'stub' | 'transclusion' | 'fork' | 'source' | null;
+    relation: 'stub' | 'transclusion' | 'fork' | 'source' | 'link' | null;
     sourceOrigin: string | null;
     sourceId: string | null;
     sourceKind: string | null;
@@ -566,9 +569,13 @@ export type MentionGroup = {
     targetItemId: string;
     total: number;
     /**
-     * Verified, unhidden receipts before the target item response policy is applied.
+     * Verified, unhidden responses before the target item response policy is applied. `link` notices are never responses (spec 0.4 §15.5) and are not counted.
      */
     visible: number;
+    /**
+     * Verified `link` notices: other blygs linking to the target. Counted in total, never in visible.
+     */
+    links: number;
     /**
      * Latest verifiedAt with SQL NULL coalesced to an empty string.
      */
@@ -624,6 +631,17 @@ export type ReadingEntry = {
         syndication?: Array<SyndicationEntry>;
     };
     background: EntryBackground;
+    /**
+     * A thread's burst (spec §13.7's fold): the items of its blyg it was first to name, published with it, now in Background as `burst`. Present only on a thread that has them, while the burst rule is on.
+     */
+    parts?: Array<{
+        /**
+         * The subscription the part is held under, or "~own".
+         */
+        sub: string;
+        id: string;
+        label: string;
+    }>;
 };
 
 /**
@@ -1755,6 +1773,10 @@ export type PublishItemData = {
     body: {
         expectedRevision: number;
         note?: string;
+        /**
+         * Confirms publishing the new items a thread's `![[+ text]]` spans make. Without it, a working copy with spans gets 409 tangle-confirmation-required, listing them in details.parts and their number in details.count, and nothing is written.
+         */
+        tangle?: boolean;
         noteGenerated?: boolean;
         /**
          * The change category the author confirmed in the publish dialog: kept with the version in studio-private storage (never on the wire). Omitted: a classification made for these words stands; null: cleared.
@@ -1834,6 +1856,13 @@ export type PublishItemResponses = {
          * @words that name no contact. They stay literal text.
          */
         unresolvedHandles?: Array<string>;
+        /**
+         * Items this publish made from the thread's `![[+ text]]` spans, or finished making, in source order. Each was published before the thread.
+         */
+        parts?: Array<{
+            id: string;
+            version: number;
+        }>;
     };
 };
 
@@ -2842,10 +2871,13 @@ export type UpdateSettingsData = {
          */
         changelogSummaryPrompt?: string;
         /**
-         * Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read.
+         * Background rules to turn on or off; rules not named keep their stored value.
          */
         backgroundRules?: {
-            minor: boolean;
+            burst?: boolean;
+            wordless?: boolean;
+            maintenance?: boolean;
+            minor?: boolean;
         };
         acceptMentions?: boolean;
         updateCheck?: boolean;
