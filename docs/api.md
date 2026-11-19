@@ -127,6 +127,10 @@ use the same validators as direct GETs: a match returns `{ status: 304,
 body: null, headers: { ETag: ... } }`. Validators belong to individual children,
 not the POST envelope, and conditional child reads remain batchable.
 
+Treat validators as opaque strings and send them back unchanged. Any HTTP
+client can revalidate resources directly. The SDK's optional `conditionalReads`
+setting provides body reuse as a convenience.
+
 Validators cover complete response bytes. A pinned document can get a new ETag
 when live author or origin metadata changes, even when its markdown hash stays
 the same. OAuth discovery keeps its native public cache policy, and signing keys

@@ -60,6 +60,10 @@ body and validator together. A `304` reuses that validated body and appears to
 SDK methods as a successful `200`; ordinary clients expose raw HTTP responses.
 An explicit `If-None-Match` header also keeps raw HTTP behavior.
 
+Validators are opaque strings. Send them back unchanged. `conditionalReads`
+is an optional convenience. Any HTTP client can use resource GETs and
+`If-None-Match` directly.
+
 Cache entries belong to one client and include the exact URL, request headers,
 and Fetch context. Keep separate clients for separate owners or server requests.
 Failed reads and cancelled reads cannot replace entries. Writes prevent reads
