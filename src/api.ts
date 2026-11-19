@@ -52,8 +52,8 @@ import { blygItemUrl } from "./importer/util.ts";
 import { siteOrigin } from "./protocol.ts";
 import { parseForkedFrom, parseStoredFork, parseStoredStub, parseStubOf } from "./stub.ts";
 import { parseScopes, unrequestedOutputDirectives } from './tk.ts';
-import { parseTangles, rewriteTangles, tangleLabel, type TangleSpan } from './tangle.ts';
-import { directiveOwnLine } from './grammar.ts';
+import { parseTangles, partBody, rewriteTangles, tangleLabel, type TangleSpan } from './tangle.ts';
+import { directiveOwnLine, linkInline } from './grammar.ts';
 import { CommentPublishError, withoutComments } from './comments.ts';
 import { runGenerateScope } from "./tk-generate.ts";
 import type { ItemRow, SubscriptionRow } from "./types.ts";
@@ -323,8 +323,9 @@ const publishItemOperation = async (context: OperationContext, input: OperationI
 
 // ── Tangling (blygger-spec docs/tangling-plan.md §2; decisions #78, #100) ──
 //
-// A `![[+ text]]` span in a thread's working copy publishes as a new item,
-// a "part", which is always a thread (#100: kind is fixed once published, and
+// A `![[+ text]]` span in a thread's working copy publishes as a new item the
+// thread quotes, and an inline `[[+ text]]` as a new item it links (a
+// placeholder, its text as a heading). Either is a "part", which is always a thread (#100: kind is fixed once published, and
 // the client must not declare a leaf for the author). The sequence is
 // pre-flight (nothing written), the count gate, one batch that mints the parts
 // as drafts and rewrites the thread, then each part, then the thread last
@@ -336,11 +337,12 @@ function draftPart(thread: ItemRow, text: string): ItemRow {
   return { ...thread, id: newId(), revision: 1, kind: "thread", status: "draft", version: 0, content_md: text, dirty: 1, tk_provenance_json: null, stub_of: null, forked_from: null, fork_cite: null, tangled_from: thread.id };
 }
 
-/** The drafts this thread minted and still names, in the order it names them. */
+/** The drafts this thread minted and still names, by quote or by link, in the order it names them. */
 async function pendingParts(db: D1Database, thread: ItemRow): Promise<ItemRow[]> {
   const { results } = await db.prepare("SELECT * FROM items WHERE tangled_from = ? AND version = 0").bind(thread.id).all<ItemRow>();
   if (!results.length) return [];
-  const named = [...new Set([...thread.content_md.matchAll(directiveOwnLine())].map((m) => m[1]))];
+  const md = thread.content_md;
+  const named = [...new Set([...md.matchAll(directiveOwnLine()), ...md.matchAll(linkInline())].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)).map((m) => m[1]))];
   return named.flatMap((id) => results.filter((row) => row.id === id));
 }
 
@@ -368,19 +370,20 @@ async function publishTangled(
 
   // 1. Pre-flight (§2.1): every error the real publishes would raise, raised
   // now. Each part dry-runs as the thread it will be; the thread dry-runs with
-  // its spans taken out, since the directives that replace them name items
-  // that will be published first and so always resolve.
+  // its spans taken out (a placeholder's words kept), since the directives and
+  // links that replace them name items published first, which always resolve.
   for (const [i, span] of spans.entries()) {
     try {
-      await publish(db, draftPart(item, span.text), null, origin, false, { dryRun: true });
+      await publish(db, draftPart(item, partBody(span, item.id)), null, origin, false, { dryRun: true });
     } catch (e) {
-      return publishFailure(e, `new item ${i + 1} (${tangleLabel(span.text)}): `);
+      return publishFailure(e, `new item ${i + 1} (${tangleLabel(span)}): `);
     }
   }
   let withoutSpans = "";
   let last = 0;
   for (const span of spans) {
-    withoutSpans += item.content_md.slice(last, span.start);
+    // A placeholder's words stay in the sentence; a quoted span leaves.
+    withoutSpans += item.content_md.slice(last, span.start) + (span.kind === "link" ? span.text : "");
     last = span.end;
   }
   withoutSpans += item.content_md.slice(last);
@@ -402,7 +405,7 @@ async function publishTangled(
       error: `publishing this thread also publishes ${spans.length} new item${spans.length === 1 ? "" : "s"}; send tangle: true to confirm`,
       code: 'tangle-confirmation-required',
       count: spans.length,
-      parts: spans.map((span) => tangleLabel(span.text)),
+      parts: spans.map((span) => (span.kind === "link" ? `${tangleLabel(span)} (linked)` : tangleLabel(span))),
     });
   }
 
@@ -414,7 +417,7 @@ async function publishTangled(
   const committed = await db.batch([
     ...spans.map((span, i) =>
       db.prepare(`INSERT INTO items (id, kind, status, created, updated, version, content_md, dirty, tangled_from) SELECT ?, 'thread', 'draft', ?, ?, 0, ?, 1, ? WHERE ${guard}`)
-        .bind(ids[i], now, now, span.text, item.id, item.id, item.revision),
+        .bind(ids[i], now, now, partBody(span, item.id), item.id, item.id, item.revision),
     ),
     db.prepare("UPDATE items SET content_md = ?, dirty = 1, updated = ?, revision = revision + 1 WHERE id = ? AND revision = ?")
       .bind(rewriteTangles(item.content_md, spans, ids), now, item.id, item.revision),

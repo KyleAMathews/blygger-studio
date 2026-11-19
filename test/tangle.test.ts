@@ -9,11 +9,16 @@
 // inert where every bracket form is.
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { parseTangles, rewriteTangles, tangleLabel, TANGLE_MAX, withoutTangleMarkers } from "../src/tangle.ts";
+import { parseTangles, placeholderBody, rewriteTangles, tangleLabel, TANGLE_MAX, withoutTangleMarkers } from "../src/tangle.ts";
 import { getItem } from "../src/model.ts";
-import { apiJson, createAndPublish, login } from "./helpers.ts";
+import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
 
 const db = () => env.DB;
+const getJson = async (path: string) => {
+  const res = await getPublic(path);
+  expect(res.status).toBe(200);
+  return res.json() as Promise<Record<string, unknown> & { links?: unknown; transclusions?: unknown }>;
+};
 const ID = "0123456789abcdefghjkmnpqrs";
 
 describe("the span grammar", () => {
@@ -39,8 +44,28 @@ describe("the span grammar", () => {
     }
   });
 
-  it("an inline [[+ text]] is reserved literal text, not a span", () => {
-    expect(parseTangles("a [[+ placeholder]] here")).toEqual({ spans: [], issues: [] });
+  it("an inline [[+ text]] is a placeholder, linked, with the line it sits in", () => {
+    const md = "A sentence with [[+ some idea]] in it.";
+    const { spans, issues } = parseTangles(md);
+    expect(issues).toEqual([]);
+    expect(spans).toEqual([{ kind: "link", start: 16, end: 31, text: "some idea", context: "A sentence with some idea in it." }]);
+    const ids = ["c".repeat(26)];
+    expect(rewriteTangles(md, spans, ids)).toBe(`A sentence with [[${ids[0]} | some idea]] in it.`);
+    expect(withoutTangleMarkers(md)).toBe("A sentence with some idea in it.");
+    expect(placeholderBody(spans[0], "t".repeat(26))).toBe(`# some idea\n\n/* placeholder from [[${"t".repeat(26)}]]: A sentence with some idea in it. */\n`);
+  });
+
+  it("placeholders and spans share source order and the cap", () => {
+    const { spans } = parseTangles("Intro [[+ first]].\n\n![[+ a passage]]\n\nThen [[+ second]].");
+    expect(spans.map((s) => [s.kind, s.text])).toEqual([["link", "first"], ["quote", "a passage"], ["link", "second"]]);
+    const eleven = Array.from({ length: TANGLE_MAX + 1 }, (_, i) => `[[+ idea ${i}]]`).join(" ");
+    expect(parseTangles(eleven).issues.map((i) => i.reason)).toEqual([`one publish can make at most ${TANGLE_MAX} new items; this has ${TANGLE_MAX + 1}`]);
+  });
+
+  it("a placeholder is inert in code and comments, refused empty or inside a span", () => {
+    expect(parseTangles("`[[+ x]]` and /* [[+ y]] */")).toEqual({ spans: [], issues: [] });
+    expect(parseTangles("a [[+   ]] b").issues.map((i) => i.reason)).toEqual(["this [[+ …]] placeholder is empty"]);
+    expect(parseTangles("![[+ passage with [[+ idea]] inside]]").issues[0].reason).toMatch(/cannot sit inside/);
   });
 
   it("refuses what cannot publish, and says why", () => {
@@ -167,6 +192,35 @@ describe("publishing a tangled thread", () => {
     const res = await publish(cookie, created.json.id, { tangle: true });
     expect(res.status).toBe(400);
     expect(res.json.message).toBe("tangling makes a thread; switch this draft to a thread");
+  });
+
+  it("a placeholder publishes a linked thread with its text as a heading, and the wire lists the link", async () => {
+    const cookie = await login();
+    const id = await thread(cookie, "Before. We need [[+ a theory of hoppers]] someday.\n");
+    const asked = await publish(cookie, id);
+    expect(asked.json.details.parts).toEqual(["a theory of hoppers (linked)"]);
+    const done = await publish(cookie, id, { tangle: true });
+    expect(done.status).toBe(200);
+    const [part] = done.json.parts as { id: string }[];
+    const row = (await getItem(db(), part.id))!;
+    expect(row.kind).toBe("thread");
+    expect(row.content_md).toBe(`# a theory of hoppers\n\n/* placeholder from [[${id}]]: Before. We need a theory of hoppers someday. */\n`);
+    // The comment is the author's note: the published text is the heading alone.
+    const partVersion = await db().prepare("SELECT content_md FROM versions WHERE item_id = ? AND version = 1").bind(part.id).first<{ content_md: string }>();
+    expect(partVersion!.content_md).toBe("# a theory of hoppers\n");
+    expect((await getItem(db(), id))!.content_md).toBe(`Before. We need [[${part.id} | a theory of hoppers]] someday.\n`);
+    const doc = await getJson(`/blyg/items/${id}.json`);
+    expect(doc.links).toEqual([{ id: part.id }]);
+    expect(doc.transclusions).toEqual([]);
+  });
+
+  it("links[] lists resolved links in order, skips code, and is absent without links", async () => {
+    const cookie = await login();
+    const a = await createAndPublish(cookie, "Target A.");
+    const b = await createAndPublish(cookie, "Target B.");
+    const linking = await createAndPublish(cookie, `See [[${b}]], then [[${a} | the first]], and \`[[${a}]]\` in code, and [[${b}]] again.`);
+    expect((await getJson(`/blyg/items/${linking}.json`)).links).toEqual([{ id: b }, { id: a }, { id: b }]);
+    expect((await getJson(`/blyg/items/${a}.json`)).links).toBeUndefined();
   });
 
   it("eleven spans are refused, and spans in code publish as text", async () => {

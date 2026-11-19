@@ -19,7 +19,7 @@ import { siteOrigin } from "./protocol.ts";
 import { MODELS, bindingName, configuredProviders, isDecisionModel } from "./ai/models.ts";
 import type { ChangeClassRow } from "./change-class.ts";
 import { withLabels, type InteractionRow } from "./interactions.ts";
-import { normalizeMount } from "./util.ts";
+import { escapeHtml, normalizeMount } from "./util.ts";
 import type { SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, HopperItemRow, VersionRow, MentionInRow, MentionOutRow } from "./types.ts";
 import { itemDetail } from "./item-data.ts";
 import { readingData, readingSummary } from "./reading-data.ts";
@@ -427,6 +427,7 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
 /** A line no author writes, standing in for a `![[+ …]]` span while the rest renders. */
 const tangleToken = (i: number) => `\uE010tangle${i}\uE010`;
 const TANGLE_TOKEN_P = /<p>\uE010tangle(\d+)\uE010<\/p>/g;
+const TANGLE_TOKEN = /\uE010tangle(\d+)\uE010/g;
 
 /**
  * A thread's `![[+ …]]` spans as the preview shows them (tangling-plan §2.6):
@@ -439,19 +440,23 @@ async function previewTangles(db: D1Database, md: string, origin: string) {
   let text = "";
   let last = 0;
   spans.forEach((span, i) => {
-    text += `${md.slice(last, span.start)}\n${tangleToken(i)}\n\n`;
+    // A quoted span is a block of its own; a placeholder stays in its sentence.
+    text += span.kind === "link" ? `${md.slice(last, span.start)}${tangleToken(i)}` : `${md.slice(last, span.start)}\n${tangleToken(i)}\n\n`;
     last = span.end;
   });
   text += md.slice(last);
   const errors: unknown[] = [];
   const rendered = await Promise.all(spans.map(async (span) => {
+    if (span.kind === "link") return "";
     const links = await previewInternalLinks(db, span.text, origin);
     const resolved = await previewTransclusions(db, links.text);
     errors.push(...links.errors, ...resolved.errors);
     return applyInternalLinks(resolved.html, links);
   }));
   const finish = (html: string) =>
-    html.replace(TANGLE_TOKEN_P, (_whole, i: string) => `<blockquote class="blyg-tangle-new"><p class="blyg-tangle-label">new item</p>${rendered[Number(i)]}</blockquote>`);
+    html
+      .replace(TANGLE_TOKEN_P, (_whole, i: string) => `<blockquote class="blyg-tangle-new"><p class="blyg-tangle-label">new item</p>${rendered[Number(i)]}</blockquote>`)
+      .replace(TANGLE_TOKEN, (_whole, i: string) => `<span class="blyg-tangle-link" title="new item, linked">${escapeHtml(spans[Number(i)].text)}</span>`);
   return { md: text, finish, errors };
 }
 

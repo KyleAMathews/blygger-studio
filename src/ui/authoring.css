@@ -168,6 +168,8 @@
 .preview blockquote.blyg-tangle-new { margin: 1.5rem 0; padding: .25rem 0 .25rem 1.1rem; border-left: 2px dashed var(--pencil); background: none; }
 .preview blockquote.blyg-tangle-new > .blyg-tangle-label { margin: 0 0 .35rem; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; color: var(--pencil); }
 .tangle-parts { margin: .5rem 0 .75rem; padding-left: 1.4rem; }
+/* A [[+ text]] placeholder: the link it will become, to an item that does not exist yet. */
+.preview .blyg-tangle-link { color: var(--pencil); text-decoration: underline dashed; text-underline-offset: .2em; }
 .preview blockquote.blyg-transclusion :is(h1, h2, h3) { margin: 1.2em 0 .4em; }
 /* Not selectable: choosing a passage to quote must not pick up this line. */
 .preview .provenance { margin: .5rem 0 0; font-size: .75rem; color: var(--ink-soft); user-select: none; }

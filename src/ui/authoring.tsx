@@ -813,8 +813,8 @@ async function publishTangle(write: ReturnType<typeof createDraftAction>, comman
         <>
           <ol className="tangle-parts">{(body.details?.parts ?? []).map((label, i) => <li key={i}>{label}</li>)}</ol>
           <p className="hint">
-            Each <code>![[+ …]]</code> becomes a thread of its own, published first, and this thread quotes it.
-            To change a quoted passage later, open that item.
+            Each new item is a thread of its own, published first: this thread quotes each <code>![[+ …]]</code>
+            and links each <code>[[+ …]]</code>. To change one later, open that item.
           </p>
         </>
       ),

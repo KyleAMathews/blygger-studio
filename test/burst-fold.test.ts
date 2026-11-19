@@ -33,9 +33,10 @@ async function subscription() {
   return (await createSubscription(db(), { kind: "blyg", origin: ORIGIN, feedUrl: `${ORIGIN}feed.xml`, title: "Burst source" })).id;
 }
 /** One version of an item, through the importer as a poll would apply it. */
-async function arrive(sub: string, opts: { id: string; kind?: "fragment" | "thread"; version?: number; md?: string; created: string; updated?: string; quotes?: { id: string; version: number; origin?: string }[] }, observedAt = new Date().toISOString()) {
+async function arrive(sub: string, opts: { id: string; kind?: "fragment" | "thread"; version?: number; md?: string; created: string; updated?: string; quotes?: { id: string; version: number; origin?: string }[]; links?: { id: string; origin?: string }[] }, observedAt = new Date().toISOString()) {
   const doc = JSON.parse(await itemDocBody({ id: opts.id, kind: opts.kind ?? "fragment", version: opts.version ?? 1, content_md: opts.md ?? `words of ${opts.id}`, created: opts.created, updated: opts.updated ?? opts.created, origin: ORIGIN }));
   if (opts.quotes) doc.transclusions = opts.quotes;
+  if (opts.links) doc.links = opts.links;
   const held = await db().prepare("SELECT version, state FROM imported_items WHERE subscription_id = ? AND remote_id = ?").bind(sub, opts.id).first<{ version: number; state: string }>();
   const local: LocalState = held ? { status: held.state === "tombstone" ? "tombstone" : "current", version: held.version } : { status: "absent" };
   const tr = transition({ local, doc });
@@ -104,6 +105,20 @@ describe("a burst from a blyg you read", () => {
     await arrive(sub, { id: p1, version: 2, created: at(3), updated: at(0), md: "rewritten with more words" });
     expect((await reading(cookie, `sub=${sub}`)).map((e) => e.key)).toContain(key(sub, p1));
     expect((await reading(cookie, `sub=${sub}`)).find((e) => e.key === key(sub, thread))!.parts?.map((p) => p.id)).toEqual([p2]);
+  });
+
+  it("folds the placeholders a thread links, as it folds the parts it quotes", async () => {
+    const cookie = await login();
+    const sub = await subscription();
+    const [idea, quoted, thread] = [newId(), newId(), newId()];
+    await arrive(sub, { id: idea, kind: "thread", created: at(2), md: "# an idea for later" });
+    await arrive(sub, { id: quoted, created: at(2) });
+    await arrive(sub, { id: thread, kind: "thread", created: at(30), updated: at(1), md: `We need [[${idea} | an idea for later]].\n\n![[${quoted}]]\n`, quotes: [{ id: quoted, version: 1 }], links: [{ id: idea }] });
+    const main = await reading(cookie, `sub=${sub}`);
+    expect(main.map((e) => e.key)).toEqual([key(sub, thread)]);
+    expect(main[0].parts?.map((p) => p.id).sort()).toEqual([idea, quoted].sort());
+    const background = await reading(cookie, `sub=${sub}&background=true`);
+    expect(background.map((e) => e.key).sort()).toEqual([key(sub, idea), key(sub, quoted)].sort());
   });
 
   it("folds a part that arrives after its thread", async () => {
