@@ -18,6 +18,23 @@ not have its own repo until session 26.
 
 ---
 
+## 0.64.1 — Security: Hono and fast-xml-parser upgrades
+
+**Upgrade if you run your own node.** Hono, the framework that routes every request, goes
+from 4.13.14 to 4.13.18. The older version has published advisories, among them one where
+the router can skip wildcard middleware for some routes and for paths with an encoded line
+terminator ([GHSA-h7mg-cq63-vhpq](https://github.com/advisories/GHSA-h7mg-cq63-vhpq),
+[GHSA-4m76-xfj5-7975](https://github.com/advisories/GHSA-4m76-xfj5-7975),
+[GHSA-46wx-v44x-9hh2](https://github.com/advisories/GHSA-46wx-v44x-9hh2),
+[GHSA-4h7h-rv7c-7m2v](https://github.com/advisories/GHSA-4h7h-rv7c-7m2v),
+[GHSA-3gg2-335m-rxc6](https://github.com/advisories/GHSA-3gg2-335m-rxc6)). The studio
+attaches its sign-in checks as wildcard middleware, so this release does not wait to find
+out whether any route was reachable. fast-xml-parser, which reads the feeds you subscribe
+to, goes from 5.11.2 to 5.12.1 for a low-severity CPU-exhaustion advisory
+([GHSA-474x-hrwr-fgx4](https://github.com/advisories/GHSA-474x-hrwr-fgx4)). `npm audit`
+reports no runtime vulnerabilities after it. No behaviour changes. Private contract 5.13.0,
+SDK 0.19.0, unchanged. **Migrations:** none.
+
 ## 0.64.0 — Shared components, link notices apart, two tangling fixes
 
 **Shared UI components** (Shannon's studio#88). The studio's controls now come from one set
