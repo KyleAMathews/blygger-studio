@@ -277,3 +277,20 @@ whitespace checks pass. The production delta against this main remains
 limited to `src/index.ts` and `src/oauth.ts`, with both files identical to
 the reviewed migration. These local results precede the new pushed-head
 CI run.
+
+The first pushed merge run passed eight CI jobs. Ordinary e2e completed
+with 592 passes, three retry flakes and 26 skips, but the browser oracle
+baseline stalled until the combined job's time limit. The separate oracle
+SPA builder had not received main's new component-gallery build flag and
+stub substitution. A build-flags probe raised `ReferenceError: process is
+not defined` with its old configuration; the production configuration
+initialized normally. This was a harness startup failure, not a save-law
+RED or a mutation kill.
+
+The browser builder now applies the same disabled gallery flag and stub as
+the default production build. Against otherwise unchanged `bf12caa`, all
+48 desktop/mobile browser checks pass in stable repeated baselines
+(85.7 and 74.9 seconds locally), and the rebuilt `save-rejection` mutation
+is rejected by `acknowledged ordered saves`: zero gaps, nonprovisional.
+The model, laws, histories, driver, assertions and run budgets are unchanged.
+Oracle lint and migration preservation pass after the builder repair.

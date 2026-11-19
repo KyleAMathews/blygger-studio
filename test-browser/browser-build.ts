@@ -17,9 +17,12 @@ export async function buildBrowserOracleSpa() {
         return source === undefined ? undefined : { contents: source, loader: args.path.endsWith('tsx') ? 'tsx' : 'ts', resolveDir: dirname(args.path) };
       });
       builder.onResolve({ filter: /\/math-render\.ts$/ }, args => ({ path: resolve(dirname(args.importer), args.path.replace(/math-render\.ts$/, 'math-render.browser.ts')) }));
+      // Match the production build: the maintainer gallery and its CSS are not
+      // part of the application whose save behavior this oracle receives.
+      builder.onResolve({ filter: /^\.\/component-library\.tsx$/ }, args => ({ path: resolve(args.resolveDir, 'component-library.stub.tsx') }));
     },
   };
-  await build({ entryPoints: ['src/ui/app.tsx'], outfile: 'build/studio-spa.js', bundle: true, jsx: 'automatic', tsconfig: 'tsconfig.ui.json', format: 'iife', platform: 'browser', target: 'es2022', minify: true, define: { 'process.env.NODE_ENV': JSON.stringify('production') }, banner: { js: originalSchemata }, plugins: [receivingSources] });
+  await build({ entryPoints: ['src/ui/app.tsx'], outfile: 'build/studio-spa.js', bundle: true, jsx: 'automatic', tsconfig: 'tsconfig.ui.json', format: 'iife', platform: 'browser', target: 'es2022', minify: true, define: { 'process.env.NODE_ENV': JSON.stringify('production'), 'process.env.BLYG_COMPONENT_GALLERY': JSON.stringify('') }, banner: { js: originalSchemata }, plugins: [receivingSources] });
   if (/temml/i.test(readFileSync('build/studio-spa.js', 'utf8'))) throw new Error('Browser oracle build included the Worker formula renderer');
   copyFileSync('build/studio-spa.js', 'build/studio-spa.txt');
   copyFileSync('build/studio-spa.css', 'build/studio-spa-style.txt');
