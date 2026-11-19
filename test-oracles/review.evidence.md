@@ -34,6 +34,49 @@ it. Product code, oracle laws, grammars and comparisons are unchanged.
 Both workflow files parse successfully and preserve that runtime sequence,
 including the release fallback conditions. New-head CI remains pending.
 
+## CI batch quota clock correction — 2026-11-19
+
+Hosted run `44583887959` at `4cae30f` passed the complete Studio campaign
+`3d0341eff28b` twice: 1,840 stable checks, 755 rejected controls, zero gaps.
+Its first main-job attempt then encountered the already recorded Worker-pool
+initialization error. The unchanged local Worker rerun passed all 121 checks
+and 14 controls. Hosted attempt two reached the batch receiving oracle and
+failed `getItem-delegated-49` at `changed`. That baseline crossed 18:47 UTC.
+The job log retained the law/checkpoint but omitted actual/expected values.
+
+The batch fixture used the real clock while expecting all accumulated quota
+charges from one minute. Controlled diagnostic runs `76fbad6c7c4b` and
+`d5f586975c02` advance the clock one minute per 20 `Date.now` calls on unchanged
+production. Both fail 21/33 baseline checks and block the selected control.
+The detailed delegated49 observation keeps all 100 admission writes, seven
+physical D1 calls, successful child statuses and validators, while final
+counters are `[11,20]` instead of `[50,50]`. This reproduces the timing defect
+in the fixture. These provisional diagnostics receive no product RED or
+control-rejection credit. The hosted failure's exact counter values remain
+unavailable.
+
+The driver now holds `Date.now` within one quota window and restores its spy
+through `withOracleCleanup`, even if another release callback fails. This
+reuses the adopted bounded transparent conditional batch work law. The model,
+history matrix, checkpoints, assertions, calibration, production code and
+selected controls are unchanged. Quota rollover policy stays with its own
+oracle. No design-grammar trigger fires: no model, law or history changes.
+The existing ORC-001–016 accounting remains applicable, with controlled time
+and guaranteed cleanup addressing ORC-005/010/014/015 at this receiving path.
+
+Exact Node 22.18.0 `npm run test:oracles:conditional:worker` passes: derived
+run `9c50fb4aa428` has 17 stable checks and four rejected controls; receiving
+run `1245a1e4f5e7` has 104 stable checks and ten rejected controls. Both have
+zero gaps or nondeterminism. All 30 batch cells complete initial, unchanged
+and changed checkpoints. Each baseline enters getItem/listMentionGroups/
+getMentionSummary six times and listMentions twelve times, owner/delegated
+fifteen times each, adjacent/maximum ten times each, and unchanged/changed
+thirty times each. The over-budget calibration still rejects its trace.
+The original controls still fail the intended law through their registered
+routes. Changed-file ESLint, all three TypeScript programs and whitespace
+checks pass. This commit contains only the receiving driver and this record.
+New-head hosted CI remains a separate gate.
+
 Evidence cut: 2026-11-19; historical receipts retain their original source cuts. Recovery/search repair worktree starts at `1ffc706` over the published feature `cb1f721` and companion `0bb48f1`. PR #152 targets companion PR #151. The historical post-R4 receipt below used reviewed origin/main `0e9bd933e30a13c12b1c9fe5c855477d61e8fd91`. Earlier reviewed base: `28b0c8d642a87e5810ad6eabd95c2d1714c53396`. Package pin: `@tanstack/oracles@97a4e7a`. This versioned record evaluates the conditional adapter, public SDK, owner-read and derived-representation laws; historical receipts remain explicitly identified.
 
 **Historical post-R4 Node/browser cut:** post-R4 run `3b382a68ed73` passes all six files/1,158 baseline checks with stable repeat traces and rejects all 502 owned/authored mutants. Of 2,126 total entries (2,115 enumerated + 11 authored), zero are gaps/timeouts/crashes and 1,624 are explicit unowned warnings. All 502 prior owned semantic keys remain present and killed; all 471 first native property/unit reach histograms are unchanged. Selected browser receiving 30/30, ordinary polling integration 15/15 and historical polling controls 9/9 pass, including both native replays. R4's 167 repeated/200 expanded actual-judge controls pass. The exact checked-in Worker script passes 17 stable checks/four receiving controls; all six ordinary Worker files pass 66/66. Mandatory review evaluation is complete. Optional documentation decisions and commit/push/PR/CI gates remain. This is not a final readiness claim. The allowed-policy positive-control reporting issue supplies no kill credit or gap waiver.

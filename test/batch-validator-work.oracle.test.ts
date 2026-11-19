@@ -14,6 +14,7 @@
  * generation laws remain with the conditional server and cursor owners.
  */
 import { env } from 'cloudflare:test';
+import { vi } from 'vitest';
 import { differs, oracleProperty, pass, violation } from '@tanstack/oracles';
 import { operationDefinitions } from '../src/operations.ts';
 import { runOperation } from '../src/operation-runner.ts';
@@ -82,6 +83,9 @@ oracleProperty({
     values: values(plan.operation, plan.count, false, plan.direction), changed: values(plan.operation, plan.count, true, plan.direction) }),
   driver: async (plan, observe) => {
     const ids = indices(plan.count).map(itemId);
+    // Exact accumulated charges describe one quota window. Keep host load from
+    // advancing that window between the envelope and its child admissions.
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.UTC(2026, 10, 19, 12, 0, 1));
     await withOracleCleanup(async () => {
       await env.DB.batch([
         ...ids.map(id => env.DB.prepare("INSERT INTO items(id,kind,status,created,updated,version,content_md,dirty) VALUES(?,'fragment','public','created','updated',1,'Published item',0)").bind(id)),
@@ -126,6 +130,7 @@ oracleProperty({
       if (plan.count === 49) observe('reach', 'adjacent');
       observe('reach', 'unchanged'); observe('reach', 'changed');
     }, [
+      async () => { clock.mockRestore(); },
       () => env.DB.prepare("DELETE FROM mentions_out WHERE item_id LIKE 'work-oracle-%'").run(),
       () => env.DB.prepare("DELETE FROM mentions_in WHERE target_item_id LIKE 'work-oracle-%'").run(),
       () => env.DB.prepare("DELETE FROM versions WHERE item_id LIKE 'work-oracle-%'").run(),
