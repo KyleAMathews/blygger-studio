@@ -301,3 +301,12 @@ and zero gaps. In the same run, Worker security controls progressed without
 an assertion failure until their 25-minute job limit. Only that matrix job
 now has a 40-minute limit; the selected controls and their checks are
 unchanged, and the other mutation jobs retain 25 minutes.
+
+Main then advanced to `764cb40d15b8062dad70032f262807f4472ec962`
+(client 0.64.1, Hono 4.13.18 and fast-xml-parser 5.12.1). Its changelog
+entry and this branch's separate Unreleased API sunset entry are both
+preserved. After installing the merged lockfile, build, typecheck, oracle
+lint, migration preservation and release metadata pass. The focused
+mounted-API gate passes all 13 checks with stable repeats, rejects
+`oauth.ts:M1`, and reports zero gaps, nonprovisional. Contract 5.13.0,
+SDK 0.19.0, TypeScript 5.9.3 and the framework/plugin pin remain intact.
