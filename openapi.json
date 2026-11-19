@@ -2095,7 +2095,12 @@
           "visible": {
             "type": "integer",
             "minimum": 0,
-            "description": "Verified, unhidden receipts before the target item response policy is applied."
+            "description": "Verified, unhidden responses before the target item response policy is applied. `link` notices are never responses (spec 0.4 §15.5) and are not counted."
+          },
+          "links": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Verified `link` notices: other blygs linking to the target. Counted in total, never in visible."
           },
           "verifiedAt": {
             "type": "string",
@@ -2114,6 +2119,7 @@
           "targetItemId",
           "total",
           "visible",
+          "links",
           "verifiedAt",
           "lastSeen",
           "firstId"

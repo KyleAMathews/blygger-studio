@@ -226,6 +226,7 @@
 .mention-group .card-h a { color: inherit; }
 .mention-group .group-meta { margin: -6px 0 8px; }
 .mention-group .field { margin-bottom: 8px; }
+.mention-group .mention-notices-h { margin: 12px 0 4px; font-size: inherit; font-weight: 600; }
 .mention-group .field .segmented { margin: 0; }
 .mention-row { padding: 10px 0; border-top: 1px solid var(--rule); font-size: .86rem; overflow-wrap: anywhere; }
 .mention-row .who { font-weight: 600; }

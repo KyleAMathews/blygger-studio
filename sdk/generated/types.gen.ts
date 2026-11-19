@@ -546,9 +546,13 @@ export type MentionGroup = {
     targetItemId: string;
     total: number;
     /**
-     * Verified, unhidden receipts before the target item response policy is applied.
+     * Verified, unhidden responses before the target item response policy is applied. `link` notices are never responses (spec 0.4 §15.5) and are not counted.
      */
     visible: number;
+    /**
+     * Verified `link` notices: other blygs linking to the target. Counted in total, never in visible.
+     */
+    links: number;
     /**
      * Latest verifiedAt with SQL NULL coalesced to an empty string.
      */
