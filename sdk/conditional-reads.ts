@@ -4,6 +4,11 @@ type Entry = { etag: string | null; text: string; headers: [string, string][] };
 type Ticket = { superseded?: Entry };
 type Pending = { readers: Set<Ticket>; accepted?: Entry };
 
+/** A stale SDK attempt can be reacquired by a still-active UI consumer. */
+export class ReadSupersededError extends DOMException {
+  constructor() { super('Read superseded', 'AbortError'); }
+}
+
 /** One client's private, bounded cache. Bodies enter only after wire validation.
  * Requests still go to the origin; the cache supplies the body of a 304. */
 export function conditionalReadFetch(baseUrl: string, fetcher: typeof fetch, onEligible?: (request: Request) => void): typeof fetch {
@@ -52,7 +57,7 @@ export function conditionalReadFetch(baseUrl: string, fetcher: typeof fetch, onE
     try {
       let response = await fetcher(new Request(request, { headers }));
       request.signal.throwIfAborted();
-      if (started !== boundary) throw new DOMException('Read superseded', 'AbortError');
+      if (started !== boundary) throw new ReadSupersededError();
       if (response.status === 304) {
         if (!cached?.etag) {
           response = await fetcher(request);
@@ -61,7 +66,7 @@ export function conditionalReadFetch(baseUrl: string, fetcher: typeof fetch, onE
           const etag = response.headers.get('etag');
           if (etag && etag !== cached.etag) throw new Error('304 validator does not match cached representation');
           const latest = flight.accepted ?? cached;
-          if (!latest.etag) throw new DOMException('Read superseded', 'AbortError');
+          if (!latest.etag) throw new ReadSupersededError();
           // Confirmation is an accepted read too: an older 200 must not
           // replace the representation a later request just revalidated.
           if (!ticket.superseded) accept(key, flight, ticket, latest);
@@ -72,11 +77,11 @@ export function conditionalReadFetch(baseUrl: string, fetcher: typeof fetch, onE
       const text = await response.clone().text();
       schema.parse(JSON.parse(text));
       request.signal.throwIfAborted();
-      if (started !== boundary) throw new DOMException('Read superseded', 'AbortError');
+      if (started !== boundary) throw new ReadSupersededError();
       const etag = response.headers.get('etag');
       const newer = ticket.superseded;
       if (newer) {
-        if (!newer.etag) throw new DOMException('Read superseded', 'AbortError');
+        if (!newer.etag) throw new ReadSupersededError();
         return restored(newer);
       }
       // Untagged valid bodies still supersede older readers.

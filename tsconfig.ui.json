@@ -25,6 +25,7 @@
     "extensions/*/ui/**/*.ts",
     "extensions/*/ui/**/*.tsx",
     "test-ui/**/*.ts",
+    "test-browser/**/*.tsx",
     "vitest.ui.config.ts",
     "e2e/**/*.ts"
   ]

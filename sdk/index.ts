@@ -4,6 +4,7 @@ export type * from "./generated/types.gen.js";
 export type BlyggerClient = ReturnType<typeof createClient>;
 export type BlyggerClientOptions = Config & { conditionalReads?: boolean };
 import { conditionalReadFetch } from "./conditional-reads.js";
+export { ReadSupersededError } from "./conditional-reads.js";
 
 /** Each server request should create its own client to keep credentials isolated. */
 export const createBlyggerClient = (options: BlyggerClientOptions = {}) => {

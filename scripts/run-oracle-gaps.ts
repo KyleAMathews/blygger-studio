@@ -15,7 +15,7 @@ function take(name: string) {
 const runtime = take('--runtime') ?? 'worker';
 const runtimes = {
   worker: { config: 'vitest.worker-oracles.config.ts', prefix: 'WORKER_ORACLE', source: 'src/oauth-storage.ts,src/mention-groups.ts' },
-  studio: { config: 'vitest.oracles.config.ts', prefix: 'STUDIO_ORACLE', source: 'sdk/conditional-reads.ts,src/ui/cursor-query.ts,src/ui/read-batch.ts,src/conditional-operation.ts,sdk/index.ts,src/ui/data.ts' },
+  studio: { config: 'vitest.oracles.config.ts', prefix: 'STUDIO_ORACLE', source: 'sdk/conditional-reads.ts,src/ui/cursor-query.ts,src/ui/read-batch.ts,src/conditional-operation.ts,sdk/index.ts,src/ui/data.ts,src/ui/read-recovery.ts,src/cursor-page.ts' },
 };
 if (!(runtime in runtimes)) throw new Error(`Unknown oracle runtime: ${runtime}`);
 const selected = runtimes[runtime as keyof typeof runtimes];

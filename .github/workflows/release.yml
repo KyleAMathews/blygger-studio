@@ -89,6 +89,8 @@ jobs:
         run: npm run test:e2e
       - if: steps.checked.outputs.tested != 'true'
         run: npm run test:oracles:browser
+      - if: steps.checked.outputs.tested != 'true'
+        run: npm run test:oracles:browser:search
       - run: npm run release:build
         env:
           RELEASE_TAG: ${{ steps.version.outputs.tag }}

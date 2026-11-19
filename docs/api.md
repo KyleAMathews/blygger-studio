@@ -93,6 +93,12 @@ Cancelling one read preserves its peers; cancelling every consumer aborts the
 shared fetch. Concurrent resource reads share pending work only, and Studio
 writes clear pending-read registrations before their subsequent refreshes.
 
+If a write supersedes an in-flight SDK read, Studio reacquires it while its
+consumer remains active. After writes settle, the original consumer receives
+current data without reopening the view. Discarded responses never publish.
+Explicit cancellation stops further attempts and preserves its reason; HTTP,
+schema, network and unrelated abort failures remain errors.
+
 ## HTTP responses
 
 Private API responses default to `Cache-Control: no-store`, including preflight

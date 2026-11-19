@@ -1,4 +1,5 @@
 import { failureBody } from './api-error.ts';
+import type { ChangeSnapshot } from './changes.ts';
 import type { Env } from './types.ts';
 import type { OwnerAccess } from './permissions.ts';
 import type { ServerExtension } from './extensions/server.ts';
@@ -23,6 +24,8 @@ export interface OperationContext {
   url: string;
   access: OwnerAccess | null;
   extensions: readonly ServerExtension[];
+  /** Per-operation cursor generation proof for the conditional HTTP adapter. */
+  conditionalSnapshot?: ChangeSnapshot;
   defer(task: Promise<unknown>): void;
 }
 export const FAILURE_STATUS = {

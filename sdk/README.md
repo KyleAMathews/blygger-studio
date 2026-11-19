@@ -70,6 +70,11 @@ before transport. Each client retains at most 500 reusable representations;
 accepting an entry refreshes its eviction order. Overlapping readers retain the
 newest accepted answer until they settle, even if that entry is evicted.
 
+A superseded attempt produces `ReadSupersededError`, an `AbortError`.
+Generated methods expose it in `error`; `unwrap()` throws it. The SDK does not
+retry it. Studio uses this distinct error type to reacquire still-active reads,
+while preserving explicit cancellation and other failures.
+
 For `/read-batch`, each child may supply `ifNoneMatch`. A matching child has
 `status: 304`, `body: null`, and its `ETag` in `headers`. Other children retain
 their independent status, body, and headers. An outer `200` does not mean every

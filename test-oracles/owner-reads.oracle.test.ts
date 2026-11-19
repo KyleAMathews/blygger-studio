@@ -29,19 +29,27 @@
  * cancellation. The driver starts real live queries on exported source
  * collections, performs a generated SDK write, and controls only HTTP replies.
  * Checks compare transport starts before releasing the newer response, native
- * query settlement, current rows after both newer projections settle, and
+ * query recovery, current rows after all active projections settle, and
  * native registry retention after the final reader settles.
  *
  * Limits: the HTTP peer and write completion are controlled. This establishes
  * browser collection/SDK lifecycle behavior, not actual D1 mutation behavior.
+ * The superseded raw SDK attempt still rejects; the Studio adapter reacquires
+ * it for a live reader. Explicitly cancelled native queries still reject.
+ * A live old reader's justified reacquisition is separate from sharing among
+ * the newer period's peers. Authority: Kyle Mathews (GitHub KyleAMathews),
+ * 2026-11-18, approved active-consumer recovery and revised Query checkpoints.
  * Unrelated collection domains and caller-provided Fetch implementations are
- * outside this owner-read registry boundary. No design-grammar trigger fires:
- * the pure model needs one current-value rule and one sharing rule.
+ * outside this owner-read registry boundary. Revising the native Query model
+ * triggered design grammar: raw SDK attempt rejection and continuing consumer
+ * recovery are distinct checkpoints. The approved delta and preservation
+ * comparison are recorded in docs/oracle-read-recovery-review.md.
  */
 import fc from 'fast-check';
 import { differs, oracleProperty, pass } from '@tanstack/oracles';
 import { createLiveQueryCollection, and, eq } from '@tanstack/react-db';
 import { BlyggerApi, unwrap } from '../sdk/dist/browser.js';
+import { withOracleCleanup } from '../test/oracle-cleanup.ts';
 
 const histories = fc.record({
   resource: fc.constantFrom('items', 'hoppers'),
@@ -91,11 +99,13 @@ oracleProperty({
       { name: 'different-owner-context', enters: ['old-collection-read', 'new-period-overlap', 'distinct-owner-context'], build: (plan): Plan => ({ ...plan, oldFirst: false, sameKey: false, cancelOld: false }) },
     ],
   },
-  // A write changes the visible fixture value only at completion. The number
-  // of owed physical reads is two plus one for a genuinely different context;
-  // older settlement and cancellation cannot change that obligation.
+  // A write changes the fixture value only at completion. Within-period peers
+  // owe one shared read per context. A still-live old reader reacquires current
+  // data; if it settles first, that justified demand starts before the peer.
   model: (plan: Plan) => ({
-    starts: 2 + Number(!plan.sameKey), oldRejected: true, oldPublished: false,
+    starts: 2 + Number(!plan.sameKey) + Number(plan.oldFirst && !plan.cancelOld),
+    recoveryStarts: Number(!plan.cancelOld), oldRejected: plan.cancelOld,
+    old: plan.cancelOld ? null : String(plan.value + Number(plan.boundary === 'finish')),
     oldTransportAborted: plan.cancelOld,
     fresh: String(plan.value + Number(plan.boundary === 'finish')),
     peer: String(plan.value + Number(plan.boundary === 'finish')),
@@ -194,7 +204,7 @@ oracleProperty({
         observe('reach', 'cancelled-old-reader');
       }
       if (plan.oldFirst) {
-        oldGate.resolve(); await ready(oldOutcome);
+        oldGate.resolve();
         // Cancellation settles the native query before a signal-ignoring peer
         // has completed its body. Observe the old physical reply's jobs too.
         await fairTurn();
@@ -212,12 +222,14 @@ oracleProperty({
       observe('reach', 'settled-owner-registry');
       const freshRow = second.toArray.find(row => row.id === id) as { media?: { alt: string | null }[]; total?: number } | undefined;
       const peerRow = third.toArray.find(row => row.id === peerId) as { contentMd?: string; name?: string } | undefined;
-      result = { starts, oldRejected, oldPublished: oldQuery.state.data !== undefined,
+      const oldRow = (oldQuery.state.data as { data?: { contentMd?: string; name?: string }[] } | undefined)?.data?.[0];
+      result = { starts, recoveryStarts: requests.length - 2 - Number(!plan.sameKey), oldRejected,
+        old: oldRow ? plan.resource === 'items' ? oldRow.contentMd : oldRow.name : null,
         oldTransportAborted: requests[0]?.physical.signal.aborted ?? false,
         fresh: plan.resource === 'items' ? freshRow?.media?.[0]?.alt : freshRow?.total === undefined ? undefined : String(freshRow.total),
         peer: plan.resource === 'items' ? peerRow?.contentMd : peerRow?.name,
         retainedPending: registryEntries.filter(entry => entry.map.has(entry.key)).length,
-        diagnostics: errors.filter(error => !/Read superseded|CancelledError|Initial subset load failed|Cancelled/.test(error)) };
+        diagnostics: errors.filter(error => !(plan.cancelOld && /CancelledError|Initial subset load failed|Cancelled/.test(error))) };
       // Both direct hopper GETs and item batches have been exercised. Retain the
       // actual envelope observation separately from the context-level count.
       observe('transport', { envelopes, resource: plan.resource });
@@ -225,27 +237,28 @@ oracleProperty({
     } catch (error) {
       result = { unexpected: error instanceof Error ? { name: error.name, message: error.message } : String(error) };
     } finally {
-      oldGate.resolve(); freshGate.resolve(); writeGate.resolve();
-      if (db) {
-        await Promise.allSettled(db.queryClient.getQueryCache().getAll().map(query => query.promise).filter(Boolean));
-        await Promise.all(views.map(view => view.cleanup()));
-        await Promise.all([db.items, db.itemHistory, db.hoppers, db.hopperStats].map(source => source.cleanup()));
-        await Promise.allSettled(readers);
-        db.queryClient.clear(); db.queryClient.unmount();
-      }
-      console.error = originalConsoleError;
-      Map.prototype.set = originalMapSet;
-      for (const [key, descriptor] of descriptors) {
-        if (descriptor) Object.defineProperty(globalThis, key, descriptor);
-        else Reflect.deleteProperty(globalThis, key);
-      }
+      // Keep the sharing checkpoint if cleanup fails, and attempt every release
+      // and restoration even when an earlier collection cleanup throws.
+      const diagnosticCount = errors.length;
+      await withOracleCleanup(async () => { observe('sharing', result); }, [
+        async () => { oldGate.resolve(); freshGate.resolve(); writeGate.resolve();
+          await Promise.allSettled(db?.queryClient.getQueryCache().getAll().map(query => query.promise).filter(Boolean) ?? []); },
+        ...views.map(view => async () => { await view.cleanup(); }),
+        ...[db?.items, db?.itemHistory, db?.hoppers, db?.hopperStats].map(source => async () => { await source?.cleanup(); }),
+        async () => { await Promise.allSettled(readers); },
+        async () => { db?.queryClient.clear(); },
+        async () => { db?.queryClient.unmount(); },
+        async () => { if (errors.length > diagnosticCount) throw new AggregateError(errors.slice(diagnosticCount), 'Owner-read cleanup diagnostics'); },
+        async () => { console.error = originalConsoleError; },
+        async () => { Map.prototype.set = originalMapSet; },
+        ...[...descriptors].map(([key, descriptor]) => async () => { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key); }),
+      ]);
     }
-    observe('sharing', result);
   },
   check: (_plan, trace, expected) => differs('sharing', 'shared owner reads', trace.find(event => event.checkpoint === 'sharing')?.value, expected) ?? pass,
   calibrations: [{
     name: 'old-cleanup-detaches-newer-read', law: 'shared owner reads', history: { constructed: 'older-item-settles-first' },
-    corrupt: trace => trace.map(event => event.checkpoint === 'sharing' ? { ...event, value: { ...(event.value as object), starts: 3 } } : event),
+    corrupt: trace => trace.map(event => event.checkpoint === 'sharing' ? { ...event, value: { ...(event.value as object), starts: 4 } } : event),
   }],
 });
 

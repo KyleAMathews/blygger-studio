@@ -2,7 +2,7 @@
   "name": "@blygger/studio",
   "version": "0.63.0",
   "private": true,
-  "description": "Blygger Studio — reference client for the Blygger protocol (publish, subscribe, thread, transclude, respond)",
+  "description": "Blygger Studio \u2014 reference client for the Blygger protocol (publish, subscribe, thread, transclude, respond)",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -52,14 +52,16 @@
     "test:oracles:worker": "npm run test:oracles:gaps -- --runtime worker --source src/oauth-storage.ts --sample 1",
     "test:oracles:studio": "npm run test:oracles:gaps -- --runtime studio --contexts 2",
     "test:oracles:browser": "node --import tsx scripts/run-browser-oracle-gaps.ts",
-    "test:oracles": "npm run test:oracles:worker && npm run test:oracles:studio && npm run test:oracles:browser",
+    "test:oracles:browser:search": "node --import tsx scripts/run-search-oracle-gaps.ts",
+    "test:oracles": "npm run test:oracles:worker && npm run test:oracles:studio && npm run test:oracles:browser && npm run test:oracles:browser:search",
     "test:oracles:runtime": "node --import tsx scripts/verify-worker-oracle-runtime.ts",
     "test:oracles:browser:mutations": "node --import tsx scripts/verify-save-oracle-mutations.ts",
     "check:oracle-migration": "node --import tsx scripts/check-oracle-migration.ts",
     "lint:oracles": "eslint . --max-warnings=0",
     "test:oracles:gaps": "node --import tsx scripts/run-oracle-gaps.ts",
     "test:oracles:contracts": "npm run test:oracles:gaps -- --runtime worker --files test/oauth-storage.oracle.test.ts,test/mention-order.oracle.test.ts,test/api-mount-cutover.oracle.test.ts --source src/oauth-storage.ts,src/mention-groups.ts,src/oauth.ts --only oauth-storage.ts:M51,mention-groups.ts:M12,oauth.ts:M1",
-    "test:oracles:conditional:worker": "npm run test:oracles:gaps -- --runtime worker --files test/derived-validators.oracle.test.ts --source src/conditional-operation.ts --mutants test-oracles/mutants --only authored:unsafe-getItem-counter-shortcut,authored:unsafe-listItemVersions-counter-shortcut,authored:unsafe-listReading-counter-shortcut,authored:unsafe-getReadingSummary-counter-shortcut"
+    "test:oracles:conditional:worker": "npm run test:oracles:gaps -- --runtime worker --files test/derived-validators.oracle.test.ts --source src/conditional-operation.ts --mutants test-oracles/mutants --only authored:unsafe-getItem-counter-shortcut,authored:unsafe-listItemVersions-counter-shortcut,authored:unsafe-listReading-counter-shortcut,authored:unsafe-getReadingSummary-counter-shortcut && npm run test:oracles:conditional:handoff --",
+    "test:oracles:conditional:handoff": "npm run test:oracles:gaps -- --runtime worker --files test/batch-validator-work.oracle.test.ts,test/cursor-validator-handoff.oracle.test.ts,test/cursor-keyset.oracle.test.ts,test/cursor-indexed-work.oracle.test.ts --source src/conditional-operation.ts,src/cursor-page.ts --mutants test/fixtures/conditional-handoff-mutants --only authored:detached-generation-handoff,authored:ignored-completed-generation,authored:cursor-reuses-first-snapshot-on-retry,authored:cursor-trusts-initial-as-complete,authored:cursor-completes-failed-projection,authored:stamp-crosses-full-generation-change,authored:keyset-retains-descending-null-tail,authored:keyset-inverts-null-direction,authored:keyset-unions-prefix-equality,authored:cursor-five-ranges-scan"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

@@ -134,7 +134,7 @@ oracleProperty({
     corrupt: trace => trace.map(o => o.checkpoint === 'read' ? { ...o, value: { ...(o.value as object), validator: 'wrong' } } : o) }],
 });
 
-import { QueryClient } from '@tanstack/query-core';
+import { QueryCache, QueryClient } from '@tanstack/query-core';
 import { readCursorWindow } from '../src/ui/cursor-query.ts';
 import { createReadBatchFetch } from '../src/ui/read-batch.ts';
 
@@ -1160,9 +1160,10 @@ oracleProperty({
 });
 
 import { getEventListeners } from 'node:events';
+import { withOracleCleanup } from '../test/oracle-cleanup.ts';
 oracleProperty({
   id: 'cursor-reader-listener-cleanup', owns: ['src/ui/cursor-query.ts#readCursorWindow'],
-  law: { statement: 'For every settled cursor reader, release its abort listeners even while an active peer keeps their shared transport pending.', authority: 'Decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-18: release abort listeners after their final reader settles; independent cancellation leaves active peers running.', limits: 'Native AbortSignals inspected through node:events; controlled transport can remain pending after cancellation.' },
+  law: { statement: 'For every settled cursor reader, release its pending read references and abort listeners even while an active peer keeps their shared transport pending.', authority: 'Decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-18: settled readers release pending references and abort listeners; independent cancellation leaves active peers running.', limits: 'Native AbortSignals inspected through node:events and read-owned QueryCache subscriptions counted relative to a retained provider listener; controlled transport can remain pending after cancellation.' },
   histories: { arbitrary: fc.record({ first: fc.boolean(), peer: fc.boolean(), cancel: fc.boolean(), value: fc.nat(1000) }), runs: 12, fixedSeeds: [20261118], states: ['settled-first-page-reader', 'settled-continuation-reader', 'cancelled-with-active-peer', 'completed-reader', 'cancelled-final-reader'], constructed: [
     { name: 'cancel-first-with-peer', enters: ['settled-first-page-reader', 'cancelled-with-active-peer'], build: h => ({ ...h, first: true, peer: true, cancel: true }) },
     { name: 'cancel-continuation-with-peer', enters: ['settled-continuation-reader', 'cancelled-with-active-peer'], build: h => ({ ...h, first: false, peer: true, cancel: true }) },
@@ -1172,16 +1173,20 @@ oracleProperty({
   // A settled reader owns no abort callback, even while a peer remains active.
   // The listeners checkpoint captures the actual listener inventory before
   // releasing any withheld peer, then compares that peer's independent result.
-  model: plan => ({ cancelled: plan.cancel ? 'rejected' : 'fulfilled', listeners: 0, peer: plan.peer ? [plan.value, plan.value + 1] : null }),
+  // After the peer also settles, no read-owned cache subscription may remain;
+  // an existing provider subscription must remain installed.
+  model: plan => ({ cancelled: plan.cancel ? 'rejected' : 'fulfilled', listeners: 0, peer: plan.peer ? [plan.value, plan.value + 1] : null, queryListeners: 0 }),
   driver: async (plan, observe) => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    class CountedCache extends QueryCache { count() { return this.listeners.size; } }
+    const cache = new CountedCache(), provider = cache.subscribe(() => {}), baseline = cache.count();
+    const queryClient = new QueryClient({ queryCache: cache, defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
     const entered = deferred<void>(), release = deferred<void>(), joined = deferred<void>();
     let startingPeer = false, acquiredPage: 'first-page' | 'continuation' | undefined, released = false;
     queryClient.defaultQueryOptions = new Proxy(queryClient.defaultQueryOptions, { apply(target, receiver, args) {
       if (startingPeer && typeof args[0].queryFn === 'function' && args[0].queryKey?.at(-1) !== 'first-source') joined.resolve();
       return Reflect.apply(target, receiver, args);
     } });
-    try {
+    await withOracleCleanup(async () => { try {
       const options = { queryClient, queryKey: ['listener-cleanup'], revalidate: true, window: { limit: 2 }, read: async (cursor: string | undefined) => {
         if (plan.first === (cursor === undefined)) { acquiredPage = cursor === undefined ? 'first-page' : 'continuation'; entered.resolve(); await release.promise; }
         return { items: [plan.value + (cursor ? 1 : 0)], page: { limit: 1, nextCursor: cursor ? null : 'next' } };
@@ -1200,16 +1205,23 @@ oracleProperty({
       const listeners = getEventListeners(controller.signal, 'abort').length;
       const peerStillWithheld = Boolean(peer) && !released;
       release.resolve();
-      observe('listeners', { cancelled: result, listeners, peer: peer ? await peer : null });
+      const peerResult = peer ? await peer : null;
+      observe('listeners', { cancelled: result, listeners, peer: peerResult, queryListeners: cache.count() - baseline });
       if (acquiredPage) observe('reach', `settled-${acquiredPage}-reader`);
       if (result === 'rejected' && peerStillWithheld) observe('reach', 'cancelled-with-active-peer');
       if (result === 'rejected' && !peer) observe('reach', 'cancelled-final-reader');
       if (result === 'fulfilled') observe('reach', 'completed-reader');
-    } catch (error) { observe('unexpected-error', String(error)); }
-    finally { release.resolve(); queryClient.clear(); }
+    } catch (error) { observe('unexpected-error', String(error)); } }, [
+      async () => { release.resolve(); },
+      async () => { queryClient.clear(); },
+      async () => { provider(); },
+    ]);
   },
   check: (_plan, trace, expected) => differs('listeners', 'reader listener cleanup', trace[0]?.value, expected) ?? pass,
-  calibrations: [{ name: 'retains-cancelled-listener', law: 'reader listener cleanup', history: { fixed: 'continuation-peer-cancel' }, corrupt: trace => [{ ...trace[0], value: { ...(trace[0].value as object), listeners: 1 } }] }],
+  calibrations: [
+    { name: 'retains-cancelled-listener', law: 'reader listener cleanup', history: { fixed: 'continuation-peer-cancel' }, corrupt: trace => [{ ...trace[0], value: { ...(trace[0].value as object), listeners: 1 } }] },
+    { name: 'retains-settled-query-subscription', law: 'reader listener cleanup', history: { fixed: 'continuation-peer-cancel' }, corrupt: trace => [{ ...trace[0], value: { ...(trace[0].value as object), queryListeners: 1 } }] },
+  ],
 });
 
 // The first page is revalidated on each acquisition. Stable pages can reuse

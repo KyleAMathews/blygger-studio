@@ -162,14 +162,14 @@ const listMentionsOperation = async (context: OperationContext, input: Operation
     ? await cursorPage<MentionOutRow, ReturnType<typeof outboundMentionResource>>(context.env.DB, query, {
         name: 'mentions', filters: identity, domains: ['mentions'], sql, binds,
         order: [{ column: 'created', direction: 'desc' }, { column: 'id', direction: 'asc' }], project: rows => rows.map(outboundMentionResource),
-      })
+      }, context.conditionalSnapshot)
     : await cursorPage<MentionInRow, ReturnType<typeof mentionResource>>(context.env.DB, query, {
         name: 'mentions', filters: identity, domains: ['mentions'], sql, binds,
         order: [{ column: 'verified_at', direction: 'desc' }, { column: 'last_seen', direction: 'desc' }, { column: 'id', direction: 'asc' }], project: rows => rows.map(mentionResource),
-      });
+      }, context.conditionalSnapshot);
   return success({ ...page, direction });
 };
-const listMentionGroupsOperation = async (context: OperationContext, input: OperationInput) => success(await mentionGroups(context.env.DB, input.query));
+const listMentionGroupsOperation = async (context: OperationContext, input: OperationInput) => success(await mentionGroups(context.env.DB, input.query, context.conditionalSnapshot));
 const getMentionSummaryOperation = async (context: OperationContext) => success(await mentionSummary(context.env.DB));
 const listInteractionsOperation = async (context: OperationContext, input: OperationInput) => {
   const query = input.query, where: string[] = [], binds: (string | number)[] = [];

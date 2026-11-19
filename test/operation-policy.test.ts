@@ -38,7 +38,8 @@ it.each([[], ['reading:state']].map(scope => [scope] as const))('lets any authen
   await putSettings(env.DB, { extensions: '[]' });
   const access = authority(scope), response = await rest(access);
   expect(response.status).toBe(200);
-  expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(response.headers.get('cache-control')).toBe('private, no-cache');
+  expect(response.headers.get('etag')).toMatch(/^W\/"[a-f0-9]{64}"$/);
   const value = await response.json() as any;
   const expected = ['getCapabilities', ...(scope.length ? ['markRead', 'markUnread', 'markReadBatch', 'markUnreadBatch', 'logBrowse', 'clearBrowse'] : [])].sort();
   expect(value.operations).toEqual(expected);

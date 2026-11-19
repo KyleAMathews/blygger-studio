@@ -17,8 +17,7 @@ type FirstPageRead = {
 // Query supplies identity and lifetime; reader metadata does not retain it.
 const acquisitions = new WeakMap<object, { consumers: number }>();
 
-/** Query owns page acquisition. The key identifies a sequence, not a window. */
-export async function readCursorWindow<T>(options: {
+interface CursorWindowOptions<T> {
   queryClient: QueryClient;
   queryKey: QueryKey;
   window: { offset?: number; limit?: number };
@@ -26,13 +25,22 @@ export async function readCursorWindow<T>(options: {
   read: (cursor: string | undefined, signal: AbortSignal) => Promise<ApiPage<T>>;
   revalidate?: boolean;
   validate?: (page: ApiPage<T>) => void;
-}): Promise<T[]> {
+}
+
+/** Query owns page acquisition. The key identifies a sequence, not a window. */
+export async function readCursorWindow<T>(options: CursorWindowOptions<T>): Promise<T[]> {
+  return (await readCursorWindowResult(options)).rows;
+}
+
+/** Continuation metadata comes from acquired pages, without reading ahead.
+ * A zero window acquires nothing, so its continuation availability is unknown. */
+export async function readCursorWindowResult<T>(options: CursorWindowOptions<T>): Promise<{ rows: T[]; hasMore: boolean | undefined }> {
   options.signal.throwIfAborted();
   const { offset = 0, limit } = options.window;
   if (!Number.isSafeInteger(offset) || offset < 0 || limit !== undefined &&
       (!Number.isSafeInteger(limit) || limit < 0 || !Number.isSafeInteger(offset + limit)))
     throw new RangeError('Expected a nonnegative finite integer window');
-  if (limit === 0) return [];
+  if (limit === 0) return { rows: [], hasMore: undefined };
   async function acquire() {
     let first: ApiPage<T> | undefined;
     let queryKey = options.queryKey;
@@ -78,6 +86,15 @@ export async function readCursorWindow<T>(options: {
     const query = options.queryClient.getQueryCache().build(options.queryClient,
       options.queryClient.defaultQueryOptions({ queryKey }));
     const key = query;
+    type Pages = { pages: { rows: readonly T[]; nextCursor: string | null }[] };
+    let accepted = options.queryClient.getQueryData<Pages>(queryKey);
+    // Query can remove a successful reusable entry before its waiter resumes.
+    // Keep the native representation for this reader, including replacement
+    // Query objects for the same key, without rebuilding its page sequence.
+    const unsubscribe = options.queryClient.getQueryCache().subscribe(event => {
+      if (event.type === 'updated' && event.action.type === 'success' && event.query.queryHash === query.queryHash)
+        accepted = event.query.state.data as Pages;
+    });
     let acquisition = acquisitions.get(key);
     if (!acquisition) { acquisition = { consumers: 0 }; acquisitions.set(key, acquisition); }
     const selected = acquisition;
@@ -91,8 +108,14 @@ export async function readCursorWindow<T>(options: {
     };
     const abort = () => { if (finish()) void query.cancel(); };
     options.signal.addEventListener('abort', abort);
-    try { return await pager.read(options.window, options.signal); }
-    finally { finish(); }
+    try {
+      const rows = await pager.read(options.window, options.signal);
+      // A positive successful native read has accepted a nonempty sequence.
+      const pages = accepted!.pages;
+      const acquired = pages.reduce((count, page) => count + page.rows.length, 0);
+      return { rows, hasMore: acquired > offset + rows.length || pages.at(-1)!.nextCursor !== null };
+    }
+    finally { unsubscribe(); finish(); }
   }
   try {
     return await acquire();

@@ -41,6 +41,7 @@ import { planReadWrites, type ReadWrite, type UnreadWrite } from './read-state.t
 import { createReadBatchFetch } from './read-batch.ts';
 import { createReadFlight } from './read-flight.ts';
 import { errorLog } from './error-log.ts';
+import { recoverStudioReads } from './read-recovery.ts';
 
 export const apiBase = new URL(document.getElementById('studio-root')!.dataset.apiBase!, location.origin).href;
 const batched = createReadBatchFetch(apiBase);
@@ -55,13 +56,18 @@ const transport = (request: Request) => {
     throw failure;
   });
 };
-export const client = createBlyggerClient({ baseUrl: apiBase, conditionalReads: true, fetch: (input, init) => {
-  const request = new Request(input, init);
-  if (['GET', 'HEAD'].includes(request.method)) return transport(request);
-  // Mutation refreshes must not reuse checks started before a write.
-  ownerFlights.clear();
-  return transport(request).finally(() => { ownerFlights.clear(); });
-} });
+function createStudioClient() {
+  const client = createBlyggerClient({ baseUrl: apiBase, conditionalReads: true, fetch: (input, init) => {
+    const request = new Request(input, init);
+    if (['GET', 'HEAD'].includes(request.method)) return transport(request);
+    // Mutation refreshes must not reuse checks started before a write.
+    ownerFlights.clear();
+    return transport(request).finally(() => { ownerFlights.clear(); });
+  } });
+  client.setConfig({ fetch: recoverStudioReads(client.getConfig().fetch!) });
+  return client;
+}
+export const client = createStudioClient();
 const ownerFlights = new Map<string, ReturnType<typeof createReadFlight<unknown>>>();
 queryClient.mount();
 /** Applies a confirmed row. An on-demand source no view has started holds no

@@ -3,7 +3,7 @@ import type { OperationContext, OperationInput } from './operation-types.ts';
 import { success } from './operation-types.ts';
 import { runOperation } from './operation-runner.ts';
 import { operationHttp } from './operation-http.ts';
-import { readChanges } from './changes.ts';
+import { readChanges, type ChangeSnapshot } from './changes.ts';
 import { representationEtag, conditionalResponse } from './http-response.ts';
 
 // Only reads whose dependencies have change_state triggers may skip their
@@ -37,14 +37,17 @@ export async function conditionalOperation(definition: OperationDefinition, inpu
   const wrapped: OperationDefinition = { ...definition, handler: async (ctx, parsed) => {
     // All counters deliberately participate: a wider dependency invalidates
     // more often but can never hide a related domain's change.
-    const before = revisioned ? JSON.stringify(await readChanges(ctx.env.DB)) : undefined;
+    const snapshot: ChangeSnapshot | undefined = revisioned ? { before: await readChanges(ctx.env.DB) } : undefined;
+    const before = snapshot ? JSON.stringify(snapshot.before) : undefined;
     const previous = cache.get(key);
     if (before && previous?.revision === before && ifNoneMatch && matches(previous.etag)) {
       matched = previous.etag;
       return success(null);
     }
-    const result = await definition.handler(ctx, parsed);
-    if (result.ok && before && before === JSON.stringify(await readChanges(ctx.env.DB))) stable = before;
+    const result = await definition.handler({ ...ctx, conditionalSnapshot: snapshot }, parsed);
+    // Cursor handlers return directly after their projection. Their completed
+    // full snapshot brackets that same work without two duplicate D1 rounds.
+    if (result.ok && snapshot && before === JSON.stringify(snapshot.after ?? await readChanges(ctx.env.DB))) stable = before;
     return result;
   } };
   const encoded = operationHttp(await runOperation(wrapped, input, context), context.url, context.env);

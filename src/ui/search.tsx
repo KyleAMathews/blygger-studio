@@ -14,7 +14,7 @@ import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import { zSearchResponse } from '../../sdk/dist/schemas.js';
 import { client, queryClient } from './data.ts';
 import { Button, Failure } from './components.tsx';
-import { readCursorWindow } from './cursor-query.ts';
+import { readCursorWindowResult } from './cursor-query.ts';
 import './search.css';
 
 export type Hit = SearchResponses[200]['items'][number];
@@ -72,12 +72,12 @@ export function useSearch(filters: SearchFilters | undefined, delay = 150) {
     setError(undefined);
     try {
       const pageKey = ['search', 'pages', f];
-      const rows = await readCursorWindow<Hit>({ queryClient, queryKey: pageKey, signal: controller.signal, revalidate: true,
-        window: { limit: offset + PAGE + 1 }, validate: page => { zSearchResponse.parse(page); }, read: (cursor, signal) => unwrap(BlyggerApi.search({ client, query: { ...f, cursor, limit: PAGE }, signal })),
+      const { rows, hasMore } = await readCursorWindowResult<Hit>({ queryClient, queryKey: pageKey, signal: controller.signal, revalidate: true,
+        window: { limit: offset + PAGE }, validate: page => { zSearchResponse.parse(page); }, read: (cursor, signal) => unwrap(BlyggerApi.search({ client, query: { ...f, cursor, limit: PAGE }, signal })),
       });
       if (controller.signal.aborted || request.current !== controller) return;
       setHits(rows.slice(0, offset + PAGE));
-      setHasMore(rows.length > offset + PAGE);
+      setHasMore(hasMore ?? false);
     } catch (failure) {
       if (!controller.signal.aborted && request.current === controller) setError(failure);
     } finally {
