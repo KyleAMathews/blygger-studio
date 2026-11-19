@@ -488,7 +488,8 @@ export const zMention = z.object({
         'stub',
         'transclusion',
         'fork',
-        'source'
+        'source',
+        'link'
     ]).nullable(),
     sourceOrigin: z.string().nullable(),
     sourceId: z.string().nullable(),
@@ -527,6 +528,7 @@ export const zMentionGroup = z.object({
     targetItemId: z.string(),
     total: z.int().gte(0),
     visible: z.int().gte(0),
+    links: z.int().gte(0),
     verifiedAt: z.string(),
     lastSeen: z.string(),
     firstId: z.string()

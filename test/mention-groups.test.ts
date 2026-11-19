@@ -32,13 +32,13 @@ it('pages exact group winners and counts, including hidden and gone receipts', a
   const first = await get('/mention-groups?limit=2');
   expect(first.status).toBe(200);
   expect(first.json.items).toEqual([
-    { targetItemId: 'B', total: 2, visible: 1, verifiedAt: '3', lastSeen: '4', firstId: 'b-hidden' },
-    { targetItemId: 'C', total: 1, visible: 1, verifiedAt: '3', lastSeen: '3', firstId: 'cc' },
+    { targetItemId: 'B', total: 2, visible: 1, links: 0, verifiedAt: '3', lastSeen: '4', firstId: 'b-hidden' },
+    { targetItemId: 'C', total: 1, visible: 1, links: 0, verifiedAt: '3', lastSeen: '3', firstId: 'cc' },
   ]);
   const next = await get('/mention-groups?' + new URLSearchParams({ limit: '2', cursor: first.json.page.nextCursor }));
   expect(next.json.items).toEqual([
-    { targetItemId: 'A', total: 4, visible: 2, verifiedAt: '3', lastSeen: '3', firstId: 'zz' },
-    { targetItemId: 'D', total: 2, visible: 2, verifiedAt: '', lastSeen: '9', firstId: 'null' },
+    { targetItemId: 'A', total: 4, visible: 2, links: 0, verifiedAt: '3', lastSeen: '3', firstId: 'zz' },
+    { targetItemId: 'D', total: 2, visible: 2, links: 0, verifiedAt: '', lastSeen: '9', firstId: 'null' },
   ]);
   expect(next.json.page.nextCursor).toBeNull();
   for (const row of [...first.json.items, ...next.json.items]) expect(MentionGroupSchema.safeParse(row).success).toBe(true);
@@ -47,7 +47,7 @@ it('pages exact group winners and counts, including hidden and gone receipts', a
 
 it('filters group fields after calculating full target counts and binds cursor scopes', async () => {
   const exact = await get('/mention-groups?targetItemId=A&verifiedAt=3&lastSeen=3&firstId=zz');
-  expect(exact.json.items).toEqual([{ targetItemId: 'A', total: 4, visible: 2, verifiedAt: '3', lastSeen: '3', firstId: 'zz' }]);
+  expect(exact.json.items).toEqual([{ targetItemId: 'A', total: 4, visible: 2, links: 0, verifiedAt: '3', lastSeen: '3', firstId: 'zz' }]);
   expect((await get('/mention-groups?verifiedAt=')).json.items.map((row: { targetItemId: string }) => row.targetItemId)).toEqual(['D']);
   expect((await get('/mention-groups?targetItemId=missing')).json.items).toEqual([]);
   const first = await get('/mention-groups?limit=1');
@@ -156,4 +156,14 @@ it('binds hostile filter values and returns empty counts when no receipts remain
   await env.DB.batch([env.DB.prepare('DELETE FROM mentions_in'), env.DB.prepare('DELETE FROM mentions_out')]);
   expect((await get('/mention-groups')).json.items).toEqual([]);
   expect((await get('/mentions/summary')).json).toEqual({ inbound: 0, outbound: 0, groups: 0 });
+});
+
+it('counts link notices apart: in total, never in visible (spec 0.4 §15.5)', async () => {
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO mentions_in (id,source,target,target_item_id,status,first_seen,last_seen,verified_at,hidden,relation)
+      VALUES ('link-1','https://groups/link-1','target','C','verified','first','1','1',0,'link')`),
+    env.DB.prepare(`INSERT INTO mentions_in (id,source,target,target_item_id,status,first_seen,last_seen,verified_at,hidden,relation)
+      VALUES ('link-gone','https://groups/link-gone','target','C','gone','first','1','1',0,'link')`),
+  ]);
+  expect((await get('/mention-groups?targetItemId=C')).json.items[0]).toMatchObject({ total: 3, visible: 1, links: 1 });
 });

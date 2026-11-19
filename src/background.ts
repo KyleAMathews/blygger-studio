@@ -13,7 +13,7 @@
 // at once and nothing is recomputed.
 
 import { extractDirectives } from "./directives.ts";
-import { clampedTime, withinBurst } from "./burst.ts";
+import { clampedTime, saysNoMoreThanLink, withinBurst, withinLinkBurst } from "./burst.ts";
 
 /**
  * The rules an owner can turn off, in the order Settings lists them. Withdrawn
@@ -105,6 +105,14 @@ function quotesOf(json: string | null): Quote[] {
   const parsed = parseJson<unknown>(json, []);
   return Array.isArray(parsed) ? parsed.filter((q): q is Quote => !!q && typeof q === "object" && typeof (q as Quote).id === "string") : [];
 }
+/**
+ * Everything a version names, quoted or linked (§10.3a), as one list: what a
+ * thread already named either way is not newly named by a later version. A
+ * `[[+ text]]` placeholder is named by link and folds under its thread, but
+ * only within the same publish (`withinLinkBurst`), or for our own items only
+ * when the thread minted it (spec §13.7: the reading order is the reader's).
+ */
+const namedJson = (quotes: string | null, links: string | null | undefined) => (links ? JSON.stringify([...quotesOf(quotes), ...quotesOf(links)]) : quotes);
 /** `[id, version, origin]` per quote, so a same-hash version whose quotes moved is not maintenance. */
 const quoteKey = (quotes: Quote[]) => JSON.stringify(quotes.map((q) => [q.id, q.version ?? null, q.origin ?? null]));
 
@@ -150,8 +158,8 @@ function withBurst(reasons: string | null, detail: string | null, thread: string
 export async function settleOwnBackground(db: D1Database, itemId: string, version: number): Promise<void> {
   const [cls, rows] = await Promise.all([
     db.prepare("SELECT category FROM change_class WHERE item_id = ? AND version = ?").bind(itemId, version).first<{ category: string | null }>(),
-    db.prepare("SELECT version, content_md, content_hash, transclusions, published_at FROM versions WHERE item_id = ? AND version IN (?, ?)")
-      .bind(itemId, version, version - 1).all<{ version: number; content_md: string; content_hash: string | null; transclusions: string | null; published_at: string }>(),
+    db.prepare("SELECT version, content_md, content_hash, transclusions, links_json, published_at FROM versions WHERE item_id = ? AND version IN (?, ?)")
+      .bind(itemId, version, version - 1).all<{ version: number; content_md: string; content_hash: string | null; transclusions: string | null; links_json: string | null; published_at: string }>(),
   ]);
   const now = rows.results.find((r) => r.version === version);
   const before = rows.results.find((r) => r.version === version - 1) ?? null;
@@ -164,7 +172,15 @@ export async function settleOwnBackground(db: D1Database, itemId: string, versio
   await db.prepare("UPDATE items SET bg_reasons = ?, bg_detail = ? WHERE id = ?")
     .bind(reasons.length ? JSON.stringify(reasons) : null, minor ? JSON.stringify({ category: cls!.category }) : null, itemId).run();
 
-  const named = newlyNamed(now.transclusions, before?.transclusions ?? null);
+  // Quoted parts fold by the burst window. Linked ones fold only when this
+  // thread minted them (`tangled_from`): a `[[+ text]]` placeholder, not a
+  // chapter a contents thread links (session 74).
+  const quoted = newlyNamed(now.transclusions, before?.transclusions ?? null);
+  const linked = newlyNamed(now.links_json, before ? namedJson(before.transclusions, before.links_json) : null).filter((id) => !quoted.includes(id));
+  const minted = linked.length
+    ? (await db.prepare("SELECT id FROM items WHERE tangled_from = ? AND id IN (SELECT value FROM json_each(?))").bind(itemId, JSON.stringify(linked)).all<{ id: string }>()).results.map((r) => r.id)
+    : [];
+  const named = [...quoted, ...minted];
   if (!named.length) return;
   const threadAt = Date.parse(now.published_at);
   const members = await db.prepare(`SELECT i.id, i.bg_reasons, i.bg_detail, (SELECT published_at FROM versions v WHERE v.item_id = i.id ORDER BY v.version LIMIT 1) AS first_at
@@ -178,7 +194,7 @@ export async function settleOwnBackground(db: D1Database, itemId: string, versio
 }
 
 /** What the importer held of an item before a new version replaced it. */
-export interface HeldVersion { hash: string | null; quotes: string | null }
+export interface HeldVersion { hash: string | null; quotes: string | null; links?: string | null }
 
 /**
  * An imported version's reasons (plan §2, at import): its own measured reasons,
@@ -191,7 +207,7 @@ export async function settleImportedBackground(
   db: D1Database,
   subscriptionId: string,
   remoteId: string,
-  doc: { kind: string; content_md: string; content_hash: string | null; transclusions?: unknown; created?: string | null; updated?: string | null },
+  doc: { kind: string; content_md: string; content_hash: string | null; transclusions?: unknown; links?: unknown; created?: string | null; updated?: string | null },
   held: HeldVersion | null,
   observedAt: string,
 ): Promise<void> {
@@ -199,15 +215,20 @@ export async function settleImportedBackground(
   if (!origin) return;
   const sub = { id: subscriptionId, origin };
   const quotes = doc.transclusions ? JSON.stringify(doc.transclusions) : null;
+  const links = Array.isArray(doc.links) && doc.links.length ? JSON.stringify(doc.links) : null;
   let reasons: string[] = versionReasons({ hash: doc.content_hash, quotes, contentMd: doc.content_md }, held);
   let detail: Record<string, unknown> | null = null;
   if (!held) {
     // First sight: is a thread already held here that folds it?
-    const threads = await db.prepare(`SELECT remote_id, updated, observed_at, transclusions_json FROM imported_items
-      WHERE subscription_id = ? AND kind = 'thread' AND state = 'current' AND remote_id != ? AND instr(transclusions_json, ?) > 0`)
-      .bind(sub.id, remoteId, remoteId).all<{ remote_id: string; updated: string | null; observed_at: string; transclusions_json: string | null }>();
+    const threads = await db.prepare(`SELECT remote_id, updated, observed_at, transclusions_json, links_json, content_md FROM imported_items
+      WHERE subscription_id = ? AND kind = 'thread' AND state = 'current' AND remote_id != ? AND instr(COALESCE(transclusions_json, '') || COALESCE(links_json, ''), ?) > 0`)
+      .bind(sub.id, remoteId, remoteId).all<{ remote_id: string; updated: string | null; observed_at: string; transclusions_json: string | null; links_json: string | null; content_md: string | null }>();
     const mine = clampedTime(doc.created, observedAt);
-    const folding = threads.results.find((t) => newlyNamed(t.transclusions_json, null, sub.origin).includes(remoteId) && withinBurst(mine, clampedTime(t.updated, t.observed_at)));
+    const folding = threads.results.find((t) => {
+      const at = clampedTime(t.updated, t.observed_at);
+      if (newlyNamed(t.transclusions_json, null, sub.origin).includes(remoteId)) return withinBurst(mine, at);
+      return newlyNamed(t.links_json, null, sub.origin).includes(remoteId) && withinLinkBurst(mine, at) && saysNoMoreThanLink(doc.content_md, t.content_md ?? "", remoteId);
+    });
     if (folding) {
       reasons = [...reasons, "burst"];
       detail = { thread: folding.remote_id };
@@ -217,13 +238,22 @@ export async function settleImportedBackground(
     .bind(reasons.length ? JSON.stringify(reasons) : null, detail ? JSON.stringify(detail) : null, sub.id, remoteId).run();
 
   if (doc.kind !== "thread") return;
-  const named = newlyNamed(quotes, held?.quotes ?? null, sub.origin).filter((id) => id !== remoteId);
+  // Quoted items fold by the burst window, linked ones only within the same
+  // publish (LINK_BURST_WINDOW_MS) and only when they say no more than the
+  // link's own text (#112): a placeholder, not a chapter.
+  const quoted = newlyNamed(quotes, held?.quotes ?? null, sub.origin).filter((id) => id !== remoteId);
+  const linked = newlyNamed(links, held ? namedJson(held.quotes, held.links) : null, sub.origin).filter((id) => id !== remoteId && !quoted.includes(id));
+  const named = [...quoted, ...linked];
   if (!named.length) return;
   const threadAt = clampedTime(doc.updated, observedAt);
-  const members = await db.prepare(`SELECT remote_id, created, observed_at, bg_reasons, bg_detail FROM imported_items
+  const members = await db.prepare(`SELECT remote_id, created, observed_at, bg_reasons, bg_detail, content_md FROM imported_items
     WHERE subscription_id = ? AND state = 'current' AND remote_id IN (SELECT value FROM json_each(?))`)
-    .bind(sub.id, JSON.stringify(named)).all<{ remote_id: string; created: string | null; observed_at: string; bg_reasons: string | null; bg_detail: string | null }>();
-  const updates = members.results.filter((m) => withinBurst(clampedTime(m.created, m.observed_at), threadAt)).map((m) => {
+    .bind(sub.id, JSON.stringify(named)).all<{ remote_id: string; created: string | null; observed_at: string; bg_reasons: string | null; bg_detail: string | null; content_md: string | null }>();
+  const updates = members.results.filter((m) => {
+    const at = clampedTime(m.created, m.observed_at);
+    if (quoted.includes(m.remote_id)) return withinBurst(at, threadAt);
+    return withinLinkBurst(at, threadAt) && saysNoMoreThanLink(m.content_md ?? "", doc.content_md, m.remote_id);
+  }).map((m) => {
     const next = withBurst(m.bg_reasons, m.bg_detail, remoteId);
     return db.prepare("UPDATE imported_items SET bg_reasons = ?, bg_detail = ? WHERE subscription_id = ? AND remote_id = ?").bind(next.reasons, next.detail, sub.id, m.remote_id);
   });

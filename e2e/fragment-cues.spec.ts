@@ -21,7 +21,7 @@ test('the composer tints fragments only, and the tool row does not move between 
   const quote = page.locator('[data-action="bracket-quote"]');
   await expect(quote).toBeDisabled();
   const before = (await page.locator('[data-action="tk"]').boundingBox())!;
-  await page.getByRole('radio', { name: 'thread', exact: true }).click();
+  await page.getByRole('button', { name: 'thread', exact: true }).click();
   await expect(quote).toBeEnabled();
   const after = (await page.locator('[data-action="tk"]').boundingBox())!;
   expect(after.x).toBe(before.x);

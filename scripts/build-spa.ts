@@ -13,6 +13,16 @@ const serverOnly: Plugin = {
     }));
   },
 };
+
+const componentGallery = process.env.BLYG_COMPONENT_GALLERY === '1';
+const excludeComponentGallery: Plugin = {
+  name: 'exclude-component-gallery',
+  setup(build) {
+    build.onResolve({ filter: /^\.\/component-library\.tsx$/ }, (args) => ({
+      path: resolve(args.resolveDir, 'component-library.stub.tsx'),
+    }));
+  },
+};
 await build({
   entryPoints: ['src/ui/app.tsx'],
   outfile: 'build/studio-spa.js',
@@ -23,8 +33,17 @@ await build({
   platform: 'browser',
   target: 'es2022',
   minify: true,
-  define: { 'process.env.NODE_ENV': JSON.stringify('production') },
-  plugins: [serverOnly],
+  define: {
+    'process.env.NODE_ENV': JSON.stringify('production'),
+    'process.env.BLYG_COMPONENT_GALLERY': JSON.stringify(componentGallery ? '1' : ''),
+  },
+  // The gallery is a maintainer reference, never an operator-facing route.
+  // Replace its module before bundling so neither its page nor its CSS can
+  // enter an ordinary production build.
+  plugins: [
+    serverOnly,
+    ...(componentGallery ? [] : [excludeComponentGallery]),
+  ],
 });
 if (/temml/i.test(readFileSync('build/studio-spa.js', 'utf8'))) throw new Error('build-spa: the formula renderer reached the browser bundle');
 copyFileSync('build/studio-spa.js', 'build/studio-spa.txt');

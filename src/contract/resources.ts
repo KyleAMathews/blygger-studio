@@ -141,7 +141,7 @@ export const MentionSchema = z.object({
   target: z.string(),
   targetItemId: z.string(),
   status: z.enum(["pending", "verified", "failed", "gone"]),
-  relation: z.enum(["stub", "transclusion", "fork", "source"]).nullable(),
+  relation: z.enum(["stub", "transclusion", "fork", "source", "link"]).nullable(),
   sourceOrigin: z.string().nullable(),
   sourceId: z.string().nullable(),
   sourceKind: z.string().nullable(),
@@ -160,7 +160,8 @@ export const MentionSchema = z.object({
 export const MentionGroupSchema = z.object({
   targetItemId: z.string(),
   total: z.number().int().nonnegative(),
-  visible: z.number().int().nonnegative().describe('Verified, unhidden receipts before the target item response policy is applied.'),
+  visible: z.number().int().nonnegative().describe('Verified, unhidden responses before the target item response policy is applied. `link` notices are never responses (spec 0.4 §15.5) and are not counted.'),
+  links: z.number().int().nonnegative().describe('Verified `link` notices: other blygs linking to the target. Counted in total, never in visible.'),
   verifiedAt: z.string().describe('Latest verifiedAt with SQL NULL coalesced to an empty string.'),
   lastSeen: z.string().describe('Latest lastSeen among receipts tied at the group verifiedAt.'),
   firstId: z.string().describe('Smallest receipt id among receipts tied at both group timestamps.'),

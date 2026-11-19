@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Blygger Studio API",
-    "version": "5.11.0",
+    "version": "5.13.0",
     "description": "Private authoring and reading API. Protocol files remain a separate public interface."
   },
   "servers": [
@@ -1922,6 +1922,7 @@
               "transclusion",
               "fork",
               "source",
+              "link",
               null
             ]
           },
@@ -2094,7 +2095,12 @@
           "visible": {
             "type": "integer",
             "minimum": 0,
-            "description": "Verified, unhidden receipts before the target item response policy is applied."
+            "description": "Verified, unhidden responses before the target item response policy is applied. `link` notices are never responses (spec 0.4 §15.5) and are not counted."
+          },
+          "links": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Verified `link` notices: other blygs linking to the target. Counted in total, never in visible."
           },
           "verifiedAt": {
             "type": "string",
@@ -2113,6 +2119,7 @@
           "targetItemId",
           "total",
           "visible",
+          "links",
           "verifiedAt",
           "lastSeen",
           "firstId"

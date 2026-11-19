@@ -19,6 +19,7 @@ import {
   publishedVersion,
 } from "./model.ts";
 import type { ItemRow, ScopeProvenance, Settings, Transclusion, VersionRow } from "./types.ts";
+import type { LinkEntry } from "./transclusion.ts";
 import { BRAND, FEED_WINDOW, GENERATOR, GENERATOR_URL, PROTOCOL_LEVEL, PROTOCOL_VERSION, WEBMENTION_PATH } from "./types.ts";
 import { absolutizeHtml, cdata, escapeXml, rfc822, unplacedMedia, visibleMedia } from "./util.ts";
 
@@ -88,6 +89,8 @@ export async function buildItemJson(db: D1Database, settings: Settings, item: It
   // same as the other content-linked fields.
   const generated: ScopeProvenance[] | undefined =
     !isWithdrawn && latest?.generated_json ? (JSON.parse(latest.generated_json) as ScopeProvenance[]) : undefined;
+  // §10.3a disclosed links, both kinds; omitted with none, and by an endcap.
+  const links = !isWithdrawn && latest?.links_json ? (JSON.parse(latest.links_json) as LinkEntry[]) : undefined;
   // §2.2 stub citation: published on the version, so a withdrawal endcap —
   // which stores none — simply stops carrying it, and a withdrawn stub
   // stops verifying on the far side (§2.3.6). Threads only.
@@ -119,6 +122,7 @@ export async function buildItemJson(db: D1Database, settings: Settings, item: It
     content_hash: latest?.content_hash ?? "",
     media: visibleMedia(media, contentHtml).map((m) => ({ url: m.r2_key, mime: m.mime, alt: m.alt ?? "" })),
     ...(transclusions !== undefined ? { transclusions } : {}),
+    ...(links?.length ? { links } : {}),
     ...(stubOf ? { stub_of: stubOf } : {}),
     ...(forkedFrom ? { forked_from: forkedFrom } : {}),
     ...(generated !== undefined ? { generated } : {}),
@@ -143,6 +147,7 @@ export function buildPinnedVersionJson(settings: Settings, item: ItemRow, row: V
     content_html: row.content_html,
     content_hash: row.content_hash,
     ...(isThread ? { transclusions: JSON.parse(row.transclusions as string) as Transclusion[] } : {}),
+    ...(row.links_json ? { links: JSON.parse(row.links_json) as LinkEntry[] } : {}),
     // A pin carries its own citation (§2.2): the frozen artifact says what it
     // was responding to, at the version it was responding to.
     ...(parseStoredStub(row.stub_of) ? { stub_of: withCited(parseStoredStub(row.stub_of), row.stub_cite) } : {}),

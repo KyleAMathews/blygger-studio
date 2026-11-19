@@ -254,3 +254,26 @@ Cloudflare scheduling, production DNS/proxy policy, Firefox or WebKit behavior.
 The CI jobs are configured; pushed-head CI and PR readiness remain to be verified
 after the review workflow permits committing and creating the PR. Nothing was
 deployed.
+
+### Main integration: 2026-11-19
+
+Merged main `2d153071e83261e62be5a1ec926c3f1f3e2fe26a` into the
+reviewed migration at `0bb48f1ad89d4a64ab2f3a1fe4c6f0655fcc669d`. The
+migrated API model now expects main's private contract version `5.13.0`,
+matching the upstream test update. The workflow retains the oracle gates,
+main's WebKit installation, and its 40-minute e2e limit.
+
+On this combined tree, the full Worker gap gate passes all 967 checks in
+37 files with stable repeat traces, one sampled storage mutation rejected,
+and zero gaps. A focused contract gate passes 47 stable checks in the API
+mount, mention order and OAuth storage suites; it rejects
+`oauth.ts:M1`, `mention-groups.ts:M12` and `oauth-storage.ts:M51`, with zero
+gaps. Both reports are nonprovisional. These local runs used one context
+and a temporary one-worker configuration to share machine capacity; test
+histories, seeds, limits and assertions were unchanged.
+
+Build, typecheck, oracle lint, migration preservation, release metadata and
+whitespace checks pass. The production delta against this main remains
+limited to `src/index.ts` and `src/oauth.ts`, with both files identical to
+the reviewed migration. These local results precede the new pushed-head
+CI run.

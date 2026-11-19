@@ -26,6 +26,8 @@ export interface NormalizedItemDoc {
   author: unknown;
   media: unknown[];
   transclusions?: unknown[];
+  /** §10.3a `links`: entries with a string `id` (and `origin` when a string); undefined when none. */
+  links?: { id: string; origin?: string }[];
   /** §10.6 / §5.6, kept verbatim (studio#12); undefined when absent or not an object. */
   stub_of?: Record<string, unknown>;
   forked_from?: Record<string, unknown>;
@@ -96,12 +98,24 @@ function normalizeItemDoc(raw: unknown): NormalizeResult {
       author: r.author,
       media: Array.isArray(r.media) ? r.media : [],
       transclusions: Array.isArray(r.transclusions) ? r.transclusions : undefined,
+      links: linkList(r.links),
       stub_of: plainObject(r.stub_of),
       forked_from: plainObject(r.forked_from),
       generated: Array.isArray(r.generated) ? r.generated : undefined,
       page: typeof r.page === "string" && r.page ? r.page : undefined,
     },
   };
+}
+
+/** A document's `links` as a reader may use it (§10.3a): entries with an id, the rest dropped. */
+function linkList(raw: unknown): { id: string; origin?: string }[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const list = raw.flatMap((e) =>
+    e && typeof e === "object" && typeof (e as { id?: unknown }).id === "string"
+      ? [typeof (e as { origin?: unknown }).origin === "string" ? { id: (e as { id: string }).id, origin: (e as { origin: string }).origin } : { id: (e as { id: string }).id }]
+      : [],
+  );
+  return list.length ? list : undefined;
 }
 
 export function transition({ local, doc, storedContentHash }: TransitionInput): TransitionResult {
