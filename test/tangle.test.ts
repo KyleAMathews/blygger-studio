@@ -243,4 +243,21 @@ describe("publishing a tangled thread", () => {
     expect(res.status).toBe(200);
     expect(res.json.parts).toBeUndefined();
   });
+
+  it("a later version that drops a part's directive publishes and names the part, which stays published (plan §2.4)", async () => {
+    const cookie = await login();
+    const id = await thread(cookie, `Intro.\n\n![[+ The part that goes away.]]\n\n![[+ The part that stays.]]\n`);
+    const first = await publish(cookie, id, { tangle: true });
+    expect(first.status).toBe(200);
+    expect(first.json.warning).toBeUndefined();
+    const [gone, kept] = first.json.parts as { id: string }[];
+    await db().prepare("UPDATE items SET content_md = ?, revision = revision + 1, dirty = 1 WHERE id = ?").bind(`Intro.\n\n![[${kept.id} | The part that stays.]]\n`, id).run();
+    const second = await publish(cookie, id);
+    expect(second.status).toBe(200);
+    expect(second.json.warning).toBe('This version no longer quotes or links a part it made: "The part that goes away.". It stays published on its own; withdraw from its page if it should go.');
+    expect((await getItem(db(), gone.id))!.status).toBe("public");
+    // The next publish says nothing: the part was named once, when it was dropped.
+    await db().prepare("UPDATE items SET content_md = ?, revision = revision + 1, dirty = 1 WHERE id = ?").bind(`Intro, edited.\n\n![[${kept.id} | The part that stays.]]\n`, id).run();
+    expect((await publish(cookie, id)).json.warning).toBeUndefined();
+  });
 });

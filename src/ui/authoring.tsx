@@ -3087,9 +3087,10 @@ function StubQuote({
         setAcrossFormula(true);
         return setChosen(null);
       }
-      // Only the target's own top-level quotes map to its directives, in order.
+      // Only the target's own top-level quotes map to its directives, in order;
+      // one inside a `![[+ …]]` span's preview belongs to the new item.
       const quotes = [...(pane?.querySelectorAll(`blockquote.blyg-transclusion[data-blyg-id="${CSS.escape(target)}"]`) ?? [])].filter(
-        (node) => !node.parentElement?.closest('blockquote.blyg-transclusion'),
+        (node) => !node.parentElement?.closest('blockquote.blyg-transclusion, .blyg-tangle-new'),
       );
       const nth = quotes.indexOf(within);
       // A stale or unresolved preview would pair the wrong directive.

@@ -226,6 +226,33 @@ async function sendMentionsFor(
 }
 
 /**
+ * Parts this thread minted (`tangled_from`) that its previous version quoted or
+ * linked and this one does not (tangling plan §2.4): deleting a directive
+ * leaves the part published and quoted by nothing, so the publish says which.
+ */
+async function droppedPartsNote(db: D1Database, threadId: string, version: number): Promise<string | undefined> {
+  if (version < 2) return undefined;
+  const rows = (await db.prepare("SELECT version, transclusions AS transclusions_json, links_json FROM versions WHERE item_id = ? AND version IN (?, ?)")
+    .bind(threadId, version - 1, version).all<{ version: number; transclusions_json: string | null; links_json: string | null }>()).results;
+  const named = (version: number) => {
+    const row = rows.find((r) => r.version === version);
+    const ids = new Set<string>();
+    for (const json of [row?.transclusions_json, row?.links_json]) {
+      try { for (const e of JSON.parse(json ?? "[]") as { id?: unknown; origin?: unknown }[]) if (typeof e?.id === "string" && !e.origin) ids.add(e.id); } catch { /* unreadable: names nothing */ }
+    }
+    return ids;
+  };
+  const before = named(version - 1), now = named(version);
+  const gone = [...before].filter((id) => !now.has(id));
+  if (!gone.length) return undefined;
+  const parts = (await db.prepare("SELECT id, content_md FROM items WHERE tangled_from = ? AND id IN (SELECT value FROM json_each(?))")
+    .bind(threadId, JSON.stringify(gone)).all<{ id: string; content_md: string }>()).results;
+  if (!parts.length) return undefined;
+  const names = parts.map((p) => `"${tangleLabel(withoutComments(p.content_md)) || p.id}"`).join(", ");
+  return `This version no longer quotes or links ${parts.length === 1 ? "a part" : `${parts.length} parts`} it made: ${names}. ${parts.length === 1 ? "It stays" : "They stay"} published on ${parts.length === 1 ? "its" : "their"} own; withdraw from ${parts.length === 1 ? "its page" : "each page"} if ${parts.length === 1 ? "it" : "they"} should go.`;
+}
+
+/**
  * Publish an item and send what it owes — the one path both `publish` and
  * `refresh` take, so a refresh gets exactly a publish's checks and error
  * mapping. Returns the response to send.
@@ -262,7 +289,9 @@ async function publishAndNotify(context: OperationContext, item: ItemRow, note: 
     // After the category settles: an own version's Background reasons (4a).
     await settleOwnBackground(context.env.DB, item.id, version).catch((e) => console.error("background reasons not settled", e));
     await sendMentionsFor(context, item.id, version);
-    return success({ ok: true, version, revision: item.revision + 1, ...extra, ...(warning ? { warning } : {}), ...(unresolvedHandles.length ? { unresolvedHandles } : {}) });
+    const dropped = await droppedPartsNote(context.env.DB, item.id, version).catch(() => undefined);
+    const said = [warning, dropped].filter(Boolean).join(" ") || undefined;
+    return success({ ok: true, version, revision: item.revision + 1, ...extra, ...(said ? { warning: said } : {}), ...(unresolvedHandles.length ? { unresolvedHandles } : {}) });
   } catch (e) {
     return publishFailure(e);
   }

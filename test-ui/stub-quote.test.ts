@@ -85,3 +85,19 @@ test('a selection in the nth quote rewrites that quote only, and a whole quote c
   // Another quote to choose from arrives whole, after the caret's block.
   expect(addStubQuote(`![[${ID}]]\n> a\n\nMine.`, ID, null, 0)).toBe(`![[${ID}]]\n> a\n\nMine.\n\n![[${ID}]]\n\n`);
 });
+
+test('a quote inside a ![[+ …]] span is the new item\'s, not the stub\'s, and a caret in a span adds after it (tangling plan §2.6)', async () => {
+  const { addStubQuote, passageCount, quoteCount, stubQuoteForm } = await import('../src/ui/stub-quote.ts');
+  const span = `![[+ A passage of my own that quotes it:\n\n![[${ID}]]\n> inside the span\n]]`;
+  // Only a span quotes the target: the stub has no quote of its own, and the chooser adds one at the top.
+  expect(stubQuoteForm(span, ID)).toBeNull();
+  expect(quoteCount(span, ID)).toBe(0);
+  expect(withStubQuote(span, ID, null)).toBe(`![[${ID}]]\n\n${span}`);
+  // With the stub's own quote above it, the chooser edits that one and leaves the span alone.
+  const md = `![[${ID}]]\n\nMine.\n\n${span}\n\nAfter.`;
+  expect(quoteCount(md, ID)).toBe(1);
+  expect(passageCount(md, ID)).toBe(0);
+  expect(withStubQuote(md, ID, 'chosen')).toBe(`![[${ID}]]\n> chosen\n\nMine.\n\n${span}\n\nAfter.`);
+  // A caret inside the span puts the new quote after the span's closer.
+  expect(addStubQuote(md, ID, 'x', md.indexOf('inside the span'))).toBe(`![[${ID}]]\n\nMine.\n\n${span}\n\n![[${ID}]]\n> x\n\nAfter.`);
+});
