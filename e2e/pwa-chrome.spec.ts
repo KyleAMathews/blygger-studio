@@ -17,8 +17,8 @@ test('the studio wears the reading theme from settings, and repaints when it cha
   try {
     await setTheme(page, 'nord');
     await page.reload();
-    await expect.poll(() => cssVar(page, '--primitive-accent')).toBe('#88c0d0');
-    expect(await cssVar(page, '--primitive-layer')).toBe('#2e3440');
+    await expect.poll(() => cssVar(page, '--pencil')).toBe('#88c0d0');
+    expect(await cssVar(page, '--card')).toBe('#2e3440');
     expect(await page.evaluate(() => document.documentElement.style.colorScheme)).toBe('dark');
     await expect(page.locator('meta[name=theme-color]')).toHaveAttribute('content', '#88c0d0');
     // The top bar wears the accent.
@@ -27,7 +27,7 @@ test('the studio wears the reading theme from settings, and repaints when it cha
     // The last theme is remembered, so the next launch paints it before settings arrive.
     await page.route('**/api/settings', () => {});
     await page.reload();
-    await expect.poll(() => cssVar(page, '--primitive-accent')).toBe('#88c0d0');
+    await expect.poll(() => cssVar(page, '--pencil')).toBe('#88c0d0');
     await page.unroute('**/api/settings');
     await page.reload();
 
@@ -36,19 +36,19 @@ test('the studio wears the reading theme from settings, and repaints when it cha
     await page.locator('.theme-opt').filter({ hasText: 'Cream' }).click();
     await page.getByRole('button', { name: 'save settings', exact: true }).click();
     await expect(page.getByRole('status')).toHaveText('saved');
-    await expect.poll(() => cssVar(page, '--primitive-accent')).toBe('#8a5a2b');
-    expect(await cssVar(page, '--primitive-page')).toBe('#e9e2d2');
+    await expect.poll(() => cssVar(page, '--pencil')).toBe('#8a5a2b');
+    expect(await cssVar(page, '--page')).toBe('#e9e2d2');
 
     // Slate: a light sheet on a dark page — text on the page must use the sheet colour.
     await setTheme(page, 'slate'); await page.reload();
-    await expect.poll(() => cssVar(page, '--primitive-text-primary-on-background')).toBe('#f5f7f7');
-    expect(await cssVar(page, '--primitive-text-primary')).toBe('#1b2426');
+    await expect.poll(() => cssVar(page, '--page-ink')).toBe('#f5f7f7');
+    expect(await cssVar(page, '--ink')).toBe('#1b2426');
 
     // auto removes every inline token and the stylesheet decides again.
     await setTheme(page, 'auto'); await page.reload();
     await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe('auto');
-    expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--primitive-accent'))).toBe('');
-    expect(await cssVar(page, '--primitive-accent')).toBe('#23608c');
+    expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--pencil'))).toBe('');
+    expect(await cssVar(page, '--pencil')).toBe('#23608c');
   } finally {
     await page.unroute('**/api/settings');
     await setTheme(page, 'auto');
