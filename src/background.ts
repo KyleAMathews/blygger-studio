@@ -13,7 +13,7 @@
 // at once and nothing is recomputed.
 
 import { extractDirectives } from "./directives.ts";
-import { clampedTime, withinBurst, withinLinkBurst } from "./burst.ts";
+import { clampedTime, saysNoMoreThanLink, withinBurst, withinLinkBurst } from "./burst.ts";
 
 /**
  * The rules an owner can turn off, in the order Settings lists them. Withdrawn
@@ -220,14 +220,14 @@ export async function settleImportedBackground(
   let detail: Record<string, unknown> | null = null;
   if (!held) {
     // First sight: is a thread already held here that folds it?
-    const threads = await db.prepare(`SELECT remote_id, updated, observed_at, transclusions_json, links_json FROM imported_items
+    const threads = await db.prepare(`SELECT remote_id, updated, observed_at, transclusions_json, links_json, content_md FROM imported_items
       WHERE subscription_id = ? AND kind = 'thread' AND state = 'current' AND remote_id != ? AND instr(COALESCE(transclusions_json, '') || COALESCE(links_json, ''), ?) > 0`)
-      .bind(sub.id, remoteId, remoteId).all<{ remote_id: string; updated: string | null; observed_at: string; transclusions_json: string | null; links_json: string | null }>();
+      .bind(sub.id, remoteId, remoteId).all<{ remote_id: string; updated: string | null; observed_at: string; transclusions_json: string | null; links_json: string | null; content_md: string | null }>();
     const mine = clampedTime(doc.created, observedAt);
     const folding = threads.results.find((t) => {
       const at = clampedTime(t.updated, t.observed_at);
       if (newlyNamed(t.transclusions_json, null, sub.origin).includes(remoteId)) return withinBurst(mine, at);
-      return newlyNamed(t.links_json, null, sub.origin).includes(remoteId) && withinLinkBurst(mine, at);
+      return newlyNamed(t.links_json, null, sub.origin).includes(remoteId) && withinLinkBurst(mine, at) && saysNoMoreThanLink(doc.content_md, t.content_md ?? "", remoteId);
     });
     if (folding) {
       reasons = [...reasons, "burst"];
@@ -239,16 +239,21 @@ export async function settleImportedBackground(
 
   if (doc.kind !== "thread") return;
   // Quoted items fold by the burst window, linked ones only within the same
-  // publish (LINK_BURST_WINDOW_MS): a placeholder, not a chapter linked later.
+  // publish (LINK_BURST_WINDOW_MS) and only when they say no more than the
+  // link's own text (#112): a placeholder, not a chapter.
   const quoted = newlyNamed(quotes, held?.quotes ?? null, sub.origin).filter((id) => id !== remoteId);
   const linked = newlyNamed(links, held ? namedJson(held.quotes, held.links) : null, sub.origin).filter((id) => id !== remoteId && !quoted.includes(id));
   const named = [...quoted, ...linked];
   if (!named.length) return;
   const threadAt = clampedTime(doc.updated, observedAt);
-  const members = await db.prepare(`SELECT remote_id, created, observed_at, bg_reasons, bg_detail FROM imported_items
+  const members = await db.prepare(`SELECT remote_id, created, observed_at, bg_reasons, bg_detail, content_md FROM imported_items
     WHERE subscription_id = ? AND state = 'current' AND remote_id IN (SELECT value FROM json_each(?))`)
-    .bind(sub.id, JSON.stringify(named)).all<{ remote_id: string; created: string | null; observed_at: string; bg_reasons: string | null; bg_detail: string | null }>();
-  const updates = members.results.filter((m) => (quoted.includes(m.remote_id) ? withinBurst : withinLinkBurst)(clampedTime(m.created, m.observed_at), threadAt)).map((m) => {
+    .bind(sub.id, JSON.stringify(named)).all<{ remote_id: string; created: string | null; observed_at: string; bg_reasons: string | null; bg_detail: string | null; content_md: string | null }>();
+  const updates = members.results.filter((m) => {
+    const at = clampedTime(m.created, m.observed_at);
+    if (quoted.includes(m.remote_id)) return withinBurst(at, threadAt);
+    return withinLinkBurst(at, threadAt) && saysNoMoreThanLink(m.content_md ?? "", doc.content_md, m.remote_id);
+  }).map((m) => {
     const next = withBurst(m.bg_reasons, m.bg_detail, remoteId);
     return db.prepare("UPDATE imported_items SET bg_reasons = ?, bg_detail = ? WHERE subscription_id = ? AND remote_id = ?").bind(next.reasons, next.detail, sub.id, m.remote_id);
   });

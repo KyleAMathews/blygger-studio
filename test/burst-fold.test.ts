@@ -130,6 +130,18 @@ describe("a burst from a blyg you read", () => {
     expect((await reading(cookie, `sub=${sub}`)).map((e) => e.key).sort()).toEqual([key(sub, chapter), key(sub, contents)].sort());
   });
 
+  it("does not fold a chapter published seconds before its contents page: time is not the test (#112)", async () => {
+    const cookie = await login();
+    const sub = await subscription();
+    const [chapter, contents, late, placeholder] = [newId(), newId(), newId(), newId()];
+    await arrive(sub, { id: chapter, kind: "thread", created: at(1.5), md: "# Chapter one\n\nWords." });
+    await arrive(sub, { id: contents, kind: "thread", created: at(30), updated: at(1), md: `- [[${chapter} | Chapter one]]\n- [[${late} | Chapter two]]\n- [[${placeholder} | Chapter three]]\n`, links: [{ id: chapter }, { id: late }, { id: placeholder }] });
+    // Out of order, after the thread: the same test applies.
+    await arrive(sub, { id: late, kind: "thread", created: at(1.5), md: "# Chapter two\n\nMore words." });
+    await arrive(sub, { id: placeholder, kind: "thread", created: at(1.5), md: "# Chapter three\n" });
+    expect((await reading(cookie, `sub=${sub}`)).map((e) => e.key).sort()).toEqual([key(sub, chapter), key(sub, contents), key(sub, late)].sort());
+  });
+
   it("folds a part that arrives after its thread", async () => {
     const cookie = await login();
     const sub = await subscription();
