@@ -18,7 +18,7 @@ not have its own repo until session 26.
 
 ---
 
-## 0.65.0 — Conditional resource reads and shared-read recovery
+## 0.65.0 — Conditional resource reads; the host-root `/api` alias removed
 
 **Poll resources with ETags** (#152). Private resource GETs accept
 `If-None-Match` and return a bodyless `304` when their representation is
@@ -33,14 +33,18 @@ and SDK `getChanges` retain their existing behavior in 0.65.0 and 0.66.0, marked
 deprecated in OpenAPI and the SDK. They will be removed in 0.67.0 with private
 contract 6.0.0. Tools should poll the resources they need with conditional GETs.
 
+**The host-root `/api` alias is gone** (#151). It was kept for two releases after
+0.49.12 moved the private API under the mount, and its window has run out. Mounted
+installations (a studio at `example.com/blyg/`, say) now serve the private API only at
+`{mount}/api`. Tools using the former host-root `/api` address or token audience must
+rediscover the endpoint and authorize access to the mounted resource again. A studio
+on its own subdomain is unaffected.
+
+**Tooling.** The oracle suites run on `@tanstack/oracles` (#151), and CI runs the one
+WebKit browser test in its own job, so a slow package mirror cannot hold up the
+Chromium suite. Nothing an operator runs changes.
+
 Private contract 5.14.0, SDK 0.20.0. **Migrations:** none.
-
-## Unreleased
-
-**Expired API compatibility removed.** Mounted installations now serve the private API
-only at `{mount}/api`. Tools using the former host-root `/api` address or token audience
-must rediscover the endpoint and authorize access to the mounted resource again.
-**Migrations:** none.
 
 ## 0.64.1 — Security: Hono and fast-xml-parser upgrades
 
