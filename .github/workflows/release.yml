@@ -71,8 +71,8 @@ jobs:
         run: npm run test:upgrade
       - if: steps.checked.outputs.tested != 'true'
         run: npm run test:mutations
-      # verify-sdk-consumer.ts, inside release:verify, drives Chromium.
-      - run: npx playwright install --with-deps chromium
+      # release:verify drives Chromium; the touch toast regression uses WebKit.
+      - run: npx playwright install --with-deps chromium webkit
       - if: steps.checked.outputs.tested != 'true'
         run: npm run test:e2e
       - run: npm run release:build

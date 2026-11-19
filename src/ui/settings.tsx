@@ -29,6 +29,7 @@ import { CLIENT } from '../client.ts';
 import { AddressBook } from './contacts.tsx';
 import { ERROR_LOG_MAX, describeEntry, diagnostics, errorLog, exportLog, thisDevice } from './error-log.ts';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
+import { Tab, Tabs } from './primitives.tsx';
 import { localPatches } from '../../build/patches.ts';
 
 const fields = [
@@ -1364,19 +1365,16 @@ function CustomThemeFields({
         everyone else gets the light one.
       </p>
       {paired ? (
-        <div className="segmented" aria-label="Palette">
+        <Tabs label="Palette" value={showing} onValueChange={(value) => setEditing(value as 'light' | 'dark')}>
           {(['light', 'dark'] as const).map((which) => (
-            <button
+            <Tab
               key={which}
-              type="button"
-              aria-pressed={showing === which}
-              className={`seg${showing === which ? ' is-active' : ''}`}
-              onClick={() => setEditing(which)}
+              value={which}
             >
               {which === 'light' ? 'Light palette' : 'Dark palette'}
-            </button>
+            </Tab>
           ))}
-        </div>
+        </Tabs>
       ) : null}
       {showing === 'dark' && dark ? (
         <ThemeEditor

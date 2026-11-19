@@ -38,12 +38,12 @@ test('the sources list groups sources, hoppers and subscriptions, and opens a ti
   await page.getByRole('navigation', { name: 'studio' }).getByRole('link', { name: 'reading', exact: true }).click();
   // Reading lands on the feed; Sources is its peer tab.
   await expect(page).toHaveURL(/\/studio\/reading$/);
-  const tabs = page.getByRole('group', { name: 'reading view' });
-  await expect(tabs.getByRole('button')).toHaveText(['Feed', 'Sources']);
-  await expect(tabs.locator('[aria-pressed=true]')).toHaveText('Feed');
+  const tabs = page.getByRole('tablist', { name: 'reading view' });
+  await expect(tabs.getByRole('tab')).toHaveText(['Feed', 'Sources']);
+  await expect(tabs.locator('[aria-selected=true]')).toHaveText('Feed');
   await expect(page.getByRole('heading', { name: /^all/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'subscribe', exact: true })).toBeVisible();
-  await tabs.getByRole('button', { name: 'Sources', exact: true }).click();
+  await tabs.getByRole('tab', { name: 'Sources', exact: true }).click();
   await expect(page).toHaveURL(/\/studio\/reading\?view=sources$/);
   await expect(page.getByRole('heading', { name: /^sources/ })).toContainText('2 subscriptions');
   await expect(page.getByRole('button', { name: 'subscribe', exact: true })).toBeVisible();
@@ -65,7 +65,7 @@ test('the sources list groups sources, hoppers and subscriptions, and opens a ti
   await expect(page.locator('.reading-entry')).toHaveCount(2);
   await expect(page.getByRole('button', { name: 'about this source', exact: true })).toBeVisible();
   await expect(page.locator('.pager')).toContainText('page 1 of 1');
-  await tabs.getByRole('button', { name: 'Sources', exact: true }).click();
+  await tabs.getByRole('tab', { name: 'Sources', exact: true }).click();
   await expect(page).toHaveURL(/\/studio\/reading\?view=sources$/);
   // "all" and "my blyg" are timelines too, with no inspector.
   await page.locator('.feeds a[href*="sub=own"]').click();
@@ -174,7 +174,7 @@ test('the source inspector toggles the blogroll, pauses and resumes, and confirm
   await expect(page.getByRole('note')).toHaveCount(0);
   expect((await api(page, 'GET', '/subscriptions/parity-rss')).json.status).not.toBe('paused');
   // delete asks first; cancelling deletes nothing
-  await page.getByRole('group', { name: 'reading view' }).getByRole('button', { name: 'Sources', exact: true }).click();
+  await page.getByRole('tablist', { name: 'reading view' }).getByRole('tab', { name: 'Sources', exact: true }).click();
   await inspect();
   const deletes: string[] = [];
   await page.route('**/api/subscriptions/parity-rss', route => {

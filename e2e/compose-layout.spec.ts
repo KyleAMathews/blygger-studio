@@ -59,8 +59,8 @@ test('the composer: icon tools keep their names and tooltips, compact actions, f
   await expect(tools.getByRole('button', { name: 'attach image', exact: true }).locator('svg')).toHaveCount(1);
   await expect(tools.getByRole('button', { name: '[[ link an item', exact: true })).toHaveText('[[');
   await fits(page, '.composer-tools');
-  // Compact segmented kind switch, compact buttons.
-  await expect(page.getByRole('radiogroup', { name: 'kind' })).toHaveClass(/compact/);
+  // Compact ToggleGroup kind switch, compact buttons.
+  await expect(page.getByRole('group', { name: 'kind' })).toHaveClass(/toggle-group/);
   for (const id of ['#save-draft-btn', '#publish-btn']) expect((await page.locator(id).boundingBox())!.height).toBeLessThanOrEqual(36);
   // Syntax help is folded by default, text intact, and the choice is remembered.
   const help = page.locator('details.syntax-help');
@@ -78,7 +78,7 @@ test('the composer: icon tools keep their names and tooltips, compact actions, f
   await page.reload();
   await expect(page.locator('details.syntax-help')).not.toHaveAttribute('open');
   // A thread adds ![[; the row still fits.
-  await page.getByRole('radio', { name: 'thread' }).click();
+  await page.getByRole('group', { name: 'kind' }).getByRole('button', { name: 'thread', exact: true }).click();
   await expect(tools.getByRole('button', { name: '![[ quote an item', exact: true })).toBeVisible();
   await fits(page, '.composer-tools');
 });

@@ -7,7 +7,10 @@ export default defineConfig({
   // until #64, cosmetics:21 and :40, generated-highlight:13) were failing whole
   // runs and releases (ROADMAP row 55). Locally a failure stays a failure.
   retries: process.env.CI ? 1 : 0,
-  projects: [{ name: "desktop", use: { ...devices["Desktop Chrome"] } }, { name: "mobile", use: { ...devices["iPhone 13"], defaultBrowserType: "chromium" } }],
+  projects: [
+    { name: "desktop", use: { ...devices["Desktop Chrome"] } },
+    { name: "mobile", use: { ...devices["iPhone 13"], defaultBrowserType: "chromium" } },
+  ],
   // The studio registers a service worker (PWA). page.route() cannot see requests a
   // worker handles, so suites run with workers blocked; pwa-chrome.spec.ts allows
   // them where the worker itself is under test.
