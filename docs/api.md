@@ -1,6 +1,6 @@
 # Owner API
 
-The owner API lives at `{mount}/api`: `/api` for a root node and `/blyg/api` for a node mounted at `/blyg`. On a mounted node, host-root `/api` still answers as a deprecated alias (0.49.12, for two releases), with `Deprecation` and a successor `Link` header; use `{mount}/api`.
+The owner API lives at `{mount}/api`: `/api` for a root node and `/blyg/api` for a node mounted at `/blyg`. On a mounted node, host-root `/api` returns 404; use `{mount}/api`. The two-release compatibility period announced in 0.49.12 has ended.
 The public Blygger protocol remains separate.
 Sign into Studio before calling the API from a browser on the same origin.
 Delegated clients use scoped bearer tokens. See [Client access](client-access.md)

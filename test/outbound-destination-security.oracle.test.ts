@@ -1,63 +1,79 @@
-/**
- * User ruling: public destinations by default; private/LAN fetches require an
- * explicit deployment opt-in. OWASP SSRF advice covers canonical IP parsing,
- * every redirect destination, DNS answers and credentials in user-supplied URLs:
- * https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
- * Model: these literal/special-name targets never reach the network; a public
- * target works. Both importer and Webmention production adapters receive the
- * same corpus. Fetch is a recorder, not a security classifier. All responses
- * are synthetic, so no private network or live deployment is contacted.
- * Limits: fixed addresses/redirects; DNS rebinding between check and connect is
- * an unresolved network-layer boundary, not proven by URL rejection.
+/** This oracle owns public-only outbound destinations at the importer and
+ * Webmention adapters' completed fetch boundary in src/outbound-policy.ts.
+ *
+ * ```ts
+ * platformFetch('http://127.0.0.1/private') // → destination rejection, no fetch
+ * mentionFetch(publicUrlRedirectingToLoopback) // → rejection before private hop
+ * mentionFetchFor({ ALLOW_PRIVATE_FETCH: 'true' })(loopback) // → LAN response
+ * ```
+ * A public first hop does not authorize its redirect or private DNS answers.
+ * For every finite destination history, restricted destinations require explicit
+ * LAN opt-in, and public neighbors remain usable. The fixture declares network
+ * visibility independently of production URL classification. The model applies
+ * that public/LAN rule to literal, redirect and DNS premises; the driver records
+ * raw transport destinations and returned/error outcomes for both real adapters.
+ * Fetch is only a recorder with controlled responses. These histories preserve
+ * canonical/special-name addresses, credentials, mixed DNS answers and redirects.
+ * DNS rebinding between validation and connection remains outside this boundary.
+ * Authority: public-by-default operator policy and OWASP SSRF prevention guidance.
  */
-import { expect, it, vi } from 'vitest';
-import { platformFetch } from '../src/importer/http.ts';
-import { mentionFetch } from '../src/mentions/http.ts';
+import { differs, oracleProperty, pass } from '@tanstack/oracles';
+import { vi } from 'vitest';
+import { platformFetch, platformFetchFor } from '../src/importer/http.ts';
+import { mentionFetch, mentionFetchFor } from '../src/mentions/http.ts';
+import { completed, outcome, receivingTrace, type Outcome } from './network-oracle-observations.ts';
+type Peer = { address: string; visibility: 'public' | 'private' };
+type Plan = { name: string; subjects: ('importer' | 'webmention')[]; url: string; visibility: 'public' | 'private'; allowPrivate: boolean; credentials?: boolean; redirect?: { url: string; visibility: 'public' | 'private' }; dns?: Peer[]; body: string };
 const blocked = ['http://localhost/private', 'http://localhost./private', 'http://127.1/private', 'http://2130706433/private', 'http://0x7f000001/private', 'http://10.0.0.1/private', 'http://172.16.0.1/private', 'http://192.168.1.1/private', 'http://169.254.169.254/latest/meta-data', 'http://[::1]/private', 'http://[::ffff:127.0.0.1]/private', 'http://[fc00::1]/private', 'https://printer.local/private', 'https://user:password@public.example/private'];
-for (const [name, subject] of [['importer', platformFetch], ['webmention', mentionFetch]] as const) {
-  it.each(blocked)(name + ' denies restricted destination %s before network work', async url => {
-    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('private target reached'));
-    try {
-      await expect(subject(url), 'restricted destination must be rejected').rejects.toThrow(/destination/i);
-      expect(spy).not.toHaveBeenCalled();
-    } finally { spy.mockRestore(); }
-  });
+const publicDns: Peer[] = [{ address: '93.184.216.34', visibility: 'public' }];
+const histories: Plan[] = [
+  ...(['importer', 'webmention'] as const).flatMap(subject => blocked.map(url => ({ name: subject + ' denies restricted destination ' + url + ' before network work', subjects: [subject], url, visibility: 'private' as const, credentials: url.includes('user:password@'), allowPrivate: false, body: 'private target reached' }))),
+  { name: 'Webmention rechecks a redirect from a public host to a private target', subjects: ['webmention'], url: 'https://publisher.example/mention', visibility: 'public', allowPrivate: false, redirect: { url: 'http://127.0.0.1/private', visibility: 'private' }, dns: publicDns, body: 'private target reached' },
+  ...[[{ address: '127.0.0.1', visibility: 'private' as const }], [{ address: '93.184.216.34', visibility: 'public' as const }, { address: '10.0.0.1', visibility: 'private' as const }], [{ address: '::ffff:127.0.0.1', visibility: 'private' as const }], [{ address: 'fd00::1', visibility: 'private' as const }]].map(dns => ({ name: 'denies hostnames with restricted DNS answers: ' + JSON.stringify({ addresses: dns.map(peer => peer.address) }), subjects: ['importer', 'webmention'] as ('importer' | 'webmention')[], url: 'https://publisher.example/', visibility: 'public' as const, allowPrivate: false, dns, body: 'private target reached' })),
+  { name: 'the explicit LAN opt-in preserves local subscriptions and mentions', subjects: ['importer', 'webmention'], url: 'http://127.0.0.1/feed', visibility: 'private', allowPrivate: true, body: 'LAN neighbor' },
+  { name: 'public DNS neighbors still reach the importer and mentions transport', subjects: ['importer', 'webmention'], url: 'https://publisher.example/', visibility: 'public', allowPrivate: false, dns: publicDns, body: 'Public neighbor' },
+];
+// Visibility is the controlled fixture premise, not a production classifier.
+// Any restricted member denies the entire destination unless LAN is opted in.
+function model(plan: Plan) {
+  const restricted = plan.visibility === 'private' || plan.credentials || plan.redirect?.visibility === 'private' || plan.dns?.some(peer => peer.visibility === 'private');
+  return { denied: !!restricted && !plan.allowPrivate, body: plan.body, noNetwork: plan.visibility === 'private' && !plan.allowPrivate, forbidDestination: plan.redirect?.visibility === 'private' ? plan.redirect.url : plan.dns?.some(peer => peer.visibility === 'private') ? plan.url : undefined };
 }
-it('Webmention rechecks a redirect from a public host to a private target', async () => {
-  const seen: string[] = [];
-  const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
-    const url = String(input instanceof Request ? input.url : input); seen.push(url);
-    if (url.startsWith('https://cloudflare-dns.com/')) return Response.json({ Status: 0, Answer: [{ type: 1, data: '93.184.216.34' }] });
-    return seen.filter(value => !value.startsWith('https://cloudflare-dns.com/')).length === 1 ? new Response(null, { status: 302, headers: { Location: 'http://127.0.0.1/private' } }) : new Response('private target reached');
-  });
-  try {
-    await expect(mentionFetch('https://publisher.example/mention'), 'redirect destination must be rejected').rejects.toThrow(/destination/i);
-    expect(seen).not.toContain('http://127.0.0.1/private');
-  } finally { spy.mockRestore(); }
-});
-
-it.each([{ addresses: ['127.0.0.1'] }, { addresses: ['93.184.216.34', '10.0.0.1'] }, { addresses: ['::ffff:127.0.0.1'] }, { addresses: ['fd00::1'] }])('denies hostnames with restricted DNS answers: %j', async ({ addresses }) => {
-  const destinations: string[] = [];
-  const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
-    const url = String(input); destinations.push(url);
-    return url.startsWith('https://cloudflare-dns.com/') ? Response.json({ Status: 0, Answer: addresses.map(data => ({ type: data.includes(':') ? 28 : 1, data })) }) : new Response('private target reached');
-  });
-  try {
-    for (const subject of [platformFetch, mentionFetch]) await expect(subject('https://publisher.example/')).rejects.toThrow(/destination/i);
-    expect(destinations.every(url => url.startsWith('https://cloudflare-dns.com/')), 'restricted DNS must deny before destination fetch').toBe(true);
-  } finally { spy.mockRestore(); }
-});
-it('the explicit LAN opt-in preserves local subscriptions and mentions', async () => {
-  const { platformFetchFor } = await import('../src/importer/http.ts');
-  const { mentionFetchFor } = await import('../src/mentions/http.ts');
-  const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('LAN neighbor'));
-  try {
-    for (const subject of [platformFetchFor({ ALLOW_PRIVATE_FETCH: 'true' }), mentionFetchFor({ ALLOW_PRIVATE_FETCH: 'true' })]) expect(await (await subject('http://127.0.0.1/feed')).text()).toBe('LAN neighbor');
-    expect(spy).toHaveBeenCalledTimes(2);
-  } finally { spy.mockRestore(); }
-});
-it('public DNS neighbors still reach the importer and mentions transport', async () => {
-  const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async input => String(input).startsWith('https://cloudflare-dns.com/') ? Response.json({ Status: 0, Answer: [{ type: 1, data: '93.184.216.34' }] }) : new Response('Public neighbor'));
-  try { for (const subject of [platformFetch, mentionFetch]) expect(await (await subject('https://publisher.example/')).text()).toBe('Public neighbor'); }
-  finally { spy.mockRestore(); }
+oracleProperty({
+  id: 'outbound-destination-security', owns: ['src/outbound-policy.ts', 'src/importer/http.ts', 'src/mentions/http.ts'],
+  law: { statement: 'For every finite literal, DNS and redirect destination history, restricted destinations are denied before their transport unless LAN fetching is explicitly enabled, while public neighbors work.', authority: 'Existing public-by-default/LAN-opt-in operator ruling; https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html', limits: 'Original fixed address/redirect/DNS corpus on controlled fetch; no connection-time DNS rebinding proof.' },
+  histories, label: plan => plan.name, model,
+  driver: (plan, observe) => completed(observe, async () => {
+    for (const subject of plan.subjects) {
+      const destinations: string[] = [];
+      const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+        const url = String(input instanceof Request ? input.url : input); destinations.push(url);
+        if (url.startsWith('https://cloudflare-dns.com/')) return Response.json({ Status: 0, Answer: (plan.dns ?? publicDns).map(peer => ({ type: peer.address.includes(':') ? 28 : 1, data: peer.address })) });
+        if (plan.redirect && url === plan.url) return new Response(null, { status: 302, headers: { Location: plan.redirect.url } });
+        return new Response(plan.body);
+      });
+      try {
+        const fetcher = subject === 'importer' ? (plan.allowPrivate ? platformFetchFor({ ALLOW_PRIVATE_FETCH: 'true' }) : platformFetch) : (plan.allowPrivate ? mentionFetchFor({ ALLOW_PRIVATE_FETCH: 'true' }) : mentionFetch);
+        observe('outbound destination settled', { subject, result: await outcome(async () => (await fetcher(plan.url)).text()), destinations });
+      } finally { spy.mockRestore(); }
+    }
+  }),
+  check: (plan, rawTrace, expected) => {
+    const { observations: trace, complete } = receivingTrace(rawTrace);
+    const count = differs(trace[plan.subjects.length]?.checkpoint ?? 'outbound receiving paths', 'public destination policy', trace.length, complete ? plan.subjects.length : Math.min(trace.length, plan.subjects.length)); if (count) return count;
+    for (let index = 0; index < trace.length; index++) {
+      // All destination predicates judge this received adapter outcome; aliases
+      // would lose its failure if cleanup subsequently throws.
+      const entry = trace[index], actual = entry.value as { subject: string; result: Outcome<string>; destinations: string[] };
+      const receiving = actual.result.kind === 'threw' ? { denied: true, destinationError: /destination/i.test(actual.result.message), body: undefined } : { denied: false, destinationError: true, body: actual.result.value };
+      const mismatch = differs(entry.checkpoint, 'public destination policy', { subject: actual.subject, ...receiving }, { subject: plan.subjects[index], denied: expected.denied, destinationError: true, body: expected.denied ? undefined : expected.body })
+        ?? (expected.noNetwork ? differs(entry.checkpoint, 'public destination policy', actual.destinations, []) : undefined)
+        ?? (expected.forbidDestination ? differs(entry.checkpoint, 'public destination policy', actual.destinations.includes(expected.forbidDestination), false) : undefined)
+        ?? (plan.dns?.some(peer => peer.visibility === 'private') ? differs(entry.checkpoint, 'public destination policy', actual.destinations.filter(url => !url.startsWith('https://cloudflare-dns.com/')), []) : undefined)
+        ?? (plan.allowPrivate ? differs(entry.checkpoint, 'public destination policy', actual.destinations.length, 1) : undefined);
+      if (mismatch) return mismatch;
+    }
+    return pass;
+  },
+  calibrations: [{ name: 'private target reached', law: 'public destination policy', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint !== 'outbound destination settled' ? entry : ({ ...entry, value: { ...(entry.value as object), result: { kind: 'returned', value: 'private target reached' } } })) }],
 });

@@ -1,153 +1,191 @@
-import { testRevisionBody } from './helpers.ts';
-import { testItemRevision } from './helpers.ts';
-/**
- * Owner ruling: uploads are private until publication uses them. Protocol §5.4:
- * a published media URL MUST always serve the same bytes, and §9 withdrawal does
- * not cascade, so withdrawal never retracts published media. Draft permission
- * cannot create anonymous publication authority.
- * OWASP requires authorization at every resource endpoint, including static bytes:
- * https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html
- * Model: draft/unattached -> owner-only; referenced publication -> anonymous;
- * later versions and withdrawal -> still anonymous; an upload no publication ever
- * showed -> owner-only, even on a withdrawn item. Private
- * responses cannot enter a shared cache. Attachment append and inline placement
- * are distinct publication paths. Avatar selection is an owner-managed public use.
- * Driver: actual multipart upload, owner publish/pin and anonymous R2-serving
- * handler. No production visibility helper supplies expectations.
- * Limits: named lifecycle witnesses; not a claim that old public caches can be
- * recalled, nor a proof of every media reference syntax.
+/** Media becomes public through publication and stays public after withdrawal.
+ * This oracle checks real uploads, private reads, pins and avatar changes at the
+ * mounted Worker. It owns retention and the owner API's media authority boundary.
+ *
+ * GET /blyg/media/private.png // → 404 anonymously, 200/no-store for owner reads
+ * POST /blyg/api/items/id/publish // → referenced media becomes public
+ * POST /blyg/api/items/id/withdraw // → previously published bytes remain public
+ * PATCH /blyg/api/settings({avatarMediaId}) // → requires manage and publish
+ *
+ * An unused inline upload on a withdrawn item is still private. The item having
+ * publication history is enough for an appended attachment, but not for inline
+ * bytes that no published text showed. Protocol §5.4 keeps a published media URL
+ * serving the same bytes; §9 says withdrawal does not cascade. docs/client-access
+ * separates read, draft, manage and publish authority at every resource endpoint.
+ *
+ * For every enumerated lifecycle, anonymous reads reflect whether publication
+ * used the bytes; authorized private reads are HTTPS-only and no-store; published
+ * bytes survive pins, later versions and all withdrawals. Avatar selection needs
+ * publish beside manage, over REST and MCP. The independent model below tracks
+ * only publication use, item references and live grant scopes. Driver IDs and
+ * credentials are local handles, never model inputs or trace output.
+ *
+ * Histories are the complete original lifecycle/credential/transport schedules.
+ * The driver records response statuses and selected byte/cache observations at
+ * each response. Limits: local D1/R2 and these reference syntaxes, not cache recall
+ * or deployed ingress. No production visibility helper supplies expectations.
  */
+import { differs, oracleProperty, pass, type Observation } from '@tanstack/oracles';
 import { env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
-import { expect, it } from 'vitest';
 import { makeApp } from '../src/index.ts';
-const app = makeApp('/blyg');
-async function receive(path: string, init: RequestInit = {}) {
-  const ctx = createExecutionContext();
-  const response = await app.fetch(new Request('https://media-review.example.test' + path, init), env, ctx);
-  await waitOnExecutionContext(ctx); return response;
-}
-async function fixture() {
-  const login = await receive('/blyg/studio/login', { method: 'POST', headers: { 'CF-Connecting-IP': 'fd00:' + crypto.randomUUID().replaceAll('-', '').match(/.{4}/g)!.slice(0,7).join(':') }, body: new URLSearchParams({ password: env.OWNER_PASSWORD }) });
-  expect(login.status).toBe(302); const cookie = login.headers.get('set-cookie')!.split(';')[0];
-  const owner = async (path: string, method = 'GET', body?: unknown) => { body = await testRevisionBody(method, path, body); return receive(path, { method, headers: { cookie, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); };
-  const upload = async (item?: string, inline = false, bytes = 'private fixture bytes') => {
-    const form = new FormData(); form.set('file', new File([bytes], 'private.png', { type: 'image/png' }));
-    if (item) (form.set('itemId', item), form.set('expectedRevision', String(await testItemRevision(item)))); if (inline) form.set('inline', 'true');
-    const response = await receive('/blyg/api/media', { method: 'POST', headers: { cookie }, body: form });
-    expect(response.status).toBe(201); return response.json() as Promise<{id:string;url:string}>;
-  };
-  return { owner, cookie, upload };
-}
-it('unattached uploads stay private while owner previews remain usable', async () => {
-  const f = await fixture(), media = await f.upload();
-  expect((await receive(new URL(media.url).pathname)).status, 'draft bytes are not anonymous publications').toBe(404);
-  const preview = await receive(new URL(media.url).pathname, { headers: { cookie: f.cookie } });
-  expect(preview.status).toBe(200); expect(await preview.text()).toBe('private fixture bytes');
-  expect(preview.headers.get('cache-control'), 'private bytes cannot enter a shared cache').toBe('no-store');
-});
-it.each([false, true])('publication releases its actually visible media (inline=%s)', async inline => {
-  const f = await fixture();
-  const created = await f.owner('/blyg/api/items', 'POST', { contentMd: 'Media lifecycle' }); expect(created.status).toBe(201);
-  const { id } = await created.json() as {id:string}, media = await f.upload(id, inline);
-  const path = new URL(media.url).pathname;
-  expect((await receive(path)).status).toBe(404);
-  if (inline) expect((await f.owner('/blyg/api/items/' + id, 'PATCH', { contentMd: `![image](${media.url})` })).status).toBe(200);
-  expect((await f.owner('/blyg/api/items/' + id + '/publish', 'POST')).status).toBe(200);
-  expect((await receive(path)).status, 'publication makes visible attachment bytes public').toBe(200);
-  expect((await f.owner(`/blyg/api/items/${id}/versions/1/pin`, 'PUT')).status).toBe(200);
-  expect((await f.owner('/blyg/api/items/' + id, 'PATCH', { contentMd: 'New version without inline image' })).status).toBe(200);
-  expect((await f.owner('/blyg/api/items/' + id + '/publish', 'POST')).status).toBe(200);
-  expect((await receive(path)).status, 'a public pin keeps its required media available').toBe(200);
-  expect((await f.owner('/blyg/api/items/' + id + '/withdraw', 'POST', {})).status).toBe(200);
-  expect((await receive(path)).status, 'published media survives withdrawal (§5.4)').toBe(200);
-});
-// §9: withdrawal does not cascade. Snapshots elsewhere still hold these URLs.
-it.each([false, true])('withdrawal keeps published media and leaves later uploads private (inline=%s)', async inline => {
-  const f = await fixture();
-  const created = await f.owner('/blyg/api/items', 'POST', { contentMd: 'Withdrawn media' }); expect(created.status).toBe(201);
-  const { id } = await created.json() as {id:string}, media = await f.upload(id, inline);
-  const path = new URL(media.url).pathname;
-  if (inline) expect((await f.owner('/blyg/api/items/' + id, 'PATCH', { contentMd: `![image](${media.url})` })).status).toBe(200);
-  expect((await f.owner('/blyg/api/items/' + id + '/publish', 'POST')).status).toBe(200);
-  expect((await receive(path)).status).toBe(200);
-  expect((await f.owner('/blyg/api/items/' + id + '/withdraw', 'POST', {})).status).toBe(200);
-  const after = await receive(path);
-  expect(after.status, 'a published media URL keeps serving after withdrawal').toBe(200);
-  expect(await after.text(), 'the same bytes').toBe('private fixture bytes');
-  // Attaching to an ever-published item is itself a publish act (publish scope);
-  // an inline upload is public only once published text shows it.
-  if (inline) {
-    // Other bytes: the same file again would be the published row (studio#7).
-    const later = await f.upload(id, true, 'later fixture bytes');
-    expect((await receive(new URL(later.url).pathname)).status, 'an inline upload no published text showed stays private on a withdrawn item').toBe(404);
-  }
-});
-it('an inline upload not placed in published text remains private', async () => {
-  const f = await fixture(); const created = await f.owner('/blyg/api/items', 'POST', { contentMd: 'No image' });
-  const {id} = await created.json() as {id:string}, media = await f.upload(id, true);
-  expect((await f.owner('/blyg/api/items/' + id + '/publish', 'POST')).status).toBe(200);
-  expect((await receive(new URL(media.url).pathname)).status, 'an unused inline attachment is not published').toBe(404);
-});
+import { testItemRevision, testRevisionBody } from './helpers.ts';
+import { withOracleStorage } from './oracle-storage.ts';
 
-it('private bytes require live read authority, not merely a draft token', async () => {
-  const f = await fixture(), media = await f.upload(), path = new URL(media.url).pathname;
-  const credentials: {authorization:{id:string};accessToken:string}[] = [];
-  for (const scope of ['owner:read','owner:draft']) {
-    const minted = await f.owner('/blyg/api/authorizations','POST',{name:'Private media '+scope,scope:[scope],resource:'api'});
-    expect(minted.status).toBe(200); credentials.push(await minted.json() as typeof credentials[number]);
-  }
-  const read = await receive(path,{headers:{Authorization:'Bearer '+credentials[0].accessToken}});
-  expect(read.status).toBe(200);expect(read.headers.get('cache-control')).toBe('no-store');
-  expect((await receive(path,{headers:{Authorization:'Bearer '+credentials[1].accessToken}})).status).toBe(404);
-  for (const headers of <Record<string,string>[]>[{Authorization:'Bearer '+credentials[0].accessToken}, {cookie:f.cookie}]) {
-    const ctx = createExecutionContext();
-    const cleartext = await app.fetch(new Request('http://media-review.example.test'+path,{headers}),env,ctx);
-    await waitOnExecutionContext(ctx);
-    expect(cleartext.status,'private bytes cannot be read over non-loopback cleartext transport').toBe(404);
-  }
-  expect((await f.owner('/blyg/api/authorizations/'+credentials[0].authorization.id,'DELETE')).status).toBe(200);
-  expect((await receive(path,{headers:{Authorization:'Bearer '+credentials[0].accessToken}})).status,'revocation also denies private media bytes').toBe(404);
-});
-// Bytes owned by one item and shown in another stay public through both
-// withdrawals: each published version holds the URL.
-it('media shown by two items survives both withdrawals', async () => {
-  const f = await fixture();
-  const owner = await f.owner('/blyg/api/items', 'POST', { contentMd: 'Owner of the bytes' }); expect(owner.status).toBe(201);
-  const { id: ownerId } = await owner.json() as {id:string}, media = await f.upload(ownerId, true);
-  const path = new URL(media.url).pathname;
-  expect((await f.owner('/blyg/api/items/' + ownerId, 'PATCH', { contentMd: `![image](${media.url})` })).status).toBe(200);
-  expect((await f.owner('/blyg/api/items/' + ownerId + '/publish', 'POST')).status).toBe(200);
-  const borrower = await f.owner('/blyg/api/items', 'POST', { contentMd: `Borrowed ![image](${media.url})` }); expect(borrower.status).toBe(201);
-  const { id: borrowerId } = await borrower.json() as {id:string};
-  expect((await f.owner('/blyg/api/items/' + borrowerId + '/publish', 'POST')).status).toBe(200);
-  expect((await f.owner('/blyg/api/items/' + ownerId + '/withdraw', 'POST', {})).status).toBe(200);
-  expect((await receive(path)).status, 'another live page still shows the bytes').toBe(200);
-  expect((await f.owner('/blyg/api/items/' + borrowerId + '/withdraw', 'POST', {})).status).toBe(200);
-  expect((await receive(path)).status, 'published bytes survive every withdrawal').toBe(200);
-});
-// Owner ruling: the avatar is public on every page, so choosing it is a publish
-// act. A draft+manage token can upload but cannot publish bytes through it.
-it('choosing the avatar requires publish scope over REST and MCP', async () => {
-  const { flow } = await import('./oauth-flow-driver.ts');
-  const f = await flow();
-  const mint = async (scope: string[], resource: string) => {
-    const minted = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'avatar ' + scope.join('+') + ' ' + resource, scope, resource }) });
-    expect(minted.status).toBe(200); return (await minted.json() as { accessToken: string }).accessToken;
-  };
-  const without = await mint(['owner:draft', 'owner:manage'], 'api'), withPublish = await mint(['owner:draft', 'owner:manage', 'owner:publish'], 'api');
-  const form = new FormData(); form.set('file', new File(['avatar fixture bytes'], 'avatar.png', { type: 'image/png' }));
-  const uploaded = await f.request('/blyg/api/media', { method: 'POST', headers: { Authorization: 'Bearer ' + without }, body: form });
-  expect(uploaded.status).toBe(201);
-  const { id, url } = await uploaded.json() as { id: string; url: string };
-  const choose = (token: string, value: string) => f.request('/blyg/api/settings', { method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ avatarMediaId: value }) });
-  expect((await choose(without, id)).status, 'draft+manage cannot publish bytes as the avatar').toBe(403);
-  expect((await f.request(new URL(url).pathname)).status, 'the refused avatar stays private').toBe(404);
-  expect((await f.request('/blyg/api/settings', { method: 'PATCH', headers: { Authorization: 'Bearer ' + without, 'Content-Type': 'application/json' }, body: JSON.stringify({ siteTitle: 'Still manageable' }) })).status, 'other settings stay manage-only').toBe(200);
-  const mcp = await mint(['owner:draft', 'owner:manage'], 'mcp');
-  const viaMcp = await f.request('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + mcp, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/call', 'mcp-name': 'updateSettings' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'updateSettings', arguments: { body: { avatarMediaId: id } }, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) });
-  const mcpText = JSON.stringify(await viaMcp.json());
-  expect((await f.request(new URL(url).pathname)).status, 'MCP cannot publish bytes as the avatar without publish scope: ' + mcpText.slice(0, 200)).toBe(404);
-  expect((await choose(withPublish, id)).status, 'publish scope may choose the avatar').toBe(200);
-  expect((await f.request(new URL(url).pathname)).status, 'the chosen avatar is public').toBe(200);
-  expect((await f.request('/blyg/api/settings', { method: 'PATCH', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ avatarMediaId: '' }) })).status).toBe(200);
+type MediaAction =
+  | { op: 'create'; item: string; text: string; refs?: string[] }
+  | { op: 'upload'; media: string; item?: string; inline?: boolean; bytes?: string; grant?: string }
+  | { op: 'edit'; item: string; text: string; refs?: string[] }
+  | { op: 'publish' | 'pin' | 'withdraw'; item: string }
+  | { op: 'read'; media: string; principal?: string; cleartext?: boolean; bytes?: boolean; cache?: boolean }
+  | { op: 'mint'; grant: string; scope: string[]; resource?: 'api' | 'mcp' }
+  | { op: 'revoke'; grant: string }
+  | { op: 'avatar'; media: string; grant: string; transport?: 'mcp' }
+  | { op: 'setting'; grant: string; title: string }
+  | { op: 'clear-avatar' };
+type Action = MediaAction & { checkpoint?: string };
+type History = { name: string; ownerFixture?: 'oauth'; actions: Action[] };
+const bytes = 'private fixture bytes';
+const histories: History[] = [
+  { name: 'unattached uploads stay private while owner previews remain usable', actions: [{ op: 'upload', media: 'a' }, { op: 'read', media: 'a', checkpoint: 'draft bytes are not anonymous publications' }, { op: 'read', media: 'a', principal: 'owner', bytes: true, cache: true }] },
+  ...[false, true].map(inline => ({ name: `publication releases its actually visible media (inline=${inline})`, actions: [
+    { op: 'create', item: 'a', text: 'Media lifecycle' }, { op: 'upload', media: 'a', item: 'a', inline }, { op: 'read', media: 'a' },
+    ...(inline ? [{ op: 'edit', item: 'a', text: '', refs: ['a'] }] : []),
+    { op: 'publish', item: 'a' }, { op: 'read', media: 'a' }, { op: 'pin', item: 'a' }, { op: 'edit', item: 'a', text: 'New version without inline image' },
+    { op: 'publish', item: 'a' }, { op: 'read', media: 'a' }, { op: 'withdraw', item: 'a' }, { op: 'read', media: 'a' },
+  ] as Action[] })),
+  ...[false, true].map(inline => ({ name: `withdrawal keeps published media and leaves later uploads private (inline=${inline})`, actions: [
+    { op: 'create', item: 'a', text: 'Withdrawn media' }, { op: 'upload', media: 'a', item: 'a', inline },
+    ...(inline ? [{ op: 'edit', item: 'a', text: '', refs: ['a'] }] : []),
+    { op: 'publish', item: 'a' }, { op: 'read', media: 'a' }, { op: 'withdraw', item: 'a' }, { op: 'read', media: 'a', bytes: true, checkpoint: 'a published media URL keeps serving after withdrawal' },
+    ...(inline ? [{ op: 'upload', media: 'later', item: 'a', inline: true, bytes: 'later fixture bytes' }, { op: 'read', media: 'later' }] : []),
+  ] as Action[] })),
+  { name: 'an inline upload not placed in published text remains private', actions: [{ op: 'create', item: 'a', text: 'No image' }, { op: 'upload', media: 'a', item: 'a', inline: true }, { op: 'publish', item: 'a' }, { op: 'read', media: 'a' }] },
+  { name: 'private bytes require live read authority, not merely a draft token', actions: [
+    { op: 'upload', media: 'a' }, { op: 'mint', grant: 'read', scope: ['owner:read'] }, { op: 'mint', grant: 'draft', scope: ['owner:draft'] },
+    { op: 'read', media: 'a', principal: 'read', cache: true }, { op: 'read', media: 'a', principal: 'draft' },
+    { op: 'read', media: 'a', principal: 'read', cleartext: true, checkpoint: 'private bytes cannot be read over non-loopback cleartext transport' }, { op: 'read', media: 'a', principal: 'owner', cleartext: true, checkpoint: 'private bytes cannot be read over non-loopback cleartext transport' },
+    { op: 'revoke', grant: 'read' }, { op: 'read', media: 'a', principal: 'read' },
+  ] },
+  { name: 'media shown by two items survives both withdrawals', actions: [
+    { op: 'create', item: 'owner', text: 'Owner of the bytes' }, { op: 'upload', media: 'a', item: 'owner', inline: true },
+    { op: 'edit', item: 'owner', text: '', refs: ['a'] }, { op: 'publish', item: 'owner' },
+    { op: 'create', item: 'borrower', text: 'Borrowed', refs: ['a'] }, { op: 'publish', item: 'borrower' },
+    { op: 'withdraw', item: 'owner' }, { op: 'read', media: 'a' }, { op: 'withdraw', item: 'borrower' }, { op: 'read', media: 'a' },
+  ] },
+  { name: 'choosing the avatar requires publish scope over REST and MCP', ownerFixture: 'oauth', actions: [
+    { op: 'mint', grant: 'without', scope: ['owner:draft', 'owner:manage'] }, { op: 'mint', grant: 'with', scope: ['owner:draft', 'owner:manage', 'owner:publish'] },
+    { op: 'upload', media: 'a', bytes: 'avatar fixture bytes', grant: 'without' }, { op: 'avatar', media: 'a', grant: 'without', checkpoint: 'draft+manage cannot publish bytes as the avatar' }, { op: 'read', media: 'a' },
+    { op: 'setting', grant: 'without', title: 'Still manageable' }, { op: 'mint', grant: 'mcp', scope: ['owner:draft', 'owner:manage'], resource: 'mcp' },
+    { op: 'avatar', media: 'a', grant: 'mcp', transport: 'mcp' }, { op: 'read', media: 'a' },
+    { op: 'avatar', media: 'a', grant: 'with' }, { op: 'read', media: 'a' }, { op: 'clear-avatar' },
+  ] },
+];
+// This model-only state combines publication use from any item's historical
+// snapshots into one monotone media flag: §5.4 makes later withdrawal irrelevant.
+function model(history: History) {
+  const items = new Map<string, { ever: boolean; refs: string[] }>();
+  const media = new Map<string, { public: boolean; bytes: string; item?: string; inline: boolean }>();
+  const grants = new Map<string, { scope: string[]; revoked: boolean }>();
+  const expected: Observation[] = [];
+  if (!history.ownerFixture) expected.push({ checkpoint: 'media owner login', value: 302 });
+  history.actions.forEach((action, index) => {
+    let value: unknown;
+    switch (action.op) {
+      case 'create': items.set(action.item, { ever: false, refs: action.refs ?? [] }); value = 201; break;
+      case 'upload': media.set(action.media, { public: !!action.item && !action.inline && !!items.get(action.item)?.ever, bytes: action.bytes ?? bytes, item: action.item, inline: !!action.inline }); value = 201; break;
+      case 'edit': items.get(action.item)!.refs = action.refs ?? []; value = 200; break;
+      case 'publish': {
+        const item = items.get(action.item)!; item.ever = true;
+        for (const [key, file] of media) if ((file.item === action.item && !file.inline) || item.refs.includes(key)) file.public = true;
+        value = 200; break;
+      }
+      case 'pin': case 'withdraw': case 'clear-avatar': value = 200; break;
+      case 'mint': grants.set(action.grant, { scope: action.scope, revoked: false }); value = 200; break;
+      case 'revoke': grants.get(action.grant)!.revoked = true; value = 200; break;
+      case 'avatar': {
+        const grant = grants.get(action.grant)!;
+        const allowed = !grant.revoked && grant.scope.includes('owner:manage') && grant.scope.includes('owner:publish');
+        if (allowed) media.get(action.media)!.public = true;
+        if (action.transport === 'mcp') return; // Original receiving witness checks the following public read.
+        value = allowed ? 200 : 403; break;
+      }
+      case 'setting': value = grants.get(action.grant)!.scope.includes('owner:manage') ? 200 : 403; break;
+      case 'read': {
+        const file = media.get(action.media)!, grant = action.principal ? grants.get(action.principal) : undefined;
+        const privateAccess = !action.cleartext && (action.principal === 'owner' || !!grant && !grant.revoked && grant.scope.includes('owner:read'));
+        const status = file.public || privateAccess ? 200 : 404;
+        value = { status, ...(action.bytes ? { bytes: status === 200 ? file.bytes : undefined } : {}), ...(action.cache ? { cache: file.public ? undefined : 'no-store' } : {}) }; break;
+      }
+    }
+    expected.push({ checkpoint: action.checkpoint ?? `media action ${index}: ${action.op}`, value });
+  });
+  return expected;
+}
+async function driver(history: History, observe: (checkpoint: string, value: unknown) => void) {
+  await withOracleStorage(async () => {
+    const app = makeApp('/blyg'), origin = 'https://media-review.example.test';
+    const receive = async (path: string, init: RequestInit = {}, cleartext = false) => {
+      const ctx = createExecutionContext();
+      const response = await app.fetch(new Request((cleartext ? origin.replace('https:', 'http:') : origin) + path, init), env, ctx);
+      await waitOnExecutionContext(ctx); return response;
+    };
+    const oauth = history.ownerFixture ? await (await import('./oauth-flow-driver.ts')).flow() : undefined;
+    let cookie = oauth?.owner;
+    if (!cookie) {
+      const login = await receive('/blyg/studio/login', { method: 'POST', headers: { 'CF-Connecting-IP': 'fd00:' + crypto.randomUUID().replaceAll('-', '').match(/.{4}/g)!.slice(0, 7).join(':') }, body: new URLSearchParams({ password: env.OWNER_PASSWORD }) });
+      observe('media owner login', login.status);
+      const header = login.headers.get('set-cookie'); if (!header) throw new Error('Media fixture login supplied no owner cookie'); cookie = header.split(';')[0];
+    }
+    const request = oauth ? oauth.request : receive;
+    const itemIds = new Map<string, string>(), files = new Map<string, { id: string; url: string }>(), grants = new Map<string, { id: string; token: string }>();
+    const auth = (grant?: string): Record<string, string> => grant ? { Authorization: 'Bearer ' + grants.get(grant)!.token } : { cookie: cookie! };
+    const owner = async (path: string, method = 'GET', body?: unknown, grant?: string) => {
+      body = await testRevisionBody(method, path, body);
+      return request(path, { method, headers: { ...auth(grant), 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    };
+    const content = (text: string, refs?: string[]) => [text, ...(refs ?? []).map(key => `![image](${files.get(key)!.url})`)].filter(Boolean).join(' ');
+    for (let index = 0; index < history.actions.length; index++) {
+      const action = history.actions[index]; let value: unknown;
+      switch (action.op) {
+        case 'create': { const response = await owner('/blyg/api/items', 'POST', { contentMd: content(action.text, action.refs) }); value = response.status; itemIds.set(action.item, (await response.json() as { id: string }).id); break; }
+        case 'upload': {
+          const form = new FormData(); form.set('file', new File([action.bytes ?? bytes], action.grant ? 'avatar.png' : 'private.png', { type: 'image/png' }));
+          if (action.item) { const id = itemIds.get(action.item)!; form.set('itemId', id); form.set('expectedRevision', String(await testItemRevision(id))); }
+          if (action.inline) form.set('inline', 'true');
+          const response = await request('/blyg/api/media', { method: 'POST', headers: auth(action.grant), body: form }); value = response.status; files.set(action.media, await response.json() as { id: string; url: string }); break;
+        }
+        case 'edit': value = (await owner('/blyg/api/items/' + itemIds.get(action.item), 'PATCH', { contentMd: content(action.text, action.refs) })).status; break;
+        case 'publish': case 'withdraw': value = (await owner('/blyg/api/items/' + itemIds.get(action.item) + '/' + action.op, 'POST', action.op === 'withdraw' ? {} : undefined)).status; break;
+        case 'pin': value = (await owner('/blyg/api/items/' + itemIds.get(action.item) + '/versions/1/pin', 'PUT')).status; break;
+        case 'mint': { const response = await owner('/blyg/api/authorizations', 'POST', { name: 'Media ' + action.grant, scope: action.scope, resource: action.resource ?? 'api' }); value = response.status; const body = await response.json() as { authorization: { id: string }; accessToken: string }; grants.set(action.grant, { id: body.authorization.id, token: body.accessToken }); break; }
+        case 'revoke': value = (await owner('/blyg/api/authorizations/' + grants.get(action.grant)!.id, 'DELETE')).status; break;
+        case 'avatar': {
+          if (action.transport === 'mcp') {
+            const response = await request('/blyg/studio/mcp', { method: 'POST', headers: { ...auth(action.grant), 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/call', 'mcp-name': 'updateSettings' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'updateSettings', arguments: { body: { avatarMediaId: files.get(action.media)!.id } }, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) });
+            await response.json(); continue;
+          }
+          value = (await owner('/blyg/api/settings', 'PATCH', { avatarMediaId: files.get(action.media)!.id }, action.grant)).status; break;
+        }
+        case 'setting': value = (await owner('/blyg/api/settings', 'PATCH', { siteTitle: action.title }, action.grant)).status; break;
+        case 'clear-avatar': value = (await owner('/blyg/api/settings', 'PATCH', { avatarMediaId: '' })).status; break;
+        case 'read': {
+          const response = await receive(new URL(files.get(action.media)!.url).pathname, { headers: action.principal ? auth(action.principal === 'owner' ? undefined : action.principal) : {} }, !!action.cleartext);
+          value = { status: response.status, ...(action.bytes ? { bytes: await response.text() } : {}), ...(action.cache ? { cache: response.headers.get('cache-control') } : {}) }; break;
+        }
+      }
+      observe(action.checkpoint ?? `media action ${index}: ${action.op}`, value);
+    }
+  });
+  observe('media lifecycle completed', true);
+}
+oracleProperty({
+  id: 'media-visibility-security', owns: ['src/media-retention.ts', 'src/owner-api.ts#createOwnerApi', 'src/index.ts#serveMedia', 'src/operation-policy.ts#resolve'],
+  law: { statement: 'For every enumerated media lifecycle, publication makes used bytes public permanently; private reads require live HTTPS read authority and no-store; avatar selection requires manage plus publish across REST and MCP.', authority: 'Owner media-privacy ruling; protocol §§5.4 and 9; docs/client-access.md scope contract; docs/auth-security-oracles.md media receiving witnesses.', limits: 'All original named lifecycle, attachment/inline, private credential, transport and avatar histories in local D1/R2. No public-cache recall or production ingress claim.' },
+  histories, label: history => history.name, model, driver,
+  check: (_history, trace, expected) => {
+    const actual = trace.filter(entry => entry.checkpoint !== 'media lifecycle completed');
+    for (let index = 0; index < actual.length; index++) { const mismatch = differs(actual[index].checkpoint, 'media publication authority', actual[index], expected[index]); if (mismatch) return mismatch; }
+    return trace.some(entry => entry.checkpoint === 'media lifecycle completed') ? differs('media lifecycle completion', 'media publication authority', actual.length, expected.length) ?? pass : pass;
+  },
+  calibrations: [{ name: 'unattached bytes become public', law: 'media publication authority', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'draft bytes are not anonymous publications' ? { ...entry, value: { status: 200 } } : entry) }],
 });

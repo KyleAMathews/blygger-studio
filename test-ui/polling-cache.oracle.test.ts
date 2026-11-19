@@ -1,281 +1,279 @@
-/** Query-cache contract: design v3. readIfChanged runs inside the real Query
- * Collection queryFn. Independent source history predicts fetches and cached
- * generation/payload pairs. Adapter receiving checks cover cancellation,
- * overlapping subsets, initial flights and optimistic edits without inspecting
- * DB internals. Fixed/random histories share grammar, budget and replay.
- * Limits: local QueryClient/Collection witnesses, not an atomic paginated SQL
- * snapshot or a claim about the time deferred collection publication completes.
+/**
+ * Every settled Studio poll checks its source revision and either reuses its
+ * exact-key response or loads the changed source. This oracle owns
+ * src/ui/revision-query.ts#readIfChanged and checks the real QueryClient after
+ * each awaited fetchQuery, including failures, eviction and restored epochs.
+ *
+ * ```ts
+ * client.fetchQuery({ queryKey, queryFn }) // → cached response when unchanged
+ * client.fetchQuery({ queryKey, queryFn }) // → fresh response after a write
+ * client.fetchQuery({ queryKey, queryFn }) // → old cache retained on load failure
+ * ```
+ *
+ * Reusing revision zero after restoring a database must not reuse an old epoch's
+ * response. A failed content load must likewise leave the prior response intact
+ * so the next poll retries. Generation and data are one accepted Query response.
+ *
+ * For every legal history, a poll reads revisions afresh and loads content once
+ * exactly when its exact-key generation is absent or changed (design R2).
+ * For every legal history, the accepted cache contains the last successfully
+ * fetched data and its pre-fetch generation; failures cannot advance either
+ * (design R3). Their authority is docs/d1-polling-cache-design.md, R2–R3.
+ *
+ * StudioQueryReference in test/polling-cache-oracle-model.ts is the independent
+ * model retained from the earlier campaign. The model replays source actions;
+ * it never reads production observations. The driver records load/read counts,
+ * fetch outcomes and the accepted cache. Constructed histories force cache hits,
+ * failed-load retries, epoch counter reuse and eviction in both campaigns.
+ *
+ * The bounded grammar retains 1–20 actions, a final poll and 50 generated
+ * histories per fixed/random campaign. Removing any of write, restore, fail,
+ * evict or poll loses its corresponding cache distinction. An unknown action
+ * is outside this grammar. Query Collection publication, optimistic edits,
+ * overlapping subsets and cancellation are receiving examples in
+ * polling-cache-integration.test.ts. This oracle does not establish atomic
+ * paginated SQL snapshots or a wall-clock polling schedule.
  */
-import { describe, expect, it, vi } from 'vitest';
 import fc from 'fast-check';
 import { QueryClient, type QueryFunction } from '@tanstack/query-core';
-import { createCollection, createLiveQueryCollection, and, gte, lt } from '@tanstack/react-db';
-import { queryCollectionOptions, parseLoadSubsetOptions } from '@tanstack/query-db-collection';
-import { readIfChanged, type CachedResponse } from '../src/ui/revision-query.ts';
+import { configureOracles, differs, oracleProperty, pass, type Observation } from '@tanstack/oracles';
+import { readIfChanged } from '../src/ui/revision-query.ts';
 import { StudioQueryReference, type OracleToken } from '../test/polling-cache-oracle-model.ts';
-import { campaign, atCheckpoint } from '../test/oracle-campaign.ts';
 import { withOracleCleanup } from '../test/oracle-cleanup.ts';
+import { studioOracleProperties } from '../test/oracle-property-registry.ts';
 
-const token = (revision = 0, epoch = 'e'): OracleToken => ({ epoch, domains: { items: revision, reading: revision, subscriptions: revision, hoppers: revision, signals: revision, settings: revision, feed: revision, mentions: revision, responses: revision, interactions: revision, browse: revision, shelf: revision } });
-const makeClient = () => new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
-function rowsCollection(client: QueryClient, read: QueryFunction<OracleToken>, load: QueryFunction<{ id: string; revision: number }[]>) {
-  return createCollection(queryCollectionOptions({
-    queryKey: ['items'], queryClient: client, getKey: (row: { id: string; revision: number }) => row.id,
-    queryFn: context => readIfChanged(context, 'items', read, load),
-    select: (response: CachedResponse<{ id: string; revision: number }[]>) => response.data,
-  }));
+// A separate prefix keeps Worker/legacy replay variables out of this campaign.
+configureOracles({
+  envPrefix: 'STUDIO_ORACLE',
+  registry: studioOracleProperties,
+  retiredVariables: ['ORACLE_TARGET', 'ORACLE_SEED', 'ORACLE_PATH'],
+});
+type Action = 'write' | 'poll' | 'fail' | 'restore' | 'evict';
+type Poll = { reads: number; loads: number; cache: unknown; error: string | null };
+const token = (revision: number, epoch: string): OracleToken => ({ epoch, domains: {
+  items: revision, reading: revision, subscriptions: revision, hoppers: revision,
+  signals: revision, settings: revision, feed: revision, mentions: revision,
+  responses: revision, interactions: revision, browse: revision, shelf: revision,
+} });
+const histories = {
+  arbitrary: fc.array(fc.constantFrom<Action>('write', 'poll', 'fail', 'restore', 'evict'), { minLength: 1, maxLength: 20 }),
+  runs: 50,
+  fixedSeeds: [20261001],
+  states: ['unchanged', 'failed retry', 'restored epoch', 'evicted'],
+  constructed: [
+    { name: 'unchanged', enters: ['unchanged'], build: (): Action[] => ['poll', 'poll'] },
+    { name: 'failed retry', enters: ['failed retry'], build: (): Action[] => ['poll', 'write', 'fail', 'poll', 'fail', 'poll'] },
+    { name: 'restored epoch', enters: ['restored epoch'], build: (): Action[] => ['poll', 'restore', 'poll'] },
+    { name: 'evicted', enters: ['evicted'], build: (): Action[] => ['poll', 'evict', 'poll'] },
+  ],
+};
+// Reuse the original model, including its separation of source and fetched state.
+// Work counts and cached values are predicted separately; neither predicts the
+// other, so unnecessary loads cannot hide behind a correct final value.
+function model(actions: Action[]): Poll[] {
+  const reference = new StudioQueryReference();
+  let revision = 0, epoch = 'e', fail = false;
+  const polls: Poll[] = [];
+  for (const action of [...actions, 'poll'] as const) {
+    if (action === 'write') revision++;
+    if (action === 'restore') { epoch += 'r'; revision = 0; }
+    if (action === 'fail') fail = !fail;
+    if (action === 'evict') reference.fetched.delete('items');
+    if (action === 'poll') {
+      const target = { epoch, revision }, dirty = reference.needsFetch('items', target);
+      if (dirty && !fail) reference.receive('items', target, revision, revision);
+      const expected = reference.fetched.get('items');
+      polls.push({ reads: 1, loads: dirty ? 1 : 0,
+        cache: expected ? { data: expected.value, generation: { epoch: expected.epoch, revision: expected.revision } } : undefined,
+        error: dirty && fail ? 'controlled' : null });
+    }
+  }
+  return polls;
 }
+// Reach is a predicate over the history, never a side effect in the model.
+function reached(actions: Action[]) {
+  const states = new Set<string>();
+  let cached = false, dirty = true, fail = false, failed = false, restored = false, evicted = false;
+  for (const action of [...actions, 'poll'] as const) {
+    if (action === 'write') dirty = true;
+    if (action === 'restore') { dirty = true; restored = true; }
+    if (action === 'evict') { cached = false; dirty = true; evicted = true; }
+    if (action === 'fail') fail = !fail;
+    if (action === 'poll') {
+      if (cached && !dirty) states.add('unchanged');
+      if (dirty && !fail) {
+        if (failed) states.add('failed retry');
+        if (restored) states.add('restored epoch');
+        if (evicted) states.add('evicted');
+        cached = true; dirty = false; failed = false; restored = false; evicted = false;
+      } else if (dirty) failed = true;
+    }
+  }
+  return states;
+}
+async function driver(actions: Action[], observe: (checkpoint: string, value: unknown) => void) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  let revision = 0, epoch = 'e', fail = false, loads = 0, reads = 0;
+  const queryFn: QueryFunction = context => readIfChanged(context, 'items', async () => { reads++; return token(revision, epoch); }, async () => {
+    loads++; if (fail) throw new Error('controlled'); return revision;
+  });
+  await withOracleCleanup(async () => {
+    for (const action of [...actions, 'poll'] as const) {
+      if (action === 'write') revision++;
+      if (action === 'restore') { epoch += 'r'; revision = 0; }
+      if (action === 'fail') fail = !fail;
+      if (action === 'evict') client.removeQueries({ queryKey: ['items'], exact: true });
+      if (action === 'poll') {
+        const beforeLoads = loads, beforeReads = reads;
+        let error: string | null = null;
+        try { await client.fetchQuery({ queryKey: ['items'], queryFn, staleTime: 0 }); }
+        catch (caught) { error = caught instanceof Error ? caught.message : String(caught); }
+        observe('poll', { reads: reads - beforeReads, loads: loads - beforeLoads, cache: client.getQueryData(['items']), error } satisfies Poll);
+      }
+    }
+  }, [async () => { client.clear(); }]);
+}
+const polls = (trace: readonly Observation[]) => trace.filter(entry => entry.checkpoint === 'poll');
 
-describe('Studio query-cache oracle', () => {
-  it('returns cached rows on unchanged revisions and loads new data only when the source changes', async () => {
-    const client = makeClient(); let source = token();
-    const read = vi.fn(async () => source), load = vi.fn(async () => [{ id: 'a', revision: source.domains.items }]);
-    const collection = rowsCollection(client, read, load);
+oracleProperty({
+  id: 'studio-polling-work',
+  owns: ['src/ui/revision-query.ts#readIfChanged'],
+  law: {
+    statement: 'For every settled poll, read revisions afresh and load content once exactly when its exact-key generation is absent or changed.',
+    authority: 'docs/d1-polling-cache-design.md R2 and existing studio-polling campaign',
+    limits: 'Bounded serial source histories; no wall-clock schedule or collection publication timing.',
+  },
+  histories, model, driver, reached,
+  check: (_actions, trace, expected) => {
+    const observed = polls(trace);
+    // Judge received work before completeness: a later driver/cleanup error
+    // cannot replace a wrong poll, but a missing tail is not a received result.
+    for (const [index, entry] of observed.entries()) {
+      const { reads, loads } = entry.value as Poll, wanted = expected[index];
+      const mismatch = differs(entry.checkpoint, 'poll work', [{ reads, loads }], wanted ? [{ reads: wanted.reads, loads: wanted.loads }] : []);
+      if (mismatch) return mismatch;
+    }
+    return differs('Studio query work and retry', 'poll work', observed.length, expected.length) ?? pass;
+  },
+  calibrations: [{
+    name: 'redundant content load on cache hit', law: 'poll work', history: { constructed: 'unchanged' },
+    corrupt: trace => trace.map((entry, index) => index === 1 ? { ...entry, value: { ...(entry.value as Poll), loads: 1 } } : entry),
+  }],
+});
+
+oracleProperty({
+  id: 'studio-polling-values',
+  owns: ['src/ui/revision-query.ts#readIfChanged'],
+  law: {
+    statement: 'For every settled poll, the accepted cache keeps the last successful response and its pre-fetch generation; failed loads preserve both and remain retryable.',
+    authority: 'docs/d1-polling-cache-design.md R3 and existing studio-polling campaign',
+    limits: 'Source data equals its revision in these serial histories; in-flight cancellation and concurrent loads have separate receiving tests.',
+  },
+  histories, model, driver, reached,
+  check: (_actions, trace, expected) => {
+    const observed = polls(trace);
+    for (const [index, entry] of observed.entries()) {
+      const { cache, error } = entry.value as Poll, wanted = expected[index];
+      const mismatch = differs(entry.checkpoint, 'accepted response', [{ cache, error }], wanted ? [{ cache: wanted.cache, error: wanted.error }] : []);
+      if (mismatch) return mismatch;
+    }
+    return differs('Studio cached generation and values', 'accepted response', observed.length, expected.length) ?? pass;
+  },
+  calibrations: [{
+    name: 'failed load advances cached token', law: 'accepted response', history: { constructed: 'failed retry' },
+    corrupt: trace => trace.map((entry, index) => index === 1 ? { ...entry, value: { ...(entry.value as Poll), cache: { data: 0, generation: { epoch: 'e', revision: 1 } } } } : entry),
+  }],
+});
+
+/** A joined response moves when either watched domain moves. Count how often
+ * each domain is requested, then use numeric weights; the reference does not
+ * call domainRevision or reproduce its reduction. Empty domain sets sum to zero.
+ * This receives the domainRevision contract through a real readIfChanged call.
+ */
+const domainHistories = {
+  arbitrary: fc.record({
+    domains: fc.array(fc.constantFrom('items' as const, 'reading' as const), { maxLength: 4 }),
+    items: fc.integer({ min: 0, max: 10 }), reading: fc.integer({ min: 0, max: 10 }),
+  }),
+  runs: 50, fixedSeeds: [20261001], states: ['empty domains', 'joined domains', 'repeated domain'],
+  constructed: [
+    { name: 'empty domains', enters: ['empty domains'], build: () => ({ domains: [], items: 2, reading: 3 }) },
+    { name: 'joined domains', enters: ['joined domains'], build: () => ({ domains: ['items' as const, 'reading' as const], items: 2, reading: 3 }) },
+    { name: 'repeated domain', enters: ['repeated domain'], build: () => ({ domains: ['reading' as const, 'reading' as const], items: 2, reading: 3 }) },
+  ],
+};
+oracleProperty({
+  id: 'studio-domain-revision',
+  owns: ['src/ui/revision-query.ts#domainRevision'],
+  law: {
+    statement: 'For every watched-domain list, the returned generation is the sum of those domain counters, alongside the loaded data and source epoch.',
+    authority: 'src/ui/revision-query.ts domainRevision JSDoc; docs/d1-polling-cache-design.md R2–R3; joined-domain receiving example',
+    limits: 'Nonnegative counters zero through ten, items/reading arrays of length zero through four; no D1 trigger-delivery claim.',
+  },
+  histories: domainHistories,
+  model: plan => ({ data: 'payload', generation: { epoch: 'e', revision:
+    plan.items * plan.domains.filter(domain => domain === 'items').length +
+    plan.reading * plan.domains.filter(domain => domain === 'reading').length } }),
+  reached: plan => [
+    ...(plan.domains.length === 0 ? ['empty domains'] : []),
+    ...(plan.domains.includes('items') && plan.domains.includes('reading') ? ['joined domains'] : []),
+    ...(new Set(plan.domains).size < plan.domains.length ? ['repeated domain'] : []),
+  ],
+  driver: async (plan, observe) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
     await withOracleCleanup(async () => {
-      await collection.preload(); const cached = client.getQueryData(['items']);
-      await collection.utils.refetch({ throwOnError: true }); await collection.utils.refetch({ throwOnError: true });
-      atCheckpoint('Studio unchanged query work', () => { expect(read).toHaveBeenCalledTimes(3); expect(load).toHaveBeenCalledTimes(1); expect(client.getQueryData(['items'])).toBe(cached); });
-      source = token(1); await collection.utils.refetch({ throwOnError: true });
-      expect(collection.get('a')!.revision).toBe(1); expect(load).toHaveBeenCalledTimes(2);
-    }, [() => collection.cleanup(), async () => { client.clear(); }]);
-  });
-  it('stores the pre-fetch token rather than a newer revision sampled after the load', async () => {
-    const client = makeClient(), entered = deferred(), release = deferred(); let source = token(), first = true;
-    const load = vi.fn(async () => { const revision = source.domains.items; if (first) { first = false; entered.resolve(); await release.promise; } return [{ id: 'a', revision }]; });
-    const collection = rowsCollection(client, async () => structuredClone(source), load);
-    const initial = collection.preload();
-    await withOracleCleanup(async () => {
-      await entered.promise; source = token(1); release.resolve(); await initial;
-      const cached = client.getQueryData<CachedResponse<{ id: string; revision: number }[]>>(['items'])!;
-      atCheckpoint('Studio pre-fetch revision', () => expect(cached.generation.revision).toBe(0));
-      await collection.utils.refetch({ throwOnError: true });
-      expect(collection.get('a')!.revision).toBe(1); expect(load).toHaveBeenCalledTimes(2);
-    }, [async () => { release.resolve(); await initial.catch(() => {}); await collection.cleanup(); }, async () => { client.clear(); }]);
-  });
-  it('failed content loads retain the cached generation and retry at the same target', async () => {
-    const client = makeClient(); let source = token(), fail = false;
-    const load = vi.fn(async () => { if (fail) throw new Error('controlled content failure'); return [{ id: 'a', revision: source.domains.items }]; });
-    const collection = rowsCollection(client, async () => source, load);
-    await withOracleCleanup(async () => {
-      await collection.preload(); const old = client.getQueryData(['items']); source = token(1); fail = true;
-      await expect(collection.utils.refetch({ throwOnError: true })).rejects.toThrow('controlled content failure');
-      atCheckpoint('Studio failed-query retry', () => expect(client.getQueryData(['items'])).toBe(old)); expect(collection.get('a')!.revision).toBe(0);
-      fail = false; await collection.utils.refetch({ throwOnError: true });
-      atCheckpoint('Studio failed-query retry', () => { expect(collection.get('a')!.revision).toBe(1); expect(load).toHaveBeenCalledTimes(3); });
-    }, [() => collection.cleanup(), async () => { client.clear(); }]);
-  });
-  it('a response joining two domains reloads when either moves and not when another does', async () => {
-    const client = makeClient(); let source = token();
-    const load = vi.fn(async () => [{ id: 'a', revision: source.domains.mentions + source.domains.reading }]);
-    const collection = createCollection(queryCollectionOptions({
-      queryKey: ['mention-sources'], queryClient: client, getKey: (row: { id: string; revision: number }) => row.id,
-      queryFn: context => readIfChanged(context, ['mentions', 'reading'], async () => source, load),
-      select: (response: CachedResponse<{ id: string; revision: number }[]>) => response.data,
-    }));
-    const bump = (domain: keyof OracleToken['domains']) => { source = { ...source, domains: { ...source.domains, [domain]: source.domains[domain] + 1 } }; };
-    await withOracleCleanup(async () => {
-      await collection.preload();
-      for (const [domain, loads] of [['responses', 1], ['items', 1], ['mentions', 2], ['reading', 3], ['subscriptions', 3]] as const) {
-        bump(domain); await collection.utils.refetch({ throwOnError: true });
-        atCheckpoint('Studio unchanged query work', () => expect(load, domain).toHaveBeenCalledTimes(loads));
-      }
-      expect(collection.get('a')!.revision).toBe(2);
-    }, [() => collection.cleanup(), async () => { client.clear(); }]);
-  });
-  it('failed revision reads retain rows and cannot reuse a stale changes-query result', async () => {
-    const client = makeClient(); let source = token(), fail = false;
-    const load = vi.fn(async () => [{ id: 'a', revision: source.domains.items }]);
-    const collection = rowsCollection(client, async () => { if (fail) throw new Error('controlled revision failure'); return source; }, load);
-    await withOracleCleanup(async () => {
-      await collection.preload(); const old = client.getQueryData(['items']); source = token(1); fail = true;
-      await expect(collection.utils.refetch({ throwOnError: true })).rejects.toThrow('controlled revision failure');
-      expect(client.getQueryData(['items'])).toBe(old); expect(load).toHaveBeenCalledTimes(1);
-      fail = false; await collection.utils.refetch({ throwOnError: true }); expect(collection.get('a')!.revision).toBe(1);
-    }, [() => collection.cleanup(), async () => { client.clear(); }]);
-  });
-  it('canceled content reads cannot stamp a generation without its accepted response', async () => {
-    const client = makeClient(), entered = deferred(), release = deferred(); let source = token(), hold = false;
-    const queryFn = (context: Parameters<QueryFunction>[0]) => readIfChanged(context, 'items', async () => source, async () => {
-      const revision = source.domains.items; if (hold) { entered.resolve(); await release.promise; } return revision;
-    });
-    await client.fetchQuery({ queryKey: ['items'], queryFn }); const old = client.getQueryData(['items']); source = token(1); hold = true;
-    const pending = client.fetchQuery({ queryKey: ['items'], queryFn, staleTime: 0 });
-    // Register the rejection before cancelQueries rejects the fetching promise.
-    const canceled = pending.catch(() => undefined);
-    await withOracleCleanup(async () => {
-      await entered.promise; await client.cancelQueries({ queryKey: ['items'] }); release.resolve(); await canceled;
-      expect(client.getQueryData(['items'])).toBe(old); hold = false;
-      const next = await client.fetchQuery({ queryKey: ['items'], queryFn, staleTime: 0 });
-      atCheckpoint('Studio canceled-query retry', () => expect(next).toEqual({ data: 1, generation: { epoch: 'e', revision: 1 } }));
-    }, [async () => { release.resolve(); await canceled; client.clear(); }]);
-  });
-  it('newer source data is labelled conservatively and epoch changes invalidate reused counters', async () => {
-    const client = makeClient(); let source = token(1), newer = true;
-    const load = vi.fn(async () => { if (newer) { newer = false; source = token(2); } return [{ id: 'a', revision: source.domains.items }]; });
-    const collection = rowsCollection(client, async () => structuredClone(source), load);
-    await withOracleCleanup(async () => {
-      await collection.preload(); expect(collection.get('a')!.revision).toBe(2);
-      expect(client.getQueryData<CachedResponse<unknown>>(['items'])!.generation.revision).toBe(1);
-      await collection.utils.refetch({ throwOnError: true }); expect(load).toHaveBeenCalledTimes(2);
-      source = token(2, 'restore'); await collection.utils.refetch({ throwOnError: true }); expect(load).toHaveBeenCalledTimes(3);
-      client.removeQueries({ queryKey: ['items'], exact: true }); await collection.utils.refetch({ throwOnError: true }); expect(load).toHaveBeenCalledTimes(4);
-    }, [() => collection.cleanup(), async () => { client.clear(); }]);
-  });
-  it('each queryFn makes a fresh revision check without another query cache', async () => {
-    const client = makeClient(), release = deferred(), entered = deferred();
-    const read = vi.fn(async () => { entered.resolve(); await release.promise; return token(); });
-    const queryFn = (context: Parameters<QueryFunction>[0]) => readIfChanged(context, 'items', read, async () => ['row']);
-    const a = client.fetchQuery({ queryKey: ['items', 'a'], queryFn }), b = client.fetchQuery({ queryKey: ['items', 'b'], queryFn });
-    await withOracleCleanup(async () => {
-      await entered.promise; expect(read).toHaveBeenCalledTimes(2); release.resolve(); await Promise.all([a, b]);
-      expect(client.getQueriesData({ queryKey: ['items'] })).toHaveLength(2);
-      expect(client.getQueryCache().findAll()).toHaveLength(2);
-    }, [async () => { release.resolve(); await Promise.allSettled([a, b]); client.clear(); }]);
-  });
-  it('Query Collection preserves a local edit while its cached remote response is refreshed', async () => {
-    const client = makeClient(), release = deferred(); let source = token(), text = 'initial';
-    const load = vi.fn(async () => [{ id: 'a', text }]);
-    const collection = createCollection(queryCollectionOptions({
-      queryKey: ['items'], queryClient: client, getKey: (row: { id: string; text: string }) => row.id,
-      queryFn: context => readIfChanged(context, 'items', async () => source, load),
-      select: (response: CachedResponse<{ id: string; text: string }[]>) => response.data,
-      onUpdate: async ({ collection }) => { await release.promise; text = 'local edit'; source = token(2); await collection.utils.refetch({ throwOnError: true }); },
-    }));
-    await withOracleCleanup(async () => {
-      await collection.preload(); const mutation = collection.update('a', draft => { draft.text = 'local edit'; });
-      source = token(1); text = 'remote change'; await collection.utils.refetch({ throwOnError: true });
-      expect(client.getQueryData<CachedResponse<{ text: string }[]>>(['items'])!.data[0].text).toBe('remote change');
-      expect(collection.get('a')!.text).toBe('local edit'); const before = load.mock.calls.length;
-      await collection.utils.refetch({ throwOnError: true }); expect(load).toHaveBeenCalledTimes(before);
-      release.resolve(); await mutation.when('settled'); expect(collection.get('a')!.text).toBe('local edit');
-      expect(client.getQueryData<CachedResponse<unknown>>(['items'])!.generation.revision).toBe(2);
-    }, [async () => { release.resolve(); await collection.cleanup(); }, async () => { client.clear(); }]);
-  });
-  it('on-demand Reading pages cache their exact subsets', async () => {
-    const client = makeClient(); let source = token(); const calls: number[] = [];
-    const collection = createCollection(queryCollectionOptions({
-      queryKey: ['reading', 'all'], queryClient: client, syncMode: 'on-demand', getKey: (row: { id: string; rank: number; revision: number }) => row.id,
-      queryFn: context => readIfChanged(context, 'reading', async () => source, async ({ meta }) => {
-        const { filters } = parseLoadSubsetOptions(meta?.loadSubsetOptions);
-        const start = filters.find(filter => filter.field[0] === 'rank' && filter.operator === 'gte');
-        const offset = Number(start?.value ?? 0); calls.push(offset);
-        return { offset, items: [{ id: `r${offset}`, rank: offset, revision: source.domains.reading }] };
-      }),
-      select: (response: CachedResponse<{ offset: number; items: { id: string; rank: number; revision: number }[] }>) => response.data.items,
-    }));
-    const views = [0, 25].map(offset => createLiveQueryCollection({ query: q => q.from({ row: collection }).where(({ row }) => and(gte(row.rank, offset), lt(row.rank, offset + 25))).orderBy(({ row }) => row.rank) }));
-    await withOracleCleanup(async () => {
-      await Promise.all(views.map(view => view.preload())); expect(calls.sort()).toEqual([0, 25]);
-      await collection.utils.refetch({ throwOnError: true }); expect(calls).toHaveLength(2);
-      source = token(1); await collection.utils.refetch({ throwOnError: true }); expect(calls).toHaveLength(4);
-      expect([...collection.values()].map(row => row.revision)).toEqual([1, 1]);
-    }, [...views.map(view => () => view.cleanup()), () => collection.cleanup(), async () => { client.clear(); }]);
-  });
-  it('overlapping subsets retain a shared row until its last fetched owner releases it', async () => {
-    const client = makeClient(); let revision = 0;
-    const collection = createCollection(queryCollectionOptions({
-      queryKey: ['reading', 'overlap'], queryClient: client, syncMode: 'on-demand',
-      getKey: (row: { id: string; rank: number }) => row.id,
-      queryFn: context => readIfChanged(context, 'reading', async () => token(revision), async ({ meta }) => {
-        const { filters } = parseLoadSubsetOptions(meta?.loadSubsetOptions);
-        const end = filters.find(filter => filter.field[0] === 'rank' && filter.operator === 'lt');
-        return revision === 0 || (revision === 1 && end?.value === 50) ? [{ id: 'shared', rank: 0 }] : [];
-      }),
-      select: (response: CachedResponse<{ id: string; rank: number }[]>) => response.data,
-    }));
-    const views = [25, 50].map(end => createLiveQueryCollection({ query: q => q.from({ row: collection }).where(({ row }) => and(gte(row.rank, 0), lt(row.rank, end))).orderBy(({ row }) => row.rank) }));
-    await withOracleCleanup(async () => {
-      await Promise.all(views.map(view => view.preload())); expect(collection.has('shared')).toBe(true);
-      revision = 1; await collection.utils.refetch({ throwOnError: true });
-      atCheckpoint('Studio subset ownership', () => expect(collection.has('shared')).toBe(true));
-      revision = 2; await collection.utils.refetch({ throwOnError: true });
-      atCheckpoint('Studio subset ownership', () => expect(collection.has('shared')).toBe(false));
-    }, [...views.map(view => () => view.cleanup()), () => collection.cleanup(), async () => { client.clear(); }]);
-  });
-  it('mutation refetch starts a fresh revision check even while an older check is pending', async () => {
-    const client = makeClient(), entered = deferred(), release = deferred(); let revision = 0, hold = false, reads = 0;
-    const read: QueryFunction<OracleToken> = async () => {
-      reads++; const observed = token(revision);
-      if (hold) { hold = false; entered.resolve(); await release.promise; }
-      return observed;
-    };
-    const collection = createCollection(queryCollectionOptions({
-      queryKey: ['items'], queryClient: client, getKey: (row: { id: string; revision: number }) => row.id,
-      queryFn: context => readIfChanged(context, 'items', read, async () => [{ id: 'a', revision }]),
-      select: (response: CachedResponse<{ id: string; revision: number }[]>) => response.data,
-      onUpdate: async ({ collection }) => { revision = 1; await collection.utils.refetch({ throwOnError: true }); },
-    }));
-    await collection.preload(); hold = true;
-    const earlier = collection.utils.refetch({ throwOnError: true }).catch(() => undefined);
-    await withOracleCleanup(async () => {
-      await entered.promise; const mutation = collection.update('a', draft => { draft.revision = 1; });
-      await mutation.when('settled');
-      atCheckpoint('Studio post-write fresh check', () => {
-        expect(reads).toBe(3); expect(collection.get('a')!.revision).toBe(1);
-        expect(client.getQueryData<CachedResponse<unknown>>(['items'])!.generation.revision).toBe(1);
-      });
-      release.resolve(); await earlier;
-      expect(collection.get('a')!.revision).toBe(1);
-    }, [async () => { release.resolve(); await earlier; await collection.cleanup(); }, async () => { client.clear(); }]);
-  });
-  it('subscription diagnostics do not fetch Reading when its revision is unchanged', async () => {
-    const client = makeClient(); let source = token();
-    const load = vi.fn(async () => 0);
-    const queryFn = (context: Parameters<QueryFunction>[0]) => readIfChanged(context, 'reading', async () => source, load);
-    try {
-      await client.fetchQuery({ queryKey: ['reading', 'all', 0], queryFn, staleTime: 0 });
-      source = { ...source, domains: { ...source.domains, subscriptions: 1 } };
-      await client.fetchQuery({ queryKey: ['reading', 'all', 0], queryFn, staleTime: 0 });
-      expect(load).toHaveBeenCalledTimes(1);
-    } finally { client.clear(); }
-  });
-  it('the independent checker rejects a token newer than its fetched source data', () => {
-    const reference = new StudioQueryReference();
-    expect(() => reference.receive('items', { epoch: 'e', revision: 2 }, 1, 2)).toThrow('cached token outruns fetched data');
-    expect(() => reference.receive('items', { epoch: 'e', revision: 1 }, 2, 1)).toThrow('cached data absent from source');
-  });
-  campaign('studio-polling', fc.array(fc.constantFrom('write', 'poll', 'fail', 'restore', 'evict'), { minLength: 1, maxLength: 20 }), async actions => {
-    const client = makeClient(), reference = new StudioQueryReference(); let revision = 0, epoch = 'e', fail = false, loads = 0;
-    const queryFn = (context: Parameters<QueryFunction>[0]) => readIfChanged(context, 'items', async () => token(revision, epoch), async () => { loads++; if (fail) throw new Error('controlled'); return revision; });
-    await withOracleCleanup(async () => {
-      for (const action of [...actions, 'poll'] as const) {
-        if (action === 'write') revision++;
-        if (action === 'restore') { epoch += 'r'; revision = 0; }
-        if (action === 'fail') fail = !fail;
-        if (action === 'evict') { client.removeQueries({ queryKey: ['items'], exact: true }); reference.fetched.delete('items'); }
-        if (action === 'poll') {
-          const target = { epoch, revision }, dirty = reference.needsFetch('items', target), before = loads;
-          await client.fetchQuery({ queryKey: ['items'], queryFn, staleTime: 0 }).catch(() => {});
-          atCheckpoint('Studio query work and retry', () => expect(loads - before).toBe(dirty ? 1 : 0));
-          if (dirty && !fail) reference.receive('items', target, revision, revision);
-          const expected = reference.fetched.get('items');
-          atCheckpoint('Studio cached generation and values', () => expect(client.getQueryData(['items'])).toEqual(expected ? { data: expected.value, generation: { epoch: expected.epoch, revision: expected.revision } } : undefined));
-        }
-      }
+      try {
+        const result = await client.fetchQuery({ queryKey: ['joined'], queryFn: context => readIfChanged(context, plan.domains,
+          async () => ({ ...token(0, 'e'), domains: { ...token(0, 'e').domains, items: plan.items, reading: plan.reading } }),
+          async () => 'payload') });
+        observe('response', result);
+      } catch (error) { observe('response', { error: error instanceof Error ? error.message : String(error) }); }
     }, [async () => { client.clear(); }]);
-  }, 50);
+  },
+  check: (_plan, trace, expected) => {
+    for (const [index, entry] of trace.entries()) {
+      const mismatch = differs(entry.checkpoint, 'domain sum', [entry.value], index === 0 ? [expected] : []);
+      if (mismatch) return mismatch;
+    }
+    return differs('joined response generation', 'domain sum', trace.length, 1) ?? pass;
+  },
+  calibrations: [{
+    name: 'joined response ignores reading counter', law: 'domain sum', history: { constructed: 'joined domains' },
+    corrupt: trace => trace.map(entry => ({ ...entry, value: { data: 'payload', generation: { epoch: 'e', revision: 2 } } })),
+  }],
 });
 
-describe('Reading subset ownership', () => {
-  it('released Reading pages are not fetched on a revision bump', async () => {
-    const client = makeClient(); let source = token(); const calls: number[] = [];
-    const collection = createCollection(queryCollectionOptions({
-      queryKey: ['reading', 'review'], queryClient: client, syncMode: 'on-demand', getKey: (row: { id: string; rank: number; revision: number }) => row.id,
-      queryFn: context => readIfChanged(context, 'reading', async () => source, async ({ meta }) => {
-        const { filters } = parseLoadSubsetOptions(meta?.loadSubsetOptions);
-        const start = filters.find(filter => filter.field[0] === 'rank' && filter.operator === 'gte');
-        const offset = Number(start?.value ?? 0); calls.push(offset);
-        return [{ id: `r${offset}`, rank: offset, revision: source.domains.reading }];
-      }),
-      select: (response: CachedResponse<{ id: string; rank: number; revision: number }[]>) => response.data,
-    }));
-    const views = [0, 25, 50].map(offset => createLiveQueryCollection({ query: q => q.from({ row: collection }).where(({ row }) => and(gte(row.rank, offset), lt(row.rank, offset + 25))).orderBy(({ row }) => row.rank) }));
-    await withOracleCleanup(async () => {
-      await Promise.all(views.map(view => view.preload())); expect(calls.sort()).toEqual([0,25,50]);
-      await views[0].cleanup(); await views[1].cleanup(); calls.length = 0; source = token(1);
-      await collection.utils.refetch({ throwOnError: true });
-      expect(calls).toEqual([50]); expect([...collection.values()].map(row => row.rank)).toEqual([50]);
-    }, [...views.map(view => () => view.cleanup()), () => collection.cleanup(), async () => { client.clear(); }]);
-  });
-});
+/* Migration evidence against unchanged production at 28b0c8d, framework 97a4e7a.
+ * ORC-001–005: R2/R3 authority and limits above; retained independent reference;
+ * named grammar/driver/check; real QueryClient and production readIfChanged.
+ * ORC-006: each property binds a corrupted trace to its constructed history;
+ * verify-polling-cache-mutations.ts also rejects the lost-revision source edit
+ * under poll work through oracle-gaps, including a direct path/unit replay.
+ * ORC-007: the same 50-history budget and grammar run fixed seed 20261001 and
+ * random campaigns; STUDIO_ORACLE_{SEED,PATH,PROPERTY,UNIT} select direct replay.
+ * ORC-008: no state removed from StudioQueryReference; epoch distinguishes
+ * restore/reused counters and fetched state distinguishes failure/eviction.
+ * ORC-009: source revision, epoch and accepted response retain project meanings.
+ * ORC-010: withOracleCleanup preserves primary errors and clears each client.
+ * ORC-011: the joined-domain model uses counter weights rather than reduction;
+ * no second formulation is claimed for serial QueryClient state transitions.
+ * ORC-012: this evidence covers the migration, without bug-class closure.
+ * ORC-013: constructed histories distinguish unchanged/changed, failed/retried,
+ * absent/present, and same-counter/different-epoch responses every campaign.
+ * ORC-014: claims stop at controlled source callbacks and real QueryClient;
+ * Query Collection receiving cases remain in polling-cache-integration.test.ts.
+ * ORC-015: each required state has a constructed history and reported reach;
+ * no claim is made about instrumentation of production state-entry decisions.
+ * Setup validation: 69 framework checks pass and all 25 operator mutants
+ * are killed, including the three approved boundaries in cancellation-work.oracle.test.ts.
+ * The authored lost-revision mutant and its direct path/unit replay are killed.
+ * ORC-016: only oracleProperty registers tests here; receiving examples moved
+ * intact to the integration file. No design-grammar trigger fired before writing:
+ * the retained state model is unchanged. The additional cancellation law
+ * uses a phase table after three guard gaps triggered the design grammar.
+ *
+ * Run from the repository root:
+ * npx oracle-gaps --package . --source src/ui/revision-query.ts \
+ *   --config vitest.oracles.config.ts --env-prefix STUDIO_ORACLE \
+ *   --seed 20261001 --contexts 2
+ */
