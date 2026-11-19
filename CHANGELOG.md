@@ -18,6 +18,13 @@ not have its own repo until session 26.
 
 ---
 
+## Unreleased
+
+**Expired API compatibility removed.** Mounted installations now serve the private API
+only at `{mount}/api`. Tools using the former host-root `/api` address or token audience
+must rediscover the endpoint and authorize access to the mounted resource again.
+**Migrations:** none.
+
 ## 0.64.1 — Security: Hono and fast-xml-parser upgrades
 
 **Upgrade if you run your own node.** Hono, the framework that routes every request, goes

@@ -1,171 +1,139 @@
-/**
- * A PKCE hash match must not make malformed verifier syntax valid.
- * Session reconstruction must also preserve the age of the owner's password check.
+/** PKCE syntax is independent of its hash binding, and rebuilding an owner
+ * session preserves authentication age. The mounted public OAuth routes receive
+ * these promises at authorization, token, continuation and metadata responses.
  *
- * Contract: RFC7636 §4.1/§4.2 define verifier/challenge syntax; OIDC Core defines
- * prompt and max_age, not the time a wrapper happens to recreate a session:
- * https://www.rfc-editor.org/rfc/rfc7636.html#section-4.1
- * https://www.rfc-editor.org/rfc/rfc7636.html#section-4.2
- * https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
- * RFC9700 §4.14.2 motivates rotation/replay defense:
- * https://www.rfc-editor.org/rfc/rfc9700.html#section-4.14.2
- * Model: literal syntax boundaries, authentication-age relations and permitted race
- * outcomes. At most one rotation returns200; zero winners are safe if replay has
- * already revoked the grant. An uncontested neighbor must still issue successfully.
- * History grammar: short/long/punctuated PKCE inputs, matching malformed hashes,
- * concurrent reuse, old legacy cookies, same-second continuation and forged origins.
- * Driver: public flow routes; fake Date fixes old-login and same-second boundaries.
- * Refinement: protocol errors, continuation paths, cookie/session absence and denied
- * access after settled replay. Metadata tests record both working mounted URLs and
- * missing host-root routes;404 is a known profile limit, not conformance success.
- * Limits: the separate controlled two-isolate driver forces one race schedule.
- * This suite does not establish every schedule or full optional OIDC conformance.
- * The race uses one grant. Native refresh-family cleanup spans client/owner;
- * application grant tombstones do not make that native cleanup grant-isolated.
+ * token(hashBoundMalformedVerifier) // → invalid_request
+ * authorize(max_age=3600, authenticationAge=7200) // → password login
+ * continue(passwordCheckedInSameSecond) // → usable consent
+ *
+ * RFC7636 §§4.1–4.2 defines syntax; OIDC Core AuthRequest defines prompt/max_age;
+ * RFC9700 §4.14.2 motivates the selected rotation/replay contract. For every
+ * finite input history the model derives syntax, authentication and endpoint
+ * policy from semantic request facts. Hashing in the driver supplies an input,
+ * never an expected answer. A rotation race allows zero or one winner, while
+ * settled reuse must deny descendants and protected access. The driver records
+ * response/cookie/session observations and releases controlled clocks in finally.
+ * These are the original fixed schedules, not every distributed race or optional
+ * OIDC profile. Mounted metadata does not establish host-root RFC8414/9728.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { vi } from 'vitest';
 import { env } from 'cloudflare:test';
+import { differs, oracleProperty, pass } from '@tanstack/oracles';
 import { flow } from './oauth-flow-driver.ts';
-
-async function approved() {
-  const f = await flow(), accepted = await f.decide('browser-a', true);
-  expect(accepted.status).toBe(302);
-  return { ...f, code: new URL(accepted.headers.get('location')!).searchParams.get('code')! };
+import { withOracleStorage } from './oracle-storage.ts';
+type Action = { op: 'pkce'; stage: 'challenge' | 'verifier' | 'exchange'; value: string } | { op: 'consent'; offline: boolean } | { op: 'rotation'; requests: number } | { op: 'register'; scope: string } | { op: 'discovery'; resource: 'issuer' | 'mcp' } | { op: 'authentication'; age: number; maximumAge: number } | { op: 'continuation'; mode: 'login' | 'max_age'; offset: number } | { op: 'signed-query'; method: 'get' | 'post'; signature: string } | { op: 'origin'; foreign: boolean; crossSite: boolean } | { op: 'administration'; path: string };
+type Plan = { name: string; action: Action };
+const malformed = ['short', 'a'.repeat(129), 'a'.repeat(42) + '!'];
+const histories: Plan[] = [
+  ...malformed.map(value => ({ name: `rejects malformed PKCE authorization challenge grammar ${value}`, action: { op: 'pkce', stage: 'challenge', value } as Action })),
+  ...malformed.map(value => ({ name: `rejects malformed verifier even when its S256 hash matches the bound challenge ${value}`, action: { op: 'pkce', stage: 'verifier', value } as Action })),
+  ...[true, false].map(offline => ({ name: `shows the grant lifetime and discloses offline consent only when requested (${offline})`, action: { op: 'consent', offline } as Action })),
+  { name: 'allows a valid PKCE grammar neighbor', action: { op: 'pkce', stage: 'exchange', value: 'oracle-verifier-that-is-at-least-forty-three-characters' } },
+  { name: 'permits at most one concurrent rotation and revokes the active descendant on detected old-token reuse', action: { op: 'rotation', requests: 2 } },
+  { name: 'uses registration metadata error for an unknown requested scope', action: { op: 'register', scope: 'unknown-source-oracle-scope' } },
+  { name: 'keeps discovery mounted without claiming the unselected RFC8414 host-root convention', action: { op: 'discovery', resource: 'issuer' } },
+  { name: 'publishes usable challenge-linked MCP resource metadata while leaving host-root discovery unselected', action: { op: 'discovery', resource: 'mcp' } },
+  { name: 'keeps the age of a legacy-only owner cookie when creating its native session', action: { op: 'authentication', age: 7200, maximumAge: 3600 } },
+  ...(['login', 'max_age'] as const).map(mode => ({ name: `resumes a password-checked native continuation within the same second (${mode})`, action: { op: 'continuation', mode, offset: 731 } as Action })),
+  ...(['get', 'post'] as const).map(method => ({ name: `rejects an invalid signed reauthentication query before creating a session (${method})`, action: { op: 'signed-query', method, signature: 'invalid' } as Action })),
+  ...['foreign-origin', 'cross-site-fetch'].map(attack => ({ name: `rejects cross-origin password continuation before minting cookies (${attack})`, action: { op: 'origin', foreign: attack === 'foreign-origin', crossSite: attack === 'cross-site-fetch' } as Action })),
+  ...['/internal/owner', '/internal/access', '/internal/manual', '/sign-in/email', '/oauth2/create-client', '/oauth2/update-client', '/oauth2/delete-client'].map(path => ({ name: `does not publish native administrative endpoint ${path}`, action: { op: 'administration', path } as Action })),
+];
+const base = 'https://oauth-oracle.example.test', issuer = base + '/blyg/studio/auth';
+// Authentication age, request provenance and syntax are independent inputs.
+// No rule reads provider output, token state or the production route allowlist.
+function model(plan: Plan): unknown {
+  const action = plan.action;
+  switch (action.op) {
+    case 'pkce': {
+      const valid = /^[A-Za-z0-9._~-]{43,128}$/.test(action.value);
+      return action.stage === 'challenge' ? { status: 302, callbackOrigin: 'https://client.example.test', error: valid ? null : 'invalid_request', code: false } : action.stage === 'exchange' && valid ? { approval: 302, status: 200 } : { status: 400, error: 'invalid_request' };
+    }
+    case 'consent': return { status: 200, noStore: true, pragma: 'no-cache', oneHour: true, thirtyDays: action.offline ? true : undefined, offline: action.offline };
+    case 'rotation': return { approval: 302, maxWinners: 1, allowedStatuses: [200, 400], replayStatus: 400, replayError: 'invalid_grant', descendantStatus: 400, accessStatus: 401 };
+    case 'register': return { status: 400, error: 'invalid_client_metadata' };
+    case 'discovery': return action.resource === 'issuer' ? { status: 200, issuer, hostRoot: 404 } : { status: 401, mountedChallenge: true, metadataStatus: 200, resource: base + '/blyg/studio/mcp', authorizationServers: [issuer], hostRoot: 404 };
+    case 'authentication': return { status: action.age > action.maximumAge ? 302 : 200, path: '/blyg/studio/login' };
+    case 'continuation': return { authorization: 302, posted: 302, path: '/blyg/studio/auth/consent', consent: 200, handle: true };
+    case 'signed-query': return { status: 400, cookies: 0, sessionDelta: 0 };
+    case 'origin': return { authorization: 302, status: action.foreign || action.crossSite ? 403 : 302, cookies: 0, sessionDelta: 0 };
+    case 'administration': return { status: 404 };
+  }
 }
-const challenge = async (verifier: string) => {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
-  return btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-};
-describe('OAuth implementation source boundaries', () => {
-  // PKCE has two independent laws: permitted syntax and S256 binding. A matching
-  // hash of an invalid verifier satisfies binding but must still fail syntax.
-  // The valid neighbor below keeps this from becoming a blanket-denial oracle.
-  it.each(['short', 'a'.repeat(129), 'a'.repeat(42) + '!'])('rejects malformed PKCE authorization challenge grammar %s', async value => {
-    const f = await flow(), url = new URL(f.authorize); url.searchParams.set('code_challenge', value);
-    const response = await f.request(url.href, { headers: { cookie: f.owner } });
-    expect(response.status).toBe(302);
-    const callback = new URL(response.headers.get('location')!);
-    expect(callback.origin).toBe(new URL(f.redirect).origin);
-    expect(callback.searchParams.get('error')).toBe('invalid_request');
-    expect(callback.searchParams.has('code')).toBe(false);
-  });
-  it.each(['short', 'a'.repeat(129), 'a'.repeat(42) + '!'])('rejects malformed verifier even when its S256 hash matches the bound challenge %s', async verifier => {
-    const f = await flow({ authorize: { code_challenge: await challenge(verifier) } });
-    const accepted = await f.decide('browser-a', true), code = new URL(accepted.headers.get('location')!).searchParams.get('code')!;
-    const response = await f.token(code, { code_verifier: verifier });
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ error: 'invalid_request' });
-  });
-  it.each([true, false])('shows the grant lifetime and discloses offline consent only when requested (%s)', async offline => {
-    const f = await flow({ scope: 'openid owner:read owner:draft' + (offline ? ' offline_access' : '') });
-    const response = await f.request(f.authorize, { headers: { cookie: f.owner } });
-    expect(response.status).toBe(200);
-    expect(response.headers.get('cache-control')).toContain('no-store');
-    expect(response.headers.get('pragma')).toBe('no-cache');
-    const html = await response.text();
-    expect(/Access tokens last one hour/.test(html)).toBe(true);
-    if (offline) expect(/30 days/.test(html)).toBe(true);
-    expect(/requests offline access/.test(html)).toBe(offline);
-  });
-  it('allows a valid PKCE grammar neighbor', async () => {
-    const f = await approved(); expect((await f.token(f.code)).status).toBe(200);
-  });
-  it('permits at most one concurrent rotation and revokes the active descendant on detected old-token reuse', async () => {
-    const f = await approved(), issued = await (await f.token(f.code)).json() as { refresh_token: string; access_token: string };
-    const refresh = (token: string) => f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: token, resource: f.base + '/blyg/api' }) });
-    const responses = await Promise.all([refresh(issued.refresh_token), refresh(issued.refresh_token)]);
-    const winners = responses.filter(response => response.status === 200);
-    expect(winners.length).toBeLessThanOrEqual(1);
-    expect(responses.every(response => response.status === 200 || response.status === 400)).toBe(true);
-    const winner = winners.length ? await winners[0].json() as { refresh_token: string } : undefined;
-    // Repeat the old token after both operations have settled, so this witness
-    // does not mistake one race-loser response for proof of compromised-grant invalidation.
-    const replay = await refresh(issued.refresh_token); expect(replay.status).toBe(400);
-    expect(await replay.json()).toMatchObject({ error: 'invalid_grant' });
-    if (winner) expect((await refresh(winner.refresh_token)).status).toBe(400);
-    // Replay may settle before the concurrent winner returns. It is safe to
-    // reject both, but not to leave either access credential usable afterward.
-    const access = await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + issued.access_token } });
-    expect(access.status).toBe(401);
-  });
-  it('uses registration metadata error for an unknown requested scope', async () => {
-    const f = await flow();
-    const response = await f.request(f.issuer + '/oauth2/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ redirect_uris: [f.redirect], token_endpoint_auth_method: 'none', scope: 'unknown-source-oracle-scope' }) });
-    expect(response.status).toBe(400); expect(await response.json()).toMatchObject({ error: 'invalid_client_metadata' });
-  });
-  it('keeps discovery mounted without claiming the unselected RFC8414 host-root convention', async () => {
-    const f = await flow();
-    const mounted = await f.request(f.issuer + '/.well-known/openid-configuration');
-    expect(mounted.status).toBe(200); expect(await mounted.json()).toMatchObject({ issuer: f.issuer });
-    expect((await f.request('/.well-known/oauth-authorization-server/blyg/studio/auth')).status).toBe(404);
-  });
-  it('publishes usable challenge-linked MCP resource metadata while leaving host-root discovery unselected', async () => {
-    const f = await flow(), response = await f.request('/blyg/studio/mcp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-    expect(response.status).toBe(401);
-    const url = response.headers.get('www-authenticate')!.match(/resource_metadata="([^"]+)"/)![1];
-    expect(new URL(url).pathname.startsWith('/blyg/studio/auth/')).toBe(true);
-    const metadata = await f.request(url); expect(metadata.status).toBe(200);
-    expect(await metadata.json()).toMatchObject({ resource: f.base + '/blyg/studio/mcp', authorization_servers: [f.issuer] });
-    expect((await f.request('/.well-known/oauth-protected-resource/blyg/studio/mcp')).status).toBe(404);
-  });
-  it('keeps the age of a legacy-only owner cookie when creating its native session', async () => {
-    const now = Math.floor(Date.now() / 1000) * 1000;
-    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(now);
+const challenge = async (verifier: string) => { const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)); return btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+async function driver(plan: Plan, observe: (checkpoint: string, value: unknown) => void) {
+  await withOracleStorage(async () => {
+    const action = plan.action;
+    // A clock belongs to the history input; cleanup is outside the contractual
+    // request capture so its original error/cause is never turned into a kill.
+    if (action.op === 'authentication' || action.op === 'continuation') { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(Math.floor(Date.now() / 1000) * 1000 + (action.op === 'continuation' ? action.offset : 0)); }
     try {
-      const f = await flow({ scope: 'openid owner:read owner:draft' });
-      vi.setSystemTime(now + 7200 * 1000);
-      const url = new URL(f.authorize); url.searchParams.set('max_age', '3600');
-      // Omit all native cookies. Reconstructing the native session must not
-      // turn the two-hour-old owner authentication into a fresh login.
-      const response = await f.request(url.href, { headers: { cookie: f.owner } });
-      expect(response.status).toBe(302);
-      expect(new URL(response.headers.get('location')!, f.base).pathname).toBe('/blyg/studio/login');
-    } finally { vi.useRealTimers(); }
+      const fixture = await flow(action.op === 'pkce' && action.stage === 'verifier' ? { authorize: { code_challenge: await challenge(action.value) } } : action.op === 'consent' ? { scope: 'openid owner:read owner:draft' + (action.offline ? ' offline_access' : '') } : ['authentication', 'continuation', 'signed-query', 'origin'].includes(action.op) ? { scope: 'openid owner:read owner:draft' } : {});
+      // Capture an exception only while an actual public request is pending.
+      // Parsing, fixture queries and cleanup retain their original runner errors.
+      const call = async <T>(operation: () => Promise<T>): Promise<T> => { try { return await operation(); } catch (error) { observe('OAuth implementation response', { error }); throw error; } };
+      const f = { ...fixture,
+        request: (...args: Parameters<typeof fixture.request>) => call(() => fixture.request(...args)),
+        decide: (...args: Parameters<typeof fixture.decide>) => call(() => fixture.decide(...args)),
+        token: (...args: Parameters<typeof fixture.token>) => call(() => fixture.token(...args)),
+      };
+        let value: unknown;
+        switch (action.op) {
+          case 'pkce': {
+            if (action.stage === 'challenge') { const url = new URL(f.authorize); url.searchParams.set('code_challenge', action.value); const response = await f.request(url.href, { headers: { cookie: f.owner } }), location = new URL(response.headers.get('location')!); value = { status: response.status, callbackOrigin: location.origin, error: location.searchParams.get('error'), code: location.searchParams.has('code') }; }
+            else { const accepted = await f.decide('browser-a', true), code = new URL(accepted.headers.get('location')!).searchParams.get('code')!; const response = await f.token(code, { code_verifier: action.value }); value = action.stage === 'exchange' ? { approval: accepted.status, status: response.status } : { status: response.status, error: (await response.json() as { error?: string }).error }; }
+            break;
+          }
+          case 'consent': { const response = await f.request(f.authorize, { headers: { cookie: f.owner } }), html = await response.text(); value = { status: response.status, noStore: response.headers.get('cache-control')?.includes('no-store') ?? false, pragma: response.headers.get('pragma'), oneHour: /Access tokens last one hour/.test(html), thirtyDays: action.offline ? /30 days/.test(html) : undefined, offline: /requests offline access/.test(html) }; break; }
+          case 'rotation': {
+            const accepted = await f.decide('browser-a', true), code = new URL(accepted.headers.get('location')!).searchParams.get('code')!, issued = await (await f.token(code)).json() as { refresh_token: string; access_token: string };
+            const refresh = (token: string) => f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: token, resource: f.base + '/blyg/api' }) });
+            const responses = await Promise.all(Array.from({ length: action.requests }, () => refresh(issued.refresh_token))), winners = responses.filter(response => response.status === 200), winner = winners.length ? await winners[0].json() as { refresh_token: string } : undefined;
+            const replay = await refresh(issued.refresh_token), replayBody = await replay.json() as { error?: string };
+            value = { approval: accepted.status, statuses: responses.map(response => response.status), replayStatus: replay.status, replayError: replayBody.error, descendantStatus: winner ? (await refresh(winner.refresh_token)).status : undefined, accessStatus: (await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + issued.access_token } })).status }; break;
+          }
+          case 'register': { const response = await f.request(f.issuer + '/oauth2/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ redirect_uris: [f.redirect], token_endpoint_auth_method: 'none', scope: action.scope }) }); value = { status: response.status, error: (await response.json() as { error?: string }).error }; break; }
+          case 'discovery': {
+            if (action.resource === 'issuer') { const mounted = await f.request(f.issuer + '/.well-known/openid-configuration'); value = { status: mounted.status, issuer: (await mounted.json() as { issuer?: string }).issuer, hostRoot: (await f.request('/.well-known/oauth-authorization-server/blyg/studio/auth')).status }; }
+            else { const response = await f.request('/blyg/studio/mcp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }), url = response.headers.get('www-authenticate')!.match(/resource_metadata="([^"]+)"/)![1], metadata = await f.request(url), body = await metadata.json() as { resource: string; authorization_servers: string[] }; value = { status: response.status, mountedChallenge: new URL(url).pathname.startsWith('/blyg/studio/auth/'), metadataStatus: metadata.status, resource: body.resource, authorizationServers: body.authorization_servers, hostRoot: (await f.request('/.well-known/oauth-protected-resource/blyg/studio/mcp')).status }; }
+            break;
+          }
+          case 'authentication': { vi.setSystemTime(Date.now() + action.age * 1000); const url = new URL(f.authorize); url.searchParams.set('max_age', String(action.maximumAge)); const response = await f.request(url.href, { headers: { cookie: f.owner } }); value = { status: response.status, path: new URL(response.headers.get('location')!, f.base).pathname }; break; }
+          case 'continuation': {
+            const url = new URL(f.authorize); url.searchParams.set(action.mode === 'login' ? 'prompt' : 'max_age', action.mode === 'login' ? 'login' : '0'); const authorization = await f.request(url.href, { headers: { cookie: f.owner + '; ' + f.binding } }), loginURL = new URL(authorization.headers.get('location')!);
+            const posted = await f.request('/blyg/studio/login', { method: 'POST', headers: { cookie: f.owner, Origin: f.base }, body: new URLSearchParams({ password: env.OWNER_PASSWORD, oauth_query: loginURL.search.slice(1) }) }), continuation = new URL(posted.headers.get('location')!, f.base), cookies = new Map([[f.owner.split('=')[0], f.owner]]);
+            for (const cookie of posted.headers.getSetCookie()) { const item = cookie.split(';')[0]; cookies.set(item.split('=')[0], item); }
+            const consent = await f.request(continuation.href, { headers: { cookie: [...cookies.values()].join('; ') } }); value = { authorization: authorization.status, posted: posted.status, path: continuation.pathname, consent: consent.status, handle: (await consent.text()).includes('name="handle"') }; break;
+          }
+          case 'signed-query': {
+            const before = await env.DB.prepare('SELECT COUNT(*) AS count FROM session').first<{ count: number }>(), query = 'client_id=' + encodeURIComponent(f.client.client_id) + '&sig=' + action.signature + '&exp=9999999999';
+            const response = action.method === 'get' ? await f.request('/blyg/studio/login?' + query, { headers: { cookie: f.owner } }) : await f.request('/blyg/studio/login', { method: 'POST', headers: { cookie: f.owner, Origin: f.base }, body: new URLSearchParams({ password: env.OWNER_PASSWORD, oauth_query: query }) });
+            const after = await env.DB.prepare('SELECT COUNT(*) AS count FROM session').first<{ count: number }>(); value = { status: response.status, cookies: response.headers.getSetCookie().length, sessionDelta: after!.count - before!.count }; break;
+          }
+          case 'origin': {
+            const url = new URL(f.authorize); url.searchParams.set('prompt', 'login'); const authorization = await f.request(url.href, { headers: { cookie: f.owner } }), query = new URL(authorization.headers.get('location')!).search.slice(1), before = await env.DB.prepare('SELECT COUNT(*) AS count FROM session').first<{ count: number }>();
+            const response = await f.request('/blyg/studio/login', { method: 'POST', headers: { cookie: f.owner, Origin: action.foreign ? 'https://attacker.example' : f.base, ...(action.crossSite ? { 'Sec-Fetch-Site': 'cross-site' } : {}) }, body: new URLSearchParams({ password: env.OWNER_PASSWORD, oauth_query: query }) }), after = await env.DB.prepare('SELECT COUNT(*) AS count FROM session').first<{ count: number }>(); value = { authorization: authorization.status, status: response.status, cookies: response.headers.getSetCookie().length, sessionDelta: after!.count - before!.count }; break;
+          }
+          case 'administration': value = { status: (await f.request(f.issuer + action.path, { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: '{}' })).status }; break;
+        }
+        observe('OAuth implementation response', value);
+    } finally { if (action.op === 'authentication' || action.op === 'continuation') vi.useRealTimers(); }
   });
-  it.each(['login', 'max_age'])('resumes a password-checked native continuation within the same second (%s)', async mode => {
-    const now = Math.floor(Date.now() / 1000) * 1000 + 731;
-    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(now);
-    try {
-      const f = await flow({ scope: 'openid owner:read owner:draft' }), url = new URL(f.authorize);
-      url.searchParams.set(mode === 'login' ? 'prompt' : 'max_age', mode === 'login' ? 'login' : '0');
-      const authorization = await f.request(url.href, { headers: { cookie: f.owner + '; ' + f.binding } });
-      expect(authorization.status).toBe(302);
-      const loginURL = new URL(authorization.headers.get('location')!);
-      const posted = await f.request('/blyg/studio/login', { method: 'POST', headers: { cookie: f.owner, Origin: f.base }, body: new URLSearchParams({ password: env.OWNER_PASSWORD, oauth_query: loginURL.search.slice(1) }) });
-      const failure = posted.status === 302 ? undefined : await posted.clone().json().catch(() => ({})) as { error?: string; code?: string; message?: string };
-      expect(posted.status, failure ? JSON.stringify({ error: failure.error, code: failure.code, message: failure.message }) : '').toBe(302);
-      const continuation = new URL(posted.headers.get('location')!, f.base);
-      expect(continuation.pathname).toBe('/blyg/studio/auth/consent');
-      const cookies = new Map([[f.owner.split('=')[0], f.owner]]);
-      for (const cookie of posted.headers.getSetCookie()) { const value = cookie.split(';')[0]; cookies.set(value.split('=')[0], value); }
-      const consent = await f.request(continuation.href, { headers: { cookie: [...cookies.values()].join('; ') } });
-      expect(consent.status).toBe(200);
-      expect((await consent.text()).includes('name="handle"')).toBe(true);
-    } finally { vi.useRealTimers(); }
-  });
-  it.each(['get', 'post'])('rejects an invalid signed reauthentication query before creating a session (%s)', async method => {
-    const f = await flow({ scope: 'openid owner:read owner:draft' });
-    const before = await env.DB.prepare('SELECT COUNT(*) AS count FROM session').first<{ count: number }>();
-    const query = 'client_id=' + encodeURIComponent(f.client.client_id) + '&sig=invalid&exp=9999999999';
-    const response = method === 'get'
-      ? await f.request('/blyg/studio/login?' + query, { headers: { cookie: f.owner } })
-      : await f.request('/blyg/studio/login', { method: 'POST', headers: { cookie: f.owner, Origin: f.base }, body: new URLSearchParams({ password: env.OWNER_PASSWORD, oauth_query: query }) });
-    expect(response.status).toBe(400); expect(response.headers.getSetCookie()).toHaveLength(0);
-    const after = await env.DB.prepare('SELECT COUNT(*) AS count FROM session').first<{ count: number }>();
-    expect(after?.count).toBe(before?.count);
-  });
-  it.each(['foreign-origin', 'cross-site-fetch'])('rejects cross-origin password continuation before minting cookies (%s)', async attack => {
-    const f = await flow({ scope: 'openid owner:read owner:draft' }), url = new URL(f.authorize); url.searchParams.set('prompt', 'login');
-    const authorization = await f.request(url.href, { headers: { cookie: f.owner } });
-    expect(authorization.status).toBe(302);
-    const query = new URL(authorization.headers.get('location')!).search.slice(1);
-    const before = await env.DB.prepare('SELECT COUNT(*) AS count FROM session').first<{ count: number }>();
-    const response = await f.request('/blyg/studio/login', { method: 'POST', headers: { cookie: f.owner, Origin: attack === 'foreign-origin' ? 'https://attacker.example' : f.base, ...(attack === 'cross-site-fetch' ? { 'Sec-Fetch-Site': 'cross-site' } : {}) }, body: new URLSearchParams({ password: env.OWNER_PASSWORD, oauth_query: query }) });
-    expect(response.status).toBe(403); expect(response.headers.getSetCookie()).toHaveLength(0);
-    expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM session').first<{ count: number }>())?.count).toBe(before?.count);
-  });
-  it.each(['/internal/owner', '/internal/access', '/internal/manual', '/sign-in/email', '/oauth2/create-client', '/oauth2/update-client', '/oauth2/delete-client'])('does not publish native administrative endpoint %s', async path => {
-    const f = await flow(), response = await f.request(f.issuer + path, { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: '{}' });
-    expect(response.status).toBe(404);
-  });
+  observe('history complete', true);
+}
+oracleProperty({
+  id: 'oauth-implementation', owns: ['src/oauth.ts', 'src/oauth-routes.ts'],
+  law: { statement: 'For every enumerated syntax, authentication, metadata and rotation history, malformed PKCE remains invalid despite hash binding, authentication age survives session reconstruction, browser continuations require same-origin signed authority, and replay removes grant access.', authority: 'RFC7636 §§4.1–4.2; OIDC Core AuthRequest; RFC9700 §4.14.2; docs/auth-oracles.md; original endpoint publication policy', limits: 'Original finite malformed inputs, continuation modes, mounted profiles and one concurrent rotation schedule; no host-root discovery or exhaustive distributed/OIDC conformance claim.' },
+  histories, label: plan => plan.name, model, driver,
+  check: (plan, trace, expected) => {
+    const observations = trace.filter(entry => entry.checkpoint !== 'history complete');
+    for (const entry of observations) {
+      if (plan.action.op === 'rotation' && entry.value && typeof entry.value === 'object' && 'statuses' in entry.value) {
+        const actual = entry.value as { approval: number; statuses: number[]; replayStatus: number; replayError: string; descendantStatus?: number; accessStatus: number }, policy = expected as { approval: number; maxWinners: number; allowedStatuses: number[]; replayStatus: number; replayError: string; descendantStatus: number; accessStatus: number };
+        const failure = differs(entry.checkpoint, 'OAuth implementation boundaries', { approval: actual.approval, cardinality: actual.statuses.length, boundedWinners: actual.statuses.filter(status => status === 200).length <= policy.maxWinners, allowedStatuses: actual.statuses.every(status => policy.allowedStatuses.includes(status)), replayStatus: actual.replayStatus, replayError: actual.replayError, descendantStatus: actual.descendantStatus === undefined || actual.descendantStatus === policy.descendantStatus, accessStatus: actual.accessStatus }, { approval: policy.approval, cardinality: plan.action.requests, boundedWinners: true, allowedStatuses: true, replayStatus: policy.replayStatus, replayError: policy.replayError, descendantStatus: true, accessStatus: policy.accessStatus }); if (failure) return failure;
+      } else { const failure = differs(entry.checkpoint, 'OAuth implementation boundaries', entry.value, expected); if (failure) return failure; }
+    }
+    return trace.some(entry => entry.checkpoint === 'history complete') ? differs('OAuth implementation completion', 'OAuth implementation boundaries', observations.length, 1) ?? pass : pass;
+  },
+  calibrations: [{ name: 'malformed challenge yields a code', law: 'OAuth implementation boundaries', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => ({ ...entry, value: { ...(entry.value as object), code: true } })) }],
 });

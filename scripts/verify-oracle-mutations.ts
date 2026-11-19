@@ -3,87 +3,46 @@
  * Contract: docs/oracle-tests.md ORC-006 requires a reached semantic failure, not
  * just a nonzero runner exit. These controls break pin persistence, restore text,
  * pagination, mention discovery and display order independently of the models.
- * Driver: isolated copies run lifecycle/pagination witnesses and the fixed
- * mention delivery/display campaigns. Both mention failures receive replay.
- * Refinement: green baselines precede mutation; each nonzero result must name its
- * intended checkpoint. Restore each source file before the next control.
+ * Driver: isolated copies run registered oracle-gaps baselines and authored
+ * lifecycle/pagination/mention controls. Both mention failures receive replay.
+ * Refinement: each authored kill must preserve its registered law and checkpoint;
+ * native generated failure receipts are captured and replayed without guessing.
  * Limits: selected wrong designs, not all defects or a complete oracle audit.
- * This runner copies tracked files and the named mention fixtures before their
- * first commit. Other untracked integration sources need explicit handling.
+ * This runner copies tracked and nonignored untracked candidate files.
  */
-import assert from "node:assert/strict";
-import { spawnSync, execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { stripVTControlCharacters } from "node:util";
+import { verifyOracleMutation } from "./oracle-mutation-control.ts";
 
 // Mutate isolated copies, never the contributor's checkout. A nonzero exit
 // alone is insufficient: each mutant must reach its semantic checkpoint.
 const root = resolve(".");
 const temp = mkdtempSync(join(tmpdir(), "blygger-oracle-mutations-"));
-type Control = { name: string; file: string; from: string; to: string; test: string; pattern: string; checkpoint: string; replayTarget?: string };
+type Control = { name: string; file: string; from: string; to: string; test: string; pattern: string; checkpoint: string; law: string; replayTarget?: string };
 const controls: Control[] = [
-  { name: "pin is not persisted", file: "src/model.ts", from: "UPDATE versions SET pinned = 1,", to: "UPDATE versions SET pinned = 0,", test: "test/item-lifecycle.oracle.test.ts", pattern: "preserves a pinned history", checkpoint: "lifecycle immutable history" },
-  { name: "restore changes the wrong text", file: "src/model.ts", from: ".bind(row.content_md, discard ? 1 : 0,", to: '.bind("mutation: wrong restored text", discard ? 1 : 0,', test: "test/item-lifecycle.oracle.test.ts", pattern: "preserves a pinned history", checkpoint: "lifecycle owner working copy" },
-  { name: "page continuation is ignored", file: "src/cursor-page.ts", from: "const ranges = cursor ? afterRanges(source.order, cursor.after) : null;", to: "const ranges = null;", test: "test/pagination.oracle.test.ts", pattern: "walks ties over more than two pages", checkpoint: "pagination page values and order" },
-  { name: "tie order is reversed", file: "src/read-api.ts", from: "name: 'signals', domains: ['signals'], sql: 'SELECT * FROM signals',\n  order: [{ column: 'at', direction: 'desc' }, { column: 'subscription_id', direction: 'asc' }, { column: 'remote_id', direction: 'asc' }]", to: "name: 'signals', domains: ['signals'], sql: 'SELECT * FROM signals',\n  order: [{ column: 'at', direction: 'desc' }, { column: 'subscription_id', direction: 'desc' }, { column: 'remote_id', direction: 'desc' }]", test: "test/pagination.oracle.test.ts", pattern: "walks ties over more than two pages", checkpoint: "pagination page values and order" },
-  { name: "mention lookup restores LIKE", file: "src/mentions/send.ts", from: "substr(?, 1, length(origin)) = origin", to: "? LIKE origin || '%'", test: "test/mention-delivery.oracle.test.ts", pattern: "mention-delivery: fixed", checkpoint: "mention delivery result", replayTarget: "mention-delivery" },
-  { name: "mention lookup selects shortest origin", file: "src/mentions/send.ts", from: "ORDER BY length(origin) DESC LIMIT 1", to: "ORDER BY length(origin) ASC LIMIT 1", test: "test/mention-delivery.oracle.test.ts", pattern: "mention-delivery: fixed", checkpoint: "mention discovery trace" },
-  { name: "mention lookup includes RSS", file: "src/mentions/send.ts", from: "WHERE kind = 'blyg' AND substr", to: "WHERE substr", test: "test/mention-delivery.oracle.test.ts", pattern: "mention-delivery: fixed", checkpoint: "mention discovery trace" },
-  { name: "mention groups show oldest verification first", file: "src/mention-groups.ts", from: "order: [{ column: 'verifiedAt', direction: 'desc' },", to: "order: [{ column: 'verifiedAt', direction: 'asc' },", test: "test/mention-order.oracle.test.ts", pattern: "mention-order: fixed", checkpoint: "mention display order", replayTarget: "mention-order" },
-  { name: "mention visibility counts hidden receipts", file: "src/mention-groups.ts", from: "status='verified' AND hidden=0", to: "status='verified' AND hidden=1", test: "test/mention-order.oracle.test.ts", pattern: "mention-order: fixed", checkpoint: "mention group values" },
+  { name: "pin is not persisted", file: "src/model.ts", from: "UPDATE versions SET pinned = 1,", to: "UPDATE versions SET pinned = 0,", test: "test/item-lifecycle.oracle.test.ts", pattern: "preserves a pinned history", checkpoint: "lifecycle immutable history", law: "forward history and immutable pins" },
+  { name: "restore changes the wrong text", file: "src/model.ts", from: ".bind(row.content_md, discard ? 1 : 0,", to: '.bind("mutation: wrong restored text", discard ? 1 : 0,', test: "test/item-lifecycle.oracle.test.ts", pattern: "preserves a pinned history", checkpoint: "lifecycle owner working copy", law: "forward history and immutable pins" },
+  { name: "page continuation is ignored", file: "src/cursor-page.ts", from: "const ranges = cursor ? afterRanges(source.order, cursor.after) : null;", to: "const ranges = null;", test: "test/pagination.oracle.test.ts", pattern: "walks ties over more than two pages", checkpoint: "page", law: "complete walk" },
+  { name: "tie order is reversed", file: "src/read-api.ts", from: "name: 'signals', domains: ['signals'], sql: 'SELECT * FROM signals',\n  order: [{ column: 'at', direction: 'desc' }, { column: 'subscription_id', direction: 'asc' }, { column: 'remote_id', direction: 'asc' }]", to: "name: 'signals', domains: ['signals'], sql: 'SELECT * FROM signals',\n  order: [{ column: 'at', direction: 'desc' }, { column: 'subscription_id', direction: 'desc' }, { column: 'remote_id', direction: 'desc' }]", test: "test/pagination.oracle.test.ts", pattern: "walks ties over more than two pages", checkpoint: "page", law: "complete walk" },
+  { name: "mention lookup restores LIKE", file: "src/mentions/send.ts", from: "substr(?, 1, length(origin)) = origin", to: "? LIKE origin || '%'", test: "test/mention-delivery.oracle.test.ts", pattern: "fixed seed 20261001: generated", checkpoint: "mention delivery result", law: "delivery routing", replayTarget: "mention-delivery" },
+  { name: "mention lookup selects shortest origin", file: "src/mentions/send.ts", from: "ORDER BY length(origin) DESC LIMIT 1", to: "ORDER BY length(origin) ASC LIMIT 1", test: "test/mention-delivery.oracle.test.ts", pattern: "fixed seed 20261001: generated", checkpoint: "mention discovery trace", law: "delivery routing" },
+  { name: "mention lookup includes RSS", file: "src/mentions/send.ts", from: "WHERE kind = 'blyg' AND substr", to: "WHERE substr", test: "test/mention-delivery.oracle.test.ts", pattern: "fixed seed 20261001: generated", checkpoint: "mention discovery trace", law: "delivery routing" },
+  { name: "mention groups show oldest verification first", file: "src/mention-groups.ts", from: "order: [{ column: 'verifiedAt', direction: 'desc' },", to: "order: [{ column: 'verifiedAt', direction: 'asc' },", test: "test/mention-order.oracle.test.ts", pattern: "fixed seed 20261001: generated", checkpoint: "groups page", law: "ordered receipt views", replayTarget: "mention-order" },
+  { name: "mention visibility counts hidden receipts", file: "src/mention-groups.ts", from: "status='verified' AND hidden=0", to: "status='verified' AND hidden=1", test: "test/mention-order.oracle.test.ts", pattern: "fixed seed 20261001: generated", checkpoint: "group values", law: "ordered receipt views" },
 ];
 try {
-  for (const file of execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" }).split("\0").filter(Boolean)) {
-    const destination = join(temp, file); mkdirSync(dirname(destination), { recursive: true }); cpSync(join(root, file), destination);
-  }
-  // Include this known receiving fixture before its first commit as well.
-  cpSync(join(root, "test/mention-delivery.oracle.test.ts"), join(temp, "test/mention-delivery.oracle.test.ts"));
-  for (const file of ["src/mention-groups.ts", "test/mention-order.oracle.test.ts", "src/cursor-page.ts", "src/ui/cursor-query.ts", "src/ui/sequence-order.ts", "migrations/0036_cursor_generations.sql", "migrations/0039_mention_groups.sql"]) {
+  for (const file of execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { encoding: "utf8" }).split("\0").filter(Boolean)) {
+    if (!existsSync(join(root, file))) continue;
     const destination = join(temp, file); mkdirSync(dirname(destination), { recursive: true }); cpSync(join(root, file), destination);
   }
   cpSync(join(root, "sdk/dist"), join(temp, "sdk/dist"), { recursive: true });
   mkdirSync(join(temp, "build"));
   for (const file of ["studio-spa.txt", "studio-spa-style.txt", "models.json", "extensions.names.ts", "extensions.server.ts", "extensions.ui.ts"]) cpSync(join(root, "build", file), join(temp, "build", file));
   symlinkSync(join(root, "node_modules"), join(temp, "node_modules"), "dir");
-  const execute = (test: string, pattern: string, replay?: { target: string; seed: string; path: string }) => {
-    const result = spawnSync(process.execPath, [join(root, "node_modules/vitest/vitest.mjs"), "run", "--maxWorkers=1", ...(test.startsWith('test-ui/') ? ['--config', 'vitest.ui.config.ts'] : []), test, "-t", replay ? `${replay.target}: replay` : pattern], { cwd: temp, encoding: "utf8", timeout: 90_000, env: { ...process.env, ORACLE_TARGET: replay?.target, ORACLE_SEED: replay?.seed, ORACLE_PATH: replay?.path, NO_COLOR: "1" } });
-    return { ...result, stdout: stripVTControlCharacters(result.stdout ?? ''), stderr: stripVTControlCharacters(result.stderr ?? '') };
-  };
-  // Green baseline uses precisely the same test entry points as the mutants.
-  for (const control of [controls[0], controls[2], controls[4], controls[7]]) {
-    const result = execute(control.test, control.pattern);
-    assert.equal(result.status, 0, `Baseline failed: ${result.stdout}\n${result.stderr}`);
-    assert.ok(/\b[1-9]\d* passed\b/.test(result.stdout + result.stderr), `Baseline ran no tests: ${control.name}`);
-  }
-  for (const control of controls) {
-    const file = join(temp, control.file), original = readFileSync(file, "utf8");
-    assert.equal(original.split(control.from).length, 2, `Mutation anchor must be unique: ${control.name}`);
-    writeFileSync(file, original.replace(control.from, control.to));
-    try {
-      const result = execute(control.test, control.pattern), log = `${result.stdout}\n${result.stderr}`;
-      writeFileSync(join(root, "build", `mutation-${controls.indexOf(control)}.log`), log);
-      assert.equal(result.error, undefined, `${control.name}: runner error`);
-      assert.equal(result.signal, null, `${control.name}: runner terminated`);
-      assert.equal(typeof result.status, "number", `${control.name}: missing exit status`);
-      assert.notEqual(result.status, 0, `Surviving mutation: ${control.name}`);
-      assert.ok(log.includes(`Error: ${control.checkpoint}`), `${control.name}: failed before semantic checkpoint\n${log}`);
-      if (control.replayTarget) {
-        const receipt = /seed:\s*(-?\d+),\s*path:\s*"([^"]*)"/.exec(log);
-        assert.ok(receipt, `${control.name}: missing replay seed/path`);
-        const replay = execute(control.test, control.pattern, { target: control.replayTarget, seed: receipt[1], path: receipt[2] });
-        const replayLog = `${replay.stdout}\n${replay.stderr}`;
-        const replayLogName = control.replayTarget === 'mention-delivery' ? 'mutation-mention-replay.log' : `mutation-${control.replayTarget}-replay.log`;
-        writeFileSync(join(root, "build", replayLogName), replayLog);
-        assert.equal(replay.error, undefined, `${control.name}: replay runner error`);
-        assert.equal(replay.signal, null, `${control.name}: replay terminated`);
-        assert.equal(typeof replay.status, "number", `${control.name}: missing replay status`);
-        assert.notEqual(replay.status, 0, `${control.name}: replay survived`);
-        assert.ok(replayLog.includes(`Error: ${control.checkpoint}`), `${control.name}: replay changed checkpoint\n${replayLog}`);
-        console.log(`Replayed ${control.checkpoint}: seed=${receipt[1]} path=${receipt[2]}`);
-      }
-      console.log(`Caught production mutation: ${control.name} at ${control.checkpoint}`);
-    } finally { writeFileSync(file, original); }
-  }
+  for (const control of controls) verifyOracleMutation(root, temp, {
+    ...control, changes: [{ file: control.file, from: control.from, to: control.to }],
+    ...(control.replayTarget ? { replay: { seed: 20261001, property: control.replayTarget } } : {}),
+  }, `oracle-mutation-${controls.indexOf(control)}`);
 } finally { rmSync(temp, { recursive: true, force: true }); }

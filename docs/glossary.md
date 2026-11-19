@@ -23,7 +23,7 @@ The [oracle-writing guide](oracle-tests.md) describes how to keep contracts, mod
 | Provenance | Client-supplied claims about generated content and its sources. Alignment checks do not prove that a claim is true. |
 | TK span | A marked generated-content region. Provenance entries align with these regions in content order. |
 | Mount | The configured public path prefix, such as `/blyg`. An empty mount places the public app at the domain root. |
-| Studio path | The owner UI path: `{mount}/studio`. REST remains at `/api`; MCP and auth routes sit under the Studio path. |
+| Studio path | The owner UI path: `{mount}/studio`. REST uses `{mount}/api`; MCP and auth routes sit under the Studio path. |
 | Worker isolate | One Cloudflare Worker runtime instance. Local process state is not shared with another isolate. |
 | D1 | The SQL store shared by Worker instances. Test fixtures use local D1; they do not establish production access controls. |
 | R2 | The object store for media. SQL metadata and stored bytes are separate observations. |

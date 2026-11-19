@@ -1,5 +1,7 @@
 # Trigger revisions, Studio change checks, and R2 feed revalidation
 
+The polling/cache oracles now use the pinned `@tanstack/oracles` framework. See [the migration map](oracle-migration.md) for current Worker/Studio commands, replay coordinates and sampled cancellation gaps. The laws in this design remain unchanged.
+
 Working design v3, updated 2026-10-06, upstream `3192d37`. The user selected ordinary
 Query Collection caching inside `queryFn`: fetch new data when its revision
 changes, otherwise return its existing cached response. The feed rules below
@@ -270,3 +272,12 @@ The fixed counters add row writes per mutation; batches/imports can amplify them
 Controlled models check the above candidate rules independently of production
 rendering. Receiving tests must exercise the real Studio/feed routes and D1/R2
 behavior before any production correctness or quota claim.
+
+### Cancellation work boundaries
+
+Kyle Mathews approved the helper work boundaries on 2026-11-18.
+`readIfChanged` rejects an already-aborted signal before reading revisions,
+checks again after the revision read before loading content, and checks after
+content loading before returning a result. QueryClient separately prevents
+canceled results from entering its cache. The `studio-cancellation-work` oracle
+checks read/load counts and the helper outcome for each boundary and a live call.

@@ -1,29 +1,53 @@
-/**
- * Operator policy: bound body bytes before JSON/form parsing or business work.
- * This is a local DoS limit, not an OAuth protocol requirement. The driver sends
- * real Worker requests with no Content-Length, so a declared-length shortcut
- * cannot stand in for a streamed limit. A valid neighboring write still works.
- * Model: REST limit 128 bytes admits a small write, refuses an oversized write
- * with 413, and persists no rejected item. OAuth defaults to 1 MiB and must
- * refuse an oversized registration without growing oauthClient.
- * Limits: fixed receiving histories; no deployed ingress/memory/load claim.
- * https://cheatsheetseries.owasp.org/cheatsheets/Denial_of_Service_Cheat_Sheet.html
+/** This oracle owns byte admission before REST item writes and OAuth client
+ * registration, at the completed Worker response and persisted-row checkpoints.
+ *
+ * ```ts
+ * POST('/blyg/api/items', bodyOf128Bytes) // → 201 with a 128-byte operator limit
+ * POST('/blyg/api/items', bodyOf129Bytes) // → 413 and no inserted item
+ * POST('/blyg/studio/auth/oauth2/register', oversizedBody) // → 413, no client
+ * ```
+ * Content-Length is absent, so admission must count the actual body. For every
+ * request in these finite histories, bytes above the surface's limit are denied
+ * before storage; admitted REST writes remain usable. The pure model counts
+ * UTF-8 bytes from the plan and predicts status and storage delta. The driver
+ * records actual response status and row-count differences. Fixture failures
+ * remain setup errors. This is local byte admission, not an ingress/load claim.
+ * Authority: operator limits in docs/auth-deployment-hardening.md and OWASP DoS
+ * guidance; OAuth does not prescribe the chosen numeric limit.
  */
+import { oracleProperty } from '@tanstack/oracles';
 import { env } from 'cloudflare:test';
-import { expect, it } from 'vitest';
+import { withOracleStorage } from './oracle-storage.ts';
 import { flow } from './oauth-flow-driver.ts';
-it('REST refuses streamed oversized bodies before writing', async () => {
-  const f = await flow(), bindings = { ...env, API_BODY_LIMIT: '128' };
-  const before = await env.DB.prepare('SELECT COUNT(*) AS n FROM items').first<{ n: number }>();
-  const response = await f.request('/blyg/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ contentMd: 'x'.repeat(129 - JSON.stringify({ contentMd: '' }).length) }) }, bindings);
-  expect(response.status, 'byte admission must precede write work').toBe(413);
-  expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM items').first()).toEqual(before);
-  expect((await f.request('/blyg/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ contentMd: 'x'.repeat(128 - JSON.stringify({ contentMd: '' }).length) }) }, bindings)).status).toBe(201);
+import { completed, exactTrace } from './network-oracle-observations.ts';
+type Plan = { name: string; surface: 'rest' | 'oauth'; limit: number; bodies: string[] };
+const restBody = (bytes: number) => JSON.stringify({ contentMd: 'x'.repeat(bytes - JSON.stringify({ contentMd: '' }).length) });
+const histories: Plan[] = [
+  { name: 'REST refuses streamed oversized bodies before writing', surface: 'rest', limit: 128, bodies: [restBody(129), restBody(128)] },
+  { name: 'OAuth refuses oversized registration bodies before client storage', surface: 'oauth', limit: 1024 * 1024, bodies: [JSON.stringify({ client_name: 'x'.repeat(1024 * 1024), redirect_uris: ['https://client.example.test/callback'], token_endpoint_auth_method: 'none' })] },
+];
+// A byte threshold and successful-create rule predict every request, rather
+// than storing expected responses in the fixed histories.
+const model = (plan: Plan) => plan.bodies.map(body => {
+  const admitted = new TextEncoder().encode(body).length <= plan.limit;
+  return { checkpoint: 'body admission', value: { status: admitted ? 201 : 413, inserted: admitted ? 1 : 0 } };
 });
-it('OAuth refuses oversized registration bodies before client storage', async () => {
-  const f = await flow();
-  const before = await env.DB.prepare('SELECT COUNT(*) AS n FROM oauthClient').first();
-  const response = await f.request(f.issuer + '/oauth2/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_name: 'x'.repeat(1024 * 1024), redirect_uris: [f.redirect], token_endpoint_auth_method: 'none' }) });
-  expect(response.status, 'OAuth byte admission must precede parsing/storage').toBe(413);
-  expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM oauthClient').first()).toEqual(before);
+oracleProperty({
+  id: 'request-body-security', owns: ['src/owner-api.ts#createOwnerApi', 'src/oauth-routes.ts'],
+  law: { statement: 'For every request in the bounded REST and OAuth body histories, bodies above the configured byte limit return 413 without inserting a row, while the exact REST boundary admits its write.', authority: 'docs/auth-deployment-hardening.md Work and outbound limits; existing request-body receiving law', limits: 'REST exact 128/129-byte neighbors and one over-1MiB OAuth request; local Worker/D1, no deployed ingress claim.' },
+  histories, label: plan => plan.name, model,
+  driver: (plan, observe) => completed(observe, () => withOracleStorage(async () => {
+    const f = await flow();
+    const table = plan.surface === 'rest' ? 'items' : 'oauthClient';
+    for (const body of plan.bodies) {
+      const before = (await env.DB.prepare('SELECT COUNT(*) AS n FROM ' + table).first<{ n: number }>())!.n;
+      const response = await f.request(plan.surface === 'rest' ? '/blyg/api/items' : f.issuer + '/oauth2/register', {
+        method: 'POST', headers: { ...(plan.surface === 'rest' ? { cookie: f.owner } : {}), 'Content-Type': 'application/json' }, body,
+      }, plan.surface === 'rest' ? { ...env, API_BODY_LIMIT: String(plan.limit) } : env);
+      const after = (await env.DB.prepare('SELECT COUNT(*) AS n FROM ' + table).first<{ n: number }>())!.n;
+      observe('body admission', { status: response.status, inserted: after - before });
+    }
+  })),
+  check: (_plan, trace, expected) => exactTrace(trace, expected, 'body byte admission'),
+  calibrations: [{ name: 'oversized write admitted', law: 'body byte admission', history: { enumerated: 0 }, corrupt: trace => trace.map((entry, index) => index ? entry : { ...entry, value: { status: 201, inserted: 1 } }) }],
 });

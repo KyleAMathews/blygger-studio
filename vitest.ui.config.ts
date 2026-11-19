@@ -1,8 +1,7 @@
 import { defineConfig } from 'vitest/config';
-const seed = process.env.ORACLE_SEED, target = process.env.ORACLE_TARGET;
-if (process.env.ORACLE_PATH !== undefined && seed === undefined) throw new Error('ORACLE_PATH requires ORACLE_SEED');
-if (seed !== undefined && (target !== 'studio-polling' || !Number.isInteger(Number(seed)))) throw new Error('UI replay requires a known ORACLE_TARGET and integer ORACLE_SEED');
+
+const legacyReplay = ['ORACLE_TARGET', 'ORACLE_SEED', 'ORACLE_PATH'].find(name => process.env[name] !== undefined);
+if (legacyReplay) throw new Error(`${legacyReplay}: Studio polling replay moved to STUDIO_ORACLE_SEED, STUDIO_ORACLE_PATH, STUDIO_ORACLE_PROPERTY and STUDIO_ORACLE_UNIT; use vitest.oracles.config.ts`);
 export default defineConfig({
-  define: { __ORACLE_REPLAY__: JSON.stringify({ target, seed, path: process.env.ORACLE_PATH }) },
-  test: { include: ['test-ui/**/*.test.ts'], environment: 'node', ...(seed !== undefined ? { testNamePattern: `${target}: replay$` } : {}) },
+  test: { include: ['test-ui/**/*.test.ts'], exclude: ['test-ui/**/*.oracle.test.ts'], environment: 'node', maxWorkers: 2 },
 });

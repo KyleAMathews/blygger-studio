@@ -1,21 +1,19 @@
 import path from "node:path";
 import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
+import { cloudflareOracleCapture, writeOracleCapture, workerOracleEnvironment } from "./scripts/oracles-cloudflare.ts";
 
-const oracleTarget = process.env.ORACLE_TARGET, oracleSeed = process.env.ORACLE_SEED;
-if (process.env.ORACLE_PATH !== undefined && oracleSeed === undefined) throw new Error("ORACLE_PATH requires ORACLE_SEED");
-if (oracleSeed !== undefined && (!oracleTarget || !["item-lifecycle", "pagination", "patch-atomicity", "authorization", "oauth-storage", "polling-cache", "mention-delivery", "mention-order"].includes(oracleTarget) || !Number.isInteger(Number(oracleSeed)))) throw new Error("Replay requires a known ORACLE_TARGET and integer ORACLE_SEED");
+const retiredReplay = ['ORACLE_TARGET', 'ORACLE_SEED', 'ORACLE_PATH'].find(name => process.env[name] !== undefined);
+if (retiredReplay) throw new Error(`${retiredReplay}: Worker oracle replay moved to WORKER_ORACLE_PROPERTY, WORKER_ORACLE_SEED, WORKER_ORACLE_PATH and WORKER_ORACLE_UNIT`);
 
 export default defineConfig({
-  define: {
-    __ORACLE_REPLAY__: JSON.stringify({ target: process.env.ORACLE_TARGET, seed: process.env.ORACLE_SEED, path: process.env.ORACLE_PATH }),
-  },
   // Every extension in the repository is compiled into the suite, whatever the
   // operator's extensions.local.json says (test/fixtures/extensions.*.ts).
   resolve: {
     alias: [{ find: /^(?:\.\.\/)+build\/extensions\.(names|server)\.ts$/, replacement: path.join(import.meta.dirname, "test/fixtures/extensions.$1.ts") }],
   },
   plugins: [
+    cloudflareOracleCapture(),
     cloudflareTest(async () => {
       const migrations = await readD1Migrations(path.join(import.meta.dirname, "migrations"));
       return {
@@ -25,9 +23,11 @@ export default defineConfig({
         // test. The suite passes a fake env.AI where it needs one.
         remoteBindings: false,
         miniflare: {
+          serviceBindings: { ORACLE_GAPS_CAPTURE: writeOracleCapture },
           // Background delivery and update checks cannot reach the real network.
           outboundService: () => new Response(null, { status: 503 }),
           bindings: {
+            ...workerOracleEnvironment(),
             TEST_MIGRATIONS: migrations,
             OWNER_PASSWORD: "test-password",
             COOKIE_SECRET: "test-cookie-secret",
@@ -49,8 +49,8 @@ export default defineConfig({
     }),
   ],
   test: {
-    ...(oracleSeed !== undefined ? { testNamePattern: `${oracleTarget}: replay$` } : {}),
     include: ["test/**/*.test.ts"],
-    setupFiles: ["./test/apply-migrations.ts"],
+    exclude: ["test/**/*.oracle.test.ts"],
+    setupFiles: ["./test/configure-oracles.ts", "./test/apply-migrations.ts"],
   },
 });

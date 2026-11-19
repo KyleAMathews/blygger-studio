@@ -1,5 +1,7 @@
 > Merged from [TanStack DB main at `LATEST`](https://github.com/TanStack/db/blob/95c3f9ec9745f9f9dc44380e95f7106c46d20e59/docs/contributing/oracle-tests.md) and the literate guide in [PR1870](https://github.com/TanStack/db/pull/1870). All fourteen current audit requirements remain. This local merge makes ORC-003’s prose obligation explicit and restores the instruction to explain laws beside their executable checks. Specification links for security laws are a local addition. Example and companion-note links are pinned to the latest source commit; [glossary](glossary.md) links use this repository. DB example terms describe TanStack DB, not Blygger internals. See the [upstream license](licenses/tanstack-db.txt).
 
+The product oracle suites use the pinned `@tanstack/oracles` framework. See [the migration map](oracle-migration.md) for current commands, adapters, replay and coverage limits. This guide retains the repository’s law and model design techniques. The installed framework’s [checklist](../node_modules/@tanstack/oracles/docs/oracle-checklist.md) governs framework conformance, including required reach (ORC-015), fixed witnesses (ORC-016), and gap classification. Its requirements take precedence where this historical guide differs; a surviving mutant remains an open gap.
+
 # Writing reliable oracle tests
 
 A test needs two things: something to try, and a way to tell whether it worked.

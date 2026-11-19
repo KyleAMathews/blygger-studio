@@ -8,18 +8,11 @@ import { z } from 'zod';
 import type { Env } from './types.ts';
 import { OWNER_SCOPES, type OwnerAccess } from './permissions.ts';
 import { verifySession, sessionAuthenticatedAt } from './auth.ts';
-import { hex, normalizeMount } from './util.ts';
+import { hex } from './util.ts';
 
 export function authLocations(url: string, env: Env) {
   const { studio: base, issuer, api, mcp } = deploymentUrls(url, env);
-  // The host-root REST audience a mounted node issued before 0.49.2. Accepted
-  // while the /api alias lasts (ROADMAP row 64); never advertised.
-  const legacyApi = normalizeMount(env.MOUNT) ? new URL(url).origin + '/api' : undefined;
-  return { base, issuer, api, mcp, legacyApi };
-}
-/** Every audience a REST bearer may carry: the mounted address, and the legacy one while it lasts. */
-function apiAudiences(locations: ReturnType<typeof authLocations>) {
-  return locations.legacyApi ? [locations.api, locations.legacyApi] : [locations.api];
+  return { base, issuer, api, mcp };
 }
 export async function hashCredential(value: string) {
   return hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))));
@@ -47,7 +40,7 @@ export async function betterAuthOptions(url: string, env: Env, manual = false) {
     allowDynamicClientRegistration: true, allowUnauthenticatedClientRegistration: true,
     grantTypes: ['authorization_code', 'refresh_token'],
     accessTokenExpiresIn: manual ? 30 * 86400 : 3600, refreshTokenExpiresIn: 30 * 86400,
-    resources: [...apiAudiences(locations), locations.mcp], clientRegistrationDefaultResources: [locations.api, locations.mcp],
+    resources: [locations.api, locations.mcp], clientRegistrationDefaultResources: [locations.api, locations.mcp],
     clientPrivileges: ({ user }) => user?.id === 'owner',
     postLogin: { page: locations.issuer + '/consent', shouldRedirect: () => false, consentReferenceId: ({ session }) => grantReference(env, session?.createdAt) },
     customAccessTokenClaims: ({ referenceId }) => grantClaims(env, referenceId),
@@ -183,7 +176,7 @@ export async function verifyBearer(request: Request, env: Env, resource: 'api' |
     const server = await authorizationServer(request.url, env);
     const validated = await server.api.delegatedAccess({ body: { token: header.replace(/^Bearer\s+/i, '') } });
     const audience = Array.isArray(validated.aud) ? validated.aud : [validated.aud];
-    const locations = authLocations(request.url, env), accepted = resource === 'api' ? apiAudiences(locations) : [locations.mcp];
+    const locations = authLocations(request.url, env), accepted = resource === 'api' ? [locations.api] : [locations.mcp];
     if (validated.sub !== 'owner' || validated.cnf || !accepted.some(value => audience.includes(value)) || validated.credentialVersion !== await credentialVersion(env)) return null;
     const now = Math.floor(Date.now() / 1000);
     if (typeof validated.exp !== 'number' || validated.exp <= now || typeof validated.grantExpires !== 'number' || validated.grantExpires <= now) return null;
@@ -211,7 +204,7 @@ export async function rememberAuthorization(url: string, env: Env, accessToken: 
   if (typeof value.client_id !== 'string' || typeof value.grantId !== 'string') throw new Error('Issued credential has no client');
   const client = await (await server.$context).adapter.findOne<{ name?: string }>({ model: 'oauthClient', where: [{ field: 'clientId', value: value.client_id }] });
   const locations = authLocations(url, env), audiences = Array.isArray(value.aud) ? value.aud : [value.aud];
-  const resource = [...apiAudiences(locations), locations.mcp].filter(audience => audiences.includes(audience)).join(' ');
+  const resource = [locations.api, locations.mcp].filter(audience => audiences.includes(audience)).join(' ');
   const epoch = (await env.DB.prepare('SELECT epoch FROM oauth_state WHERE id=1').first<{epoch:number}>())!.epoch;
   if (value.credentialVersion !== await credentialVersion(env)) return false;
   // Recording and the tombstone check share one SQL statement. A completed
