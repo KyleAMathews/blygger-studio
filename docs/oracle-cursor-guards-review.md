@@ -151,3 +151,81 @@ ledger preserves both raw items and process chronology.
 | ORC-014 | SQLite supplies actual SQL/BLOB premises; projection classes remain controlled, with no corrupt-live-D1 claim. |
 | ORC-015 | Every declared state has a constructed history; full-campaign reach accompanies its receipt. |
 | ORC-016 | Only oracleProperty registers checks; every fixed/constructed input uses the shared model/driver/check. |
+
+## Final integrated campaign
+
+Run `06b6129f3166`, source cut `c5ace416b3bd6e3e6e3cf6d50ee862fd0f5b017c`,
+uses the complete default eight-source Studio selection,14 oracle files,
+26 authored controls, seed20261118, contexts2 and maxWorkers1. The temporary
+config changes only worker concurrency. There is no --only, --sample or
+source/file restriction beyond the shipping runner's default source list.
+Output: `/private/tmp/blygger-etag-final-integrated-full.8Z1Ble/results`.
+
+All1,840 checks pass twice with stable traces. Of2,379 mutation entries,
+755 are registered law kills and1,624 are explicitly unowned warnings. There
+are zero gaps, timeouts, crashes or nondeterministic tests. This closes all
+five original guard gaps and kills both permanent cursor regression controls,
+the three permanent counter controls and the previously timed-out batching
+mutation under work bound. Every one of734 shared previously killed semantic
+keys remains killed. Twelve old helper keys disappear with the revised
+projection/row-validation/page construction; every current new owned key is
+killed. Raw semantic-key comparison: `../preservation.json` in that output.
+
+The905 tracked/nonignored candidate files inventoried before the run have
+identical hashes afterward. The manifests are `../inputs-before.json` and
+`../inputs-after.json`; these establish preservation for this run, not an
+earlier campaign. Subsequent edits to this evidence do not alter product or
+oracle inputs. Native ordinary receiving at the same cut passes all35 tests
+in seven cursor files after the array-copy repair and dependency refresh.
+
+Reach below sums the first histogram for each distinct property/unit label,
+so repeated instrumentation does not inflate a unit. Every declared state
+is reached; raw per-property aggregation is `../reach.json`.
+
+| Property | Entered states and counts |
+| --- | --- |
+| outgoing bound | empty-key6, near-envelope-bound8, oversized-ascii10, oversized-unicode10, escaped-key4 |
+| source guards | empty-order16, invalid-column34, valid-column10 |
+| returned keys | finite-key4, null-key6, string-key8, unsupported-key30, nonfinite-key18, blob-key18, terminal-unsupported-key22, first-invalid-key16, middle-invalid-key8, last-invalid-key10, drained-invalid-keys32, drained-valid-keys8 |
+
+| File | SHA256 |
+| --- | --- |
+| src/cursor-page.ts | `3e930ecfe439fa78f3a4db49543c682f45455f09e5bc8d22388f4f674d0b7826` |
+| test-oracles/cursor-guards.oracle.test.ts | `512d8a8a15ff85ef8539ed95537faf90715b425315a32433162bc36d2bbb8a3f` |
+| test-oracles/mutants/cursor-returned-keys.json | `007af30cad5114b5527bca82e0e499ac6f07aeb77f2b0111f4363926571ecd5f` |
+| test/oracle-property-registry.ts | `ad2f8cc78fa96feec5c18ba1e6525032b4316d772f8d3d0f4b728d8dc784307b` |
+
+Loss audit: raw review2 items =2 fixed-now (CG-R01,CG-R02), with no omitted,
+deferred or open finding in this bounded cursor law. The full gate and both
+original-defect controls support that disposition. Controlled projection
+classes, bounded native fixtures and unowned warnings remain the stated limits.
+Pushed-head CI and whole-PR readiness are separate from this local closure.
+
+The exact shipping Worker/D1 command also passes at this cut. Derived receiving
+`9c50fb4aa428` passes17 stable checks and kills four controls. Generation/keyset/
+indexed receiving `bc20de7d2e46` passes104 stable checks and kills ten controls.
+Both have zero gaps and are explicitly selected-control receiving, not automatic
+full-source coverage. Raw log: canonical OS temporary child
+`blygger-etag-final-worker.hcgSEW/run.log`. An earlier attempt placed output in
+`/private/tmp`, which the local capture adapter refuses; it failed setup with
+no product evidence. Using the adapter's canonical OS temporary directory
+fixes setup without changing the oracle or bridge rules.
+
+The temporary Node config used for the complete run is exactly:
+
+```ts
+import { mergeConfig } from 'vitest/config';
+import base from './vitest.oracles.config.ts';
+export default mergeConfig(base, { test: { maxWorkers: 1 } });
+```
+
+It is removed after completion; the shipping config, histories, seeds, checks
+and budgets remain unchanged. To replay a historical command naming
+`.cursor-guards.config.ts`, recreate that three-line wrapper at the root.
+
+The combined Check job's allowance increases45→75 minutes for the eight-source
+campaign plus its existing sequential receiving/release/ordinary gates. The
+current hosted campaign is still in the Studio step after18 minutes; the earlier
+ordinary local Worker suite alone took16m26s and the companion's full Worker
+oracle step took10m17s. Those stages and setup/release checks do not fit45m.
+Test timeouts, histories, mutation selection and work limits do not change.

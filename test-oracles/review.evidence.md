@@ -5,7 +5,14 @@ were approved on 2026-11-19. The [guard enforcement record](../docs/oracle-curso
 preserves three new laws, five initial mutant kills, and two actual projection
 defects found during review. Both defects have oracle RED before production
 repair and105 stable GREEN checks with original-defect controls. Final combined
-campaign and new-head CI remain pending at this checkpoint.
+run `06b6129f3166` at pushed `c5ace41` now passes1,840 checks twice, rejects755
+mutations and reports zero gaps/timeouts/crashes/nondeterminism. Its1,624 unowned
+warnings remain explicit. All905 inventoried candidate files have unchanged
+pre/post hashes. The cursor record preserves full reach, identities and semantic
+key comparisons. The seven affected ordinary cursor files pass35 tests at this
+cut. Exact shipping Worker/D1 receiving passes121 stable checks and rejects14
+controls in runs `9c50fb4aa428` and `bc20de7d2e46`; both report zero gaps.
+New-head CI remains a separate gate.
 
 Evidence cut: 2026-11-19; historical receipts retain their original source cuts. Recovery/search repair worktree starts at `1ffc706` over the published feature `cb1f721` and companion `0bb48f1`. PR #152 targets companion PR #151. The historical post-R4 receipt below used reviewed origin/main `0e9bd933e30a13c12b1c9fe5c855477d61e8fd91`. Earlier reviewed base: `28b0c8d642a87e5810ad6eabd95c2d1714c53396`. Package pin: `@tanstack/oracles@97a4e7a`. This versioned record evaluates the conditional adapter, public SDK, owner-read and derived-representation laws; historical receipts remain explicitly identified.
 
