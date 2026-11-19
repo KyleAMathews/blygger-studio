@@ -294,3 +294,10 @@ the default production build. Against otherwise unchanged `bf12caa`, all
 is rejected by `acknowledged ordered saves`: zero gaps, nonprovisional.
 The model, laws, histories, driver, assertions and run budgets are unchanged.
 Oracle lint and migration preservation pass after the builder repair.
+
+The builder repair also passes CI: 595 ordinary e2e tests (26 skips) and
+all 48 browser oracle checks, stable repeats, one authored mutation rejected
+and zero gaps. In the same run, Worker security controls progressed without
+an assertion failure until their 25-minute job limit. Only that matrix job
+now has a 40-minute limit; the selected controls and their checks are
+unchanged, and the other mutation jobs retain 25 minutes.
