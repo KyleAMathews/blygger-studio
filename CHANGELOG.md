@@ -18,6 +18,32 @@ not have its own repo until session 26.
 
 ---
 
+## 0.64.0 — Shared components, link notices apart, two tangling fixes
+
+**Shared UI components** (Shannon's studio#88). The studio's controls now come from one set
+of primitives, most of them on [Base UI](https://base-ui.com/): buttons, icon buttons,
+toggles and toggle groups, tabs, fields and inputs, checkboxes, radios, selects,
+accordions, tooltips, dialogs, sheets and toasts. Each has documented names, variants and
+states, with better keyboard and screen-reader behaviour. Two things look different: the
+reading filters are a toggle group instead of pills, and the secondary button is a lighter
+shade. Everything else looks and behaves as before. On a phone, toasts now appear at the
+top of the screen, so one that appears under the last tap is not held open by the hover
+Safari keeps there; a WebKit browser test guards it.
+
+**Link notices apart** (spec 0.4 §15.5; ROADMAP row 77). On the responses page, each item's
+links from other blygs are listed under "Linked from", after its responses, labelled as
+notices that are never shown on the public page. The counts line says how many blygs link
+there, and "on the page now" no longer counts them.
+
+**Tangling fixes** (tangling plan §2.4, §2.6). A thread version that no longer quotes or
+links a part it made publishes as before, and the publish warning names the part, which
+stays published on its own. In a stub, the passage chooser leaves alone a quote inside a
+`![[+ …]]` span, since that quote belongs to the new item, and a quote added with the
+cursor inside a span goes after it.
+
+`MentionGroup` gains `links`, and its `visible` no longer counts link notices. Private
+contract 5.13.0, SDK 0.19.0. **Migrations:** none.
+
 ## 0.63.0 — Tangling, placeholders, and links on the wire
 
 **Tangling** (decisions #78, #100; ROADMAP row 45). Wrap a passage in `![[+ …]]` and
