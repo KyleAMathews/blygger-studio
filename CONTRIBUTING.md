@@ -20,5 +20,6 @@ The full page, with the test for each rung, a first hour on a local node and the
 - If you change a route in `src/contract/`, run `npm run sdk:generate` and commit the result.
 - Say in the description what a reviewer should check or try. It is read in full before merge.
 - Never develop against a live blyg. Use `npm run dev` and a local database.
+- Venkat Rao merges by default. Kyle Mathews and Aneesh Sathe are also maintainers. They work through pull requests like everyone else, and push to `main` or merge only when Venkat is unavailable or hands a merge to them.
 
 Bugs go in an issue with the **Bug** template, which asks for your client version and any local patches.
