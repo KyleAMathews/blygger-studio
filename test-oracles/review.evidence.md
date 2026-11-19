@@ -547,3 +547,33 @@ This repository has no `.changeset/config.json`, so no Changesets file is create
 The existing client 0.63.0, SDK 0.18.0 and private contract 6.0.0 version changes
 remain the release markers. Feedback and the gap-plan scratch file stay local.
 Pushed-head CI remains the next gate.
+
+
+## First pushed-head CI and contract-version fixture repair
+
+GitHub run `44460398533`, feature head `9c0a802`, passes the full six-source
+Studio campaign `eb521f2fe8a4`: 1,158 stable checks, 502 owned/authored kills,
+zero gaps, 1,624 explicit unowned warnings. Its seed is 20261001. The exact
+supplementary Worker gate also passes 17 stable checks and four authored kills.
+The next contract gate exposed the migration's stale independent literal
+`contractVersion: 5.11.0` at the API capabilities checkpoint. The approved ETag
+contract and actual capability/OpenAPI version are 6.0.0. This is a fixture
+expectation mismatch, not a new production defect or a credited semantic kill.
+
+The fixture changes only that expected literal to 6.0.0. It retains the exact
+version assertion, all mounted/root route and audience observations, histories,
+checks and controls. A repository-wide test search found no other stale
+5.11.0/0.17.0/0.62.0 expectations. Exact `npm run test:oracles:contracts` then
+passes run `1820dc4a3181`: 47 stable checks, all three sampled mutation controls
+rejected, zero gaps or nondeterminism. Local output is canonical OS temp child
+`blygger-worker-gaps-MmSNqq`. The changed oracle's lint and whitespace checks pass.
+
+The main Check job's overall timeout increases from 25 to 45 minutes. The
+measured Studio step takes 15m49s in GitHub, and the existing full Worker oracle
+step takes 10m17s on the same runner class in migration run `44460339373`, before
+the remaining release and ordinary suites. The previous total allowance cannot
+accommodate those existing gates sequentially. Test timeouts, history budgets,
+mutation selections and required checks remain unchanged. Release already
+allows 75 minutes. All 17 six-source inputs remain identical to the verified
+local campaign; these CI repairs change only an independent version literal,
+workflow job allowance and this evidence. Final pushed-head CI remains pending.
