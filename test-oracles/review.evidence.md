@@ -14,6 +14,26 @@ cut. Exact shipping Worker/D1 receiving passes121 stable checks and rejects14
 controls in runs `9c50fb4aa428` and `bc20de7d2e46`; both report zero gaps.
 New-head CI remains a separate gate.
 
+## CI native SQLite provider correction — 2026-11-19
+
+Run `44579177037` at `b8bdd53` exposed a provider difference: Node 22.18.0's
+`node:sqlite` truncates returned text at its first NUL byte. A direct
+`SELECT ? AS value` with `é😀\0\ufeff` returns only `é😀` on Node 22.18.0;
+Node 24.19.0 preserves the complete input. This happens before cursor encoding.
+The unchanged cursor oracle therefore fails five of 190 baseline checks on
+Node 22.18.0. Its 43 blocked CI mutations are provisional, not surviving
+product changes or credited rejections.
+
+Local Node 22 reproduction `0b942de47062` retains that five-check failure.
+The same cursor oracle on Node 24.19.0 passes all 190 checks twice in focused
+run `9ee4694d90a9`, rejects selected control `cursor-page.ts:M91`, and reports
+zero gaps or nondeterminism. This is a one-control supplement, not another
+complete campaign. The Check and release-fallback workflows now use Node
+24.19.0 for the Studio oracle step and restore Node 22.18.0 immediately after
+it. Product code, oracle laws, grammars and comparisons are unchanged.
+Both workflow files parse successfully and preserve that runtime sequence,
+including the release fallback conditions. New-head CI remains pending.
+
 Evidence cut: 2026-11-19; historical receipts retain their original source cuts. Recovery/search repair worktree starts at `1ffc706` over the published feature `cb1f721` and companion `0bb48f1`. PR #152 targets companion PR #151. The historical post-R4 receipt below used reviewed origin/main `0e9bd933e30a13c12b1c9fe5c855477d61e8fd91`. Earlier reviewed base: `28b0c8d642a87e5810ad6eabd95c2d1714c53396`. Package pin: `@tanstack/oracles@97a4e7a`. This versioned record evaluates the conditional adapter, public SDK, owner-read and derived-representation laws; historical receipts remain explicitly identified.
 
 **Historical post-R4 Node/browser cut:** post-R4 run `3b382a68ed73` passes all six files/1,158 baseline checks with stable repeat traces and rejects all 502 owned/authored mutants. Of 2,126 total entries (2,115 enumerated + 11 authored), zero are gaps/timeouts/crashes and 1,624 are explicit unowned warnings. All 502 prior owned semantic keys remain present and killed; all 471 first native property/unit reach histograms are unchanged. Selected browser receiving 30/30, ordinary polling integration 15/15 and historical polling controls 9/9 pass, including both native replays. R4's 167 repeated/200 expanded actual-judge controls pass. The exact checked-in Worker script passes 17 stable checks/four receiving controls; all six ordinary Worker files pass 66/66. Mandatory review evaluation is complete. Optional documentation decisions and commit/push/PR/CI gates remain. This is not a final readiness claim. The allowed-policy positive-control reporting issue supplies no kill credit or gap waiver.

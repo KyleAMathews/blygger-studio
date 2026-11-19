@@ -73,7 +73,14 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint:oracles
       - run: npm run check:oracle-migration
+      # Node 22.18's node:sqlite truncates text at NUL; these fixtures need all bytes.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
       - run: npm run test:oracles:studio
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
       - run: npm run test:oracles:conditional:worker
       - run: npm run test:oracles:contracts
       - run: npm run test:oracles:runtime
