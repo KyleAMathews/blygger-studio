@@ -1,5 +1,9 @@
 # Cursor helper enforcement
 
+The internal guard questions recorded below were subsequently approved and
+enforced in [cursor guard enforcement](oracle-cursor-guards-review.md). The
+historical receipts and their then-open limits remain unchanged below.
+
 This record accompanies the cursor helper and oracle files committed with it,
 based on `1ffc7069604a58a60ef9ac5621fe35190dbca626`. It records focused helper
 evidence. The complete eight-source Studio gate subsequently passed 1,533

@@ -174,3 +174,50 @@ A read-only scoped follow-up review finds no additional semantic defect by
 source inspection. It preserves LC-F01: the design-grammar audit followed the
 first draft, as disclosed above. That disclosure addresses the review request;
 it does not retroactively establish process conformance or supply runtime proof.
+
+
+## Merged receiving and release checks
+
+The restoration is committed in merge `b6624e3` (parents `da8fbed`, `bf12caa`).
+At that source cut, the complete ordinary Worker suite passes 167 files and
+1,866 tests with five existing skips, and the UI suite passes 32 files and
+308 tests. The legacy SDK integration's fourteen tests pass, including raw
+200/no-store/no-ETag behavior for an explicit validator, unchanged body receipt
+through the generated method and OpenAPI deprecation without a 304 response.
+
+Merge `212747e` adds companion `4be0407`'s browser-builder fix. Its only executable
+change is in the test builder: use the same disabled component-gallery define
+and stub as production. The conflict resolution preserves this branch's generic
+builder used by both save and search. Production, oracle laws, models, histories
+and budgets are unchanged by that merge. Fresh root/UI/oracle TypeScript,
+repository ESLint, migration preservation and template checks pass.
+
+The 0.65.0 release archive (manifest commit `b6624e3`, SDK 0.20.0 / API 5.14.0)
+builds and passes checksum, extracted Worker, installed Node/browser SDK,
+both TypeScript resolution modes, Chromium read/write/upload and restarted
+D1/R2 persistence verification. The first build attempt failed on the
+sandbox-protected default npm cache; using a private temporary cache fixes that
+setup problem. No dependency version or committed override changes for it.
+The browser-builder-only merge does not change the shipped artifact sources.
+
+Current combined-tree save run `8aa66d44b1a7` passes all 48 browser checks twice
+in 55.8 and 61.7 seconds, with stable traces, and rejects the rebuilt original
+`save-rejection` control under `acknowledged ordered saves`. It is
+nonprovisional with zero gaps. Its shipping script explicitly selects that
+one receiving control; this is no claim of automatic mutation coverage inside
+Chromium. Search receiving and any subsequent checks are added below when
+complete. The cursor decisions at this historical receipt were still pending;
+the later [guard record](oracle-cursor-guards-review.md) records approval and
+enforcement. Pushed-head CI remains a separate gate.
+
+
+Combined-tree search run `cdf949dc03c7` at
+`blygger-compat-browser-search.ftylWp/results` passes 34 checks twice in 27.9
+and 26.0 seconds, with stable traces, and rejects rebuilt `search-lookahead`
+under `demanded search pages`: zero gaps, nonprovisional. Its selected-file run
+ID is the same as a historical receipt, so the fresh output directory and source
+cut `212747e` distinguish this execution. The fresh save output is
+`blygger-compat-browser-save.qwC2Tb/results`. Both live under the canonical OS
+temporary directory, with raw reports and logs retained.
+
+Current shared browser-builder SHA256: `e3a54a794cd8162cedfcd40992e76f0c2d6e3121057b7177295972c5f3129912`.

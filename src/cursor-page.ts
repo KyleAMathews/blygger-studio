@@ -108,17 +108,20 @@ export async function cursorPage<Row extends object, Result = Row>(
     const rows = (await db.prepare(sql)
       .bind(...(source.binds ?? []), ...(ranges?.flatMap(range => range.binds) ?? []), limit + 1).all<Row>()).results;
     const selected = rows.slice(0, limit);
-    const items = source.project ? await source.project(selected) : selected as unknown as Result[];
+    // Projection may drain or reorder its argument; retain the selected sequence.
+    const items = source.project ? await source.project([...selected]) : selected as unknown as Result[];
     const complete = await readChanges(db);
     const current = generation(complete, source.domains);
     if (!same(before, current)) return;
-    const last = selected.at(-1);
-    const keys = last ? source.order.map(entry => {
-      const value = (last as Record<string, unknown>)[entry.column];
+    let keys: unknown[] | undefined;
+    // Every returned row must have supported sort keys, including rows before
+    // the final boundary. Projection can mutate the selected source rows.
+    for (const row of selected) keys = source.order.map(entry => {
+      const value = (row as Record<string, unknown>)[entry.column];
       if (value !== null && typeof value !== 'string' && (typeof value !== 'number' || !Number.isFinite(value))) throw new Error('Invalid collection cursor key');
       return value;
-    }) : [];
-    const page = { limit, nextCursor: rows.length > limit && last ? encode({ version: 1, source: identity, generation: before, after: keys }) : null };
+    });
+    const page = { limit, nextCursor: rows.length > limit ? encode({ version: 1, source: identity, generation: before, after: keys }) : null };
     if (snapshot) snapshot.after = complete;
     return { items, page };
   };
