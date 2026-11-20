@@ -22,7 +22,7 @@ import { previewFromHtml } from '../preview.ts';
 import { CHANGE_CATEGORIES, composeNote, noteIsGenerated, recategorize, type ChangeCategory } from '../change-category.ts';
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
 import { BlyggerApi, BlyggerApiError, unwrap } from '../../sdk/dist/browser.js';
-import type { DraftCounterContext } from './extension-api.ts';
+import type { DraftCounterContext, EditorBarContext } from './extension-api.ts';
 import type { Detail } from './data.ts';
 import { client, items, itemVersions, itemSummary, itemDetail, createDraftAction, settings as settingsCollection, listViews, preloadView } from './data.ts';
 import {
@@ -40,7 +40,7 @@ import { Button as DesignButton, Toggle, ToggleGroup } from './buttons.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { Tooltip } from './primitives.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
-import { DraftCounterSlot, editorRegions, enabledExtensions, type HostContext } from './extensions.tsx';
+import { DraftCounterSlot, editorRegions, enabledExtensions, useEditorBars, type HostContext } from './extensions.tsx';
 import { join, rebase, split, toFull, toShown, touches } from './editor-regions.ts';
 import type { EditorRegion } from './editor-regions.ts';
 import { HandlePicker } from './contacts.tsx';
@@ -1113,6 +1113,7 @@ export function Compose({ q }: { q?: string } = {}) {
   // The cap measures what would publish, as publish() does.
   const visible = useWithoutComments(text);
   const length = visible.length;
+  const bars = useBars({ input, text, shown: text, change, run: action.run });
   const over = length > MAX && kind === 'fragment';
   return (
     <>
@@ -1134,6 +1135,7 @@ export function Compose({ q }: { q?: string } = {}) {
             </Toggle>
           ))}
         </ToggleGroup>
+        {bars.above}
         <div className="ta-wrap">
           <textarea
             ref={input}
@@ -1154,6 +1156,7 @@ export function Compose({ q }: { q?: string } = {}) {
           <HandlePicker input={input} text={text} change={change} />
           {tools.coach}
         </div>
+        {bars.below}
         {/* Tools left, actions right: one row where it fits, two on a phone. */}
         <div className="composer-foot">
           <ToolRow
@@ -1694,6 +1697,54 @@ function DraftCounter({ text, item, run }: { text: string; item?: DraftCounterCo
   return <DraftCounterSlot extensions={enabledExtensions(compiledExtensions, settings?.extensions)} context={context} />;
 }
 
+/**
+ * The editor bars (docs/extensions.md, "Editor bars") for a screen whose text box is
+ * `input`. `change` is the screen's own edit path, the one its tools use, so held-out
+ * regions, autosave and the preview follow a bar's edits.
+ */
+function useBars({ input, text, shown, change, item, regions, run }: {
+  input: RefObject<HTMLTextAreaElement | null>;
+  text: string;
+  shown: string;
+  change: (text: string) => void;
+  item?: DraftCounterContext['item'];
+  regions?: EditorBarContext['regions'];
+  run: (action: () => Promise<unknown>) => Promise<unknown>;
+}) {
+  const settings = useSettings();
+  const navigate = useNavigate();
+  const selection = () => {
+    const el = input.current;
+    return el ? { start: el.selectionStart, end: el.selectionEnd } : { start: shown.length, end: shown.length };
+  };
+  const replace = (start: number, end: number, insert: string) => {
+    const el = input.current;
+    if (!el) return;
+    const from = Math.max(0, Math.min(start, el.value.length));
+    const to = Math.max(from, Math.min(end, el.value.length));
+    setTextAt(el, change, el.value.slice(0, from) + insert + el.value.slice(to), from + insert.length);
+  };
+  return useEditorBars(enabledExtensions(compiledExtensions, settings?.extensions), {
+    client,
+    openDraft: async (body) => {
+      const created = await createItem(body);
+      await navigate({ to: '/edit/$id', params: { id: created.id } });
+    },
+    navigate: (location) => navigate(location as never),
+    run: async (action) => void (await run(async () => action())),
+    text,
+    shown,
+    item,
+    selection,
+    insert: (insert) => {
+      const { start, end } = selection();
+      replace(start, end, insert);
+    },
+    replace,
+    regions,
+  });
+}
+
 /* ---------------- EDITOR ---------------- */
 
 export function EditorPage({ id }: { id: string }) {
@@ -1764,13 +1815,12 @@ function useHeldOut(
   const [showing, setShowing] = useState(false);
   const [failed, setFailed] = useState(false);
   const [, refuse] = useState(0);
-  const regionsOf = (full: string): EditorRegion[] =>
-    failed
-      ? []
-      : editorRegions(enabledExtensions(compiledExtensions, settings?.extensions), {
-          text: full,
-          item: { id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision },
-        });
+  const found = (full: string): EditorRegion[] =>
+    editorRegions(enabledExtensions(compiledExtensions, settings?.extensions), {
+      text: full,
+      item: { id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision },
+    });
+  const regionsOf = (full: string): EditorRegion[] => (failed ? [] : found(full));
   const regions = regionsOf(text);
   const parts = split(text, regions);
   const hiding = regions.length > 0 && !showing;
@@ -1801,6 +1851,26 @@ function useHeldOut(
     setShowing(hiding);
     requestAnimationFrame(() => input.current?.setSelectionRange(caret, caret));
   };
+  // For an editor bar that shows its own control (EditorBarContext.regions). Hiding also
+  // leaves the fail-safe: the regions are found afresh in the text as it now stands.
+  const all = found(text);
+  const control = all.length
+    ? {
+        labels: [...new Set(all.flatMap((region) => region.label.split(', ')))],
+        hidden: hiding,
+        show: () => {
+          if (hiding) toggle();
+        },
+        hide: () => {
+          if (hiding) return;
+          const el = input.current;
+          const caret = el ? toShown(el.selectionStart, text, all) : 0;
+          setFailed(false);
+          setShowing(false);
+          requestAnimationFrame(() => input.current?.setSelectionRange(caret, caret));
+        },
+      }
+    : undefined;
   const labels = [...new Set(parts.held.flatMap((region) => region.label.split(', ')))].join(', ');
   const notice = regions.length ? (
     <span className="held-out" data-held-out={hiding ? 'hidden' : 'shown'}>
@@ -1810,7 +1880,7 @@ function useHeldOut(
       </button>
     </span>
   ) : null;
-  return { box: hiding ? parts.shown : text, change, notice };
+  return { box: hiding ? parts.shown : text, change, notice, control };
 }
 
 /** How near the top of the window the pointer brings the focus view's controls back. */
@@ -2200,6 +2270,15 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
       return done.result;
     });
   const focus = useFocusView(input, held.box, pane, setPane);
+  const bars = useBars({
+    input,
+    text,
+    shown: held.box,
+    change: held.change,
+    item: { id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision },
+    regions: held.control,
+    run: action.run,
+  });
   const isThread = item.kind === 'thread';
   const isPublic = item.status === 'public';
   // Attachments the live version lists that the working copy no longer has.
@@ -2546,6 +2625,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             </Tooltip>
           ))}
         </ToolRow>
+        {bars.above}
         <div className="editor-pane">
           <div className="ta-wrap">
             <textarea
@@ -2573,10 +2653,11 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             {!replacing ? <HandlePicker input={input} text={held.box} change={held.change} /> : null}
             {tools.coach}
           </div>
+          {bars.below}
           <div className="row ed-foot">
             <CharCount fragment={!isThread} length={length} />
             <DraftCounter text={visible} item={{ id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision }} run={action.run} />
-            {held.notice}
+            {bars.ownsToggle && !focus.active ? null : held.notice}
             <span className="spacer" />
             {isPublic ? (
               <a href={publicPath(shareable)} target="_blank" rel="noreferrer">

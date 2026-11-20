@@ -17,11 +17,11 @@
  * enabled list.
  */
 import type { ErrorInfo, ReactNode } from 'react';
-import { Component } from 'react';
+import { Component, useState } from 'react';
 import type { EditorRegion } from './editor-regions.ts';
-import type { DraftCounterContext, EditorRegionsContext, EntryAction, EntryContext, MenuZone, StudioContext, StudioExtension } from './extension-api.ts';
+import type { BarPlace, BarRow, DraftCounterContext, EditorBarContext, EditorRegionsContext, EntryAction, EntryContext, MenuZone, StudioContext, StudioExtension } from './extension-api.ts';
 import { errorLog } from './error-log.ts';
-import type { MenuRow } from './sheets.tsx';
+import { Sheet, type MenuRow } from './sheets.tsx';
 
 /** The compiled-in extensions this node has enabled, in compiled order. */
 export function enabledExtensions(compiled: readonly StudioExtension[], enabled: readonly string[] | undefined) {
@@ -195,4 +195,152 @@ export function EntrySheetSlot({ sheet, close }: { sheet: OpenSheet | null; clos
 // A component, so a render() that throws is caught by the boundary above it.
 function SheetBody({ sheet, close }: { sheet: OpenSheet; close: () => void }) {
   return <>{sheet.render(close)}</>;
+}
+
+/* ---------------- EDITOR BARS ---------------- */
+
+/** How many blocks each editor bar row holds. A block is about one labelled button. */
+export const BAR_CAPACITY = { above: 4, below: 4 } as const;
+/** The most blocks one bar may ask for. */
+export const MAX_BAR_BLOCKS = 4;
+
+/** The row a bar asks for. */
+export const askedRow = (extension: StudioExtension): BarRow => extension.editorBar?.row ?? 'above';
+/** The blocks a bar asks for: a whole number from 1 to MAX_BAR_BLOCKS. */
+export const barBlocks = (extension: StudioExtension) =>
+  Math.min(MAX_BAR_BLOCKS, Math.max(1, Math.round(extension.editorBar?.blocks ?? 1) || 1));
+
+/**
+ * Where each enabled editor bar goes. An extension asks; the Studio decides. Each row is
+ * filled first by the bars that asked for it, in compiled order, each taking the blocks it
+ * asked for while they fit. A bar that doesn't fit tries the other row, then goes to the
+ * bars menu. Bars the author hid take no room. Asking for less room is the way to a row.
+ */
+export function barPlacement(extensions: readonly StudioExtension[], hidden: readonly string[] = []) {
+  const bars = extensions.filter((extension) => extension.editorBar);
+  const shown = bars.filter((extension) => !hidden.includes(extension.name));
+  const room: Record<BarRow, number> = { ...BAR_CAPACITY };
+  const place = new Map<string, BarPlace>();
+  const fit = (extension: StudioExtension, row: BarRow) => {
+    if (barBlocks(extension) > room[row]) return false;
+    room[row] -= barBlocks(extension);
+    place.set(extension.name, row);
+    return true;
+  };
+  const left = shown.filter((extension) => !fit(extension, askedRow(extension)));
+  for (const extension of left) if (!fit(extension, askedRow(extension) === 'above' ? 'below' : 'above')) place.set(extension.name, 'menu');
+  const at = (where: BarPlace) => shown.filter((extension) => place.get(extension.name) === where);
+  return {
+    bars,
+    above: at('above'),
+    below: at('below'),
+    menu: at('menu'),
+    /** Where a bar is; undefined for one the author hid. */
+    placeOf: (extension: StudioExtension) => place.get(extension.name),
+  };
+}
+
+const HIDDEN_BARS_KEY = 'blyg.editorBars.hidden';
+/** The bars the author hid, remembered on this device. */
+function useHiddenBars() {
+  const [hidden, setHidden] = useState<string[]>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(HIDDEN_BARS_KEY) ?? '[]');
+      return Array.isArray(stored) ? stored.filter((name) => typeof name === 'string') : [];
+    } catch {
+      return [];
+    }
+  });
+  const toggle = (name: string) =>
+    setHidden((now) => {
+      const next = now.includes(name) ? now.filter((other) => other !== name) : [...now, name];
+      try {
+        localStorage.setItem(HIDDEN_BARS_KEY, JSON.stringify(next));
+      } catch {
+        // Not remembered, still applied.
+      }
+      return next;
+    });
+  return { hidden, toggle };
+}
+
+/** A screen's side of a bar's context: everything but what the Studio works out per bar. */
+export type BarHostContext = Omit<HostContext<EditorBarContext>, 'bar' | 'openSheet'>;
+
+/**
+ * The editor bars of one screen: the two rows and the bars menu. `above` and `below` are
+ * rendered where the screen puts them; the menu button ends the row above. `ownsToggle`
+ * says a bar on screen shows the regions control, so the screen leaves its notice out.
+ * Off is invisible: with no bar enabled, both rows are null.
+ */
+export function useEditorBars(extensions: readonly StudioExtension[], host: BarHostContext) {
+  const { hidden, toggle } = useHiddenBars();
+  const [sheet, setSheet] = useState<OpenSheet | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [opened, setOpened] = useState<string | null>(null);
+  const placement = barPlacement(extensions, hidden);
+  if (!placement.bars.length) return { above: null, below: null, ownsToggle: false };
+  const close = () => setSheet(null);
+  const contextFor = (extension: StudioExtension, place: BarPlace): EditorBarContext =>
+    extensionContext<EditorBarContext>(extension, 'editorBar', {
+      ...host,
+      openSheet: (render) => setSheet({ name: extension.name, render }),
+      bar: { asked: askedRow(extension), place, blocks: place === 'menu' ? MAX_BAR_BLOCKS : barBlocks(extension) },
+    } as HostContext<EditorBarContext>);
+  const bar = (extension: StudioExtension, place: BarPlace) => {
+    const Bar = extension.editorBar!.component;
+    return (
+      <ExtensionBoundary key={extension.name} name={extension.name} slot="editorBar">
+        <div className="ext-bar" data-extension={extension.name} data-blocks={place === 'menu' ? undefined : barBlocks(extension)}>
+          <Bar context={contextFor(extension, place)} />
+        </div>
+      </ExtensionBoundary>
+    );
+  };
+  const openedBar = placement.menu.find((extension) => extension.name === opened);
+  const menuButton = (
+    <button type="button" className="act icon-only tool ext-bars-menu" aria-label="editor bars" title="Editor bars: show, hide, or open one that has no room" onClick={() => setMenuOpen(true)}>
+      ⋯
+    </button>
+  );
+  const above = (
+    <div className="ext-bars ext-bars-above" data-row="above">
+      {placement.above.map((extension) => bar(extension, 'above'))}
+      <span className="spacer" />
+      {menuButton}
+      <Sheet open={menuOpen} onClose={() => setMenuOpen(false)} title="editor bars" description="Bars that extensions add to the editor. Hiding one is remembered on this device.">
+        <ul className="ext-bars-list">
+          {placement.bars.map((extension) => {
+            const where = placement.placeOf(extension);
+            return (
+              <li key={extension.name} data-extension={extension.name}>
+                <label>
+                  <input type="checkbox" checked={!hidden.includes(extension.name)} onChange={() => toggle(extension.name)} /> {extension.editorBar!.label}
+                </label>
+                <span className="hint">{where === 'menu' ? 'no room in the rows' : where ? `${where} the text` : 'hidden'}</span>
+                {where === 'menu' ? (
+                  <button type="button" className="link-btn" onClick={() => { setMenuOpen(false); setOpened(extension.name); }}>
+                    open
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      </Sheet>
+      {openedBar ? (
+        <Sheet open onClose={() => setOpened(null)} title={openedBar.editorBar!.label}>
+          {bar(openedBar, 'menu')}
+        </Sheet>
+      ) : null}
+      <EntrySheetSlot sheet={sheet} close={close} />
+    </div>
+  );
+  const below = placement.below.length ? (
+    <div className="ext-bars ext-bars-below" data-row="below">
+      {placement.below.map((extension) => bar(extension, 'below'))}
+    </div>
+  ) : null;
+  const ownsToggle = [...placement.above, ...placement.below].some((extension) => extension.editorBar!.ownsRegionToggle);
+  return { above, below, ownsToggle };
 }
