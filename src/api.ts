@@ -70,6 +70,7 @@ import { platformFetchFor } from "./importer/http.ts";
 import { importedSubject, ownChangelog, ownSubject, summarizeChangelog, type ChangelogEntry } from "./changelog-summary.ts";
 import { catchUp } from "./helpers/catch-up.ts";
 import { summarizeCatchUp, summarySubject } from "./helpers/catch-up-summary.ts";
+import { INSTRUCTION_MAX_CHARS } from "./background-model.ts";
 import { blygSubscription } from "./read-api.ts";
 import { fetchImportedHistory } from "./imported-history.ts";
 import { reconcileIndex } from "./importer/poll.ts";
@@ -784,6 +785,7 @@ const SETTINGS_KEYS = [
   "ai_model_feed",
   "ai_model_helpers",
   "ai_model_classify",
+  "bg_instruction",
   "feed_prompt",
   "ai_style_prompt",
   "changelog_display",
@@ -826,6 +828,7 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
     if (typeof patch[key] === "string" && !(CHANGELOG_DISPLAYS as readonly string[]).includes(patch[key])) return failure('invalid-input', { error: `${field} must be latest, history or summary` });
   }
   if (typeof patch.agentic_title === "string" && patch.agentic_title.trim().length > 40) return failure('invalid-input', { error: "agenticTitle is at most 40 characters" });
+  if (typeof patch.bg_instruction === "string" && patch.bg_instruction.trim().length > INSTRUCTION_MAX_CHARS) return failure('invalid-input', { error: `bgInstruction is at most ${INSTRUCTION_MAX_CHARS} characters` });
   if (typeof patch.reader_order === "string" && !(READER_ORDERS as readonly string[]).includes(patch.reader_order)) return failure('invalid-input', { error: `readerOrder must be ${READER_ORDERS.join(" or ")}` });
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return failure('invalid-input', { error: `unknown timezone: ${patch.timezone}` });
   if (patch.author_url && !(URL.canParse(patch.author_url) && ["http:", "https:"].includes(new URL(patch.author_url).protocol))) return failure('invalid-input', { error: "authorUrl must be an absolute http(s) URL" });

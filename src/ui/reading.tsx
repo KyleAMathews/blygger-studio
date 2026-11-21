@@ -683,24 +683,37 @@ function backgroundLabel(entry: Reading): string | null {
   if (reasons[0] === 'near-same') return 'small edit';
   if (reasons[0] === 'minor') {
     // Own items carry the category at the top (4a); imported ones under `classify` (4b).
-    const category = detail?.category ?? (detail?.classify as { category?: unknown } | undefined)?.category;
-    return typeof category === 'string' ? `minor change (${category})` : 'minor change';
+    const classify = detail?.classify as { category?: unknown; instructed?: unknown } | undefined;
+    const category = detail?.category ?? classify?.category;
+    const by = classify?.instructed ? ', by your instruction' : '';
+    return typeof category === 'string' ? `minor change (${category}${by})` : 'minor change';
   }
   if (reasons[0] === 'superseded') return 'followed within 15 min';
   return null;
+}
+
+/**
+ * A note that claims a small change against a large measured one (Background
+ * 4b under the owner's routing instruction, #96): shown in every lens, since
+ * the entry stays in view because of it.
+ */
+function disagreementLabel(entry: Reading): string | null {
+  const d = (entry.background.detail?.classify as { disagree?: { note?: unknown; changed?: unknown } } | undefined)?.disagree;
+  return d && typeof d.note === 'string' && typeof d.changed === 'number' ? `note says ${d.note} · ${d.changed}% changed` : null;
 }
 
 /** The byline: kind, legacy rss, source and date, plus the extensions' slot. */
 function Byline({ entry, a, children }: { entry: Reading; a: EntryActions; children?: ReactNode }) {
   const settings = useSettings();
   const date = formatDateIn(entry.displayAt, settings?.timezone || 'UTC');
-  const why = useContext(LensContext) === 'background' ? backgroundLabel(entry) : null;
+  const inBackground = useContext(LensContext) === 'background';
+  const why = inBackground ? backgroundLabel(entry) : disagreementLabel(entry);
   return (
     <p className="byline">
       {children}
       <span className="badge">{entry.kind}</span>
       {entry.l0 ? <span className="badge badge-line">legacy rss</span> : null}
-      {why ? <span className="badge badge-line badge-why" title="why this is in Background">{why}</span> : null}
+      {why ? <span className="badge badge-line badge-why" title={inBackground ? 'why this is in Background' : 'kept in view: the note claims a smaller change than was made'}>{why}</span> : null}
       <span className="src">{a.imported?.subscriptionTitle || 'you'}</span>
       <span>· {date}</span>
       <EntryBylineSlot extensions={a.extensions} context={a.extensionContext} />

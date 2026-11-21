@@ -25,13 +25,14 @@ beforeEach(async () => {
   await db().prepare("DELETE FROM security_budgets").run();
   await db().prepare("DELETE FROM imported_change_queue").run();
 });
-afterEach(() => putSettings(db(), { bg_model_imported: "off", ai_model_classify: "" }));
+afterEach(() => putSettings(db(), { bg_model_imported: "off", ai_model_classify: "", bg_instruction: "" }));
 
-function fakeAi(choice: string) {
+function fakeAi(choice: string, note?: string) {
   const calls: { model: string; input: any }[] = [];
+  const answer = (c: string) => ({ type: "choice", choice: c, probabilities: { [c]: 0.9 }, confidence: 0.9 });
   const ai = { run: async (model: string, input: unknown) => {
     calls.push({ model, input });
-    return { model: "clef-flash", answers: { change: { type: "choice", choice, probabilities: { [choice]: 0.9 }, confidence: 0.9 } } };
+    return { model: "clef-flash", answers: { change: answer(choice), ...(note ? { note: answer(note) } : {}) } };
   } } as unknown as Ai;
   return { ai, calls };
 }
@@ -85,6 +86,7 @@ describe("Background 4b: the classifier on imported changes", () => {
     expect(sent).toContain("Stigmergy is coordination through traces.");
     expect(sent).toContain("as termites build");
     expect(sent).not.toContain("only a typo");
+    expect(Object.keys(minor.calls[0]!.input.questions)).toEqual(["change"]);
     const major = fakeAi("major");
     expect(await drainImportedChanges(withAi(major.ai))).toBe(1);
     expect(await queued()).toEqual([]);
@@ -123,6 +125,50 @@ describe("Background 4b: the classifier on imported changes", () => {
     expect(calls).toHaveLength(0);
     expect(await entry(cookie, sub, id, true)).toBeUndefined();
     expect((await entry(cookie, sub, id, false))!.background.detail?.classify).toMatchObject({ error: "over the daily AI budget" });
+  });
+
+  it("under a routing instruction, reads the note: a small claim against a large change stays in view, marked", async () => {
+    const cookie = await login();
+    await putSettings(db(), { bg_model_imported: "on", ai_model_classify: CLEF, bg_instruction: "Trust notes that say typo." });
+    const sub = await subscription();
+    const id = newId();
+    await arrive(sub, id, 1, V1);
+    await arrive(sub, id, 2, `${V2} A whole new argument follows here.`, "Just a typo.");
+    const { ai, calls } = fakeAi("minor", "typo");
+    expect(await drainImportedChanges(withAi(ai))).toBe(1);
+    const sent = JSON.stringify(calls[0]!.input);
+    expect(sent).toContain("Just a typo.");
+    expect(sent).toContain("Trust notes that say typo.");
+    expect(Object.keys(calls[0]!.input.questions)).toEqual(["change", "note"]);
+    expect(await entry(cookie, sub, id, true)).toBeUndefined();
+    const shown = (await entry(cookie, sub, id, false))!;
+    expect(shown.background.reasons).not.toContain("minor");
+    expect(shown.background.detail?.classify).toMatchObject({ category: "minor", instructed: true, disagree: { note: "typo" } });
+    expect(shown.background.detail?.classify.disagree.changed).toBeGreaterThan(10);
+  });
+
+  it("under a routing instruction, an agreeing small change goes to Background, marked as yours", async () => {
+    const cookie = await login();
+    await putSettings(db(), { bg_model_imported: "on", ai_model_classify: CLEF, bg_instruction: "Trust notes that say typo." });
+    const sub = await subscription();
+    const id = newId();
+    await arrive(sub, id, 1, LONG);
+    // About 5 %: past near-same's 2 %, inside the 10 % a note's claim is allowed.
+    await arrive(sub, id, 2, LONG.replace("the whole of the idea here", "all there is to this idea, really, truly"), "Typo fix.");
+    expect(await queued()).toHaveLength(1);
+    const { ai } = fakeAi("typo", "typo");
+    expect(await drainImportedChanges(withAi(ai))).toBe(1);
+    const back = (await entry(cookie, sub, id, true))!;
+    expect(back.background.reasons).toContain("minor");
+    expect(back.background.detail?.classify).toMatchObject({ category: "typo", instructed: true });
+    expect(back.background.detail?.classify.disagree).toBeUndefined();
+  });
+
+  it("keeps the instruction through Settings, at most 500 characters", async () => {
+    const cookie = await login();
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { bgInstruction: "x".repeat(501) })).status).toBe(400);
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { bgInstruction: "Trust typo notes.", bgModelImported: true })).status).toBe(200);
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json).toMatchObject({ bgInstruction: "Trust typo notes.", bgModelImported: true });
   });
 
   it("turned off, the queue is emptied without a call", async () => {

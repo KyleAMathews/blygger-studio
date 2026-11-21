@@ -574,6 +574,8 @@ export interface Settings {
   hopper_feeds: boolean;
   /** Background 4b: judge other blygs' new versions with the change classifier (off by default). */
   bg_model_imported: boolean;
+  /** Background 4b: the owner's routing instruction; non-empty sends the note too (#96 (a)). Empty by default. */
+  bg_instruction: string;
   /** The setup wizard's state: `pending` (fresh install), `notice` (existing node, told once), `done`. */
   setup: "pending" | "notice" | "done";
   /** Where to ask. Configurable so a fork checks its own releases, not ours. */

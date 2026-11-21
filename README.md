@@ -12,7 +12,7 @@ transcludes and responds across them.
 > implementations. Blygger uses static files and RSS. You can write your own
 > client if this client's choices do not suit you. Several people already do.
 
-**Want to change something?** Start with [where does my change belong?](docs/where-does-it-go.md):
+**Want to change something?** Start with [where does my change belong? (TN-8)](https://blygger.org/notes/tn-8/):
 a spec question, a pull request here, a tool, an extension, a mod or a local patch,
 with a test for each and a first hour on a local node. See also [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -395,7 +395,7 @@ The archive does not include `npm run upgrade`. Use these steps for each release
 For the0.49.8 revision cutover, finish pending writes, including generation,
 before invoking the updater. Avoid edits until deployment finishes.
 
-Commit local changes first, including your deployment config, then run. Keep each local patch as its own `local:` commit, not a stash (see [where does my change belong?](docs/where-does-it-go.md#local-patches)):
+Commit local changes first, including your deployment config, then run. Keep each local patch as its own `local:` commit, not a stash (see [where does my change belong?](https://blygger.org/notes/tn-8/#local-patches)):
 
 ```sh
 npm run upgrade

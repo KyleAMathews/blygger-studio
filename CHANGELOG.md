@@ -39,8 +39,11 @@ may now use router links (the sheet host has the router's context).
 → *judge other blygs' changes too*, and only with a change classifier chosen in Settings →
 AI. A new version the measured rules leave open is judged on the quarter-hour poll, ten at a
 time, under the daily AI budget; *typo* or *minor* sends it to Background as a minor change,
-*major* leaves it. Only the two texts are sent, never the author's note. Over the budget the
-measured rules decide. The `minor` rule now covers your own and other blygs' minor changes.
+*major* leaves it. Only the two texts are sent. Over the budget the
+measured rules decide. The `minor` rule now covers your own and other blygs' minor changes. With
+an optional **instruction** written beneath the toggle, the classifier also reads each version's
+changelog note, and an entry whose note calls a large change minor stays in view with a chip
+("note says minor · 35% changed"). With no instruction, notes are never sent.
 
 **Migrations:** 0052 (`agentic_feeds`), 0053 (`helper_results`), 0054
 (`imported_change_queue`). 0050 stays reserved for #146. Contract and SDK: bumped at release.

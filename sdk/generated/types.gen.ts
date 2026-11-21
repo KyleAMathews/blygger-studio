@@ -248,6 +248,10 @@ export type Settings = {
      */
     linksBlyggerCom: boolean;
     /**
+     * Empty by default. The owner's routing instruction for judging other blygs' changes (decision #96): while set, the classifier also reads each version's changelog note with it, and an entry whose note claims a small change against a large measured one stays in view with a chip saying so. With it empty, notes are never sent.
+     */
+    bgInstruction: string;
+    /**
      * Off by default: other blygs' new versions are judged by the change classifier (aiModelClassify), one decision-model call each under the AI budget, and a typo or minor label sends the entry to Background with the minor rule. Versions the measured rules settle are not sent; the changelog note never is. Studio-private and reader-only.
      */
     bgModelImported: boolean;
@@ -3110,6 +3114,10 @@ export type UpdateSettingsData = {
          * Link blygger.com, the directory of blygs, in the links section.
          */
         linksBlyggerCom?: boolean;
+        /**
+         * Empty by default. The owner's routing instruction for judging other blygs' changes (decision #96): while set, the classifier also reads each version's changelog note with it, and an entry whose note claims a small change against a large measured one stays in view with a chip saying so. With it empty, notes are never sent.
+         */
+        bgInstruction?: string;
         /**
          * Off by default: other blygs' new versions are judged by the change classifier (aiModelClassify), one decision-model call each under the AI budget, and a typo or minor label sends the entry to Background with the minor rule. Versions the measured rules settle are not sent; the changelog note never is. Studio-private and reader-only.
          */

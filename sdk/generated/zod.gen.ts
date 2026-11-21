@@ -232,6 +232,7 @@ export const zSettings = z.object({
     linksOpml: z.boolean(),
     linksBlyggerOrg: z.boolean(),
     linksBlyggerCom: z.boolean(),
+    bgInstruction: z.string(),
     bgModelImported: z.boolean(),
     hopperFeeds: z.boolean(),
     setup: z.enum([
@@ -1450,6 +1451,7 @@ export const zUpdateSettingsBody = z.object({
     linksOpml: z.boolean().optional(),
     linksBlyggerOrg: z.boolean().optional(),
     linksBlyggerCom: z.boolean().optional(),
+    bgInstruction: z.string().optional(),
     bgModelImported: z.boolean().optional(),
     hopperFeeds: z.boolean().optional(),
     setup: z.enum([

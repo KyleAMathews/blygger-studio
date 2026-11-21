@@ -11,6 +11,9 @@ CREATE TABLE imported_change_queue (
   prior_version INTEGER NOT NULL,
   prior_md TEXT NOT NULL,
   next_md TEXT NOT NULL,
+  -- The new version's changelog note, if any. Sent to the model only while the
+  -- owner has written a routing instruction (#96, option (a), session 78).
+  note TEXT,
   queued_at TEXT NOT NULL,
   PRIMARY KEY (subscription_id, remote_id)
 );

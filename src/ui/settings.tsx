@@ -70,6 +70,7 @@ const fields = [
   "readerOrder",
   "backgroundRules",
   "bgModelImported",
+  "bgInstruction",
   "changelogSummaryPrompt",
   "acceptMentions",
   "updateCheck",
@@ -156,6 +157,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
       | "feedPrompt"
       | "agenticTitle"
       | "changelogSummaryPrompt"
+      | "bgInstruction"
       | "updateFeedUrl",
     label: string,
     multiline = false,
@@ -561,11 +563,19 @@ function SettingsForm({ initial }: { initial: Settings }) {
             Judge other blygs&rsquo; changes too
             <span className="hint">
               {form.aiModelClassify?.trim()
-                ? 'one classifier call per new version the rules above leave open, ten every quarter hour, under your daily AI budget; over it, the rules above decide. Only the two texts are sent, never the author’s note.'
+                ? 'one classifier call per new version the rules above leave open, ten every quarter hour, under your daily AI budget; over it, the rules above decide. Only the two texts are sent, unless you write an instruction below.'
                 : 'choose a change classifier model in Settings → AI first'}
             </span>
           </span>
         </label>
+        {form.bgModelImported && form.aiModelClassify?.trim()
+          ? field(
+              "bgInstruction",
+              'Your instruction (optional). While written, each version’s note is read too, and a note calling a big change minor keeps the entry in view, marked.',
+              true,
+              'e.g. Treat a note that says it fixes typos as a typo, unless whole sentences changed.',
+            )
+          : null}
       </section>
       </section>
       <section className="settings-section" id="appearance" aria-labelledby="appearance-h">

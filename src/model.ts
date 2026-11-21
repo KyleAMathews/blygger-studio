@@ -187,6 +187,7 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     // Off by default (spec 0.4 §13.5, decision #86): publishing hopper feeds is opt-in.
     hopper_feeds: map.hopper_feeds === "on",
     bg_model_imported: map.bg_model_imported === "on",
+    bg_instruction: map.bg_instruction ?? "",
     update_check: map.update_check !== "off",
     update_feed_url: map.update_feed_url ?? "",
     /** Cleared until the operator has seen the "alerts are on" notice once. */
