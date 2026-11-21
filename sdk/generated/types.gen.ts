@@ -803,6 +803,21 @@ export type LineageGlyphSummary = {
     };
 };
 
+export type SpellcheckIssue = {
+    /**
+     * Text from the draft, exactly, holding the error and a little context.
+     */
+    find: string;
+    /**
+     * The same text, corrected.
+     */
+    replace: string;
+    /**
+     * A few words on what is wrong.
+     */
+    why: string;
+};
+
 export type WordCount = {
     /**
      * The current published version, and the tree its outline makes; null for an item never published.
@@ -7991,6 +8006,176 @@ export type ExtLineageGlyphListSummariesResponses = {
 };
 
 export type ExtLineageGlyphListSummariesResponse = ExtLineageGlyphListSummariesResponses[keyof ExtLineageGlyphListSummariesResponses];
+
+export type ExtSpellcheckGetWordsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/ext/spellcheck/words';
+};
+
+export type ExtSpellcheckGetWordsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ExtSpellcheckGetWordsError = ExtSpellcheckGetWordsErrors[keyof ExtSpellcheckGetWordsErrors];
+
+export type ExtSpellcheckGetWordsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        lang: 'en-US';
+        words: number;
+        /**
+         * The words, one per line, gzipped and base64-encoded.
+         */
+        gz: string;
+        /**
+         * The word list's copyright notice and terms.
+         */
+        notice: string;
+    };
+};
+
+export type ExtSpellcheckGetWordsResponse = ExtSpellcheckGetWordsResponses[keyof ExtSpellcheckGetWordsResponses];
+
+export type ExtSpellcheckProofreadData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path?: never;
+    query: {
+        id: string;
+    };
+    url: '/ext/spellcheck/proofread';
+};
+
+export type ExtSpellcheckProofreadErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ExtSpellcheckProofreadError = ExtSpellcheckProofreadErrors[keyof ExtSpellcheckProofreadErrors];
+
+export type ExtSpellcheckProofreadResponses = {
+    /**
+     * Success
+     */
+    200: {
+        issues: Array<SpellcheckIssue>;
+        model: string;
+        /**
+         * The draft was longer than one call reads; only its start was proofread.
+         */
+        truncated: boolean;
+    };
+};
+
+export type ExtSpellcheckProofreadResponse = ExtSpellcheckProofreadResponses[keyof ExtSpellcheckProofreadResponses];
 
 export type ExtWordCountListCountsData = {
     body?: never;

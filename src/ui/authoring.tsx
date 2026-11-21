@@ -1741,6 +1741,13 @@ function useBars({ input, text, shown, change, item, regions, run }: {
       replace(start, end, insert);
     },
     replace,
+    select: (start, end) => {
+      const el = input.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(start, end);
+      revealCaret(el);
+    },
     regions,
   });
 }

@@ -19,6 +19,7 @@ Extensions are one of three places a mod can live; [`mods.md`](mods.md) says whi
 | `menu-top-example` | A page that asks for the top of the main menu, and shows where it was placed. The template to copy for a page an owner starts from. |
 | `reading-time` | An estimated reading time and word count at the end of each reading entry's byline. Browser only; shipped in `extensions.json`. |
 | `regions-example` | Holds paragraphs that start with `[held]: #` out of the full editor's text box. The template to copy for keeping generated lines out of the author's way. |
+| `spellcheck` | A “spelling” button in an editor bar (composer and full editor) that opens a sheet: a dictionary check against a US English word list (ESDB size 60, served by its owner read `GET /api/ext/spellcheck/words` and checked in the browser), skipping markup, links, ids, code, math and TK instructions, with suggestions, ignore and a personal dictionary kept on the device; and, in the full editor, an AI proofread of the saved draft through the blyg's TK model (`GET /api/ext/spellcheck/proofread`), each fix applied in place. `make-words.ts` regenerates the list. |
 | `word-count` | Each reading entry's word count at the end of its byline and beside the character count in the composer (counted in the browser) and the full editor (re-read after each autosave), published and in draft (the working copy as publish would bake it now), and for a thread whose outline links (list items that are just an `[[id]]` link, as a table of contents is written) form a strict tree of your own items (published or draft), the words in the whole document under it. Inline links (navigation, citations) are never followed; transclusions are already in a thread's own count. Its server route is an owner read: `GET /api/ext/word-count/counts`. |
 
 ## What an extension can do
@@ -96,8 +97,8 @@ editorBar: { label: 'Book', row: 'above', blocks: 2, ownsRegionToggle: true, com
   show it, remembered on this device, and opens a bar that had no room in a sheet. A hidden bar takes
   no room.
 - **The context:** `text` (the whole text) and `shown` (what the box shows, without held-out regions),
-  `selection()`, `insert(text)` (in place of the selection, caret after) and `replace(start, end,
-  text)`, all in `shown` offsets. Edits go through the same path as the Studio's own tools, so
+  `selection()`, `insert(text)` (in place of the selection, caret after), `replace(start, end,
+  text)` and `select(start, end)`, all in `shown` offsets. Edits go through the same path as the Studio's own tools, so
   held-out regions, autosave and the preview follow them. `item` in the full editor, as for the draft
   counter. `openSheet(render)`, and the usual verbs.
 - **Held-out regions:** in the full editor, while any extension holds text out, `context.regions` has

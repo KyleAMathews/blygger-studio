@@ -728,6 +728,12 @@ export const zLineageGlyphSummary = z.object({
     })
 });
 
+export const zSpellcheckIssue = z.object({
+    find: z.string(),
+    replace: z.string(),
+    why: z.string()
+});
+
 export const zWordCount = z.object({
     published: z.object({
         words: z.int().gte(0),
@@ -2414,6 +2420,37 @@ export const zExtLineageGlyphListSummariesQuery = z.object({
  */
 export const zExtLineageGlyphListSummariesResponse = z.object({
     summaries: z.record(z.string(), zLineageGlyphSummary)
+});
+
+export const zExtSpellcheckGetWordsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+/**
+ * Success
+ */
+export const zExtSpellcheckGetWordsResponse = z.object({
+    lang: z.enum(['en-US']),
+    words: z.int().gt(0),
+    gz: z.string(),
+    notice: z.string()
+});
+
+export const zExtSpellcheckProofreadHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+export const zExtSpellcheckProofreadQuery = z.object({
+    id: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zExtSpellcheckProofreadResponse = z.object({
+    issues: z.array(zSpellcheckIssue),
+    model: z.string(),
+    truncated: z.boolean()
 });
 
 export const zExtWordCountListCountsHeaders = z.object({

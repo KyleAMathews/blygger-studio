@@ -93,6 +93,8 @@ it("exercises every declared operation through its named SDK method, including a
     // Extension routes answer 404 while the extension is disabled, as it is here.
     ["extLineageGlyphGetLineage", 404, async client => api.extLineageGlyphGetLineage({ client, query: { id } })],
     ["extLineageGlyphListSummaries", 404, async client => api.extLineageGlyphListSummaries({ client, query: { keys: JSON.stringify([`own:${id}`]) } })],
+    ["extSpellcheckGetWords", 404, async client => api.extSpellcheckGetWords({ client })],
+    ["extSpellcheckProofread", 404, async client => api.extSpellcheckProofread({ client, query: { id } })],
     ["extWordCountListCounts", 404, async client => api.extWordCountListCounts({ client, query: { keys: JSON.stringify([`own:${id}`]) } })],
     ["listStaleThreads", 200, async client => api.listStaleThreads({ client })],
     ["getItemFreshness", 409, async client => api.getItemFreshness({ client, path: { id }, query: { probe: "false" } })],

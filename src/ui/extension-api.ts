@@ -132,6 +132,8 @@ export interface EditorBarContext extends StudioContext {
   insert(text: string): void;
   /** Replace [start, end) of the shown text with `text`. */
   replace(start: number, end: number, text: string): void;
+  /** Select [start, end) of the shown text in the text box, scrolled into view. */
+  select(start: number, end: number): void;
   /**
    * The held-out regions (`editorRegions`, every extension's together), in the full editor
    * while there are any. `hide` also takes the editor out of its fail-safe, where it was

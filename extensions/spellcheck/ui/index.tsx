@@ -1,0 +1,177 @@
+// Spellcheck (docs/extensions.md): a "spelling" button in an editor bar opens a sheet with two
+// checks. The dictionary check runs in the browser against a US English word list the server
+// sends the first time (spell.ts); the AI proofread sends the saved draft to the blyg's TK model
+// (server.ts). Fixes go into the text box through the editor bar's own edit path.
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import { BlyggerApi, Sheet, toast, unwrap } from '../../../src/ui/extension-api.ts';
+import type { EditorBarContext, StudioExtension } from '../../../src/ui/extension-api.ts';
+import { misspellings, speller, unpack, type Misspelling, type Speller } from './spell.ts';
+import './spellcheck.css';
+
+const NAME = 'spellcheck';
+const DICTIONARY_KEY = 'blyg.spellcheck.dictionary';
+
+/** Words the author added, on this device. */
+function personal(): string[] {
+  try {
+    const stored = JSON.parse(localStorage.getItem(DICTIONARY_KEY) ?? '[]');
+    return Array.isArray(stored) ? stored.filter((w) => typeof w === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+function addPersonal(word: string) {
+  try {
+    localStorage.setItem(DICTIONARY_KEY, JSON.stringify([...new Set([...personal(), word])].sort()));
+  } catch {
+    toast('Added for now; this browser would not remember it');
+  }
+}
+
+// One word list a page, fetched the first time a check runs.
+let loading: Promise<Speller> | null = null;
+function load(context: EditorBarContext) {
+  loading ??= unwrap(BlyggerApi.extSpellcheckGetWords({ client: context.client })).then(async (r) => speller(await unpack((r as { gz: string }).gz), personal()));
+  loading.catch(() => {
+    loading = null;
+  });
+  return loading;
+}
+/** Words ignored until the page reloads. */
+const ignored = new Set<string>();
+
+type Issue = { find: string; replace: string; why: string };
+type Proofread = { issues: Issue[]; model: string; truncated: boolean };
+
+function SpellSheet({ live, close, onCount }: { live: RefObject<EditorBarContext>; close: () => void; onCount: (n: number) => void }) {
+  const context = live.current!;
+  const [check, setCheck] = useState<Speller | null>(null);
+  const [failed, setFailed] = useState<string>();
+  const [, refresh] = useState(0);
+  const [proof, setProof] = useState<Proofread | null>(null);
+  const [proofing, setProofing] = useState(false);
+  const [done, setDone] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    load(context).then(setCheck, (e) => setFailed(e instanceof Error ? e.message : String(e)));
+  }, []);
+  const found = check ? misspellings(context.shown, check, ignored) : [];
+  useEffect(() => onCount(found.length));
+  const groups = new Map<string, Misspelling[]>();
+  for (const m of found) groups.set(m.word, [...(groups.get(m.word) ?? []), m]);
+
+  // Last first, so the offsets of the others still hold.
+  const replaceAll = (word: string, by: string) => {
+    for (const m of [...(groups.get(word) ?? [])].reverse()) live.current!.replace(m.start, m.end, by);
+    refresh((n) => n + 1);
+  };
+  const show = (m: Misspelling) => {
+    close();
+    requestAnimationFrame(() => live.current!.select(m.start, m.end));
+  };
+  const proofread = () => {
+    const id = context.item?.id;
+    if (!id) return;
+    setProofing(true);
+    void context
+      .run(async () => setProof((await unwrap(BlyggerApi.extSpellcheckProofread({ client: context.client, query: { id } }))) as Proofread))
+      .finally(() => setProofing(false));
+  };
+  const apply = (issue: Issue) => {
+    const shown = live.current!.shown;
+    const at = shown.indexOf(issue.find);
+    if (at < 0) {
+      toast('That text is no longer in the draft');
+      return false;
+    }
+    live.current!.replace(at, at + issue.find.length, issue.replace);
+    setDone((now) => new Set(now).add(issue.find));
+    return true;
+  };
+
+  return (
+    <Sheet open onClose={close} title="spelling" description="Checked against a US English word list, skipping markup, links, code and TK instructions.">
+      <div className="spellcheck-sheet" data-extension={NAME}>
+        {failed ? <p className="spellcheck-error">The word list didn't load: {failed}</p> : !check ? <p className="hint">Loading the word list…</p> : !groups.size ? (
+          <p data-spellcheck-clean>No spelling mistakes found.</p>
+        ) : (
+          <ul className="spellcheck-list">
+            {[...groups].map(([word, at]) => (
+              <li key={word} data-word={word}>
+                <button type="button" className="spellcheck-word link-btn" title="Show it in the text" onClick={() => show(at[0])}>
+                  {word}
+                </button>
+                {at.length > 1 ? <span className="hint"> ×{at.length}</span> : null}
+                <span className="spellcheck-suggestions">
+                  {check.suggest(word).map((s) => (
+                    <button key={s} type="button" className="act" data-suggestion={s} onClick={() => replaceAll(word, s)}>
+                      {s}
+                    </button>
+                  ))}
+                </span>
+                <span className="spellcheck-actions">
+                  <button type="button" className="link-btn" onClick={() => { ignored.add(word); refresh((n) => n + 1); }}>ignore</button>
+                  <button type="button" className="link-btn" onClick={() => { check.add(word); addPersonal(word); refresh((n) => n + 1); }}>add to dictionary</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <h3>AI proofread</h3>
+        {!context.item ? (
+          <p className="hint">In the full editor: it reads the saved draft.</p>
+        ) : (
+          <>
+            <p className="hint">Typos, wrong or doubled words and plain grammar, from the blyg's TK model. It reads the saved draft and uses the AI budget.</p>
+            <button type="button" className="act" data-action="spellcheck-proofread" disabled={proofing} onClick={proofread}>
+              {proofing ? 'Proofreading…' : proof ? 'Proofread again' : 'Proofread with AI'}
+            </button>
+            {proof ? (
+              proof.issues.length ? (
+                <>
+                  <ul className="spellcheck-list">
+                    {proof.issues.map((issue) => (
+                      <li key={issue.find} data-issue={issue.find} data-applied={done.has(issue.find) || undefined}>
+                        <span className="spellcheck-find">{issue.find}</span> → <span className="spellcheck-replace">{issue.replace}</span>
+                        {issue.why ? <span className="hint"> · {issue.why}</span> : null}
+                        {done.has(issue.find) ? <span className="hint"> · fixed</span> : (
+                          <button type="button" className="act" onClick={() => apply(issue)}>fix</button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  <button type="button" className="link-btn" onClick={() => { for (const issue of proof.issues) if (!done.has(issue.find)) apply(issue); }}>fix all</button>
+                </>
+              ) : (
+                <p data-spellcheck-proof-clean>Nothing to fix{proof.truncated ? ' in the part it read' : ''}.</p>
+              )
+            ) : null}
+            {proof?.truncated ? <p className="hint">The draft is long: only its start was read.</p> : null}
+          </>
+        )}
+      </div>
+    </Sheet>
+  );
+}
+
+function SpellBar({ context }: { context: EditorBarContext }) {
+  const live = useRef(context);
+  live.current = context;
+  const [count, setCount] = useState<number | null>(null);
+  return (
+    <button
+      type="button"
+      className="act spellcheck-open"
+      data-action="spellcheck"
+      onClick={() => context.openSheet((close) => <SpellSheet live={live} close={close} onCount={setCount} />)}
+    >
+      spelling{count ? ` · ${count}` : ''}
+    </button>
+  );
+}
+
+export const extension: StudioExtension = {
+  name: NAME,
+  label: 'Spellcheck',
+  description: 'A “spelling” button in the editor: a US English dictionary check with suggestions, and an AI proofread of the draft.',
+  editorBar: { label: 'Spelling', row: 'above', blocks: 1, component: SpellBar },
+};
