@@ -23,7 +23,6 @@ it("exercises every declared operation through its named SDK method, including a
   const id = draft.id, member = { id: hopper.id, sub: sub.id, remoteId: "remote" }, signal = { sub: sub.id, remoteId: "remote" };
   const cases: Case[] = [
     ['getCapabilities', 200, async client => api.getCapabilities({ client })],
-    ['getChanges', 200, async client => api.getChanges({ client })],
     ['batchRead', 200, async client => api.batchRead({ client, body: { operation: 'getItem', requests: [{ path: { id } }] } })],
     ["createItem", 201, async client => api.createItem({ client, body: { mode: "response", source: { subscriptionId: sub.id, remoteId: "remote" } } })],
     ["updateItem", 200, async client => api.updateItem({ client, path: { id }, body: { ...({ contentMd: "matrix changed", responses: "hide" }), expectedRevision: await testItemRevision(id) } })],

@@ -735,7 +735,6 @@
         "polling-cache-imported-dependencies",
         "polling-cache-mention-effects",
         "polling-cache-timed-read",
-        "polling-cache-legacy-response",
         "polling-cache-state-readers",
         "polling-cache-feed-publication",
         "polling-cache-restore-epoch",

@@ -17,11 +17,6 @@
  * For every opted-in client, Fetch defaults retain the ordinary SDK lifetime.
  * A passthrough request retains generated fields/data/throw and optional unwrap
  * error modes, including a custom fetch that returns HTTP despite cancellation.
- * Decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-19: getChanges stays
- * available with its original raw contract for Studio0.65 and0.66; removal is
- * Studio0.67/API6. Deprecation does not enroll it in resource validation.
- * BlyggerApi.getChanges({ client }) returns each current no-store change state;
- * controlled raw304/error responses retain their status and generated fields.
  *
  * These are public generated-method receiving drivers, rather than direct
  * conditionalReadFetch calls. The models use only caller choices. Controlled
@@ -40,90 +35,6 @@ const abortHistories = fc.record({
   mode: fc.constantFrom(...modes),
   condition: fc.constantFrom('aborted', 'active', 'network', 'setup'),
   value: fc.integer({ min: 0, max: 10000 }),
-});
-
-// The legacy operation remains a raw generated GET while resource polling can
-// opt into validation. Inspect namespace availability as data: a removed export
-// is a contract failure at this boundary, never a module-import/setup failure.
-const legacyDomains = ['items', 'reading', 'subscriptions', 'hoppers', 'signals', 'settings', 'feed', 'mentions', 'responses', 'interactions', 'browse', 'shelf'] as const;
-const legacyHistories = fc.record({
-  conditionalReads: fc.boolean(), mounted: fc.boolean(), epoch: fc.string({ unit: 'binary', maxLength: 24 }),
-  domains: fc.record({ items: fc.nat(10000), reading: fc.nat(10000), subscriptions: fc.nat(10000), hoppers: fc.nat(10000), signals: fc.nat(10000), settings: fc.nat(10000), feed: fc.nat(10000), mentions: fc.nat(10000), responses: fc.nat(10000), interactions: fc.nat(10000), browse: fc.nat(10000), shelf: fc.nat(10000) }),
-  changed: fc.constantFrom(...legacyDomains),
-});
-type LegacyHistory = typeof legacyHistories extends fc.Arbitrary<infer History> ? History : never;
-const legacyState = (plan: LegacyHistory, changed: boolean) => ({ epoch: plan.epoch, domains: { ...plan.domains, [plan.changed]: plan.domains[plan.changed] + Number(changed) } });
-const legacyBase = (plan: LegacyHistory) => `https://sdk-oracle.test${plan.mounted ? '/blyg' : ''}/api`;
-const legacyError = { code: 'forbidden', message: 'Controlled legacy denial' };
-const legacyValidator = 'W/"opaque-legacy-caller"';
-const legacyLaw = 'retained raw changes SDK';
-type LegacyOperation = (options: { client: ReturnType<typeof createBlyggerClient>; headers?: Record<string, string> }) => Promise<{ data?: unknown; error?: unknown; response?: Response }>;
-
-oracleProperty({
-  id: 'sdk-legacy-changes-window', owns: ['sdk/index.ts#createBlyggerClient', 'sdk/index.ts#unwrap', 'sdk/generated/sdk.gen.ts#getChanges'],
-  law: {
-    statement: 'For every ordinary or opted-in public SDK client during Studio0.65 and0.66, getChanges remains callable as the original GET /changes and preserves successive no-store ChangeState bodies and raw HTTP status/error fields without automatic validators or304 materialization.',
-    authority: 'Decision by Kyle Mathews (GitHub KyleAMathews),2026-11-19: retain /changes and generated getChanges unchanged for two releases, deprecated now, remove in Studio0.67/API6. Original generated operation and ChangeState declarations at1290176^; sdk/README.md raw generated result and conditional opt-in contract.',
-    limits: 'Controlled SDK transport, both mounted/unmounted API bases, fields result mode, valid12-domain states, raw304 and403 peers. The Worker receiving owner establishes server auth/no-store behavior; no claim that the legacy server emits304. Declaration/deprecation metadata is checked separately.',
-  },
-  histories: {
-    arbitrary: legacyHistories, runs: 25, fixedSeeds: [20261119],
-    states: ['legacy-ordinary', 'legacy-opt-in', 'legacy-mounted', 'legacy-root', 'legacy-fresh-state', 'legacy-raw304', 'legacy-explicit304', 'legacy-raw-error'],
-    constructed: [
-      { name: 'ordinary-mounted', enters: ['legacy-ordinary', 'legacy-mounted', 'legacy-fresh-state', 'legacy-raw304', 'legacy-explicit304', 'legacy-raw-error'], build: generated => ({ ...generated, conditionalReads: false, mounted: true }) },
-      { name: 'opt-in-root', enters: ['legacy-opt-in', 'legacy-root', 'legacy-fresh-state', 'legacy-raw304', 'legacy-explicit304', 'legacy-raw-error'], build: generated => ({ ...generated, conditionalReads: true, mounted: false }) },
-    ],
-  },
-  // Complete bodies come from independently generated input counters; advancing
-  // one selected domain distinguishes a fresh second response from a retained
-  // first body. Raw statuses are transport inputs, not a server304 promise.
-  model: plan => [
-    { checkpoint: 'legacy-availability', value: { callable: true } },
-    ...Array.from({ length: 5 }, (_, index) => ({ checkpoint: 'legacy-read', value: {
-      calls: index + 1,
-      request: { url: legacyBase(plan) + '/changes', method: 'GET', emptyBody: true, validator: index === 3 ? legacyValidator : null },
-      status: index < 2 ? 200 : index < 4 ? 304 : 403,
-      cacheControl: 'no-store', data: index < 2 ? legacyState(plan, index === 1) : undefined,
-      error: index === 4 ? legacyError : index >= 2 ? {} : undefined,
-    } })),
-  ],
-  driver: async (plan, observe) => {
-    const operation = (BlyggerApi as Record<string, unknown>).getChanges;
-    observe('legacy-availability', { callable: typeof operation === 'function' });
-    if (typeof operation !== 'function') return;
-    const requests: { url: string; method: string; emptyBody: boolean; validator: string | null }[] = [];
-    const client = createBlyggerClient({ baseUrl: legacyBase(plan), conditionalReads: plan.conditionalReads,
-      fetch: async (input, init) => {
-        const request = new Request(input, init), index = requests.length;
-        requests.push({ url: request.url, method: request.method, emptyBody: request.body === null, validator: request.headers.get('if-none-match') });
-        const headers = { 'Cache-Control': 'no-store' };
-        if (index < 2) return Response.json(legacyState(plan, index === 1), { headers });
-        if (index < 4) return new Response(null, { status: 304, headers });
-        return Response.json(legacyError, { status: 403, headers });
-      },
-    });
-    for (let index = 0; index < 5; index++) {
-      let result;
-      try { result = await (operation as LegacyOperation)({ client, ...(index === 3 ? { headers: { 'If-None-Match': legacyValidator } } : {}) }); }
-      catch (error) { observe('legacy-read', { productionError: error instanceof Error ? { name: error.name, message: error.message } : error, calls: requests.length }); continue; }
-      observe('legacy-read', { calls: requests.length, request: requests.at(-1), status: result?.response?.status ?? null,
-        cacheControl: result?.response?.headers.get('cache-control') ?? null, data: result?.data, error: result?.error });
-    }
-    observe('reach', plan.conditionalReads ? 'legacy-opt-in' : 'legacy-ordinary');
-    observe('reach', plan.mounted ? 'legacy-mounted' : 'legacy-root');
-    for (const state of ['legacy-fresh-state', 'legacy-raw304', 'legacy-explicit304', 'legacy-raw-error']) observe('reach', state);
-  },
-  check: (_plan, trace, expected) => {
-    const entries = trace.filter(entry => entry.checkpoint !== 'reach');
-    for (const [index, entry] of entries.entries()) {
-      const mismatch = differs(entry.checkpoint, legacyLaw, { checkpoint: entry.checkpoint, value: entry.value }, expected[index]); if (mismatch) return mismatch;
-    }
-    return differs('legacy SDK completion', legacyLaw, entries.length, expected.length) ?? pass;
-  },
-  calibrations: [
-    { name: 'remove-retained-operation', law: legacyLaw, history: { constructed: 'ordinary-mounted' }, corrupt: trace => trace.map(entry => entry.checkpoint === 'legacy-availability' ? { ...entry, value: { callable: false } } : entry) },
-    { name: 'materialize-legacy304', law: legacyLaw, history: { constructed: 'opt-in-root' }, corrupt: trace => { let reads = 0; return trace.map(entry => entry.checkpoint === 'legacy-read' && ++reads === 3 ? { ...entry, value: { ...(entry.value as object), status: 200 } } : entry); } },
-  ],
 });
 
 const passthroughPaths = ['write', 'unknown-get', 'validator', 'range', 'head'] as const;

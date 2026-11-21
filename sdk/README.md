@@ -51,13 +51,6 @@ Node callers can use a Blob from `node:fs`'s `openAsBlob()` with native FormData
 handling. Filesystem streams are not accepted. Requests take a standard `signal`
 for cancellation. Ordinary API calls do not retry automatically.
 
-## Deprecated change counters
-
-`getChanges` remains available with its existing epoch/domain response in
-Studio 0.65.0 and 0.66.0. It will be removed in Studio 0.67.0 (private contract
-6.0.0). It retains ordinary HTTP behavior, including when `conditionalReads`
-is enabled. Poll the resource GETs you need instead.
-
 ## Conditional reads
 
 Opt in with `createBlyggerClient({ baseUrl, conditionalReads: true })` to

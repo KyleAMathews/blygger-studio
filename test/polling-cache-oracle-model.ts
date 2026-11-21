@@ -12,12 +12,6 @@
 export const oracleDomains = ['items', 'reading', 'subscriptions', 'hoppers', 'signals', 'settings', 'feed', 'mentions', 'responses', 'interactions', 'browse', 'shelf'] as const;
 export type OracleDomain = typeof oracleDomains[number];
 export type OracleToken = { epoch: string; domains: Record<OracleDomain, number> };
-/** The deprecated receiver keeps the legacy full response for two releases.
- * Conditional headers do not turn this no-store polling read into resource
- * validation. The token is a fixture input, not a captured production result. */
-export function legacyChangesResponse(token: OracleToken) {
-  return { status: 200, cache: 'no-store', etag: null, body: token };
-}
 export function changedDomains(before: OracleToken, after: OracleToken) {
   return oracleDomains.filter(d => before.epoch !== after.epoch || before.domains[d] !== after.domains[d]);
 }

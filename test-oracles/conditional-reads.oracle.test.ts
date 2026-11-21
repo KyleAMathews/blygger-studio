@@ -47,10 +47,6 @@
  * Reinstalling refreshes eviction order; shortcut 304s may keep server order.
  * Settled readers release pending references and abort listeners.
  *
- * Decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-19:
- * For both deprecation releases, getChanges keeps its ordinary response even
- * when a caller supplies If-None-Match; conditional GETs apply to resources.
- *
  * Limits: HTTP peers and database counters are controlled; real Worker tests
  * supply mounted authentication and D1 integration. Cache capacity and eviction
  * order are covered separately from freshness. No claim about readFlight throw style.
@@ -698,20 +694,18 @@ oracleProperty({
 
 import { conditionalOperation } from '../src/conditional-operation.ts';
 import { failure, type OperationContext } from '../src/operation-types.ts';
-const serverCases = ['stable', 'changed', 'during-load', 'context', 'failure', 'denied', 'invalid', 'write', 'legacy'] as const;
+const serverCases = ['stable', 'changed', 'during-load', 'context', 'failure', 'denied', 'invalid', 'write'] as const;
 oracleProperty({
   id: 'private-validator-boundaries', work: { ratio: 1 }, owns: ['src/conditional-operation.ts#conditionalOperation'],
-  law: { statement: 'For every private conditional read, only a stable dependency snapshot may skip content work; failures, writes, changed contexts and failed admission retain their ordinary results; deprecated getChanges always retains ordinary HTTP behavior.', authority: 'Kyle Mathews (KyleAMathews), approved correct validators, paired entries and server-side revision optimization, 2026-11-18; unchanged getChanges during two-release deprecation, 2026-11-19.', limits: 'Controlled database counters exercise the real operation runner; mounted authentication is a Worker receiving test.' },
-  histories: { arbitrary: fc.record({ kind: fc.constantFrom(...serverCases), value: fc.nat(10000) }), runs: 25, fixedSeeds: [20261118], states: ['stable-shortcut', 'changed-dependencies', 'interrupted-snapshot', 'new-access-context', 'failed-handler', 'denied-admission', 'invalid-input', 'write-operation', 'legacy-counter-read'], constructed: [
-    ...serverCases.map(kind => ({ name: `server-${kind}`, enters: [{ stable: 'stable-shortcut', changed: 'changed-dependencies', 'during-load': 'interrupted-snapshot', context: 'new-access-context', failure: 'failed-handler', denied: 'denied-admission', invalid: 'invalid-input', write: 'write-operation', legacy: 'legacy-counter-read' }[kind]], build: (h: { kind: typeof serverCases[number]; value: number }) => ({ ...h, kind }) })),
+  law: { statement: 'For every private conditional read, only a stable dependency snapshot may skip content work; failures, writes, changed contexts and failed admission retain their ordinary results.', authority: 'Kyle Mathews (KyleAMathews), approved correct validators, paired entries and server-side revision optimization, 2026-11-18.', limits: 'Controlled database counters exercise the real operation runner; mounted authentication is a Worker receiving test.' },
+  histories: { arbitrary: fc.record({ kind: fc.constantFrom(...serverCases), value: fc.nat(10000) }), runs: 25, fixedSeeds: [20261118], states: ['stable-shortcut', 'changed-dependencies', 'interrupted-snapshot', 'new-access-context', 'failed-handler', 'denied-admission', 'invalid-input', 'write-operation'], constructed: [
+    ...serverCases.map(kind => ({ name: `server-${kind}`, enters: [{ stable: 'stable-shortcut', changed: 'changed-dependencies', 'during-load': 'interrupted-snapshot', context: 'new-access-context', failure: 'failed-handler', denied: 'denied-admission', invalid: 'invalid-input', write: 'write-operation' }[kind]], build: (h: { kind: typeof serverCases[number]; value: number }) => ({ ...h, kind }) })),
   ], fixed: serverCases.map(kind => ({ name: kind, history: { kind, value: 3 } })) },
   // The case input selects a stable snapshot, changed premise or failed
   // admission. The boundary checkpoint must preserve ordinary failures and
-  // writes; only admitted unchanged resource bytes may produce a conditional.
-  // The legacy counter read is a separate request kind, not a representation
-  // cache state: removing it would lose the two-release unchanged-HTTP law.
-  model: plan => ({ statuses: [plan.kind === 'failure' ? 404 : 200, plan.kind === 'denied' ? 403 : plan.kind === 'invalid' ? 400 : ['changed', 'during-load', 'failure', 'write', 'legacy'].includes(plan.kind) ? 200 : 304],
-    loads: ['stable', 'denied', 'invalid'].includes(plan.kind) ? 1 : 2, secondEtag: !['denied', 'invalid', 'write', 'legacy'].includes(plan.kind), bodyless: ['stable', 'context'].includes(plan.kind), cache: ['denied', 'invalid', 'write', 'legacy'].includes(plan.kind) ? null : 'private, no-cache' }),
+  // writes; only admitted unchanged bytes may produce a bodyless conditional.
+  model: plan => ({ statuses: [plan.kind === 'failure' ? 404 : 200, plan.kind === 'denied' ? 403 : plan.kind === 'invalid' ? 400 : ['changed', 'during-load', 'failure', 'write'].includes(plan.kind) ? 200 : 304],
+    loads: ['stable', 'denied', 'invalid'].includes(plan.kind) ? 1 : 2, secondEtag: !['denied', 'invalid', 'write'].includes(plan.kind), bodyless: ['stable', 'context'].includes(plan.kind), cache: ['denied', 'invalid', 'write'].includes(plan.kind) ? null : 'private, no-cache' }),
   driver: async (plan, observe) => {
     try {
       const reach = driverReach(observe);
@@ -728,12 +722,6 @@ oracleProperty({
         if (plan.kind === 'during-load' && loads === 1) { revision++; value++; reach.add('interrupted-snapshot'); }
         return success(body);
       } };
-      if (plan.kind === 'legacy') {
-        definition.route.operationId = 'getChanges';
-        definition.route.path = '/changes';
-        context.url = 'https://oracle.test/api/changes';
-        reach.add('legacy-counter-read');
-      }
       const input = { path: {}, query: {} };
       const first = await conditionalOperation(definition, input, context);
       dependencyFailed = false;
@@ -741,7 +729,7 @@ oracleProperty({
       if (plan.kind === 'context') { context.access = { clientId: 'other', userId: 'owner', scope: ['owner:read'] }; reach.add('new-access-context'); }
       if (plan.kind === 'denied') context.access = { clientId: 'denied', userId: 'owner', scope: [] };
       if (plan.kind === 'write') { definition.route.method = 'post'; reach.add('write-operation'); }
-      const second = await conditionalOperation(definition, { ...input, ...(plan.kind === 'invalid' ? { inputFailure: failure('invalid-input', { error: 'invalid' }) } : {}) }, context, plan.kind === 'legacy' ? '*' : first.headers.ETag);
+      const second = await conditionalOperation(definition, { ...input, ...(plan.kind === 'invalid' ? { inputFailure: failure('invalid-input', { error: 'invalid' }) } : {}) }, context, first.headers.ETag);
       observe('boundary', { statuses: [first.status, second.status], loads, secondEtag: Boolean(second.headers.ETag), bodyless: second.body === null, cache: second.headers['Cache-Control'] ?? null });
       if (loads === 1 && second.status === 304) reach.add('stable-shortcut');
       if (second.status === 403) reach.add('denied-admission');

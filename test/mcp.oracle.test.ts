@@ -11,9 +11,7 @@
  * ```
  *
  * Contract: decision #52 selects four independent owner scopes and API/MCP audience
- * separation. The read inventory retains getChanges during its two-release
- * deprecation (Kyle Mathews, GitHub KyleAMathews, 2026-11-19).
- * MCP authorization requires token audience validation and forbids token
+ * separation. MCP authorization requires token audience validation and forbids token
  * passthrough; transport specifies receiving Origin and protocol handling:
  * https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization
  * https://modelcontextprotocol.io/specification/2025-11-25/basic/transports

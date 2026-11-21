@@ -70,24 +70,6 @@ export const zCapabilities = z.object({
     }))
 });
 
-export const zChangeState = z.object({
-    epoch: z.string().min(1),
-    domains: z.object({
-        items: z.int().gte(0).lte(9007199254740991),
-        reading: z.int().gte(0).lte(9007199254740991),
-        subscriptions: z.int().gte(0).lte(9007199254740991),
-        hoppers: z.int().gte(0).lte(9007199254740991),
-        signals: z.int().gte(0).lte(9007199254740991),
-        settings: z.int().gte(0).lte(9007199254740991),
-        feed: z.int().gte(0).lte(9007199254740991),
-        mentions: z.int().gte(0).lte(9007199254740991),
-        responses: z.int().gte(0).lte(9007199254740991),
-        interactions: z.int().gte(0).lte(9007199254740991),
-        browse: z.int().gte(0).lte(9007199254740991),
-        shelf: z.int().gte(0).lte(9007199254740991)
-    })
-});
-
 export const zCitation = z.object({
     source: z.string(),
     author: z.string().optional(),
@@ -839,11 +821,6 @@ export const zGetCapabilitiesHeaders = z.object({
  * Success
  */
 export const zGetCapabilitiesResponse = zCapabilities;
-
-/**
- * Success
- */
-export const zGetChangesResponse = zChangeState;
 
 export const zListItemsHeaders = z.object({
     'if-none-match': z.string().optional()

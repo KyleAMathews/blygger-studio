@@ -26,7 +26,7 @@ const validators = new WeakMap<D1Database, Map<string, Stamp>>();
  * runner's scopes, quotas, feature checks, and input parsing. Metadata retains
  * hashes only, never private bodies, and is discarded with the isolate. */
 export async function conditionalOperation(definition: OperationDefinition, input: OperationInput, context: OperationContext, ifNoneMatch?: string, identityDb = context.env.DB) {
-  if (definition.route.method !== 'get' || definition.route.operationId === 'getChanges') return operationHttp(await runOperation(definition, input, context), context.url, context.env);
+  if (definition.route.method !== 'get') return operationHttp(await runOperation(definition, input, context), context.url, context.env);
   let cache = validators.get(identityDb);
   if (!cache) { cache = new Map(); validators.set(identityDb, cache); }
   const key = JSON.stringify([context.url, context.access]);

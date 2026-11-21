@@ -123,6 +123,8 @@ Node/browser/Chromium/persistence verification pass. Combined-tree save oracle
 control with zero gaps. The compatibility record keeps the precise source cuts,
 setup limitation and finite browser-control scope.
 
+**Removal landed 2026-11-20, Studio 0.67.0, private contract 6.0.0** (Venkat, session 76): the window above closed; `/changes` and `getChanges` are gone, and the retention laws with them.
+
 ## Recovery/search and Worker CI repair cut
 
 The full published-head run `44462861040` passed the Studio/Worker/contract oracle gates, all four mutation jobs, SDK generation, OAuth, release verification and UI307/307. It exposed three ordinary Worker failures: two obsolete successful-GET cache-header expectations and one physical D1-call regression. The browser intake from the preceding run contains29 failed/flaky identities. These failures remained open despite the earlier passing bounded receipts.
