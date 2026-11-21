@@ -134,8 +134,8 @@ function Help({ thread, className = 'compose-help' }: { thread?: boolean; classN
       marks AI-drafted text. Type <code>/image</code> on its own line, or
       paste or drop an image, to insert one there. Paste a URL over selected
       text to link it. Cmd/Ctrl+B, I and K make bold, italics and a link. Tab
-      and Shift+Tab move a list item in and out; Shift+Enter breaks a line
-      without ending the paragraph. <code>$x^2$</code> writes a formula.{' '}
+      and Shift+Tab move a list item in and out; the line-break button ends a
+      line inside a paragraph. <code>$x^2$</code> writes a formula.{' '}
       <Link to="/syntax">full syntax reference</Link>
     </p>
   ) : (
@@ -2518,7 +2518,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           {([
             ['indent', <IndentIn />, 'move list item in', 'Move the list item under the cursor in a level, making it a sublist (Tab)'],
             ['outdent', <IndentOut />, 'move list item out', 'Move the list item under the cursor out a level (Shift+Tab)'],
-            ['break', <LineBreak />, 'line break', 'Break the line without ending the paragraph, for verse (Shift+Enter)'],
+            ['break', <LineBreak />, 'line break', 'Break the line without ending the paragraph, for verse'],
             ['code', <CodeBlock />, 'code block', 'Put the selected lines in a code block, or start an empty one'],
             ['formula', <Formula />, 'formula', 'Write a formula in LaTeX between dollars: $x^2$ inline, $$…$$ on its own lines'],
           ] as const).map(([kind, icon, label, title]) => (

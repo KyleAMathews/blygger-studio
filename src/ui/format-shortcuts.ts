@@ -1,8 +1,10 @@
 // Cmd/Ctrl+B, I and K in the editors: markdown's bold, italic and link, written
 // into the text as if typed, so the browser's own undo takes them back.
 // Also the keys for markdown's structure, which a textarea makes awkward: Tab and
-// Shift+Tab move a list item in and out, and Shift+Enter breaks a line without
-// ending the paragraph (verse, addresses).
+// Shift+Tab move a list item in and out. The line break (breakEdit) has no key, only
+// the toolbar button: Shift+Enter wrote it from 0.58.3 to 0.66.0, and an iPad's
+// on-screen keyboard, with Shift on after a full stop, sent Shift+Enter for Return,
+// so stray backslashes appeared (Venkat, session 76).
 export type FormatKind = 'bold' | 'italic' | 'link';
 export interface FormatEdit {
   /** Replace [from, to) with insert, then select [start, end). */
@@ -185,11 +187,11 @@ export function formatKey(event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKe
 
 const isMac = () => /mac|iphone|ipad/i.test(navigator.platform);
 
-/** Which structural edit a key press asks for, if any. */
-export function structureKey(event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>): 'indent' | 'outdent' | 'break' | null {
+/** Which structural edit a key press asks for, if any. Enter, with or without Shift, is never one. */
+export function structureKey(event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>): 'indent' | 'outdent' | null {
   if (event.metaKey || event.ctrlKey || event.altKey) return null;
   if (event.key === 'Tab') return event.shiftKey ? 'outdent' : 'indent';
-  return event.key === 'Enter' && event.shiftKey ? 'break' : null;
+  return null;
 }
 
 /** The textarea's onKeyDown. Fires its input event, so the editor's onChange sees the edit. */
@@ -202,11 +204,9 @@ export function onFormatKey(event: React.KeyboardEvent<HTMLTextAreaElement>) {
   const structure = kind ? null : structureKey(event);
   const edit = kind
     ? formatEdit(el.value, from, to, kind)
-    : structure === 'break'
-      ? breakEdit(el.value, from, to)
-      : structure
-        ? indentEdit(el.value, from, to, structure === 'outdent')
-        : null;
+    : structure
+      ? indentEdit(el.value, from, to, structure === 'outdent')
+      : null;
   // Tab off a list line moves focus on, as it does in any form.
   if (!edit) return;
   event.preventDefault();
