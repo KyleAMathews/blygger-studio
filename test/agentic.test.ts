@@ -16,8 +16,8 @@ import { apiJson, BASE, createAndPublish, login } from "./helpers.ts";
 
 const ORIGIN = "https://agentic.example/blyg/";
 const db = () => env.DB;
-const get = async (cookie: string) => (await apiJson(cookie, "GET", "/blyg/api/agentic")).json;
-const put = (cookie: string, edition: unknown, expectedRevision: number) => apiJson(cookie, "PUT", "/blyg/api/agentic", { edition, expectedRevision });
+const get = async (cookie: string) => (await apiJson(cookie, "GET", "/blyg/api/agentic/default")).json;
+const put = (cookie: string, edition: unknown, expectedRevision: number) => apiJson(cookie, "PUT", "/blyg/api/agentic/default", { edition, expectedRevision });
 
 async function imported(id: string) {
   const sub = (await db().prepare("SELECT id FROM subscriptions WHERE origin = ?").bind(ORIGIN).first<{ id: string }>())?.id
@@ -169,5 +169,17 @@ describe("the edition", () => {
     const fourth = await put(cookie, edition, third.json.revision);
     expect(fourth.json.draft.id).not.toBe(thread);
     await apiJson(cookie, "PATCH", "/blyg/api/settings", { agenticTitle: "" });
+  });
+
+  it("is one of the agentic feeds, `default` until the Studio offers more; an unknown feed is a 404", async () => {
+    const cookie = await login();
+    const feeds = (await apiJson(cookie, "GET", "/blyg/api/agentic")).json.feeds;
+    expect(feeds.map((f: { id: string }) => f.id)).toEqual(["default"]);
+    expect(feeds[0].title).toBe("Agentic feed");
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { agenticTitle: "Morning paper" })).status).toBe(200);
+    expect((await apiJson(cookie, "GET", "/blyg/api/agentic")).json.feeds[0].title).toBe("Morning paper");
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { agenticTitle: "" });
+    expect((await apiJson(cookie, "GET", "/blyg/api/agentic/elsewhere")).status).toBe(404);
+    expect((await apiJson(cookie, "PUT", "/blyg/api/agentic/elsewhere", { edition: { agent: { name: "x" }, scores: [{ sub: "~own", remoteId: "0".repeat(26), score: 1 }] }, expectedRevision: 0 })).status).toBe(404);
   });
 });

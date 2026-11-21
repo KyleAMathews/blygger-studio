@@ -285,6 +285,22 @@ export const zShelf = z.object({
     revision: z.int().gte(0)
 });
 
+export const zCatchUp = z.object({
+    ordered: z.enum(['time', 'depth']),
+    cards: z.array(z.object({
+        id: z.string(),
+        origin: z.string(),
+        sub: z.string().nullable(),
+        version: z.int().nullable(),
+        source: z.string(),
+        at: z.string().nullable(),
+        depth: z.int().gte(0),
+        partial: z.boolean(),
+        label: z.string().nullable(),
+        html: z.string()
+    }))
+});
+
 /**
  * Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read.
  */
@@ -1567,8 +1583,59 @@ export const zPutShelfBody = z.object({
  */
 export const zPutShelfResponse = zShelf;
 
+export const zListHelpersHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+/**
+ * Helpers: simple agents that people and agents share through the same operations (blygger-spec docs/helpers-plan.md). The Studio's reference design, not a protocol construct.
+ */
+export const zListHelpersResponse = z.object({
+    helpers: z.array(z.object({
+        name: z.string(),
+        kind: z.enum([
+            'mechanical',
+            'decision',
+            'text'
+        ]),
+        operation: z.string(),
+        description: z.string(),
+        ui: z.string().nullable()
+    }))
+});
+
+export const zCatchUpBody = z.object({
+    sub: z.string().min(1).max(128),
+    remoteId: z.string().min(1).max(256)
+}).strict();
+
+/**
+ * Success
+ */
+export const zCatchUpResponse = zCatchUp;
+
+export const zListAgenticFeedsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+/**
+ * The agentic feeds in the owner's order. One, `default`, until the Studio offers more (blygger-spec docs/agentic-feed-plan.md §3.3).
+ */
+export const zListAgenticFeedsResponse = z.object({
+    feeds: z.array(z.object({
+        id: z.string(),
+        title: z.string(),
+        revision: z.int().gte(0),
+        updatedAt: z.string().nullable()
+    }))
+});
+
 export const zGetAgenticHeaders = z.object({
     'if-none-match': z.string().optional()
+});
+
+export const zGetAgenticPath = z.object({
+    feed: z.string().min(1)
 });
 
 /**
@@ -1580,6 +1647,10 @@ export const zPutAgenticBody = z.object({
     edition: zAgenticEditionInput,
     expectedRevision: z.int().gte(0)
 }).strict();
+
+export const zPutAgenticPath = z.object({
+    feed: z.string().min(1)
+});
 
 /**
  * Success

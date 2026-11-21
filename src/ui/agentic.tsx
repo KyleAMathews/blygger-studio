@@ -17,7 +17,9 @@ type Layout = NonNullable<Edition['layout']>;
 type Section = Layout['sections'][number];
 type Placed = Section['entries'][number];
 
-const fetchEdition = (signal?: AbortSignal) => unwrap(BlyggerApi.getAgentic({ client, signal }));
+/** The feed this tab shows; the only one until the Studio offers more (plan §3.3). */
+const FEED = 'default';
+const fetchEdition = (signal?: AbortSignal) => unwrap(BlyggerApi.getAgentic({ client, path: { feed: FEED }, signal }));
 
 /** The edition, re-read every 15 s while the tab is open and whenever the window regains focus. */
 function useEdition() {
@@ -140,7 +142,7 @@ export function AgenticFeed() {
         <span className="em" aria-hidden="true">✦</span>
         <strong>No edition yet.</strong> The Agentic feed is an assistant who organizes your reading
         for you, as a digest in sections. The Studio's own assistant is not built yet; an outside
-        assistant with a token can write one now (<code>PUT /api/agentic</code>). Its brief is the
+        assistant with a token can write one now (<code>PUT /api/agentic/default</code>). Its brief is the
         prompt in <Link to="/settings" hash="ai-feed">Settings</Link>.
       </div>
     );

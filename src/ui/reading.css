@@ -398,3 +398,9 @@
 .kind-briefs .edition-entry { padding-bottom: 6px; }
 .kind-briefs .edition-headline { font-size: .95rem; font-weight: 600; }
 @media (min-width: 62rem) { .kind-briefs .edition-entries { grid-template-columns: 1fr 1fr; column-gap: 24px; } }
+
+/* Catch up (src/ui/catch-up.tsx): the conversation oldest first, one card per post. */
+.catch-up { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 12px; }
+.catch-up-card { border-left: 3px solid var(--rule-strong); padding-left: 10px; }
+.catch-up-meta { color: var(--ink-soft); font-size: .8rem; margin: 0 0 4px; }
+.catch-up-body > :first-child { margin-top: 0; }

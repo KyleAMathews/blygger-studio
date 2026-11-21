@@ -60,6 +60,7 @@ import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { IconButton, Tooltip } from './primitives.tsx';
 import { shelfLabel, toggleShelf, useShelf } from './shelf.tsx';
 import { AgenticFeed } from './agentic.tsx';
+import { hasQuotes, openCatchUp } from './catch-up.tsx';
 import { displayUrl, sourceTitleAndUrl } from '../importer/util.ts';
 import { ReaderBody, TrailBar, ownOrigin, useEndTrail, useSubscriptionRows } from './reader-links.tsx';
 import { currentTrail, visit } from './browse.ts';
@@ -585,6 +586,13 @@ function useEntryActions({
           label: `${displayUrl(url!)} ↗`,
           description: url,
           onSelect: openPage,
+        },
+        hasQuotes(entry.contentHtml) && (imported || entry.own) && {
+          key: 'catch-up',
+          icon: '⇣',
+          label: 'catch up',
+          description: 'the conversation it carries, oldest first',
+          onSelect: () => void openCatchUp(imported ? imported.subscriptionId : '~own', imported ? imported.remoteId : entry.own!.id),
         },
         !!imported &&
           !entry.l0 && {

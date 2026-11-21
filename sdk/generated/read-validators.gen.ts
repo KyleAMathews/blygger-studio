@@ -1,12 +1,13 @@
 // Generated from OpenAPI. Do not edit.
-import { zGetCapabilitiesResponse, zListItemsResponse, zGetSettingsResponse, zListSubscriptionsResponse, zGetShelfResponse, zGetAgenticResponse, zListContactsResponse, zListHoppersResponse, zGetItemSummaryResponse, zListSignalsResponse, zListInteractionsResponse, zListThumbsResponse, zGetSignalSummaryResponse, zGetAiModelsResponse, zListMentionsResponse, zListMentionGroupsResponse, zGetMentionSummaryResponse, zSearchResponse, zGetReadingSummaryResponse, zListReadingResponse, zListImportedReadingResponse, zPeekItemResponse, zListBrowseResponse, zGetUpdateStateResponse, zListStaleThreadsResponse, zGetForkOptionsResponse, zExtLineageGlyphGetLineageResponse, zExtLineageGlyphListSummariesResponse, zExtWordCountListCountsResponse, zGetItemResponse, zGetSyndicationResponse, zGetSubscriptionResponse, zGetHopperResponse, zListItemVersionsResponse, zListHopperMembershipsResponse, zGetMentionSourceResponse, zGetItemFreshnessResponse, zGetVersionResponse, zGetImportedItemResponse, zGetImportedHistoryResponse, zGetImportedVersionResponse } from './zod.gen.js';
+import { zGetCapabilitiesResponse, zListItemsResponse, zGetSettingsResponse, zListSubscriptionsResponse, zGetShelfResponse, zListHelpersResponse, zListAgenticFeedsResponse, zListContactsResponse, zListHoppersResponse, zGetItemSummaryResponse, zListSignalsResponse, zListInteractionsResponse, zListThumbsResponse, zGetSignalSummaryResponse, zGetAiModelsResponse, zListMentionsResponse, zListMentionGroupsResponse, zGetMentionSummaryResponse, zSearchResponse, zGetReadingSummaryResponse, zListReadingResponse, zListImportedReadingResponse, zPeekItemResponse, zListBrowseResponse, zGetUpdateStateResponse, zListStaleThreadsResponse, zGetForkOptionsResponse, zExtLineageGlyphGetLineageResponse, zExtLineageGlyphListSummariesResponse, zExtWordCountListCountsResponse, zGetItemResponse, zGetSyndicationResponse, zGetSubscriptionResponse, zGetAgenticResponse, zGetHopperResponse, zListItemVersionsResponse, zListHopperMembershipsResponse, zGetMentionSourceResponse, zGetItemFreshnessResponse, zGetVersionResponse, zGetImportedItemResponse, zGetImportedHistoryResponse, zGetImportedVersionResponse } from './zod.gen.js';
 export const readValidators = [
   { pattern: new RegExp("^/capabilities$"), schema: zGetCapabilitiesResponse },
   { pattern: new RegExp("^/items$"), schema: zListItemsResponse },
   { pattern: new RegExp("^/settings$"), schema: zGetSettingsResponse },
   { pattern: new RegExp("^/subscriptions$"), schema: zListSubscriptionsResponse },
   { pattern: new RegExp("^/shelf$"), schema: zGetShelfResponse },
-  { pattern: new RegExp("^/agentic$"), schema: zGetAgenticResponse },
+  { pattern: new RegExp("^/helpers$"), schema: zListHelpersResponse },
+  { pattern: new RegExp("^/agentic$"), schema: zListAgenticFeedsResponse },
   { pattern: new RegExp("^/contacts$"), schema: zListContactsResponse },
   { pattern: new RegExp("^/hoppers$"), schema: zListHoppersResponse },
   { pattern: new RegExp("^/items/summary$"), schema: zGetItemSummaryResponse },
@@ -33,6 +34,7 @@ export const readValidators = [
   { pattern: new RegExp("^/items/[^/]+$"), schema: zGetItemResponse },
   { pattern: new RegExp("^/items/[^/]+/syndication$"), schema: zGetSyndicationResponse },
   { pattern: new RegExp("^/subscriptions/[^/]+$"), schema: zGetSubscriptionResponse },
+  { pattern: new RegExp("^/agentic/[^/]+$"), schema: zGetAgenticResponse },
   { pattern: new RegExp("^/hoppers/[^/]+$"), schema: zGetHopperResponse },
   { pattern: new RegExp("^/items/[^/]+/versions$"), schema: zListItemVersionsResponse },
   { pattern: new RegExp("^/hoppers/[^/]+/memberships$"), schema: zListHopperMembershipsResponse },

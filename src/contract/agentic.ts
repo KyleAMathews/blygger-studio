@@ -70,3 +70,14 @@ export function agenticEditionSchema<E extends z.ZodTypeAny>(readingEntry: E) {
     draft: z.object({ id: z.string() }).nullable().describe("The edition as a conformant blyg thread: a draft (private, owner-only) composed from headings, quotes, links and impyrt spans for the assistant's words, which the owner may edit and publish like any thread. A new draft starts when the owner has edited or published the previous one."),
   }).openapi("AgenticEdition");
 }
+
+export const CatchUpSchema = z.object({
+  ordered: z.enum(["time", "depth"]).describe("time when every card's time is known; otherwise deeper first (a quote is always of something older), then by time."),
+  cards: z.array(z.object({
+    id: z.string(), origin: z.string(),
+    sub: z.string().nullable().describe('Where it is held: a subscription id, "~own", or null when this reader does not hold it.'),
+    version: z.number().int().nullable(), source: z.string().describe('Whose it is: the subscription name, "you", or the host.'),
+    at: z.string().nullable(), depth: z.number().int().nonnegative(), partial: z.boolean(), label: z.string().nullable(),
+    html: z.string().describe("The post's own words: its layer with every quote inside it taken out, sanitized."),
+  })),
+}).openapi("CatchUp");

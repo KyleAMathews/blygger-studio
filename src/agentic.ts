@@ -35,31 +35,40 @@ export interface AgenticEditionInput {
 }
 interface Row { revision: number; mode: "sections" | "scores" | null; edition_json: string | null; updated_at: string | null; draft_id: string | null; draft_md: string | null }
 
-async function readRow(db: D1Database): Promise<Row> {
-  return (await db.prepare("SELECT revision, mode, edition_json, updated_at, draft_id, draft_md FROM agentic_edition WHERE id = 1").first<Row>())
-    ?? { revision: 0, mode: null, edition_json: null, updated_at: null, draft_id: null, draft_md: null };
+/** The default feed's id; the only feed until the UI grows more tabs (plan §3.3). */
+export const DEFAULT_FEED = "default";
+
+async function readRow(db: D1Database, feed: string): Promise<Row | null> {
+  return db.prepare("SELECT revision, mode, edition_json, updated_at, draft_id, draft_md FROM agentic_feeds WHERE id = ?").bind(feed).first<Row>();
 }
 
-/** Replace the edition when it is still at `expectedRevision`; false when it has moved on. */
-export async function replaceEdition(db: D1Database, edition: AgenticEditionInput, expectedRevision: number, now: string): Promise<boolean> {
+/** The agentic feeds in the owner's order, each with its name: its own, else the default feed's setting, else its id. */
+export async function listFeeds(db: D1Database) {
+  const [rows, settings] = await Promise.all([
+    db.prepare("SELECT id, title, revision, updated_at FROM agentic_feeds ORDER BY position, id").all<{ id: string; title: string | null; revision: number; updated_at: string | null }>(),
+    getSettings(db),
+  ]);
+  return rows.results.map((r) => ({ id: r.id, title: r.title ?? (r.id === DEFAULT_FEED ? settings.agentic_title : r.id), revision: r.revision, updatedAt: r.updated_at }));
+}
+
+/** Replace a feed's edition when it is still at `expectedRevision`; false when it has moved on or the feed does not exist. */
+export async function replaceEdition(db: D1Database, feed: string, edition: AgenticEditionInput, expectedRevision: number, now: string): Promise<boolean> {
   const mode = edition.sections ? "sections" : "scores";
-  const result = await db.prepare(`INSERT INTO agentic_edition (id, revision, mode, edition_json, updated_at) SELECT 1, ?1 + 1, ?2, ?3, ?4
-      WHERE COALESCE((SELECT revision FROM agentic_edition WHERE id = 1), 0) = ?1
-    ON CONFLICT (id) DO UPDATE SET revision = excluded.revision, mode = excluded.mode, edition_json = excluded.edition_json, updated_at = excluded.updated_at`)
-    .bind(expectedRevision, mode, JSON.stringify(edition), now).run();
+  const result = await db.prepare(`UPDATE agentic_feeds SET revision = revision + 1, mode = ?, edition_json = ?, updated_at = ? WHERE id = ? AND revision = ?`)
+    .bind(mode, JSON.stringify(edition), now, feed, expectedRevision).run();
   if (!result.meta.changes) return false;
-  await writeThread(db);
+  await writeThread(db, feed);
   return true;
 }
 
-/** Compose the stored edition into its draft thread (src/agentic-thread.ts). */
-async function writeThread(db: D1Database): Promise<void> {
-  const [row, read, settings] = await Promise.all([readRow(db), readEdition(db), getSettings(db)]);
-  if (!read.layout) return;
+/** Compose a feed's stored edition into its draft thread (src/agentic-thread.ts), headed with the feed's name. */
+async function writeThread(db: D1Database, feed: string): Promise<void> {
+  const [row, read, settings, feeds] = await Promise.all([readRow(db, feed), readEdition(db, feed), getSettings(db), listFeeds(db)]);
+  if (!row || !read?.layout) return;
   const date = formatDateIn(read.layout.generatedAt ?? row.updated_at ?? new Date().toISOString(), settings.timezone);
-  const markdown = editionMarkdown(read.layout, settings.agentic_title, date);
+  const markdown = editionMarkdown(read.layout, feeds.find((f) => f.id === feed)?.title ?? feed, date);
   const id = await writeEditionDraft(db, { id: row.draft_id, md: row.draft_md }, markdown);
-  await db.prepare("UPDATE agentic_edition SET draft_id = ?, draft_md = ? WHERE id = 1").bind(id, markdown).run();
+  await db.prepare("UPDATE agentic_feeds SET draft_id = ?, draft_md = ? WHERE id = ?").bind(id, markdown, feed).run();
 }
 
 const identityOf = (ref: Reference): Identity =>
@@ -78,8 +87,9 @@ export function sectionsOf(edition: AgenticEditionInput): AgenticSection[] {
  * reading entry, with withdrawn ones and ones no longer held left out, a
  * repeat of an entry already shown left out, and empty sections dropped.
  */
-export async function readEdition(db: D1Database) {
-  const row = await readRow(db);
+export async function readEdition(db: D1Database, feed: string) {
+  const row = await readRow(db, feed);
+  if (!row) return null;
   const edition = row.edition_json ? (JSON.parse(row.edition_json) as AgenticEditionInput) : null;
   const draft = row.draft_id ? { id: row.draft_id } : null;
   if (!edition) return { revision: row.revision, updatedAt: row.updated_at, mode: row.mode, edition: null, layout: null, draft };

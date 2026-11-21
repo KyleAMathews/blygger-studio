@@ -7,7 +7,7 @@ import { ItemRevisionSchema } from "./schemas.ts";
 import { BackgroundRulesPatchSchema, SettingsSchema } from './settings.ts';
 import { SyndicationEntrySchema } from './resources.ts';
 import { SYNDICATION_MAX } from '../syndication.ts';
-import { AgenticEditionInputSchema, agenticEditionSchema } from './agentic.ts';
+import { AgenticEditionInputSchema, CatchUpSchema, agenticEditionSchema } from './agentic.ts';
 import { ShelfEntrySchema, ShelfSchema, ContactSchema, HopperMembershipSchema, SignalSchema, OutboundMentionSchema, InteractionSchema, ThumbSchema, BrowseStepSchema } from './resources.ts';
 import { CHANGE_CATEGORIES } from "../change-category.ts";
 import { READ_BATCH_MAX, READ_ID_MAX, READ_VERSION_MAX } from '../importer/read-state.ts';
@@ -143,10 +143,19 @@ export const routes = {
     entries: z.array(ShelfEntrySchema).max(SHELF_MAX).describe(`The whole list, in order (at most ${SHELF_MAX}). Replaces the stored list. An entry that does not resolve (an unknown subscription, an item not held under it, a withdrawn own item, an imported tombstone with no retained pin) is dropped quietly, never refused, and a repeated entry keeps its first position; the response is what was stored.`),
     expectedRevision: z.number().int().nonnegative().describe("Required. Replace only if the shelf is still at this revision (read it with GET /shelf; a never-written shelf is at 0); otherwise 409 revision-conflict with the current { entries, revision } in details.current. There is no unconditional replace: several clients share the shelf, and one must not silently undo another's reorder."),
   }).describe("Replace the shelf, the owner's ordered list of own and imported items. Studio-private for good: the shelf never gains a public mode. A featured list on public pages, if ever wanted, would be a separate presentation setting that may default from the shelf, not a flag on this resource.")),
-  getAgentic: route("getAgentic", readOperation(), "get", "/agentic", AgenticEditionSchema),
-  putAgentic: route("putAgentic", manageOperation({"writes":["presentation"],"destructive":true}), "put", "/agentic", AgenticEditionSchema, z.object({
+  listHelpers: route("listHelpers", readOperation(), "get", "/helpers", z.object({ helpers: z.array(z.object({
+    name: z.string(), kind: z.enum(["mechanical", "decision", "text"]).describe("mechanical: a function over what the node holds, free and instant; decision: a decision model with a fixed label set; text: a small model whose words are disclosed as generated."),
+    operation: z.string().describe("The operation (and MCP tool) that runs it."), description: z.string(), ui: z.string().nullable().describe("Where people find it in the Studio, or null for an agent-only helper."),
+  })) }).describe("Helpers: simple agents that people and agents share through the same operations (blygger-spec docs/helpers-plan.md). The Studio's reference design, not a protocol construct.")),
+  catchUp: route("catchUp", readOperation(), "post", "/helpers/catch-up", CatchUpSchema, z.object({
+    sub: z.string().min(1).max(128).describe('The subscription the entry is held under, or "~own" for one of your own published items.'),
+    remoteId: z.string().min(1).max(256),
+  }).strict().describe("The catch-up helper: an entry's nested quotes laid out oldest first, each card holding only that post's own words. Mechanical: no model, no network. After Burrow 0.23.0's Catch up.")),
+  listAgenticFeeds: route("listAgenticFeeds", readOperation(), "get", "/agentic", z.object({ feeds: z.array(z.object({ id: z.string(), title: z.string().describe("The feed's name: the tab's label and the heading of its editions."), revision: z.number().int().nonnegative(), updatedAt: z.string().nullable() })) }).describe("The agentic feeds in the owner's order. One, `default`, until the Studio offers more (blygger-spec docs/agentic-feed-plan.md §3.3).")),
+  getAgentic: route("getAgentic", readOperation(), "get", "/agentic/{feed}", AgenticEditionSchema),
+  putAgentic: route("putAgentic", manageOperation({"writes":["presentation"],"destructive":true}), "put", "/agentic/{feed}", AgenticEditionSchema, z.object({
     edition: AgenticEditionInputSchema,
-    expectedRevision: z.number().int().nonnegative().describe("Required. Replace only if the edition is still at this revision (read it with GET /agentic; a never-written edition is at 0); otherwise 409 revision-conflict with the current edition in details.current. One assistant drives the edition at a time; this keeps a slow run from overwriting a newer one."),
+    expectedRevision: z.number().int().nonnegative().describe("Required. Replace only if the edition is still at this revision (read it with GET /agentic/{feed}; a never-written edition is at 0); otherwise 409 revision-conflict with the current edition in details.current. One assistant drives the edition at a time; this keeps a slow run from overwriting a newer one."),
   }).describe("Replace the Agentic feed's edition (blygger-spec docs/agentic-feed-plan.md): sections an assistant laid out, or scores the Studio lays out. Studio-private: never in an item document, feed, manifest or public page. Entries are references to what the reader holds; one that does not resolve is left out of the layout, never refused.")),
   listContacts: route("listContacts", readOperation(), "get", "/contacts", z.object({ contacts: z.array(ContactSchema) })),
   createContact: route("createContact", manageOperation({"writes":["settings"]}), "post", "/contacts", ContactSchema, z.object({ handle: z.string(), name: z.string().trim().min(1).max(200), url: z.string(), ids: z.array(z.string().min(1).max(500)).max(50).optional() }), 201),

@@ -339,6 +339,34 @@ export type ShelfEntry = {
     remoteId: string;
 };
 
+export type CatchUp = {
+    /**
+     * time when every card's time is known; otherwise deeper first (a quote is always of something older), then by time.
+     */
+    ordered: 'time' | 'depth';
+    cards: Array<{
+        id: string;
+        origin: string;
+        /**
+         * Where it is held: a subscription id, "~own", or null when this reader does not hold it.
+         */
+        sub: string | null;
+        version: number | null;
+        /**
+         * Whose it is: the subscription name, "you", or the host.
+         */
+        source: string;
+        at: string | null;
+        depth: number;
+        partial: boolean;
+        label: string | null;
+        /**
+         * The post's own words: its layer with every quote inside it taken out, sanitized.
+         */
+        html: string;
+    }>;
+};
+
 export type AgenticEdition = {
     /**
      * Send it back as expectedRevision for a conditional replace; every successful PUT bumps it. A never-written edition is at 0.
@@ -3856,7 +3884,174 @@ export type PutShelfResponses = {
 
 export type PutShelfResponse = PutShelfResponses[keyof PutShelfResponses];
 
-export type GetAgenticData = {
+export type ListHelpersData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/helpers';
+};
+
+export type ListHelpersErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListHelpersError = ListHelpersErrors[keyof ListHelpersErrors];
+
+export type ListHelpersResponses = {
+    /**
+     * Helpers: simple agents that people and agents share through the same operations (blygger-spec docs/helpers-plan.md). The Studio's reference design, not a protocol construct.
+     */
+    200: {
+        helpers: Array<{
+            name: string;
+            /**
+             * mechanical: a function over what the node holds, free and instant; decision: a decision model with a fixed label set; text: a small model whose words are disclosed as generated.
+             */
+            kind: 'mechanical' | 'decision' | 'text';
+            /**
+             * The operation (and MCP tool) that runs it.
+             */
+            operation: string;
+            description: string;
+            /**
+             * Where people find it in the Studio, or null for an agent-only helper.
+             */
+            ui: string | null;
+        }>;
+    };
+};
+
+export type ListHelpersResponse = ListHelpersResponses[keyof ListHelpersResponses];
+
+export type CatchUpData = {
+    body: {
+        /**
+         * The subscription the entry is held under, or "~own" for one of your own published items.
+         */
+        sub: string;
+        remoteId: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/helpers/catch-up';
+};
+
+export type CatchUpErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type CatchUpError = CatchUpErrors[keyof CatchUpErrors];
+
+export type CatchUpResponses = {
+    /**
+     * Success
+     */
+    200: CatchUp;
+};
+
+export type CatchUpResponse = CatchUpResponses[keyof CatchUpResponses];
+
+export type ListAgenticFeedsData = {
     body?: never;
     headers?: {
         /**
@@ -3867,6 +4062,93 @@ export type GetAgenticData = {
     path?: never;
     query?: never;
     url: '/agentic';
+};
+
+export type ListAgenticFeedsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListAgenticFeedsError = ListAgenticFeedsErrors[keyof ListAgenticFeedsErrors];
+
+export type ListAgenticFeedsResponses = {
+    /**
+     * The agentic feeds in the owner's order. One, `default`, until the Studio offers more (blygger-spec docs/agentic-feed-plan.md §3.3).
+     */
+    200: {
+        feeds: Array<{
+            id: string;
+            /**
+             * The feed's name: the tab's label and the heading of its editions.
+             */
+            title: string;
+            revision: number;
+            updatedAt: string | null;
+        }>;
+    };
+};
+
+export type ListAgenticFeedsResponse = ListAgenticFeedsResponses[keyof ListAgenticFeedsResponses];
+
+export type GetAgenticData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path: {
+        feed: string;
+    };
+    query?: never;
+    url: '/agentic/{feed}';
 };
 
 export type GetAgenticErrors = {
@@ -3935,13 +4217,15 @@ export type PutAgenticData = {
     body: {
         edition: AgenticEditionInput;
         /**
-         * Required. Replace only if the edition is still at this revision (read it with GET /agentic; a never-written edition is at 0); otherwise 409 revision-conflict with the current edition in details.current. One assistant drives the edition at a time; this keeps a slow run from overwriting a newer one.
+         * Required. Replace only if the edition is still at this revision (read it with GET /agentic/{feed}; a never-written edition is at 0); otherwise 409 revision-conflict with the current edition in details.current. One assistant drives the edition at a time; this keeps a slow run from overwriting a newer one.
          */
         expectedRevision: number;
     };
-    path?: never;
+    path: {
+        feed: string;
+    };
     query?: never;
-    url: '/agentic';
+    url: '/agentic/{feed}';
 };
 
 export type PutAgenticErrors = {

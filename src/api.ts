@@ -20,7 +20,7 @@ import { ItemCreateSchema, ItemEditSchema } from "./contract/routes.ts";
 import { compiledExtensionNames } from "../build/extensions.names.ts";
 import { BACKGROUND_RULES, settleOwnBackground } from "./background.ts";
 import { READER_ORDERS } from "./feeds/reader-order.ts";
-import { readEdition, replaceEdition, type AgenticEditionInput } from "./agentic.ts";
+import { listFeeds, readEdition, replaceEdition, type AgenticEditionInput } from "./agentic.ts";
 // Owner API (cookie auth, JSON) — v0.1-plan §3.3.
 
 import { canBeFrontPage, MAX_LINKS, postsPathError } from "./front-page.ts";
@@ -959,16 +959,24 @@ const putShelfOperation = async (context: OperationContext, input: OperationInpu
   return failure('conflict', { error: 'shelf revision conflict; reload and try again', code: 'revision-conflict', current: await readShelf(context.env.DB) });
 };
 
-// The Agentic feed's edition: see src/agentic.ts for the rules both operations share.
-const getAgenticOperation = async (context: OperationContext) => success(await readEdition(context.env.DB));
+// The Agentic feeds and their editions: see src/agentic.ts for the rules the operations share.
+const listAgenticFeedsOperation = async (context: OperationContext) => success({ feeds: await listFeeds(context.env.DB) });
+const getAgenticOperation = async (context: OperationContext, input: OperationInput) => {
+  const edition = await readEdition(context.env.DB, input.path.feed);
+  return edition ? success(edition) : failure('not-found', { error: "no such agentic feed" });
+};
 const putAgenticOperation = async (context: OperationContext, input: OperationInput) => {
+  const feed = input.path.feed;
   const body = input.body as { edition: AgenticEditionInput; expectedRevision: number };
-  if (await replaceEdition(context.env.DB, body.edition, body.expectedRevision, new Date().toISOString())) return success(await readEdition(context.env.DB));
+  if (await replaceEdition(context.env.DB, feed, body.edition, body.expectedRevision, new Date().toISOString())) return success((await readEdition(context.env.DB, feed))!);
+  const current = await readEdition(context.env.DB, feed);
+  if (!current) return failure('not-found', { error: "no such agentic feed" });
   // The current edition rides in the error so an assistant can rebase and retry.
-  return failure('conflict', { error: 'agentic edition revision conflict; reload and try again', code: 'revision-conflict', current: await readEdition(context.env.DB) });
+  return failure('conflict', { error: 'agentic edition revision conflict; reload and try again', code: 'revision-conflict', current });
 };
 
 export const itemOperations = {
+  listAgenticFeeds: listAgenticFeedsOperation,
   getAgentic: getAgenticOperation,
   putAgentic: putAgenticOperation,
   getShelf: getShelfOperation,

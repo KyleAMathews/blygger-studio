@@ -20,8 +20,8 @@ test('an edition renders as a digest in sections, the assistant’s words marked
   await api(page, 'POST', `/items/${lead}/publish`, {});
   const brief = (await api(page, 'POST', '/items', { contentMd: `A brief ${stamp}` })).json.id;
   await api(page, 'POST', `/items/${brief}/publish`, {});
-  const { revision } = (await api(page, 'GET', '/agentic')).json;
-  const put = await api(page, 'PUT', '/agentic', {
+  const { revision } = (await api(page, 'GET', '/agentic/default')).json;
+  const put = await api(page, 'PUT', '/agentic/default', {
     expectedRevision: revision,
     edition: {
       title: `Edition ${stamp}`,
