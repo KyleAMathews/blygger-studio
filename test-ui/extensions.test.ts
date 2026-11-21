@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
 import { createElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { BAR_CAPACITY, DraftCounterSlot, EntryBylineSlot, EntrySheetSlot, ExtensionBoundary, barBlocks, barPlacement, entryActionRows, enabledExtensions, extensionContext, menuPlacement, useEditorBars, type BarHostContext, type HostContext } from '../src/ui/extensions.tsx';
+import { BAR_CAPACITY, DraftCounterSlot, EntryBylineSlot, EntrySheetSlot, ExtensionBoundary, barBlocks, barPlacement, barReplaces, entryActionRows, enabledExtensions, extensionContext, menuPlacement, useEditorBars, type BarHostContext, type HostContext } from '../src/ui/extensions.tsx';
 import { errorLog } from '../src/ui/error-log.ts';
 import type { BarRow, DraftCounterContext, EntryContext, MenuZone, StudioExtension } from '../src/ui/extension-api.ts';
 import { extension as barsExample } from '../extensions/bars-example/ui/index.tsx';
@@ -205,7 +205,7 @@ const bars = (extensions: readonly StudioExtension[], host: BarHostContext = bar
   let owns = false;
   const Screen = () => {
     const placed = useEditorBars(extensions, host);
-    owns = placed.ownsToggle;
+    owns = placed.replaced('regionToggle');
     return createElement('div', null, placed.above, createElement('hr'), placed.below);
   };
   return { markup: html(createElement(Screen)), owns };
@@ -247,7 +247,7 @@ test('editor bars: none enabled renders nothing; a bar renders in its row with t
   expect(below).toContain('<b>low</b>');
 });
 
-test('editor bars: a bar is told where it went; taking over the regions control counts only from a row', () => {
+test('editor bars: a bar is told where it went; replacing the regions control counts only from a row', () => {
   const { markup, owns } = bars([barsExample]);
   expect(markup).toContain('data-bar-place="above"');
   expect(markup).toContain('data-blocks="2"');
@@ -258,3 +258,40 @@ test('editor bars: a bar is told where it went; taking over the regions control 
   expect(bars(crowd).markup).not.toContain('data-bar-place');
 });
 
+test('replaceable controls: the first claimant in compiled order owns the control, wherever it is placed', () => {
+  const claim = (name: string, row: BarRow, blocks: number) => bar(name, row, blocks, { replaces: ['regionToggle'] });
+  // first is crowded into the menu; second is in a row but lost the claim, so the Studio keeps its notice.
+  const crowded = [bar('wide', 'above', 4), bar('wider', 'below', 4), claim('first', 'above', 1), claim('second', 'above', 1)];
+  const placed = barPlacement(crowded);
+  expect(placed.ownerOf('regionToggle')?.name).toBe('first');
+  expect(barReplaces(placed, 'regionToggle', [])).toBe(false);
+  // Hidden, the owner still owns it; the Studio's control stands in.
+  const hidden = barPlacement([claim('first', 'above', 1), claim('second', 'above', 1)], ['first']);
+  expect(hidden.ownerOf('regionToggle')?.name).toBe('first');
+  expect(barReplaces(hidden, 'regionToggle', [])).toBe(false);
+  // In a row and not failed, it stands in; once it fails, the Studio's control is back.
+  const shown = barPlacement([claim('first', 'above', 1), claim('second', 'above', 1)]);
+  expect(barReplaces(shown, 'regionToggle', [])).toBe(true);
+  expect(barReplaces(shown, 'regionToggle', ['first'])).toBe(false);
+  expect(barReplaces(shown, 'regionToggle', ['second'])).toBe(true);
+  // No claimant, no replacement.
+  expect(barReplaces(barPlacement([bar('plain', 'above', 1)]), 'regionToggle', [])).toBe(false);
+});
+
+test('replaceable controls: each bar is told what it owns, and the bars menu is labelled', () => {
+  const told: Record<string, string[]> = {};
+  const claimant = (name: string): StudioExtension => ({
+    name, label: name, description: name,
+    editorBar: { label: name, replaces: ['regionToggle'], component: ({ context }) => { told[name] = context.bar.owns; return null; } },
+  });
+  const { markup } = bars([claimant('first'), claimant('second')]);
+  expect(told).toEqual({ first: ['regionToggle'], second: [] });
+  expect(markup).toMatch(/aria-label="editor bars"[^>]*>bars<\/button>/);
+});
+
+test('a slot boundary reports the extension that failed, so a control it replaced is handed back', () => {
+  const failed: string[] = [];
+  const boundary = new ExtensionBoundary({ name: 'broken-bar', slot: 'editorBar', onFail: (name) => failed.push(name), children: 'content' });
+  boundary.componentDidCatch(new Error('bar exploded'), { componentStack: '' });
+  expect(failed).toEqual(['broken-bar']);
+});
