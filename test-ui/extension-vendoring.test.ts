@@ -247,7 +247,7 @@ describe('vendored extensions in a build', () => {
     const release = buildExtensions(root, { BLYG_EXTENSIONS_SHIPPED_ONLY: '1' });
     expect(release.status, release.stderr).toBe(0);
     expect(readFileSync(join(root, 'build/extensions.ui.ts'), 'utf8')).not.toContain('extensions-vendor');
-    expect(readFileSync(join(root, 'build/extensions.names.ts'), 'utf8')).toContain('["inspect","reading-time"]');
+    expect(readFileSync(join(root, 'build/extensions.names.ts'), 'utf8')).toContain('["claims","inspect","reading-time"]');
     // The browser suite's "all" means the catalogue, never a vendored extension.
     const all = buildExtensions(root, { BLYG_EXTENSIONS: 'all' });
     expect(readFileSync(join(root, 'build/extensions.ui.ts'), 'utf8'), all.stderr).not.toContain('extensions-vendor');

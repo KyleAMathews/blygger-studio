@@ -1,0 +1,77 @@
+/* claims: styled with the Studio's own variables, so it follows each owner's theme. */
+
+.claims-bar { display: inline-flex; align-items: center; gap: var(--s2); min-width: 0; }
+.claims-summary { font-size: .8rem; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.claims-summary b { color: var(--pencil); font-variant-numeric: tabular-nums; }
+
+.claims-form { display: flex; flex-direction: column; }
+.claims-form textarea, .claims-form input[type=text], .claims-form input[type=url], .claims-form select { width: 100%; }
+.claims-form input[type=number], .claims-form input[type=date], .claims-form input[type=month] {
+  font: inherit; color: var(--ink); background: var(--sunk); border: 1px solid var(--rule); border-radius: 10px; padding: 9px 11px; outline: none;
+}
+.claims-form :is(input, textarea, select):focus-visible { border-color: var(--pencil); box-shadow: 0 0 0 3px var(--pencil-bg); }
+.claims-statement { font-size: 1.05rem; resize: vertical; }
+.claims-group { margin-bottom: 14px; }
+.claims-label { display: block; font-size: .82rem; color: var(--ink-soft); margin-bottom: 6px; }
+.claims-wrap { flex-wrap: wrap; overflow: visible; margin-bottom: 10px; }
+.claims-big { font-size: 1.05rem; color: var(--pencil); font-variant-numeric: tabular-nums; margin-left: 4px; }
+.claims-range { width: 100%; accent-color: var(--pencil); }
+.claims-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-bottom: 10px; font-size: .9rem; color: var(--ink-soft); }
+.claims-row input[type=number] { width: 7.5em; }
+.claims-unit { width: 8em !important; }
+.claims-short input { max-width: 12em; }
+.claims-num { width: 7.5em; }
+.claims-inline { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--ink-soft); }
+.claims-options { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; counter-reset: claims; }
+.claims-options li { display: flex; align-items: center; gap: var(--s2); counter-increment: claims; }
+.claims-options li::before { content: counter(claims); width: 1.2em; text-align: right; font-size: .8rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.claims-options input[type=text] { flex: 1; min-width: 0; }
+.claims-pct { display: inline-flex; align-items: center; gap: 2px; color: var(--ink-soft); }
+.claims-pct input { width: 4.8em; }
+.claims-criteria { padding: 8px 10px; border-radius: var(--radius-sm); background: var(--sunk); margin: 0 0 4px; }
+.claims-mistakes { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: .85rem; }
+.claims-mistakes li { padding: 8px 10px; border-radius: var(--radius-sm); }
+.claims-stop { background: var(--alert-bg); color: var(--alert); }
+.claims-warn { background: var(--warn-bg); color: var(--warn); }
+.claims-toggle { align-self: flex-start; margin: 0 0 8px; font-size: .82rem; }
+.claims-block { margin: 0 0 14px; padding: 10px 12px; max-height: 14em; overflow: auto; background: var(--sunk); border-radius: var(--radius-sm); font: .78rem/1.45 var(--mono); color: var(--ink); white-space: pre; }
+
+.claims-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 1px 8px; border: 1px solid var(--rule); border-radius: 999px;
+  background: var(--card); color: var(--ink-soft); font: inherit; font-size: .74rem; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; vertical-align: baseline; }
+.claims-badge:hover { border-color: var(--pencil); color: var(--ink); }
+.claims-badge:focus-visible { outline: 2px solid var(--pencil); outline-offset: 2px; }
+.claims-badge span { color: var(--pencil); }
+.claims-badge[data-pinned=false] span { color: var(--warn); }
+.claims-badge[data-status=due] { border-color: var(--warn); color: var(--warn); background: var(--warn-bg); }
+.claims-badge[data-status=resolved] { color: var(--ink); }
+.claims-badge[data-status=void] { color: var(--ink-soft); }
+.claims-facts { display: grid; gap: 10px; margin: 0 0 14px; }
+.claims-facts div { display: grid; grid-template-columns: 7.5em 1fr; gap: 10px; align-items: baseline; }
+.claims-facts dt { font-size: .82rem; color: var(--ink-soft); }
+.claims-facts dd { margin: 0; color: var(--ink); }
+.claims-facts a { color: var(--pencil); }
+.claims-note { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 12px; border-radius: var(--radius-sm); font-size: .88rem; }
+.claims-ok { margin: 0 0 12px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--ok-bg); color: var(--ok); font-size: .88rem; }
+
+.claims-page { display: flex; flex-direction: column; gap: 4px; }
+.claims-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.claims-stats div { padding: 12px 14px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--rule); }
+.claims-stats b { display: block; font-size: 1.5rem; line-height: 1.1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.claims-stats span { font-size: .78rem; color: var(--ink-soft); }
+.claims-stats [data-tone=due] b { color: var(--warn); }
+.claims-section h2 { font-size: 1rem; margin: 18px 0 8px; }
+.claims-section h2 .n { font-size: .8rem; color: var(--ink-soft); font-weight: 500; }
+.claims-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.claims-list li { padding: 12px 14px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--rule); display: grid; gap: 6px; }
+.claims-list li[data-status=due] { border-color: var(--warn); }
+.claims-line { display: flex; gap: 8px; align-items: baseline; }
+.claims-mark { color: var(--pencil); flex: 0 0 auto; }
+
+.claims-title { text-align: left; font-size: .98rem; color: var(--ink); padding: 0; }
+.claims-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .82rem; color: var(--ink-soft); padding-left: 1.4em; }
+.claims-meta b { color: var(--pencil); font-variant-numeric: tabular-nums; }
+.claims-outcome { color: var(--ink); font-weight: 600; }
+.claims-changed { color: var(--warn); }
+.claims-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-left: 1.4em; }
+.claims-actions:empty { display: none; }
+.claims-mark[data-pinned=false] { color: var(--warn); }
