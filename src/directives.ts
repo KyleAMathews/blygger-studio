@@ -58,6 +58,18 @@ export function attachedQuote(lines: string[], i: number): { quoteMd: string | n
   return { quoteMd: run.join("\n"), next: i + 1 + n };
 }
 
+/**
+ * The own-line `![[id]]` directives in a text, outside code (§10.1, #54), as written.
+ * A fragment publishes none: a directive line in a fragment is a publish error
+ * (§10.3, decisions #100 and #102), not text.
+ */
+export function directiveLines(contentMd: string): string[] {
+  const lines = contentMd.split("\n");
+  const inert = codeRanges(contentMd);
+  const starts = lineOffsets(lines);
+  return lines.filter((line, i) => !inRanges(inert, starts[i]) && DIRECTIVE_LINE.test(line)).map((line) => line.trim());
+}
+
 export function extractDirectives(contentMd: string): { count: number; withoutDirectives: string } {
   const lines = contentMd.split("\n");
   const kept: string[] = [];

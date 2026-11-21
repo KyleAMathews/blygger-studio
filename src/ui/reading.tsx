@@ -12,7 +12,7 @@
  * handlers, never the only way. Choosing a passage to quote happens in the
  * stub editor (session 37), not here.
  */
-import { createItem, createHopper, addHopperItem, resyncSubscription, pollSubscriptions, markUnheldRead } from './server-mutations.ts';
+import { createItem, createHopper, addHopperItem, resyncSubscription, pollSubscriptions, markUnheldRead, setReadingPlacement, setBlygBackground } from './server-mutations.ts';
 import { readingPage } from '../paging.ts';
 import { linkSource } from '../grammar.ts';
 import { linkLabel } from '../link-label.ts';
@@ -52,18 +52,24 @@ import {
   useChrome,
   useSettings,
   SourceLink,
+  CopiesElsewhere,
 } from './components.tsx';
+import { Toggle, ToggleGroup } from './buttons.tsx';
+import { Tab, Tabs } from './primitives.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
+import { IconButton, Tooltip } from './primitives.tsx';
+import { shelfLabel, toggleShelf, useShelf } from './shelf.tsx';
 import { displayUrl, sourceTitleAndUrl } from '../importer/util.ts';
 import { ReaderBody, TrailBar, ownOrigin, useEndTrail, useSubscriptionRows } from './reader-links.tsx';
 import { currentTrail, visit } from './browse.ts';
 import { formatDateIn } from '../dates.ts';
 import { AddFeedForm } from './catalog.tsx';
 import { OpmlImportSheet } from './opml-import.tsx';
+import { DiscoverSheet } from './discover.tsx';
 import { diffText, type DiffOp } from '../word-diff.ts';
 import { useSwipe } from './swipe.ts';
 import type { EntryContext, StudioExtension } from './extension-api.ts';
-import { EntryBylineSlot, EntrySheetSlot, entryActionRows, enabledExtensions, type OpenSheet } from './extensions.tsx';
+import { EntryBylineSlot, EntrySheetSlot, entryActionRows, enabledExtensions, type HostContext, type OpenSheet } from './extensions.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { More, ThumbDown, ThumbUp } from './icons.tsx';
 import { SearchBox, SearchResults, type SearchFilters } from './search.tsx';
@@ -470,7 +476,7 @@ function useEntryActions({
   };
   // What an extension's slots see of this entry (extension-api.ts). Built only
   // when an extension asks, so an entry with none enabled does no extra work.
-  const extensionContext = (extension: StudioExtension): EntryContext => ({
+  const extensionContext = (extension: StudioExtension): HostContext<EntryContext> => ({
     entry,
     id,
     imported: imported
@@ -491,6 +497,12 @@ function useEntryActions({
     openSheet: (render) => setExtensionSheet({ name: extension.name, render }),
   });
   const hopperSub = imported?.subscriptionId ?? (entry.own ? OWN_SUB : undefined);
+  // The shelf keeps only what resolves (src/shelf.ts): never a withdrawn own item, nor a tombstone without its pin.
+  const shelved = useShelf();
+  const shelfEntry = hopperSub && (!entry.withdrawn || imported?.pinnedVersionRetained != null) ? { sub: hopperSub, remoteId: id } : null;
+  const shelf = shelfEntry
+    ? { label: shelfLabel(shelved, shelfEntry), on: shelfLabel(shelved, shelfEntry) === 'remove from shelf', toggle: () => run(() => toggleShelf(shelved, shelfEntry)) }
+    : null;
   const addToHopper = () =>
     run(async () => {
       if (!hopperSub) return;
@@ -517,6 +529,20 @@ function useEntryActions({
       }
       await addHopperItem({ id: hopperId, sub: hopperSub, remoteId: id });
       toast(`added to ${name}`);
+    });
+  // Background and Foreground (src/background.ts): a view preference, not a
+  // judgement, so nothing here is logged as an interaction or marks anything read.
+  const inBackground = useContext(LensContext) === 'background';
+  const place = (placement: 'background' | 'foreground' | null) =>
+    run(async () => {
+      await setReadingPlacement({ source: imported ? 'imported' : 'own', ...(imported ? { sub: imported.subscriptionId } : {}), id, placement });
+      toast(placement === 'background' ? 'moved to Background' : placement === 'foreground' ? 'moved to Foreground' : 'the rules decide again');
+    });
+  const blygBackground = (background: boolean) =>
+    run(async () => {
+      if (!imported) return;
+      await setBlygBackground({ id: imported.subscriptionId, background });
+      toast(`${imported.subscriptionTitle} ${background ? 'moved to Background' : 'back in the main lenses'}`);
     });
   const openMenu = async () => {
     await menu({
@@ -572,6 +598,25 @@ function useEntryActions({
           label: 'add author to address book',
           onSelect: () => void authorSeed(imported).then(addAuthorContact),
         },
+        (imported || entry.own) && {
+          key: 'placement',
+          icon: inBackground ? '↑' : '↓',
+          label: inBackground ? 'move to Foreground' : 'move to Background',
+          onSelect: () => void place(inBackground ? 'foreground' : 'background'),
+        },
+        entry.background.placement !== null && {
+          key: 'placement-clear',
+          icon: '↺',
+          label: 'clear my choice',
+          description: 'Background and Foreground follow the rules again',
+          onSelect: () => void place(null),
+        },
+        !!imported && {
+          key: 'blyg-placement',
+          icon: entry.background.blyg ? '⇈' : '⇊',
+          label: entry.background.blyg ? 'move this blyg to Foreground' : 'move this blyg to Background',
+          onSelect: () => void blygBackground(!entry.background.blyg),
+        },
         ...entryActionRows(extensions, extensionContext),
       ],
     });
@@ -584,6 +629,7 @@ function useEntryActions({
     vote,
     stub,
     addToHopper,
+    shelf,
     openMenu,
     historyOpen,
     extensions,
@@ -610,19 +656,65 @@ async function authorSeed(imported: NonNullable<Reading['imported']>) {
   };
 }
 
+/**
+ * Why an entry is in Background, in the plan's precedence (background-plan.md
+ * §4): your choice on it, then on its blyg, then the first rule that applies.
+ */
+function backgroundLabel(entry: Reading): string | null {
+  const { placement, blyg, reasons, detail } = entry.background;
+  if (placement === 'background') return 'you moved this';
+  if (blyg) return 'blyg in Background';
+  // Withdrawn entries already say so under the body (Tomb).
+  if (reasons[0] === 'withdrawn') return null;
+  if (reasons[0] === 'burst') return 'part of a burst';
+  if (reasons[0] === 'wordless') return 'no words of its own';
+  if (reasons[0] === 'maintenance') return 'republished unchanged';
+  if (reasons[0] === 'minor') return typeof detail?.category === 'string' ? `minor change (${detail.category})` : 'minor change';
+  return null;
+}
+
 /** The byline: kind, legacy rss, source and date, plus the extensions' slot. */
 function Byline({ entry, a, children }: { entry: Reading; a: EntryActions; children?: ReactNode }) {
   const settings = useSettings();
   const date = formatDateIn(entry.displayAt, settings?.timezone || 'UTC');
+  const why = useContext(LensContext) === 'background' ? backgroundLabel(entry) : null;
   return (
     <p className="byline">
       {children}
       <span className="badge">{entry.kind}</span>
       {entry.l0 ? <span className="badge badge-line">legacy rss</span> : null}
+      {why ? <span className="badge badge-line badge-why" title="why this is in Background">{why}</span> : null}
       <span className="src">{a.imported?.subscriptionTitle || 'you'}</span>
       <span>· {date}</span>
       <EntryBylineSlot extensions={a.extensions} context={a.extensionContext} />
     </p>
+  );
+}
+/**
+ * A thread published with its parts (spec §13.7's fold): the parts wait in
+ * Background as `burst`, and the thread lists them here, folded until opened.
+ */
+function BurstParts({ entry, open = false }: { entry: Reading; open?: boolean }) {
+  const [shown, setShown] = useState(open);
+  const parts = entry.parts ?? [];
+  if (!parts.length) return null;
+  return (
+    <div className="burst-parts" data-parts={parts.length}>
+      <Button className="link-btn burst-toggle" aria-expanded={shown} onClick={() => setShown(!shown)}>
+        {shown ? '−' : '+'}{parts.length} {parts.length === 1 ? 'part' : 'parts'}
+      </Button>
+      {shown ? (
+        <ol className="burst-list">
+          {parts.map((part) => (
+            <li key={`${part.sub}/${part.id}`}>
+              <Link to="/reading/$sub/$id" params={{ sub: part.sub, id: part.id }}>
+                {part.label || part.id.slice(0, 8)}
+              </Link>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </div>
   );
 }
 function Tomb({ entry }: { entry: Reading }) {
@@ -646,16 +738,16 @@ function EntryBar({ entry, a }: { entry: Reading; a: EntryActions }) {
     <div className="entry-bar">
       {imported
         ? ([1, -1] as const).map((thumb) => (
-            <Button
-              key={thumb}
-              className="act icon-only thumb"
-              aria-label={thumb === 1 ? 'thumbs up' : 'thumbs down'}
-              title={thumb === 1 ? 'thumbs up' : 'thumbs down'}
-              aria-pressed={signal?.thumb === thumb}
-              onClick={() => void a.vote(thumb)}
-            >
-              {thumb === 1 ? <ThumbUp /> : <ThumbDown />}
-            </Button>
+            <Tooltip key={thumb} label={thumb === 1 ? 'thumbs up' : 'thumbs down'}>
+              <Button
+                className="act icon-only thumb"
+                aria-label={thumb === 1 ? 'thumbs up' : 'thumbs down'}
+                aria-pressed={signal?.thumb === thumb}
+                onClick={() => void a.vote(thumb)}
+              >
+                {thumb === 1 ? <ThumbUp /> : <ThumbDown />}
+              </Button>
+            </Tooltip>
           ))
         : null}
       <span className="spacer" />
@@ -678,23 +770,28 @@ function EntryBar({ entry, a }: { entry: Reading; a: EntryActions }) {
           <Button
             className="act"
             aria-label="add to hopper"
-            title="add to hopper"
             onClick={() => void a.addToHopper()}
           >
-            + add to hopper…
+            + <span className="act-wide">add to </span>hopper…
           </Button>
         </>
       ) : null}
-      <Button
-        className="act icon-only more-btn"
-        aria-label="more actions"
-        title="more actions"
-        // Keep a text selection alive through the press.
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={() => void a.openMenu()}
-      >
-        <More />
-      </Button>
+      {a.shelf ? (
+        <Button className="act" data-action="shelf" aria-label={a.shelf.label} onClick={() => void a.shelf?.toggle()}>
+          {a.shelf.on ? '−' : '+'} <span className="act-wide">{a.shelf.on ? 'remove from' : 'add to'} </span>shelf
+        </Button>
+      ) : null}
+      <Tooltip label="more actions">
+        <Button
+          className="act icon-only more-btn"
+          aria-label="more actions"
+          // Keep a text selection alive through the press.
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => void a.openMenu()}
+        >
+          <More />
+        </Button>
+      </Tooltip>
     </div>
   );
 }
@@ -780,6 +877,7 @@ function Entry({
           <ChangeLead entry={entry} />
           <Body html={entry.contentHtml} url={url} l0={entry.l0} onMore={openArticle} />
           <SourceLink url={url} />
+          <BurstParts entry={entry} />
         </div>
         {imported && !entry.l0 && a.historyOpen ? (
           <History sub={imported.subscriptionId} id={id} />
@@ -956,6 +1054,8 @@ async function ownEntry(id: string, signal?: AbortSignal): Promise<Reading> {
     displayAt: item.published?.publishedAt ?? item.updated,
     rank: 0,
     own: { id, kind, withdrawn, updated: item.updated, contentHtml },
+    // Opened by address, outside a list: what is known without the reader's query.
+    background: { reasons: withdrawn ? ['withdrawn'] : [], placement: null, blyg: false },
   };
 }
 /** A standalone import when no loaded Reading row is held. */
@@ -978,6 +1078,7 @@ function importedEntry(
     contentHtml: item.contentHtml,
     displayAt,
     rank,
+    background: { reasons: withdrawn ? ['withdrawn'] : [], placement: null, blyg: source?.background ?? false },
     imported: {
       subscriptionId: item.subscriptionId,
       subscriptionTitle: source ? sourceName(source) : item.subscriptionId,
@@ -1114,6 +1215,8 @@ function Article({ entry, actions, origin }: { entry: Reading; actions: Actions;
         <EntryTitle title={content.title} url={a.url} as="h2" className="entry-title article-title" />
         <ReaderBody html={content.html} origin={origin} className="content entry-body article-body" />
         <SourceLink url={a.url} />
+        <CopiesElsewhere entries={entry.imported?.syndication} />
+        <BurstParts entry={entry} open />
       </div>
       {a.imported && !entry.l0 && a.historyOpen ? (
         <History sub={a.imported.subscriptionId} id={a.id} />
@@ -1282,6 +1385,27 @@ function Inspector({
           </span>
         </span>
       </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={shown.background}
+          onChange={(event) => {
+            const checked = event.target.checked;
+            setError(undefined);
+            setBlygBackground({ id: shown.id, background: checked }).then(
+              () => toast(checked ? 'moved to Background' : 'back in the main lenses'),
+              setError,
+            );
+          }}
+        />
+        <span>
+          in Background
+          <span className="hint">
+            Its entries leave the other lenses for Background, except any you
+            moved to Foreground. Nothing is marked read.
+          </span>
+        </span>
+      </label>
       <Failure error={error} />
       <ul className="menu-list">
         <li>
@@ -1391,6 +1515,7 @@ const LENS_LABELS: Record<Lens, string> = {
   all: 'All',
   threads: 'Threads',
   fragments: 'Fragments',
+  shelf: 'Shelf',
   mentions: 'Mentions',
   background: 'Background',
   smart: 'Smart Feed',
@@ -1406,7 +1531,7 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
   const bar = useRef<HTMLDivElement>(null);
   // On a phone the bar scrolls sideways; keep the chosen lens in view.
   useEffect(() => {
-    const el = bar.current?.querySelector<HTMLElement>('[aria-pressed=true]');
+    const el = bar.current?.querySelector<HTMLElement>('[aria-checked=true]');
     const box = bar.current;
     if (!el || !box) return;
     // Scroll only the bar, never the page.
@@ -1423,22 +1548,23 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
   // Buttons, not router Links: a Link to /reading counts as "current" under
   // every lens, which would mark All active alongside the real choice.
   return (
-    <div ref={bar} className="segmented lens-bar" role="group" aria-label="reading lens">
+    <ToggleGroup ref={bar} className="lens-bar" aria-label="reading lens" value={[lens]}>
       {LENSES.map((value) => (
-        <Button
+        <Toggle
           key={value}
-          className={`seg${lens === value ? ' is-active' : ''}${value === 'smart' ? ' seg-dashed' : ''}`}
-          aria-pressed={lens === value}
+          className={value === 'background' || value === 'smart' ? 'seg-dashed' : undefined}
+          value={value}
           onClick={() =>
             void navigate({ to: '/reading', search: { ...place, ...(value === 'all' ? {} : { lens: value }) } })
           }
         >
           {LENS_LABELS[value]}
-        </Button>
+        </Toggle>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }
+const SHELF_NOTE = 'What you put on your shelf, yours and the blygs you read, in your order. Your drafts on it are under compose.';
 const MENTIONS_NOTE = 'Items you already read that name you. A find, not a notification: nobody told you, and nothing here is verified.';
 /** Withdrawn posts are background: every other lens leaves them out. */
 export const BACKGROUND_NOTE = 'Withdrawn posts, yours and the blygs you read. They are kept out of the other views.';
@@ -1683,23 +1809,22 @@ function ReadingTabs({ active }: { active: 'feed' | 'sources' }) {
   const navigate = useNavigate();
   const lensSearch = useLensSearch();
   return (
-    <div className="segmented reading-tabs" role="group" aria-label="reading view">
+    <Tabs className="reading-tabs" label="reading view" value={active} onValueChange={(value) => {
+      const next = value as 'feed' | 'sources';
+      void navigate({
+        to: '/reading',
+        search: { ...(next === 'sources' ? { view: 'sources' as const } : {}), ...lensSearch },
+      });
+    }}>
       {(['feed', 'sources'] as const).map((value) => (
-        <Button
+        <Tab
           key={value}
-          className={`seg${active === value ? ' is-active' : ''}`}
-          aria-pressed={active === value}
-          onClick={() =>
-            void navigate({
-              to: '/reading',
-              search: { ...(value === 'sources' ? { view: 'sources' as const } : {}), ...lensSearch },
-            })
-          }
+          value={value}
         >
           {value === 'feed' ? 'Feed' : 'Sources'}
-        </Button>
+        </Tab>
       ))}
-    </div>
+    </Tabs>
   );
 }
 /**
@@ -1722,6 +1847,7 @@ function ReadingHead({
 }) {
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
   const [resyncing, setResyncing] = useState(false);
   // Native collection polling observes the server's background work.
   const resyncAll = async () => {
@@ -1745,27 +1871,20 @@ function ReadingHead({
         </h2>
         <div className="view-actions">
           {children}
-          <Button
-            className="icon-btn"
-            aria-label="resync all feeds"
-            title="resync all feeds"
-            disabled={resyncing}
-            onClick={() => void resyncAll()}
-          >
+          <IconButton className="icon-btn" label="resync all feeds" disabled={resyncing} onClick={() => void resyncAll()}>
             ↻
-          </Button>
-          <Button
-            className="icon-btn"
-            aria-label="subscribe"
-            title="subscribe"
-            onClick={() => setAdding(true)}
-          >
+          </IconButton>
+          <IconButton className="icon-btn" id="discover-open" label="discover blygs on blygger.com" onClick={() => setDiscovering(true)}>
+            ✦
+          </IconButton>
+          <IconButton className="icon-btn" label="subscribe" onClick={() => setAdding(true)}>
             ＋
-          </Button>
+          </IconButton>
         </div>
       </div>
       <SubscribeSheet open={adding} onClose={() => setAdding(false)} onImport={() => setImporting(true)} />
       <OpmlImportSheet open={importing} onClose={() => setImporting(false)} />
+      <DiscoverSheet open={discovering} onClose={() => setDiscovering(false)} />
     </>
   );
 }
@@ -1837,15 +1956,11 @@ function useReadSelection(key: string, offset: number, entries: Reading[], actio
       ],
     });
   const button = (
-    <Button
-      className="icon-btn"
-      aria-label="read state"
-      title="select, mark read or unread"
-      aria-pressed={selecting}
-      onClick={openMenu}
-    >
-      ☑
-    </Button>
+    <Tooltip label="select, mark read or unread">
+      <Button className="icon-btn" aria-label="read state" aria-pressed={selecting} onClick={openMenu}>
+        ☑
+      </Button>
+    </Tooltip>
   );
   const allPicked = importedRows.length > 0 && importedRows.every((entry) => picked.has(entry.key));
   const bar = selecting ? (
@@ -1903,13 +2018,9 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
       <ReadingHead title={title} count={lens === 'mentions' ? undefined : metadata?.total}>
         {readable ? read.button : null}
         {selected ? (
-          <Button
-            className="icon-btn"
-            aria-label="about this source"
-            onClick={() => setInspecting(true)}
-          >
+          <IconButton className="icon-btn" label="about this source" onClick={() => setInspecting(true)}>
             ⓘ
-          </Button>
+          </IconButton>
         ) : null}
       </ReadingHead>
       <LensBar sub={sub} />
@@ -1928,6 +2039,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
         <>
           {lens === 'background' ? <p className="view-sub">{BACKGROUND_NOTE}</p> : null}
           {lens === 'mentions' ? <p className="view-sub">{MENTIONS_NOTE}</p> : null}
+          {lens === 'shelf' ? <p className="view-sub">{SHELF_NOTE}</p> : null}
           {entries.isLoading ? <p className="view-sub">Loading reading…</p> : null}
           <EntryList entries={entries.data ?? []} actions={actions} />
           {!entries.isLoading && !entries.data?.length ? (
@@ -1935,7 +2047,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
               <span className="em" aria-hidden="true">
                 ◫
               </span>
-              {lens === 'background' ? 'Nothing withdrawn.' : lens === 'mentions' ? 'Nothing you read mentions you yet.' : 'No items yet.'}
+              {lens === 'background' ? 'Nothing withdrawn.' : lens === 'mentions' ? 'Nothing you read mentions you yet.' : lens === 'shelf' ? 'Nothing on your shelf yet: “add to shelf” on any entry puts it here.' : 'No items yet.'}
             </div>
           ) : null}
           <Pager

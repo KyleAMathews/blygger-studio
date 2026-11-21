@@ -85,13 +85,25 @@ in localStorage, as the picker's already are.
 
 ## Cost
 
-Migration `0046_search_index.sql` builds the FTS5 trigram index from existing
+Migration `0050_search_index.sql` builds the FTS5 trigram index from existing
 items. SQLite triggers keep it current as drafts, publications, and imports
 change. Search starts from the index, applies any subscription filter there,
 and reads the matching source rows by key. A query
 with a term of at least three Unicode characters can also contain shorter
 terms, which filter the indexed hits. A query made up entirely of shorter
 terms returns no hits. A blank query still lists items in date order.
+
+The Studio backup omits `search_documents`, `search_fts`, and its shadow tables.
+Restore the source tables into a database with migrations applied: the triggers
+rebuild search whether items or their versions are loaded first. If a restore
+disables triggers, rebuild explicitly afterwards:
+
+```sql
+DELETE FROM search_documents;
+INSERT INTO search_documents(scope, item_id, subscription_id, content_md)
+SELECT * FROM search_source;
+INSERT INTO search_fts(search_fts) VALUES('rebuild');
+```
 
 For a full database restore on D1, use Time Travel. Cloudflare's SQL dump
 format for databases with virtual tables targets the SQLite CLI. [D1 export

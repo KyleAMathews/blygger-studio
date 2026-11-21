@@ -104,7 +104,7 @@ test('the alert that became a toast says what to do and goes away', async ({ pag
   await page.locator('#tk-impyrt-btn').click();
   const toast = page.locator('.toast');
   await expect(toast).toHaveText('Select the pasted generated text first, then mark it.');
-  await expect(toast).toHaveAttribute('role', 'status');
+  await expect(toast).toHaveAttribute('role', 'dialog');
   await expect(page.locator('#md-input')).toHaveValue('Toast fixture');
   await expect(toast).toHaveCount(0, { timeout: 5000 });
 });

@@ -25,8 +25,10 @@ const suites = {
 } as const;
 // Shared by every suite: a change here can break any of them.
 const everything = [
+  /^test\/(?:oracle-storage|oracle-property-registry|configure-oracles|oracle-cleanup)\.ts$/,
+  /^scripts\/(?:oracles-cloudflare|oracle-mutation-control|oracle-replay-receipt|run-oracle-gaps)\.ts$/, /^test-browser\//,
   /^package(-lock)?\.json$/, /^\.github\/workflows\//, /^scripts\/ci-scope\.ts$/,
-  /^vitest(\.ui)?\.config\.ts$/, /^tsconfig.*\.json$/, /^wrangler\.jsonc$/, /^migrations\//,
+  /^vitest(?:\.[\w-]+)?\.config\.ts$/, /^tsconfig.*\.json$/, /^wrangler\.jsonc$/, /^migrations\//,
 ];
 const docsOnly = [/\.md$/, /^docs\//, /^LICENSE$/, /^\.github\/ISSUE_TEMPLATE\//];
 

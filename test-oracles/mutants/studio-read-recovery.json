@@ -1,0 +1,26 @@
+[
+  {
+    "id": "studio-original-unrecovered-sdk-supersession",
+    "source": "src/ui/data.ts",
+    "find": "client.setConfig({ fetch: recoverStudioReads(client.getConfig().fetch!) });",
+    "replace": ";",
+    "intent": "Restore the original Studio client that strands active reads after SDK supersession.",
+    "author": "Codex (original confirmed public-collection defect)"
+  },
+  {
+    "id": "studio-retries-lookalike-abort",
+    "source": "src/ui/read-recovery.ts",
+    "find": "if (!(error instanceof ReadSupersededError)) throw error;",
+    "replace": "if (!(error instanceof DOMException && error.name === 'AbortError' && error.message === 'Read superseded')) throw error;",
+    "intent": "Mistake a provider AbortError with identical public text for SDK supersession.",
+    "author": "Codex (neighboring failure-fidelity control)"
+  },
+  {
+    "id": "studio-clones-original-request-before-sdk",
+    "source": "src/ui/read-recovery.ts",
+    "find": "return await fetcher(input, init);",
+    "replace": "return await fetcher(new Request(input, init));",
+    "intent": "Lose generated-client request identity and normalize falsy cancellation reasons.",
+    "author": "Codex (neighboring cancellation-identity control)"
+  }
+]

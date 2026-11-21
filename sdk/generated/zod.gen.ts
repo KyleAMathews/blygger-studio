@@ -22,6 +22,7 @@ export const zApiError = z.object({
         'method-not-allowed',
         'conflict',
         'revision-conflict',
+        'tangle-confirmation-required',
         'cursor-expired',
         'too-large',
         'unsupported-media',
@@ -67,23 +68,6 @@ export const zCapabilities = z.object({
         enabled: z.boolean(),
         granted: z.boolean()
     }))
-});
-
-export const zChangeState = z.object({
-    epoch: z.string().min(1),
-    domains: z.object({
-        items: z.int().gte(0).lte(9007199254740991),
-        reading: z.int().gte(0).lte(9007199254740991),
-        subscriptions: z.int().gte(0).lte(9007199254740991),
-        hoppers: z.int().gte(0).lte(9007199254740991),
-        signals: z.int().gte(0).lte(9007199254740991),
-        settings: z.int().gte(0).lte(9007199254740991),
-        feed: z.int().gte(0).lte(9007199254740991),
-        mentions: z.int().gte(0).lte(9007199254740991),
-        responses: z.int().gte(0).lte(9007199254740991),
-        interactions: z.int().gte(0).lte(9007199254740991),
-        browse: z.int().gte(0).lte(9007199254740991)
-    })
 });
 
 export const zCitation = z.object({
@@ -150,6 +134,16 @@ export const zItem = z.object({
     ])
 });
 
+export const zSyndicationEntry = z.object({
+    url: z.string().min(1).max(2048),
+    version: z.int().gt(0)
+}).strict();
+
+export const zSyndication = z.object({
+    entries: z.array(zSyndicationEntry),
+    revision: z.int().gt(0).lte(9007199254740991)
+});
+
 export const zCustomTheme = z.object({
     dark: z.boolean(),
     page: z.string().regex(/^#[0-9a-fA-F]{6}$/),
@@ -198,6 +192,12 @@ export const zSettings = z.object({
         'summary'
     ]),
     changelogSummaryPrompt: z.string(),
+    backgroundRules: z.object({
+        burst: z.boolean(),
+        wordless: z.boolean(),
+        maintenance: z.boolean(),
+        minor: z.boolean()
+    }),
     acceptMentions: z.boolean(),
     updateCheck: z.boolean(),
     showResponsesDefault: z.boolean(),
@@ -239,6 +239,7 @@ export const zSettings = z.object({
     })).optional(),
     updateFeedUrl: z.string(),
     updateNoticeAck: z.boolean(),
+    discoverSeenAt: z.string(),
     extensions: z.array(z.string())
 });
 
@@ -264,7 +265,18 @@ export const zSubscription = z.object({
     })),
     created: z.string(),
     titleFollowsSource: z.boolean(),
+    background: z.boolean(),
     hopperFeedUrl: z.string().nullable()
+});
+
+export const zShelfEntry = z.object({
+    sub: z.string().min(1).max(128),
+    remoteId: z.string().min(1).max(256)
+}).strict();
+
+export const zShelf = z.object({
+    entries: z.array(zShelfEntry),
+    revision: z.int().gte(0)
 });
 
 export const zContact = z.object({
@@ -378,7 +390,8 @@ export const zImportedItem = z.object({
     transclusions: z.array(z.unknown()).nullable(),
     stubOf: z.record(z.string(), z.unknown()).nullable(),
     forkedFrom: z.record(z.string(), z.unknown()).nullable(),
-    generated: z.array(z.unknown()).nullable()
+    generated: z.array(z.unknown()).nullable(),
+    syndication: z.array(zSyndicationEntry).nullish()
 });
 
 export const zHopperMembership = z.object({
@@ -468,7 +481,8 @@ export const zMention = z.object({
         'stub',
         'transclusion',
         'fork',
-        'source'
+        'source',
+        'link'
     ]).nullable(),
     sourceOrigin: z.string().nullable(),
     sourceId: z.string().nullable(),
@@ -507,9 +521,20 @@ export const zMentionGroup = z.object({
     targetItemId: z.string(),
     total: z.int().gte(0),
     visible: z.int().gte(0),
+    links: z.int().gte(0),
     verifiedAt: z.string(),
     lastSeen: z.string(),
     firstId: z.string()
+});
+
+/**
+ * Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read.
+ */
+export const zEntryBackground = z.object({
+    reasons: z.array(z.string()),
+    placement: z.enum(['background', 'foreground']).nullable(),
+    blyg: z.boolean(),
+    detail: z.record(z.string(), z.unknown()).optional()
 });
 
 export const zReadingEntry = z.object({
@@ -540,8 +565,15 @@ export const zReadingEntry = z.object({
         pinnedVersionRetained: z.number().nullable(),
         sourceUrl: z.string().nullable(),
         version: z.int(),
-        readVersion: z.int().nullable()
-    }).optional()
+        readVersion: z.int().nullable(),
+        syndication: z.array(zSyndicationEntry).optional()
+    }).optional(),
+    background: zEntryBackground,
+    parts: z.array(z.object({
+        sub: z.string(),
+        id: z.string(),
+        label: z.string()
+    })).optional()
 });
 
 export const zImportedReadingEntry = z.object({
@@ -558,6 +590,7 @@ export const zImportedReadingEntry = z.object({
     sourceUrl: z.string().nullable(),
     version: z.int(),
     readVersion: z.int().nullable(),
+    syndication: z.array(zSyndicationEntry).nullable(),
     origin: z.string(),
     created: z.string().nullable(),
     contentMd: z.string(),
@@ -779,7 +812,8 @@ export const zBatchReadBody = z.object({
     ]),
     requests: z.array(z.object({
         path: z.record(z.string(), z.string().max(8192)).optional(),
-        query: z.record(z.string(), z.string().max(8192)).optional()
+        query: z.record(z.string(), z.string().max(8192)).optional(),
+        ifNoneMatch: z.string().max(8192).optional()
     }).strict()).min(1).max(50)
 }).strict();
 
@@ -792,15 +826,18 @@ export const zBatchReadResponse = z.array(z.object({
     headers: z.record(z.string(), z.string())
 }));
 
+export const zGetCapabilitiesHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 /**
  * Success
  */
 export const zGetCapabilitiesResponse = zCapabilities;
 
-/**
- * Success
- */
-export const zGetChangesResponse = zChangeState;
+export const zListItemsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
 
 export const zListItemsQuery = z.object({
     cursor: z.string().min(1).max(8192).optional(),
@@ -879,6 +916,10 @@ export const zDeleteItemPath = z.object({
 export const zDeleteItemResponse = z.object({
     ok: z.boolean(),
     outcome: z.enum(['discarded'])
+});
+
+export const zGetItemHeaders = z.object({
+    'if-none-match': z.string().optional()
 });
 
 export const zGetItemPath = z.object({
@@ -967,6 +1008,7 @@ export const zUpdateItemResponse = zItem;
 export const zPublishItemBody = z.object({
     expectedRevision: z.int().gt(0).lte(9007199254740991),
     note: z.string().optional(),
+    tangle: z.boolean().optional(),
     noteGenerated: z.boolean().optional(),
     changeCategory: z.enum([
         'refresh',
@@ -988,7 +1030,11 @@ export const zPublishItemResponse = z.object({
     revision: z.int().gt(0).lte(9007199254740991),
     version: z.number(),
     warning: z.string().optional(),
-    unresolvedHandles: z.array(z.string()).optional()
+    unresolvedHandles: z.array(z.string()).optional(),
+    parts: z.array(z.object({
+        id: z.string(),
+        version: z.number()
+    })).optional()
 });
 
 export const zClassifyChangeBody = z.object({
@@ -1114,6 +1160,33 @@ export const zPinItemResponse = z.object({
     already: z.boolean()
 });
 
+export const zGetSyndicationHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+export const zGetSyndicationPath = z.object({
+    id: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zGetSyndicationResponse = zSyndication;
+
+export const zPutSyndicationBody = z.object({
+    entries: z.array(zSyndicationEntry).max(20),
+    expectedRevision: z.int().gt(0).lte(9007199254740991)
+}).strict();
+
+export const zPutSyndicationPath = z.object({
+    id: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zPutSyndicationResponse = zSyndication;
+
 export const zRestoreItemBody = z.object({
     expectedRevision: z.int().gt(0).lte(9007199254740991),
     version: z.int().gt(0)
@@ -1174,6 +1247,10 @@ export const zDeleteMediaResponse = z.object({
     revision: z.int().gt(0).lte(9007199254740991).optional()
 });
 
+export const zGetSettingsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 /**
  * Success
  */
@@ -1215,6 +1292,12 @@ export const zUpdateSettingsBody = z.object({
         'summary'
     ]).optional(),
     changelogSummaryPrompt: z.string().optional(),
+    backgroundRules: z.object({
+        burst: z.boolean().optional(),
+        wordless: z.boolean().optional(),
+        maintenance: z.boolean().optional(),
+        minor: z.boolean().optional()
+    }).strict().optional(),
     acceptMentions: z.boolean().optional(),
     updateCheck: z.boolean().optional(),
     showResponsesDefault: z.boolean().optional(),
@@ -1250,6 +1333,7 @@ export const zUpdateSettingsBody = z.object({
     ]).optional(),
     updateFeedUrl: z.string().optional(),
     updateNoticeAck: z.boolean().optional(),
+    discoverSeenAt: z.string().optional(),
     extensions: z.array(z.string()).optional()
 }).strict();
 
@@ -1257,6 +1341,10 @@ export const zUpdateSettingsBody = z.object({
  * Success
  */
 export const zUpdateSettingsResponse = zSettings;
+
+export const zListSubscriptionsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
 
 export const zListSubscriptionsQuery = z.object({
     cursor: z.string().min(1).max(8192).optional(),
@@ -1318,6 +1406,10 @@ export const zDeleteSubscriptionResponse = z.object({
     ok: z.boolean()
 });
 
+export const zGetSubscriptionHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 export const zGetSubscriptionPath = z.object({
     id: z.string().min(1)
 });
@@ -1330,7 +1422,8 @@ export const zGetSubscriptionResponse = zSubscription;
 export const zUpdateSubscriptionBody = z.object({
     inBlogroll: z.boolean().optional(),
     title: z.string().min(1).nullish(),
-    paused: z.boolean().optional()
+    paused: z.boolean().optional(),
+    background: z.boolean().optional()
 }).strict();
 
 export const zUpdateSubscriptionPath = z.object({
@@ -1359,6 +1452,29 @@ export const zResyncSubscriptionPath = z.object({
 export const zResyncSubscriptionResponse = z.object({
     ok: z.boolean(),
     changed: z.number()
+});
+
+export const zGetShelfHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+/**
+ * Success
+ */
+export const zGetShelfResponse = zShelf;
+
+export const zPutShelfBody = z.object({
+    entries: z.array(zShelfEntry).max(50),
+    expectedRevision: z.int().gte(0)
+}).strict();
+
+/**
+ * Success
+ */
+export const zPutShelfResponse = zShelf;
+
+export const zListContactsHeaders = z.object({
+    'if-none-match': z.string().optional()
 });
 
 /**
@@ -1416,6 +1532,10 @@ export const zResolveContactPath = z.object({
  */
 export const zResolveContactResponse = zContact;
 
+export const zListHoppersHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 export const zListHoppersQuery = z.object({
     cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(100).optional()
@@ -1450,6 +1570,10 @@ export const zDeleteHopperPath = z.object({
  */
 export const zDeleteHopperResponse = z.object({
     ok: z.boolean()
+});
+
+export const zGetHopperHeaders = z.object({
+    'if-none-match': z.string().optional()
 });
 
 export const zGetHopperPath = z.object({
@@ -1618,6 +1742,10 @@ export const zUpdateMentionResponse = z.object({
     hidden: z.boolean()
 });
 
+export const zGetItemSummaryHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 /**
  * Success
  */
@@ -1627,6 +1755,10 @@ export const zGetItemSummaryResponse = z.object({
     changes: z.int().gte(0),
     public: z.int().gte(0),
     withdrawn: z.int().gte(0)
+});
+
+export const zListItemVersionsHeaders = z.object({
+    'if-none-match': z.string().optional()
 });
 
 export const zListItemVersionsPath = z.object({
@@ -1648,6 +1780,10 @@ export const zListItemVersionsResponse = z.object({
         limit: z.int().gt(0),
         nextCursor: z.string().nullable()
     })
+});
+
+export const zListHopperMembershipsHeaders = z.object({
+    'if-none-match': z.string().optional()
 });
 
 export const zListHopperMembershipsPath = z.object({
@@ -1672,6 +1808,10 @@ export const zListHopperMembershipsResponse = z.object({
     })
 });
 
+export const zListSignalsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 export const zListSignalsQuery = z.object({
     cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(100).optional()
@@ -1686,6 +1826,10 @@ export const zListSignalsResponse = z.object({
         limit: z.int().gt(0),
         nextCursor: z.string().nullable()
     })
+});
+
+export const zListInteractionsHeaders = z.object({
+    'if-none-match': z.string().optional()
 });
 
 export const zListInteractionsQuery = z.object({
@@ -1716,6 +1860,10 @@ export const zListInteractionsResponse = z.object({
     })
 });
 
+export const zListThumbsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 export const zListThumbsQuery = z.object({
     cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(100).optional(),
@@ -1736,6 +1884,10 @@ export const zListThumbsResponse = z.object({
     })
 });
 
+export const zGetSignalSummaryHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 /**
  * Success
  */
@@ -1745,10 +1897,18 @@ export const zGetSignalSummaryResponse = z.object({
     activity: z.int().gte(0)
 });
 
+export const zGetAiModelsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 /**
  * Success
  */
 export const zGetAiModelsResponse = zAiModels;
+
+export const zListMentionsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
 
 export const zListMentionsQuery = z.object({
     cursor: z.string().min(1).max(8192).optional(),
@@ -1774,6 +1934,10 @@ export const zListMentionsResponse = z.object({
     direction: z.enum(['inbound', 'outbound'])
 });
 
+export const zListMentionGroupsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 export const zListMentionGroupsQuery = z.object({
     cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(100).optional(),
@@ -1792,6 +1956,10 @@ export const zListMentionGroupsResponse = z.object({
         limit: z.int().gt(0),
         nextCursor: z.string().nullable()
     })
+});
+
+export const zGetMentionSummaryHeaders = z.object({
+    'if-none-match': z.string().optional()
 });
 
 /**
@@ -1844,6 +2012,10 @@ export const zPreviewResponse = z.object({
     unresolvedHandles: z.array(z.string()).optional()
 });
 
+export const zSearchHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 export const zSearchQuery = z.object({
     cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(100).optional(),
@@ -1881,6 +2053,10 @@ export const zSearchResponse = z.object({
     })
 });
 
+export const zGetVersionHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 export const zGetVersionPath = z.object({
     id: z.string().min(1),
     v: z.int().gt(0)
@@ -1891,12 +2067,17 @@ export const zGetVersionPath = z.object({
  */
 export const zGetVersionResponse = zVersion;
 
+export const zGetReadingSummaryHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 export const zGetReadingSummaryQuery = z.object({
     sub: z.string().optional(),
     hopper: z.string().optional(),
     kind: z.enum(['thread', 'fragment']).optional(),
     background: z.enum(['true']).optional(),
-    mentions: z.enum(['true']).optional()
+    mentions: z.enum(['true']).optional(),
+    shelf: z.enum(['true']).optional()
 });
 
 /**
@@ -1911,6 +2092,10 @@ export const zGetReadingSummaryResponse = z.object({
     selected: z.string()
 });
 
+export const zListReadingHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 export const zListReadingQuery = z.object({
     cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(50).optional(),
@@ -1918,7 +2103,8 @@ export const zListReadingQuery = z.object({
     hopper: z.string().optional(),
     kind: z.enum(['thread', 'fragment']).optional(),
     background: z.enum(['true']).optional(),
-    mentions: z.enum(['true']).optional()
+    mentions: z.enum(['true']).optional(),
+    shelf: z.enum(['true']).optional()
 });
 
 /**
@@ -1932,6 +2118,27 @@ export const zListReadingResponse = z.object({
     }),
     readState: z.literal(true),
     readStateClear: z.literal(true)
+});
+
+export const zSetReadingPlacementBody = z.object({
+    source: z.enum(['own', 'imported']),
+    sub: z.string().optional(),
+    id: z.string(),
+    placement: z.enum(['background', 'foreground']).nullable()
+}).strict();
+
+/**
+ * Success
+ */
+export const zSetReadingPlacementResponse = z.object({
+    source: z.enum(['own', 'imported']),
+    sub: z.string(),
+    id: z.string(),
+    placement: z.enum(['background', 'foreground']).nullable()
+});
+
+export const zListImportedReadingHeaders = z.object({
+    'if-none-match': z.string().optional()
 });
 
 export const zListImportedReadingQuery = z.object({
@@ -1950,6 +2157,10 @@ export const zListImportedReadingResponse = z.object({
     })
 });
 
+export const zGetImportedItemHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 export const zGetImportedItemPath = z.object({
     sub: z.string().min(1),
     id: z.string().min(1)
@@ -1959,6 +2170,10 @@ export const zGetImportedItemPath = z.object({
  * Success
  */
 export const zGetImportedItemResponse = zImportedItem;
+
+export const zGetImportedHistoryHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
 
 export const zGetImportedHistoryPath = z.object({
     sub: z.string().min(1),
@@ -1980,6 +2195,10 @@ export const zGetImportedHistoryResponse = z.object({
     }))
 });
 
+export const zGetImportedVersionHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 export const zGetImportedVersionPath = z.object({
     sub: z.string().min(1),
     id: z.string().min(1),
@@ -1994,6 +2213,10 @@ export const zGetImportedVersionResponse = z.object({
     contentMd: z.string(),
     note: z.string().nullable(),
     pinned: z.boolean()
+});
+
+export const zPeekItemHeaders = z.object({
+    'if-none-match': z.string().optional()
 });
 
 export const zPeekItemQuery = z.object({
@@ -2032,6 +2255,10 @@ export const zClearBrowseQuery = z.object({
  */
 export const zClearBrowseResponse = z.object({
     ok: z.boolean()
+});
+
+export const zListBrowseHeaders = z.object({
+    'if-none-match': z.string().optional()
 });
 
 export const zListBrowseQuery = z.object({
@@ -2075,12 +2302,20 @@ export const zLogBrowseResponse = z.object({
     id: z.int()
 });
 
+export const zGetUpdateStateHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 /**
  * Success
  */
 export const zGetUpdateStateResponse = z.object({
     updateCheckedAt: z.string().optional(),
     updateLatestSeen: z.string().optional()
+});
+
+export const zGetMentionSourceHeaders = z.object({
+    'if-none-match': z.string().optional()
 });
 
 export const zGetMentionSourcePath = z.object({
@@ -2095,11 +2330,19 @@ export const zGetMentionSourceResponse = z.object({
     subscription: zSubscription.nullable()
 });
 
+export const zListStaleThreadsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 /**
  * Success
  */
 export const zListStaleThreadsResponse = z.object({
     items: z.array(zThreadFreshness)
+});
+
+export const zGetItemFreshnessHeaders = z.object({
+    'if-none-match': z.string().optional()
 });
 
 export const zGetItemFreshnessPath = z.object({
@@ -2136,6 +2379,10 @@ export const zRefreshItemResponse = z.object({
     warning: z.string().optional()
 });
 
+export const zGetForkOptionsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 export const zGetForkOptionsQuery = z.object({
     id: z.string(),
     sub: z.string().optional(),
@@ -2156,6 +2403,10 @@ export const zGetForkOptionsResponse = z.object({
     error: z.string().optional()
 });
 
+export const zExtLineageGlyphGetLineageHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 export const zExtLineageGlyphGetLineageQuery = z.object({
     id: z.string().min(1),
     sub: z.string().optional(),
@@ -2167,6 +2418,10 @@ export const zExtLineageGlyphGetLineageQuery = z.object({
  */
 export const zExtLineageGlyphGetLineageResponse = zLineageGlyphLineage;
 
+export const zExtLineageGlyphListSummariesHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
 export const zExtLineageGlyphListSummariesQuery = z.object({
     keys: z.string().min(2)
 });
@@ -2176,6 +2431,10 @@ export const zExtLineageGlyphListSummariesQuery = z.object({
  */
 export const zExtLineageGlyphListSummariesResponse = z.object({
     summaries: z.record(z.string(), zLineageGlyphSummary)
+});
+
+export const zExtWordCountListCountsHeaders = z.object({
+    'if-none-match': z.string().optional()
 });
 
 export const zExtWordCountListCountsQuery = z.object({

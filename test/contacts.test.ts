@@ -99,6 +99,30 @@ describe("consumeHandles", () => {
     expect((await consumeHandles(env.DB, "@odd")).text).toBe("[@A\\_\\[B\\]](https://x.example/a%28b%29)");
   });
 
+  it("reads natural grammar around a handle: possessives, hyphens and underscores (session 76)", async () => {
+    await kyle();
+    const link = "[@Kyle Mathews](https://bricolage.io/)";
+    expect((await consumeHandles(env.DB, "In @kyle's case")).text).toBe(`In ${link}'s case`);
+    expect((await consumeHandles(env.DB, "In @kyle\u2019s case")).text).toBe(`In ${link}\u2019s case`);
+    expect((await consumeHandles(env.DB, "a @kyle-driven agenda")).text).toBe(`a ${link}-driven agenda`);
+    expect((await consumeHandles(env.DB, "@kyle_ish, @kyle-")).text).toBe(`${link}_ish, ${link}-`);
+    const out = await consumeHandles(env.DB, "a @kyle-driven-and-led plan");
+    expect(out.text).toBe(`a ${link}-driven-and-led plan`);
+    expect(out.unresolved).toEqual([]);
+  });
+
+  it("prefers the longest handle in the book, so a hyphenated handle still wins", async () => {
+    await kyle();
+    await createContact(env.DB, { handle: "kyle-m", name: "Kyle M", url: "https://m.example/" });
+    expect((await consumeHandles(env.DB, "@kyle-m-led and @kyle-led")).text)
+      .toBe("[@Kyle M](https://m.example/)-led and [@Kyle Mathews](https://bricolage.io/)-led");
+  });
+
+  it("reports a hyphenated word whose prefix names nobody as the whole token", async () => {
+    await kyle();
+    expect((await consumeHandles(env.DB, "@nobody-driven")).unresolved).toEqual(["nobody-driven"]);
+  });
+
   it("reports unknown handles once each, and nothing while the book is empty", async () => {
     expect((await consumeHandles(env.DB, "@nobody")).unresolved).toEqual([]);
     await kyle();

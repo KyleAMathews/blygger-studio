@@ -1,6 +1,14 @@
 /**
  * MCP exposes only the capabilities a grant permits, and it preserves REST values.
- * Discovery alone cannot prove that a forbidden tool call is denied.
+ * Discovery alone cannot prove that a forbidden tool call is denied. It owns
+ * src/mcp.ts at completed HTTP replies, SDK calls and public publication reads.
+ *
+ * ```ts
+ * tools/list({scope: ['owner:read']}) // → exactly the read tools and capabilities
+ * tools/call('publishItem', {scope: ['owner:draft']}) // → insufficient_scope
+ * tools/call('getSettings', {resource: '/api'}) // → 401 at MCP
+ * tools/call('getItem', {id}) // → the same item values as REST
+ * ```
  *
  * Contract: decision #52 selects four independent owner scopes and API/MCP audience
  * separation. MCP authorization requires token audience validation and forbids token
@@ -10,10 +18,11 @@
  * RFC8707 §2 explains resource binding; RFC6750 §3 defines scope challenges:
  * https://www.rfc-editor.org/rfc/rfc8707.html#section-2
  * https://www.rfc-editor.org/rfc/rfc6750.html#section-3
- * Model: expectedTools below uses literal contract verbs and scope unions. It imports
- * no production route inventory or scope classifier. Relational checks compare REST
+ * Model: mcp-receiving-reference.ts predicts receiving responses from semantic
+ * boundary, mount and wire-version inputs; its literal scope union imports no
+ * production route inventory or scope classifier. Relational checks compare REST
  * and MCP projections while preserving publication and provenance facts.
- * History grammar: all fifteen nonempty scope subsets, create/read/publish, hostile Origin,
+ * History grammar: all 31 nonempty scope subsets, create/read/publish, hostile Origin,
  * audience/deadline neighbors and native request/header/version classifications.
  * Driver: official MCP client against makeApp and real provider-issued credentials.
  * Refinement: exact sorted tool inventory, operation challenges, response values and
@@ -24,25 +33,22 @@
  */
 import { env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
 import { Client, StreamableHTTPClientTransport, type OAuthClientProvider, type OAuthTokens, type OAuthClientInformation, type OAuthDiscoveryState } from '@modelcontextprotocol/client';
-import { describe, expect, it, vi } from 'vitest';
+import { vi } from 'vitest';
 import { makeApp } from '../src/index.ts';
-import { atCheckpoint } from './oracle-campaign.ts';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { equals, iterableEquality } from '@vitest/expect';
+import { differs, oracleProperty, pass } from '@tanstack/oracles';
+import { withOracleStorage } from './oracle-storage.ts';
+import { mcpReference, type McpPlan, checkMcpObservation } from './mcp-receiving-reference.ts';
+import { toolOutcome } from './mcp-tool-outcome.ts';
+const active = new AsyncLocalStorage<(checkpoint: string, value: unknown) => void>();
+function record(checkpoint: string, value: unknown) { const observe = active.getStore(); if (!observe) throw new Error('MCP observation outside its driver'); observe(checkpoint, value); }
+function sameProjection(left: unknown, right: unknown) { return equals(left, right, [iterableEquality]); }
 import { flow } from './oauth-flow-driver.ts';
 import { withOracleCleanup } from './oracle-cleanup.ts';
 
-const reads = ['listContacts','batchRead','getChanges','getItemSummary','listItemVersions','listHopperMemberships','getReadingSummary','getSignalSummary','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','listMentionGroups','getMentionSummary','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse'];
-const drafting = ['createItem','updateItem','deleteItem','restoreItem','uploadMedia','generateItem','draftNote','summarizeChangelog','classifyChange','preview'];
-const publishing = ['publishItem','withdrawItem','pinItem','refreshItem','deleteMedia'];
-const management = ['createContact','updateContact','resolveContact','deleteContact','updateSettings','createSubscription','updateSubscription','resyncSubscription','pollAllSubscriptions','deleteSubscription','createHopper','updateHopper','deleteHopper','addHopperItem','removeHopperItem','setSignal','deleteSignal','updateMention'];
-const readState = ['markRead','markReadBatch','markUnread','markUnreadBatch','logBrowse','clearBrowse'];
-const all = ['owner:read', 'owner:draft', 'owner:publish', 'owner:manage', 'reading:state'];
-// Each explicit scope contributes exactly its named verbs. Union the lists;
-// never infer read access from draft/publish/manage. This finite reference owns
-// the capability law, independently of the production tool registry.
-function expectedTools(scope: string[]) {
-  return ['getCapabilities', ...(scope.includes('owner:read') ? reads : []), ...(scope.includes('owner:draft') ? drafting : []), ...(scope.includes('owner:publish') ? publishing : []), ...(scope.includes('owner:manage') ? management : []), ...(scope.includes('reading:state') ? readState : [])].sort();
-}
-async function driver(mount = '/blyg') {
+import { all } from './mcp-oracle-model.ts';
+async function createDriver(mount = '/blyg') {
   const base = 'https://mcp-oracle.example.test', app = makeApp(mount), currentEnv = { ...env, MOUNT: mount };
   const edgeIP = '2001:db8:' + crypto.randomUUID().replaceAll('-', '').match(/.{4}/g)!.slice(0, 6).join(':');
   const log: { path: string; status: number }[] = [];
@@ -53,12 +59,12 @@ async function driver(mount = '/blyg') {
     log.push({ path: new URL(request.url).pathname, status: response.status }); return response;
   };
   const login = await fetch(base + mount + '/studio/login', { method: 'POST', body: new URLSearchParams({ password: env.OWNER_PASSWORD }) });
-  expect(login.status).toBe(302);
+  record("owner login", login.status);
   const cookie = login.headers.get('set-cookie')!.split(';')[0];
   const owner = (path: string, method = 'GET', body?: unknown) => fetch(base + path, { method, headers: { cookie, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   const manual = async (scope: string[]) => {
     const response = await owner(mount + '/api/authorizations', 'POST', { name: 'MCP oracle', scope, resource: 'mcp' });
-    expect(response.status).toBe(200); return await response.json() as { accessToken: string; authorization: { id: string } };
+    record("manual MCP issuance", response.status); return await response.json() as { accessToken: string; authorization: { id: string } };
   };
   const connect = async (token: string) => {
     const client = new Client({ name: 'oracle', version: '1' });
@@ -67,7 +73,7 @@ async function driver(mount = '/blyg') {
   };
   return { base, mount, fetch, owner, manual, connect, log, cookie };
 }
-async function rawMcp(d: Awaited<ReturnType<typeof driver>>, token: string | undefined, method = 'tools/call', params: Record<string, unknown> = { name: 'getSettings', arguments: {} }, headers: Record<string, string> = {}, version = '2026-07-28', omitHeaders: string[] = []) {
+async function rawMcp(d: Awaited<ReturnType<typeof createDriver>>, token: string | undefined, method = 'tools/call', params: Record<string, unknown> = { name: 'getSettings', arguments: {} }, headers: Record<string, string> = {}, version = '2026-07-28', omitHeaders: string[] = []) {
   const request = new Request(d.base + d.mount + '/studio/mcp', {
     method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...(token === undefined ? {} : { Authorization: 'Bearer ' + token }), 'mcp-protocol-version': version, 'mcp-method': method, ...(typeof params.name === 'string' ? { 'mcp-name': params.name } : {}), ...headers },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params: { ...params, _meta: { 'io.modelcontextprotocol/protocolVersion': version, 'io.modelcontextprotocol/clientCapabilities': {} } } }),
@@ -77,22 +83,23 @@ async function rawMcp(d: Awaited<ReturnType<typeof driver>>, token: string | und
 }
 function content(result: unknown) {
   const value = result as { content: { type: string; text?: string }[]; isError?: boolean };
-  expect(value.isError, value.content[0]?.text).not.toBe(true);
+  record("MCP tool error flag", value.isError);
   return JSON.parse(value.content[0].text!) as Record<string, any>;
 }
-describe('MCP contract oracles', () => {
-  it.each(['', '/blyg', '/nested/blyg'])('uses pre-registered Cloudflare callback credentials at mount %s', async mount => {
-    const d = await driver(mount), issuer = d.base + mount + '/studio/auth';
+async function runConfidentialOauth(plan: McpPlan) {
+  const mount = plan.mount!;
+
+    const d = await createDriver(mount), issuer = d.base + mount + '/studio/auth';
     const redirect = 'https://oauth-callbacks.cloudflareaccess.com/cdn-cgi/access/outbound-oauth-callback';
     const scope = 'openid offline_access owner:read owner:draft owner:publish owner:manage';
     const registered = await d.fetch(issuer + '/oauth2/register', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ client_name: 'Cloudflare MCP Portal', redirect_uris: [redirect], token_endpoint_auth_method: 'client_secret_basic', grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], scope }),
     });
-    expect(registered.status).toBe(201);
+    record("confidential registration", registered.status);
     const information = await registered.json() as { client_id: string; client_secret: string; token_endpoint_auth_method: string };
-    expect(information.token_endpoint_auth_method).toBe('client_secret_basic');
-    expect(information.client_secret).toBeTruthy();
+    record("confidential token authentication", information.token_endpoint_auth_method);
+    record("confidential client secret presence", Boolean(information.client_secret));
     const verifier = 'cloudflare-fixture-verifier-at-least-forty-three-characters';
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
     const challenge = btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -100,70 +107,76 @@ describe('MCP contract oracles', () => {
     // server must apply its MCP default before the owner approves the grant.
     const authorize = issuer + '/oauth2/authorize?' + new URLSearchParams({ client_id: information.client_id, response_type: 'code', redirect_uri: redirect, state: 'portal-state', scope, code_challenge_method: 'S256', code_challenge: challenge });
     const login = await d.fetch(authorize);
-    expect(login.status).toBe(302);
+    record("OAuth login redirect", login.status);
     const continuation = new URL(new URL(login.headers.get('location')!).searchParams.get('return_to')!, d.base);
-    expect(continuation.searchParams.get('resource')).toBe(d.base + mount + '/studio/mcp');
+    record("default MCP resource", continuation.searchParams.get('resource'));
     const consent = await d.fetch(authorize, { headers: { cookie: d.cookie } });
-    expect(consent.status).toBe(200);
+    record("OAuth consent", consent.status);
     const html = await consent.text(), handle = html.match(/name="handle" value="([^"]+)"/)![1];
-    expect(html).toContain('Resource: <code>' + d.base + mount + '/studio/mcp</code>');
+    record("consent resource disclosure", html.includes('Resource: <code>' + d.base + mount + '/studio/mcp</code>'));
     const binding = consent.headers.getSetCookie().map(cookie => cookie.split(';')[0]).join('; ');
     const approval = await d.fetch(issuer + '/consent', {
       method: 'POST', headers: { cookie: d.cookie + '; ' + binding, Origin: d.base },
       body: new URLSearchParams([['handle', handle], ['decision', 'allow'], ...[...html.matchAll(/name="scope" value="([^"]+)"/g)].map(match => ['scope', match[1]])]),
     });
-    expect(approval.status).toBe(302);
+    record("OAuth consent decision", approval.status);
     const callback = new URL(approval.headers.get('location')!);
-    expect(callback.origin + callback.pathname).toBe(redirect);
-    expect(callback.searchParams.get('state')).toBe('portal-state');
+    record("OAuth callback destination", callback.origin + callback.pathname);
+    record("OAuth callback state", callback.searchParams.get('state'));
     const exchange = (fields: Record<string, string>) => d.fetch(issuer + '/oauth2/token', {
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: 'Basic ' + btoa(encodeURIComponent(information.client_id) + ':' + encodeURIComponent(information.client_secret)) },
       body: new URLSearchParams(fields),
     });
     const fields = { grant_type: 'authorization_code', code: callback.searchParams.get('code')!, redirect_uri: redirect, code_verifier: verifier };
     const issued = await exchange(fields);
-    expect(issued.status, await issued.clone().text()).toBe(200);
+    record("OAuth code exchange", issued.status);
     const tokens = await issued.json() as { access_token: string; refresh_token: string };
-    expect(tokens.refresh_token).toBeTruthy();
+    record("refresh credential presence", Boolean(tokens.refresh_token));
     const called = await rawMcp(d, tokens.access_token);
-    expect(called.status).toBe(200);
-    expect(content((await called.json() as any).result).siteTitle).toBeDefined();
-    expect((await d.fetch(d.base + d.mount + '/api/settings', { headers: { Authorization: 'Bearer ' + tokens.access_token } })).status).toBe(401);
+    record("MCP token receiving", called.status);
+    record("MCP settings presence", (content((await called.json() as any).result).siteTitle) !== undefined);
+    record("API audience refusal", (await d.fetch(d.base + d.mount + '/api/settings', { headers: { Authorization: 'Bearer ' + tokens.access_token } })).status);
     const widened = await exchange({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, resource: d.base + d.mount + '/api' });
-    expect(widened.status).toBe(400);
-    expect(await widened.json()).toMatchObject({ error: 'invalid_target' });
+    record("refresh audience widening", widened.status);
+    record("refresh audience error", await widened.json());
     const renewed = await exchange({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token });
-    expect(renewed.status).toBe(200);
+    record("MCP refresh exchange", renewed.status);
     const next = await renewed.json() as { access_token: string; refresh_token: string };
-    expect(next.refresh_token).not.toBe(tokens.refresh_token);
-    expect((await rawMcp(d, next.access_token)).status).toBe(200);
-    expect((await d.fetch(d.base + d.mount + '/api/settings', { headers: { Authorization: 'Bearer ' + next.access_token } })).status).toBe(401);
-  });
-  it.each(['2025-03-26', '2025-06-18', '2025-11-25'])('completes a %s Streamable HTTP handshake and tool call', async version => {
-    const d = await driver(), credential = await d.manual(['owner:read']);
+    record("refresh credential rotation", next.refresh_token === tokens.refresh_token);
+    record("MCP successor receiving", (await rawMcp(d, next.access_token)).status);
+    record("API successor audience refusal", (await d.fetch(d.base + d.mount + '/api/settings', { headers: { Authorization: 'Bearer ' + next.access_token } })).status);
+
+};
+  async function runProtocolHandshake(plan: McpPlan) {
+  const version = plan.version!;
+
+    const d = await createDriver(), credential = await d.manual(['owner:read']);
     const send = (method: string, params: Record<string, unknown>, id?: number) => d.fetch(d.base + d.mount + '/studio/mcp', {
       method: 'POST', headers: { Authorization: 'Bearer ' + credential.accessToken, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': version },
       body: JSON.stringify({ jsonrpc: '2.0', ...(id === undefined ? {} : { id }), method, params }),
     });
     const result = async (response: Response) => {
-      expect(response.status).toBe(200);
+      record("protocol response", response.status);
       const text = await response.text();
       const messages = text.split('\n').filter(line => line.startsWith('data: ')).map(line => JSON.parse(line.slice(6)));
-      expect(messages, text).toHaveLength(1);
-      expect(messages[0].error).toBeUndefined();
+      record("protocol message cardinality", (messages).length);
+      record("protocol error absence", messages[0].error);
       return messages[0].result;
     };
     const initialized = await result(await send('initialize', { protocolVersion: version, capabilities: {}, clientInfo: { name: 'portal-handshake-fixture', version: '1' } }, 1));
-    expect(initialized.protocolVersion).toBe(version);
-    expect(initialized.capabilities.tools).toBeDefined();
-    expect((await send('notifications/initialized', {})).status).toBe(202);
+    record("negotiated protocol version", initialized.protocolVersion);
+    record("protocol tools capability", (initialized.capabilities.tools) !== undefined);
+    record("initialized notification", (await send('notifications/initialized', {})).status);
     const inventory = await result(await send('tools/list', {}, 2));
-    expect(inventory.tools.map((tool: { name: string }) => tool.name).sort()).toEqual(expectedTools(['owner:read']));
+    record("read-scope protocol inventory", inventory.tools.map((tool: { name: string }) => tool.name).sort());
     const settings = content(await result(await send('tools/call', { name: 'getSettings', arguments: {} }, 3)));
-    expect(settings.siteTitle).toBeDefined();
-  });
-  it.each(['', '/blyg', '/nested/blyg'])('discovers mounted OAuth and completes a real tool call at mount %s', async mount => {
-    const d = await driver(mount), redirect = 'https://client.example.test/callback';
+    record("protocol settings presence", (settings.siteTitle) !== undefined);
+
+};
+  async function runOauthDiscovery(plan: McpPlan) {
+  const mount = plan.mount!;
+
+    const d = await createDriver(mount), redirect = 'https://client.example.test/callback';
     let tokens: OAuthTokens | undefined, information: OAuthClientInformation | undefined, verifier = '', redirectURL: URL | undefined, discovery: OAuthDiscoveryState | undefined;
     const provider: OAuthClientProvider = {
       redirectUrl: redirect, clientMetadata: { redirect_uris: [redirect], client_name: 'oracle', token_endpoint_auth_method: 'none', grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], scope: all.join(' ') },
@@ -174,36 +187,39 @@ describe('MCP contract oracles', () => {
     const transport = new StreamableHTTPClientTransport(new URL(d.base + mount + '/studio/mcp'), { fetch: d.fetch, authProvider: provider });
     const client = new Client({ name: 'oracle', version: '1' });
     await withOracleCleanup(async () => {
-      let initialError: unknown;
-      try { await client.connect(transport); } catch (error) { initialError = error; }
-      expect(redirectURL, initialError instanceof Error ? initialError.message : 'authorization redirect missing').toBeDefined();
+      try { await client.connect(transport); } catch { /* The OAuth client reports its authorization redirect below. */ }
+      record("OAuth authorization redirect presence", (redirectURL) !== undefined);
       const consent = await d.fetch(redirectURL!, { headers: { cookie: d.cookie } });
       const html = await consent.text(), handle = html.match(/name="handle" value="([^"]+)"/)![1];
       const binding = consent.headers.getSetCookie().map(cookie => cookie.split(';')[0]).join('; ');
       const response = await d.fetch(d.base + mount + '/studio/auth/consent', { method: 'POST', headers: { cookie: d.cookie + '; ' + binding, Origin: d.base }, body: new URLSearchParams([['handle', handle], ['decision', 'allow'], ...[...html.matchAll(/name="scope" value="([^"]+)"/g)].map(match => ['scope', match[1]])]) });
-      expect(response.status, response.status === 302 ? '' : await response.text()).toBe(302);
+      record("OAuth discovery consent decision", response.status);
       const callback = new URL(response.headers.get('location')!);
-      expect(callback.searchParams.get('state')).toBe('oracle-state');
+      record("OAuth discovery callback state", callback.searchParams.get('state'));
       await transport.finishAuth(callback.searchParams); await transport.close();
       await client.connect(new StreamableHTTPClientTransport(new URL(d.base + mount + '/studio/mcp'), { fetch: d.fetch, authProvider: provider }));
       const settings = content(await client.callTool({ name: 'getSettings', arguments: {} }));
-      atCheckpoint('MCP OAuth real tool call', () => expect(settings.siteTitle).toBeDefined());
-      atCheckpoint('MCP mounted discovery', () => {
-        expect(d.log).toContainEqual({ path: '/.well-known/oauth-authorization-server' + mount + '/studio/auth', status: 404 });
-        expect(d.log).toContainEqual({ path: '/.well-known/openid-configuration' + mount + '/studio/auth', status: 404 });
-        expect(d.log).toContainEqual({ path: mount + '/studio/auth/.well-known/openid-configuration', status: 200 });
-      });
+      record("MCP OAuth real tool call", (settings.siteTitle) !== undefined);
+
+        record("MCP discovery authorization-server fallback", d.log);
+        record("MCP discovery OIDC fallback", d.log);
+        record("MCP mounted discovery", d.log);
+      ;
     }, [() => client.close(), () => transport.close()]);
-  });
-  it('lists exactly the granted tool capabilities for every scope subset', async () => {
-    const d = await driver();
+
+};
+  async function runScopeInventory(plan: McpPlan) {
+
+    const d = await createDriver();
     for (let mask = 1; mask < 32; mask++) {
       const scope = all.filter((_, index) => mask & 1 << index), credential = await d.manual(scope), client = await d.connect(credential.accessToken);
-      await withOracleCleanup(async () => { const observed = (await client.listTools()).tools.map(tool => tool.name).sort(); atCheckpoint('MCP scope capabilities', () => expect(observed).toEqual(expectedTools(scope))); }, [() => client.close()]);
+      await withOracleCleanup(async () => { const observed = (await client.listTools()).tools.map(tool => tool.name).sort(); record("MCP scope capabilities", { scope, tools: observed }); }, [() => client.close()]);
     }
-  }, 30_000);
-  it('returns the same bounded mention groups and exact summary as REST', async () => {
-    const d = await driver(), credential = await d.manual(['owner:read']), client = await d.connect(credential.accessToken);
+
+};
+  async function runMentionProjections(plan: McpPlan) {
+
+    const d = await createDriver(), credential = await d.manual(['owner:read']), client = await d.connect(credential.accessToken);
     await env.DB.prepare("INSERT INTO mentions_in(id,source,target,target_item_id,status,first_seen,last_seen,verified_at,hidden) VALUES ('mcp-group-summary','https://mcp-group/source','target','mcp-group-target','verified','first','seen','verified',0)").run();
     await withOracleCleanup(async () => {
       for (const [name, path, args] of [
@@ -212,125 +228,245 @@ describe('MCP contract oracles', () => {
       ] as const) {
         const rest = await (await d.owner(d.mount + path)).json();
         const mcp = content(await client.callTool({ name, arguments: args }));
-        expect(mcp).toEqual(rest);
+        record("MCP REST mention projection", sameProjection(mcp, rest));
       }
       const denied = await d.manual(['owner:manage']);
       for (const name of ['listMentionGroups', 'getMentionSummary'])
-        expect((await rawMcp(d, denied.accessToken, 'tools/call', { name, arguments: {} })).status).toBe(403);
+        record("MCP mention scope denial", (await rawMcp(d, denied.accessToken, 'tools/call', { name, arguments: {} })).status);
     }, [() => client.close(), () => env.DB.prepare("DELETE FROM mentions_in WHERE id='mcp-group-summary'").run()]);
-  });
-  it('has the same item values and publication/provenance as REST', async () => {
-    const d = await driver(), credential = await d.manual(all), client = await d.connect(credential.accessToken);
+
+};
+  async function runItemPublication(plan: McpPlan) {
+
+    const d = await createDriver(), credential = await d.manual(all), client = await d.connect(credential.accessToken);
     await withOracleCleanup(async () => {
-      const provenance = [{ sources: [], model: 'oracle-agent' }];
-      const created = content(await client.callTool({ name: 'createItem', arguments: { body: { contentMd: '[TK]write a sentence[=]A generated sentence.[/TK]', provenance } } }));
+      const provenance = plan.publication!.provenance;
+      const created = content(await client.callTool({ name: 'createItem', arguments: { body: { contentMd: plan.publication!.contentMd, provenance } } }));
       const rest = await (await d.owner(d.mount + '/api/items/' + created.id)).json();
       const mcp = content(await client.callTool({ name: 'getItem', arguments: { path: { id: created.id } } }));
-      atCheckpoint('MCP REST item equivalence', () => expect(mcp).toEqual(rest));
-      atCheckpoint('MCP generation provenance retained', () => expect(mcp.provenance).toEqual(provenance));
+      record("MCP REST item equivalence", sameProjection(mcp, rest));
+      record("MCP generation provenance retained", mcp.provenance);
       content(await client.callTool({ name: 'publishItem', arguments: { path: { id: created.id }, body: { expectedRevision: created.revision } } }));
       const publicItem = await (await d.fetch(d.base + '/blyg/items/' + created.id + '.json')).json() as { generated: unknown; content_md: string };
-      atCheckpoint('MCP public generation disclosure', () => { expect(publicItem.generated).toEqual(provenance); expect(publicItem.content_md).toContain('A generated sentence.'); expect(publicItem.content_md).not.toContain('[TK]'); });
-      expect((await d.owner(d.mount + '/api/authorizations/' + credential.authorization.id, 'DELETE')).status).toBe(200);
-      await expect(client.callTool({ name: 'getSettings', arguments: {} })).rejects.toThrow();
+       record("MCP public generated provenance", publicItem.generated); record("MCP public generated words", publicItem.content_md); record("MCP public TK syntax", publicItem.content_md); ;
+      record("MCP grant revocation", (await d.owner(d.mount + '/api/authorizations/' + credential.authorization.id, 'DELETE')).status);
+      await record("MCP revoked tool outcome", await toolOutcome(() => client.callTool({ name: 'getSettings', arguments: {} })));
     }, [() => client.close()]);
-  });
-  it('returns complete MCP operation scope challenges without widening tool inventory', async () => {
-    const d = await driver(), credential = await d.manual(['owner:draft']);
+
+};
+  async function runScopeChallenges(plan: McpPlan) {
+
+    const d = await createDriver(), credential = await d.manual(['owner:draft']);
     const denied = await rawMcp(d, credential.accessToken, 'tools/call', { name: 'publishItem', arguments: { path: { id: 'not-created' } } });
-    expect(denied.status).toBe(403);
-    expect(denied.headers.get('www-authenticate')).toContain('error="insufficient_scope"');
-    expect(denied.headers.get('www-authenticate')).toContain('scope="owner:publish"');
-    expect(denied.headers.get('www-authenticate')).toContain(d.base + d.mount + '/studio/auth/resources/mcp');
+    record("MCP publish scope denial", denied.status);
+    record("MCP insufficient scope challenge", denied.headers.get('www-authenticate'));
+    record("MCP required publish scope", denied.headers.get('www-authenticate'));
+    record("MCP challenge metadata", denied.headers.get('www-authenticate'));
     const responseEdit = await rawMcp(d, credential.accessToken, 'tools/call', { name: 'updateItem', arguments: { path: { id: 'not-created' }, body: { responses: [] } } });
-    expect(responseEdit.status).toBe(403);
-    expect(responseEdit.headers.get('www-authenticate')).toContain('scope="owner:draft owner:publish"');
+    record("MCP response edit denial", responseEdit.status);
+    record("MCP required public edit scopes", responseEdit.headers.get('www-authenticate'));
     const highlightEdit = await rawMcp(d, credential.accessToken, 'tools/call', { name: 'updateItem', arguments: { path: { id: 'not-created' }, body: { highlight: 'hide' } } });
-    expect(highlightEdit.status, 'generated highlighting is a public edit').toBe(403);
+    record("MCP highlight denial", highlightEdit.status);
     const read = await d.manual(['owner:read']);
     const allowed = await rawMcp(d, read.accessToken, 'tools/call', { name: 'getSettings', arguments: {} });
-    expect(allowed.status).toBe(200);
-    expect((await allowed.json() as any).result.isError).not.toBe(true);
-  });
-  it('checks Origin and bearer credentials on each independent MCP request', async () => {
-    const d = await driver(), credential = await d.manual(['owner:read']);
-    expect((await rawMcp(d, credential.accessToken)).status).toBe(200);
-    expect((await rawMcp(d, credential.accessToken, 'tools/call', undefined, { Origin: d.base })).status).toBe(200);
-    expect((await rawMcp(d, credential.accessToken, 'tools/call', undefined, { Origin: 'https://foreign.example.test' })).status).toBe(403);
+    record("MCP read neighbor", allowed.status);
+    record("MCP read neighbor error flag", (await allowed.json() as any).result.isError);
+
+};
+  async function runRequestAuthority(plan: McpPlan) {
+
+    const d = await createDriver(), credential = await d.manual(['owner:read']);
+    record("MCP no-origin neighbor", (await rawMcp(d, credential.accessToken)).status);
+    record("MCP same-origin neighbor", (await rawMcp(d, credential.accessToken, 'tools/call', undefined, { Origin: d.base })).status);
+    record("MCP foreign-origin denial", (await rawMcp(d, credential.accessToken, 'tools/call', undefined, { Origin: 'https://foreign.example.test' })).status);
     for (const token of [undefined, 'not-a-token', credential.accessToken.slice(0, -8) + 'tampered']) {
       const denied = await rawMcp(d, token);
-      expect(denied.status).toBe(401);
-      expect(denied.headers.get('www-authenticate')).toContain('/studio/auth/resources/mcp');
+      record("MCP invalid bearer denial", denied.status);
+      record("MCP invalid bearer challenge", denied.headers.get('www-authenticate'));
     }
     const draft = await d.manual(['owner:draft']);
     const overlap = await Promise.all([rawMcp(d, credential.accessToken), rawMcp(d, draft.accessToken)]);
-    expect(overlap.map(response => response.status)).toEqual([200, 403]);
-  });
-  it('delegates contradictory modern headers and versions to the native SDK', async () => {
-    const d = await driver(), credential = await d.manual(['owner:read']);
-    expect((await rawMcp(d, credential.accessToken)).status).toBe(200);
+    record("MCP independent concurrent authority", overlap.map(response => response.status));
+
+};
+  async function runProtocolClassification(plan: McpPlan) {
+
+    const d = await createDriver(), credential = await d.manual(['owner:read']);
+    record("MCP modern protocol neighbor", (await rawMcp(d, credential.accessToken)).status);
     for (const headers of [{ 'mcp-method': 'tools/list' }, { 'mcp-name': 'otherTool' }, { 'mcp-name': '%ZZ' }, { 'mcp-protocol-version': '2025-11-25' }] as Record<string, string>[]) {
       const denied = await rawMcp(d, credential.accessToken, 'tools/call', undefined, headers);
-      expect(denied.status).toBe(400);
-      expect((await denied.json() as any).error.code).toBe(-32020);
+      record("MCP contradictory header denial", denied.status);
+      record("MCP contradictory header error", (await denied.json() as any).error.code);
     }
     for (const header of ['mcp-method', 'mcp-name', 'mcp-protocol-version']) {
       const missing = await rawMcp(d, credential.accessToken, 'tools/call', undefined, {}, '2026-07-28', [header]);
-      expect(missing.status).toBe(400);
-      expect((await missing.json() as any).error.code).toBe(-32020);
+      record("MCP missing header denial", missing.status);
+      record("MCP missing header error", (await missing.json() as any).error.code);
     }
     const unsupported = await rawMcp(d, credential.accessToken, 'tools/call', undefined, {}, '2099-01-01');
-    expect(unsupported.status).toBe(400);
-    expect(JSON.stringify(await unsupported.json())).toContain('2026-07-28');
+    record("MCP unsupported version denial", unsupported.status);
+    record("MCP supported-version disclosure", JSON.stringify(await unsupported.json()));
     const unknown = await rawMcp(d, credential.accessToken, 'not/a/method', {});
-    expect(unknown.status).toBe(404);
-    expect((await unknown.json() as any).error.code).toBe(-32601);
+    record("MCP unknown method denial", unknown.status);
+    record("MCP unknown method error", (await unknown.json() as any).error.code);
     const metadata = await (await d.fetch(d.base + d.mount + '/studio/auth/resources/mcp')).json() as any;
-    expect(metadata.resource).toBe(d.base + d.mount + '/studio/mcp');
-    expect(metadata.authorization_servers).toEqual([d.base + d.mount + '/studio/auth']);
-    expect(metadata.scopes_supported).not.toContain('offline_access');
+    record("MCP resource identity", metadata.resource);
+    record("MCP authorization servers", metadata.authorization_servers);
+    record("MCP access scopes", metadata.scopes_supported);
     const oidc = await (await d.fetch(d.base + d.mount + '/studio/auth/.well-known/openid-configuration')).json() as any;
-    expect(oidc.issuer).toBe(d.base + d.mount + '/studio/auth');
-    expect(oidc.code_challenge_methods_supported).toEqual(['S256']);
-    expect(oidc.authorization_response_iss_parameter_supported).toBe(true);
+    record("OIDC issuer", oidc.issuer);
+    record("OIDC S256 methods", oidc.code_challenge_methods_supported);
+    record("OIDC issuer parameter", oidc.authorization_response_iss_parameter_supported);
     const wrongMethod = await d.fetch(d.base + d.mount + '/studio/mcp', { headers: { Authorization: 'Bearer ' + credential.accessToken } });
-    expect(wrongMethod.status).toBe(405);
+    record("MCP wrong HTTP method", wrongMethod.status);
 
-  });
-  it('checks real OAuth token expiry at T-1/T and rejects the API audience at MCP', async () => {
+
+};
+  async function runAccessExpiry(plan: McpPlan) {
+
     for (const resource of ['https://oauth-oracle.example.test/blyg/studio/mcp', 'https://oauth-oracle.example.test/blyg/api']) {
       const f = await flow({ authorize: { resource } });
       const approved = await f.decide('browser-a', true);
-      expect(approved.status).toBe(302);
+      record("MCP expiry consent", approved.status);
       const code = new URL(approved.headers.get('location')!).searchParams.get('code')!;
-      const exchanged = await f.token(code, { resource }); expect(exchanged.status).toBe(200);
+      const exchanged = await f.token(code, { resource }); record("MCP expiry exchange", exchanged.status);
       const token = await exchanged.json() as { access_token: string; expires_in: number };
-      expect(token.expires_in).toBe(3600);
+      record("MCP access lifetime", token.expires_in);
       const call = () => f.request('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + token.access_token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/call', 'mcp-name': 'getSettings' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'getSettings', arguments: {}, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) });
-      if (resource.endsWith('/api')) { expect((await call()).status).toBe(401); continue; }
-      expect((await call()).status).toBe(200);
+      if (resource.endsWith('/api')) { record("MCP expiry API audience denial", (await call()).status); continue; }
+      record("MCP initial access", (await call()).status);
       // Public signed claims select the clock boundary; no verifier helper supplies the verdict.
       const claims = JSON.parse(atob(token.access_token.split('.')[1].replaceAll('-', '+').replaceAll('_', '/'))) as { exp: number };
       const clock = vi.spyOn(Date, 'now').mockReturnValue((claims.exp - 1) * 1000);
       try {
-        expect((await call()).status).toBe(200);
+        record("MCP access before expiry", (await call()).status);
         clock.mockReturnValue(claims.exp * 1000);
-        const expired = await call(); expect(expired.status).toBe(401);
-        expect(expired.headers.get('www-authenticate')).toContain('/studio/auth/resources/mcp');
+        const expired = await call(); record("MCP exact expiry denial", expired.status);
+        record("MCP expiry challenge", expired.headers.get('www-authenticate'));
       } finally { clock.mockRestore(); }
     }
-  });
-  it('handles notifications and rejects batched or response bodies through native HTTP classification', async () => {
-    const d = await driver(), credential = await d.manual(['owner:read']);
+
+};
+  async function runMessageClassification(plan: McpPlan) {
+
+    const d = await createDriver(), credential = await d.manual(['owner:read']);
     const meta = { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} };
     const send = (body: unknown) => d.fetch(d.base + d.mount + '/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + credential.accessToken, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28' }, body: JSON.stringify(body) });
     const notification = await send({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: 'unrelated', _meta: meta } });
-    expect(notification.status).toBe(202); expect(await notification.text()).toBe('');
+    record("MCP notification status", notification.status); record("MCP notification body", await notification.text());
     for (const body of [[{ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: meta } }], { jsonrpc: '2.0', id: 1, result: {} }]) {
-      expect((await send(body)).status).toBe(400);
+      record("MCP invalid message body", (await send(body)).status);
     }
-  });
-  it('rejects a wrong capability list in the checker', () => {
-    expect(() => expect([...expectedTools(['owner:draft']), 'publishItem']).toEqual(expectedTools(['owner:draft']))).toThrow();
-  });
+
+};
+
+
+const histories: McpPlan[] = [
+  {
+    "name": "uses pre-registered Cloudflare callback credentials at mount ",
+    "boundary": "confidential-oauth",
+    "mount": ""
+  },
+  {
+    "name": "uses pre-registered Cloudflare callback credentials at mount /blyg",
+    "boundary": "confidential-oauth",
+    "mount": "/blyg"
+  },
+  {
+    "name": "uses pre-registered Cloudflare callback credentials at mount /nested/blyg",
+    "boundary": "confidential-oauth",
+    "mount": "/nested/blyg"
+  },
+  {
+    "name": "completes a 2025-03-26 Streamable HTTP handshake and tool call",
+    "boundary": "protocol-handshake",
+    "mount": "/blyg",
+    "version": "2025-03-26"
+  },
+  {
+    "name": "completes a 2025-06-18 Streamable HTTP handshake and tool call",
+    "boundary": "protocol-handshake",
+    "mount": "/blyg",
+    "version": "2025-06-18"
+  },
+  {
+    "name": "completes a 2025-11-25 Streamable HTTP handshake and tool call",
+    "boundary": "protocol-handshake",
+    "mount": "/blyg",
+    "version": "2025-11-25"
+  },
+  {
+    "name": "discovers mounted OAuth and completes a real tool call at mount ",
+    "boundary": "oauth-discovery",
+    "mount": ""
+  },
+  {
+    "name": "discovers mounted OAuth and completes a real tool call at mount /blyg",
+    "boundary": "oauth-discovery",
+    "mount": "/blyg"
+  },
+  {
+    "name": "discovers mounted OAuth and completes a real tool call at mount /nested/blyg",
+    "boundary": "oauth-discovery",
+    "mount": "/nested/blyg"
+  },
+  {
+    "name": "lists exactly the granted tool capabilities for every scope subset",
+    "boundary": "scope-inventory",
+    "mount": "/blyg"
+  },
+  {
+    "name": "returns the same bounded mention groups and exact summary as REST",
+    "boundary": "mention-projections",
+    "mount": "/blyg"
+  },
+  {
+    "name": "has the same item values and publication/provenance as REST",
+    "boundary": "item-publication",
+    "mount": "/blyg",
+    "publication": { "contentMd": "[TK]write a sentence[=]A generated sentence.[/TK]", "generatedText": "A generated sentence.", "provenance": [{ "sources": [], "model": "oracle-agent" }] }
+  },
+  {
+    "name": "returns complete MCP operation scope challenges without widening tool inventory",
+    "boundary": "scope-challenges",
+    "mount": "/blyg"
+  },
+  {
+    "name": "checks Origin and bearer credentials on each independent MCP request",
+    "boundary": "request-authority",
+    "mount": "/blyg"
+  },
+  {
+    "name": "delegates contradictory modern headers and versions to the native SDK",
+    "boundary": "protocol-classification",
+    "mount": "/blyg"
+  },
+  {
+    "name": "checks real OAuth token expiry at T-1/T and rejects the API audience at MCP",
+    "boundary": "access-expiry",
+    "mount": "/blyg"
+  },
+  {
+    "name": "handles notifications and rejects batched or response bodies through native HTTP classification",
+    "boundary": "message-classification",
+    "mount": "/blyg"
+  }
+];
+const drivers = {"confidential-oauth": runConfidentialOauth,"protocol-handshake": runProtocolHandshake,"oauth-discovery": runOauthDiscovery,"scope-inventory": runScopeInventory,"mention-projections": runMentionProjections,"item-publication": runItemPublication,"scope-challenges": runScopeChallenges,"request-authority": runRequestAuthority,"protocol-classification": runProtocolClassification,"access-expiry": runAccessExpiry,"message-classification": runMessageClassification};
+oracleProperty({
+ id: 'mcp', owns: ['src/mcp.ts'],
+ law: { statement: 'For every bounded MCP receiving history, explicit granted scopes and resource bind access, permitted operations preserve REST and publication values, and native protocol classification preserves its documented response and discovery contract.', authority: 'Decision #52; docs/client-access.md; decision #111: getChanges removed in Studio 0.67.0 / private contract 6.0.0; MCP authorization and Streamable HTTP specifications linked above; RFC6750 §3 and RFC8707 §2', limits: 'All original finite scope/mount/protocol/expiry/publication histories; not arbitrary tool arguments or deployed host-root metadata publication.' },
+ histories, label: plan => plan.name, model: mcpReference,
+ driver: async (plan, observe) => { await withOracleStorage(() => active.run(observe, () => drivers[plan.boundary](plan))); observe('MCP receiving complete', true); },
+ check: (_plan, trace, expected) => {
+   const counts = new Map<string, number>();
+   for (const entry of trace) {
+     if (entry.checkpoint === 'MCP receiving complete') continue;
+     const result = checkMcpObservation(entry, expected, counts.get(entry.checkpoint) ?? 0); if (result) return result;
+     counts.set(entry.checkpoint, (counts.get(entry.checkpoint) ?? 0) + 1);
+   }
+   if (!trace.some(entry => entry.checkpoint === 'MCP receiving complete')) return pass;
+   return differs('MCP receiving completeness', 'MCP receiving laws', Object.fromEntries(counts), expected.counts) ?? pass;
+ },
+ calibrations: [{ name: 'resource bound API token reaches MCP', law: 'MCP receiving laws', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'API audience refusal' ? { ...entry, value: 200 } : entry) }],
 });

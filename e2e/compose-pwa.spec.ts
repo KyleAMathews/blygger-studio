@@ -61,7 +61,7 @@ test('the filters show drafts, unpublished changes, public and withdrawn items',
   for (const filter of ['drafts', 'changes', 'public', 'withdrawn', 'all']) {
     await page.locator(`[data-filter="${filter}"]`).click();
     const total = totals[filter] as number;
-    await expect(page.locator(`[data-filter="${filter}"] .n`)).toHaveText(String(total));
+    await expect(page.locator(`[data-filter="${filter}"] .toggle-group-count`)).toHaveText(String(total));
     await expect(page.locator('.item-row')).toHaveCount(Math.min(25, total));
     for (let loaded = 25; loaded < total; loaded += 25) {
       await page.getByRole('button', { name: 'load more items', exact: true }).click();
@@ -188,7 +188,7 @@ test('pasting a lone URL over a selection links it, in the composer and the edit
 test('the composer tools: kind pills, the over-length hint, [[ and [TK]', async ({ page }) => {
   await login(page);
   const box = page.locator('#composer-text');
-  await expect(page.getByRole('radio', { name: 'fragment', exact: true })).toBeChecked();
+  await expect(page.getByRole('button', { name: 'fragment', exact: true })).toHaveAttribute('aria-pressed', 'true');
   // Thread-only tools stay in the row, greyed, so it doesn't shift between kinds.
   await expect(page.locator('[data-action="bracket-quote"]')).toBeDisabled();
   await expect(box).toHaveClass(/is-fragment/);
@@ -196,7 +196,7 @@ test('the composer tools: kind pills, the over-length hint, [[ and [TK]', async 
   await expect(page.locator('#composer-count')).toHaveClass(/over/);
   await expect(box).toHaveClass(/is-over/);
   await page.getByRole('button', { name: 'make this a thread', exact: true }).click();
-  await expect(page.getByRole('radio', { name: 'thread', exact: true })).toBeChecked();
+  await expect(page.getByRole('button', { name: 'thread', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#composer-count')).not.toHaveClass(/over/);
   await expect(box).not.toHaveClass(/is-fragment/);
   await expect(box).not.toHaveClass(/is-over/);
@@ -219,7 +219,7 @@ test('a composer tool leaves the caret where it belongs before anything else can
   // "[TK]Summarise this[/TK]Linking [[" (studio, 2026-10). Each check below
   // reads the textarea before the task that clicked ends: no frame can run.
   await login(page);
-  await page.getByRole('radio', { name: 'thread', exact: true }).click();
+  await page.getByRole('button', { name: 'thread', exact: true }).click();
   const box = page.locator('#composer-text');
   const clickNow = (text: string, from: number, to: number, action: string) =>
     box.evaluate(async (el: HTMLTextAreaElement, [text, from, to, action]) => {
@@ -341,10 +341,10 @@ test('the editor ⋯ menu copies, pins and withdraws, and the Version-N dialog s
     const sheet = page.getByRole('dialog', { name: 'actions' });
     await sheet.getByRole('button', { name: new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`) }).click();
   };
-  // A draft: make this a…, add to hopper (session 47), discard draft — nothing that needs a public item.
+  // A draft: make this a…, add to shelf (#135), add to hopper (session 47), discard draft — nothing that needs a public item.
   await page.getByRole('button', { name: 'more actions' }).click();
   const sheet = page.getByRole('dialog', { name: 'actions' });
-  await expect(sheet.locator('.ml')).toHaveText(['make this a thread', /^add to hopper…/, 'discard draft']);
+  await expect(sheet.locator('.ml')).toHaveText(['make this a thread', /^(add to|remove from) shelf/, /^add to hopper…/, 'discard draft']);
   await page.keyboard.press('Escape');
   await expect(sheet).toHaveCount(0);
   await page.locator('#publish-btn').click();

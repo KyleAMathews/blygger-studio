@@ -23,12 +23,13 @@ it("exercises every declared operation through its named SDK method, including a
   const id = draft.id, member = { id: hopper.id, sub: sub.id, remoteId: "remote" }, signal = { sub: sub.id, remoteId: "remote" };
   const cases: Case[] = [
     ['getCapabilities', 200, async client => api.getCapabilities({ client })],
-    ['getChanges', 200, async client => api.getChanges({ client })],
     ['batchRead', 200, async client => api.batchRead({ client, body: { operation: 'getItem', requests: [{ path: { id } }] } })],
     ["createItem", 201, async client => api.createItem({ client, body: { mode: "response", source: { subscriptionId: sub.id, remoteId: "remote" } } })],
     ["updateItem", 200, async client => api.updateItem({ client, path: { id }, body: { ...({ contentMd: "matrix changed", responses: "hide" }), expectedRevision: await testItemRevision(id) } })],
     ["generateItem", 400, async client => api.generateItem({ client, path: { id }, body: { ...({ scope: 100 }), expectedRevision: await testItemRevision(id) } })],
     ["publishItem", 200, async client => api.publishItem({ client, path: { id } , body: { expectedRevision: await testItemRevision(id) } })],
+    ["getSyndication", 200, async client => api.getSyndication({ client, path: { id } })],
+    ["putSyndication", 200, async client => api.putSyndication({ client, path: { id }, body: { entries: [{ url: "https://bsky.app/profile/x/post/y", version: 1 }], expectedRevision: await testItemRevision(id) } })],
     ["pinItem", 200, async client => api.pinItem({ client, path: { id, version: 1 } , body: { expectedRevision: await testItemRevision(id) } })],
     ["restoreItem", 200, async client => api.restoreItem({ client, path: { id }, body: { ...({ version: 1 }), expectedRevision: await testItemRevision(id) } })],
     ["uploadMedia", 201, async client => api.uploadMedia({ client, body: { file: new File(["image"], "image.png", { type: "image/png" }), itemId: id, expectedRevision: await testItemRevision(id), alt: "matrix" } })],
@@ -39,6 +40,8 @@ it("exercises every declared operation through its named SDK method, including a
     ["pollAllSubscriptions", 200, async client => api.pollAllSubscriptions({ client })],
     ["createContact", 201, async client => api.createContact({ client, body: { handle: "matrix", name: "Matrix", url: "https://matrix.example/" } })],
     ["listContacts", 200, async client => api.listContacts({ client })],
+    ["getShelf", 200, async client => api.getShelf({ client })],
+    ["putShelf", 200, async client => api.putShelf({ client, body: { entries: [{ sub: "~own", remoteId: id }], expectedRevision: (await api.getShelf({ client })).data?.revision ?? 0 } })],
     ["updateContact", 200, async client => api.updateContact({ client, path: { id: contact.id }, body: { name: "Matrix two" } })],
     ["resolveContact", 502, async client => api.resolveContact({ client, path: { id: contact.id } })],
     ["deleteContact", 200, async client => api.deleteContact({ client, path: { id: contact.id } })],
@@ -48,6 +51,7 @@ it("exercises every declared operation through its named SDK method, including a
     ["removeHopperItem", 200, async client => api.removeHopperItem({ client, path: member })],
     ["setSignal", 200, async client => api.setSignal({ client, path: signal, body: { thumb: -1 } })],
     ["deleteSignal", 200, async client => api.deleteSignal({ client, path: signal })],
+    ["setReadingPlacement", 200, async client => api.setReadingPlacement({ client, body: { source: "imported", sub: sub.id, id: "remote", placement: "background" } })],
     ["markRead", 200, async client => api.markRead({ client, path: signal, body: { version: 1 } })],
     ["markReadBatch", 200, async client => api.markReadBatch({ client, body: { items: [{ sub: sub.id, remoteId: "remote", version: 1 }] } })],
     ["markUnread", 200, async client => api.markUnread({ client, path: signal })],
@@ -118,6 +122,6 @@ it("exercises every declared operation through its named SDK method, including a
     const media = definition && "content" in definition ? definition.content?.["application/json"] : undefined;
     const schema = media && "schema" in media ? media.schema : undefined;
     expect(schema && "safeParse" in schema && schema.safeParse(result.data ?? result.error).success, name).toBe(true);
-    expect(result.response?.headers.get("cache-control"), name).toBe("no-store");
+    expect(result.response?.headers.get("cache-control"), name).toBe(routes[name].method === "get" && status === 200 && result.response?.headers.has("etag") ? "private, no-cache" : "no-store");
   }
 }, 60_000);

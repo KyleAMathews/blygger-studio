@@ -14,14 +14,16 @@ import { consumeHandles, withMentionCards } from "./contacts.ts";
 import { ownMentionTargets } from "./mention-targets.ts";
 import { injectNestedProvenance, injectProvenance, transclusionProvenance } from "./pages.ts";
 import { applyInternalLinks, previewInternalLinks, previewTransclusions, resolveBlockLinks } from "./transclusion.ts";
+import { parseTangles } from "./tangle.ts";
 import { siteOrigin } from "./protocol.ts";
 import { MODELS, bindingName, configuredProviders, isDecisionModel } from "./ai/models.ts";
 import type { ChangeClassRow } from "./change-class.ts";
 import { withLabels, type InteractionRow } from "./interactions.ts";
-import { normalizeMount } from "./util.ts";
+import { escapeHtml, normalizeMount } from "./util.ts";
 import type { SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, HopperItemRow, VersionRow, MentionInRow, MentionOutRow } from "./types.ts";
 import { itemDetail } from "./item-data.ts";
 import { readingData, readingSummary } from "./reading-data.ts";
+import { enabledRules } from "./background.ts";
 import { IMPORTED_READING_DEFAULT, importedReading } from "./imported-reading.ts";
 import { getInbound } from "./mentions/store.ts";
 import { maybeCheckForUpdate } from "./update-check.ts";
@@ -31,7 +33,6 @@ import { platformFetchFor } from "./importer/http.ts";
 import { recordBrowse, clearBrowse, type BrowseVia, type BrowseRow } from "./browse-log.ts";
 import { classifyLinks, peekItem } from "./peek.ts";
 import { fetchImportedHistory, fetchPublicVersion } from "./imported-history.ts";
-import { readChanges } from './changes.ts';
 import { linkLabel } from "./link-label.ts";
 import { authoredItemKindSql } from './version-state.ts';
 import { versionState } from './version-state.ts';
@@ -46,7 +47,6 @@ const getCapabilitiesOperation = async (context: OperationContext, input: Operat
   return success({ contractVersion: API_CONTRACT_VERSION, endpoints: deploymentUrls(context.url, context.env),
     ...await operationAvailability(context.env.DB, context.access, context.extensions) });
 };
-const getChangesOperation = async (context: OperationContext, input: OperationInput) => success(await readChanges(context.env.DB));
 // Pin history retains the legacy nullness rule for unresolved version kinds.
 const pinKindSql = `CASE WHEN kind IN ('fragment','thread') THEN kind WHEN transclusions IS NULL THEN 'fragment' ELSE 'thread' END`;
 const listItemsOperation = async (context: OperationContext, input: OperationInput) => {
@@ -163,14 +163,14 @@ const listMentionsOperation = async (context: OperationContext, input: Operation
     ? await cursorPage<MentionOutRow, ReturnType<typeof outboundMentionResource>>(context.env.DB, query, {
         name: 'mentions', filters: identity, domains: ['mentions'], sql, binds,
         order: [{ column: 'created', direction: 'desc' }, { column: 'id', direction: 'asc' }], project: rows => rows.map(outboundMentionResource),
-      })
+      }, context.conditionalSnapshot)
     : await cursorPage<MentionInRow, ReturnType<typeof mentionResource>>(context.env.DB, query, {
         name: 'mentions', filters: identity, domains: ['mentions'], sql, binds,
         order: [{ column: 'verified_at', direction: 'desc' }, { column: 'last_seen', direction: 'desc' }, { column: 'id', direction: 'asc' }], project: rows => rows.map(mentionResource),
-      });
+      }, context.conditionalSnapshot);
   return success({ ...page, direction });
 };
-const listMentionGroupsOperation = async (context: OperationContext, input: OperationInput) => success(await mentionGroups(context.env.DB, input.query));
+const listMentionGroupsOperation = async (context: OperationContext, input: OperationInput) => success(await mentionGroups(context.env.DB, input.query, context.conditionalSnapshot));
 const getMentionSummaryOperation = async (context: OperationContext) => success(await mentionSummary(context.env.DB));
 const listInteractionsOperation = async (context: OperationContext, input: OperationInput) => {
   const query = input.query, where: string[] = [], binds: (string | number)[] = [];
@@ -217,8 +217,9 @@ const mentioning = async (context: OperationContext, input: OperationInput) => {
   const settings = await getSettings(context.env.DB);
   return ownMentionTargets(settings.author_url, siteOrigin(settings, context.url, normalizeMount(context.env.MOUNT)));
 };
-const listReadingOperation = async (context: OperationContext, input: OperationInput) => success({ ...await readingData(context.env.DB, { ...input.query, limit: input.query.limit ?? 25 }, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input)), readState: true as const, readStateClear: true as const });
-const getReadingSummaryOperation = async (context: OperationContext, input: OperationInput) => success(await readingSummary(context.env.DB, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input)));
+const backgroundRules = async (context: OperationContext) => enabledRules((await getSettings(context.env.DB)).bg_rules);
+const listReadingOperation = async (context: OperationContext, input: OperationInput) => success({ ...await readingData(context.env.DB, { ...input.query, limit: input.query.limit ?? 25 }, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), await backgroundRules(context), input.query.shelf === 'true'), readState: true as const, readStateClear: true as const });
+const getReadingSummaryOperation = async (context: OperationContext, input: OperationInput) => success(await readingSummary(context.env.DB, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), await backgroundRules(context), input.query.shelf === 'true'));
 // Imported items only, keyset-paged, for clients that author from what they read (studio#11).
 const listImportedReadingOperation = async (context: OperationContext, input: OperationInput) => {
   return success(await importedReading(context.env.DB, input.query.cursor, Number(input.query.limit ?? IMPORTED_READING_DEFAULT)));
@@ -440,9 +441,46 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
 };
 
 
+/** A line no author writes, standing in for a `![[+ …]]` span while the rest renders. */
+const tangleToken = (i: number) => `\uE010tangle${i}\uE010`;
+const TANGLE_TOKEN_P = /<p>\uE010tangle(\d+)\uE010<\/p>/g;
+const TANGLE_TOKEN = /\uE010tangle(\d+)\uE010/g;
+
+/**
+ * A thread's `![[+ …]]` spans as the preview shows them (tangling-plan §2.6):
+ * each rendered on its own, as the new item it will be, in a quote marked
+ * "new item". The rest of the thread renders with a token in each span's place.
+ */
+async function previewTangles(db: D1Database, md: string, origin: string) {
+  const { spans } = parseTangles(md);
+  if (!spans.length) return { md, finish: (html: string) => html, errors: [] as unknown[] };
+  let text = "";
+  let last = 0;
+  spans.forEach((span, i) => {
+    // A quoted span is a block of its own; a placeholder stays in its sentence.
+    text += span.kind === "link" ? `${md.slice(last, span.start)}${tangleToken(i)}` : `${md.slice(last, span.start)}\n${tangleToken(i)}\n\n`;
+    last = span.end;
+  });
+  text += md.slice(last);
+  const errors: unknown[] = [];
+  const rendered = await Promise.all(spans.map(async (span) => {
+    if (span.kind === "link") return "";
+    const links = await previewInternalLinks(db, span.text, origin);
+    const resolved = await previewTransclusions(db, links.text);
+    errors.push(...links.errors, ...resolved.errors);
+    return applyInternalLinks(resolved.html, links);
+  }));
+  const finish = (html: string) =>
+    html
+      .replace(TANGLE_TOKEN_P, (_whole, i: string) => `<blockquote class="blyg-tangle-new"><p class="blyg-tangle-label">new item</p>${rendered[Number(i)]}</blockquote>`)
+      .replace(TANGLE_TOKEN, (_whole, i: string) => `<span class="blyg-tangle-link" title="new item, linked">${escapeHtml(spans[Number(i)].text)}</span>`);
+  return { md: text, finish, errors };
+}
+
 async function threadPreview(context: OperationContext, input: OperationInput) {
   const body = (input.body as { contentMd?: string; itemId?: string });
-  const handles = await consumeHandles(context.env.DB, previewComments(body.contentMd ?? ""));
+  const tangles = await previewTangles(context.env.DB, body.contentMd ?? "", siteOrigin(await getSettings(context.env.DB), context.url, normalizeMount(context.env.MOUNT)));
+  const handles = await consumeHandles(context.env.DB, previewComments(tangles.md));
   const tk = annotateTkPreview(handles.text);
   // item_id is the thread being edited — the DAG check needs it, so the
   // preview rejects a circular quote at exactly the point publish would.
@@ -455,10 +493,11 @@ async function threadPreview(context: OperationContext, input: OperationInput) {
   return success({
     // The lines the public page puts under its quotes. Placeholders for quotes
     // that don't resolve have no entry to pair with, so they go without.
-    html: resolved.errors.length
+    // Spans go in after the provenance lines, which pair with quotes by position.
+    html: tangles.finish(resolved.errors.length
       ? html
-      : await injectNestedProvenance(context.env.DB, injectProvenance(html, await transclusionProvenance(context.env.DB, resolved.transclusions, mount)), mount),
-    errors: [...resolved.errors, ...links.errors, ...blocks.errors],
+      : await injectNestedProvenance(context.env.DB, injectProvenance(html, await transclusionProvenance(context.env.DB, resolved.transclusions, mount)), mount)),
+    errors: [...resolved.errors, ...links.errors, ...blocks.errors, ...tangles.errors],
     transclusions: resolved.transclusions,
     // Every scope in the working copy, comments included: generate addresses
     // them by that order, and a scope in a note can be generated like any other.
@@ -500,7 +539,6 @@ async function forkablePins(
 
 export const readOperations = {
   getCapabilities: getCapabilitiesOperation,
-  getChanges: getChangesOperation,
   listItems: listItemsOperation,
   getItemSummary: getItemSummaryOperation,
   getItem: getItemOperation,

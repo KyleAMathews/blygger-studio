@@ -41,13 +41,16 @@ let releaseWrite: (() => void) | undefined;
 let writeGate: Promise<void> | undefined;
 let detailGate: Promise<void> | undefined;
 let detailEntered: (() => void) | undefined;
+// Full responses only; conditional 304s are tracked separately.
+let testGeneration = 0;
+const validations: string[] = [];
 const requests: { path: string; params: URLSearchParams }[] = [];
 const views: { cleanup(): Promise<void> | void }[] = [];
 const item = () => ({ id: 'a', revision: itemRevision, contentMd: text, kind: 'fragment' as const, status: 'draft' as const, created: '2026-10-06', updated: '2026-10-06', version: itemPins.length ? 1 : 0, dirty: false, responses: 'default' as const, highlight: 'default' as const, provenance: [], stubOf: null, forkedFrom: null, forkCite: null, pins: itemPins });
 const detail = (): Detail => ({ ...item(), kind: 'fragment', media: [], publishedMedia: [], published: null });
 const hopper = { id: 'h', name: 'Hopper', public: false, slug: null, created: '2026-10-06', slugFrozen: false, description: null };
 const contents = () => ({ hopper, items: Array.from({ length: memberCount }, (_, i) => ({ subscriptionId: 's', remoteId: String(i), contentHtml: `${text} ${i}`, contentMd: text, kind: 'fragment', state: 'current', version: 1, created: null, updated: null, observedAt: '2026-10-06', contentHash: null, author: null, media: null, transclusions: null, l0: false, pinnedVersionRetained: null, page: null, stubOf: null, forkedFrom: null, generated: null })), memberships: Array.from({ length: memberCount }, (_, i) => ({ hopperId: 'h', subscriptionId: 's', remoteId: String(i), addedAt: '2026-10-06' })), total: 4, sourceCount: 1 });
-const entry = (key: string, kind = 'fragment') => ({ key, source: 'own', kind, withdrawn: false, l0: false, contentHtml: text, displayAt: '2026-10-06' });
+const entry = (key: string, kind = 'fragment') => ({ key, source: 'own', kind, withdrawn: false, l0: false, contentHtml: text, displayAt: '2026-10-06', background: { reasons: [], placement: null, blyg: false } });
 function page<T>(items: T[], query: URLSearchParams, defaultLimit = 100) {
   const start = Number(query.get('cursor') ?? 0), limit = Number(query.get('limit') ?? defaultLimit);
   pageRows += items.slice(start, start + limit).length;
@@ -70,7 +73,7 @@ function mentionRows(group: number) {
 function groupRows() {
   return Array.from({ length: groupCount() }, (_, group) => {
     const rows = mentionRows(group), latest = rows[0];
-    return { targetItemId: mentionTarget(group), total: rows.length, visible: rows.filter(row => !row.hidden).length,
+    return { targetItemId: mentionTarget(group), total: rows.length, visible: rows.filter(row => !row.hidden).length, links: 0,
       verifiedAt: latest.verifiedAt ?? '', lastSeen: latest.lastSeen, firstId: latest.id };
   }).sort((a, b) => a.firstId.localeCompare(b.firstId));
 }
@@ -79,7 +82,24 @@ beforeAll(async () => {
   vi.stubGlobal('location', { origin: 'http://studio.test' });
   vi.stubGlobal('window', new EventTarget());
   vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'hidden', getElementById: (id: string) => id === 'studio-root' ? { dataset: { apiBase: '/api' } } : null }));
-  vi.stubGlobal('fetch', async function serve(request: Request): Promise<Response> {
+  async function serve(request: Request): Promise<Response> {
+    const response = await render(request);
+    if (request.method !== 'GET' || response.status !== 200) return response;
+    const text = await response.clone().text();
+    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    const etag = `W/"${testGeneration}-${epoch}-${revision}-${Buffer.from(hash).toString('hex')}"`;
+    response.headers.set('ETag', etag);
+    if (request.headers.get('if-none-match') !== etag) return response;
+    validations.push(request.url);
+    const url = new URL(request.url);
+    const index = requests.findIndex(r => r.path === url.pathname && r.params.toString() === url.searchParams.toString());
+    if (index >= 0) requests.splice(index, 1);
+    const body = JSON.parse(text);
+    if (Array.isArray(body.items) && body.page) pageRows -= body.items.length;
+    return new Response(null, { status: 304, headers: response.headers });
+  }
+  vi.stubGlobal('fetch', serve);
+  async function render(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === '/api/read-batch') {
       const body = await request.json() as { operation: ReadBatchOperation; requests: ReadBatchInput[] };
@@ -87,13 +107,12 @@ beforeAll(async () => {
         const path = READ_BATCH_PATHS[body.operation].replace(/\{(\w+)\}/g, (_, key) => encodeURIComponent(child.path?.[key] ?? ''));
         const childUrl = new URL('/api' + path, url);
         childUrl.search = new URLSearchParams(child.query).toString();
-        const response = await serve(new Request(childUrl));
-        return { status: response.status, body: await response.json(), headers: {} };
+        const response = await serve(new Request(childUrl, { headers: child.ifNoneMatch ? { 'If-None-Match': child.ifNoneMatch } : {} }));
+        return { status: response.status, body: response.status === 304 ? null : await response.json(), headers: Object.fromEntries(response.headers) };
       })));
     }
     // Logical requests after unpacking the transport; API tests own batch auth.
     requests.push({ path: url.pathname, params: url.searchParams });
-    if (url.pathname === '/api/changes') return json({ epoch, domains: Object.fromEntries(['items', 'reading', 'hoppers', 'subscriptions', 'signals', 'settings', 'feed', 'mentions', 'responses', 'interactions', 'browse'].map((domain) => [domain, revision])) });
     if (url.pathname === '/api/items' && request.method === 'POST') {
       const body = await request.json(); text = body.contentMd; revision++; itemCount = 1;
       const { pins, ...created } = item();
@@ -212,11 +231,11 @@ beforeAll(async () => {
       return json({ ...page<unknown>(rows, url.searchParams), direction: url.searchParams.get('direction') });
     }
     throw new Error(`Unexpected request: ${request.method} ${request.url}`);
-  });
+  }
   db = await import('../src/ui/data.ts');
 });
 
-beforeEach(() => { revision = 0; itemRevision = 1; epoch = 'test'; text = 'original'; missing = false; failWrite = false; failRead = false; failSummary = false; failReading = false; importedReading = false; readVersions.clear(); readWrites.length = 0; signalWrites.length = 0; signalWriteFailures = 0; orphanMember = false; invalidItem = false; writeGate = undefined; detailGate = undefined; detailEntered = undefined; releaseWrite = undefined; requests.length = 0; itemCount = 1; mentionCount = 0; mentionGroupCount = 0; receiptsPerGroup = 1; outboundCount = 0; nullableMentions = false; hiddenMentions.clear(); memberCount = 4; versionCount = 0; pageRows = 0; itemPins = []; signalRows = []; });
+beforeEach(() => { testGeneration++; validations.length = 0; revision = 0; itemRevision = 1; epoch = 'test'; text = 'original'; missing = false; failWrite = false; failRead = false; failSummary = false; failReading = false; importedReading = false; readVersions.clear(); readWrites.length = 0; signalWrites.length = 0; signalWriteFailures = 0; orphanMember = false; invalidItem = false; writeGate = undefined; detailGate = undefined; detailEntered = undefined; releaseWrite = undefined; requests.length = 0; itemCount = 1; mentionCount = 0; mentionGroupCount = 0; receiptsPerGroup = 1; outboundCount = 0; nullableMentions = false; hiddenMentions.clear(); memberCount = 4; versionCount = 0; pageRows = 0; itemPins = []; signalRows = []; });
 afterEach(async () => {
   releaseWrite?.();
   await Promise.all(views.splice(0).map((view) => view.cleanup()));
@@ -235,7 +254,7 @@ async function refetch(...prefixes: string[]) {
   )));
 }
 
-test('editor projections share one item read on open and per changed revision', async () => {
+test('editor projections share one item read on open and and revalidate after writes', async () => {
   const editor = db.itemDetail('a'); views.push(editor);
   await editor.preload();
   expect(requests.filter((request) => request.path === '/api/items/a')).toHaveLength(1);
@@ -555,7 +574,8 @@ test('list polls do not start detail sources without a subscribed demand', async
   await db.listViews.items.preload();
   requests.length = 0;
   await refetch('items', 'item-history');
-  expect(requests.map((request) => request.path)).toEqual(['/api/changes']);
+  expect(requests.map((request) => request.path)).toEqual([]);
+  expect(validations.length).toBeGreaterThan(0);
 });
 
 test('route preload and sorted list share a backend sequence and exact boundary read', async () => {
@@ -566,7 +586,8 @@ test('route preload and sorted list share a backend sequence and exact boundary 
   expect(requests.filter(request => request.path === '/api/items' && request.params.get('id') === 'a')).toHaveLength(1);
   requests.length = 0;
   await refetch('items', 'item-history');
-  expect(requests.map((request) => request.path)).toEqual(['/api/changes']);
+  expect(requests.map((request) => request.path)).toEqual([]);
+  expect(validations.length).toBeGreaterThan(0);
 });
 
 test('route retry restarts a failed detail graph after the Query cache recovers', async () => {
@@ -599,10 +620,13 @@ test('all sources use generated OpenAPI schemas or explicit client extensions', 
   expect(sourceSchemas.authorizations).toBe(zAuthorization);
 });
 
-test('invalid synced rows retain the last good state and retry before the same revision is cached', async () => {
+test('invalid synced rows retain the last good state and retry without caching invalid representations', async () => {
   await db.listViews.items.preload();
   invalidItem = true; text = 'new version'; revision++;
   await expect(db.items.utils.refetch({ throwOnError: true })).rejects.toThrow('expected string');
+  // Refetch rejects when its first subset fails. Finish the other invalid
+  // subset reads before changing the peer to serve valid representations.
+  await Promise.allSettled(db.queryClient.getQueryCache().getAll().map(query => query.promise));
   expect(db.items.get('a')?.contentMd).toBe('original');
   invalidItem = false;
   await db.items.utils.refetch({ throwOnError: true });
@@ -791,7 +815,7 @@ test('outbound mention windows remain bounded across tied creation dates', async
   expect(db.outbound.size).toBeLessThanOrEqual(51);
 });
 
-test('mention lists and source cards re-read only when their revisions move', async () => {
+test('mention lists and source cards revalidate without downloading unchanged bodies', async () => {
   mentionCount = 1; outboundCount = 1;
   const view = db.mentionSource('m'); views.push(view);
   const incoming = createLiveQueryCollection(q => q.from({ mention: db.inbound })
@@ -806,7 +830,7 @@ test('mention lists and source cards re-read only when their revisions move', as
   const initial = counts();
   expect(initial[0]).toBeGreaterThanOrEqual(2);
   expect(initial[1]).toBe(1);
-  // An unchanged tick answers from the cached responses after one revision check each.
+  // An unchanged tick conditionally revalidates resources and transfers no bodies.
   await Promise.all([db.inbound.utils.refetch(), db.outbound.utils.refetch(), db.mentionSources.utils.refetch()]);
   expect(counts()).toEqual(initial);
   revision++;

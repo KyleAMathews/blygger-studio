@@ -16,7 +16,7 @@ export type Authorization = {
 };
 
 export type ApiError = {
-    code: 'invalid-input' | 'unauthorized' | 'forbidden' | 'not-found' | 'method-not-allowed' | 'conflict' | 'revision-conflict' | 'cursor-expired' | 'too-large' | 'unsupported-media' | 'unprocessable' | 'rate-limit' | 'internal' | 'bad-gateway';
+    code: 'invalid-input' | 'unauthorized' | 'forbidden' | 'not-found' | 'method-not-allowed' | 'conflict' | 'revision-conflict' | 'tangle-confirmation-required' | 'cursor-expired' | 'too-large' | 'unsupported-media' | 'unprocessable' | 'rate-limit' | 'internal' | 'bad-gateway';
     message: string;
     details?: {
         issues?: Array<{
@@ -56,23 +56,6 @@ export type Capabilities = {
         enabled: boolean;
         granted: boolean;
     }>;
-};
-
-export type ChangeState = {
-    epoch: string;
-    domains: {
-        items: number;
-        reading: number;
-        subscriptions: number;
-        hoppers: number;
-        signals: number;
-        settings: number;
-        feed: number;
-        mentions: number;
-        responses: number;
-        interactions: number;
-        browse: number;
-    };
 };
 
 export type Item = {
@@ -128,6 +111,25 @@ export type GenerationSource = {
     cited?: Citation;
 };
 
+export type Syndication = {
+    /**
+     * Copies of the item on other networks, in the owner's order. Spec 0.4 §16.14: the publisher's claim, carried on the live item document only.
+     */
+    entries: Array<SyndicationEntry>;
+    revision: number;
+};
+
+export type SyndicationEntry = {
+    /**
+     * An absolute https: URL at which the copy can be read. Use the most stable URL the network offers.
+     */
+    url: string;
+    /**
+     * The version of the item the copy was made from.
+     */
+    version: number;
+};
+
 export type Settings = {
     siteTitle: string;
     theme: string;
@@ -171,6 +173,15 @@ export type Settings = {
      * Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with "summarize full history to date".
      */
     changelogSummaryPrompt: string;
+    /**
+     * Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read.
+     */
+    backgroundRules: {
+        burst: boolean;
+        wordless: boolean;
+        maintenance: boolean;
+        minor: boolean;
+    };
     acceptMentions: boolean;
     updateCheck: boolean;
     showResponsesDefault: boolean;
@@ -245,6 +256,10 @@ export type Settings = {
     updateFeedUrl: string;
     updateNoticeAck: boolean;
     /**
+     * Discover: the listing date of the newest blygger.com listing the owner has been shown, ISO; empty until Discover is first opened. Listings after it are new.
+     */
+    discoverSeenAt: string;
+    /**
      * Studio extensions enabled on this node (docs/extensions.md). Only names compiled into this build are accepted; every extension starts disabled.
      */
     extensions: Array<string>;
@@ -281,9 +296,35 @@ export type Subscription = {
     created: string;
     titleFollowsSource: boolean;
     /**
+     * The owner moved this whole blyg to Background in the reader. An entry's own placement still wins (blygger-spec docs/background-plan.md).
+     */
+    background: boolean;
+    /**
      * A hopper subscription (one public hopper at another blyg; spec 0.4 §16.12): the hopper feed's resolved absolute URL, which with origin (the blyg's identity origin) is the subscription's identity. Null for every other subscription.
      */
     hopperFeedUrl: string | null;
+};
+
+export type Shelf = {
+    /**
+     * The shelved items, in the owner's order, each named as hopper membership names an item. Own drafts may be shelved; a withdrawn own item, or an imported tombstone with no retained pin, is omitted. A discarded draft, an imported item no longer held, and every entry of a deleted subscription leave the shelf. Studio-private for good: never in an item document, feed, manifest or public page, and the shelf never gains a public mode.
+     */
+    entries: Array<ShelfEntry>;
+    /**
+     * The shelf's revision. Send it back as expectedRevision for a conditional replace; every successful PUT bumps it.
+     */
+    revision: number;
+};
+
+export type ShelfEntry = {
+    /**
+     * The subscription the item is held under, or "~own" (OWN_SUBSCRIPTION) for one of the owner's own items.
+     */
+    sub: string;
+    /**
+     * The item's id: the own item's id under "~own", else the imported item's remote id.
+     */
+    remoteId: string;
 };
 
 export type Contact = {
@@ -394,6 +435,10 @@ export type ImportedItem = {
         [key: string]: unknown;
     } | null;
     generated: Array<unknown> | null;
+    /**
+     * The origin's `syndication` member (spec 0.4 §16.14) as last fetched, kept to well-formed https: entries: copies the publisher says they made on other networks. The publisher's claim, never a reason to hide or merge another post. Absent or null when there are none. Fetched with the item document, so an entry added after the held version arrives with the next one.
+     */
+    syndication?: Array<SyndicationEntry> | null;
 };
 
 export type HopperMembership = {
@@ -471,7 +516,7 @@ export type Mention = {
     target: string;
     targetItemId: string;
     status: 'pending' | 'verified' | 'failed' | 'gone';
-    relation: 'stub' | 'transclusion' | 'fork' | 'source' | null;
+    relation: 'stub' | 'transclusion' | 'fork' | 'source' | 'link' | null;
     sourceOrigin: string | null;
     sourceId: string | null;
     sourceKind: string | null;
@@ -506,9 +551,13 @@ export type MentionGroup = {
     targetItemId: string;
     total: number;
     /**
-     * Verified, unhidden receipts before the target item response policy is applied.
+     * Verified, unhidden responses before the target item response policy is applied. `link` notices are never responses (spec 0.4 §15.5) and are not counted.
      */
     visible: number;
+    /**
+     * Verified `link` notices: other blygs linking to the target. Counted in total, never in visible.
+     */
+    links: number;
     /**
      * Latest verifiedAt with SQL NULL coalesced to an empty string.
      */
@@ -558,6 +607,46 @@ export type ReadingEntry = {
          * The highest version the owner has marked read; null when unread or cleared.
          */
         readVersion: number | null;
+        /**
+         * The origin's `syndication` member (spec 0.4 §16.14) as last fetched, https: entries only: copies the publisher says they made on other networks. The publisher's claim; absent when none.
+         */
+        syndication?: Array<SyndicationEntry>;
+    };
+    background: EntryBackground;
+    /**
+     * A thread's burst (spec §13.7's fold): the items of its blyg it was first to name, published with it, now in Background as `burst`. Present only on a thread that has them, while the burst rule is on.
+     */
+    parts?: Array<{
+        /**
+         * The subscription the part is held under, or "~own".
+         */
+        sub: string;
+        id: string;
+        label: string;
+    }>;
+};
+
+/**
+ * Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read.
+ */
+export type EntryBackground = {
+    /**
+     * The automatic reasons that count under Settings (withdrawn always), in order: withdrawn, then each enabled rule that applies.
+     */
+    reasons: Array<string>;
+    /**
+     * The owner's choice on this entry, which beats every rule; null when the rules decide.
+     */
+    placement: 'background' | 'foreground' | null;
+    /**
+     * The owner moved this entry's whole blyg to Background.
+     */
+    blyg: boolean;
+    /**
+     * What a reason's label says, such as the change category behind minor.
+     */
+    detail?: {
+        [key: string]: unknown;
     };
 };
 
@@ -581,6 +670,10 @@ export type ImportedReadingEntry = {
      * The highest version the owner has marked read; null when unread or cleared.
      */
     readVersion: number | null;
+    /**
+     * The origin's `syndication` member (spec 0.4 §16.14) as last fetched, https: entries only. Null when none.
+     */
+    syndication: Array<SyndicationEntry> | null;
     origin: string;
     created: string | null;
     /**
@@ -1005,6 +1098,10 @@ export type BatchReadData = {
             query?: {
                 [key: string]: string;
             };
+            /**
+             * Child resource validator; a matching representation returns status 304 and null body.
+             */
+            ifNoneMatch?: string;
         }>;
     };
     path?: never;
@@ -1082,6 +1179,12 @@ export type BatchReadResponse = BatchReadResponses[keyof BatchReadResponses];
 
 export type GetCapabilitiesData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/capabilities';
@@ -1149,77 +1252,14 @@ export type GetCapabilitiesResponses = {
 
 export type GetCapabilitiesResponse = GetCapabilitiesResponses[keyof GetCapabilitiesResponses];
 
-export type GetChangesData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/changes';
-};
-
-export type GetChangesErrors = {
-    /**
-     * Request failed
-     */
-    400: ApiError;
-    /**
-     * Request failed
-     */
-    401: ApiError;
-    /**
-     * Request failed
-     */
-    403: ApiError;
-    /**
-     * Request failed
-     */
-    404: ApiError;
-    /**
-     * Request failed
-     */
-    405: ApiError;
-    /**
-     * Request failed
-     */
-    409: ApiError;
-    /**
-     * Request failed
-     */
-    413: ApiError;
-    /**
-     * Request failed
-     */
-    415: ApiError;
-    /**
-     * Request failed
-     */
-    422: ApiError;
-    /**
-     * Request failed
-     */
-    429: ApiError;
-    /**
-     * Request failed
-     */
-    500: ApiError;
-    /**
-     * Request failed
-     */
-    502: ApiError;
-};
-
-export type GetChangesError = GetChangesErrors[keyof GetChangesErrors];
-
-export type GetChangesResponses = {
-    /**
-     * Success
-     */
-    200: ChangeState;
-};
-
-export type GetChangesResponse = GetChangesResponses[keyof GetChangesResponses];
-
 export type ListItemsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -1475,6 +1515,12 @@ export type DeleteItemResponse = DeleteItemResponses[keyof DeleteItemResponses];
 
 export type GetItemData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
     };
@@ -1662,6 +1708,10 @@ export type PublishItemData = {
     body: {
         expectedRevision: number;
         note?: string;
+        /**
+         * Confirms publishing the new items a thread's `![[+ text]]` spans make. Without it, a working copy with spans gets 409 tangle-confirmation-required, listing them in details.parts and their number in details.count, and nothing is written.
+         */
+        tangle?: boolean;
         noteGenerated?: boolean;
         /**
          * The change category the author confirmed in the publish dialog: kept with the version in studio-private storage (never on the wire). Omitted: a classification made for these words stands; null: cleared.
@@ -1741,6 +1791,13 @@ export type PublishItemResponses = {
          * @words that name no contact. They stay literal text.
          */
         unresolvedHandles?: Array<string>;
+        /**
+         * Items this publish made from the thread's `![[+ text]]` spans, or finished making, in source order. Each was published before the thread.
+         */
+        parts?: Array<{
+            id: string;
+            version: number;
+        }>;
     };
 };
 
@@ -2238,6 +2295,163 @@ export type PinItemResponses = {
 
 export type PinItemResponse = PinItemResponses[keyof PinItemResponses];
 
+export type GetSyndicationData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/items/{id}/syndication';
+};
+
+export type GetSyndicationErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetSyndicationError = GetSyndicationErrors[keyof GetSyndicationErrors];
+
+export type GetSyndicationResponses = {
+    /**
+     * Success
+     */
+    200: Syndication;
+};
+
+export type GetSyndicationResponse = GetSyndicationResponses[keyof GetSyndicationResponses];
+
+export type PutSyndicationData = {
+    body: {
+        /**
+         * The whole list, in order (at most 20). Replaces the stored list; a repeated url keeps its first position. Every url must be an absolute https: URL and every version one of the item's published versions, or the request is refused.
+         */
+        entries: Array<SyndicationEntry>;
+        /**
+         * Required: the item's revision, as for a pin. A replace bumps it.
+         */
+        expectedRevision: number;
+    };
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/items/{id}/syndication';
+};
+
+export type PutSyndicationErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type PutSyndicationError = PutSyndicationErrors[keyof PutSyndicationErrors];
+
+export type PutSyndicationResponses = {
+    /**
+     * Success
+     */
+    200: Syndication;
+};
+
+export type PutSyndicationResponse = PutSyndicationResponses[keyof PutSyndicationResponses];
+
 export type RestoreItemData = {
     body: {
         expectedRevision: number;
@@ -2486,6 +2700,12 @@ export type DeleteMediaResponse = DeleteMediaResponses[keyof DeleteMediaResponse
 
 export type GetSettingsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/settings';
@@ -2597,6 +2817,15 @@ export type UpdateSettingsData = {
          * Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with "summarize full history to date".
          */
         changelogSummaryPrompt?: string;
+        /**
+         * Background rules to turn on or off; rules not named keep their stored value.
+         */
+        backgroundRules?: {
+            burst?: boolean;
+            wordless?: boolean;
+            maintenance?: boolean;
+            minor?: boolean;
+        };
         acceptMentions?: boolean;
         updateCheck?: boolean;
         showResponsesDefault?: boolean;
@@ -2656,6 +2885,10 @@ export type UpdateSettingsData = {
         setup?: 'pending' | 'notice' | 'done';
         updateFeedUrl?: string;
         updateNoticeAck?: boolean;
+        /**
+         * Discover: the listing date of the newest blygger.com listing the owner has been shown, ISO; empty until Discover is first opened. Listings after it are new.
+         */
+        discoverSeenAt?: string;
         /**
          * Studio extensions enabled on this node (docs/extensions.md). Only names compiled into this build are accepted; every extension starts disabled.
          */
@@ -2730,6 +2963,12 @@ export type UpdateSettingsResponse = UpdateSettingsResponses[keyof UpdateSetting
 
 export type ListSubscriptionsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -2991,6 +3230,12 @@ export type DeleteSubscriptionResponse = DeleteSubscriptionResponses[keyof Delet
 
 export type GetSubscriptionData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
     };
@@ -3068,6 +3313,10 @@ export type UpdateSubscriptionData = {
          */
         title?: string | null;
         paused?: boolean;
+        /**
+         * Move this whole blyg to Background in the reader, or back.
+         */
+        background?: boolean;
     };
     path: {
         id: string;
@@ -3283,8 +3532,167 @@ export type ResyncSubscriptionResponses = {
 
 export type ResyncSubscriptionResponse = ResyncSubscriptionResponses[keyof ResyncSubscriptionResponses];
 
+export type GetShelfData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/shelf';
+};
+
+export type GetShelfErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetShelfError = GetShelfErrors[keyof GetShelfErrors];
+
+export type GetShelfResponses = {
+    /**
+     * Success
+     */
+    200: Shelf;
+};
+
+export type GetShelfResponse = GetShelfResponses[keyof GetShelfResponses];
+
+export type PutShelfData = {
+    body: {
+        /**
+         * The whole list, in order (at most 50). Replaces the stored list. An entry that does not resolve (an unknown subscription, an item not held under it, a withdrawn own item, an imported tombstone with no retained pin) is dropped quietly, never refused, and a repeated entry keeps its first position; the response is what was stored.
+         */
+        entries: Array<ShelfEntry>;
+        /**
+         * Required. Replace only if the shelf is still at this revision (read it with GET /shelf; a never-written shelf is at 0); otherwise 409 revision-conflict with the current { entries, revision } in details.current. There is no unconditional replace: several clients share the shelf, and one must not silently undo another's reorder.
+         */
+        expectedRevision: number;
+    };
+    path?: never;
+    query?: never;
+    url: '/shelf';
+};
+
+export type PutShelfErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type PutShelfError = PutShelfErrors[keyof PutShelfErrors];
+
+export type PutShelfResponses = {
+    /**
+     * Success
+     */
+    200: Shelf;
+};
+
+export type PutShelfResponse = PutShelfResponses[keyof PutShelfResponses];
+
 export type ListContactsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/contacts';
@@ -3650,6 +4058,12 @@ export type ResolveContactResponse = ResolveContactResponses[keyof ResolveContac
 
 export type ListHoppersData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -3875,6 +4289,12 @@ export type DeleteHopperResponse = DeleteHopperResponses[keyof DeleteHopperRespo
 
 export type GetHopperData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
     };
@@ -4718,6 +5138,12 @@ export type UpdateMentionResponse = UpdateMentionResponses[keyof UpdateMentionRe
 
 export type GetItemSummaryData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/items/summary';
@@ -4793,6 +5219,12 @@ export type GetItemSummaryResponse = GetItemSummaryResponses[keyof GetItemSummar
 
 export type ListItemVersionsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
     };
@@ -4877,6 +5309,12 @@ export type ListItemVersionsResponse = ListItemVersionsResponses[keyof ListItemV
 
 export type ListHopperMembershipsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
     };
@@ -4962,6 +5400,12 @@ export type ListHopperMembershipsResponse = ListHopperMembershipsResponses[keyof
 
 export type ListSignalsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -5043,6 +5487,12 @@ export type ListSignalsResponse = ListSignalsResponses[keyof ListSignalsResponse
 
 export type ListInteractionsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -5127,6 +5577,12 @@ export type ListInteractionsResponse = ListInteractionsResponses[keyof ListInter
 
 export type ListThumbsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -5212,6 +5668,12 @@ export type ListThumbsResponse = ListThumbsResponses[keyof ListThumbsResponses];
 
 export type GetSignalSummaryData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/signals/summary';
@@ -5285,6 +5747,12 @@ export type GetSignalSummaryResponse = GetSignalSummaryResponses[keyof GetSignal
 
 export type GetAiModelsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/ai/models';
@@ -5354,6 +5822,12 @@ export type GetAiModelsResponse = GetAiModelsResponses[keyof GetAiModelsResponse
 
 export type ListMentionsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -5461,6 +5935,12 @@ export type ListMentionsResponse = ListMentionsResponses[keyof ListMentionsRespo
 
 export type ListMentionGroupsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -5549,6 +6029,12 @@ export type ListMentionGroupsResponse = ListMentionGroupsResponses[keyof ListMen
 
 export type GetMentionSummaryData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/mentions/summary';
@@ -5736,6 +6222,12 @@ export type PreviewResponse = PreviewResponses[keyof PreviewResponses];
 
 export type SearchData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -5846,6 +6338,12 @@ export type SearchResponse = SearchResponses[keyof SearchResponses];
 
 export type GetVersionData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
         v: number;
@@ -5918,6 +6416,12 @@ export type GetVersionResponse = GetVersionResponses[keyof GetVersionResponses];
 
 export type GetReadingSummaryData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         sub?: string;
@@ -5931,6 +6435,10 @@ export type GetReadingSummaryData = {
          * Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received.
          */
         mentions?: 'true';
+        /**
+         * Only shelved entries (GET /shelf), in the owner's shelf order, whatever their Background placement. Own drafts are left out: they are not reading entries.
+         */
+        shelf?: 'true';
     };
     url: '/reading/summary';
 };
@@ -6008,6 +6516,12 @@ export type GetReadingSummaryResponse = GetReadingSummaryResponses[keyof GetRead
 
 export type ListReadingData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -6022,13 +6536,17 @@ export type ListReadingData = {
         hopper?: string;
         kind?: 'thread' | 'fragment';
         /**
-         * Only withdrawn entries.
+         * Only Background entries: the owner's choice on the entry, else on its blyg, else an enabled rule (withdrawn always). Without it, every lens leaves them out.
          */
         background?: 'true';
         /**
          * Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received.
          */
         mentions?: 'true';
+        /**
+         * Only shelved entries (GET /shelf), in the owner's shelf order, whatever their Background placement. Own drafts are left out: they are not reading entries.
+         */
+        shelf?: 'true';
     };
     url: '/reading';
 };
@@ -6109,8 +6627,102 @@ export type ListReadingResponses = {
 
 export type ListReadingResponse = ListReadingResponses[keyof ListReadingResponses];
 
+export type SetReadingPlacementData = {
+    body: {
+        source: 'own' | 'imported';
+        /**
+         * The subscription id, for an imported entry.
+         */
+        sub?: string;
+        /**
+         * The item id: an own item's id, or the imported item's remote id.
+         */
+        id: string;
+        /**
+         * background or foreground pins the entry there across later versions; null clears the choice and the rules decide again.
+         */
+        placement: 'background' | 'foreground' | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/reading/placement';
+};
+
+export type SetReadingPlacementErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type SetReadingPlacementError = SetReadingPlacementErrors[keyof SetReadingPlacementErrors];
+
+export type SetReadingPlacementResponses = {
+    /**
+     * Success
+     */
+    200: {
+        source: 'own' | 'imported';
+        sub: string;
+        id: string;
+        placement: 'background' | 'foreground' | null;
+    };
+};
+
+export type SetReadingPlacementResponse = SetReadingPlacementResponses[keyof SetReadingPlacementResponses];
+
 export type ListImportedReadingData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -6192,6 +6804,12 @@ export type ListImportedReadingResponse = ListImportedReadingResponses[keyof Lis
 
 export type GetImportedItemData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         sub: string;
         id: string;
@@ -6264,6 +6882,12 @@ export type GetImportedItemResponse = GetImportedItemResponses[keyof GetImported
 
 export type GetImportedHistoryData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         sub: string;
         id: string;
@@ -6346,6 +6970,12 @@ export type GetImportedHistoryResponse = GetImportedHistoryResponses[keyof GetIm
 
 export type GetImportedVersionData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         sub: string;
         id: string;
@@ -6424,6 +7054,12 @@ export type GetImportedVersionResponse = GetImportedVersionResponses[keyof GetIm
 
 export type PeekItemData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query: {
         origin: string;
@@ -6648,6 +7284,12 @@ export type ClearBrowseResponse = ClearBrowseResponses[keyof ClearBrowseResponse
 
 export type ListBrowseData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -6810,6 +7452,12 @@ export type LogBrowseResponse = LogBrowseResponses[keyof LogBrowseResponses];
 
 export type GetUpdateStateData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/update-state';
@@ -6882,6 +7530,12 @@ export type GetUpdateStateResponse = GetUpdateStateResponses[keyof GetUpdateStat
 
 export type GetMentionSourceData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
     };
@@ -6956,6 +7610,12 @@ export type GetMentionSourceResponse = GetMentionSourceResponses[keyof GetMentio
 
 export type ListStaleThreadsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/freshness';
@@ -7027,6 +7687,12 @@ export type ListStaleThreadsResponse = ListStaleThreadsResponses[keyof ListStale
 
 export type GetItemFreshnessData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
     };
@@ -7181,6 +7847,12 @@ export type RefreshItemResponse = RefreshItemResponses[keyof RefreshItemResponse
 
 export type GetForkOptionsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query: {
         id: string;
@@ -7263,6 +7935,12 @@ export type GetForkOptionsResponse = GetForkOptionsResponses[keyof GetForkOption
 
 export type ExtLineageGlyphGetLineageData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query: {
         id: string;
@@ -7336,6 +8014,12 @@ export type ExtLineageGlyphGetLineageResponse = ExtLineageGlyphGetLineageRespons
 
 export type ExtLineageGlyphListSummariesData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query: {
         /**
@@ -7414,6 +8098,12 @@ export type ExtLineageGlyphListSummariesResponse = ExtLineageGlyphListSummariesR
 
 export type ExtWordCountListCountsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query: {
         /**

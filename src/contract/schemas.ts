@@ -19,6 +19,7 @@ export const ItemRowSchema = z.object({
   stub_of: z.string().nullable(),
   forked_from: z.string().nullable(),
   fork_cite: z.string().nullable(),
+  tangled_from: z.string().nullable(),
 }).openapi("ItemRow");
 
 export const VersionRowSchema = z.object({
@@ -37,6 +38,7 @@ export const VersionRowSchema = z.object({
   stub_of: z.string().nullable(),
   stub_cite: z.string().nullable(),
   note_generated: z.number(),
+  links_json: z.string().nullable(),
 }).openapi("VersionRow");
 
 export const MediaRowSchema = z.object({

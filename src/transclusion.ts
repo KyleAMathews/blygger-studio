@@ -5,7 +5,8 @@ import { attachedQuote } from "./directives.ts";
 import { codeRanges, inRanges, lineOffsets } from "./code-ranges.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
 import { blygItemUrl } from "./importer/util.ts";
-import { renderMarkdown, selectionText } from "./markdown.ts";
+import { itemUrl, parseSurface, type Surface } from "./surface.ts";
+import { renderMarkdown, selectionTouchesMath, selectionText } from "./markdown.ts";
 import type { ImportedItemRow, ItemRow, TextQuoteSelector, Transclusion, VersionRow } from "./types.ts";
 import { absolutizeHtml, escapeHtml } from "./util.ts";
 import { DIRECTIVE_LINE, label, LINK_INLINE, RESERVED_LINE } from "./grammar.ts";
@@ -109,6 +110,8 @@ export interface ResolveResult {
   html: string;
   transclusions: Transclusion[];
   errors: TransclusionRefError[];
+  /** The html in order, each part marked as a baked quote or not (for a generated block's wrapper). */
+  parts: { html: string; quote: boolean }[];
 }
 
 /** Thrown by publish() when one or more `![[id]]` directives don't resolve. */
@@ -257,6 +260,7 @@ async function walk(
   const errors: TransclusionRefError[] = [];
   const transclusions: Transclusion[] = [];
   const htmlParts: string[] = [];
+  const quoteParts = new Set<number>();
   let prose: string[] = [];
 
   const flushProse = () => {
@@ -288,16 +292,20 @@ async function walk(
     // lines are not here to walk (#105): an own-line `![[id]]` in it would stay
     // literal text while publish warned it had been quoted (#60). Walk the
     // block's own markdown, at its place in the body so transclusions[] keeps
-    // document order, and bake its quotes inside its `div.blyg-tk-gen` — the
-    // author's output put them there. The token line stays prose, so the body
-    // renders byte for byte as before and the wrapper splice still finds it.
+    // document order. A baked quote is someone else's words, not generated, so
+    // it sits outside `div.blyg-tk-gen`: the wrapper closes before it and reopens
+    // after, and the scope keeps its one generated[] entry (§5.7, #102). The
+    // token line stays prose, so the wrapper splice still finds it.
     const blockMd = blocks?.blockSources.get(line.trim());
     if (blocks && blockMd !== undefined) {
       const inner = await walk(db, blockMd, onError, selfId);
       if (inner.transclusions.length || inner.errors.length) {
         transclusions.push(...inner.transclusions);
         errors.push(...inner.errors);
-        blocks.blockReplacements.set(line.trim(), `<div class="blyg-tk-gen">${inner.html}</div>`);
+        blocks.blockReplacements.set(
+          line.trim(),
+          inner.parts.map((part) => (part.quote ? part.html : `<div class="blyg-tk-gen">${part.html}</div>`)).join("\n"),
+        );
       }
       prose.push(line);
       continue;
@@ -343,6 +351,14 @@ async function walk(
         });
         continue;
       }
+      // §5.2 (#105): a passage across a formula would bake as stripped symbols.
+      if (selectionTouchesMath(target.contentHtml, selection)) {
+        fail({
+          directive: line.trim(),
+          reason: "the quoted passage includes part of a formula; quote the whole post, or the prose either side of it",
+        });
+        continue;
+      }
     }
 
     transclusions.push({
@@ -372,17 +388,20 @@ async function walk(
         .split("\n")
         .map((para) => `<p>${escapeHtml(para)}</p>`)
         .join("\n");
+      quoteParts.add(htmlParts.length);
       htmlParts.push(
         `<blockquote class="blyg-transclusion blyg-partial" data-blyg-id="${target.id}" data-blyg-version="${target.version}"${originAttr}${labelAttr}>\n${body}\n</blockquote>`,
       );
     } else {
+      quoteParts.add(htmlParts.length);
       htmlParts.push(
         `<blockquote class="blyg-transclusion" data-blyg-id="${target.id}" data-blyg-version="${target.version}"${originAttr}${labelAttr}>\n${target.contentHtml}\n</blockquote>`,
       );
     }
   }
   flushProse();
-  return { html: htmlParts.join("\n"), transclusions, errors };
+  const parts = htmlParts.map((html, i) => ({ html, quote: quoteParts.has(i) }));
+  return { html: htmlParts.join("\n"), transclusions, errors, parts };
 }
 
 /**
@@ -496,6 +515,17 @@ export async function resolveInternalLinks(
   // has it (§10.1, #54).
   let scanned = contentMd;
   let code = codeRanges(scanned);
+  // Each remote origin's item template, read once per text (§16.6e, #51).
+  const surfaces = new Map<string, Promise<Surface | null>>();
+  const surfaceOf = (origin: string) => {
+    let hit = surfaces.get(origin);
+    if (!hit) {
+      hit = db.prepare("SELECT surface FROM subscriptions WHERE kind = 'blyg' AND origin = ? LIMIT 1").bind(origin)
+        .first<{ surface: string | null }>().then((row) => parseSurface(row?.surface));
+      surfaces.set(origin, hit);
+    }
+    return hit;
+  };
   for (const m of contentMd.matchAll(LINK_INLINE)) {
     const at = m.index ?? 0;
     if (inRanges(code, at)) continue; // inert inside code (§10.1, #54)
@@ -521,9 +551,13 @@ export async function resolveInternalLinks(
       continue;
     }
     const { target } = resolved;
-    const href = target.origin
-      ? blygItemUrl(target.origin, target.kind, target.id, target.page)
-      : blygItemUrl(ourOrigin, target.kind, target.id, null);
+    // Another blyg's item: its own declared `page`, else its item document, never
+    // the `f/`·`t/` convention, which is presentation (§4, §5.8; #85, #102).
+    const href = !target.origin
+      ? blygItemUrl(ourOrigin, target.kind, target.id, null)
+      : target.page
+        ? blygItemUrl(target.origin, target.kind, target.id, target.page)
+        : itemUrl(target.origin, await surfaceOf(target.origin), target.id);
     const token = `${LINK_SENTINEL}${linkTokenSeq++}${LINK_SENTINEL}`;
     // The author's label is the anchor text when there is one (§10.1, #70).
     const text = label(m[2]) ?? anchorText(target);
@@ -533,6 +567,32 @@ export async function resolveInternalLinks(
   }
   out += contentMd.slice(last);
   return { text: out, replacements, labels, errors };
+}
+
+/** One `links[]` entry (§10.3a): not a reference, so an id and, for another blyg's item, its origin. */
+export interface LinkEntry {
+  id: string;
+  origin?: string;
+}
+
+/**
+ * The item document's `links` array (§10.3a, decision #79): every plain
+ * internal link the published `content_md` resolves, in document order, one
+ * entry per link. Read from the markdown the version publishes, never from its
+ * HTML, which §10.3a forbids. Links in code are text (§10.1, #54) and are not
+ * entries. Publish has already refused any link that does not resolve, so an
+ * unresolved one here is skipped rather than reported again.
+ */
+export async function linkEntries(db: D1Database, contentMd: string): Promise<LinkEntry[]> {
+  const code = codeRanges(contentMd);
+  const entries: LinkEntry[] = [];
+  for (const m of contentMd.matchAll(LINK_INLINE)) {
+    if (inRanges(code, m.index ?? 0)) continue;
+    const resolved = await resolveTarget(db, m[1]);
+    if (!resolved.ok) continue;
+    entries.push(resolved.target.origin ? { id: resolved.target.id, origin: resolved.target.origin } : { id: resolved.target.id });
+  }
+  return entries;
 }
 
 const ENCODED_SENTINEL = encodeURIComponent(LINK_SENTINEL);

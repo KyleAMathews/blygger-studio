@@ -17,6 +17,7 @@ import { parseScopes } from '../tk.ts';
 import { withoutComments } from '../comments.ts';
 import { leadingHeading, previewFromHtml } from '../preview.ts';
 import { attachedQuote, extractDirectives } from '../directives.ts';
+import { withoutTangleMarkers } from '../tangle.ts';
 
 /** What the caller knows of item `id`: its text for a quote, its name for a link. */
 export type Resolve = (id: string, form: 'quote' | 'link') => string | undefined;
@@ -51,7 +52,8 @@ function prose(md: string, resolve: Resolve): string[] {
 }
 
 export function plainText(md: string, resolve: Resolve = () => undefined): string {
-  const text = withOutputs(md);
+  // A `![[+ …]]` span reads as its own words (tangling-plan §2.6).
+  const text = withOutputs(withoutTangleMarkers(md));
   const lines = text.split('\n');
   const starts = lineOffsets(lines);
   const code = codeRanges(text);

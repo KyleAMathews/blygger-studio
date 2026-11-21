@@ -4,8 +4,13 @@ The Worker suite runs against local workerd, D1, and R2 bindings. Browser tests
 run the bundled Worker in Miniflare. Release verification extracts the actual
 Worker and SDK downloads before exercising them.
 
+Run `npm run test:oracles:studio` with Node.js 24.19.0, as CI does. Its native
+SQLite fixtures include text with embedded NUL bytes, which Node 22.18's
+`node:sqlite` truncates when reading. The build, SDK, Worker and browser checks
+continue to run on the supported Node 22.18 baseline.
+
 ```sh
-npm ci
+npm ci --legacy-peer-deps
 npm run typecheck
 npm run test:ui -- --maxWorkers=2
 npm test -- --maxWorkers=2
@@ -13,6 +18,13 @@ npx playwright install chromium
 npm run test:e2e
 npm run test:upgrade
 npm run test:mutations
+npm run check:oracle-migration
+npm run lint:oracles
+npm run test:oracles:worker
+npm run test:oracles:studio
+npm run test:oracles:conditional:worker
+npm run test:oracles:contracts
+npm run test:oracles:browser
 npm run release:build
 npm run release:verify
 ```
@@ -40,8 +52,16 @@ The lifecycle, pagination and PATCH oracles keep their laws beside the model and
 
 ## Independent oracles
 
-The generated oracles follow the
+Product oracle suites use the pinned `@tanstack/oracles` framework. See
+[the migration map](oracle-migration.md) for the inventory, preservation audit,
+runtime adapters and sampled gaps. Ordinary Worker/UI commands exclude oracle files; run those files through the gap gates above. The generated oracles follow the
 [oracle-writing guide](oracle-tests.md).
+The Studio gap gate runs the full eight-source mutation campaign for conditional
+reads. The supplementary `test:oracles:conditional:worker` gate runs every
+derived-validator receiving history against real local D1, plus the four
+authored controls that restore stale counter shortcuts. Cache capacity, work
+and ordering mutations remain in the full Studio gate. Both gates run in Check
+and the release fallback.
 Their models do not import production transitions, comparators, schemas, or
 resource projectors. The lifecycle, pagination and PATCH oracles call the
 generated SDK against the actual Worker. Mention delivery calls the production
@@ -67,19 +87,23 @@ random campaign could miss. These are bounded checks, not a proof of all histori
 To replay a failure, use its reported seed and shrink path:
 
 ```sh
-ORACLE_TARGET=item-lifecycle ORACLE_SEED=123 ORACLE_PATH='0:1:2' npm test -- --maxWorkers=2 test/item-lifecycle.oracle.test.ts
+WORKER_ORACLE_PROPERTY=item-lifecycle WORKER_ORACLE_SEED=123 \
+WORKER_ORACLE_PATH='<reported path>' WORKER_ORACLE_UNIT='<reported unit>' \
+npm run test:oracles:worker
 ```
 
-The other targets in this table are `pagination`, `patch-atomicity` and
-`mention-delivery`. Replay mode selects
-only the named replay test. It does not first run fixed or random campaigns.
-These generators use arrays, not `fc.commands`. no command replay path exists.
-`test/oracle-replay.test.ts` captures a deliberate failure and checks direct
-seed/path replay of its reduced input.
+Other property IDs include `pagination`, `patch-atomicity`, `mention-delivery`
+and `mention-order`. Copy all replay values from the same framework failure;
+a seed-only run explores instead of replaying. Studio uses `STUDIO_ORACLE_*`
+and `vitest.oracles.config.ts`. The former `ORACLE_TARGET/SEED/PATH` variables
+are rejected to prevent a requested replay from silently running another lane.
+The array grammars do not use `fc.commands`. The runtime verifier and mutation
+runners capture actual reduced failures and verify exact framework replay.
 
-Failures retain the first input, violated checkpoint, and original exception.
-Fast-check reports the reduced input and replay information separately. A
-candidate that fails at a different checkpoint cannot replace the first failure.
+Framework failures report the property, checkpoint, reduced history and replay
+coordinates. Mutation verifiers require the same semantic checkpoint during replay.
+Unexpected driver or cleanup errors remain failures; they are not counted as
+semantic mutation kills.
 Worker test isolation releases fixture state after each test. Generated
 histories own their records. the signals oracle resets its table between histories.
 
@@ -119,11 +143,11 @@ Each must fail at its named semantic checkpoint. Setup errors and timeouts do
 not count as caught mutations. Logs remain in `build/mutation-*.log`.
 These checks do not cover every conceivable production mutation.
 The mention `LIKE` mutation also captures its failing seed and shrink path and
-replays them through `ORACLE_TARGET=mention-delivery`. Replay must reach the same
-delivery-result checkpoint. Its log is `build/mutation-mention-replay.log`.
+replays them through `WORKER_ORACLE_PROPERTY=mention-delivery` with its reported
+seed, path and unit. Replay must reach the same delivery-result checkpoint. Its log is `build/mutation-mention-replay.log`.
 The display mutation also captures and directly replays its failure through
-`ORACLE_TARGET=mention-order` with the Worker Vitest config. It must reach the same
-display-order checkpoint. Its log is `build/mutation-mention-order-replay.log`.
+`WORKER_ORACLE_PROPERTY=mention-order`, its reported seed, path and unit, and
+the Worker gap config. It must reach the same display-order checkpoint. Its log is `build/mutation-mention-order-replay.log`.
 
 On October 18, 2026, investigation compared 329 public item documents updated
 since October 7 with the owner's receipts. All seven directly referencing posts
@@ -151,7 +175,7 @@ and limits. The separate delivery oracle retains ownership of outbound routing.
 - `test/stored-resources.test.ts` isolates malformed and wrong-shaped stored JSON
   through SDK reads. Valid citation and provenance
   data survive damage in another column. Stored bytes remain unchanged.
-- `e2e/save-oracle.spec.ts` drives both editors through failed saves, session
+- `e2e/save.spec.ts` drives both editors through failed saves, session
   rejection, recovery, failed save before publication, and delayed autosaves.
   A response-loss case commits the real PATCH, then aborts its browser response.
   The editor keeps its text, reports failure, and recovers on a manual save.
@@ -196,7 +220,7 @@ repository revision containing this file, within the stated domains.
 |---|---|
 | ORC-001 | Each oracle identifies its API/established-behavior authority and exclusions in its opening comment and the owner table. |
 | ORC-002 | Expected results use local records and plain rules. no production semantic helpers are imported by models. |
-| ORC-003 | Each oracle file exposes contract, model, grammar, SDK driver, and checkpoint comparisons. Campaign mechanics are directly named in `oracle-campaign.ts`. |
+| ORC-003 | Each oracle file exposes contract, model, grammar, SDK driver, and checkpoint comparisons. Framework declarations name the histories, driver, model and check; `oracle-campaign.ts` retains named fixture checkpoints. |
 | ORC-004 | Grammar reconstruction, axis removal, ranges, and nearby invalid histories are recorded above. No claim of exhaustive arbitrary histories. |
 | ORC-005 | Real SDK/Worker executions compare public results after awaited actions. exact arrays retain duplicates, omissions, and order. Campaigns record execution. |
 | ORC-006 | Each checker rejects explicit wrong answers. Four production mutations fail at named semantic checkpoints. Browser tests failed on the prior editor code at the intended save/publish/order checkpoints, then passed after the fix. |
@@ -226,7 +250,7 @@ grammar, receiving driver, comparisons and limits beside the checks.
 | ORC-007 | The same property runs eight inputs with seed `20261001` and eight without a seed. The mutation runner captures and directly replays seed/path at the same checkpoint. No commands generator exists. |
 | ORC-008 | No stateful reference model. Each subscription snapshot recomputes its expected route independently. Each uses a fresh target so saved endpoints cannot bypass discovery. |
 | ORC-009 | The model origin selects the expected manifest URL. Distinct receiving endpoints identify routing. Source kind maps to the public `f` or `t` path. The independent queue projection compares documented delivery fields. |
-| ORC-010 | The shared campaign preserves the first checkpoint through shrinking. `withOracleCleanup` releases the source, mentions and owned subscriptions while retaining operation and cleanup failures. |
+| ORC-010 | The framework and mutation verifier retain the named checkpoint through shrinking and replay. `withOracleCleanup` releases the source, mentions and owned subscriptions while retaining operation and cleanup failures. |
 | ORC-011 | Review found no concrete shared model/production semantic fault requiring a second formulation. Independent SQL versus array selection remains the primary judgment. |
 | ORC-012 | This table records all numbered outcomes. The claim remains bounded to the stated routing grammar and receiving path. No complete mention-system closure is claimed. |
 | ORC-013 | Every input receives the long-origin premise and parent/nested/RSS/wildcard neighbors. The restored `LIKE` and wrong-selection controls distinguish weaker rules at delivery and trace checkpoints. |
@@ -253,7 +277,7 @@ storage tests remain in the Worker suite. There is no separate development SPA.
 
 | Contract | Tests |
 |---|---|
-| Ordered draft saves, stale acknowledgements, generation queue | `test-ui/state.test.ts`, `e2e/save-oracle.spec.ts` |
+| Ordered draft saves, stale acknowledgements, generation queue | `test-ui/state.test.ts`, `e2e/save.spec.ts` |
 | Polling, hidden tabs, focus, cache eviction and route preload | `test-ui/polling.test.ts`, `test-ui/state.test.ts`, `e2e/spa-studio.spec.ts` |
 | Navigation, themes, editor kind/history/pins, quick edit, bracket paging | `e2e/parity.spec.ts` |
 | Frozen imported HTML, retained withdrawals, legacy actions, hoppers | `e2e/parity.spec.ts`, retained importer API tests |

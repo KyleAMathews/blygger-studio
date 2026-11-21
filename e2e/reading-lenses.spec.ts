@@ -16,6 +16,10 @@ const api = (page: Page, method: string, path: string, body?: unknown) =>
 
 test('lenses filter by kind, keep themselves across screens, keep withdrawn posts to Background, and show the Smart Feed placeholder', async ({ page }) => {
   await login(page);
+  // The fragment and the thread quoting it are published seconds apart: a burst
+  // (session 72) would fold the fragment into Background. This test is about the lenses.
+  await api(page, 'PATCH', '/settings', { backgroundRules: { burst: false } });
+  try {
   const stamp = Date.now();
   const frag = (await api(page, 'POST', '/items', { contentMd: `Lens fragment ${stamp}` })).json.id;
   await api(page, 'POST', `/items/${frag}/publish`, {});
@@ -24,7 +28,7 @@ test('lenses filter by kind, keep themselves across screens, keep withdrawn post
 
   await page.goto('/studio/reading?view=sources');
   const bar = page.getByRole('group', { name: 'reading lens' });
-  await expect(bar.getByRole('button')).toHaveText(['All', 'Threads', 'Fragments', 'Mentions', 'Background', 'Smart Feed']);
+  await expect(bar.getByRole('button')).toHaveText(['All', 'Mentions', 'Smart Feed', 'Fragments', 'Threads', 'Shelf', 'Background']);
 
   await bar.getByRole('button', { name: 'Threads' }).click();
   await expect(page).toHaveURL(/lens=threads/);
@@ -59,11 +63,14 @@ test('lenses filter by kind, keep themselves across screens, keep withdrawn post
   await bar.getByRole('button', { name: 'Smart Feed' }).click();
   await expect(page.locator('.lens-placeholder')).toContainText('Coming soon. Feed sorted and filtered by your AI agent.');
   // The placeholder keeps the screen's head: tabs, title and count, ＋.
-  await expect(page.getByRole('group', { name: 'reading view' })).toBeVisible();
+  await expect(page.getByRole('tablist', { name: 'reading view' })).toBeVisible();
   await expect(page.getByRole('heading', { name: /^my blyg/ })).toContainText(/\d+ items/);
   await expect(page.getByRole('button', { name: 'subscribe', exact: true })).toBeVisible();
   await page.locator('.lens-placeholder').getByRole('link', { name: 'Settings' }).click();
   await expect(page).toHaveURL(/\/studio\/settings$/);
+  } finally {
+    await api(page, 'PATCH', '/settings', { backgroundRules: { burst: true } });
+  }
 });
 
 test('signals lists current thumbs and the activity log', async ({ page }) => {
@@ -76,7 +83,7 @@ test('signals lists current thumbs and the activity log', async ({ page }) => {
     await expect(page.locator('.signals-note')).toContainText('never published');
     const liked = page.locator('.signals-list li').filter({ hasText: 'Native title' });
     await expect(liked).toBeVisible();
-    await page.getByRole('button', { name: /activity/ }).click();
+    await page.getByRole('tab', { name: /activity/ }).click();
     await expect(page.locator('.signals-list li[data-kind="thumb_up"]').filter({ hasText: 'Native title' }).first()).toBeVisible();
   } finally {
     await api(page, 'DELETE', `/signals/parity-native/${NATIVE}`);

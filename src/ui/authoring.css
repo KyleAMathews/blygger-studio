@@ -24,6 +24,22 @@
 .composer-tools, .ed-tools { display: flex; align-items: center; gap: 0; flex-wrap: wrap; min-width: 0; }
 .composer-tools .full-editor { font-size: .78rem; }
 .ed-tools { margin: 0 0 var(--s1) calc(-1 * var(--s2)); }
+/* Editor bars (extensions.tsx, useEditorBars): rows of their own above and below the text
+   box, apart from the Studio's tools. Each bar gets the blocks it was given; what it puts
+   past them scrolls inside it. The labelled "bars" button ending the row above is the bars
+   menu, labelled so it is not taken for the item's ⋯. */
+.ext-bars { --bar-block: 7rem; display: flex; align-items: center; gap: var(--s2); min-width: 0; font-size: .84rem; }
+.ext-bars-above { margin: 0 0 var(--s1); }
+.ext-bars-below { margin: var(--s1) 0 0; }
+.ext-bar { display: flex; align-items: center; gap: var(--s1); min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.ext-bar[data-blocks="1"] { max-width: calc(1 * var(--bar-block)); }
+.ext-bar[data-blocks="2"] { max-width: calc(2 * var(--bar-block)); }
+.ext-bar[data-blocks="3"] { max-width: calc(3 * var(--bar-block)); }
+.ext-bar[data-blocks="4"] { max-width: calc(4 * var(--bar-block)); }
+.ext-bars-list { list-style: none; margin: 0; padding: 0; }
+.ext-bars-list li { display: flex; align-items: center; gap: var(--s2); padding: var(--s2) 0; border-top: 1px solid var(--rule); flex-wrap: wrap; }
+.ext-bars-list li:first-child { border-top: none; }
+.ext-bars-list label { flex: 1; min-width: 0; }
 .tool .ico { width: 19px; height: 19px; }
 .counter { font-size: .82rem; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; margin-left: auto; }
 .counter.over, .ed-foot .counter.over { color: var(--alert); }
@@ -56,6 +72,15 @@
 .syntax-help > p { margin: var(--s1) 0 0; font-size: .82rem; }
 .publish-warning { font-size: .85rem; color: var(--warn); margin: 10px 0 0; }
 .filters { margin-top: 20px; }
+/* The shelf (#135): the owner's ordered own items, above the filters. */
+.shelf { margin-top: 20px; }
+.shelf-h { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); margin: 0 0 6px; }
+.shelf-list { margin: 0; padding: 0; list-style: none; }
+.shelf-row { display: flex; align-items: center; gap: 8px; border: 1px solid var(--rule); border-radius: 12px; background: var(--card); color: var(--ink); padding: 6px 6px 6px 12px; margin-bottom: 6px; min-width: 0; }
+.shelf-title { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: .94rem; color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shelf-title:hover { text-decoration: underline; }
+.shelf-meta { font-size: .75rem; color: var(--ink-soft); flex: 0 0 auto; }
+.shelf-actions { display: flex; gap: 2px; flex: 0 0 auto; }
 
 /* Coach mark: where the phone's own scanner lives. */
 .coach { position: absolute; left: 50%; top: 40px; transform: translateX(-50%); z-index: 5; background: var(--ink); color: var(--card); padding: 8px 14px; border-radius: 10px; font-size: .85rem; box-shadow: 0 8px 24px rgba(0,0,0,.25); animation: up .2s ease-out; white-space: nowrap; pointer-events: none; }
@@ -143,12 +168,24 @@
    page out zoomed out, which reads as a random zoom). */
 .preview :is(img, video, iframe, embed, object, svg, canvas), #h-viewer-body :is(video, iframe, embed, object, svg, canvas) { max-width: 100%; height: auto; }
 .preview :is(pre, table), #h-viewer-body :is(pre, table) { display: block; max-width: 100%; overflow-x: auto; }
+/* A formula paints inside its own box (v0.4-plan 23.6): no raised, smashed or lapped
+   text over another author's words. The margin keeps glyph ink that overhangs the box
+   (italics, accents); 0.25em was the least that left ordinary formulas pixel-identical.
+   A browser without the margin is not clipped at all, since the clip would cut every
+   formula there; the voffset bound in math-render.ts is its containment. */
+@supports (overflow-clip-margin: 0.25em) { math { overflow: clip; overflow-clip-margin: 0.25em; } }
 /* Quotes as the public page shows them (pages.ts STYLE_CSS). */
 .preview blockquote.blyg-transclusion { margin: 1.5rem 0; padding: .25rem 0 .25rem 1.1rem; border-left: 2px solid var(--pencil); background: none; }
 .preview blockquote.blyg-transclusion > :first-child { margin-top: 0; }
 .preview blockquote.blyg-transclusion p:last-of-type { margin-bottom: .25rem; }
 .preview blockquote.blyg-transclusion :is(h1, h2) { font-size: 1.125rem; }
 .preview blockquote.blyg-transclusion h3 { font-size: 1rem; }
+/* A new-item span (![[+ …]]): the new item it will publish as, quoted (tangling-plan §2.6). Dashed: it does not exist yet. */
+.preview blockquote.blyg-tangle-new { margin: 1.5rem 0; padding: .25rem 0 .25rem 1.1rem; border-left: 2px dashed var(--pencil); background: none; }
+.preview blockquote.blyg-tangle-new > .blyg-tangle-label { margin: 0 0 .35rem; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; color: var(--pencil); }
+.tangle-parts { margin: .5rem 0 .75rem; padding-left: 1.4rem; }
+/* A [[+ text]] placeholder: the link it will become, to an item that does not exist yet. */
+.preview .blyg-tangle-link { color: var(--pencil); text-decoration: underline dashed; text-underline-offset: .2em; }
 .preview blockquote.blyg-transclusion :is(h1, h2, h3) { margin: 1.2em 0 .4em; }
 /* Not selectable: choosing a passage to quote must not pick up this line. */
 .preview .provenance { margin: .5rem 0 0; font-size: .75rem; color: var(--ink-soft); user-select: none; }
@@ -163,12 +200,13 @@
 @media (max-width: 899px) {
   .editor-grid[data-pane=draft] .preview-pane,
   .editor-grid[data-pane=preview] .editor-pane,
-  .editor-grid[data-pane=preview] .ed-tools { display: none; }
+  .editor-grid[data-pane=preview] .ed-tools,
+  .editor-grid[data-pane=preview] > .ext-bars { display: none; }
 }
 @media (min-width: 900px) {
   .editor .pane-toggle { display: none; }
   .editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; align-items: start; }
-  .editor-grid > .ed-tools { grid-column: 1 / -1; }
+  .editor-grid > .ed-tools, .editor-grid > .ext-bars { grid-column: 1 / -1; }
 }
 .ed-head .focus-enter { margin-left: auto; }
 /* Focus view: the editor fills the screen with the same textarea and nothing else
@@ -181,7 +219,7 @@
 html.focus-view { overflow: hidden; scrollbar-gutter: auto; }
 .focus-view .topbar, .focus-view .views > :not(.screen) { display: none; }
 .editor.is-focus { --focus-foot: calc(26px + env(safe-area-inset-bottom)); position: fixed; inset: 0 0 var(--focus-keyboard, 0px); z-index: 40; display: flex; flex-direction: column; background: var(--card); color: var(--ink); }
-.editor.is-focus > :not(.editor-grid, #error-banner-slot, .focus-bar, .focus-hot), .editor.is-focus .editor-grid > .ed-tools, .editor.is-focus .editor-pane > :not(.ta-wrap, .ed-foot) { display: none; }
+.editor.is-focus > :not(.editor-grid, #error-banner-slot, .focus-bar, .focus-hot), .editor.is-focus .editor-grid > .ed-tools, .editor.is-focus .editor-grid > .ext-bars, .editor.is-focus .editor-pane > :not(.ta-wrap, .ed-foot) { display: none; }
 .editor.is-focus #error-banner-slot:not(:empty) { padding: 60px var(--s4) var(--s2); padding-top: calc(60px + env(safe-area-inset-top)); }
 .editor.is-focus .editor-grid { position: relative; }
 .editor.is-focus .editor-grid, .editor.is-focus .editor-grid .editor-pane, .editor.is-focus .ta-wrap { display: flex; flex-direction: column; align-items: stretch; flex: 1; min-height: 0; }
@@ -261,3 +299,4 @@ html.focus-view { overflow: hidden; scrollbar-gutter: auto; }
 }
 .stub-help p[tabindex] { outline: none; }
 .stub-help pre code { padding: 0; background: none; border: none; font-size: inherit; }
+.preview .math-error, #preview-body .math-error { color: var(--alert); background: var(--alert-bg); border-radius: 4px; }

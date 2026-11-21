@@ -13,16 +13,24 @@ test('the shared layout does not fetch the archive beyond the compose window', a
   for (let i = 0; i < 3; i++) {
     expect((await page.request.post('http://127.0.0.1:8789/__fixture/polling-items')).ok()).toBe(true);
   }
-  const reads: string[] = [];
+  const reads: { status: number; validator: string | null }[] = [], changes: string[] = [];
   page.on('request', request => {
-    if (request.method() === 'GET' && new URL(request.url()).pathname === '/api/items') reads.push(request.url());
+    if (new URL(request.url()).pathname === '/api/changes') changes.push(request.url());
+  });
+  page.on('response', response => {
+    const request = response.request();
+    if (request.method() === 'GET' && new URL(request.url()).pathname === '/api/items')
+      reads.push({ status: response.status(), validator: request.headers()['if-none-match'] ?? null });
   });
   await login(page);
   await expect(page.locator('.item-row')).toHaveCount(25);
   // Allow any unintended unbounded demand mounted with Layout to start fetching.
   await page.waitForTimeout(250);
-  // The route's 25-row view and infinite query's lookahead can each fetch two pages.
-  expect(reads.length).toBeLessThanOrEqual(4);
+  // The route's view and lookahead can each acquire two page bodies. Additional
+  // resource revalidations replace /changes and must be bodyless cache hits.
+  expect(reads.filter(read => read.status === 200).length).toBeLessThanOrEqual(4);
+  expect(reads.every(read => read.status === 200 || read.status === 304 && read.validator !== null)).toBe(true);
+  expect(changes).toEqual([]);
 });
 
 test('saving confirms the row without waiting for sorted-window acquisition', async ({ page }) => {
@@ -101,7 +109,7 @@ test('signals loads only the visible tab and does not fetch the compose archive'
   expect(reads).toContain('/api/thumbs');
   expect(reads).not.toContain('/api/interactions');
   expect(reads).not.toContain('/api/items');
-  await page.getByRole('button', { name: /^activity/ }).click();
+  await page.getByRole('tab', { name: /^activity/ }).click();
   await expect.poll(() => reads.includes('/api/interactions')).toBe(true);
   await expect(page.getByRole('alert')).toHaveCount(0);
 });

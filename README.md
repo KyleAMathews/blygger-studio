@@ -12,6 +12,10 @@ transcludes and responds across them.
 > implementations. Blygger uses static files and RSS. You can write your own
 > client if this client's choices do not suit you. Several people already do.
 
+**Want to change something?** Start with [where does my change belong?](docs/where-does-it-go.md):
+a spec question, a pull request here, a tool, an extension, a mod or a local patch,
+with a test for each and a first hour on a local node. See also [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## What it does
 
 - **Studio** is the private interface for composing fragments and threads,
@@ -139,6 +143,23 @@ To export an existing site's public pages for a static host:
 ```sh
 npm run export -- --out exported-blyg --base https://blyg.example.com/
 ```
+
+That is the public site only. For a full backup (drafts, every version,
+settings, subscriptions, contacts and every uploaded file), use More → download
+backup in the studio, or from your deployment checkout:
+
+```sh
+npm run backup -- --base https://blyg.example.com/ [--env NAME] [--out backups]
+```
+
+Both write the same `.tar`: every table as JSON lines, every file, and a
+`backup.json` written last (a backup without it did not finish). OAuth grants,
+tokens, signing keys and rate-limit budgets are left out. The studio's button
+runs inside one Worker request, which caps storage reads, so on a large blyg it
+can stop partway; `npm run backup` uses your `wrangler login` session, makes one
+request per file and retries, so it has no such cap, only Cloudflare's API rate
+limit, which makes a large backup slower rather than incomplete. Restoring a
+backup into a fresh node is not built yet.
 
 ### Local development
 
@@ -374,7 +395,7 @@ The archive does not include `npm run upgrade`. Use these steps for each release
 For the0.49.8 revision cutover, finish pending writes, including generation,
 before invoking the updater. Avoid edits until deployment finishes.
 
-Commit or stash local changes first, including your deployment config, then run:
+Commit local changes first, including your deployment config, then run. Keep each local patch as its own `local:` commit, not a stash (see [where does my change belong?](docs/where-does-it-go.md#local-patches)):
 
 ```sh
 npm run upgrade

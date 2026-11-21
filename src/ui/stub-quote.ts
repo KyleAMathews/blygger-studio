@@ -8,11 +8,20 @@
  * `![[id]]` outside code, and the blockquote directly under it, lazy
  * continuation lines included (`attachedQuote`) — so the chooser can never edit a different quote from
  * the one publish will check.
+ *
+ * A `![[+ …]]` span is out of bounds as code is (tangling plan §2.6): a quote
+ * inside one belongs to the new item the span becomes, not to the stub, and a
+ * quote added with the caret inside one goes after it.
  */
 import { DIRECTIVE_LINE } from '../grammar.ts';
-import { codeRanges, inRanges, lineOffsets } from '../code-ranges.ts';
+import { codeRanges, inRanges, lineOffsets, type Range } from '../code-ranges.ts';
 import { attachedQuote } from '../directives.ts';
 import { normalizeSelection, quoteLines } from '../markdown.ts';
+import { parseTangles } from '../tangle.ts';
+
+/** Where a stub's own quotes cannot be: code, and `![[+ …]]` spans. */
+const spanRanges = (md: string): Range[] => parseTangles(md).spans.filter((s) => s.kind === 'quote').map((s) => [s.start, s.end]);
+const outOfBounds = (md: string): Range[] => [...codeRanges(md), ...spanRanges(md)];
 
 
 /**
@@ -22,7 +31,7 @@ import { normalizeSelection, quoteLines } from '../markdown.ts';
  */
 function findQuote(md: string, id: string, nth = 0) {
   const lines = md.split('\n');
-  const inert = codeRanges(md);
+  const inert = outOfBounds(md);
   const starts = lineOffsets(lines);
   let seen = 0;
   for (let i = 0; i < lines.length; i++) {
@@ -48,7 +57,7 @@ export function stubQuoteForm(md: string, id: string): 'whole' | 'passage' | nul
  */
 export function passageCount(md: string, id: string): number {
   const lines = md.split('\n');
-  const inert = codeRanges(md);
+  const inert = outOfBounds(md);
   const starts = lineOffsets(lines);
   let count = 0;
   for (let i = 0; i < lines.length; i++) {
@@ -65,7 +74,7 @@ export function passageCount(md: string, id: string): number {
  */
 export function quoteCount(md: string, id: string): number {
   const lines = md.split('\n');
-  const inert = codeRanges(md);
+  const inert = outOfBounds(md);
   const starts = lineOffsets(lines);
   let count = 0;
   for (let i = 0; i < lines.length; i++) {
@@ -89,12 +98,16 @@ export function addStubQuote(md: string, id: string, passage: string | null, at:
   // Step past a quote the caret sits in: a directive's attached quote by the
   // extent publish uses (`attachedQuote`, lazy continuation included), so the
   // new block never lands mid-quote; any other blockquote by its `>` run.
-  const inert = codeRanges(md);
+  const inert = outOfBounds(md);
   for (let i = 0; i <= line; i++) {
     if (inRanges(inert, starts[i]) || !DIRECTIVE_LINE.test(lines[i])) continue;
     const { next } = attachedQuote(lines, i);
     if (line < next) { line = next - 1; break; }
     i = next - 1;
+  }
+  // Step past a span the caret sits in, to its closer's line.
+  for (const [start, end] of spanRanges(md)) {
+    if (starts[line] >= start && starts[line] <= end) line = lines.findIndex((_, i) => i === lines.length - 1 || starts[i + 1] > end);
   }
   while (line + 1 < lines.length && /^\s*>/.test(lines[line + 1])) line++;
   const before = lines.slice(0, line + 1).join('\n').replace(/\n+$/, '');

@@ -18,6 +18,441 @@ not have its own repo until session 26.
 
 ---
 
+## 0.67.0 — Copies elsewhere (`syndication`); `/changes` removed; three publisher changes for the reader suite
+
+**Copies elsewhere** (#148/#160, Aneesh Sathe; spec 0.4 §16.14, decision #98). When
+you post an item somewhere else too (Bluesky, a newsletter, any https page), list the
+copy from the editor's ⋯ menu, **copies elsewhere…**. The live item document carries
+`syndication: [{ url, version }]`, written in place: no new version, no changelog
+entry, no feed entry, no mention. Pinned files and a withdrawal's endcap never carry
+it. The public page shows the copies as `u-syndication` links. On the reading side,
+imported items keep the entries their author published (well-formed https only), and
+the reader says "the author says it is also at …". Nothing hides or merges another
+party's post on the strength of an entry. Owner API: `GET` and `PUT
+/items/{id}/syndication` (`owner:read`, `owner:publish`), with the item's revision.
+This build ships ahead of the spec's promotion of §16.14, as hopper feeds did; the
+promotion follows a live run between two nodes.
+
+**`GET /changes` and the SDK's `getChanges` are removed** (#162, decision #111), as
+0.65.0 announced. Poll the resources you need with conditional GETs (`If-None-Match`,
+bodyless `304`); the SDK's `conditionalReads` option does this for you. The Studio
+stopped calling `/changes` in 0.65.0.
+
+**What the reader conformance suite asks of a publisher** (#161, decision #102):
+- A directive line in a fragment is a publish error, in its body or in generated
+  output, instead of publishing as literal text. Make it a thread, or link with
+  `[[id]]`.
+- A link to another blyg's item whose document names no `page` points at its item
+  document, never a guessed `f/…/` address.
+- A quote baked from an own-line directive in generated output sits outside the
+  `blyg-tk-gen` wrapper, which closes before it and reopens after; the scope keeps its
+  one `generated[]` entry.
+
+The reader suite (blygger-spec `conformance/reader`) passes 103 of 103.
+
+**Private contract 6.0.0, SDK 0.22.0** (breaking: `getChanges` is gone; syndication's
+two operations are new). **Migrations:** `0049_syndication.sql` (`item_syndication`,
+`imported_items.syndication_json`, and the `change_imported_items_update` trigger
+recreated). Apply it before deploying.
+
+## 0.66.0 — Editor bars and replaceable controls; mentions in natural grammar; two editor fixes
+
+**Editor bars** (#154). A new extension slot, `editorBar`: a bar of controls in a row
+of its own above or below the text box, in the composer and the full editor. An
+extension asks for a row and for room (1–4 blocks); the Studio shares the two rows and
+puts what doesn't fit in the bars menu, the button labelled "bars" at the end of the
+row above, where each bar can also be hidden on this device. A bar can read the
+selection and insert or replace text through the Studio's own edit path, and in the
+full editor show and hide the held-out regions. Focus view leaves the bars out. With no
+bar enabled nothing changes. Template: `extensions/bars-example`; docs:
+`docs/extensions.md` → "Editor bars". This comes from New Nature, which inserts
+citations at the cursor and owns its chapter navigation.
+
+**Replaceable controls** (decision #113). A short named list of the Studio's own
+controls an extension may replace, not a general override. Every entry keeps one
+contract: the replacement drives the Studio's own state; one owner, the first claimant
+in compiled order, told so in `context.bar.owns`; the Studio's control comes back
+whenever the owner is not standing in for it (hidden, in the menu, crashed, or in
+focus view); keyboard and label parity. The first entry is `regionToggle`, the
+held-out notice beside the counts (`editorBar.replaces: ['regionToggle']`). A bar that
+inserts model-generated text must disclose it, through the generate endpoint or as
+`[TK]impyrt …[/TK]`; `docs/mods.md` adds this as a mod's third promise.
+
+**Mentions in natural grammar** (#158). `@mike's case` and `a @mike-driven agenda`
+both link Mike. A handle that names no contact falls back to its longest prefix ending
+before a `-` or `_` that does; an exact or longer handle still wins. The `@` picker
+still inserts `@handle ` with a space, but a possessive, hyphen or closing punctuation
+typed straight after the pick takes the space's place.
+
+**Fixes** (#157). Clicking into a finished `[[id | label]]` no longer reopens the
+`[[` / `![[` picker or, on a touch screen, takes the keyboard: the picker stays shut
+inside closed brackets and past a label's `|`. Shift+Enter no longer writes the
+backslash line break: an iPad's on-screen keyboard, with Shift on after a full stop,
+sends Shift+Enter for Return, so stray backslashes appeared. Enter is always a plain
+newline; the break comes from typing `\` or the toolbar's line-break button.
+
+`GET /changes` still answers in this release, as announced; it goes in 0.67.0.
+
+Private contract 5.14.0, SDK 0.20.0 (unchanged). **Migrations:** none.
+
+## 0.65.0 — Conditional resource reads; the host-root `/api` alias removed
+
+**Poll resources with ETags** (#152). Private resource GETs accept
+`If-None-Match` and return a bodyless `304` when their representation is
+unchanged. Validators are opaque. The SDK's optional `conditionalReads`
+setting reuses a schema-validated body with its matching validator; ordinary
+HTTP clients can use the same endpoints directly. Studio refreshes resources
+after writes without a `/changes` preflight and automatically reacquires reads
+superseded by a write while preserving explicit cancellation and real failures.
+
+**Change counters deprecated, with two releases to migrate.** `GET /changes`
+and SDK `getChanges` retain their existing behavior in 0.65.0 and 0.66.0, marked
+deprecated in OpenAPI and the SDK. They will be removed in 0.67.0 with private
+contract 6.0.0. Tools should poll the resources they need with conditional GETs.
+
+**The host-root `/api` alias is gone** (#151). It was kept for two releases after
+0.49.12 moved the private API under the mount, and its window has run out. Mounted
+installations (a studio at `example.com/blyg/`, say) now serve the private API only at
+`{mount}/api`. Tools using the former host-root `/api` address or token audience must
+rediscover the endpoint and authorize access to the mounted resource again. A studio
+on its own subdomain is unaffected.
+
+**Tooling.** The oracle suites run on `@tanstack/oracles` (#151), and CI runs the one
+WebKit browser test in its own job, so a slow package mirror cannot hold up the
+Chromium suite. Nothing an operator runs changes.
+
+Private contract 5.14.0, SDK 0.20.0. **Migrations:** none.
+
+## 0.64.1 — Security: Hono and fast-xml-parser upgrades
+
+**Upgrade if you run your own node.** Hono, the framework that routes every request, goes
+from 4.13.14 to 4.13.18. The older version has published advisories, among them one where
+the router can skip wildcard middleware for some routes and for paths with an encoded line
+terminator ([GHSA-h7mg-cq63-vhpq](https://github.com/advisories/GHSA-h7mg-cq63-vhpq),
+[GHSA-4m76-xfj5-7975](https://github.com/advisories/GHSA-4m76-xfj5-7975),
+[GHSA-46wx-v44x-9hh2](https://github.com/advisories/GHSA-46wx-v44x-9hh2),
+[GHSA-4h7h-rv7c-7m2v](https://github.com/advisories/GHSA-4h7h-rv7c-7m2v),
+[GHSA-3gg2-335m-rxc6](https://github.com/advisories/GHSA-3gg2-335m-rxc6)). The studio
+attaches its sign-in checks as wildcard middleware, so this release does not wait to find
+out whether any route was reachable. fast-xml-parser, which reads the feeds you subscribe
+to, goes from 5.11.2 to 5.12.1 for a low-severity CPU-exhaustion advisory
+([GHSA-474x-hrwr-fgx4](https://github.com/advisories/GHSA-474x-hrwr-fgx4)). `npm audit`
+reports no runtime vulnerabilities after it. No behaviour changes. Private contract 5.13.0,
+SDK 0.19.0, unchanged. **Migrations:** none.
+
+## 0.64.0 — Shared components, link notices apart, two tangling fixes
+
+**Shared UI components** (Shannon's studio#88). The studio's controls now come from one set
+of primitives, most of them on [Base UI](https://base-ui.com/): buttons, icon buttons,
+toggles and toggle groups, tabs, fields and inputs, checkboxes, radios, selects,
+accordions, tooltips, dialogs, sheets and toasts. Each has documented names, variants and
+states, with better keyboard and screen-reader behaviour. Two things look different: the
+reading filters are a toggle group instead of pills, and the secondary button is a lighter
+shade. Everything else looks and behaves as before. On a phone, toasts now appear at the
+top of the screen, so one that appears under the last tap is not held open by the hover
+Safari keeps there; a WebKit browser test guards it.
+
+**Link notices apart** (spec 0.4 §15.5; ROADMAP row 77). On the responses page, each item's
+links from other blygs are listed under "Linked from", after its responses, labelled as
+notices that are never shown on the public page. The counts line says how many blygs link
+there, and "on the page now" no longer counts them.
+
+**Tangling fixes** (tangling plan §2.4, §2.6). A thread version that no longer quotes or
+links a part it made publishes as before, and the publish warning names the part, which
+stays published on its own. In a stub, the passage chooser leaves alone a quote inside a
+`![[+ …]]` span, since that quote belongs to the new item, and a quote added with the
+cursor inside a span goes after it.
+
+`MentionGroup` gains `links`, and its `visible` no longer counts link notices. Private
+contract 5.13.0, SDK 0.19.0. **Migrations:** none.
+
+## 0.63.0 — Tangling, placeholders, and links on the wire
+
+**Tangling** (decisions #78, #100; ROADMAP row 45). Wrap a passage in `![[+ …]]` and
+publishing makes it a new item of its own, quoted back where it stood: the thread keeps
+reading the same, and the passage gains its own page, version history and feed entry. Each
+new item is a thread. Publish shows a count first ("this will create N new items") and
+asks before minting them, for the studio and for any client on the API (a publish that
+would tangle answers `409 tangle-confirmation-required` until it sends `tangle: true`).
+Nothing is minted unless every new item and the thread itself would publish; the new items
+publish first, then the thread, so the thread is the newest entry (§13.7). A tangle that
+stopped part way is finished by the next publish. Up to 10 spans per publish. The preview
+shows a span as a dashed quote; spans are inert in code, TK scopes and comments.
+
+**Placeholders.** `[[+ text]]` inline makes a new thread for an idea not yet written and
+turns the sentence's text into a link to it, `[[id | text]]`. The new thread's text is the
+anchor text as a heading, and its working copy carries a comment naming the thread and
+the sentence it came from (comments never publish). Placeholders share tangling's count,
+cap and confirmation.
+
+**Links on the wire** (spec 0.4 §10.3a, decision #79; ROADMAP row 77). Every version
+records the items its `[[id]]` links resolve to, in text order, and item documents carry
+them as `links[]`, each with an `origin` when it is another blyg's. Imports store them.
+**A link to another blyg's item now sends it a mention**; the receiver files it as `link`,
+the last of the §15.4 relations. A `link` is a notice: it is never listed among an item's
+public responses (§15.5). The syntax page says so beside `[[id]]`.
+
+**Folding** (spec §13.7, eighteenth revision, decision #112). A thread's placeholders fold
+under it as its parts do, but only when published in the same act **and** saying no more
+than the link's own text. A chapter linked by a contents page published seconds later is
+its own arrival. Your own items fold by link only when the thread minted them.
+
+**Local patches.** `npm run patches` lists the commits this install carries that upstream
+does not, and flags the ones that touch the wire. Settings shows "This build carries N
+local patches". `npm run upgrade` lists them before merging and names the local commits in
+any file that conflicts. The bug template asks for the count. The developers' guide,
+[Where does my change belong?](docs/where-does-it-go.md), says when a change should be a
+patch, a mod, an extension or a pull request.
+
+Publish takes `tangle` and answers `parts: [{id, version}]`; items carry `tangled_from`;
+versions carry `links_json`; the mention relation enum gains `link`. Private contract
+5.12.0, SDK 0.18.0. **Migrations:** two. `0047_tangled_from.sql` adds `items.tangled_from`;
+`0048_links.sql` adds `versions.links_json` and `imported_items.links_json`. Both recreate
+their tables' change triggers. Versions published before 0048 carry no `links[]` until
+they are next published.
+
+## 0.62.0 — Mathematics, and bursts fold under their thread
+
+**Mathematics** (decision #105; spec 0.4 §2, §5.2, §14; studio#149). Write `$…$` inline and
+`$$…$$` on their own lines, by pandoc's `tex_math_dollars` rule: money, lone dollars,
+escaped `\$` and anything in code render exactly as before. A formula publishes as MathML
+Core with its TeX in an `application/x-tex` annotation, and nothing else: no stylesheet,
+script or font. A formula that does not parse shows in red in the preview and blocks
+publishing, naming it; a partial quote that cuts through a formula is refused. Excerpts,
+titles and labels show a formula as its TeX in dollars. A Σ button and a Mathematics
+section on the syntax page. Drawing is `temml` 0.14.0 (MIT, no dependencies), in the
+Worker only; the build fails if it reaches the browser bundle. **In the reader**, every
+formula in an imported or quoted document is discarded and redrawn from its TeX
+annotation by the same renderer, so nothing inside a formula is ever the publisher's
+markup; one with no annotation is dropped, and past 1,000 formulas or on any error a
+formula shows as its TeX in code. Reviewed twice by Fable (sessions 69–70) and checked on
+an iPad.
+
+**A thread published with its parts folds them** (spec §13.7; ROADMAP row 112, Background
+phase 3, pulled forward so readers fold a tangle before the studio can publish one). When a
+thread version is the first to name items from its own blyg that were first published
+within 15 minutes before it, those items go to Background as *part of a burst*, and the
+thread shows **+N parts**, listing them in place. Times are clamped to when this reader
+first saw them, so a future-dated item folds nothing. A part's later version is an ordinary
+update and leaves Background; a thread quoting an older item, or another blyg's, folds
+nothing. Your own tangles fold the same way in your own reading feed. The rule is one
+definition shared with the public pace-layered order (`src/burst.ts`). Public pages and
+`feed.xml` are unchanged: every part is still published and imported (§7, §13.1).
+
+**Two more Background rules:** *no words of its own* (a version that is only quotes of
+other posts, §15.4's repost test as §13.2 allows) and *republished unchanged* (the same
+text and the same quotes, §13.2). Each rule has its own toggle in Settings → Feed →
+Background, on by default; turning one off moves its items back at once. They apply to
+versions that arrive from now on; nothing already held is reclassified.
+
+`ReadingEntry.parts` lists a thread's burst; a settings `PATCH` may name only the
+Background rules it changes. Private contract 5.11.0, SDK 0.17.0. **Migrations:** none.
+
+## 0.61.0 — The Reading redesign: Shelf, Background, lenses in a new order
+
+**Lenses in a new order:** All, Mentions, Smart Feed, Fragments, Threads, Shelf,
+Background (ROADMAP row 115).
+
+**The Shelf** (#137, Aneesh Sathe; rows 114 and 115): a private, owner-ordered list of
+items, synced across clients through `GET`/`PUT {mount}/api/shelf`. An entry is
+`{ sub, remoteId }`, named the way hopper membership names an item (`"~own"` for your
+own). A `PUT` replaces the whole list and must send `expectedRevision`; a stale one is
+a 409 `revision-conflict` carrying the current list. Entries that do not resolve
+(a withdrawn own item, an imported tombstone without its pin, an unknown
+subscription) are dropped quietly. The shelf never reaches an item document, a feed,
+the manifest or a public page, and never will. In the studio:
+
+- every reading entry has *+ add to shelf* beside *+ add to hopper…* (below 430 px
+  both shorten to *+ shelf* and *+ hopper…*);
+- the **Shelf lens** lists shelved entries in your order, whatever their Background
+  placement (`GET /reading?shelf=true`);
+- your own shelved items, drafts included, sit at the top of the compose list, with
+  move up, move down and remove; each compose row and the editor's ⋯ menu add or
+  remove one.
+
+**Background, phase 1** (row 112; plan in blygger-spec `docs/background-plan.md`): an
+entry is in Background by your choice on it, else on its blyg, else an enabled rule;
+withdrawn posts always are. An entry's ⋯ menu moves it to Background or Foreground,
+clears the choice, or moves its whole blyg; the source inspector has an *in
+Background* checkbox; in the Background lens the byline says why. Settings → Feed
+has a Background card: withdrawn always on, your own minor changes (typo, minor,
+refresh) on by default. `PUT /reading/placement`, `background` on
+`PATCH /subscriptions/{id}`, the `backgroundRules` setting.
+
+**A stub of an item this blyg does not hold** (row 116) froze `f/{id}/` as its
+citation, a 404 for every thread. It now names the item's document, as a mention
+does; publishing stays network-free.
+
+The download backup includes the shelf and Background placements.
+
+Private contract 5.10.0, SDK 0.16.0. **Migrations: 0044 (the shelf) and 0046
+(Background).** Apply both before deploying: `/changes` selects every change domain by
+name, and the reading queries read the new columns. 0044 sorts before 0.58.0's 0045;
+wrangler applies migrations by name, so a node that has 0045 still applies 0044.
+Both were proven on a remote D1 (the `CASE … END;` splitter check) before release.
+
+## 0.60.1 — Discover offers only blygs you do not follow; tooltips
+
+**Discover's "new" view offered blygs you already follow** (on a first visit, all of
+them): it filtered on the seen mark alone. It now lists only the blygs you do not
+follow, newest listing first, five at a time with *show more* until they run out;
+rows listed since your last visit carry a *new* badge. *All* is unchanged and still
+shows followed blygs. The sheet waits for your subscriptions to load, so a followed
+blyg never flashes into "new".
+
+**The setup walk-through ends with Discover**: the finish screen offers *discover
+blygs*. It is not a step, because subscribing writes at once and the steps write
+nothing until the end.
+
+**Tooltips are one pattern.** Every hover hint on a control (the reading page's
+icons, thumbs and ⋯ on entries, the composer and editor toolbars, *copy + link*, the
+update badge) is a styled tooltip that shows on hover and on keyboard focus, after a
+shared 300 ms delay, instead of the browser's slow `title`. `Tooltip` and
+`IconButton` in `src/ui/primitives.tsx` are taken from the design-system work in
+#88, with the same names and classes.
+
+Contract and SDK unchanged. **Migrations:** none.
+
+## 0.60.0 — Download a backup, discover blygs
+
+**Download backup** (ROADMAP row 15). More → *download backup* streams the whole blyg as
+one `.tar` from `{studio}/backup`: every database table as JSON lines under `tables/`,
+paged so no table is held in memory, every uploaded file under `media/` by its storage
+key, a `README.txt`, and `backup.json` last, naming the client, the latest applied
+migration and the counts, with `complete: true`. A backup without `backup.json` did not
+finish. Plain tar, since media is already compressed. The owner's browser session only,
+never a delegated token. Left out: the OAuth and security tables (grants, tokens, signing
+keys, rate-limit budgets), wrangler's migration ledger and the feed cache. Restoring one
+into a fresh node is row 53 and not built.
+
+The button is marked beta: it runs inside one Worker request, which caps storage reads,
+so on a blyg with very many files it can stop partway (and then has no `backup.json`).
+For those, **`npm run backup -- --base https://your.blyg/ [--env NAME]`** makes the same
+archive from a deployment checkout through `wrangler`, one request per table page and per
+file with retries, so the cap does not apply; a large blyg is only slower. It uses your
+`wrangler login` session and the deployment's wrangler config. `npm run export` is still
+the public site only, for moving to a static host, not a backup.
+
+Tables are copied by allow-list. The auth library makes its own tables at runtime
+(`session`, `jwks`, `oauthAccessToken`, `user` and kin), outside `migrations/`; a
+deny-list missed them on a live node before release. A new test makes every migration's
+table either backed up or named as left out.
+
+**Discover** (ROADMAP row 17). ✦ beside ＋ on every reading screen opens the blygs listed
+on blygger.com, read from the browser through blygger.com's `/blygs.json`: *new* (listed
+since you last looked) or *all*, most active first, each with its activity level and last
+post, a *preview ↗* link that opens the blyg in a new tab, and whether you already follow
+it. Subscribe one at a time or tick several; both go through the OPML import's paced walk
+with `backfill: false`, and stay out of the blogroll unless the box is ticked. Your own
+blyg is never offered. "New" is one timestamp, the newest listing date shown, in the new
+`discoverSeenAt` setting.
+
+Private contract 5.9.0, SDK 0.15.0 (`discoverSeenAt`). **Migrations:** none.
+
+---
+
+## 0.59.0 — Extensions from other repositories, menu zones and editor regions
+
+Three changes for extension authors and operators, held on `main` since 0.58.1. It also
+carries everything in 0.58.2 and 0.58.3, which were released from a branch without them.
+
+**Vendoring an extension from another repository** (#59, decision #89). An operator can
+compile a browser-only extension published in someone else's repository into their own
+build: `npm run ext:add -- <https repo> <commit>` fetches exactly that commit on the
+operator's machine, checks its layout, that it has no server half, its imports and a
+typecheck against the extension API, prints every file and a tree hash, and vendors it
+only after a yes. `ext:update` and `ext:remove` do the rest. The source goes into the
+gitignored `extensions-vendor/` and the lock into `extensions.local.json`, so nothing
+vendored is committed and a release build never carries one; `npm run build` re-hashes
+each vendored tree and refuses one edited since. No Studio loads anything at run time,
+and there is no registry. See `docs/extension-vendoring.md`.
+
+**Menu zones** (#143). An extension page asks for a place in the main menu with
+`page.mainMenu.zone`: `top` (one page, above reading), `visible` (one page, above
+compose; the default, and where `mainMenu: { icon }` put a page before) or `hidden`
+(More). The Studio decides: a full zone moves a page down, never up, in compiled order,
+and the page's context says what it asked for and where it landed (`menu: { asked,
+zone }`). Template: `extensions/menu-top-example`.
+
+**Editor regions** (#144). An extension can keep parts of the full editor's text out of
+its text box, for text a tool writes and the author should not edit by hand, such as
+chapter navigation. `editorRegions({ text, item })` returns ranges; the box shows the
+rest, and every edit is joined back with the regions before the draft sees it, so
+autosave, preview, counts and publish keep the whole text. Hidden each time the editor
+opens, read-only when shown, and if a join does not round-trip the edit is saved whole
+and the editor shows everything. Full editor only. Template:
+`extensions/regions-example`.
+
+**Extensions and the error log** (0.58.2's hooks, carried to the new surfaces): an
+extension page's context is built per extension, so its errors are logged under its
+name and it has `showError`.
+
+Private contract and SDK unchanged. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** none. A node coming from before 0.58.0 needs `0045`.
+
+## 0.58.3 — Sublists, verse and code blocks are easier to type
+
+Sublists, line breaks inside a paragraph and code blocks always rendered: the Studio's
+markdown is CommonMark. What was missing was a way to type them in a text box.
+- **Tab and Shift+Tab** move the list item under the cursor in and out a level; with
+  several lines selected they all move, and undo takes it back. A numbered item that
+  opens a sublist is renumbered to 1, which is the only way markdown reads it as a list.
+  Off a list, or on the first item of one, Tab moves focus as usual.
+- **Shift+Enter** breaks a line without ending the paragraph, for verse or an address.
+  It types markdown's backslash line break, which you can see in the text. Inside a
+  code block it types a plain newline.
+- **The full editor's toolbar** has a button for each, and one that puts the selected
+  lines in a code block (or starts an empty one), for an iPad's keyboard, which has no
+  Tab key.
+- The syntax page has a Markdown section saying how to write each by hand.
+
+Private contract and SDK unchanged. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** none. A node coming from before 0.58.0 needs `0045`.
+
+## 0.58.2 — An error log you can read and send, and focus view on an iPad
+
+**The Studio keeps an error log** (Settings → Errors). An error banner can be gone
+before you have read it; what it said is now kept, with the time, the page you were on,
+the item, the request that failed with its status and error code, the Studio version and
+a stack. Every banner has a *details* link to its entry. Errors that never reach a
+banner are kept too: uncaught exceptions, unhandled promise rejections, and a page that
+failed to load. A failure repeated within a minute is one entry with a count and the
+time it first happened.
+- **The log stays on the device.** It lives in the browser's own storage, holds the
+  latest 100 entries, and is sent nowhere. Each device has its own. It records failures,
+  not writing: no draft text, and no query strings.
+- **Export error log** hands over a dated JSON file with the entries, the Studio
+  version and the device (browser, platform, screen and window size, whether the Studio
+  was opened from the home screen, language, timezone). A phone or tablet opens the
+  share sheet; a desktop saves the file. **Copy diagnostics** puts the same as plain
+  text on the clipboard, for an issue. **Clear error log** empties it.
+- Not logged: messages to the author such as a link that does not resolve, requests the
+  Studio cancelled, and requests the browser dropped because you were leaving the page.
+- Only the browser Studio is covered. Cron, the importer and Webmention run on the
+  server with no browser attached, and their errors are in the Worker's own logs.
+
+**Extensions.** What an extension throws in a slot is logged under its name and the slot
+(the slot still renders nothing until the page reloads). An error caught by
+`context.run` is logged the same way, as well as shown. **New: `context.showError(error)`**
+shows an error the extension found for itself in the screen's error line and logs it;
+pass an `Error` or a message. Existing extensions need no change. The example extension
+uses it, and `docs/extensions.md` describes it.
+
+**Focus view on an iPad closed as soon as it opened.** iPad Safari has browser
+fullscreen and leaves it when the on-screen keyboard comes up; the Studio took that for
+Escape. On an iPad and iPhone the view no longer asks for browser fullscreen, so
+Safari's toolbar stays and the view stays open.
+
+**Hiding or showing a response** could fail with "Collection must be in 'ready' state for
+manual sync operations" if you left the page before the server answered: the one write
+0.58.1's fix (#142) had missed.
+
+Private contract and SDK unchanged. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** none. A node coming from before 0.58.0 needs `0045`.
+
 ## 0.58.1 — Stubs from Reading open again, and long chapters type quickly
 
 **stub ↗ on Reading could fail** with "Collection must be in 'ready' state for manual

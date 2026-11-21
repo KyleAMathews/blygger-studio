@@ -13,7 +13,7 @@ async function edit(page: Page) {
 }
 async function seedReading(page: Page, minimum: number) {
   await page.evaluate(async minimum => {
-    const total = (await (await fetch('/api/reading/summary')).json()).counts.all as number;
+    const total = (await (await fetch('/api/reading/summary?sub=own')).json()).counts.own as number;
     for (let i = total; i < minimum; i++) {
       const response = await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: `Preload fixture ${i}` }) });
       const item = await response.json() as { id: string; revision: number };
@@ -127,7 +127,7 @@ for (const destination of ['hoppers', 'sources'] as const) {
     await login(page);
     if (destination === 'sources') {
       await page.goto('/studio/reading');
-      await expect(page.getByRole('button', { name: 'Sources', exact: true })).toBeVisible();
+      await expect(page.getByRole('tab', { name: 'Sources', exact: true })).toBeVisible();
     }
     const path = destination === 'sources' ? '/api/hoppers/parity-hopper'
       : '/api/hoppers/parity-hopper/memberships';
@@ -144,7 +144,7 @@ for (const destination of ['hoppers', 'sources'] as const) {
     });
     const loaded = page.waitForResponse(response => matches(response.url()) && response.ok());
     const link = destination === 'sources'
-      ? page.getByRole('button', { name: 'Sources', exact: true })
+      ? page.getByRole('tab', { name: 'Sources', exact: true })
       : page.getByRole('link', { name: destination, exact: true });
     const before = page.url();
     if (destination === 'sources') await link.click();
@@ -162,6 +162,16 @@ for (const destination of ['hoppers', 'sources'] as const) {
 test('reading view survives reload and reuses its bounded cursor page', async ({ page }) => {
   await login(page); await seedReading(page, 50);
   const reads: string[] = [];
+  const responses: { status: number; bytes: number; validator?: string; etag: string | null }[] = [];
+  // Observe the server response directly: Chromium's HTTP cache can turn a
+  // bodyless validation into a merged 200 before page response events see it.
+  await page.route('**/api/reading?*', async route => {
+    const response = await route.fetch();
+    const body = await response.body();
+    responses.push({ status: response.status(), bytes: body.length,
+      validator: route.request().headers()['if-none-match'], etag: response.headers()['etag'] ?? null });
+    await route.fulfill({ response, body });
+  });
   page.on('request', request => { if (new URL(request.url()).pathname === '/api/reading') reads.push(request.url()); });
   const loaded = page.waitForResponse(response => new URL(response.url()).pathname === '/api/reading' && response.ok());
   await page.goto('/studio/reading?sub=own&page=2');
@@ -175,10 +185,17 @@ test('reading view survives reload and reuses its bounded cursor page', async ({
   await expect.poll(visibleIds).toEqual(first.slice(25, 50).map(item => item.own.id));
   expect(reads).toHaveLength(2);
   expect(reads.every(url => !new URL(url).searchParams.has('offset'))).toBe(true);
+  const validated = page.waitForResponse(response => new URL(response.url()).pathname === '/api/reading' && response.status() === 304);
   await page.getByRole('button', { name: 'newer', exact: true }).click();
+  await validated;
   await expect(page).toHaveURL(/offset=0/);
   await expect.poll(visibleIds).toEqual(first.slice(0, 25).map(item => item.own.id));
-  expect(reads).toHaveLength(2);
+  expect(reads).toHaveLength(3);
+  expect(reads.map(url => { const query = new URL(url).searchParams; return { offset: query.get('offset'), cursor: query.get('cursor'), limit: query.get('limit') }; })).toEqual(Array.from({ length: 3 }, () => ({ offset: null, cursor: null, limit: '50' })));
+  expect(responses.map(response => response.status)).toEqual([200, 200, 304]);
+  expect(responses.filter(response => response.bytes > 0)).toHaveLength(2);
+  expect(responses[2]).toMatchObject({ bytes: 0, validator: responses[1]!.etag, etag: responses[1]!.etag });
+  expect(responses[1]!.etag).toBeTruthy();
 });
 
 test('settings persist through the DB adapter and a fresh route load', async ({ page }) => {

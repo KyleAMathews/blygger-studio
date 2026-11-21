@@ -140,8 +140,6 @@ test('a failed final refresh preserves the import summary and leaves the running
   await login(page);
   await page.goto('/studio/reading?view=sources');
   await page.waitForLoadState('networkidle');
-  await page.route('**/api/changes', route => route.fulfill({ status: 503,
-    json: { code: 'internal', message: 'subscription refresh unavailable' } }));
   await page.route('**/api/subscriptions**', async route => {
     if (route.request().method() === 'POST') return route.fulfill({ status: 201, json: subscription('https://one.example/feed') });
     return route.fulfill({ status: 503, json: { code: 'internal', message: 'subscription refresh unavailable' } });

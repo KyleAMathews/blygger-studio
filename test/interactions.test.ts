@@ -84,6 +84,8 @@ describe("interaction log", () => {
 
 describe("reading lens (kind filter on /api/reading)", () => {
   it("narrows every source and its counts to one kind", async () => {
+  // A fragment quoted by a thread published just after it is a burst, and a quote-only thread is wordless (session 72): both would sit in Background. This test is about something else.
+  await putSettings(env.DB, { bg_rules: JSON.stringify({ burst: false, wordless: false }) });
     const cookie = await login();
     const frag = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "lens fragment" })).json.id as string;
     await apiJson(cookie, "POST", `/blyg/api/items/${frag}/publish`, {});
@@ -103,6 +105,7 @@ describe("reading lens (kind filter on /api/reading)", () => {
 });
 
 import migration0019 from "../migrations/0019_interactions.sql?raw";
+import { putSettings } from "../src/model.ts";
 
 describe("migration 0019 backfill", () => {
   it("recovers thumbs, hopper memberships, first remote quotes, remote stubs and forks, and skips self-references", async () => {

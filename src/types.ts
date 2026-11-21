@@ -1,3 +1,4 @@
+import type { BackgroundRule } from "./background.ts";
 import type { CustomTheme } from "./themes.ts";
 export interface Env {
   DB: D1Database;
@@ -104,6 +105,12 @@ export interface ItemRow {
   forked_from: string | null;
   /** JSON `StubCite` (migration 0010) — the lineage citation's human half, frozen at fork. Client-side only. */
   fork_cite: string | null;
+  /**
+   * The thread whose `![[+ …]]` span minted this item (migration 0047,
+   * tangling-plan §2.7), or null. Studio-private, never on the wire: it lets a
+   * thread publish finish a tangle that stopped partway (§2.3 recovery).
+   */
+  tangled_from: string | null;
 }
 
 export interface Transclusion {
@@ -241,6 +248,8 @@ export interface VersionRow {
   stub_cite: string | null;
   /** 1 when the studio drafted this version's note and the author published it unedited (migration 0015, #40). */
   note_generated: number;
+  /** JSON `LinkEntry[]` (migration 0048, §10.3a): the plain internal links this version resolved; null for none. */
+  links_json: string | null;
 }
 
 export interface MediaRow {
@@ -280,6 +289,8 @@ export interface SubscriptionRow {
   created: string;
   /** 1 = the title follows the source (manifest or channel title); 0 = the owner named it. */
   title_auto: number;
+  /** 1 = the owner moved this whole blyg to Background in the reader (migration 0046). */
+  background?: number;
   /** JSON `Surface` (src/surface.ts): where a templated blyg's files live. NULL = default paths. */
   surface: string | null;
   /**
@@ -307,6 +318,8 @@ export interface ImportedItemRow {
   author_json: string | null;
   media_json: string | null;
   transclusions_json: string | null;
+  /** JSON `LinkEntry[]` as the item document published it (migration 0048, §10.3a); null for none. */
+  links_json: string | null;
   l0: number;
   pinned_version_retained: number | null;
   /** Origin-relative permalink as the origin itself declares it (item doc `page`, v0.3-plan §2.3.2); null when the origin omits it and the f/·t/ convention applies. */
@@ -317,6 +330,8 @@ export interface ImportedItemRow {
   forked_from_json: string | null;
   /** JSON `generated` array as published (migration 0027); null when none or imported before it. */
   generated_json: string | null;
+  /** §16.14 `syndication` as fetched (migration 0049); null when none. */
+  syndication_json?: string | null;
 }
 
 export interface HopperRow {
@@ -348,7 +363,8 @@ export interface SignalRow {
 // --- v0.3 "Trunk" Webmention (migration 0007, v0.3-plan.md §4.1) ---
 
 /** Why a mention relates to us — read out of the source document's own structure, never from body text (§2.3.5). */
-export type MentionRelation = "stub" | "transclusion" | "fork" | "source";
+/** `link` (§10.3a, #79) is a notice, never a response (§15.5): kept off every public responses list. */
+export type MentionRelation = "stub" | "transclusion" | "fork" | "source" | "link";
 
 /**
  * An inbound mention. `pending` → `verified` | `failed` | `gone`; a row that
@@ -470,6 +486,8 @@ export interface Settings {
   reader_changelog_display: ChangelogDisplay;
   /** Owner instructions for changelog summaries and history-to-date notes. */
   changelog_summary_prompt: string;
+  /** Which Background rules count in the reader (src/background.ts); all on by default. */
+  bg_rules: Record<BackgroundRule, boolean>;
   /**
    * Whether this blyg receives Webmentions (0.3 §15, which is **OPTIONAL at
    * every level**). When false the endpoint 404s, the manifest omits its
@@ -558,6 +576,8 @@ export interface Settings {
    * saying so plainly is what buys the default.
    */
   update_notice_ack: boolean;
+  /** The newest blygger.com listing the owner has seen in Discover (ISO), or "" for never. */
+  discover_seen_at: string;
   /** Studio extensions enabled on this node (docs/extensions.md). Every extension starts disabled. */
   extensions: string[];
 }

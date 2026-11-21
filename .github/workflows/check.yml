@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: 24.5.0
           cache: npm
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps
       - run: npm install --prefix build/oauth-inspector --no-audit --no-fund @modelcontextprotocol/inspector@2.10.1
       - run: npx playwright install --with-deps chromium
       - run: docker compose -p oauth-conformance -f scripts/oauth-conformance.compose.yml up -d
@@ -53,12 +53,13 @@ jobs:
         with:
           node-version: 22.18.0
           cache: npm
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps
       - id: scope
         run: node --import tsx scripts/ci-scope.ts "${{ github.event_name }}" "${{ github.base_ref }}"
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # The full eight-source oracle campaign precedes Worker and release checks.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
         with:
@@ -67,11 +68,28 @@ jobs:
         with:
           node-version: 22.18.0
           cache: npm
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps
       - run: npm run build
       - run: npm run typecheck
+      - run: npm run lint:oracles
+      - run: npm run check:oracle-migration
+      # Node 22.18's node:sqlite truncates text at NUL; these fixtures need all bytes.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+      - run: npm run test:oracles:studio
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+      - run: npm run test:oracles:conditional:worker
+      - run: npm run test:oracles:contracts
+      - run: npm run test:oracles:search
+      - run: npm run test:oracles:runtime
+      - run: npm run test:oracles:worker
       - run: npm run check:template
       - run: npm run check:fixtures
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - run: npm run release:build
       # verify-sdk-consumer.ts, inside release:verify, drives Chromium.
       - run: npx playwright install --with-deps chromium
@@ -89,33 +107,60 @@ jobs:
         with:
           node-version: 22.18.0
           cache: npm
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps
       - run: npm run sdk:generate
       - run: git diff --exit-code -- openapi.json sdk/generated sdk/generation.json
   e2e:
     needs: scope
     if: needs.scope.outputs.e2e == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Passing runs took 16-22 minutes on 2026-11-19. WebKit has its own job below:
+    # its apt packages came off a slow Ubuntu mirror that day and three runs timed
+    # out before a test ran. The browser oracles (#151, #152) run here: they drive
+    # Chromium.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22.18.0
           cache: npm
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - run: npm run test:e2e -- --project=desktop --project=mobile
+      - run: npm run test:oracles:browser
+      - run: npm run test:oracles:browser:search
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: e2e-failure-evidence
           path: test-results/
+
+  e2e-webkit:
+    needs: scope
+    if: needs.scope.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx playwright install --with-deps webkit
+      - run: npm run test:e2e -- --project=mobile-webkit
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-webkit-failure-evidence
+          path: test-results/
   mutations:
     needs: scope
     if: needs.scope.outputs.mutations != '[]'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Worker security controls were still passing when a slower run hit 25m.
+    timeout-minutes: ${{ matrix.suite == 'auth-security-worker' && 40 || 25 }}
     strategy:
       fail-fast: false
       matrix:
@@ -127,7 +172,7 @@ jobs:
         with:
           node-version: 22.18.0
           cache: npm
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps
       - run: npm run build
       - if: matrix.suite == 'auth-security-browser'
         run: npx playwright install --with-deps chromium

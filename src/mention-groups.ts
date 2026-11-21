@@ -1,9 +1,11 @@
+import type { ChangeSnapshot } from './changes.ts';
 import { cursorPage, type CursorQuery } from './cursor-page.ts';
 
 export interface MentionGroup {
   targetItemId: string;
   total: number;
   visible: number;
+  links: number;
   verifiedAt: string;
   lastSeen: string;
   firstId: string;
@@ -18,7 +20,7 @@ export type MentionGroupQuery = CursorQuery & {
 /** Select group winners and counts together; timestamps from losing receipts
  * must not move a group ahead of its newest verified receipt.
  */
-export async function mentionGroups(db: D1Database, query: MentionGroupQuery) {
+export async function mentionGroups(db: D1Database, query: MentionGroupQuery, snapshot?: ChangeSnapshot) {
   const groupFilters: string[] = [], binds: string[] = [];
   if (query.targetItemId !== undefined) binds.push(query.targetItemId);
   for (const key of ['verifiedAt', 'lastSeen', 'firstId'] as const) {
@@ -32,10 +34,11 @@ export async function mentionGroups(db: D1Database, query: MentionGroupQuery) {
     sql: `WITH aggregate_mentions AS (
       SELECT target_item_id AS targetItemId,
         COUNT(*) AS total,
-        SUM(CASE WHEN status='verified' AND hidden=0 THEN 1 ELSE 0 END) AS visible
+        SUM(CASE WHEN status='verified' AND hidden=0 AND relation IS NOT 'link' THEN 1 ELSE 0 END) AS visible,
+        SUM(CASE WHEN status='verified' AND relation IS 'link' THEN 1 ELSE 0 END) AS links
       FROM mentions_in WHERE status IN ('verified','gone')${query.targetItemId !== undefined ? ' AND target_item_id = ?' : ''}
       GROUP BY target_item_id
-    ) SELECT aggregate_mentions.targetItemId,total,visible,
+    ) SELECT aggregate_mentions.targetItemId,total,visible,links,
       COALESCE(winner.verified_at,'') AS verifiedAt,winner.last_seen AS lastSeen,winner.id AS firstId
     FROM aggregate_mentions JOIN mentions_in winner ON winner.id = (
       SELECT candidate.id FROM mentions_in candidate
@@ -44,7 +47,7 @@ export async function mentionGroups(db: D1Database, query: MentionGroupQuery) {
     )${groupFilters.length ? ` WHERE ${groupFilters.join(' AND ')}` : ''}`,
     binds,
     order: [{ column: 'verifiedAt', direction: 'desc' }, { column: 'lastSeen', direction: 'desc' }, { column: 'firstId', direction: 'asc' }],
-  });
+  }, snapshot);
 }
 
 export async function mentionSummary(db: D1Database) {

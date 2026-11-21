@@ -28,6 +28,10 @@ test('a contact added in Settings is offered at @, and an unknown one gets a sof
   await editor.press('Enter');
   await expect(editor).toHaveValue(`Thanks @${handle} `);
   await expect(picker).toHaveCount(0);
+  // A possessive typed straight after the pick takes the pick's space (session 76).
+  await editor.pressSequentially("'s case ");
+  await expect(editor).toHaveValue(`Thanks @${handle}'s case `);
+  await expect(page.locator('#preview-body')).toContainText("@Ada Ruiz's case");
 
   await editor.pressSequentially(`and @nobody${handle}`);
   await expect(page.getByRole('status').filter({ hasText: `@nobody${handle} is not in your` })).toBeVisible();
@@ -49,7 +53,7 @@ test('subscribing to one blyg by hand offers it, prefilled with its author; not 
   const origin = `https://b${tag}.example/`;
   await page.route(`${origin}blyg.json`, (route) => route.fulfill({ json: { author: { name: `Zed${tag} Ruiz`, url: `https://zed${tag}.example/` } }, headers: { 'access-control-allow-origin': '*' } }));
   await page.route('**/api/subscriptions', (route) => route.request().method() === 'POST'
-    ? route.fulfill({ status: 201, json: { id: `sub-${tag}`, kind: 'blyg', origin, feedUrl: `${origin}feed.xml`, title: 'A Title', status: 'active', lastPollAt: null, failCount: 0, lastIndexSyncAt: null, inBlogroll: false, flags: [], created: '2026-11-06T00:00:00Z', titleFollowsSource: true, hopperFeedUrl: null } })
+    ? route.fulfill({ status: 201, json: { id: `sub-${tag}`, kind: 'blyg', origin, feedUrl: `${origin}feed.xml`, title: 'A Title', status: 'active', lastPollAt: null, failCount: 0, lastIndexSyncAt: null, inBlogroll: false, flags: [], created: '2026-11-06T00:00:00Z', titleFollowsSource: true, background: false, hopperFeedUrl: null } })
     : route.continue());
   await page.goto('/studio/reading');
   await page.getByRole('button', { name: 'subscribe', exact: true }).first().click();

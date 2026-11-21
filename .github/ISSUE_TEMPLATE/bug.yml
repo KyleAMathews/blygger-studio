@@ -46,6 +46,17 @@ body:
         - "Not sure"
     validations:
       required: true
+  - type: input
+    id: patches
+    attributes:
+      label: Local patches
+      description: >-
+        If you run from source: the count in Settings → updates ("This build carries N
+        local patches"), or the output of `npm run patches`. Skip it for a Worker
+        archive installation.
+      placeholder: "0"
+    validations:
+      required: false
   - type: textarea
     id: what
     attributes:

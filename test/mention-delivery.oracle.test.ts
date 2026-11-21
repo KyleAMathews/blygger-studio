@@ -32,13 +32,12 @@
  */
 import { env } from 'cloudflare:test';
 import fc from 'fast-check';
-import { expect } from 'vitest';
+import { differs, oracleProperty, pass, type Observation } from '@tanstack/oracles';
 import type { FetchLike } from '../src/importer/http.ts';
 import { createSubscription } from '../src/importer/store.ts';
 import { createDraft } from '../src/model.ts';
 import { drainOutbound } from '../src/mentions/send.ts';
 import { enqueueOutbound } from '../src/mentions/store.ts';
-import { atCheckpoint, campaign } from './oracle-campaign.ts';
 import { withOracleCleanup } from './oracle-cleanup.ts';
 
 type Subscription = { kind: 'blyg' | 'rss'; origin: string };
@@ -64,7 +63,8 @@ function selectedOrigin(subscriptions: Subscription[], target: string): string |
   return best;
 }
 
-campaign('mention-delivery', inputs, async input => {
+type History = { host: string; originLength: number; kind: 'fragment' | 'thread'; reverse: boolean };
+function fixture(input: History) {
   const parent = `https://${input.host}.example/m/`;
   const stem = `${parent}A%25_/`;
   const specific = `${stem}${'x'.repeat(input.originLength - stem.length - 1)}/`;
@@ -76,6 +76,30 @@ campaign('mention-delivery', inputs, async input => {
     { kind: 'blyg', origin: `${parent}%/` },
     { kind: 'blyg', origin: longUnrelated },
   ];
+  return { specific, target, candidates };
+}
+function model(input: History): Observation[] {
+  const { specific, candidates } = fixture(input);
+  const endpoints = new Map(candidates.map((sub, index) => [sub.origin, `https://delivery.example/endpoint/${index}`]));
+  const expected: Observation[] = [];
+  for (const [snapshot, indices] of [[0, 4], [0, 1, 2, 4], [3, 4]].entries()) {
+    const target = `${specific}f/remote-${snapshot}/`, origin = selectedOrigin(indices.map(i => candidates[i]), target);
+    const endpoint = origin === undefined ? fallbackEndpoint : endpoints.get(origin)!;
+    expected.push(
+      { checkpoint: 'mention delivery result', value: { attempted: 1, sent: 1 } },
+      { checkpoint: 'mention discovery trace', value: [
+        { method: origin === undefined ? 'HEAD' : 'GET', url: origin === undefined ? target : `${origin}blyg.json`, form: null },
+        { method: 'POST', url: endpoint, form: [['source', '$source'], ['target', target]] },
+      ] },
+      { checkpoint: 'mention delivered queue', value: { status: 'sent', attempts: 1, endpoint, next_attempt_at: null, last_error: null } },
+      { checkpoint: 'mention no redelivery', value: { result: { attempted: 0, sent: 0 }, calls: [] } },
+    );
+  }
+  return expected;
+}
+async function driver(input: History, observe: (checkpoint: string, value: unknown) => void) {
+  const { specific, candidates, target: initialTarget } = fixture(input);
+  let target = initialTarget;
   // Responses depend on the receiving URL, never on the model's chosen origin.
   // RSS and wildcard decoys also have endpoints so a wrong lookup can deliver
   // successfully and still fail the trace comparison.
@@ -112,23 +136,20 @@ campaign('mention-delivery', inputs, async input => {
       }
       await enqueueOutbound(env.DB, source.id, 1, target, 1);
       calls.length = 0;
-      const origin = selectedOrigin(subscriptions, target);
-      const endpoint = origin === undefined ? fallbackEndpoint : manifests.get(`${origin}blyg.json`)!;
-      const expectedTrace: RequestRecord[] = [
-        { method: origin === undefined ? 'HEAD' : 'GET', url: origin === undefined ? target : `${origin}blyg.json`, form: null },
-        { method: 'POST', url: endpoint, form: [['source', `${ours}${input.kind === 'thread' ? 't' : 'f'}/${source.id}/`], ['target', target]] },
-      ];
       let result: unknown;
       try { result = await drainOutbound(env.DB, network, { origin: ours }); }
       catch (error) { result = { error: error instanceof Error ? error.message : String(error) }; }
-      atCheckpoint('mention delivery result', () => expect(result).toEqual({ attempted: 1, sent: 1 }));
-      atCheckpoint('mention discovery trace', () => expect(calls).toEqual(expectedTrace));
+      observe('mention delivery result', result);
+      // Resource IDs are fixture inputs. Replace only the exact expected source
+      // URL with its stable alias; a wrong path, kind or ID remains observable.
+      const sourceUrl = `${ours}${input.kind === 'thread' ? 't' : 'f'}/${source.id}/`;
+      observe('mention discovery trace', calls.map(call => ({ ...call, form: call.form?.map(([name, value]) => [name, name === 'source' && value === sourceUrl ? '$source' : value]) ?? null })));
       const stored = await env.DB.prepare('SELECT status, attempts, endpoint, next_attempt_at, last_error FROM mentions_out WHERE item_id = ? AND target = ?')
         .bind(source.id, target).first();
-      atCheckpoint('mention delivered queue', () => expect(stored).toEqual({ status: 'sent', attempts: 1, endpoint, next_attempt_at: null, last_error: null }));
+      observe('mention delivered queue', stored);
       calls.length = 0;
       const idle = await drainOutbound(env.DB, network, { origin: ours });
-      atCheckpoint('mention no redelivery', () => { expect(idle).toEqual({ attempted: 0, sent: 0 }); expect(calls).toEqual([]); });
+      observe('mention no redelivery', { result: idle, calls: [...calls] });
     }
   }, [
     async () => { await env.DB.prepare('DELETE FROM mentions_out WHERE item_id = ?').bind(source.id).run(); },
@@ -138,4 +159,41 @@ campaign('mention-delivery', inputs, async input => {
       if (id !== undefined) await env.DB.prepare('DELETE FROM subscriptions WHERE id = ?').bind(id).run();
     }),
   ]);
+}
+
+// Each construction must complete the parent, nested/RSS, and wildcard-only
+// receiving snapshots. Input dimensions name the premise; observed checkpoint
+// counts prove those requests/drains ran without treating a correct result as reach.
+const deliveryStates = ['parent subscription', 'nested blyg and RSS decoy', 'literal wildcard fallback', 'settled queue re-read', 'unrelated long origin', 'origin length 49', 'origin length 50', 'origin length 51', 'origin length 58', 'fragment source', 'thread source', 'forward insertion', 'reverse insertion'];
+const sharedDeliveryStates = ['parent subscription', 'nested blyg and RSS decoy', 'literal wildcard fallback', 'settled queue re-read', 'unrelated long origin'];
+function deliveryReach(input: History, trace: readonly Observation[]) {
+  const reached: string[] = [];
+  const discoveries = trace.filter(entry => entry.checkpoint === 'mention discovery trace').length;
+  const rereads = trace.filter(entry => entry.checkpoint === 'mention no redelivery').length;
+  if (discoveries >= 1) reached.push('parent subscription', 'unrelated long origin', input.kind + ' source', input.reverse ? 'reverse insertion' : 'forward insertion');
+  if (discoveries >= 2) reached.push('nested blyg and RSS decoy');
+  if (discoveries >= 3) reached.push('literal wildcard fallback');
+  if (rereads >= 3) reached.push('settled queue re-read');
+  if (discoveries >= 3 && [49, 50, 51, 58].includes(input.originLength)) reached.push('origin length ' + input.originLength);
+  return reached;
+}
+oracleProperty({
+  id: 'mention-delivery', owns: ['src/mentions/send.ts#drainOutbound'],
+  law: {
+    statement: 'For every subscribed-origin snapshot, successful outbound delivery chooses the longest literal blyg prefix or W3C fallback, persists the successful queue result, and does not redeliver it.',
+    authority: 'src/mentions/discover.ts §2.3.4, established longest-prefix sender contract and existing delivery oracle',
+    limits: 'Controlled successful HTTP responses and serial snapshots, bounded canonical fixture origins; no retry, DNS, incoming-verification or cron guarantee.',
+  },
+  histories: { arbitrary: inputs, runs: 8, fixedSeeds: [20261001], states: deliveryStates, constructed: [...[49, 50, 51, 58].map(originLength => ({ name: `origin length ${originLength}`, enters: [...sharedDeliveryStates, 'origin length ' + originLength, 'fragment source', 'forward insertion'], build: (): History => ({ host: 'a', originLength, kind: 'fragment', reverse: false }) })), { name: 'thread source with reversed subscription insertion', enters: [...sharedDeliveryStates, 'thread source', 'reverse insertion'], build: (): History => ({ host: 'a', originLength: 58, kind: 'thread', reverse: true }) }] },
+  model, driver, reached: deliveryReach,
+  check: (_input, trace, expected) => {
+    // Compare received facts before inferring anything about an absent tail.
+    // Repeated checkpoint names must not turn an interruption into a law failure.
+    for (let i = 0; i < trace.length; i++) {
+      const mismatch = differs(trace[i].checkpoint, 'delivery routing', trace[i], expected[i]);
+      if (mismatch) return mismatch;
+    }
+    return differs('mention completion', 'delivery routing', trace.length, expected.length) ?? pass;
+  },
+  calibrations: [{ name: 'delivery chooses RSS endpoint', law: 'delivery routing', history: { constructed: 'origin length 49' }, corrupt: trace => trace.map((entry, i) => i === 5 ? { ...entry, value: [] } : entry) }],
 });

@@ -1,6 +1,6 @@
 # Owner API
 
-The owner API lives at `{mount}/api`: `/api` for a root node and `/blyg/api` for a node mounted at `/blyg`. On a mounted node, host-root `/api` still answers as a deprecated alias (0.49.12, for two releases), with `Deprecation` and a successor `Link` header; use `{mount}/api`.
+The owner API lives at `{mount}/api`: `/api` for a root node and `/blyg/api` for a node mounted at `/blyg`. On a mounted node, host-root `/api` returns 404; use `{mount}/api`. The two-release compatibility period announced in 0.49.12 has ended.
 The public Blygger protocol remains separate.
 Sign into Studio before calling the API from a browser on the same origin.
 Delegated clients use scoped bearer tokens. See [Client access](client-access.md)
@@ -85,18 +85,26 @@ Each physical D1 batch is a transaction. If it fails, that group's statements
 roll back and its waiting reads fail together; earlier completed groups remain
 committed. The adapter never retries failed batches or admission writes.
 
-Studio batches ready reads by operation with DataLoader, without caching batch
-results. Browser dispatch uses microtasks, not timers: synchronous peers share
-a batch, while reads that become ready after dispatch use a later batch.
+Studio groups ready reads in a pending queue for each operation, without caching
+batch results. Browser dispatch uses microtasks, not timers: synchronous peers
+share a batch, while reads that become ready after dispatch use a later batch.
 Different request headers or credential settings use separate batches.
 Cancelling one read preserves its peers; cancelling every consumer aborts the
-shared fetch. Concurrent freshness checks share pending work only, and Studio
-writes clear that pending check before their subsequent refreshes.
+shared fetch. Concurrent resource reads share pending work only, and Studio
+writes clear pending-read registrations before their subsequent refreshes.
+
+If a write supersedes an in-flight SDK read, Studio reacquires it while its
+consumer remains active. After writes settle, the original consumer receives
+current data without reopening the view. Discarded responses never publish.
+Explicit cancellation stops further attempts and preserves its reason; HTTP,
+schema, network and unrelated abort failures remain errors.
 
 ## HTTP responses
 
-Private API responses use `Cache-Control: no-store`, including preflight and errors
-rejected before dispatch. Browser bearer requests can read `ETag`, `Retry-After`, `Allow`,
+Private API responses default to `Cache-Control: no-store`, including preflight
+responses and errors rejected before dispatch. Successful resource GETs use
+`private, no-cache` with ETags, as described below.
+Browser bearer requests can read `ETag`, `Retry-After`, `Allow`,
 `Location`, and `WWW-Authenticate` when those headers apply. Wrong-method
 responses identify supported methods in `Allow`.
 
@@ -105,6 +113,23 @@ GET/HEAD. Save the returned ETag and send it as `If-None-Match` on a later read.
 A matching current representation returns 304 without a body. Resource and
 access checks precede validation, so a validator does not bypass private media
 access or make an absent resource available.
+
+Private operation GETs also return an `ETag` and accept `If-None-Match`.
+Successful resource reads use `Cache-Control: private, no-cache`; errors,
+authentication endpoints, writes and batch envelopes retain `no-store`.
+Authentication, scope checks, quotas, feature checks and input validation run
+before conditional evaluation. A matching read returns a bodyless `304` with
+its current `ETag`. Contract 6.0.0 removes `GET /changes` without an alias.
+Clients revalidate resource GETs directly.
+
+Each `/read-batch` child accepts an optional `ifNoneMatch` field. Child results
+use the same validators as direct GETs: a match returns `{ status: 304,
+body: null, headers: { ETag: ... } }`. Validators belong to individual children,
+not the POST envelope, and conditional child reads remain batchable.
+
+Treat validators as opaque strings and send them back unchanged. Any HTTP
+client can revalidate resources directly. The SDK's optional `conditionalReads`
+setting provides body reuse as a convenience.
 
 Validators cover complete response bytes. A pinned document can get a new ETag
 when live author or origin metadata changes, even when its markdown hash stays
@@ -160,11 +185,11 @@ Consult `openapi.json` for every field and response.
 | Signals | `GET /signals` | `PUT` or `DELETE /signals/{sub}/{remoteId}` |
 | Mentions | `GET /mentions?direction=inbound` or `outbound` | `PATCH /mentions/{id}` with `hidden` |
 | Settings | `GET /settings` | `PATCH /settings` |
+| Shelf | `GET /shelf` | `PUT /shelf` (replaces the whole list; see [Shelf](#shelf)) |
 | Media | Included in item detail: `media` is the working copy's attachments, `publishedMedia` what the live version lists | `POST /media` with a multipart file (`inline=true` when the client places it in the text; the same file sent again to the same item in the same placement returns the existing row with `200` and `duplicate: true`). Attachments are per version: one added to a published item is listed from its next version on. `DELETE /media/{id}` detaches it from the working copy, so the next version goes without it while the versions that listed it keep it; the file is deleted only when no published version lists or shows it |
 | Imported items | `GET /imports/{sub}/{id}`, `GET /imports/{sub}/{id}/history`, `GET /imports/{sub}/{id}/versions/{v}` (history and public versions, read from the origin) | The subscription importer manages these items |
 | Reading | `GET /reading`, `GET /reading/imported` (imported items only; see below) | Read only |
 | Read state | `readVersion` on each imported Reading entry | `PUT`/`DELETE /reading/{sub}/{remoteId}/read`, `POST /reading/read`, `POST /reading/unread` |
-| Change revisions | `GET /changes` | Maintained by database triggers |
 | Quote freshness | `GET /freshness`, `GET /items/{id}/freshness` | `POST /items/{id}/refresh` |
 
 Publication, withdrawal, restoration, and generation remain explicit operations:
@@ -177,6 +202,116 @@ Publication, withdrawal, restoration, and generation remain explicit operations:
 - `POST /items/{id}/note-draft` drafts a changelog note from the change between the published version and the working copy. It never publishes. When the published version is unpinned, the note must not reproduce wording that only that version had; a draft that does returns 422. Send `noteGenerated: true` with `POST /items/{id}/publish` only when the note is that draft, unedited: it becomes `changelog[].generated` on the wire.
 - `POST /items/{id}/classify` asks the optional change classifier what kind of change the working copy would publish. See [Change classifier](#change-classifier).
 - `POST /items/{id}/refresh` republishes a thread to re-bake quotes whose source has a newer version. See below.
+
+## Syndication
+
+> Spec 0.4 §16.14 (decision #98) is a **ruled shape awaiting its gate**. This is
+> the publisher half of that gate.
+
+`syndication` lists copies of an item that the owner made on other networks,
+such as a Bluesky post or a Farcaster cast of it. Each entry is
+`{ url, version }`: an absolute `https:` URL at which the copy can be read, and
+the version of the item it was made from. Nothing else goes in an entry: no
+counts, no network name, no account.
+
+- `GET /items/{id}/syndication` (`owner:read`) returns `{ entries, revision }`
+  in the owner's order.
+- `PUT /items/{id}/syndication` (`owner:publish`) takes
+  `{ entries, expectedRevision }` and replaces the whole list. It returns the
+  stored `{ entries, revision }`. A repeated `url` keeps its first position.
+  At most 20 entries.
+
+Rules:
+
+- The list is **written in place** on the live item document
+  (`items/{id}.json`). It publishes no version, adds no changelog entry, adds
+  nothing to `feed.xml` and sends no mention. A pin works the same way.
+- Pinned files (`items/{id}/vN.json`) never carry it. A withdrawal endcap
+  omits it, and a withdrawn item refuses a `PUT` (409).
+- A draft has no version to copy, so a `PUT` on one is 409.
+- Each `version` must be one of the item's published versions (409 for a later
+  one). Each `url` must be an absolute `https:` URL (400 otherwise).
+- `expectedRevision` is the item's revision and is required. A `PUT` bumps it,
+  as a pin does. A stale revision is 409 `revision-conflict`.
+- The item's public page shows the copies as `u-syndication` links.
+- It moves the `items` change domain, never `feed`.
+
+Imported items keep the origin's `syndication` member as last fetched, filtered
+to well-formed `https:` entries (spec rule 5). They return it as `syndication`
+on `GET /reading` imported entries and on `GET /reading/imported`. It is the
+publisher's claim: the studio never hides or merges another post because of it,
+and never infers that the item's author is the account that posted the copy.
+The importer fetches an item document when its version moves, so a copy added
+after the held version shows up with the next one.
+
+```ts
+const { entries, revision } = await unwrap(BlyggerApi.getSyndication({ client, path: { id } }));
+await unwrap(BlyggerApi.putSyndication({ client, path: { id }, body: { entries: [...entries, { url, version: 3 }], expectedRevision: revision } }));
+```
+
+## Shelf
+
+The shelf is a short list of items in the owner's order: living threads kept
+at the top of a writing list, and posts from blygs the owner reads. Studio and
+other clients (Blygger Desktop) share it. It is studio-private: it never
+reaches an item document, a feed, the manifest, a public page or the static
+export, and it never gains a public mode. A featured list on public pages, if
+one is ever wanted, would be a separate presentation setting, not a flag on
+the shelf.
+
+An entry names an item the way hopper membership does, as `{ sub, remoteId }`:
+
+- an own item is `{ sub: "~own", remoteId: <item id> }`. The SDK exports the
+  sentinel as `OWN_SUBSCRIPTION`;
+- an imported item is `{ sub: <subscription id>, remoteId: <its remote id> }`.
+
+A bare id would not tell two origins apart.
+
+- `GET /shelf` (`owner:read`) returns `{ entries, revision }`, in order.
+- `PUT /shelf` (`owner:manage`) takes `{ entries, expectedRevision }` and
+  replaces the whole list. It returns the stored `{ entries, revision }`
+  after dropping and deduplicating, so a client can reconcile without a second
+  `GET`.
+
+Rules:
+
+- Any of this blyg's own items can be shelved, drafts included, and so can
+  any item held under a subscription.
+- An entry has to resolve to be kept: an own item that is not withdrawn, or an
+  imported item that is current or a tombstone with a retained pin (the rule
+  `[[id]]` and `![[id]]` resolve by). `GET` omits entries that do not.
+- A `PUT` **drops entries that do not resolve quietly and never refuses them**.
+  That covers a `sub` that names no subscription, a `remoteId` not held under
+  it, a withdrawn own item, and an imported tombstone with no retained pin. A
+  repeated entry keeps its first position. Check the response to see what was
+  kept. A withdrawn item's place is kept until the next `PUT`, so republishing
+  it before then puts it back where it was. The same holds for an imported
+  item that turns into a tombstone and comes back.
+- Discarding a draft takes it off the shelf. So does an imported item that is
+  no longer held, and unsubscribing removes every entry of that subscription.
+- At most 50 entries per `PUT`. A longer list, a malformed entry (`sub` or
+  `remoteId` missing, empty or not a string, or an unknown field), unknown
+  fields in the body, or a missing or negative `expectedRevision` returns 400
+  `invalid-input`.
+- Every successful `PUT` bumps `revision`, even when the list is unchanged.
+  `expectedRevision` is required: read the shelf first (a never-written shelf
+  is at revision 0), and the replace applies only if nobody else has written
+  since. A stale one returns 409 `revision-conflict` with the full current list
+  in `details.current: { entries, revision }`: merge and retry. There is no
+  unconditional replace, because one client's `PUT` would silently undo
+  another's reorder.
+- Revalidate `GET /shelf` after a `PUT`, a withdrawal or republication, an
+  imported item becoming unavailable or returning, or an entry being deleted.
+  Its ETag reflects the current shelf representation.
+- Shelving is not an interaction: nothing goes in the interaction log.
+- The Studio's compose list shows the `~own` entries. Reordering or removing
+  them there leaves imported entries where they are.
+
+```ts
+import { OWN_SUBSCRIPTION } from "@blygger/sdk";
+const { entries, revision } = await unwrap(BlyggerApi.getShelf({ client }));
+await unwrap(BlyggerApi.putShelf({ client, body: { entries: [{ sub: OWN_SUBSCRIPTION, remoteId: id }, ...entries], expectedRevision: revision } }));
+```
 
 ## Change classifier
 
@@ -241,13 +376,8 @@ readers only as words in the note the author confirmed.
 document keys as an unclassified one.
 
 Preview and search use `/preview` and `/search`.
-`GET /changes` returns `{ epoch, domains }`, with revision counters for items,
-Reading, subscriptions, hoppers, signals, settings, the public feed, mentions,
-responses, interactions and browsing history. It uses
-the same current owner/delegated read authorization as other private reads.
-Clients can skip unchanged data refreshes, but must capture their target before
-loading and acknowledge it only after successful installation. These are change
-signals, not row-delta cursors or permission to cache authorization decisions.
+Poll resource GETs with their accepted ETags. A 304 reuses only the body paired
+with that validator; errors do not validate cached data or authorization.
 The old fork, stub, pause, resume, response-policy, and pin routes no longer exist.
 Studio calls the canonical routes through the generated SDK.
 
@@ -556,8 +686,7 @@ last-write-wins.
 
 Version is an integer from 1 (items start there) to 2^32 − 1. All four writes need `reading:state`,
 a scope of their own so a sync-only reader app need not hold `owner:manage`. Read state goes with its imported item or subscription when either
-is deleted, and a change, including a clear, advances the `reading` revision in
-`GET /changes`.
+is deleted. Revalidate Reading resources after a read-state change or clear.
 
 ## Quote freshness
 

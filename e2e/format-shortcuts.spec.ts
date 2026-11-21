@@ -31,7 +31,7 @@ test('the composer: bold, italics and link from the keyboard, and undo takes the
   await expect(box).toHaveValue('one *two* three');
 
   // The state the page keeps, not only the box: a kind switch re-renders from it.
-  await page.getByRole('radio', { name: 'thread', exact: true }).click();
+  await page.getByRole('button', { name: 'thread', exact: true }).click();
   await expect(box).toHaveValue('one *two* three');
 
   await box.fill('see this');

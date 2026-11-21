@@ -1,4 +1,4 @@
-import { deploymentPaths } from '../util.ts';
+import { deploymentPaths, nowIso } from '../util.ts';
 import { success, created, failure, type OperationContext, type OperationInput } from '../operation-types.ts';
 import { feedUrl as surfaceFeedUrl, surfaceFromManifest } from "../surface.ts";
 import { platformFetchFor } from "./http.ts";
@@ -31,6 +31,7 @@ import {
   setSignal,
 } from "./store.ts";
 import { getItem } from "../model.ts";
+import { setPlacement, type Placement } from "../background.ts";
 
 
 function titleFromUrl(url: string): string {
@@ -136,13 +137,14 @@ const createSubscriptionOperation = async (context: OperationContext, input: Ope
 const updateSubscriptionOperation = async (context: OperationContext, input: OperationInput) => {
   const sub = await getSubscription(context.env.DB, input.path.id);
   if (!sub) return failure('not-found', { error: "not found" });
-  const body = (input.body as { inBlogroll?: boolean; title?: string | null; paused?: boolean });
+  const body = (input.body as { inBlogroll?: boolean; title?: string | null; paused?: boolean; background?: boolean });
   const assignments: string[] = [], values: (string | number)[] = [];
   // A name of the owner's own stops the refresh; null hands it back to the source.
   if (typeof body.title === "string") { assignments.push("title = ?", "title_auto = 0"); values.push(body.title); }
   if (body.title === null) assignments.push("title_auto = 1", "last_index_sync_at = NULL");
   if (body.inBlogroll !== undefined) { assignments.push("in_blogroll = ?"); values.push(body.inBlogroll ? 1 : 0); }
   if (body.paused !== undefined) { assignments.push("status = ?"); values.push(body.paused ? "paused" : "active"); }
+  if (body.background !== undefined) { assignments.push("background = ?"); values.push(body.background ? 1 : 0); }
   if (!assignments.length) return success(subscriptionResource(sub));
   const fresh = await context.env.DB.prepare(`UPDATE subscriptions SET ${assignments.join(", ")} WHERE id = ? RETURNING *`).bind(...values, sub.id).first<SubscriptionRow>();
   return fresh ? success(subscriptionResource(fresh)) : failure('not-found', { error: "subscription no longer exists" });
@@ -269,6 +271,21 @@ const markReadOperation = async (context: OperationContext, input: OperationInpu
   return success({ ok: true, stored: result.stored, readVersion: result.read_version });
 };
 
+// The owner's choice of Background or Foreground for one reading entry
+// (src/background.ts). Only an entry the reader can show may be placed: an own
+// published or withdrawn item, or an item held under that subscription.
+const setReadingPlacementOperation = async (context: OperationContext, input: OperationInput) => {
+  const { source, sub, id, placement } = input.body as { source: "own" | "imported"; sub?: string; id: string; placement: Placement | null };
+  const db = context.env.DB;
+  const held = source === "own"
+    ? await db.prepare("SELECT 1 FROM items WHERE id = ? AND status IN ('public', 'withdrawn')").bind(id).first()
+    : sub ? await db.prepare("SELECT 1 FROM imported_items WHERE subscription_id = ? AND remote_id = ?").bind(sub, id).first() : null;
+  if (!held) return failure('not-found', { error: source === "imported" && !sub ? "an imported entry needs its sub" : "no reading entry with that id" });
+  const key = source === "own" ? "" : sub!;
+  await setPlacement(db, source, key, id, placement, nowIso());
+  return success({ source, sub: key, id, placement });
+};
+
 // The whole list is validated before anything is written, and the writes are
 // one batch: one request, one transaction, one unit of the write budget.
 const markReadBatchOperation = async (context: OperationContext, input: OperationInput) => {
@@ -308,6 +325,7 @@ export const importOperations = {
   removeHopperItem: removeHopperItemOperation,
   setSignal: setSignalOperation,
   deleteSignal: deleteSignalOperation,
+  setReadingPlacement: setReadingPlacementOperation,
   markRead: markReadOperation,
   markReadBatch: markReadBatchOperation,
   markUnread: markUnreadOperation,

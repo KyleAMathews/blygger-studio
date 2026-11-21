@@ -1,6 +1,7 @@
 // The design system first, so each screen's own stylesheet (imported by its
 // module below) comes after it in the bundle and wins ties.
 import './studio.css';
+import { useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   createRootRoute,
@@ -50,12 +51,22 @@ import { SignalsPage } from './signals.tsx';
 import { SheetHost } from './sheets.tsx';
 import { ExtensionPage } from './extension-page.tsx';
 import { SetupPage } from './setup.tsx';
+import { ComponentLibraryPage } from './component-library.tsx';
+import { componentGalleryEnabled } from './build-flags.ts';
 import { applyCachedTheme } from './theme.ts';
 import { applyCachedTitle } from './tab.ts';
+import { errorLog, watchUncaughtErrors } from './error-log.ts';
+import { TooltipProvider } from './primitives.tsx';
 // Paint the last theme this device saw before the first render; settings
 // repaint it once they load (see theme.ts).
 applyCachedTheme();
 applyCachedTitle();
+watchUncaughtErrors();
+/** A failed route load replaces the page, banners included: log it from here. */
+function RouteErrorLogged({ error }: { error: unknown }) {
+  useEffect(() => { errorLog.record(error, 'route'); }, [error]);
+  return null;
+}
 const rootRoute = createRootRoute({
   loader: () => Promise.all([
     preloadView(listViews.settings),
@@ -65,6 +76,7 @@ const rootRoute = createRootRoute({
   errorComponent: ({ error }) => (
     <div role="alert">
       <p>{error instanceof Error ? error.message : String(error)}</p>
+      <RouteErrorLogged error={error} />
       <Button
         onClick={() =>
           void queryClient
@@ -345,6 +357,13 @@ const syntax = createRoute({
   path: '/syntax',
   component: SyntaxPage,
 });
+const components = componentGalleryEnabled
+  ? createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/components',
+      component: ComponentLibraryPage,
+    })
+  : null;
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     compose,
@@ -364,6 +383,7 @@ export const router = createRouter({
     fork,
     more,
     syntax,
+    ...(components ? [components] : []),
     extensionPage,
   ]),
   basepath,
@@ -377,10 +397,10 @@ declare module '@tanstack/react-router' {
   }
 }
 createRoot(document.getElementById('studio-root')!).render(
-  <>
+  <TooltipProvider>
     <RouterProvider router={router} />
     <SheetHost />
-  </>,
+  </TooltipProvider>,
 );
 // Installable PWA: the worker caches only the shell's static assets (see
 // studioServiceWorker in src/spa.ts). Its scope is the studio base itself,

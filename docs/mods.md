@@ -1,5 +1,7 @@
 # Modding the Studio
 
+> **New here?** [Where does my change belong?](where-does-it-go.md) puts a mod among the other places a change can go, from a spec question to a local patch, and says how to pick.
+
 A **mod** is anything that makes a Studio node behave differently from the reference Studio without becoming a different client: a tool that sets up a blyg as a book, an extension that adds a lineage view, a home page order. This page says where a mod can live, what the Studio will add for one, and what it will not. It is the program's position (decision #89 in [blygger-spec](https://github.com/blygger/blygger-spec/blob/main/CLAUDE.md), reasoning in `docs/v0.4-plan.md` §17.1).
 
 The first mod is [blykker](https://github.com/blygger/blykker), which keeps a blyg arranged as a book. The examples below come from it.
@@ -14,7 +16,7 @@ A tool that acts as an editor would: it creates threads and fragments, edits set
 
 This surface costs the Studio nothing, and a mod owns everything it does here outright. blykker's whole first phase is a `book.json` and a script on this surface.
 
-A tool that needs to react to changes polls `GET /api/changes`. There are no webhooks (decision #39c).
+A tool that needs to react to changes polls resource GETs with `If-None-Match`. There are no webhooks (decision #39c).
 
 ### 2. Compiled-in extensions
 
@@ -47,11 +49,13 @@ When a mod needs a surface the Studio lacks, propose it as a pull request to thi
 | A custom label on a links-section entry | Accepted | A setting, not a hook. |
 | Hiding the feed apparatus on some threads | Accepted | Presentation of the publisher's own page. The item document and the feed are untouched. |
 | Dropping marked fragments from `feed.xml` | Refused | The spec says every published item is one event and nothing publishes quietly (§7). To keep notes off the home page, use a home page order, which may leave items out. Readers decide what to bury (§13.7). |
-| A server hook that runs on publish | Refused | Poll `GET /api/changes` from a tool on a token, or add an extension action that writes through `client` in the browser. |
+| A server hook that runs on publish | Refused | Poll resource GETs with ETags from a tool on a token, or add an extension action that writes through `client` in the browser. |
 
-## Two promises a mod keeps
+## Three promises a mod keeps
 
 **The generator string stays `blygger-studio/x.y.z`.** A mod does not rename the client. The ecosystem census counts clients by that string, and update notices depend on it. If a mod needs an identity, it goes in its extension metadata.
+
+**Model text is disclosed.** Text a mod puts into a draft from a model goes through the Studio's generate endpoint, or in as `[TK]impyrt <model>=…[/TK]` for text generated elsewhere (spec §5.7 rule 7), so it publishes with a `generated[]` record. The Studio cannot tell model text from typing, so this is the mod's promise, of the same standing as the generator string ([`extensions.md`](extensions.md#editor-bars), session 76).
 
 **Not forking is the mod's own promise.** The Studio keeps its extension points as stable as it can and announces breaking changes in [`CHANGELOG.md`](../CHANGELOG.md). It makes no version promise about them yet. A mod that outgrows these surfaces and forks has become another client. That is fine, and the [fork section of the README](../README.md#if-you-fork-this) says what we ask of one.
 

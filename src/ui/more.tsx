@@ -13,6 +13,7 @@ import {
 import { CLIENT } from '../client.ts';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { enabledExtensions, menuPlacement } from './extensions.tsx';
+import { componentGalleryEnabled } from './build-flags.ts';
 
 /** The fifth tab: update notices, the less-used screens, the public page, log out. */
 export function MorePage() {
@@ -120,6 +121,22 @@ export function MorePage() {
             </span>
           </Link>
         </li>
+        {componentGalleryEnabled ? (
+          <li>
+            <Link to="/components">
+              <span className="mi" aria-hidden="true">
+                ◫
+              </span>
+              <span className="ml">
+                components
+                <span className="md">the Studio interface reference</span>
+              </span>
+              <span className="chev" aria-hidden="true">
+                ›
+              </span>
+            </Link>
+          </li>
+        ) : null}
       </ul>
       {pages.length ? (
         <ul className="nav-list" aria-label="extensions">
@@ -154,6 +171,24 @@ export function MorePage() {
             </span>
             <span className="ml">
               public page ↗<span className="md">{publicUrl}</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          {/* A plain download: the server streams the archive, so nothing is held in the page. */}
+          <a href={`${basepath}/backup`} download id="download-backup">
+            <span className="mi" aria-hidden="true">
+              ⤓
+            </span>
+            <span className="ml">
+              download backup
+              <span className="md">every post, version, setting and file, as one .tar</span>
+              <span className="md backup-beta">
+                Beta: may not work properly on large blygs due to read limits. Use{' '}
+                <code>npm run backup -- --base {publicUrl}</code> from your deployment
+                checkout instead: it makes the same archive through wrangler, one request
+                per file, so the limit does not apply.
+              </span>
             </span>
           </a>
         </li>

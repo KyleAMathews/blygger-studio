@@ -8,7 +8,10 @@ import { parseCustomTheme } from "./themes.ts";
 // Data access + publish-flow semantics — v0.1-plan §3.1.
 
 import { consumeHandles, withMentionCards } from "./contacts.ts";
-import { renderMarkdown } from "./markdown.ts";
+import { directiveLines } from "./directives.ts";
+import { mathErrors, renderMarkdown } from "./markdown.ts";
+import { MathPublishError } from "./math.ts";
+import { mathFailures, withMathFailures } from "./math-render.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, stripToOutput, TkPublishError, unresolvedScopes } from "./tk.ts";
 import { CommentPublishError, parseComments, sameOutsideComments, type CommentRange } from "./comments.ts";
 import { recordPublishInteractions } from "./interactions.ts";
@@ -19,14 +22,16 @@ import {
   resolveBlockLinks,
   resolveInternalLinks,
   resolveTransclusions,
+  linkEntries,
   TransclusionResolveError,
 } from "./transclusion.ts";
 import type { ChangelogDisplay, ForkedFrom, ItemRow, MediaRow, ScopeProvenance, Settings, StubCite, StubOf, Transclusion, VersionRow } from "./types.ts";
 import { FRAGMENT_MAX_CHARS } from "./types.ts";
 import { parseEnabledExtensions } from "./extensions/names.ts";
+import { parseBackgroundRules } from "./background.ts";
 import { absolutizeHtml, authoredText, contentHash, isFollowableUrl, newId, nowIso, visibleMedia } from "./util.ts";
 
-export { TkPublishError, TransclusionResolveError };
+export { MathPublishError, TkPublishError, TransclusionResolveError };
 
 /** Thrown by publish() when the *published* (TK-stripped) fragment length exceeds the studio cap (§2.7). */
 export class FragmentTooLongError extends Error {
@@ -147,6 +152,8 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     changelog_display: changelogDisplay(map.changelog_display),
     reader_changelog_display: changelogDisplay(map.reader_changelog_display),
     changelog_summary_prompt: map.changelog_summary_prompt ?? "",
+    // Background rules in the reader (migration 0046): all on until turned off.
+    bg_rules: parseBackgroundRules(map.bg_rules),
     // Default on: an existing deployment's behaviour must not change under it.
     accept_mentions: map.accept_mentions !== "off",
     // On by default (Venkat, session 28). The argument for off was that a
@@ -178,6 +185,8 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     update_feed_url: map.update_feed_url ?? "",
     /** Cleared until the operator has seen the "alerts are on" notice once. */
     update_notice_ack: map.update_notice_ack === "on",
+    // Discover (session 71): listings after this are new; empty, all of them are.
+    discover_seen_at: map.discover_seen_at ?? "",
     // Studio extensions this node has turned on (docs/extensions.md). Empty by default.
     extensions: parseEnabledExtensions(map.extensions),
     // The setup wizard (session 46): pending on a fresh install, a one-time
@@ -352,8 +361,16 @@ function publishedProvenance(item: ItemRow, working: string, ranges: CommentRang
  * Throws TkPublishError for malformed/unresolved TK scopes, FragmentTooLongError
  * if the published fragment exceeds the studio cap, or TransclusionResolveError
  * if a thread directive fails to resolve — nothing is written in any case.
+ *
+ * With `dryRun`, every check runs and nothing is written: tangling's
+ * pre-flight (tangling-plan §2.1) raises here whatever the real publish would,
+ * before any new item is minted. Everything up to the final batch only reads.
  */
-export async function publish(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string, noteGenerated = false): Promise<number> {
+export function publish(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string, noteGenerated = false, opts: { dryRun?: boolean } = {}): Promise<number> {
+  return withMathFailures(() => publishScoped(db, item, note, ourOrigin, noteGenerated, opts.dryRun === true));
+}
+
+async function publishScoped(db: D1Database, item: ItemRow, note: string | null, ourOrigin: string | undefined, noteGenerated: boolean, dryRun: boolean): Promise<number> {
   const now = nowIso();
   const version = item.version + 1;
   const kind = await authoredKind(db, item);
@@ -383,6 +400,9 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   }
 
   const { text: strippedMd, spans } = stripToOutput(source, scopes);
+  // A formula that does not parse is refused like a link that does not resolve (#105).
+  const badMath = mathErrors(strippedMd);
+  if (badMath.length) throw new MathPublishError(badMath);
   // The cap measures the author's words, before a handle expands into a link.
   const authoredLength = handles.cards.size ? stripToOutput(authored, parseScopes(authored).scopes).text.length : strippedMd.length;
   if (kind === "fragment" && authoredLength > FRAGMENT_MAX_CHARS) {
@@ -446,8 +466,18 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
     }
     transclusionsJson = JSON.stringify(withCites);
   } else {
+    // A fragment quotes nothing (§10.3, #100, #102): a directive line, in the body or
+    // in a generated block's output (#60), is a publish error, never literal text.
+    const quoted = [links.text, ...annotated.blockSources.values()].flatMap(directiveLines);
+    if (quoted.length) {
+      throw new TransclusionResolveError(quoted.map((directive) => ({ directive, reason: "a fragment can't quote another item: make this a thread, or link it with [[id]]" })));
+    }
     contentHtml = spliceLinks(applyGeneratedWrappers(renderMarkdown(links.text), annotated));
   }
+  // Every render above recorded the formulas that failed in it (R1): what was
+  // drawn is what is judged, and nothing has been written yet.
+  const failedMath = mathFailures();
+  if (failedMath.length) throw new MathPublishError(failedMath);
 
   // Every URL in `content_html` is made absolute against our own origin, for
   // the same reason `[[id]]` anchors are (§10.1): the HTML travels to
@@ -475,6 +505,10 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   // reading correctly. Not on the wire — see StubCite.
   const citeJson = agreed ? JSON.stringify(await composeStubCite(db, agreed, normalizedOrigin(origin), settings.site_title, now)) : null;
 
+  if (dryRun) return version;
+  // §10.3a: the links this version's text resolves, emitted as `links[]`.
+  const linksFound = await linkEntries(db, strippedMd);
+  const linksJson = linksFound.length ? JSON.stringify(linksFound) : null;
   const hash = await contentHash(strippedMd);
   // The attachments this version shows (§5.4, studio#7): appended ones, and
   // inline ones its text places. Frozen with the version, so dropping one from
@@ -482,8 +516,8 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   const shown = JSON.stringify(visibleMedia(await listMediaForItem(db, item.id), contentHtml).map((m) => m.id));
   const committed = await db.batch([
     db.prepare(
-      "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated, kind) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM items WHERE id = ? AND revision = ?",
-    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0, kind, item.id, item.revision),
+      "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated, kind, links_json) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM items WHERE id = ? AND revision = ?",
+    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0, kind, linksJson, item.id, item.revision),
     // Rows still attached at the write, so a removal racing the publish wins.
     db.prepare("INSERT INTO version_media (item_id, version, media_id) SELECT ?, ?, m.id FROM json_each(?) s JOIN media m ON m.id = s.value WHERE m.item_id = ? AND EXISTS (SELECT 1 FROM items WHERE id = ? AND revision = ?)")
       .bind(item.id, version, shown, item.id, item.id, item.revision),

@@ -12,6 +12,7 @@ import type { Settings } from '../../sdk/dist/browser.js';
 import { settings } from './data.ts';
 import { Button, Failure, mount, useChrome, useSettings } from './components.tsx';
 import { ModelSettings, parseLinks } from './settings.tsx';
+import { DiscoverSheet } from './discover.tsx';
 import { THEMES, CUSTOM_THEME_ID } from '../themes.ts';
 import { FONTS } from '../fonts.ts';
 import { DEFAULT_FEED_ORDER, FEED_ALGORITHMS } from '../feeds/index.ts';
@@ -93,6 +94,7 @@ function Wizard({ initial }: { initial: Settings }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
   const [finished, setFinished] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
   const change = <K extends keyof Settings>(key: K, value: Settings[K]) => setDraft((d) => ({ ...d, [key]: value }));
   // Each step starts at its top; a long step would otherwise open the next mid-page.
   useEffect(() => {
@@ -125,15 +127,22 @@ function Wizard({ initial }: { initial: Settings }) {
     }
   };
 
+  // Discover is offered once the settings are saved, not as a step: subscribing writes at once, and the steps promise nothing is written until the end.
   if (finished)
     return (
       <div className="setup" id="setup-done">
         <h2 className="view-h">Your blyg is set up</h2>
         <p>Every choice can be changed in Settings, and this walk-through can be run again from there.</p>
+        <p>
+          Find blygs to read: blygger.com lists the ones that have asked to be found, with how active each is.
+          Later, ✦ on the reading page opens the same list.
+        </p>
         <p className="setup-nav">
-          <a className="btn btn-primary" href={`${mount}/`} target="_blank" rel="noreferrer">see your home page ↗</a>
+          <Button className="btn btn-primary" id="setup-discover" onClick={() => setDiscovering(true)}>discover blygs</Button>
+          <a className="btn btn-ghost" href={`${mount}/`} target="_blank" rel="noreferrer">see your home page ↗</a>
           <Link className="btn btn-ghost" to="/">start writing</Link>
         </p>
+        <DiscoverSheet open={discovering} onClose={() => setDiscovering(false)} />
       </div>
     );
 

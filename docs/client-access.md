@@ -80,4 +80,4 @@ Protected Studio and API routes refuse plain HTTP outside loopback. For LAN test
 
 ## Mounted REST cutover
 
-Update SDK base URLs to the full API URL advertised by capabilities or OpenAPI. Generated operation paths are relative to that URL. Since 0.49.12 a mounted node also answers host-root `/api` as a deprecated alias for two releases (`Deprecation: true`, a successor `Link`), and REST grants for the former host-root `{origin}/api` audience keep working on both addresses until then; refresh cannot change the approved audience, so move to new consent for `{mount}/api` before the alias is removed. MCP URLs and audiences stay the same. Root deployments retain `/api`.
+Update SDK base URLs to the full API URL advertised by capabilities or OpenAPI. Generated operation paths are relative to that URL. The two-release host-root `/api` compatibility period announced in 0.49.12 has ended. Mounted nodes return 404 at that address and reject REST grants with the former `{origin}/api` audience. Obtain new consent for `{mount}/api`; refreshing a former grant cannot change its audience. MCP URLs and audiences stay the same. Root deployments retain `/api`.

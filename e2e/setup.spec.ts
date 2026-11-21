@@ -50,6 +50,12 @@ test('the setup wizard walks every step and saves only what changed', async ({ p
   await expect(page.locator('#setup-done')).toBeVisible();
   const saved = await stored(page);
   expect(saved).toMatchObject({ siteTitle: title, feedOrder: 'reverse-chronological', setup: 'done' });
+  // The finish screen offers Discover (session 72); blygger.com is answered here.
+  await page.route('https://blygger.com/blygs.json', (route) => route.fulfill({ json: { version: 1, blygs: [] }, headers: { 'access-control-allow-origin': '*' } }));
+  await page.locator('#setup-discover').click();
+  await expect(page.getByRole('dialog', { name: 'discover blygs' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#setup-done')).toBeVisible();
   await page.goto('/studio/settings');
   await expect(page.locator('#setup-banner')).toHaveCount(0);
   expect(errors).toEqual([]);

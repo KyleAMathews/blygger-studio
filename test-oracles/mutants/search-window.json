@@ -1,0 +1,42 @@
+[
+  {
+    "id": "cursor-availability-forgets-cached-extra",
+    "source": "src/ui/cursor-query.ts",
+    "find": "acquired > offset + rows.length",
+    "replace": "false",
+    "intent": "Hide acquired rows after a narrower window when the last native page is terminal.",
+    "author": "Codex (search cursor availability control)"
+  },
+  {
+    "id": "cursor-availability-forgets-continuation",
+    "source": "src/ui/cursor-query.ts",
+    "find": "pages.at(-1)!.nextCursor !== null",
+    "replace": "false",
+    "intent": "Hide a legal unacquired native continuation.",
+    "author": "Codex (search cursor availability control)"
+  },
+  {
+    "id": "cursor-zero-availability-is-false",
+    "source": "src/ui/cursor-query.ts",
+    "find": "if (limit === 0) return { rows: [], hasMore: undefined };",
+    "replace": "if (limit === 0) return { rows: [], hasMore: false };",
+    "intent": "Claim exhaustion despite acquiring no source information.",
+    "author": "Codex (search cursor availability control)"
+  },
+  {
+    "id": "cursor-success-cache-removal-loses-metadata",
+    "source": "src/ui/cursor-query.ts",
+    "find": "const pages = accepted!.pages;",
+    "replace": "const pages = options.queryClient.getQueryData<Pages>(queryKey)?.pages ?? [{ rows, nextCursor: null }];",
+    "intent": "Restore the confirmed fallback that loses successful read availability when native Query removes its reusable entry.",
+    "author": "Codex (GCI01-03 original cache lifetime defect)"
+  },
+  {
+    "id": "cursor-retains-native-page-subscription",
+    "source": "src/ui/cursor-query.ts",
+    "find": "finally { unsubscribe(); finish(); }",
+    "replace": "finally { finish(); }",
+    "intent": "Retain a settled reader's native Query data subscription.",
+    "author": "Codex (settled read reference cleanup control)"
+  }
+]
