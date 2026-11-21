@@ -1,0 +1,26 @@
+[
+  {
+    "id": "sdk-original-falsy-reason-normalization",
+    "source": "sdk/index.ts",
+    "find": "    client.interceptors.error.use((error, _response, request) => {\n      if (request?.signal.aborted && eligibleRequests.has(request)) throw request.signal.reason;\n      return error;\n    });",
+    "replace": "    // Original generated error normalization is left uncorrected.",
+    "intent": "Reintroduce the reviewed defect: generated catch normalizes falsy abort reasons and raw modes resolve cancellation instead of rejecting it.",
+    "author": "SDK review enforcement agent, original SDK-01 review finding"
+  },
+  {
+    "id": "sdk-original-construction-fetch",
+    "source": "sdk/index.ts",
+    "find": "config.fetch ?? ((input, init) => globalThis.fetch(input, init))",
+    "replace": "config.fetch ?? globalThis.fetch",
+    "intent": "Reintroduce SDK-02: freeze the construction-time global fetch despite later instrumentation.",
+    "author": "SDK review enforcement agent, original SDK-02 review finding"
+  },
+  {
+    "id": "sdk-original-passthrough-abort-override",
+    "source": "sdk/index.ts",
+    "find": "request?.signal.aborted && eligibleRequests.has(request)",
+    "replace": "request?.signal.aborted",
+    "intent": "Reintroduce S4: intercept aborted passthrough writes, unmatched GET, explicit validators, Range and HEAD, overriding their raw generated result modes and HTTP errors.",
+    "author": "SDK scope enforcement agent, parent S4 review finding"
+  }
+]

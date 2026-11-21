@@ -70,7 +70,7 @@ Then run `npm run build` (or deploy, which builds), and turn the extension on in
 
 If the build says a vendored tree has changed since it was vendored, something edited `extensions-vendor/<name>/`. `npm run ext:update -- <name> <the locked commit>` restores it, and the build message prints that command. To change a vendored extension, change it upstream and update to the new commit; an edit in place is exactly what the build refuses.
 
-`npm run upgrade` does not touch `extensions-vendor/` or `extensions.local.json`. The extension API has no version and no stability promise ([`mods.md`](mods.md#two-promises-a-mod-keeps)), so after an upgrade the build may fail to compile a vendored extension. Update it to a commit its author has fixed, or remove it.
+`npm run upgrade` does not touch `extensions-vendor/` or `extensions.local.json`. The extension API has no version and no stability promise ([`mods.md`](mods.md#three-promises-a-mod-keeps)), so after an upgrade the build may fail to compile a vendored extension. Update it to a commit its author has fixed, or remove it.
 
 ## Authors: publishing an extension others can vendor
 

@@ -1,3 +1,4 @@
+import type { ChangeSnapshot } from './changes.ts';
 import { cursorPage, type CursorQuery } from './cursor-page.ts';
 
 export interface MentionGroup {
@@ -19,7 +20,7 @@ export type MentionGroupQuery = CursorQuery & {
 /** Select group winners and counts together; timestamps from losing receipts
  * must not move a group ahead of its newest verified receipt.
  */
-export async function mentionGroups(db: D1Database, query: MentionGroupQuery) {
+export async function mentionGroups(db: D1Database, query: MentionGroupQuery, snapshot?: ChangeSnapshot) {
   const groupFilters: string[] = [], binds: string[] = [];
   if (query.targetItemId !== undefined) binds.push(query.targetItemId);
   for (const key of ['verifiedAt', 'lastSeen', 'firstId'] as const) {
@@ -46,7 +47,7 @@ export async function mentionGroups(db: D1Database, query: MentionGroupQuery) {
     )${groupFilters.length ? ` WHERE ${groupFilters.join(' AND ')}` : ''}`,
     binds,
     order: [{ column: 'verifiedAt', direction: 'desc' }, { column: 'lastSeen', direction: 'desc' }, { column: 'firstId', direction: 'asc' }],
-  });
+  }, snapshot);
 }
 
 export async function mentionSummary(db: D1Database) {

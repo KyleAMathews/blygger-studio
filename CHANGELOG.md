@@ -18,6 +18,74 @@ not have its own repo until session 26.
 
 ---
 
+## 0.66.0 — Editor bars and replaceable controls; mentions in natural grammar; two editor fixes
+
+**Editor bars** (#154). A new extension slot, `editorBar`: a bar of controls in a row
+of its own above or below the text box, in the composer and the full editor. An
+extension asks for a row and for room (1–4 blocks); the Studio shares the two rows and
+puts what doesn't fit in the bars menu, the button labelled "bars" at the end of the
+row above, where each bar can also be hidden on this device. A bar can read the
+selection and insert or replace text through the Studio's own edit path, and in the
+full editor show and hide the held-out regions. Focus view leaves the bars out. With no
+bar enabled nothing changes. Template: `extensions/bars-example`; docs:
+`docs/extensions.md` → "Editor bars". This comes from New Nature, which inserts
+citations at the cursor and owns its chapter navigation.
+
+**Replaceable controls** (decision #113). A short named list of the Studio's own
+controls an extension may replace, not a general override. Every entry keeps one
+contract: the replacement drives the Studio's own state; one owner, the first claimant
+in compiled order, told so in `context.bar.owns`; the Studio's control comes back
+whenever the owner is not standing in for it (hidden, in the menu, crashed, or in
+focus view); keyboard and label parity. The first entry is `regionToggle`, the
+held-out notice beside the counts (`editorBar.replaces: ['regionToggle']`). A bar that
+inserts model-generated text must disclose it, through the generate endpoint or as
+`[TK]impyrt …[/TK]`; `docs/mods.md` adds this as a mod's third promise.
+
+**Mentions in natural grammar** (#158). `@mike's case` and `a @mike-driven agenda`
+both link Mike. A handle that names no contact falls back to its longest prefix ending
+before a `-` or `_` that does; an exact or longer handle still wins. The `@` picker
+still inserts `@handle ` with a space, but a possessive, hyphen or closing punctuation
+typed straight after the pick takes the space's place.
+
+**Fixes** (#157). Clicking into a finished `[[id | label]]` no longer reopens the
+`[[` / `![[` picker or, on a touch screen, takes the keyboard: the picker stays shut
+inside closed brackets and past a label's `|`. Shift+Enter no longer writes the
+backslash line break: an iPad's on-screen keyboard, with Shift on after a full stop,
+sends Shift+Enter for Return, so stray backslashes appeared. Enter is always a plain
+newline; the break comes from typing `\` or the toolbar's line-break button.
+
+`GET /changes` still answers in this release, as announced; it goes in 0.67.0.
+
+Private contract 5.14.0, SDK 0.20.0 (unchanged). **Migrations:** none.
+
+## 0.65.0 — Conditional resource reads; the host-root `/api` alias removed
+
+**Poll resources with ETags** (#152). Private resource GETs accept
+`If-None-Match` and return a bodyless `304` when their representation is
+unchanged. Validators are opaque. The SDK's optional `conditionalReads`
+setting reuses a schema-validated body with its matching validator; ordinary
+HTTP clients can use the same endpoints directly. Studio refreshes resources
+after writes without a `/changes` preflight and automatically reacquires reads
+superseded by a write while preserving explicit cancellation and real failures.
+
+**Change counters deprecated, with two releases to migrate.** `GET /changes`
+and SDK `getChanges` retain their existing behavior in 0.65.0 and 0.66.0, marked
+deprecated in OpenAPI and the SDK. They will be removed in 0.67.0 with private
+contract 6.0.0. Tools should poll the resources they need with conditional GETs.
+
+**The host-root `/api` alias is gone** (#151). It was kept for two releases after
+0.49.12 moved the private API under the mount, and its window has run out. Mounted
+installations (a studio at `example.com/blyg/`, say) now serve the private API only at
+`{mount}/api`. Tools using the former host-root `/api` address or token audience must
+rediscover the endpoint and authorize access to the mounted resource again. A studio
+on its own subdomain is unaffected.
+
+**Tooling.** The oracle suites run on `@tanstack/oracles` (#151), and CI runs the one
+WebKit browser test in its own job, so a slow package mirror cannot hold up the
+Chromium suite. Nothing an operator runs changes.
+
+Private contract 5.14.0, SDK 0.20.0. **Migrations:** none.
+
 ## 0.64.1 — Security: Hono and fast-xml-parser upgrades
 
 **Upgrade if you run your own node.** Hono, the framework that routes every request, goes

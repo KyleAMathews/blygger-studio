@@ -26,7 +26,7 @@ jobs:
         with:
           node-version: 22.18.0
           cache: npm
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps
       - run: npm run release:check
         env:
           RELEASE_RETRY_COMMIT: ${{ github.sha }}
@@ -62,7 +62,28 @@ jobs:
           echo "Timed out waiting for Check on $GITHUB_SHA" >&2; exit 1
       - run: npm run sdk:generate
       - run: npm run typecheck
+      - run: npm run lint:oracles
+      - run: npm run check:oracle-migration
       - run: git diff --exit-code -- openapi.json sdk/generated sdk/generation.json
+      # Match Check's native SQLite oracle provider, including embedded NUL text.
+      - if: steps.checked.outputs.tested != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+      - if: steps.checked.outputs.tested != 'true'
+        run: npm run test:oracles:studio
+      - if: steps.checked.outputs.tested != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+      - if: steps.checked.outputs.tested != 'true'
+        run: npm run test:oracles:conditional:worker
+      - if: steps.checked.outputs.tested != 'true'
+        run: npm run test:oracles:contracts
+      - if: steps.checked.outputs.tested != 'true'
+        run: npm run test:oracles:runtime
+      - if: steps.checked.outputs.tested != 'true'
+        run: npm run test:oracles:worker
       - if: steps.checked.outputs.tested != 'true'
         run: npm run test:ui -- --maxWorkers=2
       - if: steps.checked.outputs.tested != 'true'
@@ -75,6 +96,10 @@ jobs:
       - run: npx playwright install --with-deps chromium webkit
       - if: steps.checked.outputs.tested != 'true'
         run: npm run test:e2e
+      - if: steps.checked.outputs.tested != 'true'
+        run: npm run test:oracles:browser
+      - if: steps.checked.outputs.tested != 'true'
+        run: npm run test:oracles:browser:search
       - run: npm run release:build
         env:
           RELEASE_TAG: ${{ steps.version.outputs.tag }}

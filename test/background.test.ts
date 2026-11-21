@@ -1,3 +1,4 @@
+import { readChanges } from '../src/changes.ts';
 // Background and Foreground in the reader, phase 1 (blygger-spec
 // docs/background-plan.md §7.1): the owner's placement on an entry and on a
 // blyg, the precedence between them and the rules, own items' `minor` from the
@@ -30,7 +31,7 @@ async function reading(cookie: string, query: string) {
 const keys = (rows: { key: string }[]) => rows.map((row) => row.key);
 const place = (cookie: string, body: Record<string, unknown>) => apiJson(cookie, "PUT", "/blyg/api/reading/placement", body);
 async function changes(cookie: string) {
-  return (await apiJson(cookie, "GET", "/blyg/api/changes")).json.domains as Record<string, number>;
+  return (await readChanges(db())).domains;
 }
 
 describe("the owner's placement", () => {

@@ -1,0 +1,18 @@
+[
+  {
+    "source": "src/cursor-page.ts",
+    "find": "for (const row of selected) keys = source.order.map(entry => {",
+    "replace": "for (const row of selected.slice(-1)) keys = source.order.map(entry => {",
+    "author": "Codex, from confirmed CG-R01 and the approved returned-key law",
+    "id": "cursor-validates-only-final-row",
+    "intent": "Restore the original defect: publish unsupported or nonfinite keys in earlier selected rows when the final row has valid sort keys."
+  },
+  {
+    "source": "src/cursor-page.ts",
+    "find": "await source.project([...selected])",
+    "replace": "await source.project(selected)",
+    "author": "Codex, from confirmed CG-R02 and the approved returned-key law",
+    "id": "cursor-projection-erases-selection",
+    "intent": "Let destructive projection array edits erase the selected rows before sort-key validation and cursor construction."
+  }
+]

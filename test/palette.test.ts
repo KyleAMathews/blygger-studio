@@ -23,6 +23,34 @@ function at(withCaret: string, allowTransclude = true): Trigger {
   return trigger(withCaret.replace("|", ""), caret, allowTransclude);
 }
 
+describe("paletteTrigger — a reference already written is edited, not picked (session 76)", () => {
+  /** The caret at the first `^`, since `|` is the label separator here. */
+  const caretAt = (marked: string, allowTransclude = true) =>
+    trigger(marked.replace("^", ""), marked.indexOf("^"), allowTransclude);
+
+  it("stays shut inside a closed link, quote or source", () => {
+    expect(caretAt("see [[abc^def]] here")).toBeNull();
+    expect(caretAt("see [[^abc]]")).toBeNull();
+    expect(caretAt("![[abc^]]")).toBeNull();
+    expect(caretAt("[TK]summarise ![[x^yz]] in brief[/TK]")).toBeNull();
+  });
+
+  it("stays shut in a label, closed or still being written", () => {
+    expect(caretAt("see [[abc | some lab^el]] here")).toBeNull();
+    expect(caretAt("![[abc | a no^te]]")).toBeNull();
+    expect(caretAt("see [[abc | still typing^")).toBeNull();
+    expect(caretAt("see [[abc |^")).toBeNull();
+  });
+
+  it("still opens for brackets being typed, even with a finished reference later on the line", () => {
+    expect(caretAt("see [[^ and also [[abc]]")).toMatchObject({ form: "link", query: "", start: 4 });
+    expect(caretAt("see [[ab^ and [[abc | label]]")).toMatchObject({ form: "link", query: "ab" });
+    // A `]]` on the next line closes nothing on this one.
+    expect(caretAt("see [[ab^\nnext]]")).toMatchObject({ form: "link", query: "ab" });
+    expect(caretAt("![[q^")).toMatchObject({ form: "transclude", query: "q" });
+  });
+});
+
 describe("paletteTrigger — which bracket form the caret is in", () => {
   it("offers the directive for `![[` alone on its line", () => {
     expect(at("![[|")).toMatchObject({ form: "transclude", query: "", start: 0 });

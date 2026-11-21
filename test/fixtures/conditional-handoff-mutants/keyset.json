@@ -1,0 +1,34 @@
+[
+  {
+    "id": "keyset-retains-descending-null-tail",
+    "source": "src/cursor-page.ts",
+    "find": "if (value === null && direction === 'desc') continue;",
+    "replace": "if (false) continue;",
+    "intent": "Restart a descending NULL tail at non-NULL rows instead of omitting its empty range.",
+    "author": "Codex (self-generated from confirmed NULL/direction/prefix keyset coverage gaps)"
+  },
+  {
+    "id": "keyset-inverts-null-direction",
+    "source": "src/cursor-page.ts",
+    "find": "value === null && direction === 'desc'",
+    "replace": "value === null && direction !== 'desc'",
+    "intent": "Apply descending NULL-tail omission to the ascending branch and keep the descending branch.",
+    "author": "Codex (self-generated from confirmed NULL/direction/prefix keyset coverage gaps)"
+  },
+  {
+    "id": "keyset-unions-prefix-equality",
+    "source": "src/cursor-page.ts",
+    "find": "sql: [...prefix, comparison].join(' AND ')",
+    "replace": "sql: [...prefix, comparison].join(' OR ')",
+    "intent": "Broaden a disjoint keyset range by combining tied prefix equality with OR instead of AND.",
+    "author": "Codex (self-generated from confirmed NULL/direction/prefix keyset coverage gaps)"
+  },
+  {
+    "id": "cursor-five-ranges-scan",
+    "source": "src/cursor-page.ts",
+    "find": "ranges && ranges.length <= 5",
+    "replace": "ranges && ranges.length < 5",
+    "intent": "Replace the optimized five-range index seek with an equal-result ordered OR scan, violating the existing deep-page work bound.",
+    "author": "Codex (from preserved test/cursor-range.test.ts indexed work authority and surviving native operatorM151)"
+  }
+]

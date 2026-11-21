@@ -20,11 +20,12 @@ export const ErrorSchema = z.object({
 }).strict().openapi("ApiError");
 
 export function route<P extends string>(id: string, policy: OperationPolicy, method: RouteConfig["method"], path: P, response: z.ZodType, body?: z.ZodType, status = 200, query?: z.ZodObject, optionalBody = false): RouteConfig & { path: P; policy: OperationPolicy } {
+  const conditional = method === 'get' && id !== 'getChanges';
   if (body instanceof z.ZodObject) body = body.strict();
   const params = Object.fromEntries([...path.matchAll(/\{(\w+)\}/g)].map((m) => [m[1], ["v", "version"].includes(m[1]) ? z.coerce.number().int().positive() : z.string().min(1)]));
   return createRoute({ policy,
     operationId: id, method, path, ...(body ? { middleware: optionalBody ? optionalJsonBody : undefined } : {}), tags: ["studio"], security: [{ ownerSession: [] }],
-    request: { ...(Object.keys(params).length ? { params: z.object(params) } : {}), ...(query ? { query } : {}), ...(body ? { body: { required: !optionalBody, content: json(body) } } : {}) },
-    responses: { [status]: { description: "Success", content: json(response) }, ...Object.fromEntries([400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 500, 502].map((s) => [s, { description: "Request failed", content: json(ErrorSchema) }])) },
+    request: { ...(conditional ? { headers: z.object({ 'if-none-match': z.string().optional().describe('Previously accepted ETag for this exact resource and request context.') }) } : {}), ...(Object.keys(params).length ? { params: z.object(params) } : {}), ...(query ? { query } : {}), ...(body ? { body: { required: !optionalBody, content: json(body) } } : {}) },
+    responses: { [status]: { description: "Success", content: json(response), ...(conditional ? { headers: { ETag: { schema: { type: 'string' }, description: 'Validator for this representation.' } } } : {}) }, ...(conditional ? { 304: { description: 'Not modified. No body; reuse the representation paired with the supplied ETag.', headers: { ETag: { schema: { type: 'string' as const } } } } } : {}), ...Object.fromEntries([400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 500, 502].map((s) => [s, { description: "Request failed", content: json(ErrorSchema) }])) },
   });
 }

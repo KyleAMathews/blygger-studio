@@ -1,5 +1,6 @@
 // The Mentions lens's index: which identifiers an imported item's own h-cards name.
 import { normalizeMentionTarget } from "../mention-targets.ts";
+import type { Element as RewriterElement } from "@cloudflare/workers-types/index.ts";
 
 const CARD_URL = ".h-card .u-url, a.h-card";
 
@@ -9,7 +10,7 @@ export async function mentionTargets(html: string): Promise<string[]> {
   const found = new Set<string>();
   let quoted = false;
   const add = {
-    element(el: Element) {
+    element(el: RewriterElement) {
       const value = el.getAttribute("href") ?? el.getAttribute("value");
       if (value && !quoted) found.add(normalizeMentionTarget(value));
       quoted = false;

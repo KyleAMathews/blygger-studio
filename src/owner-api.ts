@@ -33,7 +33,7 @@ const methodInventory = [...compiledRoutes, ...Object.values(authRoutes), { path
 ownerApi.use('*', async (c, next) => {
   c.header('Cache-Control', 'no-store');
   await next();
-  c.header('Cache-Control', 'no-store');
+  c.header('Cache-Control', ['GET', 'HEAD'].includes(c.req.method) && [200, 304].includes(c.res.status) && c.res.headers.has('etag') ? 'private, no-cache' : 'no-store');
 });
 ownerApi.use('*', (c, next) => bodyLimit({ maxSize: securityLimit(c.env.API_BODY_LIMIT, 8 * 1024 * 1024), onError: c => c.json(statusError(413, 'request body exceeds byte limit'), 413) })(c, next));
 ownerApi.use("*", async (c, next) => {

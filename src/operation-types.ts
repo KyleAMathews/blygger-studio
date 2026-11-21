@@ -1,10 +1,12 @@
 import { failureBody } from './api-error.ts';
+import type { ChangeSnapshot } from './changes.ts';
 import type { Env } from './types.ts';
 import type { OwnerAccess } from './permissions.ts';
 import type { ServerExtension } from './extensions/server.ts';
 
 export interface MediaInput {
-  file?: { bytes: Uint8Array; mime: string; name: string };
+  /** REST multipart and MCP decoding allocate an ArrayBuffer-backed file. */
+  file?: { bytes: Uint8Array<ArrayBuffer>; mime: string; name: string };
   itemId?: string;
   expectedRevision?: number;
   alt?: string;
@@ -22,6 +24,8 @@ export interface OperationContext {
   url: string;
   access: OwnerAccess | null;
   extensions: readonly ServerExtension[];
+  /** Per-operation cursor generation proof for the conditional HTTP adapter. */
+  conditionalSnapshot?: ChangeSnapshot;
   defer(task: Promise<unknown>): void;
 }
 export const FAILURE_STATUS = {

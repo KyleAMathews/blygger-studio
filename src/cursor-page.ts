@@ -1,4 +1,4 @@
-import { readChanges } from './changes.ts';
+import { readChanges, type ChangeSnapshot } from './changes.ts';
 import type { ChangeDomain, ChangeState } from './change-state.ts';
 
 export const CURSOR_MAX = 8192;
@@ -34,14 +34,16 @@ function encode(value: unknown): string {
 }
 function decode(raw: string): { version: 1; source: string; generation: Generation; after: Key[] } {
   if (!raw || raw.length > CURSOR_MAX || !/^[A-Za-z0-9_-]+$/.test(raw)) throw invalid();
+  let value;
   try {
     const binary = atob(raw.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - raw.length % 4) % 4));
-    const value = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(Uint8Array.from(binary, char => char.charCodeAt(0))));
-    if (value?.version !== 1 || typeof value.source !== 'string' || !value.generation || typeof value.generation.epoch !== 'string' ||
-        !Array.isArray(value.generation.revisions) || !value.generation.revisions.every((v: unknown) => Number.isSafeInteger(v) && Number(v) >= 0) ||
-        !Array.isArray(value.after) || !value.after.every((v: unknown) => v === null || typeof v === 'string' || typeof v === 'number' && Number.isFinite(v))) throw invalid();
-    return value;
+    // Cloudflare's type requires ignoreBOM, although the native option is optional.
+    value = JSON.parse(new TextDecoder('utf-8', { fatal: true } as ConstructorParameters<typeof TextDecoder>[1]).decode(Uint8Array.from(binary, char => char.charCodeAt(0))));
   } catch { throw invalid(); }
+  if (value?.version !== 1 || typeof value.source !== 'string' || !value.generation || typeof value.generation.epoch !== 'string' ||
+      !Array.isArray(value.generation.revisions) || !value.generation.revisions.every((v: unknown) => Number.isSafeInteger(v) && Number(v) >= 0) ||
+      !Array.isArray(value.after) || !value.after.every((v: unknown) => v === null || typeof v === 'string' || typeof v === 'number' && Number.isFinite(v))) throw invalid();
+  return value;
 }
 async function sourceKey(source: Pick<CursorSource<unknown>, 'name' | 'filters' | 'order' | 'domains'>): Promise<string> {
   // Source declarations supply canonical filter tuples. SQL names never come from cursors.
@@ -79,14 +81,15 @@ export async function cursorPage<Row extends object, Result = Row>(
   db: D1Database,
   query: CursorQuery,
   source: CursorSource<Row, Result>,
+  snapshot?: ChangeSnapshot,
 ): Promise<{ items: Result[]; page: Page }> {
   const limit = query.limit === undefined ? 100 : Number(query.limit);
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new CursorPageError('invalid-input', 'invalid-input', 'limit must be an integer from 1 to 100');
   if (!source.order.length) throw new Error('Cursor source requires a unique total order');
   const identity = await sourceKey(source), cursor = query.cursor === undefined ? null : decode(query.cursor);
   if (cursor && (cursor.source !== identity || cursor.after.length !== source.order.length)) throw invalid();
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const before = generation(await readChanges(db), source.domains);
+  const attempt = async (initial?: ChangeState) => {
+    const before = generation(initial ?? await readChanges(db), source.domains);
     if (cursor && !same(cursor.generation, before)) throw expired();
     const ranges = cursor ? afterRanges(source.order, cursor.after) : null;
     const order = source.order.map(entry => `${column(entry.column)} ${entry.direction.toUpperCase()}`).join(', ');
@@ -105,16 +108,27 @@ export async function cursorPage<Row extends object, Result = Row>(
     const rows = (await db.prepare(sql)
       .bind(...(source.binds ?? []), ...(ranges?.flatMap(range => range.binds) ?? []), limit + 1).all<Row>()).results;
     const selected = rows.slice(0, limit);
-    const items = source.project ? await source.project(selected) : selected as unknown as Result[];
-    const current = generation(await readChanges(db), source.domains);
-    if (!same(before, current)) { if (!cursor && attempt === 0) continue; throw expired(); }
-    const last = selected.at(-1);
-    const keys = last ? source.order.map(entry => {
-      const value = (last as Record<string, unknown>)[entry.column];
+    // Projection may drain or reorder its argument; retain the selected sequence.
+    const items = source.project ? await source.project([...selected]) : selected as unknown as Result[];
+    const complete = await readChanges(db);
+    const current = generation(complete, source.domains);
+    if (!same(before, current)) return;
+    let keys: unknown[] | undefined;
+    // Every returned row must have supported sort keys, including rows before
+    // the final boundary. Projection can mutate the selected source rows.
+    for (const row of selected) keys = source.order.map(entry => {
+      const value = (row as Record<string, unknown>)[entry.column];
       if (value !== null && typeof value !== 'string' && (typeof value !== 'number' || !Number.isFinite(value))) throw new Error('Invalid collection cursor key');
       return value;
-    }) : [];
-    return { items, page: { limit, nextCursor: rows.length > limit && last ? encode({ version: 1, source: identity, generation: before, after: keys }) : null } };
-  }
-  throw expired();
+    });
+    const page = { limit, nextCursor: rows.length > limit ? encode({ version: 1, source: identity, generation: before, after: keys }) : null };
+    if (snapshot) snapshot.after = complete;
+    return { items, page };
+  };
+  const first = await attempt(snapshot?.before);
+  if (first) return first;
+  if (cursor) throw expired();
+  const retry = await attempt();
+  if (!retry) throw expired();
+  return retry;
 }

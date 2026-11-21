@@ -136,7 +136,7 @@ describe('Tab and Shift+Tab on list lines', () => {
   });
 });
 
-describe('Shift+Enter', () => {
+describe('the line-break button', () => {
   const brk = (marked: string) => apply(marked, breakEdit);
   it.each([
     ['Tyger Tyger, burning bright,|', 'Tyger Tyger, burning bright,\\\n|'],
@@ -174,10 +174,12 @@ describe('the code block button', () => {
 describe('which keys are structure', () => {
   const key = (key: string, mods: Partial<Record<'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey', boolean>> = {}) =>
     structureKey({ key, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...mods });
-  it('Tab, Shift+Tab and Shift+Enter, and nothing with a command key', () => {
+  it('Tab and Shift+Tab, never Enter, and nothing with a command key', () => {
     expect(key('Tab')).toBe('indent');
     expect(key('Tab', { shiftKey: true })).toBe('outdent');
-    expect(key('Enter', { shiftKey: true })).toBe('break');
+    // An iPad keyboard with Shift on after a full stop sends Shift+Enter for Return:
+    // it must stay a plain newline, never the backslash break.
+    expect(key('Enter', { shiftKey: true })).toBeNull();
     expect(key('Enter')).toBeNull();
     // Cmd/Ctrl+Shift+Enter is the focus view's; Ctrl+Tab is the browser's.
     expect(key('Enter', { shiftKey: true, metaKey: true })).toBeNull();

@@ -158,8 +158,10 @@ saying so.
 
 ## Status
 
+**0.66.0** (session 76, 2026-11-20): editor bars (#154; the `editorBar` slot, `barPlacement`/`useEditorBars` in `src/ui/extensions.tsx`, `useBars` in `authoring.tsx`, the labelled bars menu, `blyg.editorBars.hidden`) and **replaceable controls** (decision #113; `ReplaceableControl`, `editorBar.replaces`, `context.bar.owns`, `barReplaces`, the boundary's `onFail` handing a crashed owner's control back; first entry `regionToggle`); mentions in natural grammar (#158; `handleCandidates` in `src/contacts.ts`, `punctuationAfterPick` in `src/ui/handle-trigger.ts`); the picker stays shut in a written reference (#157, `written` in `src/palette.ts`) and Shift+Enter is a plain newline (no key writes the backslash break). Private contract 5.14.0, SDK 0.20.0 (unchanged). **Migrations:** none.
+**0.65.0** (session 75, 2026-11-19): Kyle Mathews' #152, conditional reads (private resource GETs take `If-None-Match` and answer a bodyless `304`; the SDK's optional `conditionalReads`; the studio refreshes after writes with no `/changes` preflight) and `/changes` deprecated under decision #111 (answers in 0.65.0 and 0.66.0, removed in 0.67.0 with contract 6.0.0, ROADMAP row 133); his #151, the oracle suites on `@tanstack/oracles`, which also **removes the host-root `/api` alias** (mounted nodes serve only `{mount}/api`; `venkateshrao.com/api` now 404s). CI: WebKit's one test has its own `e2e-webkit` job; `check:fixtures` sends the workflow token (an anonymous 403 failed the release Check once). Private contract 5.14.0, SDK 0.20.0. **Migrations:** none. Live on venkateshrao, PI and blyg.blygger.org.
 **0.64.1** (session 74, 2026-11-19): security upgrades, Hono 4.13.14 → 4.13.18 (five advisories, one the router skipping wildcard middleware, which is how the sign-in checks attach) and fast-xml-parser 5.11.2 → 5.12.1; supply-chain inventory in studio#153.
-**0.64.0** (session 74, 2026-11-19): studio#88 merged (Shannon's Base UI primitives; `src/ui/primitives.tsx`, toasts in `src/ui/sheets.tsx` on Base UI, phone toasts at the top so a WebKit hover cannot pause them); her `mobile-webkit` e2e project restored (`e54af45`: WebKit drops the Secure session cookie over the suite's http, so `cosmetics.spec.ts`'s login hands it over without Secure); link notices listed apart on the responses page (`MentionGroup.links`, `visible` excludes links); tangling fixes (a dropped part named in the publish warning, `droppedPartsNote` in `src/api.ts`; spans out of bounds in `src/ui/stub-quote.ts`). Private contract 5.13.0, SDK 0.19.0. **Migrations:** none. CI: the e2e job installs WebKit's apt packages, which can take 35 minutes on a slow Ubuntu mirror; moving WebKit to its own job is carried.
+**0.64.0** (session 74, 2026-11-19): studio#88 merged (Shannon's Base UI primitives; `src/ui/primitives.tsx`, toasts in `src/ui/sheets.tsx` on Base UI, phone toasts at the top so a WebKit hover cannot pause them); her `mobile-webkit` e2e project restored (`e54af45`: WebKit drops the Secure session cookie over the suite's http, so `cosmetics.spec.ts`'s login hands it over without Secure); link notices listed apart on the responses page (`MentionGroup.links`, `visible` excludes links); tangling fixes (a dropped part named in the publish warning, `droppedPartsNote` in `src/api.ts`; spans out of bounds in `src/ui/stub-quote.ts`). Private contract 5.13.0, SDK 0.19.0. **Migrations:** none. CI: WebKit's apt packages took 35 minutes on a slow Ubuntu mirror; 0.65.0 moved WebKit to its own job.
 **0.63.0** (session 74, 2026-11-18): **tangling** (row 45, decisions #78, #100; `src/tangle.ts` `parseTangles`/`rewriteTangles`/`placeholderBody`, `publishTangled` in `src/api.ts`: dry-run pre-flight, the `tangle: true` gate answering 409 `tangle-confirmation-required`, one batch minting parts with `tangled_from`, parts published before the thread, a stopped tangle finished by the next publish); **`[[+ text]]` placeholders** (row 130); **`links[]` on the wire** (row 77, #79: `linkEntries` in `src/transclusion.ts`, `versions.links_json`, emitted in item and pinned documents, imported) and **`link` mentions** (sent for remote entries, `relationTo` ranks `link` last, `listPublicResponses` leaves them out); the **fold by link** in `src/background.ts` (own items only when `tangled_from` names the thread; imported ones within `LINK_BURST_WINDOW_MS` and only when `saysNoMoreThanLink`, #112); **local patches** (`npm run patches`, `build/patches.ts`, the Settings line, `upgrade.ts` lists them). Private contract 5.12.0, SDK 0.18.0. **Migrations 0047, 0048.** Reader suite 100 of 100.
 **0.62.0** (session 72, 2026-11-16): mathematics (#149, decision #105; `src/math.ts`, `src/math-render.ts`, `temml` in the Worker only, the build fails if it reaches the browser bundle; the sanitizer redraws every imported formula from its TeX annotation) and the **burst fold** (Background reordered for tangling): `src/burst.ts` (`BURST_WINDOW_MS`, `withinBurst`, `clampedTime`) shared with the pace-layered `findBursts`; `settleImportedBackground` runs in `applyEffect`, `settleOwnBackground` at publish; rules `burst`, `wordless` (`isWordless` = §15.4's test via `extractDirectives`), `maintenance`; `ReadingEntry.parts` gives a thread's **+N parts**. A settings PATCH may name only the Background rules it changes (`BackgroundRulesPatchSchema`). Private contract 5.11.0, SDK 0.17.0. No migration. Pending call #15: no-vendoring covers client-side JavaScript only.
 **0.61.0** (session 72, 2026-11-15): the Reading redesign — lenses All, Mentions, Smart Feed, Fragments, Threads, Shelf, Background; the Shelf (#137, Aneesh; `src/shelf.ts`, `GET/PUT /shelf` with required `expectedRevision`) with a Shelf lens (`shelf=true` on `/reading` and `/reading/summary`, `shelfIdentitySql`) and **+ add to shelf** on every entry; Background phase 1 + 4a (`src/background.ts`, `PUT /reading/placement`); `citedUrl` names the item document for an unheld item. Private contract 5.10.0, SDK 0.16.0. **Migrations 0044, 0046.**
@@ -685,3 +687,78 @@ project's **local config**; it adds to the base and never replaces it.
 - **Wrap-up extras (after W5):** update `../blygger-spec/ROADMAP.md` (W5b in `../blygger-spec/CLAUDE.md`)
 - **Deploy policy:** `wrangler`-based; authenticate with `wrangler login`, always `--name` for secrets; only on request.
 - **Carry-overs (S6):** none
+
+<!-- BEGIN @tanstack/oracles (template 4) -->
+
+## Oracle tests
+
+This repository tests its design with `@tanstack/oracles`. An oracle
+captures the code's design as laws and enforces them against an independent
+model. Work oracle first, production second.
+
+**Who owns what.** The laws belong to the people who maintain this
+repository: what the code promises, the authority for each promise, and its
+limits. Propose a law, but do not adopt or change one without their
+approval. The production code that the oracles own is yours. Whenever you
+change it, do a good job, not a minimal or lazy one: the fast, small,
+elegant version, as an optimizing compiler for the oracle would write it.
+Anything that keeps every oracle passing is allowed, so a big refactor is
+fine when it makes the code better; the oracle is the review. Keep it in
+proportion to the task: improve the code the work touches, and when you see
+a larger win elsewhere, offer it instead of turning the task into a long
+optimization project.
+
+**How the work goes.**
+
+- **Probe first.** Before you propose anything, call the real code with
+  small scripts and show what they print. Every law and every finding comes
+  with a probe that can be rerun.
+- **Propose the laws, then build only the approved ones.** Each law is a
+  "For every …" sentence with where its promise is written: the docs, a
+  test, or a maintainer's decision. A question nobody has decided is fine:
+  state it as a limit.
+- **Red first, like TDD, but the oracle goes red.** A bug becomes a law and
+  a history that fail on the unchanged code. Then fix production at once,
+  and show the run going green.
+- **Never weaken or quarantine an oracle:** no skip, no `test.fails`, no
+  loosened expectation, no switch that turns a check off.
+- **Build the strongest model the laws need.** Compare every observable
+  result they speak about. The model states the rule a user relies on,
+  never the code's algorithm, even when the docs describe that algorithm.
+  Give each law a calibration: a wrong answer the check must reject.
+- **Run the oracles only through the gap check, never Vitest alone.** It
+  prints each test file's result first, then each gap as it is judged, and
+  ends with one `oracle-gaps: done` line. A run
+  can take minutes: start it in the background with output to a log at a
+  path of its own (never a fixed path under `/tmp`), and read the new lines
+  every few seconds, acting on a failure first. Stop a
+  run only by the process ID you recorded, never by name.
+- **Green is not done.** A gap is a change to the owned code that no law
+  notices. There are no equivalent mutants: never call one equivalent.
+  Widen the histories or the check until the oracle sees it, and keep going
+  until a bug or a design question turns up.
+- **Report classes of bugs:** the rule broken, and the measured share of
+  generated inputs that break it. Never call one minor.
+
+**Skills.**
+
+- To explore an area of the code (or the whole repository), find where an
+  oracle would help, or propose a new one, read
+  `node_modules/@tanstack/oracles/skills/oracles-explore/SKILL.md` in full
+  and follow it.
+- Before you create or change an oracle, or change production code that an
+  oracle owns, read `node_modules/@tanstack/oracles/skills/oracles-design/SKILL.md`
+  in full and follow it.
+- Before you review oracle work, read
+  `node_modules/@tanstack/oracles/skills/oracles-review/SKILL.md` in full.
+- Before you act on review findings, read
+  `node_modules/@tanstack/oracles/skills/oracles-evaluate-review/SKILL.md` in
+  full.
+- Lint each oracle file and each changed production file after you edit it.
+  Fix every report. Do not disable a rule.
+- Oracle files: `{test,test-ui,test-browser,test-oracles}/**/*.oracle.test.ts`.
+  Gap checks: `npm run test:oracles` (all runtimes), or
+  `npm run test:oracles:worker`, `npm run test:oracles:studio`, and
+  `npm run test:oracles:browser`. Ordinary Worker/UI commands exclude oracle files.
+
+<!-- END @tanstack/oracles -->

@@ -1,0 +1,26 @@
+[
+  {
+    "source": "src/changes.ts",
+    "find": "typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0",
+    "author": "Codex, self-generated from approved counter law and automatic gap evidence",
+    "id": "counter-validation-disabled",
+    "replace": "false",
+    "intent": "Accept invalid provider counters by bypassing validation entirely; preserves automatic M11 control."
+  },
+  {
+    "source": "src/changes.ts",
+    "find": "typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0",
+    "author": "Codex, self-generated from approved counter law and automatic gap evidence",
+    "id": "counter-guards-conjoined",
+    "replace": "(typeof value !== 'number' || !Number.isSafeInteger(value)) && value < 0",
+    "intent": "Conjoin the type/integer rejection with negativity so missing and fractional counters escape; preserves automatic M12 control."
+  },
+  {
+    "source": "src/changes.ts",
+    "find": "typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0",
+    "author": "Codex, self-generated from approved counter law and automatic gap evidence",
+    "id": "counter-type-and-integer-conjoined",
+    "replace": "typeof value !== 'number' && !Number.isSafeInteger(value) || value < 0",
+    "intent": "Conjoin type and safe-integer rejection so numeric fractions and nonfinite or unsafe counters escape; preserves automatic M13 control."
+  }
+]

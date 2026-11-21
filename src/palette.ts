@@ -14,7 +14,28 @@ function inTkInstruction(text: string, caret: number): boolean {
   var tail = before.slice(open + 4);
   return tail.indexOf("[=]") < 0 && tail.indexOf("[/TK]") < 0 && !/^\s*impyrt\b/.test(tail);
 }
+/**
+ * Whether the brackets the caret is in are already written: being edited, not typed.
+ * They are when a `]]` closes them later on the line, before any new `[[`, or when the
+ * caret is past the label's `|` (#70), where the author is writing words, not choosing
+ * an item. Clicking into a finished `[[id | label]]` used to reopen the picker and,
+ * on a touch screen, take the keyboard (Venkat, session 76).
+ */
+function written(text: string, caret: number, query: string): boolean {
+  if (query.indexOf("|") >= 0) return true;
+  var lineEnd = text.indexOf("\n", caret);
+  var rest = text.slice(caret, lineEnd < 0 ? text.length : lineEnd);
+  var close = rest.indexOf("]]");
+  var reopen = rest.indexOf("[[");
+  return close >= 0 && (reopen < 0 || close < reopen);
+}
+
 export function paletteTrigger(text: string, caret: number, allowTransclude: boolean): Trigger {
+  var found = bracketAt(text, caret, allowTransclude);
+  return found && written(text, caret, found.query) ? null : found;
+}
+
+function bracketAt(text: string, caret: number, allowTransclude: boolean): Trigger {
   var lineStart = text.lastIndexOf("\n", caret - 1) + 1;
   var prefix = text.slice(lineStart, caret);
   var i = 0;

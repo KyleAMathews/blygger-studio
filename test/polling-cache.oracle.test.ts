@@ -1,4 +1,19 @@
 /**
+ * This oracle owns source invalidation and feed publication at the real Worker
+ * HTTP boundary, including the deprecated /changes receiver for two releases.
+ * It owns src/changes.ts and src/feed-cache.ts with their receiving handlers.
+ *
+ * GET /blyg/api/changes // → full epoch/domain token, no-store with owner access
+ * GET /blyg/api/changes // → 401, no-store without owner access
+ * GET /blyg/api/changes + If-None-Match: * // → full token, 200, no-store
+ * GET /blyg/feed.xml // → a complete saved legal source rendering
+ *
+ * Resource validators do not replace the legacy polling response: its existing
+ * callers must still receive source identities while Studio polls resources.
+ * For every authorized legacy read, the complete epoch/domain token is returned
+ * with no-store and no ETag, including when a caller supplies If-None-Match. Decision by
+ * Kyle Mathews (GitHub KyleAMathews), 2026-11-19: retain /changes unchanged for
+ * two releases, deprecate it now and remove it in the third release.
  * Contract: design v3 P1–P10/R1–R9 and minute feed/daily maintenance jobs.
  * Reference: polling-cache-oracle-model.ts.
  * Driver: real D1/R2 bindings, real makeApp feed/change HTTP routes, and direct
@@ -13,15 +28,18 @@
  * it does not establish quotas, global single-flight or bounded stale time.
  */
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test';
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, vi } from 'vitest';
+import { oracleProperty, differs, pass, type Observation, type Verdict } from '@tanstack/oracles';
+import { withOracleStorage } from './oracle-storage.ts';
+import { withOracleCleanup } from './oracle-cleanup.ts';
 import fc from 'fast-check';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import worker, { makeApp } from '../src/index.ts';
 import { readChanges, readFeedRevision } from '../src/changes.ts';
 import type { Env } from '../src/types.ts';
 import { BASE, login } from './helpers.ts';
-import { atCheckpoint, campaign } from './oracle-campaign.ts';
-import { changedDomains, FeedReference, type FeedFacts, type OracleDomain, type OracleToken } from './polling-cache-oracle-model.ts';
+
+import { changedDomains, FeedReference, legacyChangesResponse, oracleDomains, type FeedFacts, type OracleDomain, type OracleToken } from './polling-cache-oracle-model.ts';
 import { triggerFamilies, triggerFields } from './polling-cache-trigger-cases.ts';
 import resetEpochSql from '../scripts/reset-change-epoch.sql?raw';
 
@@ -50,15 +68,30 @@ async function request(bindings: Env = env, headers: HeadersInit = {}, method = 
   const response = await app.fetch(new Request(`${BASE}/blyg/feed.xml`, { headers, method }), bindings, ctx);
   return { response, finish: () => waitOnExecutionContext(ctx) };
 }
-async function changes(cookie: string): Promise<OracleToken> {
+type Observe = (checkpoint: string, value: unknown) => void;
+// An unavailable HTTP boundary ends this driver history after its observations.
+// It supplies no substitute token, so only the check judges the failed response.
+const unavailableChangeResponse = Symbol('unavailable change response');
+async function changes(cookie: string, observe: Observe): Promise<OracleToken> {
   const ctx = createExecutionContext();
   const response = await app.fetch(new Request(`${BASE}/blyg/api/changes`, { headers: { cookie } }), env, ctx);
+  const body: unknown = await response.json().catch(() => null);
   await waitOnExecutionContext(ctx);
-  expect(response.status).toBe(200);
-  return response.json();
+  observe('change response status', response.status);
+  observe('change response cache', response.headers.get('cache-control'));
+  const token = body as Partial<OracleToken> | null;
+  const valid = token !== null && typeof token === 'object' &&
+    Object.keys(token).sort().join(',') === 'domains,epoch' &&
+    typeof token.epoch === 'string' && token.epoch.length > 0 &&
+    token.domains !== null && typeof token.domains === 'object' &&
+    Object.keys(token.domains).sort().join(',') === [...oracleDomains].sort().join(',') &&
+    oracleDomains.every(domain => Number.isSafeInteger(token.domains![domain]) && token.domains![domain] >= 0);
+  observe('change response token shape', valid);
+  if (response.status !== 200 || !valid) throw unavailableChangeResponse;
+  return token as OracleToken;
 }
-function facts(xml: string): FeedFacts {
-  expect(XMLValidator.validate(xml)).toBe(true);
+function facts(xml: string, observe: Observe): FeedFacts {
+  observe('RSS syntax', XMLValidator.validate(xml) === true);
   const channel = new XMLParser({ ignoreAttributes: false, parseTagValue: false, isArray: name => name === 'item' }).parse(xml).rss.channel;
   return { title: channel.title, bio: channel.description, body: channel.item?.[0]?.description ?? '' };
 }
@@ -122,536 +155,852 @@ async function generation() {
   if (!row) throw new Error('oracle source state missing');
   return { epoch: row.epoch, revision: row.feed };
 }
-async function saved() {
-  const objects = await env.MEDIA.list({ prefix: '__cache/feed/' }); expect(objects.objects).toHaveLength(1);
-  const object = await env.MEDIA.get(objects.objects[0].key); if (!object) throw new Error('oracle saved artifact missing');
-  const xml = await object.text(), epoch = object.customMetadata!.epoch, revision = Number(object.customMetadata!.revision);
+// Epochs and ETags are opaque equality identities, not stable expected strings.
+// Assigning handles retains all same/different relations without leaking random
+// epochs into deterministic traces. Feed source tokens are controlled inputs to
+// the cache, separately judged by the trigger properties below.
+function identities() {
+  const epochs = new Map<string, number>(), tags = new Map<string, number>();
+  const handle = (map: Map<string, number>, value: string) => { if (!map.has(value)) map.set(value, map.size); return map.get(value)!; };
+  return { epoch: (value: string) => handle(epochs, value), tag: (value: string) => handle(tags, value) };
+}
+async function saved(observe: Observe, ids: ReturnType<typeof identities>) {
+  const objects = await env.MEDIA.list({ prefix: '__cache/feed/' });
+  observe('saved artifact count', objects.objects.length);
+  if (!objects.objects[0]) return undefined;
+  const object = await env.MEDIA.get(objects.objects[0].key);
+  if (!object) throw new Error('oracle saved artifact disappeared');
+  const xml = await object.text(), epoch = object.customMetadata?.epoch ?? '', revision = Number(object.customMetadata?.revision);
   const comment = xml.match(/^<\?xml[^>]*\?>\n<!-- cache-generation:([a-f0-9]+) -->/);
-  atCheckpoint('feed generation bytes', () => expect(comment).toBeTruthy());
-  const bytes = Uint8Array.from(comment![1].match(/../g)!, pair => parseInt(pair, 16));
-  atCheckpoint('feed generation bytes', () => expect(JSON.parse(new TextDecoder().decode(bytes))).toEqual([object.customMetadata!.renderer, epoch, revision]));
-  return { xml, epoch, revision, etag: object.httpEtag };
+  let binding: unknown;
+  if (comment) {
+    const bytes = Uint8Array.from(comment[1].match(/../g)!, pair => parseInt(pair, 16));
+    try { const decoded = JSON.parse(new TextDecoder().decode(bytes)); binding = Array.isArray(decoded) ? [decoded[0], ids.epoch(decoded[1]), decoded[2]] : decoded; }
+    catch (error) { binding = { error: error instanceof Error ? error.message : String(error) }; }
+  }
+  observe('feed generation bytes', { binding, metadata: [object.customMetadata?.renderer, ids.epoch(epoch), revision] });
+  return { xml, epoch: ids.epoch(epoch), revision, etag: ids.tag(object.httpEtag), facts: facts(xml, observe), bytes: xml.replace(/<!-- cache-generation:[a-f0-9]+ -->/, '<!-- generation separately observed -->') };
+}
+const values = (trace: readonly Observation[], checkpoint: string) => trace.filter(entry => entry.checkpoint === checkpoint).map(entry => entry.value);
+function common(trace: readonly Observation[], law: string): Verdict | undefined {
+  for (const entry of trace) {
+    if (entry.checkpoint === 'change response token shape') { const mismatch = differs(entry.checkpoint, law, entry.value, true); if (mismatch) return mismatch; }
+    if (entry.checkpoint === 'change response cache') { const mismatch = differs(entry.checkpoint, law, entry.value, 'no-store'); if (mismatch) return mismatch; }
+    if (entry.checkpoint === 'change response status' || entry.checkpoint === 'receiving response status') {
+      const mismatch = differs(entry.checkpoint, law, entry.value, 200); if (mismatch) return mismatch;
+    }
+    if (entry.checkpoint === 'RSS syntax') { const mismatch = differs('RSS syntax', law, entry.value, true); if (mismatch) return mismatch; }
+    if (entry.checkpoint === 'saved artifact count') { const mismatch = differs(entry.checkpoint, law, entry.value, 1); if (mismatch) return mismatch; }
+    if (entry.checkpoint === 'feed generation bytes') {
+      const value = entry.value as { binding: unknown; metadata: unknown };
+      const mismatch = differs(entry.checkpoint, law, value.binding, value.metadata); if (mismatch) return mismatch;
+    }
+  }
+}
+const domainDelta = (before: OracleToken, after: OracleToken) => ({ domains: changedDomains(before, after).sort(), advances: Object.keys(before.domains).filter(domain => after.domains[domain as OracleDomain] > before.domains[domain as OracleDomain]).sort(), sameEpoch: before.epoch === after.epoch });
+async function thrown(operation: () => Promise<unknown>) {
+  // Only the promised production call is captured. Fixture and cleanup errors
+  // remain their original runner errors, with their cause/secondary diagnostics.
+  try { await operation(); return undefined; } catch (error) { return error instanceof Error ? { name: error.name, message: error.message } : { name: 'ThrownValue', message: String(error) }; }
 }
 
-describe('trigger revision oracle', () => {
-  for (const fixture of triggerFields) it(`tracks ${triggerFamilies[fixture.family].table}.${fixture.field} independently`, async () => {
-    const family = triggerFamilies[fixture.family], cookie = await login();
-    await env.DB.prepare(family.insert).run();
-    if (family.table === 'items') await env.DB.prepare(family.update).run();
-    const before = await changes(cookie);
-    await env.DB.prepare(`UPDATE ${family.table} SET ${fixture.field}=?`).bind(fixture.value).run();
-    const after = await changes(cookie);
-    atCheckpoint('trigger exact domain effects', () => expect(changedDomains(before, after).sort()).toEqual([...fixture.domains].sort()));
+async function stored(observe: Observe, operation: () => Promise<void>) {
+  await withOracleStorage(async () => {
+    try { await operation(); }
+    catch (error) { if (error !== unavailableChangeResponse) throw error; }
   });
-  it('fresh Reading and hopper DTO changes require their own invalidation domains', async () => {
-    const cookie = await login();
-    await env.DB.batch([
-      env.DB.prepare("INSERT INTO subscriptions(id,kind,origin,feed_url,title,created) VALUES('dependency-source','blyg','https://source/','https://source/feed.xml','Before','2026-01-01')"),
-      env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at,content_html) VALUES('dependency-source','r','fragment','current',1,'2026-01-01T00:00:00Z','<p>Before</p>')"),
-      env.DB.prepare("INSERT INTO hoppers(id,name,created) VALUES('dependency-hopper','Hopper','2026-01-01')"),
-      env.DB.prepare("INSERT INTO hopper_items(hopper_id,subscription_id,remote_id,added_at) VALUES('dependency-hopper','dependency-source','r','2026-01-01')"),
-    ]);
-    async function read(path: string) {
-      const ctx = createExecutionContext(); const response = await app.fetch(new Request(BASE + path, { headers: { cookie } }), env, ctx);
-      expect(response.status).toBe(200); const data = await response.json(); await waitOnExecutionContext(ctx); return data;
+  observe('history complete', true);
+}
+const complete = (trace: readonly Observation[]) => values(trace, 'history complete').length > 0;
+
+// An effect history names source operations, never expected counter answers.
+// The handwritten response-dependency matrix is the independent model. Each
+// table/column/event row survives as its own bounded receiving history.
+type EffectPlan = { table: string; event?: 'insert' | 'update' | 'remove'; field?: string; value?: string | number; published?: boolean };
+const effectPlans: EffectPlan[] = [
+  ...triggerFields.map(field => ({ table: triggerFamilies[field.family].table, field: field.field, value: field.value })),
+  ...triggerFamilies.map(family => ({ table: family.table })),
+  { table: 'items', event: 'remove', published: true },
+];
+function effectModel(plan: EffectPlan) {
+  const family = triggerFamilies.find(family => family.table === plan.table)!;
+  const field = triggerFields.find(field => triggerFamilies[field.family].table === plan.table && field.field === plan.field);
+  const domains = [...(field?.domains ?? family.domains)].sort();
+  return Array.from({ length: plan.field || plan.event ? 1 : 3 }, () => ({ domains, advances: plan.field ? undefined : domains, sameEpoch: true }));
+}
+async function effectDriver(plan: EffectPlan, observe: Observe, removeTrigger = false) {
+  await stored(observe, async () => {
+    const family = triggerFamilies.find(family => family.table === plan.table)!, cookie = await login();
+    if (plan.published) {
+      await seed(); if (removeTrigger) await env.DB.exec('DROP TRIGGER change_items_delete');
+      const before = await changes(cookie, observe);
+      await env.DB.prepare("DELETE FROM items WHERE id='cache-item'").run();
+      observe('trigger exact domain effects', domainDelta(before, await changes(cookie, observe))); return;
     }
-    const paths = ['/blyg/api/reading', '/blyg/api/hoppers/dependency-hopper/memberships'];
-    const before = await Promise.all(paths.map(read)), counters = await changes(cookie);
-    await env.DB.prepare("UPDATE imported_items SET content_html='<p>After</p>' WHERE subscription_id='dependency-source'").run();
-    const after = await Promise.all(paths.map(read)), changed = await changes(cookie);
-    // This second formulation observes actual response differences instead of
-    // copying the production's table-to-domain classifier. Fresh renderers are
-    // the trusted receiver; separate content oracles own their HTML semantics.
-    expect(after[0]).not.toEqual(before[0]); expect(after[1]).not.toEqual(before[1]);
-    expect(changed.domains.reading).toBeGreaterThan(counters.domains.reading); expect(changed.domains.hoppers).toBeGreaterThan(counters.domains.hoppers);
+    if (plan.field) {
+      await env.DB.prepare(family.insert).run();
+      if (family.table === 'items') await env.DB.prepare(family.update).run();
+      const before = await changes(cookie, observe);
+      await env.DB.prepare(`UPDATE ${family.table} SET ${plan.field}=?`).bind(plan.value).run();
+      observe('trigger exact domain effects', domainDelta(before, await changes(cookie, observe))); return;
+    }
+    for (const event of plan.event ? [plan.event] : ['insert', 'update', 'remove'] as const) {
+      const before = await changes(cookie, observe); await env.DB.prepare(family[event]).run();
+      observe('trigger exact domain effects', domainDelta(before, await changes(cookie, observe)));
+    }
   });
-  it('a read mark changes the Reading DTO and its domain, and a replay changes neither', async () => {
+}
+oracleProperty({
+  id: 'polling-cache-receiving', owns: ['src/changes.ts', 'src/feed-cache.ts'],
+  law: { statement: 'For every named tracked source effect, exactly the domains whose receiving responses depend on that effect advance in the same epoch; every declared affected counter increases.', authority: 'docs/d1-polling-cache-design.md P2/P3/R1 and independent polling-cache-trigger-cases.ts response dependency matrix', limits: 'The complete original finite table/column/event matrix against local D1, not all future schema fields or deployed billing.' },
+  histories: effectPlans, label: plan => plan.field ? `tracks ${plan.table}.${plan.field} independently` : plan.published ? 'published item deletion' : `${plan.table}: direct insert/update/delete effect family`,
+  model: effectModel, driver: effectDriver,
+  check: (_plan, trace, expected) => {
+    const law = 'trigger exact domain effects'; const invalid = common(trace, law); if (invalid) return invalid;
+    const rows = values(trace, law) as ReturnType<typeof domainDelta>[];
+    for (let index = 0; index < rows.length; index++) {
+      const wanted = expected[index]; if (!wanted) return differs(law, law, rows.length, expected.length)!;
+      const mismatch = differs(law, law, { domains: rows[index].domains, advances: wanted.advances ? rows[index].advances : undefined, sameEpoch: rows[index].sameEpoch }, wanted); if (mismatch) return mismatch;
+    }
+    return complete(trace) ? differs('history complete', law, rows.length, expected.length) ?? pass : pass;
+  },
+  calibrations: [
+    ...[[], ['subscriptions', 'feed'], ['reading']].map((domains, index) => ({ name: `missing extra or stale domains ${index}`, law: 'trigger exact domain effects', history: { enumerated: 0 }, corrupt: (trace: readonly Observation[]) => trace.map(entry => entry.checkpoint === 'trigger exact domain effects' ? { ...entry, value: { ...(entry.value as object), domains } } : entry) })),
+    { name: 'actual missing-delete trigger', law: 'trigger exact domain effects', history: { enumerated: effectPlans.length - 1 }, driver: (plan, observe) => effectDriver(plan, observe, true) },
+  ],
+});
+
+// Missing state and overflow are transaction laws: a failed tracked write must
+// leave its source untouched. The history changes only the state fault or event;
+// the same model and receiving comparison apply to every table.
+type AtomicPlan = { table: string; event: 'insert' | 'update' | 'remove'; fault: 'missing' | 'overflow' };
+const atomicPlans: AtomicPlan[] = triggerFamilies.flatMap(family => (['insert', 'update', 'remove'] as const).map(event => ({ table: family.table, event, fault: 'missing' as const })));
+atomicPlans.push({ table: 'items', event: 'update', fault: 'overflow' });
+oracleProperty({
+  id: 'polling-cache-atomic', owns: ['src/changes.ts'],
+  law: { statement: 'For every tracked insert, update or deletion with absent change state or an overflowing counter, the write rejects and the transaction preserves its prior source rows.', authority: 'docs/d1-polling-cache-design.md R1; original missing-state/overflow receiving matrix', limits: 'All original table/event faults, MAX_SAFE_INTEGER items overflow and native blob reader faults; local D1.' },
+  histories: atomicPlans, label: plan => `${plan.table}: ${plan.fault} state rejects ${plan.event}`,
+  model: plan => ({ rejected: true, writes: plan.fault === 'overflow' ? 2 : 1 }),
+  driver: async (plan, observe) => stored(observe, async () => {
+    if (plan.fault === 'overflow') {
+      await seed();
+      await env.DB.prepare('UPDATE change_state SET items=9007199254740991 WHERE id=1').run();
+      const beforeItem = await env.DB.prepare("SELECT content_md FROM items WHERE id='cache-item'").first();
+      const itemError = await thrown(() => env.DB.prepare("UPDATE items SET content_md='overflow' WHERE id='cache-item'").run());
+      observe('atomic tracked write', { error: itemError, before: beforeItem, after: await env.DB.prepare("SELECT content_md FROM items WHERE id='cache-item'").first() });
+      await env.DB.prepare('DELETE FROM change_state WHERE id=1').run();
+      const beforeTitle = await env.DB.prepare("SELECT value FROM settings WHERE key='site_title'").first();
+      const titleError = await thrown(() => env.DB.prepare("UPDATE settings SET value='lost' WHERE key='site_title'").run());
+      observe('atomic tracked write', { error: titleError, before: beforeTitle, after: await env.DB.prepare("SELECT value FROM settings WHERE key='site_title'").first() });
+      return;
+    }
+    const family = triggerFamilies.find(family => family.table === plan.table)!;
+    if (plan.event !== 'insert') await env.DB.prepare(family.insert).run();
+    const before = (await env.DB.prepare(`SELECT * FROM ${plan.table} ORDER BY rowid`).all()).results;
+    await env.DB.prepare('DELETE FROM change_state WHERE id=1').run();
+    const error = await thrown(() => env.DB.prepare(family[plan.event]).run());
+    const after = (await env.DB.prepare(`SELECT * FROM ${plan.table} ORDER BY rowid`).all()).results;
+    observe('atomic tracked write', { error, before, after });
+  }),
+  check: (_plan, trace, expected) => {
+    for (const entry of trace) if (entry.checkpoint === 'atomic tracked write') {
+      const value = entry.value as { error: unknown; before: unknown; after: unknown };
+      const bad = differs(entry.checkpoint, 'atomic tracked write', Boolean(value.error), expected.rejected) ?? differs(entry.checkpoint, 'atomic tracked write', value.after, value.before); if (bad) return bad;
+    }
+    return complete(trace) ? differs('history complete', 'atomic tracked write', values(trace, 'atomic tracked write').length, expected.writes) ?? pass : pass;
+  },
+  calibrations: [{ name: 'source commits after rejected write', law: 'atomic tracked write', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'atomic tracked write' ? { ...entry, value: { ...(entry.value as object), after: ['committed despite missing state'] } } : entry) }],
+});
+
+// Schema columns are environment inputs to the guard obligation. The model
+// reads only that input, not the produced trigger definition. One formula
+// predicts the required null-safe guard for every current column.
+oracleProperty({
+  id: 'polling-cache-schema', owns: ['src/changes.ts'],
+  law: { statement: 'For every current column of a tracked source table, its UPDATE trigger includes an OLD IS NOT NEW guard so an unchanged value is distinguished from a changed value, including NULL.', authority: 'docs/d1-polling-cache-design.md R1; existing current-column guard oracle', limits: 'SQL guard declaration plus receiving effects; does not independently prove all SQLite parser semantics.' },
+  histories: triggerFamilies.map(family => family.table),
+  model: (_table, trace) => (values(trace, 'input source columns')[0] as string[] | undefined ?? []).map(column => `OLD."${column}" IS NOT NEW."${column}"`),
+  driver: async (table, observe) => {
+    const columns = await env.DB.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
+    observe('input source columns', columns.results.map(column => column.name));
+    const trigger = await env.DB.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?").bind(`change_${table}_update`).first<{ sql: string }>();
+    observe('source update guard', trigger?.sql ?? null); observe('history complete', true);
+  },
+  check: (_table, trace, expected) => {
+    const guards = values(trace, 'source update guard');
+    for (const guard of guards) {
+      const text = typeof guard === 'string' ? guard : '';
+      const missing = expected.filter(term => !text.includes(term));
+      const bad = differs('source update guard', 'null-safe source guards', { present: Boolean(guard), missing }, { present: true, missing: [] }); if (bad) return bad;
+    }
+    return complete(trace) ? differs('history complete', 'null-safe source guards', guards.length, 1) ?? pass : pass;
+  },
+  calibrations: [{ name: 'column guard omitted', law: 'null-safe source guards', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'source update guard' ? { ...entry, value: '' } : entry) }],
+});
+
+// These are source actions, rather than case identifiers. The model maps each
+// action to its response dependencies. SQL stays exclusively in the driver.
+type SourceAction = 'draft-change' | 'draft-noop' | 'autosave' | 'subscribe' | 'poll-diagnostics' | 'etag-set' | 'etag-clear' | 'rename-source' | 'import-old' | 'repair-import-html' | 'retype-import' | 'delete-import' | 'rollback' | 'update-checked' | 'setting-rename-away' | 'setting-rename-back' | 'security-counter' | 'withdraw';
+const sourceActions: SourceAction[] = ['draft-change', 'draft-noop', 'autosave', 'subscribe', 'poll-diagnostics', 'etag-set', 'etag-clear', 'rename-source', 'import-old', 'repair-import-html', 'retype-import', 'delete-import', 'rollback', 'update-checked', 'setting-rename-away', 'setting-rename-back', 'security-counter', 'withdraw'];
+function sourceDomains(action: SourceAction): string[] {
+  switch (action) {
+    case 'draft-change': case 'autosave': return ['items'];
+    case 'subscribe': case 'rename-source': return ['subscriptions', 'reading', 'hoppers', 'feed'].sort();
+    case 'poll-diagnostics': case 'etag-set': case 'etag-clear': return ['subscriptions'];
+    case 'import-old': case 'retype-import': case 'delete-import': return ['reading', 'hoppers', 'feed'].sort();
+    case 'repair-import-html': return ['reading', 'hoppers'].sort();
+    case 'update-checked': return ['settings'];
+    case 'setting-rename-away': case 'setting-rename-back': return ['settings', 'feed'].sort();
+    case 'withdraw': return ['items', 'reading', 'feed'].sort();
+    default: return [];
+  }
+}
+const sourceSql: Record<SourceAction, string> = {
+  'draft-change': "UPDATE items SET content_md='draft changed' WHERE id='cache-item'", 'draft-noop': "UPDATE items SET content_md=content_md WHERE id='cache-item'", autosave: "UPDATE items SET content_md='typing',updated='later' WHERE id='draft-autosave'",
+  subscribe: "INSERT INTO subscriptions(id,kind,origin,feed_url,created) VALUES('s','blyg','https://source/','https://source/feed.xml','old')", 'poll-diagnostics': "UPDATE subscriptions SET last_poll_at='later',fail_count=1 WHERE id='s'", 'etag-set': "UPDATE subscriptions SET etag='x' WHERE id='s'", 'etag-clear': "UPDATE subscriptions SET etag=NULL WHERE id='s'", 'rename-source': "UPDATE subscriptions SET title='renamed' WHERE id='s'",
+  'import-old': "INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,updated,observed_at) VALUES('s','old','fragment','current',1,'1990-01-01','now')", 'repair-import-html': "UPDATE imported_items SET content_html='repaired' WHERE remote_id='old'", 'retype-import': "UPDATE imported_items SET kind='thread',page='/t/old' WHERE remote_id='old'", 'delete-import': "DELETE FROM imported_items WHERE remote_id='old'", rollback: '',
+  'update-checked': "INSERT INTO settings(key,value) VALUES('update_checked_at','t')", 'setting-rename-away': "UPDATE settings SET key='other' WHERE key='site_title'", 'setting-rename-back': "UPDATE settings SET key='site_title' WHERE key='other'", 'security-counter': "INSERT INTO security_budgets(key,window,used) VALUES('probe',1,1)", withdraw: "UPDATE items SET status='withdrawn',kind='withdrawn',version=2 WHERE id='cache-item'",
+};
+oracleProperty({
+  id: 'polling-cache-source-history', owns: ['src/changes.ts'],
+  law: { statement: 'For every direct source history, changed public dependencies advance their domains despite old timestamps; no-op, diagnostic-only, untracked and rolled-back work preserve all unrelated counters and rollback preserves source content.', authority: 'docs/d1-polling-cache-design.md P2/P3/R1 and original direct-write receiving history', limits: 'Original draft/import/diagnostic/key-rename/withdrawal/rollback history; no complete future dependency matrix claim.' },
+  histories: [sourceActions], model: history => history.map(action => ({ action, domains: sourceDomains(action), sameEpoch: true })),
+  driver: async (history, observe) => stored(observe, async () => {
+    const cookie = await login(); await seed();
+    for (const action of history) {
+      if (action === 'autosave') await env.DB.prepare("INSERT INTO items(id,created,updated) VALUES('draft-autosave','t','t')").run();
+      const before = await changes(cookie, observe);
+      if (action === 'rollback') {
+        const error = await thrown(() => env.DB.batch([env.DB.prepare("UPDATE subscriptions SET title='rollback' WHERE id='s'"), env.DB.prepare('INSERT INTO missing_table VALUES(1)')]));
+        observe('source rollback', { error, title: (await env.DB.prepare("SELECT title FROM subscriptions WHERE id='s'").first<{ title: string }>())?.title });
+      } else await env.DB.prepare(sourceSql[action]).run();
+      observe('source history effect', { action, ...domainDelta(before, await changes(cookie, observe)) });
+    }
+  }),
+  check: (_history, trace, expected) => {
+    const law = 'direct source history'; const invalid = common(trace, law); if (invalid) return invalid;
+    const rows = trace.filter(entry => entry.checkpoint === 'source history effect');
+    for (let index = 0; index < rows.length; index++) {
+      const entry = rows[index], row = entry.value as { action: SourceAction } & ReturnType<typeof domainDelta>, wanted = expected[index];
+      const bad = differs(entry.checkpoint, law, { action: row.action, domains: row.domains, sameEpoch: row.sameEpoch }, wanted) ?? differs(entry.checkpoint, law, row.advances, wanted?.domains); if (bad) return bad;
+    }
+    for (const value of values(trace, 'source rollback') as { error: unknown; title: unknown }[]) { const bad = differs('source rollback', law, { rejected: Boolean(value.error), title: value.title }, { rejected: true, title: 'renamed' }); if (bad) return bad; }
+    return complete(trace) ? differs('history complete', law, rows.length, expected.length) ?? differs('history complete', law, values(trace, 'source rollback').length, expected.filter(row => row.action === 'rollback').length) ?? pass : pass;
+  },
+  calibrations: [{ name: 'old timestamp import not tracked', law: 'direct source history', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'source history effect' && (entry.value as { action: SourceAction }).action === 'import-old' ? { ...entry, value: { ...(entry.value as object), domains: [] } } : entry) }],
+});
+
+type CounterPlan = { rows: number; missingItem: string; content: string };
+oracleProperty({
+  id: 'polling-cache-counted-work', owns: ['src/changes.ts'],
+  law: { statement: 'For every original bulk-import witness, each relevant row increments Reading once and adds one tracking write relative to the same untracked provider batch; trigger bookkeeping preserves zero/nonzero source change results.', authority: 'docs/d1-polling-cache-design.md M6/R1 and original 100-import receiving comparison', limits: 'Matched local D1 batches cancel provider overhead; this is not billed D1 rows or deployed latency.' },
+  histories: [{ rows: 100, missingItem: 'absent-review-item', content: 'review-body' } satisfies CounterPlan],
+  model: plan => ({ rows: plan.rows, absentChanged: false, existingChanged: true }),
+  driver: async (plan, observe) => stored(observe, async () => {
+    await seed();
+    const absent = await env.DB.prepare('DELETE FROM items WHERE id=?').bind(plan.missingItem).run();
+    const changed = await env.DB.prepare("UPDATE items SET content_md=? WHERE id='cache-item'").bind(plan.content).run();
+    observe('source changes result', { absent: Boolean(absent.meta.changes), existing: Boolean(changed.meta.changes) });
+    const cookie = await login(), before = await changes(cookie, observe);
+    const start = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>();
+    await env.DB.batch(Array.from({ length: plan.rows }, (_, index) => env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at) VALUES('bulk',?,'fragment','current',1,'now')").bind(`r${index}`)));
+    const end = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>(), after = await changes(cookie, observe);
+    await env.DB.prepare('DROP TRIGGER change_imported_items_insert').run();
+    const controlStart = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>();
+    await env.DB.batch(Array.from({ length: plan.rows }, (_, index) => env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at) VALUES('control',?,'fragment','current',1,'now')").bind(`r${index}`)));
+    const controlEnd = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>();
+    observe('trigger source and tracking writes', { reading: after.domains.reading - before.domains.reading, writes: (end!.value - start!.value) - (controlEnd!.value - controlStart!.value), controlDelta: domainDelta(after, await changes(cookie, observe)) });
+  }),
+  check: (_plan, trace, expected) => {
+    const law = 'counted trigger work'; const invalid = common(trace, law); if (invalid) return invalid;
+    for (const value of values(trace, 'source changes result')) { const bad = differs('source changes result', law, value, { absent: expected.absentChanged, existing: expected.existingChanged }); if (bad) return bad; }
+    const rows = values(trace, 'trigger source and tracking writes') as { reading: number; writes: number; controlDelta: ReturnType<typeof domainDelta> }[];
+    for (const row of rows) { const bad = differs('trigger source and tracking writes', law, row, { reading: expected.rows, writes: expected.rows, controlDelta: { domains: [], advances: [], sameEpoch: true } }); if (bad) return bad; }
+    return complete(trace) ? differs('history complete', law, rows.length, 1) ?? differs('history complete', law, values(trace, 'source changes result').length, 1) ?? pass : pass;
+  },
+  calibrations: [{ name: 'bulk import skips one tracked row', law: 'counted trigger work', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'trigger source and tracking writes' ? { ...entry, value: { ...(entry.value as object), reading: 99 } } : entry) }],
+});
+
+type ReadAction = { event: 'mark'; version: number; readAt?: string } | { event: 'clear' };
+const readActions: ReadAction[] = [{ event: 'mark', version: 2 }, { event: 'mark', version: 1 }, { event: 'clear' }, { event: 'mark', version: 2, readAt: '2000-01-01T00:00:00Z' }];
+oracleProperty({
+  id: 'polling-cache-reading-effects', owns: ['src/changes.ts'],
+  law: { statement: 'For every read-mark history, a newer applied read or clear changes the Reading response and its domain; older replay and pre-clear reads change neither.', authority: 'docs/d1-polling-cache-design.md P2/R1 and migration0026 read-state tombstone contract', limits: 'Original received two-version mark/replay/clear/old-timestamp sequence, not concurrent writers.' },
+  histories: [readActions],
+  model: history => {
+    let version = 0, cleared = false;
+    return history.map(action => {
+      const changed = action.event === 'clear' ? version > 0 : !(cleared && action.readAt) && action.version > version;
+      if (changed) { version = action.event === 'clear' ? 0 : action.version; cleared = action.event === 'clear'; }
+      return { changed, domains: changed ? ['reading'] : [] };
+    });
+  },
+  driver: async (history, observe) => stored(observe, async () => {
     const cookie = await login();
     await env.DB.batch([
       env.DB.prepare("INSERT INTO subscriptions(id,kind,origin,feed_url,title,created) VALUES('read-source','blyg','https://source/','https://source/feed.xml','Source','2026-01-01')"),
       env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at,content_html) VALUES('read-source','r','fragment','current',2,'2026-01-01T00:00:00Z','<p>Body</p>')"),
     ]);
     async function call(method: string, path: string, body?: unknown) {
-      const ctx = createExecutionContext();
-      const response = await app.fetch(new Request(BASE + path, { method, headers: { cookie, ...(body ? { 'content-type': 'application/json', origin: BASE } : {}) }, body: body ? JSON.stringify(body) : undefined }), env, ctx);
-      expect(response.status).toBe(200); const data = await response.json(); await waitOnExecutionContext(ctx); return data;
+      const ctx = createExecutionContext(), response = await app.fetch(new Request(BASE + path, { method, headers: { cookie, ...(body ? { 'content-type': 'application/json', origin: BASE } : {}) }, body: body ? JSON.stringify(body) : undefined }), env, ctx);
+      observe('receiving response status', response.status); const data = await response.text(); await waitOnExecutionContext(ctx); return data;
     }
-    const before = await call('GET', '/blyg/api/reading'), counters = await changes(cookie);
-    await call('PUT', '/blyg/api/reading/read-source/r/read', { version: 2 });
-    const after = await call('GET', '/blyg/api/reading'), changed = await changes(cookie);
-    // Observed through the fresh response, not the production classifier.
-    expect(after).not.toEqual(before);
-    atCheckpoint('trigger exact domain effects', () => expect(changedDomains(counters, changed)).toEqual(['reading']));
-    await call('PUT', '/blyg/api/reading/read-source/r/read', { version: 1 });
-    expect(await call('GET', '/blyg/api/reading')).toEqual(after);
-    expect(await changes(cookie)).toEqual(changed);
-    // Clearing (0026) changes the DTO and its domain; a read from before the
-    // clear is refused by the tombstone and changes neither.
-    await call('DELETE', '/blyg/api/reading/read-source/r/read');
-    const cleared = await call('GET', '/blyg/api/reading'), clearedChanges = await changes(cookie);
-    expect(cleared).not.toEqual(after);
-    atCheckpoint('trigger exact domain effects', () => expect(changedDomains(changed, clearedChanges)).toEqual(['reading']));
-    await call('PUT', '/blyg/api/reading/read-source/r/read', { version: 2, readAt: '2000-01-01T00:00:00Z' });
-    expect(await call('GET', '/blyg/api/reading')).toEqual(cleared);
-    expect(await changes(cookie)).toEqual(clearedChanges);
-  });
-  it('mention status transitions move exactly the domains whose responses they change', async () => {
-    const cookie = await login(); await seed();
-    await env.DB.prepare("UPDATE items SET responses_override=1 WHERE id='cache-item'").run();
-    async function read(path: string, headers: HeadersInit = { cookie }) {
-      const ctx = createExecutionContext(); const response = await app.fetch(new Request(BASE + path, { headers }), env, ctx);
-      expect(response.status).toBe(200); const body = await response.text(); await waitOnExecutionContext(ctx); return body;
+    let before = await call('GET', '/blyg/api/reading'), counters = await changes(cookie, observe);
+    for (const action of history) {
+      await call(action.event === 'clear' ? 'DELETE' : 'PUT', '/blyg/api/reading/read-source/r/read', action.event === 'mark' ? { version: action.version, ...(action.readAt ? { readAt: action.readAt } : {}) } : undefined);
+      const after = await call('GET', '/blyg/api/reading'), changed = await changes(cookie, observe);
+      observe('Reading receiving effect', { changed: after !== before, delta: domainDelta(counters, changed) });
+      before = after; counters = changed;
     }
-    // The Studio's inbound list, and the public page's responses section as a reader receives it.
-    const studio = () => read('/blyg/api/mentions?direction=inbound');
-    const page = async () => (await read('/blyg/f/cache-item/', {})).match(/<section[^>]*responses[\s\S]*?<\/section>/)?.[0] ?? '';
-    const verify = "status='verified',relation='stub',source_origin='https://responder.example/',source_id='r',source_kind='thread',source_version=1,source_page='t/r/',source_author_json='{\"name\":\"Witness\"}',verified_at='2026-10-18T00:00:00Z'";
-    // Receiver writes, in the order a claim's life takes them. Expected domains
-    // follow from the observed responses below, not from the trigger text.
-    const steps: [string, string, OracleDomain[]][] = [
-      ['claim', "INSERT INTO mentions_in(id,source,target,target_item_id,status,first_seen,last_seen) VALUES('w','https://responder.example/t/r/','https://us/f/cache-item/','cache-item','pending','t','t')", []],
-      ['verification fails', "UPDATE mentions_in SET status='failed',error='no link' WHERE id='w'", []],
-      ['claimed again', "UPDATE mentions_in SET status='pending',error=NULL,attempts=1,last_seen='t2' WHERE id='w'", []],
-      ['verified', `UPDATE mentions_in SET ${verify} WHERE id='w'`, ['mentions', 'responses']],
-      ['hidden', "UPDATE mentions_in SET hidden=1 WHERE id='w'", ['mentions', 'responses']],
-      ['hidden, claimed again', "UPDATE mentions_in SET status='pending',attempts=2,last_seen='t3' WHERE id='w'", ['mentions']],
-      ['hidden, verified', `UPDATE mentions_in SET ${verify} WHERE id='w'`, ['mentions']],
-      ['hidden, withdrawn at source', "UPDATE mentions_in SET status='gone',error='withdrawn' WHERE id='w'", ['mentions']],
-      ['gone, claimed again', "UPDATE mentions_in SET status='pending',attempts=3,last_seen='t4' WHERE id='w'", ['mentions']],
-      ['shown while pending', "UPDATE mentions_in SET hidden=0 WHERE id='w'", []],
-      ['shown, verified', `UPDATE mentions_in SET ${verify} WHERE id='w'`, ['mentions', 'responses']],
-      ['pruned', "DELETE FROM mentions_in WHERE id='w'", ['mentions', 'responses']],
-      ['failed claim pruned', "INSERT INTO mentions_in(id,source,target,target_item_id,status,first_seen,last_seen) VALUES('f','https://spam.example/','https://us/f/cache-item/','cache-item','failed','t','t')", []],
-      ['failed claim pruned', "DELETE FROM mentions_in WHERE id='f'", []],
-    ];
-    for (const [name, sql, domains] of steps) {
-      const before = { studio: await studio(), page: await page(), changes: await changes(cookie) };
-      await env.DB.prepare(sql).run();
-      const after = { studio: await studio(), page: await page(), changes: await changes(cookie) };
-      const observed: OracleDomain[] = [];
-      if (after.studio !== before.studio) observed.push('mentions');
-      if (after.page !== before.page) observed.push('responses');
-      // A step with no observable change must not have been written as one.
-      expect(observed, name).toEqual(domains);
-      atCheckpoint('trigger exact domain effects', () => expect(changedDomains(before.changes, after.changes), name).toEqual(domains));
+  }),
+  check: (_history, trace, expected) => {
+    const law = 'Reading receiving effect'; const invalid = common(trace, law); if (invalid) return invalid;
+    const rows = values(trace, law) as { changed: boolean; delta: ReturnType<typeof domainDelta> }[];
+    for (let index = 0; index < rows.length; index++) {
+      const wanted = expected[index];
+      const bad = differs(law, law, rows[index], wanted ? { changed: wanted.changed, delta: { domains: wanted.domains, advances: wanted.domains, sameEpoch: true } } : undefined); if (bad) return bad;
     }
-    expect(await page()).toBe('');
-  });
-  it('the timed update-state read crosses its exact daily deadline without source changes', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] }); const start = Date.parse('2026-10-01T12:00:00Z'); vi.setSystemTime(start);
+    return complete(trace) ? differs('history complete', law, rows.length, expected.length) ?? pass : pass;
+  },
+  calibrations: [{ name: 'replayed older mark changes Reading', law: 'Reading receiving effect', history: { enumerated: 0 }, corrupt: trace => { let index = 0; return trace.map(entry => entry.checkpoint === 'Reading receiving effect' && ++index === 2 ? { ...entry, value: { ...(entry.value as object), changed: true } } : entry); } }],
+});
+oracleProperty({
+  id: 'polling-cache-imported-dependencies', owns: ['src/changes.ts'],
+  law: { statement: 'For every imported HTML repair visible in Reading and hopper memberships, both fresh DTOs change and both invalidation domains advance.', authority: 'docs/d1-polling-cache-design.md P2/R1 dependency relation and original fresh DTO second formulation', limits: 'Original imported HTML fixture and two real HTTP receivers, not independent rendering semantics.' },
+  histories: [{ source: 'dependency-source', hopper: 'dependency-hopper', remote: 'r', initial: '<p>Before</p>', replacement: '<p>After</p>' }],
+  model: plan => ({ changed: plan.initial !== plan.replacement, domains: ['reading', 'hoppers'] }),
+  driver: async (plan, observe) => stored(observe, async () => {
     const cookie = await login();
     await env.DB.batch([
-      env.DB.prepare("INSERT INTO settings(key,value) VALUES('update_check','on')"),
-      env.DB.prepare("INSERT INTO settings(key,value) VALUES('update_checked_at',?)").bind(new Date(start).toISOString()),
+      env.DB.prepare("INSERT INTO subscriptions(id,kind,origin,feed_url,title,created) VALUES(?,'blyg','https://source/','https://source/feed.xml','Before','2026-01-01')").bind(plan.source),
+      env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at,content_html) VALUES(?,?,'fragment','current',1,'2026-01-01T00:00:00Z',?)").bind(plan.source, plan.remote, plan.initial),
+      env.DB.prepare("INSERT INTO hoppers(id,name,created) VALUES(?,'Hopper','2026-01-01')").bind(plan.hopper),
+      env.DB.prepare("INSERT INTO hopper_items(hopper_id,subscription_id,remote_id,added_at) VALUES(?,?,?,'2026-01-01')").bind(plan.hopper, plan.source, plan.remote),
     ]);
-    const baseline = await changes(cookie);
-    async function readUpdate() {
-      const ctx = createExecutionContext(); const response = await app.fetch(new Request(`${BASE}/blyg/api/update-state`, { headers: { cookie } }), env, ctx);
-      expect(response.status).toBe(200); await response.text(); await waitOnExecutionContext(ctx);
+    async function read(path: string) { const ctx = createExecutionContext(), response = await app.fetch(new Request(BASE + path, { headers: { cookie } }), env, ctx); observe('receiving response status', response.status); const data = await response.text(); await waitOnExecutionContext(ctx); return data; }
+    const paths = ['/blyg/api/reading', `/blyg/api/hoppers/${plan.hopper}/memberships`], before = await Promise.all(paths.map(read)), counters = await changes(cookie, observe);
+    await env.DB.prepare('UPDATE imported_items SET content_html=? WHERE subscription_id=?').bind(plan.replacement, plan.source).run();
+    const after = await Promise.all(paths.map(read)), changed = await changes(cookie, observe);
+    observe('fresh DTO dependencies', { changed: after.map((value, index) => value !== before[index]), advances: ['reading', 'hoppers'].filter(domain => changed.domains[domain as OracleDomain] > counters.domains[domain as OracleDomain]) });
+  }),
+  check: (_plan, trace, expected) => {
+    const law = 'fresh DTO dependencies', invalid = common(trace, law); if (invalid) return invalid;
+    const rows = values(trace, law);
+    for (const row of rows) { const bad = differs(law, law, row, { changed: [expected.changed, expected.changed], advances: expected.domains }); if (bad) return bad; }
+    return complete(trace) ? differs('history complete', law, rows.length, 1) ?? pass : pass;
+  },
+  calibrations: [{ name: 'hopper counter misses imported HTML', law: 'fresh DTO dependencies', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'fresh DTO dependencies' ? { ...entry, value: { ...(entry.value as object), advances: ['reading'] } } : entry) }],
+});
+
+type MentionAction = { event: 'claim' | 'fail' | 'verify' | 'hide' | 'reclaim' | 'withdraw' | 'show' | 'prune' | 'failed-insert' | 'failed-prune'; attempt?: number };
+const mentionActions: MentionAction[] = [{ event: 'claim' }, { event: 'fail' }, { event: 'reclaim', attempt: 1 }, { event: 'verify' }, { event: 'hide' }, { event: 'reclaim', attempt: 2 }, { event: 'verify' }, { event: 'withdraw' }, { event: 'reclaim', attempt: 3 }, { event: 'show' }, { event: 'verify' }, { event: 'prune' }, { event: 'failed-insert' }, { event: 'failed-prune' }];
+function mentionModel(history: MentionAction[]) {
+  let state = '', hidden = false;
+  const listed = () => state === 'verified' || state === 'gone', publicRow = () => state === 'verified' && !hidden;
+  return history.map(action => {
+    const beforeListed = listed(), beforePublic = publicRow();
+    switch (action.event) {
+      case 'claim': case 'reclaim': state = 'pending'; break;
+      case 'fail': state = 'failed'; break;
+      case 'verify': state = 'verified'; break;
+      case 'hide': hidden = true; break;
+      case 'show': hidden = false; break;
+      case 'withdraw': state = 'gone'; break;
+      case 'prune': state = ''; break;
     }
-    vi.setSystemTime(start + 24 * 60 * 60 * 1000 - 1); await readUpdate(); expect(await changes(cookie)).toEqual(baseline);
-    vi.setSystemTime(start + 24 * 60 * 60 * 1000); expect(await changes(cookie)).toEqual(baseline); await readUpdate();
-    expect((await env.DB.prepare("SELECT value FROM settings WHERE key='update_checked_at'").first<{ value: string }>())!.value).toBe(new Date(Date.now()).toISOString());
-    expect((await changes(cookie)).domains.settings).toBeGreaterThan(baseline.domains.settings);
+    const domains: string[] = [];
+    if (beforeListed || listed()) domains.push('mentions');
+    if (beforePublic || publicRow()) domains.push('responses');
+    return domains;
   });
-  for (const fixture of triggerFamilies) for (const event of ['insert', 'update', 'remove'] as const) it(`${fixture.table}: missing state rejects ${event}`, async () => {
-    if (event !== 'insert') await env.DB.prepare(fixture.insert).run();
-    const before = await env.DB.prepare(`SELECT * FROM ${fixture.table} ORDER BY rowid`).all();
-    await env.DB.prepare('DELETE FROM change_state WHERE id=1').run();
-    await expect(env.DB.prepare(fixture[event]).run()).rejects.toThrow();
-    expect((await env.DB.prepare(`SELECT * FROM ${fixture.table} ORDER BY rowid`).all()).results).toEqual(before.results);
-  });
-  it('every current column participates in its update changed-value guard', async () => {
-    for (const fixture of triggerFamilies) {
-      const columns = await env.DB.prepare(`PRAGMA table_info(${fixture.table})`).all<{ name: string }>();
-      const trigger = await env.DB.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?").bind(`change_${fixture.table}_update`).first<{ sql: string }>();
-      expect(trigger).toBeTruthy();
-      for (const column of columns.results) expect(trigger!.sql).toContain(`OLD."${column.name}" IS NOT NEW."${column.name}"`);
+}
+oracleProperty({
+  id: 'polling-cache-mention-effects', owns: ['src/changes.ts'],
+  law: { statement: 'For every inbound claim lifecycle, exactly the domains whose Studio list or public response section changes advance; pending and failed invisible claims do not create visible effects.', authority: 'docs/d1-polling-cache-design.md P2/R1 and original status-dependent mentions/responses receiving history', limits: 'Original verification, hiding, withdrawal, retry and prune schedule with real Studio and public-page receivers.' },
+  histories: [mentionActions], model: mentionModel,
+  driver: async (history, observe) => stored(observe, async () => {
+    const cookie = await login(); await seed(); await env.DB.prepare("UPDATE items SET responses_override=1 WHERE id='cache-item'").run();
+    async function read(path: string, headers: HeadersInit = { cookie }) { const ctx = createExecutionContext(), response = await app.fetch(new Request(BASE + path, { headers }), env, ctx); observe('receiving response status', response.status); const body = await response.text(); await waitOnExecutionContext(ctx); return body; }
+    const studio = () => read('/blyg/api/mentions?direction=inbound'), page = async () => (await read('/blyg/f/cache-item/', {})).match(/<section[^>]*responses[\s\S]*?<\/section>/)?.[0] ?? '';
+    const verify = "status='verified',relation='stub',source_origin='https://responder.example/',source_id='r',source_kind='thread',source_version=1,source_page='t/r/',source_author_json='{\"name\":\"Witness\"}',verified_at='2026-10-18T00:00:00Z'";
+    for (const action of history) {
+      const before = { studio: await studio(), page: await page(), changes: await changes(cookie, observe) };
+      switch (action.event) {
+        case 'claim': await env.DB.prepare("INSERT INTO mentions_in(id,source,target,target_item_id,status,first_seen,last_seen) VALUES('w','https://responder.example/t/r/','https://us/f/cache-item/','cache-item','pending','t','t')").run(); break;
+        case 'fail': await env.DB.prepare("UPDATE mentions_in SET status='failed',error='no link' WHERE id='w'").run(); break;
+        case 'reclaim': await env.DB.prepare(`UPDATE mentions_in SET status='pending',${action.attempt === 1 ? 'error=NULL,' : ''}attempts=?,last_seen=? WHERE id='w'`).bind(action.attempt, `t${(action.attempt ?? 0) + 1}`).run(); break;
+        case 'verify': await env.DB.prepare(`UPDATE mentions_in SET ${verify} WHERE id='w'`).run(); break;
+        case 'hide': case 'show': await env.DB.prepare("UPDATE mentions_in SET hidden=? WHERE id='w'").bind(action.event === 'hide' ? 1 : 0).run(); break;
+        case 'withdraw': await env.DB.prepare("UPDATE mentions_in SET status='gone',error='withdrawn' WHERE id='w'").run(); break;
+        case 'prune': await env.DB.prepare("DELETE FROM mentions_in WHERE id='w'").run(); break;
+        case 'failed-insert': await env.DB.prepare("INSERT INTO mentions_in(id,source,target,target_item_id,status,first_seen,last_seen) VALUES('f','https://spam.example/','https://us/f/cache-item/','cache-item','failed','t','t')").run(); break;
+        case 'failed-prune': await env.DB.prepare("DELETE FROM mentions_in WHERE id='f'").run(); break;
+      }
+      const after = { studio: await studio(), page: await page(), changes: await changes(cookie, observe) };
+      observe('mention response dependencies', { publicDomains: [...(before.studio !== after.studio ? ['mentions'] : []), ...(before.page !== after.page ? ['responses'] : [])], delta: domainDelta(before.changes, after.changes).domains });
     }
-  });
-  for (const fixture of triggerFamilies) it(`${fixture.table}: direct insert/update/delete effect family`, async () => {
+    observe('remaining public responses', await page());
+  }),
+  check: (_history, trace, expected) => {
+    const law = 'mention response dependencies'; const invalid = common(trace, law); if (invalid) return invalid;
+    const rows = trace.filter(entry => entry.checkpoint === law);
+    for (let index = 0; index < rows.length; index++) { const entry = rows[index], bad = differs(entry.checkpoint, law, entry.value, { publicDomains: expected[index], delta: expected[index] }); if (bad) return bad; }
+    const bad = values(trace, 'remaining public responses').map(value => differs('remaining public responses', law, value, '')).find(Boolean); if (bad) return bad;
+    return complete(trace) ? differs('history complete', law, rows.length, expected.length) ?? differs('history complete', law, values(trace, 'remaining public responses').length, 1) ?? pass : pass;
+  },
+  calibrations: [{ name: 'public verification omits responses counter', law: 'mention response dependencies', history: { enumerated: 0 }, corrupt: trace => { let index = 0; return trace.map(entry => entry.checkpoint === 'mention response dependencies' && ++index === 4 ? { ...entry, value: { ...(entry.value as object), delta: ['mentions'] } } : entry); } }],
+});
+
+const day = 24 * 60 * 60 * 1000;
+oracleProperty({
+  id: 'polling-cache-timed-read', owns: ['src/changes.ts'],
+  law: { statement: 'For every update-state read around its daily deadline, time alone leaves the change token unchanged until the due read records the current check timestamp and advances Settings.', authority: 'docs/d1-polling-cache-design.md P8/R2 and original exact daily-deadline receiving witness', limits: 'Original one-millisecond-before and exact-deadline reads with controlled Date, not a timer wakeup guarantee.' },
+  histories: [{ start: Date.parse('2026-10-01T12:00:00Z'), offsets: [day - 1, day] }],
+  model: plan => plan.offsets.map(offset => ({ due: offset >= day, checkedAt: new Date(plan.start + (offset >= day ? offset : 0)).toISOString() })),
+  driver: async (plan, observe) => stored(observe, async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(plan.start);
+    try {
+      const cookie = await login();
+      await env.DB.batch([env.DB.prepare("INSERT INTO settings(key,value) VALUES('update_check','on')"), env.DB.prepare("INSERT INTO settings(key,value) VALUES('update_checked_at',?)").bind(new Date(plan.start).toISOString())]);
+      const baseline = await changes(cookie, observe);
+      for (const offset of plan.offsets) {
+        vi.setSystemTime(plan.start + offset);
+        const before = await changes(cookie, observe), ctx = createExecutionContext();
+        const response = await app.fetch(new Request(`${BASE}/blyg/api/update-state`, { headers: { cookie } }), env, ctx);
+        observe('receiving response status', response.status); await response.text(); await waitOnExecutionContext(ctx);
+        const after = await changes(cookie, observe), checkedAt = (await env.DB.prepare("SELECT value FROM settings WHERE key='update_checked_at'").first<{ value: string }>())?.value;
+        observe('timed update-state effect', { beforeSame: JSON.stringify(before) === JSON.stringify(baseline), afterSame: JSON.stringify(after) === JSON.stringify(baseline), settingsAdvanced: after.domains.settings > baseline.domains.settings, checkedAt });
+      }
+    } finally { vi.useRealTimers(); }
+  }),
+  check: (_plan, trace, expected) => {
+    const law = 'timed update-state effect'; const invalid = common(trace, law); if (invalid) return invalid;
+    const rows = values(trace, law);
+    for (let index = 0; index < rows.length; index++) { const wanted = expected[index]; const bad = differs(law, law, rows[index], wanted ? { beforeSame: true, afterSame: !wanted.due, settingsAdvanced: wanted.due, checkedAt: wanted.checkedAt } : undefined); if (bad) return bad; }
+    return complete(trace) ? differs('history complete', law, rows.length, expected.length) ?? pass : pass;
+  },
+  calibrations: [{ name: 'deadline read does not advance settings', law: 'timed update-state effect', history: { enumerated: 0 }, corrupt: trace => { let index = 0; return trace.map(entry => entry.checkpoint === 'timed update-state effect' && ++index === 2 ? { ...entry, value: { ...(entry.value as object), settingsAdvanced: false } } : entry); } }],
+});
+// Fixture tokens vary every domain independently of the source classifier.
+// Reusing all counters under another epoch distinguishes restored identity from
+// a stable snapshot; unequal/max-safe counters detect projection or truncation.
+// Each explicit conditional header is a legacy full-read neighbor, never a 304.
+const legacyTokens: OracleToken[] = [
+  { epoch: 'legacy-before-restore', domains: Object.fromEntries(oracleDomains.map((domain, index) => [domain, index + 1])) as OracleToken['domains'] },
+  { epoch: 'legacy-after-restore', domains: Object.fromEntries(oracleDomains.map((domain, index) => [domain, index + 1])) as OracleToken['domains'] },
+  { epoch: 'legacy-counter-boundary', domains: Object.fromEntries(oracleDomains.map((domain, index) => [domain, index === 0 ? 0 : Number.MAX_SAFE_INTEGER - index])) as OracleToken['domains'] },
+];
+oracleProperty({
+  id: 'polling-cache-legacy-response', owns: ['src/changes.ts', 'src/read-api.ts#getChangesOperation'],
+  law: {
+    statement: 'For every authorized legacy /changes read during the two-release deprecation window, return the full epoch and every non-negative safe-integer domain revision as JSON with 200, no-store and no ETag, even when If-None-Match is supplied.',
+    authority: 'Decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-19: retain /changes unchanged for two releases and remove in the third; docs/api.md legacy change polling; docs/d1-polling-cache-design.md P2/P3/P8.',
+    limits: 'Real mounted Worker receiver with owner cookie and controlled D1 token inputs; mutation dependencies are checked by the adjacent original source-effect histories. No future removal release or deployed cache behavior is simulated.',
+  },
+  histories: [{ condition: null }, { condition: '*' }, { condition: 'W/"legacy-validator"' }],
+  label: plan => plan.condition === null ? 'legacy ordinary full read' : `legacy conditional full read ${plan.condition}`,
+  model: () => legacyTokens.map(legacyChangesResponse),
+  driver: async (plan, observe) => stored(observe, async () => {
     const cookie = await login();
-    for (const sql of [fixture.insert, fixture.update, fixture.remove]) {
-      const before = await changes(cookie); await env.DB.prepare(sql).run(); const after = await changes(cookie);
-      atCheckpoint('trigger exact domain effects', () => {
-        expect(changedDomains(before, after).sort()).toEqual([...fixture.domains].sort());
-        for (const domain of fixture.domains) expect(after.domains[domain]).toBeGreaterThan(before.domains[domain]);
-      });
+    for (const token of legacyTokens) {
+      await env.DB.prepare(`UPDATE change_state SET epoch=?,${oracleDomains.map(domain => `${domain}=?`).join(',')} WHERE id=1`).bind(token.epoch, ...oracleDomains.map(domain => token.domains[domain])).run();
+      const ctx = createExecutionContext();
+      const response = await app.fetch(new Request(`${BASE}/blyg/api/changes`, { headers: { cookie, ...(plan.condition === null ? {} : { 'If-None-Match': plan.condition }) } }), env, ctx);
+      const body: unknown = await response.json().catch(() => null);
+      await waitOnExecutionContext(ctx);
+      observe('legacy full response', { status: response.status, cache: response.headers.get('cache-control'), etag: response.headers.get('etag'), body });
     }
-  });
-  it('trigger bookkeeping preserves the zero/nonzero meaning of D1 changes', async () => {
-    await seed();
-    const absent = await env.DB.prepare("DELETE FROM items WHERE id='absent-review-item'").run();
-    const changed = await env.DB.prepare("UPDATE items SET content_md='review-body' WHERE id='cache-item'").run();
-    expect(Boolean(absent.meta.changes)).toBe(false);
-    expect(Boolean(changed.meta.changes)).toBe(true);
-  });
-  it('receives the prototype write-amplification witness without calling it deployed billing', async () => {
-    const cookie = await login(), before = await changes(cookie);
-    const start = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>();
-    await env.DB.batch(Array.from({ length: 100 }, (_, i) => env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at) VALUES('bulk',?,'fragment','current',1,'now')").bind(`r${i}`)));
-    const end = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>();
-    const after = await changes(cookie); expect(after.domains.reading - before.domains.reading).toBe(100);
-    // Native D1 adds bookkeeping changes beyond the source+trigger rows counted
-    // by plain SQLite. Compare the same receiving batch with tracking removed;
-    // that cancels provider overhead instead of labelling it application work.
-    await env.DB.prepare('DROP TRIGGER change_imported_items_insert').run();
-    const controlStart = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>();
-    await env.DB.batch(Array.from({ length: 100 }, (_, i) => env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at) VALUES('control',?,'fragment','current',1,'now')").bind(`r${i}`)));
-    const controlEnd = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>();
-    atCheckpoint('trigger source and tracking writes', () => expect((end!.value - start!.value) - (controlEnd!.value - controlStart!.value)).toBe(100));
-    expect((await changes(cookie)).domains).toEqual(after.domains);
-  });
-  it('the actual missing-delete trigger control fails at the domain checkpoint', async () => {
-    const cookie = await login(); await seed();
-    await env.DB.exec('DROP TRIGGER change_items_delete');
-    const before = await changes(cookie); await env.DB.prepare("DELETE FROM items WHERE id='cache-item'").run(); const after = await changes(cookie);
-    expect(() => atCheckpoint('trigger exact domain effects', () => expect(changedDomains(before, after).sort()).toEqual(['feed', 'items', 'reading']))).toThrow('trigger exact domain effects');
-  });
-  it('denies unauthenticated change reads', async () => {
-    const ctx = createExecutionContext();
-    const response = await app.fetch(new Request(`${BASE}/blyg/api/changes`), env, ctx);
-    expect(response.status).toBe(401);
-    expect(response.headers.get('cache-control')).toBe('no-store');
-    await waitOnExecutionContext(ctx);
-  });
-  it('tracks direct writes, old timestamps, deletes, diagnostics and rollback', async () => {
-    const cookie = await login(); await seed();
-    async function effect(sql: string, domains: OracleDomain[]) {
-      const before = await changes(cookie); await env.DB.prepare(sql).run(); const after = await changes(cookie);
-      atCheckpoint('trigger exact domain effects', () => {
-        expect(changedDomains(before, after).sort()).toEqual([...domains].sort());
-        expect(after.epoch).toBe(before.epoch);
-        for (const domain of domains) expect(after.domains[domain]).toBeGreaterThan(before.domains[domain]);
-      });
+  }),
+  check: (_plan, trace, expected) => {
+    const rows = values(trace, 'legacy full response');
+    for (let index = 0; index < rows.length; index++) {
+      const bad = differs('legacy full response', 'legacy full response', rows[index], expected[index]); if (bad) return bad;
     }
-    await effect("UPDATE items SET content_md='draft changed' WHERE id='cache-item'", ['items']);
-    await effect("UPDATE items SET content_md=content_md WHERE id='cache-item'", []);
-    await env.DB.prepare("INSERT INTO items(id,created,updated) VALUES('draft-autosave','t','t')").run();
-    await effect("UPDATE items SET content_md='typing',updated='later' WHERE id='draft-autosave'", ['items']);
-    await effect("INSERT INTO subscriptions(id,kind,origin,feed_url,created) VALUES('s','blyg','https://source/','https://source/feed.xml','old')", ['subscriptions', 'reading', 'hoppers', 'feed']);
-    await effect("UPDATE subscriptions SET last_poll_at='later',fail_count=1 WHERE id='s'", ['subscriptions']);
-    await effect("UPDATE subscriptions SET etag='x' WHERE id='s'", ['subscriptions']);
-    await effect("UPDATE subscriptions SET etag=NULL WHERE id='s'", ['subscriptions']);
-    await effect("UPDATE subscriptions SET title='renamed' WHERE id='s'", ['subscriptions', 'reading', 'hoppers', 'feed']);
-    await effect("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,updated,observed_at) VALUES('s','old','fragment','current',1,'1990-01-01','now')", ['reading', 'hoppers', 'feed']);
-    await effect("UPDATE imported_items SET content_html='repaired' WHERE remote_id='old'", ['reading', 'hoppers']);
-    await effect("UPDATE imported_items SET kind='thread',page='/t/old' WHERE remote_id='old'", ['reading', 'hoppers', 'feed']);
-    await effect("DELETE FROM imported_items WHERE remote_id='old'", ['reading', 'hoppers', 'feed']);
-    const before = await changes(cookie);
-    await expect(env.DB.batch([env.DB.prepare("UPDATE subscriptions SET title='rollback' WHERE id='s'"), env.DB.prepare('INSERT INTO missing_table VALUES(1)')])).rejects.toThrow();
-    expect(await changes(cookie)).toEqual(before);
-    expect((await env.DB.prepare("SELECT title FROM subscriptions WHERE id='s'").first<{ title: string }>())!.title).toBe('renamed');
-    await effect("INSERT INTO settings(key,value) VALUES('update_checked_at','t')", ['settings']);
-    await effect("UPDATE settings SET key='other' WHERE key='site_title'", ['settings', 'feed']);
-    await effect("UPDATE settings SET key='site_title' WHERE key='other'", ['settings', 'feed']);
-    await effect("INSERT INTO security_budgets(key,window,used) VALUES('probe',1,1)", []);
-    await effect("UPDATE items SET status='withdrawn',kind='withdrawn',version=2 WHERE id='cache-item'", ['items', 'reading', 'feed']);
-  });
-  it('rejects missing state and counter overflow rather than committing untracked changes', async () => {
-    await seed();
-    await env.DB.prepare('UPDATE change_state SET items=9007199254740991 WHERE id=1').run();
-    await expect(env.DB.prepare("UPDATE items SET content_md='overflow' WHERE id='cache-item'").run()).rejects.toThrow();
-    expect((await env.DB.prepare("SELECT content_md FROM items WHERE id='cache-item'").first<{ content_md: string }>())!.content_md).toBe('body-A');
-    await env.DB.prepare('DELETE FROM change_state WHERE id=1').run();
-    await expect(env.DB.prepare("UPDATE settings SET value='lost' WHERE key='site_title'").run()).rejects.toThrow();
-    expect((await env.DB.prepare("SELECT value FROM settings WHERE key='site_title'").first<{ value: string }>())!.value).toBe('A');
-  });
-  it('rejects missing, extra and stale domain answers at the public checkpoint', () => {
-    const baseline: OracleToken = { epoch: 'e', domains: { items: 0, reading: 0, subscriptions: 0, hoppers: 0, signals: 0, settings: 0, feed: 0, mentions: 0, responses: 0, interactions: 0, browse: 0, shelf: 0 } };
-    for (const wrong of [[], ['subscriptions', 'feed'], ['reading']]) {
-      expect(() => atCheckpoint('trigger exact domain effects', () => expect(wrong).toEqual(changedDomains(baseline, { ...baseline, domains: { ...baseline.domains, subscriptions: 1 } })))).toThrow('trigger exact domain effects');
-    }
-  });
+    return complete(trace) ? differs('history complete', 'legacy full response', rows.length, expected.length) ?? pass : pass;
+  },
+  calibrations: [
+    { name: 'legacy conditional read becomes 304', law: 'legacy full response', history: { enumerated: 1 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'legacy full response' ? { ...entry, value: { ...(entry.value as object), status: 304 } } : entry) },
+    { name: 'legacy response becomes cacheable', law: 'legacy full response', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'legacy full response' ? { ...entry, value: { ...(entry.value as object), cache: 'private, no-cache' } } : entry) },
+    { name: 'legacy response receives an ETag', law: 'legacy full response', history: { enumerated: 1 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'legacy full response' ? { ...entry, value: { ...(entry.value as object), etag: '"legacy"' } } : entry) },
+    { name: 'legacy source identity is replaced', law: 'legacy full response', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'legacy full response' ? { ...entry, value: { ...(entry.value as object), body: { ...((entry.value as { body: OracleToken }).body), epoch: 'wrong-epoch' } } } : entry) },
+    { name: 'legacy response loses one domain', law: 'legacy full response', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'legacy full response' ? { ...entry, value: { ...(entry.value as object), body: { ...((entry.value as { body: OracleToken }).body), domains: Object.fromEntries(Object.entries((entry.value as { body: OracleToken }).body.domains).filter(([domain]) => domain !== 'shelf')) } } } : entry) },
+    { name: 'legacy response truncates a counter', law: 'legacy full response', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'legacy full response' ? { ...entry, value: { ...(entry.value as object), body: { ...((entry.value as { body: OracleToken }).body), domains: { ...((entry.value as { body: OracleToken }).body.domains), items: 0 } } } } : entry) },
+  ],
 });
 
-describe('R2 feed oracle', () => {
-  it('same-valued generations cannot hide a stored revision regression', async () => {
-    await seed(); const cold = await request(); await cold.response.text(); await cold.finish(); await setFacts('B');
-    const entered = deferred(), release = deferred(); let held = false;
-    const bucket = observedBucket(async () => { if (!held) { held = true; entered.resolve(); await release.promise; } });
-    const old = await request({ ...env, MEDIA: bucket.bucket }); await old.response.text();
-    try {
-      await entered.promise; await setFacts('A'); await setFacts('B');
-      const target = await generation(); const winner = await request({ ...env, MEDIA: observedBucket().bucket }); await winner.response.text(); await winner.finish();
-      release.resolve(); await old.finish(); const artifact = await saved();
-      atCheckpoint('feed stored generation', () => expect({ epoch: artifact.epoch, revision: artifact.revision }).toEqual(target));
-      expect(facts(artifact.xml)).toEqual(expected('B'));
-    } finally { release.resolve(); }
-  });
-  it('epoch changes with reused counters replace cached source identity', async () => {
-    await seed(); const first = await request(); await first.response.text(); await first.finish();
-    await setFacts('B'); await env.DB.prepare("UPDATE change_state SET epoch='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',feed=0 WHERE id=1").run();
-    const refresh = await request(); await refresh.response.text(); await refresh.finish();
-    const artifact = await saved(); expect(facts(artifact.xml)).toEqual(expected('B')); expect(artifact.epoch).toBe('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'); expect(artifact.revision).toBe(0);
-  });
-  it('the restore SQL creates a fresh epoch and repairs a missing singleton', async () => {
-    const before = await generation(); await env.DB.prepare(resetEpochSql).run(); const after = await generation();
-    expect(after.epoch).not.toBe(before.epoch); expect(after.revision).toBe(0);
-    await env.DB.prepare('DELETE FROM change_state WHERE id=1').run(); await env.DB.prepare(resetEpochSql).run(); const repaired = await generation();
-    expect(repaired.epoch).not.toBe(after.epoch); expect(repaired.revision).toBe(0);
-  });
-  it('an old-epoch builder loses after the restored generation is installed', async () => {
-    await seed(); const cold = await request(); await cold.response.text(); await cold.finish(); await setFacts('B');
-    const entered = deferred(), release = deferred(); let held = false;
-    const bucket = observedBucket(async () => { if (!held) { held = true; entered.resolve(); await release.promise; } });
-    const old = await request({ ...env, MEDIA: bucket.bucket }); await old.response.text();
-    try {
-      await entered.promise; await setFacts('C'); await env.DB.prepare(resetEpochSql).run(); const target = await generation();
-      const restored = await request({ ...env, MEDIA: observedBucket().bucket }); await restored.response.text(); await restored.finish();
-      release.resolve(); await old.finish(); const artifact = await saved();
-      atCheckpoint('feed restored generation', () => { expect(artifact.epoch).toBe(target.epoch); expect(artifact.revision).toBe(0); expect(facts(artifact.xml)).toEqual(expected('C')); });
-    } finally { release.resolve(); }
-  });
-  it('source-read failure preserves the saved artifact and remains retryable', async () => {
-    await seed(); const first = await request(); await first.response.text(); await first.finish(); const initial = await saved(); await setFacts('B');
-    let failed = false;
-    const recorder = observedDB(async sql => { if (!failed && /FROM versions/.test(sql)) { failed = true; throw new Error('controlled content read failure'); } });
-    const refresh = await request({ ...env, DB: recorder.db }); await refresh.response.text(); await refresh.finish();
-    expect(await saved()).toEqual(initial);
-    const retry = await request(); await retry.response.text(); await retry.finish(); expect(facts((await saved()).xml)).toEqual(expected('B'));
-  });
-  it('serves saved legal XML and 304/HEAD while unchanged checks perform no render', async () => {
-    await seed(); const cold = await request(); const xml = await cold.response.text(); await cold.finish();
-    atCheckpoint('feed legal snapshot', () => expect(facts(xml)).toEqual(expected('A')));
-    const tag = cold.response.headers.get('etag'); expect(tag).toBeTruthy();
-    const recorder = observedDB(), bucket = observedBucket(); const bindings = { ...env, DB: recorder.db, MEDIA: bucket.bucket };
-    const warm = await request(bindings, { 'If-None-Match': `"other", W/${tag}` });
-    expect(warm.response.status).toBe(304); expect(await warm.response.text()).toBe(''); await warm.finish();
-    atCheckpoint('feed unchanged work', () => { expect(recorder.statements).toEqual(['SELECT epoch, feed FROM change_state WHERE id = 1']); expect(bucket.puts()).toBe(0); });
-    const head = await request(bindings, {}, 'HEAD'); expect(head.response.status).toBe(200); expect(await head.response.text()).toBe(''); await head.finish();
-  });
-  it('revalidates even when the stale representation produces a 304', async () => {
-    await seed(); const cold = await request(); await cold.response.text(); await cold.finish();
-    await setFacts('B');
-    const stale = await request(env, { 'If-None-Match': cold.response.headers.get('etag')! });
-    expect(stale.response.status).toBe(304); await stale.finish();
-    const fresh = await request(); expect(facts(await fresh.response.text())).toEqual(expected('B')); await fresh.finish();
-  });
-  it('old builders cannot overwrite a newer generation with repeated visible bytes', async () => {
-    await seed(); const cold = await request(); await cold.response.text(); await cold.finish();
-    await setFacts('B');
-    const entered = deferred(), release = deferred(); let first = true;
-    const oldBucket = observedBucket(async () => { if (first) { first = false; entered.resolve(); await release.promise; } });
-    const old = await request({ ...env, MEDIA: oldBucket.bucket }); await old.response.text();
-    try {
-      await entered.promise; await setFacts('A');
-      const newerBucket = observedBucket(); const newer = await request({ ...env, MEDIA: newerBucket.bucket }); await newer.response.text(); await newer.finish(); const winnerGeneration = await generation();
-      release.resolve(); await old.finish();
-      const winner = await request(); const body = await winner.response.text();
-      atCheckpoint('feed generation non-regression', () => { expect(facts(body)).toEqual(expected('A')); expect(winner.response.headers.get('etag')).not.toBe(cold.response.headers.get('etag')); expect(oldBucket.puts()).toBe(1); });
-      const artifact = await saved(); atCheckpoint('feed stored generation', () => expect({ epoch: artifact.epoch, revision: artifact.revision }).toEqual(winnerGeneration));
-      await winner.finish();
-    } finally { release.resolve(); }
-  });
-  it('discards a render interrupted between settings and content reads', async () => {
-    await seed(); const cold = await request(); await cold.response.text(); await cold.finish(); await setFacts('B');
-    const entered = deferred(), release = deferred(); let held = false;
-    const recorder = observedDB(async sql => { if (!held && /SELECT key, value FROM settings/.test(sql)) { held = true; entered.resolve(); await release.promise; } });
-    const reference = new FeedReference(); reference.commit(expected('B'), await generation());
-    const pending = await request({ ...env, DB: recorder.db }); await pending.response.text();
-    try {
-      await entered.promise; await setFacts('C'); reference.commit(expected('C'), await generation()); release.resolve(); await pending.finish();
-      const fresh = await request(); const value = facts(await fresh.response.text());
-      atCheckpoint('feed legal snapshot', () => expect(reference.legal(value)).toBe(true));
-      expect(value).toEqual(expected('C')); await fresh.finish();
-      const artifact = await saved(); atCheckpoint('feed payload generation binding', () => expect(facts(artifact.xml)).toEqual(reference.at(artifact)));
-    } finally { release.resolve(); }
-  });
-  it('failed background publication keeps last good XML and a later request retries', async () => {
-    await seed(); const cold = await request(); const initial = await cold.response.text(); await cold.finish(); await setFacts('B');
-    const bucket = observedBucket(async () => { throw new Error('controlled R2 interruption'); });
-    const failed = await request({ ...env, MEDIA: bucket.bucket }); expect(await failed.response.text()).toBe(initial); await failed.finish();
-    expect((await saved()).xml).toBe(initial);
-    const retry = await request(); await retry.response.text(); await retry.finish();
-    const fresh = await request(); expect(facts(await fresh.response.text())).toEqual(expected('B')); await fresh.finish();
-  });
-  it('cold competing creators return the conditional winner, not an old overwrite', async () => {
-    await seed(); await clearArtifacts();
-    const entered = deferred(), release = deferred(); let held = false;
-    const bucket = observedBucket(async () => { if (!held) { held = true; entered.resolve(); await release.promise; } });
-    const old = request({ ...env, MEDIA: bucket.bucket });
-    try {
-      await entered.promise; await setFacts('B');
-      const winner = await request({ ...env, MEDIA: observedBucket().bucket }); expect(facts(await winner.response.text())).toEqual(expected('B')); await winner.finish();
-      release.resolve(); const loser = await old;
-      const value = facts(await loser.response.text()); atCheckpoint('feed cold winner', () => expect(value).toEqual(expected('B'))); await loser.finish();
-    } finally { release.resolve(); }
-  });
-  it('rejects mixed values independently of production rendering', () => {
-    const reference = new FeedReference(); reference.commit(expected('A')); reference.commit(expected('B'));
-    expect(() => atCheckpoint('feed legal snapshot', () => expect(reference.legal({ ...expected('A'), body: expected('B').body })).toBe(true))).toThrow('feed legal snapshot');
-  });
-  campaign('polling-cache', fc.array(fc.integer({ min: 0, max: 2 }), { minLength: 1, maxLength: 8 }), async history => {
-    await seed(); await clearArtifacts();
-    const initial = await request(); await initial.response.text(); await initial.finish();
-    for (const n of history) {
-      const value = String(n); await setFacts(value);
-      const stale = await request(); await stale.response.text(); await stale.finish();
-      const fresh = await request(); const parsed = facts(await fresh.response.text()); await fresh.finish();
-      atCheckpoint('feed settled values', () => expect(parsed).toEqual(expected(value)));
+oracleProperty({
+  id: 'polling-cache-state-readers', owns: ['src/changes.ts'],
+  law: { statement: 'For every change-state reader, a native SQLite blob epoch is rejected as unavailable; unauthenticated legacy /changes reads expose no state and forbid caching during the two-release deprecation window.', authority: 'docs/d1-polling-cache-design.md R1/P8 and original native-blob/auth receiving witnesses; Decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-19: retain /changes unchanged for two releases and remove in the third.', limits: 'Native D1 blob epoch and real unauthenticated /changes receiver only; authorized output and mutation semantics are checked by adjacent properties.' },
+  histories: [{ receiver: 'private' }, { receiver: 'feed' }, { receiver: 'http' }],
+  model: plan => plan.receiver === 'http' ? { status: 401, cache: 'no-store', stateExposed: false } : { message: plan.receiver === 'private' ? 'change state unavailable' : 'feed revision unavailable' },
+  driver: async (plan, observe) => stored(observe, async () => {
+    if (plan.receiver === 'http') {
+      const ctx = createExecutionContext(), response = await app.fetch(new Request(`${BASE}/blyg/api/changes`), env, ctx);
+      const body: unknown = await response.json().catch(() => null);
+      observe('change reader result', { status: response.status, cache: response.headers.get('cache-control'), stateExposed: body !== null && typeof body === 'object' && ('epoch' in body || 'domains' in body) }); await waitOnExecutionContext(ctx);
+    } else {
+      await env.DB.prepare('UPDATE change_state SET epoch=? WHERE id=1').bind(new Uint8Array([1, 2])).run();
+      observe('change reader result', await thrown(() => plan.receiver === 'private' ? readChanges(env.DB) : readFeedRevision(env.DB)));
     }
-  });
+  }),
+  check: (_plan, trace, expected) => {
+    const law = 'change reader result', rows = values(trace, law);
+    for (const row of rows) {
+      const actual = row as { message?: string; status?: number; cache?: string } | undefined;
+      const bad = 'message' in expected ? differs(law, law, actual?.message?.includes(expected.message!), true) : differs(law, law, actual, expected); if (bad) return bad;
+    }
+    return complete(trace) ? differs('history complete', law, rows.length, 1) ?? pass : pass;
+  },
+  calibrations: [
+    { name: 'blob epoch accepted', law: 'change reader result', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'change reader result' ? { ...entry, value: undefined } : entry) },
+    { name: 'anonymous legacy reader accepted', law: 'change reader result', history: { enumerated: 2 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'change reader result' ? { ...entry, value: { ...(entry.value as object), status: 200 } } : entry) },
+    { name: 'anonymous legacy read cacheable', law: 'change reader result', history: { enumerated: 2 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'change reader result' ? { ...entry, value: { ...(entry.value as object), cache: 'private, no-cache' } } : entry) },
+    { name: 'anonymous legacy read exposes source token', law: 'change reader result', history: { enumerated: 2 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'change reader result' ? { ...entry, value: { ...(entry.value as object), stateExposed: true } } : entry) },
+  ],
+});
 
-  it('cold validation exhaustion reuses a valid concurrent saved artifact', async () => {
-    await seed(); const entered = deferred(), release = deferred(); let changes = 0;
-    const recorder = observedDB(async sql => {
-      if (/SELECT key, value FROM settings/.test(sql)) {
-        changes++; await setFacts(String(changes));
-        if (changes === 1) { entered.resolve(); await release.promise; }
+// The publication model keeps source, saved artifact and pending attempt
+// separate. Repetition distinguishes source identity from visible bytes;
+// held PUTs distinguish an attempt's target from the current source. A held
+// settings read instead forces validation to retry against the new source.
+type Generation = { epoch: number; revision: number };
+type Boundary = 'put' | 'settings' | 'churn';
+type FeedAction =
+  | { op: 'write'; value: string }
+  | { op: 'fetch'; label: string; method?: 'HEAD'; conditional?: string; fault?: 'read' | 'put'; track?: string; builder?: 'independent' }
+  | { op: 'begin'; label: string; boundary: Boundary; track?: string }
+  | { op: 'finish' }
+  | { op: 'artifact'; label: string }
+  | { op: 'restore'; epoch?: string; absent?: boolean }
+  | { op: 'corrupt-artifact' }
+  | { op: 'site'; enabled: boolean }
+  | { op: 'tick'; label: string; fault?: 'put'; track?: string }
+  | { op: 'join-tick'; track: string }
+  | { op: 'work'; track: string };
+type FeedPlan = { name: string; actions: FeedAction[] };
+const feedPlans: FeedPlan[] = [
+  { name: 'same-valued generations cannot hide a stored revision regression', actions: [{ op: 'fetch', label: 'cold' }, { op: 'write', value: 'B' }, { op: 'begin', label: 'old', boundary: 'put' }, { op: 'write', value: 'A' }, { op: 'write', value: 'B' }, { op: 'fetch', label: 'winner' }, { op: 'finish' }, { op: 'artifact', label: 'winner' }] },
+  { name: 'epoch changes with reused counters replace cached source identity', actions: [{ op: 'fetch', label: 'cold' }, { op: 'write', value: 'B' }, { op: 'restore', epoch: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }, { op: 'fetch', label: 'refresh' }, { op: 'artifact', label: 'restored' }] },
+  { name: 'an old-epoch builder loses after the restored generation is installed', actions: [{ op: 'fetch', label: 'cold' }, { op: 'write', value: 'B' }, { op: 'begin', label: 'old', boundary: 'put' }, { op: 'write', value: 'C' }, { op: 'restore' }, { op: 'fetch', label: 'restored' }, { op: 'finish' }, { op: 'artifact', label: 'restored' }] },
+  { name: 'source-read failure preserves the saved artifact and remains retryable', actions: [{ op: 'fetch', label: 'cold' }, { op: 'artifact', label: 'initial' }, { op: 'write', value: 'B' }, { op: 'fetch', label: 'failure', fault: 'read' }, { op: 'artifact', label: 'after failure' }, { op: 'fetch', label: 'retry' }, { op: 'artifact', label: 'after retry' }] },
+  { name: 'serves saved legal XML and 304/HEAD while unchanged checks perform no render', actions: [{ op: 'fetch', label: 'cold' }, { op: 'fetch', label: 'unchanged', conditional: 'cold', track: 'warm' }, { op: 'work', track: 'warm' }, { op: 'fetch', label: 'head', method: 'HEAD', track: 'warm' }, { op: 'work', track: 'warm' }] },
+  { name: 'revalidates even when the stale representation produces a 304', actions: [{ op: 'fetch', label: 'cold' }, { op: 'write', value: 'B' }, { op: 'fetch', label: 'stale', conditional: 'cold' }, { op: 'fetch', label: 'fresh' }] },
+  { name: 'old builders cannot overwrite a newer generation with repeated visible bytes', actions: [{ op: 'fetch', label: 'cold' }, { op: 'write', value: 'B' }, { op: 'begin', label: 'old', boundary: 'put', track: 'old' }, { op: 'write', value: 'A' }, { op: 'fetch', label: 'newer' }, { op: 'finish' }, { op: 'fetch', label: 'winner' }, { op: 'work', track: 'old' }, { op: 'artifact', label: 'winner' }] },
+  { name: 'discards a render interrupted between settings and content reads', actions: [{ op: 'fetch', label: 'cold' }, { op: 'write', value: 'B' }, { op: 'begin', label: 'interrupted', boundary: 'settings' }, { op: 'write', value: 'C' }, { op: 'finish' }, { op: 'fetch', label: 'fresh' }, { op: 'artifact', label: 'fresh' }] },
+  { name: 'failed background publication keeps last good XML and a later request retries', actions: [{ op: 'fetch', label: 'cold' }, { op: 'artifact', label: 'initial' }, { op: 'write', value: 'B' }, { op: 'fetch', label: 'failed', fault: 'put' }, { op: 'artifact', label: 'after failure' }, { op: 'fetch', label: 'retry' }, { op: 'fetch', label: 'fresh' }] },
+  { name: 'cold competing creators return the conditional winner, not an old overwrite', actions: [{ op: 'begin', label: 'old', boundary: 'put' }, { op: 'write', value: 'B' }, { op: 'fetch', label: 'winner' }, { op: 'finish' }] },
+  { name: 'cold validation exhaustion reuses a valid concurrent saved artifact', actions: [{ op: 'begin', label: 'churning', boundary: 'churn' }, { op: 'fetch', label: 'winner', builder: 'independent' }, { op: 'finish' }, { op: 'artifact', label: 'concurrent winner' }] },
+  { name: 'cold validation exhaustion rejects a winner whose generation metadata is invalid', actions: [{ op: 'begin', label: 'churning', boundary: 'churn' }, { op: 'fetch', label: 'winner', builder: 'independent' }, { op: 'corrupt-artifact' }, { op: 'finish' }] },
+  { name: 'cron builds cold XML and changed XML before any feed reader arrives', actions: [{ op: 'site', enabled: true }, { op: 'tick', label: 'cold tick' }, { op: 'artifact', label: 'cold tick' }, { op: 'write', value: 'B' }, { op: 'tick', label: 'changed tick' }, { op: 'artifact', label: 'scheduled feed changed XML' }, { op: 'fetch', label: 'first reader' }] },
+  { name: 'an unchanged minute tick makes only two small D1 reads and no render or put', actions: [{ op: 'site', enabled: true }, { op: 'tick', label: 'cold tick' }, { op: 'tick', label: 'unchanged tick', track: 'warm tick' }, { op: 'work', track: 'warm tick' }] },
+  { name: 'a site without a canonical URL keeps request-driven rebuilding', actions: [{ op: 'site', enabled: false }, { op: 'tick', label: 'unconfigured', track: 'unconfigured' }, { op: 'work', track: 'unconfigured' }, { op: 'fetch', label: 'reader' }] },
+  { name: 'cron joins pending SWR work and receives later writes on the next tick', actions: [{ op: 'site', enabled: true }, { op: 'tick', label: 'cold tick' }, { op: 'write', value: 'B' }, { op: 'begin', label: 'old', boundary: 'put', track: 'joined' }, { op: 'write', value: 'C' }, { op: 'join-tick', track: 'joined' }, { op: 'finish' }, { op: 'artifact', label: 'joined old render' }, { op: 'tick', label: 'next tick', track: 'joined' }, { op: 'artifact', label: 'scheduled feed next-tick retry' }, { op: 'work', track: 'joined' }] },
+  { name: 'cron failure preserves legal saved XML and a later tick retries', actions: [{ op: 'site', enabled: true }, { op: 'tick', label: 'cold tick' }, { op: 'write', value: 'B' }, { op: 'tick', label: 'failed tick', fault: 'put' }, { op: 'artifact', label: 'after failure' }, { op: 'tick', label: 'retry tick' }, { op: 'artifact', label: 'after retry' }] },
+];
+type FeedVersion = { value: string; generation: Generation; serial: number };
+type FeedExpected = { checkpoint: string; label: string; status?: number; facts?: FeedFacts; generation?: Generation; serial?: number; empty?: boolean; sql?: string[]; puts?: number; objects?: number };
+function feedModel(plan: FeedPlan, trace: readonly Observation[]): FeedExpected[] {
+  const inputs = new Map((values(trace, 'input feed source') as { step: number; generation: Generation }[]).map(value => [value.step, value.generation]));
+  let source: FeedVersion = { value: 'A', generation: inputs.get(-1) ?? { epoch: -1, revision: -1 }, serial: 0 }, artifact: FeedVersion | undefined, pending: { target: FeedVersion; response?: FeedVersion; label: string; boundary: Boundary } | undefined;
+  let serial = 0, configured = false, invalidArtifact = false;
+  const reference = new FeedReference();
+  const commit = () => reference.commit(expectedFacts(source.value), { epoch: String(source.generation.epoch), revision: source.generation.revision });
+  const predicted = (version: FeedVersion) => reference.at({ epoch: String(version.generation.epoch), revision: version.generation.revision })!;
+  commit();
+  const expected: FeedExpected[] = [], trackPuts = new Map<string, number>(), trackSql = new Map<string, string[]>();
+  const publish = (target: FeedVersion, track?: string) => {
+    if (!artifact || target.generation.epoch === source.generation.epoch && (artifact.generation.epoch !== target.generation.epoch || target.generation.revision >= artifact.generation.revision)) {
+      if (!artifact || artifact.generation.epoch !== target.generation.epoch || artifact.generation.revision !== target.generation.revision) { artifact = { ...target, serial: ++serial }; if (track) trackPuts.set(track, (trackPuts.get(track) ?? 0) + 1); }
+    }
+  };
+  for (let step = 0; step < plan.actions.length; step++) {
+    const action = plan.actions[step];
+    switch (action.op) {
+      case 'write': source = { value: action.value, generation: inputs.get(step) ?? source.generation, serial: 0 }; commit(); break;
+      case 'restore': source = { ...source, generation: inputs.get(step) ?? source.generation }; commit(); break;
+      case 'site': configured = action.enabled; source = { ...source, generation: inputs.get(step) ?? source.generation }; commit(); break;
+      case 'corrupt-artifact': invalidArtifact = true; break;
+      case 'begin': {
+        if (action.boundary === 'churn') { source = { value: '1', generation: inputs.get(step) ?? source.generation, serial: 0 }; commit(); }
+        pending = { target: { ...source }, response: artifact && { ...artifact }, label: action.label, boundary: action.boundary };
+        if (artifact) expected.push({ checkpoint: 'feed response', label: action.label, status: 200, facts: predicted(artifact), generation: artifact.generation, serial: artifact.serial });
+        if (action.track) trackPuts.set(action.track, (trackPuts.get(action.track) ?? 0) + 1);
+        break;
+      }
+      case 'finish': {
+        if (!pending) break;
+        if (pending.boundary !== 'churn') publish(pending.boundary === 'settings' ? source : pending.target);
+        if (!pending.response) expected.push({ checkpoint: 'feed response', label: pending.label, status: invalidArtifact ? 500 : 200, ...(!invalidArtifact && artifact ? { facts: predicted(artifact), generation: artifact.generation, serial: artifact.serial } : {}) });
+        pending = undefined; break;
+      }
+      case 'fetch': {
+        const before = artifact;
+        if (!before) publish(source, action.track);
+        const served = before ?? artifact!;
+        expected.push({ checkpoint: 'feed response', label: action.label, status: action.conditional ? 304 : 200, ...(action.method || action.conditional ? { empty: true } : { facts: predicted(served), generation: served.generation, serial: served.serial }) });
+        if (!action.fault) publish(source, before ? action.track : undefined);
+        if (action.track) trackSql.set(action.track, [...(trackSql.get(action.track) ?? []), 'SELECT epoch, feed FROM change_state WHERE id = 1']);
+        break;
+      }
+      case 'tick': {
+        if (action.track) trackSql.set(action.track, [...(trackSql.get(action.track) ?? []), "SELECT value FROM settings WHERE key = 'site_url'", ...(configured ? ['SELECT epoch, feed FROM change_state WHERE id = 1'] : [])]);
+        if (configured && !action.fault) publish(source, action.track);
+        break;
+      }
+      case 'join-tick': break;
+      case 'artifact': expected.push({ checkpoint: 'feed artifact', label: action.label, ...(artifact ? { facts: predicted(artifact), generation: artifact.generation, serial: artifact.serial } : {}), objects: artifact ? 1 : 0 }); break;
+      case 'work': expected.push({ checkpoint: 'feed counted work', label: action.track, puts: trackPuts.get(action.track) ?? 0, ...(action.track === 'warm' || action.track === 'warm tick' || action.track === 'unconfigured' ? { sql: trackSql.get(action.track) ?? [] } : {}), ...(action.track === 'unconfigured' ? { objects: 0 } : {}) }); break;
+    }
+  }
+  return expected;
+}
+const expectedFacts = (value: string): FeedFacts => ({ title: value, bio: `bio-${value}`, body: `<p>body-${value}</p>` });
+
+async function feedDriver(plan: FeedPlan, observe: Observe) {
+  await stored(observe, async () => {
+    const ids = identities(); await seed();
+    const sourceInput = async (step: number) => { const value = await generation(); observe('input feed source', { step, generation: { epoch: ids.epoch(value.epoch), revision: value.revision } }); };
+    await sourceInput(-1);
+    const tags = new Map<string, string>(), tracks = new Map<string, { db: ReturnType<typeof observedDB>; bucket: ReturnType<typeof observedBucket> }>();
+    const tracking = (label: string) => { let value = tracks.get(label); if (!value) { value = { db: observedDB(), bucket: observedBucket() }; tracks.set(label, value); } return value; };
+    type FeedRequest = Awaited<ReturnType<typeof request>>;
+    let pending: { promise: Promise<FeedRequest>; response?: FeedRequest; label: string; release: ReturnType<typeof deferred> } | undefined, joined: Promise<void> | undefined;
+    async function response(value: FeedRequest, label: string) {
+      const xml = await value.response.text(), tag = value.response.headers.get('etag');
+      if (tag) tags.set(label, tag);
+      const body: { facts?: FeedFacts; generation?: Generation; empty?: boolean; bytes?: string } = {};
+      if (xml && value.response.status === 200) {
+        body.facts = facts(xml, observe);
+        body.bytes = xml.replace(/<!-- cache-generation:[a-f0-9]+ -->/, '<!-- generation separately observed -->');
+        const comment = xml.match(/^<\?xml[^>]*\?>\n<!-- cache-generation:([a-f0-9]+) -->/);
+        if (comment) {
+          const bytes = Uint8Array.from(comment[1].match(/../g)!, pair => parseInt(pair, 16));
+          const decoded = JSON.parse(new TextDecoder().decode(bytes)) as [string, string, number];
+          body.generation = { epoch: ids.epoch(decoded[1]), revision: decoded[2] };
+        }
+      } else if (!xml) body.empty = true;
+      observe('feed response', { label, status: value.response.status, ...body, tag: tag ? ids.tag(tag) : undefined, tagPresent: Boolean(tag) });
+    }
+    async function tick(bindings: Env = env) { const ctx = createExecutionContext(); await worker.scheduled({ cron: '* * * * *', scheduledTime: Date.now(), noRetry() {} }, bindings, ctx); await waitOnExecutionContext(ctx); }
+    await withOracleCleanup(async () => {
+      for (let step = 0; step < plan.actions.length; step++) {
+        const action = plan.actions[step];
+        switch (action.op) {
+          case 'write': await setFacts(action.value); await sourceInput(step); break;
+          case 'site': {
+            if (action.enabled) await env.DB.prepare("INSERT INTO settings(key,value) VALUES('site_url',?)").bind(`${BASE}/blyg/`).run();
+            else await env.DB.prepare("DELETE FROM settings WHERE key='site_url'").run();
+            // Configuring the canonical URL is itself a tracked feed input.
+            // Record its token before a scheduled renderer receives that input.
+            await sourceInput(step); break;
+          }
+          case 'restore': {
+            if (action.absent) await env.DB.prepare('DELETE FROM change_state WHERE id=1').run();
+            if (action.epoch) await env.DB.prepare('UPDATE change_state SET epoch=?,feed=0 WHERE id=1').bind(action.epoch).run();
+            else await env.DB.prepare(resetEpochSql).run();
+            await sourceInput(step); break;
+          }
+          case 'corrupt-artifact': {
+            const object = (await env.MEDIA.list({ prefix: '__cache/feed/' })).objects[0];
+            if (!object) throw new Error('Concurrent winner missing before corruption control');
+            await env.MEDIA.put(object.key, '<broken', { customMetadata: {} }); break;
+          }
+          case 'fetch': {
+            let failed = false;
+            const track = action.track ? tracking(action.track) : undefined;
+            const db = action.fault === 'read' ? observedDB(async sql => { if (!failed && /FROM versions/.test(sql)) { failed = true; throw new Error('controlled content read failure'); } }) : track?.db;
+            // A concurrent builder gets a distinct transparent bucket identity,
+            // as in the original separate-isolate schedule. Sharing the held
+            // builder's identity would join its pending work and deadlock.
+            const bucket = action.fault === 'put' ? observedBucket(async () => { throw new Error('controlled R2 interruption'); }) : track?.bucket ?? (action.builder === 'independent' ? observedBucket() : undefined);
+            const bindings = { ...env, ...(db ? { DB: db.db } : {}), ...(bucket ? { MEDIA: bucket.bucket } : {}) };
+            const headers: HeadersInit = action.conditional ? { 'If-None-Match': `"other", W/${tags.get(action.conditional)}` } : {};
+            const value = await request(bindings, headers, action.method); await response(value, action.label); await value.finish(); break;
+          }
+          case 'begin': {
+            const entered = deferred(), release = deferred(); let held = false, writes = 0;
+            const track = action.track ? tracking(action.track) : undefined;
+            const bucket = action.boundary === 'put' ? observedBucket(async () => { if (!held) { held = true; entered.resolve(); await release.promise; } }) : undefined;
+            if (track && bucket) track.bucket = bucket;
+            const db = action.boundary === 'put' ? undefined : observedDB(async sql => {
+              if (!/SELECT key, value FROM settings/.test(sql)) return;
+              if (action.boundary === 'churn') { await setFacts(String(++writes)); if (writes === 1) await sourceInput(step); }
+              if (!held) { held = true; entered.resolve(); await release.promise; }
+            });
+            const bindings = { ...env, ...(bucket ? { MEDIA: bucket.bucket } : {}), ...(db ? { DB: db.db } : {}) };
+            const promise = request(bindings);
+            pending = { promise, label: action.label, release };
+            // Warm responses return before their background gate; cold requests
+            // wait for the same gate before their HTTP response can complete.
+            const objects = await env.MEDIA.list({ prefix: '__cache/feed/' });
+            if (objects.objects.length) { pending.response = await promise; await response(pending.response, action.label); }
+            await entered.promise; break;
+          }
+          case 'finish': {
+            if (!pending) throw new Error('Feed plan finishes no pending attempt');
+            const work = pending; work.release.resolve();
+            if (work.response) await work.response.finish();
+            else { const value = await work.promise; await value.finish(); await response(value, work.label); }
+            await joined; joined = undefined; pending = undefined; break;
+          }
+          case 'artifact': {
+            const value = await saved(observe, ids);
+            if (value) observe('feed artifact', { label: action.label, facts: value.facts, generation: { epoch: value.epoch, revision: value.revision }, bytes: value.bytes, tag: value.etag });
+            break;
+          }
+          case 'tick': {
+            const track = action.track ? tracking(action.track) : undefined, bucket = action.fault ? observedBucket(async () => { throw new Error('controlled scheduled put failure'); }) : track?.bucket;
+            await tick({ ...env, ...(track ? { DB: track.db.db } : {}), ...(bucket ? { MEDIA: bucket.bucket } : {}) }); break;
+          }
+          case 'join-tick': {
+            const entered = deferred(), track = tracking(action.track); let accesses = 0;
+            const bindings = new Proxy({ ...env, MEDIA: track.bucket.bucket }, { get(target, property) { if (property === 'MEDIA' && ++accesses === 2) entered.resolve(); return Reflect.get(target, property); } });
+            joined = tick(bindings); await entered.promise; break;
+          }
+          case 'work': {
+            const track = tracking(action.track), objects = await env.MEDIA.list({ prefix: '__cache/feed/' });
+            observe('feed counted work', { label: action.track, puts: track.bucket.puts(), sql: track.db.statements, objects: objects.objects.length }); break;
+          }
+        }
+      }
+    }, [async () => {
+      if (pending) { pending.release.resolve(); const value = pending.response ?? await pending.promise; await value.finish(); }
+    }, async () => { await joined; }]);
+  });
+}
+// A semantic comparison belongs to the event that supplied its value.
+// Only the post-cleanup completion marker can establish a missing tail; a
+// correct partial prefix must leave a later driver/cleanup error primary.
+function feedCheck(_plan: FeedPlan, trace: readonly Observation[], expected: FeedExpected[]): Verdict {
+  const law = 'feed publication', invalid = common(trace, law); if (invalid) return invalid;
+  const rows = trace.filter(entry => ['feed response', 'feed artifact', 'feed counted work'].includes(entry.checkpoint));
+  const serialArtifacts = new Map<number, { bytes: unknown; tag: unknown }>(), generationTags = new Map<string, unknown>();
+  for (let index = 0; index < rows.length; index++) {
+    const row = rows[index], wanted = expected[index], value = row.value as Record<string, unknown>;
+    if (!wanted) return differs(row.checkpoint, law, value, undefined)!;
+    const projected: Record<string, unknown> = { checkpoint: row.checkpoint, label: value.label };
+    const required: Record<string, unknown> = { checkpoint: wanted.checkpoint, label: wanted.label };
+    for (const key of ['status', 'facts', 'generation', 'empty', 'sql', 'puts', 'objects'] as const) if (key in wanted) {
+      // Artifact cardinality is checked at its R2 list checkpoint by common().
+      if (row.checkpoint === 'feed artifact' && key === 'objects') continue;
+      projected[key] = value[key]; required[key] = wanted[key];
+    }
+    const bad = differs(row.checkpoint, law, projected, required); if (bad) return bad;
+    if (wanted.facts && row.checkpoint === 'feed response') {
+      const missingTag = differs(row.checkpoint, law, value.tagPresent, true, 'the feed response is missing its validator'); if (missingTag) return missingTag;
+    }
+    if (wanted.generation && value.tag !== undefined) {
+      const key = `${wanted.generation.epoch}:${wanted.generation.revision}`;
+      if (generationTags.has(key)) { const changed = differs(row.checkpoint, law, value.tag, generationTags.get(key), 'one feed generation has different ETags'); if (changed) return changed; }
+      for (const [other, tag] of generationTags) if (other !== key && tag === value.tag) return differs(row.checkpoint, law, key, other, 'different feed generations share one ETag')!;
+      generationTags.set(key, value.tag);
+    }
+    if (wanted.serial !== undefined) {
+      const previous = serialArtifacts.get(wanted.serial), actual = { bytes: value.bytes, tag: value.tag };
+      if (previous) { const drift = differs(row.checkpoint, law, actual, previous, 'one saved publication has different bytes or ETags'); if (drift) return drift; }
+      serialArtifacts.set(wanted.serial, actual);
+    }
+  }
+  return values(trace, 'history complete').length ? differs('history complete', law, rows.length, expected.length) ?? pass : pass;
+}
+oracleProperty({
+  id: 'polling-cache-feed-publication', owns: ['src/feed-cache.ts'],
+  law: { statement: 'For every controlled feed history, responses serve a complete legal saved source rendering, generation-bearing bytes prevent stale builders replacing newer publications, failures preserve saved bytes and permit retry, and unchanged request or minute checks perform only their declared cheap reads.', authority: 'docs/d1-polling-cache-design.md P5–P9/R4–R9 and original independent FeedReference receiving schedules', limits: 'All original local D1/R2 controlled PUT/read/cold/cron schedules; no bounded stale age, deployed provider/proxy or global single-flight guarantee.' },
+  histories: feedPlans, label: plan => plan.name, model: feedModel, driver: feedDriver, check: feedCheck,
+  calibrations: [
+    { name: 'mixed source values', law: 'feed publication', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'feed artifact' ? { ...entry, value: { ...(entry.value as object), facts: { title: 'B', bio: 'bio-B', body: '<p>body-A</p>' } } } : entry) },
+    { name: 'same-valued artifact carries old revision', law: 'feed publication', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'feed artifact' ? { ...entry, value: { ...(entry.value as object), generation: { epoch: 0, revision: -1 } } } : entry) },
+  ],
+});
+
+// Restore is a lifecycle input: counters may return to zero only under a fresh
+// epoch. The second reset deliberately starts without the singleton row.
+oracleProperty({
+  id: 'polling-cache-restore-epoch', owns: ['src/changes.ts'],
+  law: { statement: 'For every restore/reset in the original lifecycle history, reset creates a fresh epoch and zero feed revision, including when the singleton is missing.', authority: 'docs/d1-polling-cache-design.md P9/R9 and scripts/reset-change-epoch.sql lifecycle contract', limits: 'The actual local restore SQL, not proof that every deployment invokes it.' },
+  histories: [{ resets: [false, true] }], model: plan => plan.resets.map(() => ({ changed: true, revision: 0 })),
+  driver: async (plan, observe) => stored(observe, async () => {
+    let before = await generation();
+    for (const absent of plan.resets) {
+      if (absent) await env.DB.prepare('DELETE FROM change_state WHERE id=1').run();
+      await env.DB.prepare(resetEpochSql).run(); const after = await generation();
+      observe('restore identity', { changed: after.epoch !== before.epoch, revision: after.revision }); before = after;
+    }
+  }),
+  check: (_plan, trace, expected) => {
+    const rows = values(trace, 'restore identity');
+    for (let index = 0; index < rows.length; index++) { const bad = differs('restore identity', 'fresh restore epoch', rows[index], expected[index]); if (bad) return bad; }
+    return complete(trace) ? differs('history complete', 'fresh restore epoch', rows.length, expected.length) ?? pass : pass;
+  },
+  calibrations: [{ name: 'reset reuses epoch', law: 'fresh restore epoch', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'restore identity' ? { ...entry, value: { ...(entry.value as object), changed: false } } : entry) }],
+});
+
+type MaintenancePlan = { cron: string; at: number; origin: string; html: string };
+const maintenanceBase = { origin: 'https://old.example/blyg/', html: '<img src="media/old.png"><a href="/blyg/f/old/">old</a>' };
+const maintenancePlans: MaintenancePlan[] = [
+  { ...maintenanceBase, cron: '*/15 * * * *', at: Date.UTC(2026, 9, 6, 12, 0) },
+  { ...maintenanceBase, cron: '*/15 * * * *', at: Date.UTC(2026, 9, 7, 0, 0) },
+  { ...maintenanceBase, cron: '0 0 * * *', at: Date.UTC(2026, 9, 6, 12, 0) },
+];
+oracleProperty({
+  id: 'polling-cache-maintenance', owns: ['src/feed-cache.ts', 'src/changes.ts'],
+  law: { statement: 'For every original scheduled maintenance history, quarter-hour polling leaves URL repair and claim pruning to daily work; midnight performs daily maintenance even with only quarter-hour configuration, and the dedicated daily cron performs neither subscription polling nor feed work.', authority: 'docs/d1-polling-cache-design.md R4 cron separation and original daily/quarter-hour receiving witnesses', limits: 'Local scheduled entrypoint with paused legacy import; no deployed timer delivery guarantee.' },
+  histories: maintenancePlans,
+  model: plan => {
+    const dailyOnly = plan.cron === '0 0 * * *', time = new Date(plan.at), daily = dailyOnly || time.getUTCHours() === 0 && time.getUTCMinutes() === 0;
+    const html = daily ? plan.html.replace('media/old.png', new URL('media/old.png', plan.origin).href).replace('/blyg/f/old/', new URL('/blyg/f/old/', plan.origin).href) : plan.html;
+    return { html, daily, dailyOnly };
+  },
+  driver: async (plan, observe) => stored(observe, async () => {
+    await env.DB.prepare("INSERT INTO subscriptions(id,kind,origin,feed_url,title,status,created) VALUES('legacy-cron','blyg',?,?,'Old','paused','now')").bind(plan.origin, new URL('feed.xml', plan.origin).href).run();
+    await env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,content_html,observed_at) VALUES('legacy-cron','old','fragment','current',1,?,'now')").bind(plan.html).run();
+    const db = observedDB(), ctx = createExecutionContext();
+    await worker.scheduled({ cron: plan.cron, scheduledTime: plan.at, noRetry() {} }, { ...env, DB: db.db }, ctx); await waitOnExecutionContext(ctx);
+    const value = await env.DB.prepare("SELECT content_html FROM imported_items WHERE subscription_id='legacy-cron' AND remote_id='old'").first<{ content_html: string }>();
+    observe('maintenance effects', { html: value?.content_html, repairRead: db.statements.some(sql => sql.includes('content_html GLOB')), prunes: db.statements.some(sql => /DELETE FROM mentions_in/.test(sql)), polls: db.statements.some(sql => /SELECT \* FROM subscriptions/.test(sql)), feedReads: db.statements.some(sql => sql.includes('FROM change_state')) });
+  }),
+  check: (_plan, trace, expected) => {
+    const rows = values(trace, 'maintenance effects') as { html: string; repairRead: boolean; prunes: boolean; polls: boolean; feedReads: boolean }[];
+    for (const row of rows) {
+      const bad = differs('maintenance effects', 'scheduled work separation', { html: row.html, prunes: row.prunes, ...(!expected.daily ? { repairRead: row.repairRead } : {}), ...(expected.dailyOnly ? { polls: row.polls, feedReads: row.feedReads } : {}) }, { html: expected.html, prunes: expected.daily, ...(!expected.daily ? { repairRead: false } : {}), ...(expected.dailyOnly ? { polls: false, feedReads: false } : {}) }); if (bad) return bad;
+    }
+    return complete(trace) ? differs('history complete', 'scheduled work separation', rows.length, 1) ?? pass : pass;
+  },
+  calibrations: [{ name: 'quarter-hour poll performs daily prune', law: 'scheduled work separation', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'maintenance effects' ? { ...entry, value: { ...(entry.value as object), prunes: true } } : entry) }],
+});
+
+oracleProperty({
+  id: 'polling-cache', owns: ['src/feed-cache.ts'],
+  law: { statement: 'After each settled source write and refresh, a fresh RSS response contains the exact independently predicted title, biography and body.', authority: 'docs/d1-polling-cache-design.md; original polling-cache campaign', limits: 'One to eight writes chosen from the original three-value grammar; settled sequential refreshes.' },
+  histories: {
+    arbitrary: fc.array(fc.integer({ min: 0, max: 2 }), { minLength: 1, maxLength: 8 }), runs: 8, fixedSeeds: [20261001], states: ['source changes', 'settled fresh read', 'repeated visible value'],
+    constructed: [
+      { name: 'all source values', enters: ['source changes', 'settled fresh read'], build: () => [0, 1, 2] },
+      { name: 'repeated visible value', enters: ['source changes', 'settled fresh read', 'repeated visible value'], build: () => [0, 1, 0] },
+    ],
+  },
+  model: (history: number[]) => history.map(value => expected(String(value))),
+  reached: (history, trace) => {
+    const states: string[] = [], source = ['A', ...history.map(String)];
+    if (source.some((value, index) => index > 0 && value !== source[index - 1]) && values(trace, 'feed settled values').length) states.push('source changes');
+    if (values(trace, 'feed settled values').length === history.length && history.length) states.push('settled fresh read');
+    if (history.some((value, index) => history.slice(0, index).includes(value)) && values(trace, 'feed settled values').length === history.length) states.push('repeated visible value');
+    return states;
+  },
+  driver: async (history, observe) => {
+    await stored(observe, async () => {
+      await seed(); await clearArtifacts(); const initial = await request(); await initial.response.text(); await initial.finish();
+      for (const value of history) {
+        await setFacts(String(value)); const stale = await request(); await stale.response.text(); await stale.finish();
+        const fresh = await request(), xml = await fresh.response.text(); await fresh.finish(); observe('feed settled values', facts(xml, observe));
       }
     });
-    const cold = request({ ...env, DB: recorder.db });
-    try {
-      await entered.promise;
-      const winner = await request({ ...env, MEDIA: observedBucket().bucket });
-      expect(winner.response.status).toBe(200); await winner.response.text(); await winner.finish();
-      release.resolve(); const loser = await cold; await loser.finish();
-      // This is the review's proposed availability law: saved legal bytes exist.
-      expect((await env.MEDIA.list({ prefix: '__cache/feed/' })).objects).toHaveLength(1);
-      expect(loser.response.status).toBe(200); expect(facts(await loser.response.text())).toEqual(expected('1'));
-    } finally { release.resolve(); }
-  });
-
-  it('both change readers reject a native blob epoch', async () => {
-    await env.DB.prepare('UPDATE change_state SET epoch=? WHERE id=1').bind(new Uint8Array([1,2])).run();
-    await expect(readChanges(env.DB)).rejects.toThrow('change state unavailable');
-    // Native SQLite TEXT affinity still permits blobs, so this is a receiving case.
-    await expect(readFeedRevision(env.DB)).rejects.toThrow('feed revision unavailable');
-  });
-
-  it('cold validation exhaustion rejects a winner whose generation metadata is invalid', async () => {
-    await seed(); const entered = deferred(), release = deferred(); let changes = 0;
-    const recorder = observedDB(async sql => {
-      if (/SELECT key, value FROM settings/.test(sql)) {
-        changes++; await setFacts(String(changes));
-        if (changes === 1) { entered.resolve(); await release.promise; }
-      }
-    });
-    const cold = request({ ...env, DB: recorder.db });
-    try {
-      await entered.promise;
-      const winner = await request({ ...env, MEDIA: observedBucket().bucket });
-      expect(winner.response.status).toBe(200); await winner.response.text(); await winner.finish();
-      const key = (await env.MEDIA.list({ prefix: '__cache/feed/' })).objects[0].key;
-      await env.MEDIA.put(key, '<broken', { customMetadata: {} });
-      release.resolve(); const loser = await cold; await loser.finish();
-      expect(loser.response.status).toBe(500);
-    } finally { release.resolve(); }
-  });
-});
-
-
-describe('feed-only scheduled rebuilds', () => {
-  async function configureSite() {
-    await env.DB.prepare("INSERT INTO settings(key,value) VALUES('site_url',?)").bind(`${BASE}/blyg/`).run();
-  }
-  async function tick(bindings: Env = env) {
-    const ctx = createExecutionContext();
-    await worker.scheduled({ cron: '* * * * *', scheduledTime: Date.now(), noRetry() {} }, bindings, ctx);
-    await waitOnExecutionContext(ctx);
-  }
-  it('cron builds cold XML and changed XML before any feed reader arrives', async () => {
-    await seed(); await configureSite();
-    await tick(); expect(facts((await saved()).xml)).toEqual(expected('A'));
-    await setFacts('B'); await tick();
-    const changed = await saved();
-    atCheckpoint('scheduled feed changed XML', () => expect(facts(changed.xml)).toEqual(expected('B')));
-    const firstReader = await request();
-    expect(facts(await firstReader.response.text())).toEqual(expected('B')); await firstReader.finish();
-  });
-  it('an unchanged minute tick makes only two small D1 reads and no render or put', async () => {
-    await seed(); await configureSite(); await tick();
-    const db = observedDB(), bucket = observedBucket();
-    await tick({ ...env, DB: db.db, MEDIA: bucket.bucket });
-    expect(db.statements).toEqual([
-      "SELECT value FROM settings WHERE key = 'site_url'",
-      'SELECT epoch, feed FROM change_state WHERE id = 1',
-    ]);
-    expect(bucket.puts()).toBe(0);
-  });
-  it('a site without a canonical URL keeps request-driven rebuilding', async () => {
-    await seed(); const db = observedDB(), bucket = observedBucket();
-    await tick({ ...env, DB: db.db, MEDIA: bucket.bucket });
-    expect(db.statements).toEqual(["SELECT value FROM settings WHERE key = 'site_url'"]);
-    expect(bucket.puts()).toBe(0);
-    expect((await env.MEDIA.list({ prefix: '__cache/feed/' })).objects).toHaveLength(0);
-    const reader = await request(); expect(facts(await reader.response.text())).toEqual(expected('A')); await reader.finish();
-  });
-  it('cron joins pending SWR work and receives later writes on the next tick', async () => {
-    await seed(); await configureSite(); await tick(); await setFacts('B');
-    const entered = deferred(), release = deferred(); let puts = 0;
-    const bucket = observedBucket(async () => { if (++puts === 1) { entered.resolve(); await release.promise; } });
-    const old = await request({ ...env, MEDIA: bucket.bucket }); await old.response.text();
-    let next: Promise<void> | undefined;
-    try {
-      await entered.promise; await setFacts('C');
-      const tickEntered = deferred(); let accesses = 0;
-      const bindings = new Proxy({ ...env, MEDIA: bucket.bucket }, {
-        get(target, property) {
-          if (property === 'MEDIA' && ++accesses === 2) tickEntered.resolve();
-          return Reflect.get(target, property);
-        },
-      });
-      next = tick(bindings);
-      // The real binding lookup marks the tick's pending-job handoff. Hold the
-      // old PUT until that handoff, rather than relying on elapsed time.
-      await tickEntered.promise;
-      release.resolve(); await old.finish(); await next;
-      // HEAD joined the older legal render; its source token remains dirty.
-      expect(facts((await saved()).xml)).toEqual(expected('B'));
-      await tick({ ...env, MEDIA: bucket.bucket }); const artifact = await saved(), source = await generation();
-      atCheckpoint('scheduled feed next-tick retry', () => {
-        expect(facts(artifact.xml)).toEqual(expected('C'));
-        expect({ epoch: artifact.epoch, revision: artifact.revision }).toEqual(source);
-      });
-      expect(bucket.puts()).toBe(2);
-    } finally { release.resolve(); await old.finish(); await next; }
-  });
-  it('cron failure preserves legal saved XML and a later tick retries', async () => {
-    await seed(); await configureSite(); await tick(); await setFacts('B');
-    const broken = observedBucket(async () => { throw new Error('controlled scheduled put failure'); });
-    await tick({ ...env, MEDIA: broken.bucket });
-    expect(facts((await saved()).xml)).toEqual(expected('A'));
-    await tick(); expect(facts((await saved()).xml)).toEqual(expected('B'));
-  });
-});
-
-
-describe('daily maintenance dispatch', () => {
-  async function legacyImport() {
-    await env.DB.prepare("INSERT INTO subscriptions(id,kind,origin,feed_url,title,status,created) VALUES('legacy-cron','blyg','https://old.example/blyg/','https://old.example/blyg/feed.xml','Old','paused','now')").run();
-    await env.DB.prepare(`INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,content_html,observed_at)
-      VALUES('legacy-cron','old','fragment','current',1,'<img src="media/old.png"><a href="/blyg/f/old/">old</a>','now')`).run();
-  }
-  async function html() {
-    return (await env.DB.prepare("SELECT content_html FROM imported_items WHERE subscription_id='legacy-cron' AND remote_id='old'").first<{ content_html: string }>())!.content_html;
-  }
-  // Noon UTC unless given: the quarter-hour tick at 00:00 UTC runs daily work too.
-  async function scheduled(cron: string, bindings: Env, scheduledTime = Date.UTC(2026, 9, 6, 12, 0)) {
-    const ctx = createExecutionContext();
-    await worker.scheduled({ cron, scheduledTime, noRetry() {} }, bindings, ctx);
-    await waitOnExecutionContext(ctx);
-  }
-  it('the quarter-hour subscription poll leaves legacy repair to daily maintenance', async () => {
-    await legacyImport(); const before = await html(), db = observedDB();
-    await scheduled('*/15 * * * *', { ...env, DB: db.db });
-    expect(await html()).toBe(before);
-    expect(db.statements.some(sql => sql.includes('content_html GLOB'))).toBe(false);
-    expect(db.statements.some(sql => /DELETE FROM mentions_in/.test(sql))).toBe(false);
-  });
-  it('a config listing only the quarter-hour cron still gets daily maintenance at 00:00 UTC', async () => {
-    await legacyImport(); const db = observedDB();
-    await scheduled('*/15 * * * *', { ...env, DB: db.db }, Date.UTC(2026, 9, 7, 0, 0));
-    expect(await html()).toBe('<img src="https://old.example/blyg/media/old.png"><a href="https://old.example/blyg/f/old/">old</a>');
-    expect(db.statements.some(sql => /DELETE FROM mentions_in/.test(sql))).toBe(true);
-  });
-  it('daily maintenance repairs old URLs and prunes claims without polling subscriptions', async () => {
-    await legacyImport(); const db = observedDB();
-    await scheduled('0 0 * * *', { ...env, DB: db.db });
-    expect(await html()).toBe('<img src="https://old.example/blyg/media/old.png"><a href="https://old.example/blyg/f/old/">old</a>');
-    expect(db.statements.some(sql => /SELECT \* FROM subscriptions/.test(sql))).toBe(false);
-    expect(db.statements.some(sql => /DELETE FROM mentions_in/.test(sql))).toBe(true);
-    expect(db.statements.some(sql => sql.includes('FROM change_state'))).toBe(false);
-  });
+    },
+  check: (_history, trace, expected) => {
+    const invalid = common(trace, 'feed settled values'); if (invalid) return invalid;
+    const rows = values(trace, 'feed settled values');
+    for (let index = 0; index < rows.length; index++) { const bad = differs('feed settled values', 'feed settled values', rows[index], expected[index]); if (bad) return bad; }
+    return values(trace, 'history complete').length ? differs('history complete', 'feed settled values', rows.length, expected.length) ?? pass : pass;
+  },
+  calibrations: [{ name: 'mixed source values', law: 'feed settled values', history: { constructed: 'all source values' }, corrupt: trace => trace.map(entry => entry.checkpoint === 'feed settled values' ? { ...entry, value: { ...(entry.value as FeedFacts), body: 'stale body' } } : entry) }],
 });

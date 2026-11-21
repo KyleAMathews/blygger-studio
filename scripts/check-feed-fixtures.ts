@@ -10,7 +10,10 @@ const RAW = "https://raw.githubusercontent.com/blygger/blygger-spec/main/conform
 const LISTING = "https://api.github.com/repos/blygger/blygger-spec/contents/conformance/feeds";
 
 const local = readdirSync("test/fixtures/feeds").filter((f) => f.endsWith(".json")).sort();
-const listing = await fetch(LISTING, { headers: { accept: "application/vnd.github+json", "user-agent": "blygger-studio check:fixtures" } });
+// CI passes its token: unauthenticated API calls share the runner's 60 an hour,
+// and a 403 from that limit failed a release Check (2026-11-19).
+const auth: Record<string, string> = process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {};
+const listing = await fetch(LISTING, { headers: { accept: "application/vnd.github+json", "user-agent": "blygger-studio check:fixtures", ...auth } });
 if (!listing.ok) throw new Error(`could not list blygger-spec conformance/feeds: ${listing.status}`);
 const canonical = ((await listing.json()) as { name: string }[]).map((f) => f.name).filter((n) => n.endsWith(".json")).sort();
 

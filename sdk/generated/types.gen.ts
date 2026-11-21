@@ -1116,6 +1116,10 @@ export type BatchReadData = {
             query?: {
                 [key: string]: string;
             };
+            /**
+             * Child resource validator; a matching representation returns status 304 and null body.
+             */
+            ifNoneMatch?: string;
         }>;
     };
     path?: never;
@@ -1193,6 +1197,12 @@ export type BatchReadResponse = BatchReadResponses[keyof BatchReadResponses];
 
 export type GetCapabilitiesData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/capabilities';
@@ -1331,6 +1341,12 @@ export type GetChangesResponse = GetChangesResponses[keyof GetChangesResponses];
 
 export type ListItemsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -1586,6 +1602,12 @@ export type DeleteItemResponse = DeleteItemResponses[keyof DeleteItemResponses];
 
 export type GetItemData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
     };
@@ -2362,6 +2384,12 @@ export type PinItemResponse = PinItemResponses[keyof PinItemResponses];
 
 export type GetSyndicationData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
     };
@@ -2759,6 +2787,12 @@ export type DeleteMediaResponse = DeleteMediaResponses[keyof DeleteMediaResponse
 
 export type GetSettingsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/settings';
@@ -3016,6 +3050,12 @@ export type UpdateSettingsResponse = UpdateSettingsResponses[keyof UpdateSetting
 
 export type ListSubscriptionsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -3277,6 +3317,12 @@ export type DeleteSubscriptionResponse = DeleteSubscriptionResponses[keyof Delet
 
 export type GetSubscriptionData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
     };
@@ -3575,6 +3621,12 @@ export type ResyncSubscriptionResponse = ResyncSubscriptionResponses[keyof Resyn
 
 export type GetShelfData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/shelf';
@@ -3722,6 +3774,12 @@ export type PutShelfResponse = PutShelfResponses[keyof PutShelfResponses];
 
 export type ListContactsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/contacts';
@@ -4087,6 +4145,12 @@ export type ResolveContactResponse = ResolveContactResponses[keyof ResolveContac
 
 export type ListHoppersData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -4312,6 +4376,12 @@ export type DeleteHopperResponse = DeleteHopperResponses[keyof DeleteHopperRespo
 
 export type GetHopperData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
     };
@@ -5155,6 +5225,12 @@ export type UpdateMentionResponse = UpdateMentionResponses[keyof UpdateMentionRe
 
 export type GetItemSummaryData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/items/summary';
@@ -5230,6 +5306,12 @@ export type GetItemSummaryResponse = GetItemSummaryResponses[keyof GetItemSummar
 
 export type ListItemVersionsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
     };
@@ -5314,6 +5396,12 @@ export type ListItemVersionsResponse = ListItemVersionsResponses[keyof ListItemV
 
 export type ListHopperMembershipsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
     };
@@ -5399,6 +5487,12 @@ export type ListHopperMembershipsResponse = ListHopperMembershipsResponses[keyof
 
 export type ListSignalsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -5480,6 +5574,12 @@ export type ListSignalsResponse = ListSignalsResponses[keyof ListSignalsResponse
 
 export type ListInteractionsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -5564,6 +5664,12 @@ export type ListInteractionsResponse = ListInteractionsResponses[keyof ListInter
 
 export type ListThumbsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -5649,6 +5755,12 @@ export type ListThumbsResponse = ListThumbsResponses[keyof ListThumbsResponses];
 
 export type GetSignalSummaryData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/signals/summary';
@@ -5722,6 +5834,12 @@ export type GetSignalSummaryResponse = GetSignalSummaryResponses[keyof GetSignal
 
 export type GetAiModelsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/ai/models';
@@ -5791,6 +5909,12 @@ export type GetAiModelsResponse = GetAiModelsResponses[keyof GetAiModelsResponse
 
 export type ListMentionsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -5898,6 +6022,12 @@ export type ListMentionsResponse = ListMentionsResponses[keyof ListMentionsRespo
 
 export type ListMentionGroupsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -5986,6 +6116,12 @@ export type ListMentionGroupsResponse = ListMentionGroupsResponses[keyof ListMen
 
 export type GetMentionSummaryData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/mentions/summary';
@@ -6173,6 +6309,12 @@ export type PreviewResponse = PreviewResponses[keyof PreviewResponses];
 
 export type SearchData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -6280,6 +6422,12 @@ export type SearchResponse = SearchResponses[keyof SearchResponses];
 
 export type GetVersionData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
         v: number;
@@ -6352,6 +6500,12 @@ export type GetVersionResponse = GetVersionResponses[keyof GetVersionResponses];
 
 export type GetReadingSummaryData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         sub?: string;
@@ -6446,6 +6600,12 @@ export type GetReadingSummaryResponse = GetReadingSummaryResponses[keyof GetRead
 
 export type ListReadingData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -6641,6 +6801,12 @@ export type SetReadingPlacementResponse = SetReadingPlacementResponses[keyof Set
 
 export type ListImportedReadingData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -6722,6 +6888,12 @@ export type ListImportedReadingResponse = ListImportedReadingResponses[keyof Lis
 
 export type GetImportedItemData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         sub: string;
         id: string;
@@ -6794,6 +6966,12 @@ export type GetImportedItemResponse = GetImportedItemResponses[keyof GetImported
 
 export type GetImportedHistoryData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         sub: string;
         id: string;
@@ -6876,6 +7054,12 @@ export type GetImportedHistoryResponse = GetImportedHistoryResponses[keyof GetIm
 
 export type GetImportedVersionData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         sub: string;
         id: string;
@@ -6954,6 +7138,12 @@ export type GetImportedVersionResponse = GetImportedVersionResponses[keyof GetIm
 
 export type PeekItemData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query: {
         origin: string;
@@ -7178,6 +7368,12 @@ export type ClearBrowseResponse = ClearBrowseResponses[keyof ClearBrowseResponse
 
 export type ListBrowseData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -7340,6 +7536,12 @@ export type LogBrowseResponse = LogBrowseResponses[keyof LogBrowseResponses];
 
 export type GetUpdateStateData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/update-state';
@@ -7412,6 +7614,12 @@ export type GetUpdateStateResponse = GetUpdateStateResponses[keyof GetUpdateStat
 
 export type GetMentionSourceData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
     };
@@ -7486,6 +7694,12 @@ export type GetMentionSourceResponse = GetMentionSourceResponses[keyof GetMentio
 
 export type ListStaleThreadsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query?: never;
     url: '/freshness';
@@ -7557,6 +7771,12 @@ export type ListStaleThreadsResponse = ListStaleThreadsResponses[keyof ListStale
 
 export type GetItemFreshnessData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path: {
         id: string;
     };
@@ -7711,6 +7931,12 @@ export type RefreshItemResponse = RefreshItemResponses[keyof RefreshItemResponse
 
 export type GetForkOptionsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query: {
         id: string;
@@ -7793,6 +8019,12 @@ export type GetForkOptionsResponse = GetForkOptionsResponses[keyof GetForkOption
 
 export type ExtLineageGlyphGetLineageData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query: {
         id: string;
@@ -7866,6 +8098,12 @@ export type ExtLineageGlyphGetLineageResponse = ExtLineageGlyphGetLineageRespons
 
 export type ExtLineageGlyphListSummariesData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query: {
         /**
@@ -7944,6 +8182,12 @@ export type ExtLineageGlyphListSummariesResponse = ExtLineageGlyphListSummariesR
 
 export type ExtWordCountListCountsData = {
     body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
     path?: never;
     query: {
         /**

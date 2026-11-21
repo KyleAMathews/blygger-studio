@@ -41,7 +41,7 @@ What review looks like:
 
 ### 3. A tool or configuration
 
-A tool that acts as an editor would. It creates items, edits settings and pins versions through `{mount}/api` on a [scoped token](client-access.md), from anywhere and in any language, and the Studio never knows it exists. To react to changes, poll `GET /api/changes`; there are no webhooks. See [`mods.md`](mods.md#1-configuration-through-the-owner-api) and the [owner API guide](api.md).
+A tool that acts as an editor would. It creates items, edits settings and pins versions through `{mount}/api` on a [scoped token](client-access.md), from anywhere and in any language, and the Studio never knows it exists. To react to changes, poll the resources you need with conditional GETs and their ETags. There are no webhooks. See [`mods.md`](mods.md#1-configuration-through-the-owner-api) and the [owner API guide](api.md).
 
 ### 4. An extension
 
@@ -59,7 +59,7 @@ Say which mod needs it and why rungs 3 and 4 do not reach.
 
 ### 6. A mod
 
-A mod is a kind of blyg, not a pile of settings. [blykker](https://github.com/blygger/blykker), the first, keeps a blyg arranged as a book. It began as a `book.json` and a script on the owner API, added extensions second, and proposed hooks upstream third. A mod keeps two promises ([`mods.md`](mods.md#two-promises-a-mod-keeps)): the generator string stays `blygger-studio/x.y.z`, and it does not fork.
+A mod is a kind of blyg, not a pile of settings. [blykker](https://github.com/blygger/blykker), the first, keeps a blyg arranged as a book. It began as a `book.json` and a script on the owner API, added extensions second, and proposed hooks upstream third. A mod keeps three promises ([`mods.md`](mods.md#three-promises-a-mod-keeps)): the generator string stays `blygger-studio/x.y.z`, model text it inserts is disclosed, and it does not fork.
 
 ### 7. A local patch
 

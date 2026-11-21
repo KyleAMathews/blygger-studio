@@ -1,0 +1,913 @@
+{
+  "baseCommit": "28b0c8d642a87e5810ad6eabd95c2d1714c53396",
+  "frameworkCommit": "97a4e7a8e4b870c269bff297a16bf8435d258640",
+  "policy": "Preserve every existing law, input grammar, witness, assertion, production driver, cleanup behavior, mutation control, and replay capability. The suite migration changes no production behavior. Setup separately removes the expired mounted API alias and audience with maintainer approval.",
+  "suites": [
+    {
+      "file": "e2e/save-oracle.spec.ts",
+      "runtime": "browser",
+      "style": "enumerated",
+      "baselineLines": 233,
+      "status": "migrated",
+      "auditFiles": [
+        "e2e/save-oracle-scenarios.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 38,
+        "cases": 8,
+        "comparisonHash": "e5c454e19006cdec3a1b26c7b9dbde84c9d27c0dbc6b4e7a3514dc2ad7259b9e",
+        "caseHash": "7e5db719bcd576a46f5163972f7238c6f4d20449d6b90df52ea493fe3bafd7f3"
+      },
+      "implementation": "test-browser/save.oracle.test.ts",
+      "properties": [
+        "browser-save-desktop",
+        "browser-save-mobile"
+      ],
+      "validation": [
+        "test:oracles:browser",
+        "check:oracle-migration"
+      ],
+      "entrypoint": "e2e/save.spec.ts"
+    },
+    {
+      "file": "test/auth-deployment.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 111,
+      "status": "migrated",
+      "auditFiles": [
+        "test/auth-deployment.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 27,
+        "cases": 5,
+        "comparisonHash": "e1325d189dc7c0ce70aa2158544d7d587de2aa9f0622b583309aa5e56d99939b",
+        "caseHash": "5cae9f552d869cdd5c7a1d1d2b70a7934512372a96193768d41faf1cbb96d316"
+      },
+      "implementation": "test/auth-deployment.oracle.test.ts",
+      "properties": [
+        "auth-deployment",
+        "auth-deployment-cookie"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/auth-lifecycle.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 188,
+      "status": "migrated",
+      "auditFiles": [
+        "test/auth-lifecycle.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 43,
+        "cases": 12,
+        "comparisonHash": "3a5be13f608078d4d6eced4cc8f10dcfa186e1c851415b623a2826e79f6d9f53",
+        "caseHash": "472159f5137f814ecb5525d46c85a3b8f78f231135c1c2c65c11e44baff82aa7"
+      },
+      "implementation": "test/auth-lifecycle.oracle.test.ts",
+      "properties": [
+        "auth-lifecycle",
+        "auth-lifecycle-admission",
+        "auth-lifecycle-consent",
+        "auth-lifecycle-cutover",
+        "auth-lifecycle-access-expiry",
+        "auth-lifecycle-refresh-expiry",
+        "auth-lifecycle-issuer",
+        "auth-lifecycle-schema",
+        "auth-lifecycle-configuration",
+        "auth-lifecycle-offline",
+        "auth-lifecycle-verifier"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/auth-security.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 338,
+      "status": "migrated",
+      "auditFiles": [
+        "test/auth-security.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 63,
+        "cases": 14,
+        "comparisonHash": "da1c710c7e62c1aba1db045e01e9759e2e3168551071f9176217e74a0035798f",
+        "caseHash": "fe06cff2772e3bf296c48376965b7e32a6b0bf8be83070b02ede41bdc23ca187"
+      },
+      "implementation": "test/auth-security.oracle.test.ts",
+      "properties": [
+        "auth-security",
+        "auth-security-refresh-preservation",
+        "auth-security-refresh-replay",
+        "auth-security-introspection",
+        "auth-security-stored-secrets",
+        "auth-security-dependency-errors",
+        "auth-security-credential-validity",
+        "auth-security-revoked-listing"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/authorization.oracle.test.ts",
+      "runtime": "worker",
+      "style": "generated",
+      "baselineLines": 143,
+      "status": "migrated",
+      "implementation": "test/authorization.oracle.test.ts",
+      "properties": [
+        "authorization"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/better-auth.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 111,
+      "status": "migrated",
+      "auditFiles": [
+        "test/better-auth.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 45,
+        "cases": 1,
+        "comparisonHash": "7902ee51d74cf9da7ca6a175043a5c0e040fd58f66d859693da3344cc578deb4",
+        "caseHash": "efc46909264256839148e913789aae1242e738c532bfad3e5a47303d6e07ca70"
+      },
+      "implementation": "test/better-auth.oracle.test.ts",
+      "properties": [
+        "better-auth"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/client-provenance.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 46,
+      "status": "migrated",
+      "auditFiles": [
+        "test/client-provenance.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 9,
+        "cases": 1,
+        "comparisonHash": "14c9c5d5a420e76ad7b716099c5982f971f16ce013ed17fa421626533a5c20a5",
+        "caseHash": "746457a06fd19b42347824b01fd6fe44131bcdf8d6a5d54b8387e5419fd3babf"
+      },
+      "implementation": "test/client-provenance.oracle.test.ts",
+      "properties": [
+        "client-provenance"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/consent-destination-security.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 23,
+      "status": "migrated",
+      "auditFiles": [
+        "test/consent-destination-security.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 3,
+        "cases": 1,
+        "comparisonHash": "43b5b46a21716555bd01852a7435f82d14f720ba6dab6f8e6ad82f913ed0caf9",
+        "caseHash": "02e00ab76261f4ddda8a71d154c4e4466ab1c8bf97ba3eedc862a94eacafd521"
+      },
+      "implementation": "test/consent-destination-security.oracle.test.ts",
+      "properties": [
+        "consent-destination-security"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/delegated-budget-security.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 94,
+      "status": "migrated",
+      "auditFiles": [
+        "test/delegated-budget-security.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 20,
+        "cases": 4,
+        "comparisonHash": "618454ee333e255de0222afae56a8760f3e10b0336a463466745c97d9e144d3b",
+        "caseHash": "8cd33bcc2ca7d8ed5a7a8b79c36ebdcd794e38f2b4d61fdb321bc0a9f34a619b"
+      },
+      "implementation": "test/delegated-budget-security.oracle.test.ts",
+      "properties": [
+        "delegated-budget-security"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/draft-authority-security.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 92,
+      "status": "migrated",
+      "auditFiles": [
+        "test/draft-authority-security.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 13,
+        "cases": 2,
+        "comparisonHash": "c799da4fcecfce901b1f48f38c5c712ed2c07469600553a7bce8e6f98f48ca48",
+        "caseHash": "ffb0a971f0623ee1c2da3d2d01d8f66c31d719e4580a9d40d12fc2f28466d703"
+      },
+      "implementation": "test/draft-authority-security.oracle.test.ts",
+      "properties": [
+        "draft-authority-security"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/fork-fetch-security.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 37,
+      "status": "migrated",
+      "auditFiles": [
+        "test/fork-fetch-security.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 6,
+        "cases": 3,
+        "comparisonHash": "21b3df92b7f8fc4ed47f7a82896c29a92a7d14ec09c19c4553acce4d40880172",
+        "caseHash": "e8bf441cb7d0a9158c550a3a8e0df6fe9d67ca00692e5473631923a0195e9817"
+      },
+      "implementation": "test/fork-fetch-security.oracle.test.ts",
+      "properties": [
+        "fork-fetch-security"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/imported-html-security.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 52,
+      "status": "migrated",
+      "auditFiles": [
+        "test/imported-html-security.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 5,
+        "cases": 2,
+        "comparisonHash": "acb5136025467b3c7b4f42c27aaf6db351417d0c5fff44308b04c5c9ec0ce254",
+        "caseHash": "453d8a2ac3a5de7d9d83d9f525197388df6178f372d7e99f126de76df15d8e1b"
+      },
+      "implementation": "test/imported-html-security.oracle.test.ts",
+      "properties": [
+        "imported-html-security"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/item-lifecycle.oracle.test.ts",
+      "runtime": "worker",
+      "style": "generated",
+      "baselineLines": 123,
+      "status": "migrated",
+      "implementation": "test/item-lifecycle.oracle.test.ts",
+      "properties": [
+        "item-lifecycle",
+        "item-lifecycle-witnesses"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/markdown-work-security.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 32,
+      "status": "migrated",
+      "auditFiles": [
+        "test/markdown-work-security.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 2,
+        "cases": 1,
+        "comparisonHash": "678429a6b3d57df006ef9b247a72387d86189c3f98b24c2e1e7b323f9e49b072",
+        "caseHash": "e2722b9d0255db076456e45d7e33d3f689da9a509851638e127e35677acc865e"
+      },
+      "implementation": "test/markdown-work-security.oracle.test.ts",
+      "properties": [
+        "markdown-work-security"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/mcp-media.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 175,
+      "status": "migrated",
+      "auditFiles": [
+        "test/mcp-media.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 51,
+        "cases": 9,
+        "comparisonHash": "ee481cf9db9e4114b3d6418bd15cb95c81346accfcaefc6d5b7b13e35e49d421",
+        "caseHash": "68cd570850554eb87df5fa94650bc6e4c463c4b67d4467a1595c5fef46860ccb"
+      },
+      "implementation": "test/mcp-media.oracle.test.ts",
+      "properties": [
+        "mcp-media"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/mcp.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 336,
+      "status": "migrated",
+      "auditFiles": [
+        "test/mcp.oracle.test.ts",
+        "test/mcp-model.test.ts",
+        "test/mcp-model.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 93,
+        "cases": 12,
+        "comparisonHash": "ead3ab949f98eb48804882725f9b6ca868827f52bc58f4f0c7e8afcd859aec3e",
+        "caseHash": "5db73c5d202999659551f910b284aac6421d59cbd3346fe8a897a59e87ea727c"
+      },
+      "implementation": "test/mcp.oracle.test.ts",
+      "properties": [
+        "mcp"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ],
+      "harnessComparisons": {
+        "file": "test/mcp-model.test.ts",
+        "comparisons": 2,
+        "reason": "Nested checker calibration is an ordinary model test; 91 receiving comparisons stay in the MCP oracle."
+      }
+    },
+    {
+      "file": "test/media-visibility-security.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 153,
+      "status": "migrated",
+      "auditFiles": [
+        "test/media-visibility-security.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 52,
+        "cases": 7,
+        "comparisonHash": "5543c5c2cbe0436ee66e7e84c17c29ec44456e3b9abc40001d534acbf55963fa",
+        "caseHash": "2eba35db8cf0ee02009a835dada8a3a66237db6e5ec9f0d3d4af1d10a1b50a0f"
+      },
+      "implementation": "test/media-visibility-security.oracle.test.ts",
+      "properties": [
+        "media-visibility-security"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/mention-delivery.oracle.test.ts",
+      "runtime": "worker",
+      "style": "generated",
+      "baselineLines": 141,
+      "status": "migrated",
+      "implementation": "test/mention-delivery.oracle.test.ts",
+      "properties": [
+        "mention-delivery"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/mention-order.oracle.test.ts",
+      "runtime": "worker",
+      "style": "generated",
+      "baselineLines": 132,
+      "status": "migrated",
+      "implementation": "test/mention-order.oracle.test.ts",
+      "properties": [
+        "mention-order"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/oauth-flow.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 118,
+      "status": "migrated",
+      "auditFiles": [
+        "test/oauth-flow.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 36,
+        "cases": 6,
+        "comparisonHash": "1d299c8a51526ad95e97fb6ea2aa0ab70a986b0954dc4fa475d43acd3876dd3c",
+        "caseHash": "c13ae16ea2b2aea8ba7ebf9d6536ba38d5a8d052fb0f7eaf9228f2cc0c3ea3b7"
+      },
+      "implementation": "test/oauth-flow.oracle.test.ts",
+      "properties": [
+        "oauth-flow"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/oauth-grant-list.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 87,
+      "status": "migrated",
+      "auditFiles": [
+        "test/oauth-grant-list.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 22,
+        "cases": 3,
+        "comparisonHash": "4478c9f015bb5f86835747c566fe3b48c335ae25746a3c977c1ee4607b6d92d0",
+        "caseHash": "72d6737f28c2c6b10d1f18fdc096034d571bf8c85fe9304da089b25da97f8169"
+      },
+      "implementation": "test/oauth-grant-list.oracle.test.ts",
+      "properties": [
+        "oauth-grant-list"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/oauth-implementation.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 171,
+      "status": "migrated",
+      "auditFiles": [
+        "test/oauth-implementation.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 45,
+        "cases": 13,
+        "comparisonHash": "667123a15a0ed306c628d1145780bc773fa1ec3eb98381478a714024cfc33c31",
+        "caseHash": "a65427bf837c15cbeb5539f55ad0314ed43f78f13be3e65dabeb486d56baf179"
+      },
+      "implementation": "test/oauth-implementation.oracle.test.ts",
+      "properties": [
+        "oauth-implementation"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/oauth-spec.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 111,
+      "status": "migrated",
+      "auditFiles": [
+        "test/oauth-spec.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 36,
+        "cases": 7,
+        "comparisonHash": "3e949448f5906ef22238efa4d7d37f8f265f765eff110bdea7e27bd7489a5e5a",
+        "caseHash": "d2e93d34ad2bb726075fe7731af18aca338041f98f26088187f824b92af8ed0a"
+      },
+      "implementation": "test/oauth-spec.oracle.test.ts",
+      "properties": [
+        "oauth-spec"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/oauth-storage.oracle.test.ts",
+      "runtime": "worker",
+      "style": "generated",
+      "baselineLines": 69,
+      "status": "migrated",
+      "implementation": "test/oauth-storage.oracle.test.ts",
+      "properties": [
+        "oauth-storage-pages",
+        "oauth-storage-expiry"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/oauth-validation.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 339,
+      "status": "migrated",
+      "auditFiles": [
+        "test/oauth-validation.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 114,
+        "cases": 36,
+        "comparisonHash": "c8b50e05b2d2f2e3994261b09ac1667653462fb682f8bf6eafb4bf68449c1934",
+        "caseHash": "1c44caf1f76dfac5c0abc3a06c6e3bbf86899b4e9acbca89573d015f9169673b"
+      },
+      "implementation": "test/oauth-validation.oracle.test.ts",
+      "properties": [
+        "oauth-validation",
+        "oauth-validation-callback",
+        "oauth-validation-registration-redirect",
+        "oauth-validation-owner-authentication",
+        "oauth-validation-authorization-fields",
+        "oauth-validation-extension-parameters",
+        "oauth-validation-response-type",
+        "oauth-validation-pkce",
+        "oauth-validation-token-fields",
+        "oauth-validation-unknown-code",
+        "oauth-validation-code-expiry",
+        "oauth-validation-code-once",
+        "oauth-validation-resource",
+        "oauth-validation-refresh",
+        "oauth-validation-access-expiry",
+        "oauth-validation-grant-expiry",
+        "oauth-validation-code-secrecy",
+        "oauth-validation-token-response",
+        "oauth-validation-signature",
+        "oauth-validation-challenge",
+        "oauth-validation-page-origin",
+        "oauth-validation-resource-metadata",
+        "oauth-validation-prompt",
+        "oauth-validation-registration-defaults",
+        "oauth-validation-advisory",
+        "oauth-validation-authentication-age",
+        "oauth-validation-authentication-time",
+        "oauth-validation-offline-consent",
+        "oauth-validation-reauthentication"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/outbound-destination-security.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 63,
+      "status": "migrated",
+      "auditFiles": [
+        "test/outbound-destination-security.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 9,
+        "cases": 5,
+        "comparisonHash": "c6baf7b229a318e6c5dd8e324ec2666a6d4b49aacc1330e116a6876eba243b26",
+        "caseHash": "67eeb2ff8b17e033205c7a10f9d0ae23a873c51850e14037a1e2bf2b856471e7"
+      },
+      "implementation": "test/outbound-destination-security.oracle.test.ts",
+      "properties": [
+        "outbound-destination-security"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/outbound-security.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 73,
+      "status": "migrated",
+      "auditFiles": [
+        "test/outbound-security.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 10,
+        "cases": 5,
+        "comparisonHash": "e36e3c8a855fbf1c2d6aba1bc6d2c7626d705c29ed209a77afce5903cf9d7714",
+        "caseHash": "52a09efa50764ff62ff50c7c98d1ae89301c5a753bec0634b8dc7b3e491446b1"
+      },
+      "implementation": "test/outbound-security.oracle.test.ts",
+      "properties": [
+        "outbound-security"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/owner-reset.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 122,
+      "status": "migrated",
+      "auditFiles": [
+        "test/owner-reset.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 26,
+        "cases": 4,
+        "comparisonHash": "a5ec4b5db44e1d9d16a9aa6dab5487b1b14ca2c8923cdf9ef430988e52b55a3c",
+        "caseHash": "37059def0c3419b819a8a4902b26f0c21b2f63e7dbb8378f5ee2cad3e8b46aa0"
+      },
+      "implementation": "test/owner-reset.oracle.test.ts",
+      "properties": [
+        "owner-reset"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/pagination.oracle.test.ts",
+      "runtime": "worker",
+      "style": "generated",
+      "baselineLines": 63,
+      "status": "migrated",
+      "implementation": "test/pagination.oracle.test.ts",
+      "properties": [
+        "pagination"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/patch-atomicity.oracle.test.ts",
+      "runtime": "worker",
+      "style": "generated",
+      "baselineLines": 139,
+      "status": "migrated",
+      "implementation": "test/patch-atomicity.oracle.test.ts",
+      "properties": [
+        "patch-atomicity",
+        "patch-atomicity-races"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/polling-cache.oracle.test.ts",
+      "runtime": "worker",
+      "style": "generated",
+      "baselineLines": 657,
+      "status": "migrated",
+      "implementation": "test/polling-cache.oracle.test.ts",
+      "properties": [
+        "polling-cache-receiving",
+        "polling-cache-atomic",
+        "polling-cache-schema",
+        "polling-cache-source-history",
+        "polling-cache-counted-work",
+        "polling-cache-reading-effects",
+        "polling-cache-imported-dependencies",
+        "polling-cache-mention-effects",
+        "polling-cache-timed-read",
+        "polling-cache-legacy-response",
+        "polling-cache-state-readers",
+        "polling-cache-feed-publication",
+        "polling-cache-restore-epoch",
+        "polling-cache-maintenance",
+        "polling-cache"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/registration-retention-security.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 56,
+      "status": "migrated",
+      "auditFiles": [
+        "test/registration-retention-security.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 10,
+        "cases": 4,
+        "comparisonHash": "3153687a06c6714e7473859da730134163c924a79328672adde6e6e4230ba59d",
+        "caseHash": "9792106f466afe5ec3bed3dc42791073ad70e0e98451f1a6065c54dba8e30509"
+      },
+      "implementation": "test/registration-retention-security.oracle.test.ts",
+      "properties": [
+        "registration-retention-security"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/request-body-security.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 29,
+      "status": "migrated",
+      "auditFiles": [
+        "test/request-body-security.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 5,
+        "cases": 2,
+        "comparisonHash": "cb2701245aa5f94020c43bd32c7f2854013e128e70354e6ed2699f47a32288d2",
+        "caseHash": "041da3db95c8df31b9c56f38dae36e613539b6d88edbe546b6ef769abf6c1ead"
+      },
+      "implementation": "test/request-body-security.oracle.test.ts",
+      "properties": [
+        "request-body-security"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/rest-permissions.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 83,
+      "status": "migrated",
+      "auditFiles": [
+        "test/rest-permissions.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 7,
+        "cases": 3,
+        "comparisonHash": "5794023d0cc0c826ad26863ba3abd9982c0d141c830aa5382a1712fdca8defb3",
+        "caseHash": "c8afdf4c6359817d0b38a6449cac6507f385a1a041f40162e7b6b6d716da2f83"
+      },
+      "implementation": "test/rest-permissions.oracle.test.ts",
+      "properties": [
+        "rest-permissions"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/review-content-security.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 280,
+      "status": "migrated",
+      "auditFiles": [
+        "test/review-content-security.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 61,
+        "cases": 11,
+        "comparisonHash": "11630430f6be473fc5f2ba1f15583cba0a06c1effa1ec121a1b3c35a9d521fc8",
+        "caseHash": "b3f7eb97b0718afc9b487b520ef8b5ef62ceb19f75a971ef9e7744768004f695"
+      },
+      "implementation": "test/review-content-security.oracle.test.ts",
+      "properties": [
+        "review-content-security"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/token-header-security.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 45,
+      "status": "migrated",
+      "auditFiles": [
+        "test/token-header-security.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 7,
+        "cases": 1,
+        "comparisonHash": "0e5348af731d14d44528fcdaed2676cf9b9db8b9e7bdc4941e8a85fc12d0d77f",
+        "caseHash": "e2f27c5991014888ff42b8cc0d938fd95a066c4e032874f3b540a89dbce9b973"
+      },
+      "implementation": "test/token-header-security.oracle.test.ts",
+      "properties": [
+        "token-header-security"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test/work-admission-security.oracle.test.ts",
+      "runtime": "worker",
+      "style": "enumerated",
+      "baselineLines": 142,
+      "status": "migrated",
+      "auditFiles": [
+        "test/work-admission-security.oracle.test.ts"
+      ],
+      "baselineFingerprint": {
+        "comparisons": 32,
+        "cases": 11,
+        "comparisonHash": "87ab6563cd9969b61f26182fba72ebb18bf8ac285a81d40d68658c441ff0501d",
+        "caseHash": "58d6cc6fd736fe770b65ff81514d47db8e30d3a06e1815c06bb569740e4c9bbb"
+      },
+      "implementation": "test/work-admission-security.oracle.test.ts",
+      "properties": [
+        "work-admission-security"
+      ],
+      "validation": [
+        "test:oracles:worker",
+        "check:oracle-migration"
+      ]
+    },
+    {
+      "file": "test-ui/polling-cache.oracle.test.ts",
+      "runtime": "node",
+      "style": "generated",
+      "baselineLines": 281,
+      "status": "migrated",
+      "implementation": "test-ui/polling-cache.oracle.test.ts",
+      "properties": [
+        "studio-polling-work",
+        "studio-polling-values",
+        "studio-domain-revision"
+      ],
+      "validation": [
+        "test:oracles:studio",
+        "check:oracle-migration"
+      ]
+    }
+  ],
+  "preservationArtifact": "docs/oracle-preservation.json"
+}

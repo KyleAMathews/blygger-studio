@@ -30,8 +30,6 @@ import {
 } from '../../sdk/dist/browser.js';
 import { queryClient, collectionPollingOptions, collectionRefreshOptions } from './query-client.ts';
 export { queryClient } from './query-client.ts';
-import { readIfChanged, domainRevision, type Generation } from './revision-query.ts';
-import type { ChangeDomain } from '../change-state.ts';
 import { scoped } from './scoped.ts';
 import { createPacedDraftAction } from './paced-write.ts';
 import { createRowMutation } from './mutation.ts';
@@ -43,6 +41,7 @@ import { planReadWrites, type ReadWrite, type UnreadWrite } from './read-state.t
 import { createReadBatchFetch } from './read-batch.ts';
 import { createReadFlight } from './read-flight.ts';
 import { errorLog } from './error-log.ts';
+import { recoverStudioReads } from './read-recovery.ts';
 
 export const apiBase = new URL(document.getElementById('studio-root')!.dataset.apiBase!, location.origin).href;
 const batched = createReadBatchFetch(apiBase);
@@ -50,21 +49,26 @@ const batched = createReadBatchFetch(apiBase);
 const transport = (request: Request) => {
   const { method, url } = request;
   return batched(request).then((response) => {
-    if (!response.ok) errorLog.noteRequest(method, url, response.status);
+    if (!response.ok && response.status !== 304) errorLog.noteRequest(method, url, response.status);
     return response;
   }, (failure) => {
     errorLog.noteRequest(method, url);
     throw failure;
   });
 };
-export const client = createBlyggerClient({ baseUrl: apiBase, fetch: (input, init) => {
-  const request = new Request(input, init);
-  if (['GET', 'HEAD'].includes(request.method)) return transport(request);
-  // Mutation refreshes must not reuse checks started before a write.
-  changesFlight.invalidate();
-  return transport(request).finally(() => changesFlight.invalidate());
-} });
-const changesFlight = createReadFlight(signal => unwrap(BlyggerApi.getChanges({ client, signal })));
+function createStudioClient() {
+  const client = createBlyggerClient({ baseUrl: apiBase, conditionalReads: true, fetch: (input, init) => {
+    const request = new Request(input, init);
+    if (['GET', 'HEAD'].includes(request.method)) return transport(request);
+    // Mutation refreshes must not reuse checks started before a write.
+    ownerFlights.clear();
+    return transport(request).finally(() => { ownerFlights.clear(); });
+  } });
+  client.setConfig({ fetch: recoverStudioReads(client.getConfig().fetch!) });
+  return client;
+}
+export const client = createStudioClient();
+const ownerFlights = new Map<string, ReturnType<typeof createReadFlight<unknown>>>();
 queryClient.mount();
 /** Applies a confirmed row. An on-demand source no view has started holds no
  * rows to correct, and the view that starts it reads the server (#142). */
@@ -81,41 +85,37 @@ function assertNotPaused(queryKey: readonly unknown[]) {
     .some(query => query.state.fetchStatus === 'paused'))
     throw new Error('Could not confirm changes while offline. Reconnect and try again.');
 }
-function cachedQuery<S extends z.ZodType>(
+async function cachedQuery<S extends z.ZodType>(
   context: QueryFunctionContext,
-  domain: ChangeDomain | readonly ChangeDomain[],
   schema: S,
-  load: (context: QueryFunctionContext, generation: Generation) => Promise<z.input<S>>,
+  load: (context: QueryFunctionContext) => Promise<z.input<S>>,
 ) {
-  // Parse before caching the revision envelope. A bad response must remain a
-  // failed read, so retry can fetch it again without waiting for a new revision.
-  return readIfChanged(
-    context,
-    domain,
-    ({ signal }) => changesFlight.read(signal),
-    async (context, generation) => schema.parse(await load(context, generation)),
-  );
+  context.signal.throwIfAborted();
+  const data = schema.parse(await load(context));
+  context.signal.throwIfAborted();
+  return { data };
 }
 
-// Source collections keep separate rows and optimistic overlays, but projections
-// of one owner response share a validated read for the same server generation.
-function ownerRead<S extends z.ZodType>(
-  key: readonly unknown[],
-  generation: Generation,
-  schema: S,
-  load: (signal: AbortSignal) => Promise<z.input<S>>,
-) {
-  return queryClient.fetchQuery({
-    queryKey: ['owner-read', ...key, generation.epoch, generation.revision],
-    queryFn: async ({ signal }) => schema.parse(await load(signal)),
-  });
+// Share only pending owner reads. Each reader owns its cancellation; the SDK
+// retains validated ETag/body pairs and every new acquisition revalidates.
+function ownerRead<S extends z.ZodType>(key: readonly unknown[], signal: AbortSignal, schema: S, load: (signal: AbortSignal) => Promise<z.input<S>>): Promise<z.output<S>> {
+  const id = JSON.stringify(key);
+  let flight = ownerFlights.get(id);
+  if (!flight) {
+    const created = createReadFlight(async signal => {
+      try { return schema.parse(await load(signal)); }
+      finally { if (ownerFlights.get(id) === created) ownerFlights.delete(id); }
+    });
+    flight = created; ownerFlights.set(id, created);
+  }
+  return flight.read(signal) as Promise<z.output<S>>;
 }
-const readItem = (id: string, generation: Generation) =>
-  ownerRead(['items', id], generation, zGetItemResponse,
-    (signal) => unwrap(BlyggerApi.getItem({ client, path: { id }, signal })));
-const readHopper = (id: string, generation: Generation) =>
-  ownerRead(['hoppers', id], generation, zGetHopperResponse,
-    (signal) => unwrap(BlyggerApi.getHopper({ client, path: { id }, signal })));
+const readItem = (id: string, signal: AbortSignal) =>
+  ownerRead(['items', id], signal, zGetItemResponse,
+    signal => unwrap(BlyggerApi.getItem({ client, path: { id }, signal })));
+const readHopper = (id: string, signal: AbortSignal) =>
+  ownerRead(['hoppers', id], signal, zGetHopperResponse,
+    signal => unwrap(BlyggerApi.getHopper({ client, path: { id }, signal })));
 
 const cursorPageSchemas: Record<string, { parse(value: unknown): unknown }> = {
   items: zListItemsResponse, subscriptions: zListSubscriptionsResponse, hoppers: zListHoppersResponse,
@@ -124,10 +124,10 @@ const cursorPageSchemas: Record<string, { parse(value: unknown): unknown }> = {
   'mentions-out': zListMentionsResponse, thumbs: zListThumbsResponse, interactions: zListInteractionsResponse, browse: zListBrowseResponse,
   'mention-groups': zListMentionGroupsResponse,
 };
-function cursorRows<T>(context: QueryFunctionContext, resource: string, generation: Generation, sequence: readonly unknown[], read: (cursor: string | undefined, signal: AbortSignal) => Promise<ApiPage<T>>, window: { offset?: number; limit?: number } = {}) {
+function cursorRows<T>(context: QueryFunctionContext, resource: string, sequence: readonly unknown[], read: (cursor: string | undefined, signal: AbortSignal) => Promise<ApiPage<T>>, window: { offset?: number; limit?: number } = {}) {
   const schema = cursorPageSchemas[resource];
   if (!schema) throw new Error('Missing cursor page schema');
-  return readCursorWindow({ queryClient, queryKey: [resource, 'pages', ...sequence, generation], window, signal: context.signal, read, validate: page => { schema.parse(page); } });
+  return readCursorWindow({ queryClient, queryKey: [resource, 'pages', ...sequence], window, signal: context.signal, read, revalidate: true, validate: page => { schema.parse(page); } });
 }
 /** A bounded demand must use the server order. Full demands can sort locally. */
 function pageWindow(context: QueryFunctionContext, order: readonly [string, 'asc' | 'desc'][]) {
@@ -175,11 +175,11 @@ export const items = createCollection(
     queryClient,
     getKey: (row) => row.id,
     queryFn: (context) =>
-      cachedQuery(context, 'items', sourceSchemas.items.array(), async ({ signal }, generation) => {
+      cachedQuery(context, sourceSchemas.items.array(), async ({ signal }) => {
         const ids = subsetIds(context);
         if (ids) {
           return existing(ids, async (id) => {
-            const { media: _media, publishedMedia: _publishedMedia, published: _published, ...item } = await readItem(id, generation);
+            const { media: _media, publishedMedia: _publishedMedia, published: _published, ...item } = await readItem(id, context.signal);
             return item;
           });
         }
@@ -194,7 +194,7 @@ export const items = createCollection(
           else if (field === 'version' && typeof filter.value === 'number' && Number.isSafeInteger(filter.value) && filter.value >= 0) query.version = filter.value;
           else throw new Error('Unsupported item predicate');
         }
-        return cursorRows(context, 'items', generation, [query], (cursor, signal) => unwrap(BlyggerApi.listItems({ client, query: { ...query, cursor, limit: 25 }, signal })), pageWindow(context, [['orderKey', 'asc']]));
+        return cursorRows(context, 'items', [query], (cursor, signal) => unwrap(BlyggerApi.listItems({ client, query: { ...query, cursor, limit: 25 }, signal })), pageWindow(context, [['orderKey', 'asc']]));
       }),
     select: (response) => response.data,
     onUpdate: async ({ transaction, collection }) => {
@@ -234,13 +234,13 @@ export const items = createCollection(
 export const itemSummary = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.itemSummary, id: 'item-summary', syncMode: 'on-demand',
   queryKey: ['item-summary', 'rows'], queryClient, getKey: row => row.key,
-  queryFn: context => cachedQuery(context, 'items', sourceSchemas.itemSummary.array(), async ({ signal }) => [{ ...await unwrap(BlyggerApi.getItemSummary({ client, signal })), key: 'items' as const }]),
+  queryFn: context => cachedQuery(context, sourceSchemas.itemSummary.array(), async ({ signal }) => [{ ...await unwrap(BlyggerApi.getItemSummary({ client, signal })), key: 'items' as const }]),
   select: response => response.data,
 }));
 export const itemVersions = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.itemVersions, id: 'item-versions', syncMode: 'on-demand',
   queryKey: ['item-versions', 'rows'], queryClient, getKey: row => JSON.stringify([row.itemId, row.version]),
-  queryFn: context => cachedQuery(context, 'items', sourceSchemas.itemVersions.array(), async (_context, generation) => {
+  queryFn: context => cachedQuery(context, sourceSchemas.itemVersions.array(), async (_context) => {
     const ids = subsetIds(context, 'itemId');
     if (!ids) throw new Error('Version history requires an itemId predicate');
     const { filters } = parseLoadSubsetOptions(context.meta?.loadSubsetOptions);
@@ -250,7 +250,7 @@ export const itemVersions = createCollection(queryCollectionOptions({
       if (filter.field.join('.') !== 'version' || filter.operator !== 'eq' || typeof filter.value !== 'number') throw new Error('Unsupported history predicate');
       version = filter.value;
     }
-    return (await existing(ids, id => cursorRows(context, 'item-versions', generation, [id, version ?? null], (cursor, signal) => unwrap(BlyggerApi.listItemVersions({ client, path: { id }, query: { cursor, version, limit: 25 }, signal })), pageWindow(context, [['version', 'desc']])))).flat();
+    return (await existing(ids, id => cursorRows(context, 'item-versions', [id, version ?? null], (cursor, signal) => unwrap(BlyggerApi.listItemVersions({ client, path: { id }, query: { cursor, version, limit: 25 }, signal })), pageWindow(context, [['version', 'desc']])))).flat();
   }), select: response => response.data,
 }));
 export const settings = createCollection(
@@ -263,7 +263,7 @@ export const settings = createCollection(
     queryClient,
     getKey: (row) => row.key,
     queryFn: (context) =>
-      cachedQuery(context, 'settings', sourceSchemas.settings.array(), async ({ signal }) => [
+      cachedQuery(context, sourceSchemas.settings.array(), async ({ signal }) => [
         {
           ...(await unwrap(BlyggerApi.getSettings({ client, signal }))),
           key: 'settings' as const,
@@ -294,7 +294,7 @@ export const shelf = createCollection(
     queryClient,
     getKey: (row) => row.key,
     queryFn: (context) =>
-      cachedQuery(context, 'shelf', sourceSchemas.shelf.array(), async ({ signal }) => [
+      cachedQuery(context, sourceSchemas.shelf.array(), async ({ signal }) => [
         { ...(await unwrap(BlyggerApi.getShelf({ client, signal }))), key: 'shelf' as const },
       ]),
     select: (response) => response.data,
@@ -334,10 +334,10 @@ export const subscriptions = createCollection(
     queryKey: ['subscriptions', 'rows'],
     queryClient,
     getKey: (row) => row.id,
-    queryFn: (context) => cachedQuery(context, 'subscriptions', sourceSchemas.subscriptions.array(), async (_context, generation) => {
+    queryFn: (context) => cachedQuery(context, sourceSchemas.subscriptions.array(), async (_context) => {
       const ids = subsetIds(context);
       if (ids) return existing(ids, id => unwrap(BlyggerApi.getSubscription({ client, path: { id }, signal: context.signal })));
-      return cursorRows(context, 'subscriptions', generation, [], (cursor, signal) => unwrap(BlyggerApi.listSubscriptions({ client, query: { cursor, limit: 100 }, signal })), pageWindow(context, [['created', 'asc'], ['id', 'asc']]));
+      return cursorRows(context, 'subscriptions', [], (cursor, signal) => unwrap(BlyggerApi.listSubscriptions({ client, query: { cursor, limit: 100 }, signal })), pageWindow(context, [['created', 'asc'], ['id', 'asc']]));
     }),
     select: (response) => response.data,
     onUpdate: async ({ transaction, collection }) => {
@@ -384,11 +384,11 @@ export const hoppers = createCollection(
     queryClient,
     getKey: (row) => row.id,
     queryFn: (context) =>
-      cachedQuery(context, 'hoppers', sourceSchemas.hoppers.array(), async ({ signal }, generation) => {
+      cachedQuery(context, sourceSchemas.hoppers.array(), async ({ signal }) => {
         const ids = subsetIds(context);
         if (ids) return existing(ids, async (id) =>
-          (await readHopper(id, generation)).hopper);
-        return cursorRows(context, 'hoppers', generation, [], (cursor, signal) => unwrap(BlyggerApi.listHoppers({ client, query: { cursor, limit: 100 }, signal })), pageWindow(context, [['created', 'asc'], ['id', 'asc']]));
+          (await readHopper(id, context.signal)).hopper);
+        return cursorRows(context, 'hoppers', [], (cursor, signal) => unwrap(BlyggerApi.listHoppers({ client, query: { cursor, limit: 100 }, signal })), pageWindow(context, [['created', 'asc'], ['id', 'asc']]));
       }),
     select: (response) => response.data,
     onUpdate: async ({ transaction, collection }) => {
@@ -428,8 +428,8 @@ export const signals = createCollection(
     queryKey: ['signals', 'rows'],
     queryClient,
     getKey: (row) => JSON.stringify([row.subscriptionId, row.remoteId]),
-    queryFn: (context) => cachedQuery(context, 'signals', sourceSchemas.signals.array(), async (_context, generation) =>
-      cursorRows(context, 'signals', generation, [], (cursor, signal) => unwrap(BlyggerApi.listSignals({ client, query: { cursor, limit: 100 }, signal })), pageWindow(context, [['at', 'desc'], ['subscriptionId', 'asc'], ['remoteId', 'asc']]))),
+    queryFn: (context) => cachedQuery(context, sourceSchemas.signals.array(), async (_context) =>
+      cursorRows(context, 'signals', [], (cursor, signal) => unwrap(BlyggerApi.listSignals({ client, query: { cursor, limit: 100 }, signal })), pageWindow(context, [['at', 'desc'], ['subscriptionId', 'asc'], ['remoteId', 'asc']]))),
     select: (response) => response.data,
   }),
 );
@@ -460,7 +460,7 @@ export const setThumb = createRowMutation<{
 export const thumbs = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.thumbs, id: 'thumbs', syncMode: 'on-demand', queryKey: ['thumbs', 'rows'], queryClient,
   getKey: row => JSON.stringify([row.subscriptionId, row.origin, row.remoteId]),
-  queryFn: context => cachedQuery(context, ['signals', 'reading', 'subscriptions'], sourceSchemas.thumbs.array(), async (_context, generation) => {
+  queryFn: context => cachedQuery(context, sourceSchemas.thumbs.array(), async (_context) => {
     const { filters } = parseLoadSubsetOptions(context.meta?.loadSubsetOptions);
     let thumb: '1' | '-1' | undefined;
     const query: { at?: string; subscriptionId?: string; remoteId?: string } = {};
@@ -469,44 +469,44 @@ export const thumbs = createCollection(queryCollectionOptions({
       if (filter.field.join('.') !== 'thumb' || filter.operator !== 'eq' || filter.value !== 1 && filter.value !== -1) throw new Error('Unsupported thumb predicate');
       thumb = String(filter.value) as '1' | '-1';
     }
-    return cursorRows(context, 'thumbs', generation, [thumb ?? null, query], (cursor, signal) => unwrap(BlyggerApi.listThumbs({ client, query: { ...query, thumb, cursor, limit: 50 }, signal })), pageWindow(context, [['orderKey', 'asc']]));
+    return cursorRows(context, 'thumbs', [thumb ?? null, query], (cursor, signal) => unwrap(BlyggerApi.listThumbs({ client, query: { ...query, thumb, cursor, limit: 50 }, signal })), pageWindow(context, [['orderKey', 'asc']]));
   }), select: response => response.data,
 }));
 export const interactions = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.interactions, id: 'interactions', syncMode: 'on-demand', queryKey: ['interactions', 'rows'], queryClient, getKey: row => row.id,
-  queryFn: context => cachedQuery(context, ['interactions', 'reading', 'subscriptions'], sourceSchemas.interactions.array(), async (_context, generation) => {
+  queryFn: context => cachedQuery(context, sourceSchemas.interactions.array(), async (_context) => {
     const { filters } = parseLoadSubsetOptions(context.meta?.loadSubsetOptions);
     const query: { at?: string; id?: number } = {};
     for (const filter of filters) {
       if (filter.field.join('.') !== 'orderKey' || filter.operator !== 'eq' || typeof filter.value !== 'string') throw new Error('Unsupported activity predicate');
       const [at, id] = sequenceParts(filter.value, ['desc', 'desc']); query.at = at; query.id = Number.parseInt(id, 16);
     }
-    return cursorRows(context, 'interactions', generation, [query], (cursor, signal) => unwrap(BlyggerApi.listInteractions({ client, query: { ...query, cursor, limit: 50 }, signal })), pageWindow(context, [['orderKey', 'asc']]));
+    return cursorRows(context, 'interactions', [query], (cursor, signal) => unwrap(BlyggerApi.listInteractions({ client, query: { ...query, cursor, limit: 50 }, signal })), pageWindow(context, [['orderKey', 'asc']]));
   }),
   select: response => response.data,
 }));
 export const browse = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.browse, id: 'browse', syncMode: 'on-demand', queryKey: ['browse', 'rows'], queryClient, getKey: row => row.id,
-  queryFn: context => cachedQuery(context, 'browse', sourceSchemas.browse.array(), async (_context, generation) => {
+  queryFn: context => cachedQuery(context, sourceSchemas.browse.array(), async (_context) => {
     const { filters } = parseLoadSubsetOptions(context.meta?.loadSubsetOptions);
     let id: number | undefined;
     for (const filter of filters) {
       if (filter.field.join('.') !== 'id' || filter.operator !== 'eq' || typeof filter.value !== 'number') throw new Error('Unsupported browse predicate');
       id = filter.value;
     }
-    return cursorRows(context, 'browse', generation, [id ?? null], (cursor, signal) => unwrap(BlyggerApi.listBrowse({ client, query: { id, cursor, limit: 100 }, signal })), pageWindow(context, [['id', 'desc']]));
+    return cursorRows(context, 'browse', [id ?? null], (cursor, signal) => unwrap(BlyggerApi.listBrowse({ client, query: { id, cursor, limit: 100 }, signal })), pageWindow(context, [['id', 'desc']]));
   }),
   select: response => response.data,
 }));
 export const signalSummary = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.signalSummary, id: 'signal-summary', syncMode: 'on-demand', queryKey: ['signal-summary', 'rows'], queryClient, getKey: row => row.key,
-  queryFn: context => cachedQuery(context, ['signals', 'interactions'], sourceSchemas.signalSummary.array(), async ({ signal }) => [{ ...await unwrap(BlyggerApi.getSignalSummary({ client, signal })), key: 'signals' as const }]),
+  queryFn: context => cachedQuery(context, sourceSchemas.signalSummary.array(), async ({ signal }) => [{ ...await unwrap(BlyggerApi.getSignalSummary({ client, signal })), key: 'signals' as const }]),
   select: response => response.data,
 }));
 export const staleThreads = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.staleThreads, id: 'stale-threads', syncMode: 'on-demand',
   queryKey: ['stale-threads', 'rows'], queryClient, getKey: row => row.id,
-  queryFn: context => cachedQuery(context, ['items', 'reading', 'subscriptions'], sourceSchemas.staleThreads.array(), async ({ signal }) =>
+  queryFn: context => cachedQuery(context, sourceSchemas.staleThreads.array(), async ({ signal }) =>
     (await unwrap(BlyggerApi.listStaleThreads({ client, signal }))).items.map((row, rank) => ({ ...row, rank }))),
   select: response => response.data,
 }));
@@ -529,12 +529,12 @@ export const itemHistory = createCollection(
     queryClient,
     getKey: (row) => row.id,
     queryFn: (context) =>
-      cachedQuery(context, 'items', sourceSchemas.itemHistory.array(), async (_context, generation) => {
+      cachedQuery(context, sourceSchemas.itemHistory.array(), async (_context) => {
         const ids = subsetIds(context);
         if (!ids) throw new Error('Item history requires an id predicate');
         return existing(ids, async (id) => {
           const { media, publishedMedia, published } =
-            await readItem(id, generation);
+            await readItem(id, context.signal);
           return { id, media, publishedMedia, published };
         });
       }),
@@ -656,17 +656,14 @@ export const reading = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.reading, id: 'reading', syncMode: 'on-demand',
   queryKey: ['reading', 'rows'], queryClient,
   getKey: row => JSON.stringify([row.view, row.key]),
-  queryFn: context => cachedQuery(context, readingDomains(readingSubset(context).view), sourceSchemas.reading.array(), async (_context, generation) => {
+  queryFn: context => cachedQuery(context, sourceSchemas.reading.array(), async (_context) => {
     const { view, offset, limit } = readingSubset(context);
     const query = readingQuery(view);
-    const rows = await cursorRows(context, 'reading', generation, [view], (cursor, signal) => unwrap(BlyggerApi.listReading({ client, query: { ...query, cursor, limit: 50 }, signal })), { offset, limit });
+    const rows = await cursorRows(context, 'reading', [view], (cursor, signal) => unwrap(BlyggerApi.listReading({ client, query: { ...query, cursor, limit: 50 }, signal })), { offset, limit });
     return rows.map((row, i) => ({ ...row, view, rank: offset + i }));
   }),
   select: response => response.data,
 }));
-function readingDomains(view: string): readonly ChangeDomain[] {
-  return ['reading', 'subscriptions', ...(view.startsWith('hopper:') ? ['hoppers' as const] : []), ...(view.split('~')[1] === 'shelf' ? ['shelf' as const] : [])];
-}
 export function readingQuery(view: string) {
   const [sub, filter] = view.split('~') as [string, 'thread' | 'fragment' | 'background' | 'mentions' | 'shelf' | undefined];
   return { ...(sub.startsWith('hopper:') ? { hopper: sub.slice('hopper:'.length) } : { sub }), ...(filter === 'background' ? { background: 'true' as const } : filter === 'mentions' ? { mentions: 'true' as const } : filter === 'shelf' ? { shelf: 'true' as const } : filter ? { kind: filter } : {}) };
@@ -674,7 +671,7 @@ export function readingQuery(view: string) {
 export const readingSummaries = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.readingSummaries, id: 'reading-summary', syncMode: 'on-demand',
   queryKey: ['reading-summary', 'rows'], queryClient, getKey: row => row.view,
-  queryFn: context => cachedQuery(context, ['reading', 'subscriptions', 'hoppers', 'shelf'], sourceSchemas.readingSummaries.array(), async ({ signal }) => {
+  queryFn: context => cachedQuery(context, sourceSchemas.readingSummaries.array(), async ({ signal }) => {
     const views = subsetIds(context, 'view');
     if (!views) throw new Error('Reading summary requires a view predicate');
     return Promise.all(views.map(async view => {
@@ -686,9 +683,7 @@ export const readingSummaries = createCollection(queryCollectionOptions({
   select: response => response.data,
 }));
 export async function readAllReading(view: string, signal = new AbortController().signal) {
-  const changes = await unwrap(BlyggerApi.getChanges({ client, signal }));
-  const generation = { epoch: changes.epoch, revision: domainRevision(changes, readingDomains(view)) };
-  return readCursorWindow<z.infer<typeof zListReadingResponse>['items'][number]>({ queryClient, queryKey: ['reading', 'pages', view, generation], signal, window: {}, validate: page => { zListReadingResponse.parse(page); },
+  return readCursorWindow<z.infer<typeof zListReadingResponse>['items'][number]>({ queryClient, queryKey: ['reading', 'pages', view], signal, revalidate: true, window: {}, validate: page => { zListReadingResponse.parse(page); },
     read: (cursor, signal) => unwrap(BlyggerApi.listReading({ client, query: { ...readingQuery(view), cursor, limit: 50 }, signal })),
   });
 }
@@ -769,11 +764,11 @@ export const hopperStats = createCollection(
     queryClient,
     getKey: (row) => row.id,
     queryFn: (context) =>
-      cachedQuery(context, 'hoppers', sourceSchemas.hopperStats.array(), async (_context, generation) => {
+      cachedQuery(context, sourceSchemas.hopperStats.array(), async (_context) => {
         const ids = subsetIds(context);
         if (!ids) throw new Error('Hopper stats require an id predicate');
         return existing(ids, async (id) => {
-          const { total, sourceCount } = await readHopper(id, generation);
+          const { total, sourceCount } = await readHopper(id, context.signal);
           return { id, total, sourceCount };
         });
       }),
@@ -791,16 +786,16 @@ function hopperSubset(context: QueryFunctionContext) {
   const limit = typeof exact?.value === 'number' ? 1 : typeof end?.value === 'number' ? end.value - offset : requestedLimit;
   return { ids, offset, limit };
 }
-async function readMembers(context: QueryFunctionContext, generation: Generation, id: string, window: { offset: number; limit?: number }) {
-  return cursorRows(context, 'hopper-memberships', generation, [id], (cursor, signal) => unwrap(BlyggerApi.listHopperMemberships({ client, path: { id }, query: { cursor, limit: Math.min(100, window.limit ?? 100) }, signal })), window);
+async function readMembers(context: QueryFunctionContext, id: string, window: { offset: number; limit?: number }) {
+  return cursorRows(context, 'hopper-memberships', [id], (cursor, signal) => unwrap(BlyggerApi.listHopperMemberships({ client, path: { id }, query: { cursor, limit: Math.min(100, window.limit ?? 100) }, signal })), window);
 }
 export const hopperEntries = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.hopperEntries, id: 'hopper-entries', syncMode: 'on-demand',
   queryKey: ['hopper-entries', 'rows'], queryClient,
   getKey: row => JSON.stringify([row.hopperId, row.item.subscriptionId, row.item.remoteId]),
-  queryFn: context => cachedQuery(context, ['hoppers', 'reading', 'subscriptions'], sourceSchemas.hopperEntries.array(), async (_context, generation) => {
+  queryFn: context => cachedQuery(context, sourceSchemas.hopperEntries.array(), async (_context) => {
     const { ids, offset, limit } = hopperSubset(context);
-    return (await existing(ids, async id => (await readMembers(context, generation, id, { offset, limit }))
+    return (await existing(ids, async id => (await readMembers(context, id, { offset, limit }))
       .flatMap((row, index) => row.item ? [{ hopperId: id, rank: offset + index, item: row.item }] : []))).flat();
   }), select: response => response.data,
 }));
@@ -808,9 +803,9 @@ export const hopperMemberships = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.hopperMemberships, id: 'hopper-memberships', syncMode: 'on-demand',
   queryKey: ['hopper-memberships', 'rows'], queryClient,
   getKey: row => JSON.stringify([row.hopperId, row.subscriptionId, row.remoteId]),
-  queryFn: context => cachedQuery(context, ['hoppers', 'reading', 'subscriptions'], sourceSchemas.hopperMemberships.array(), async (_context, generation) => {
+  queryFn: context => cachedQuery(context, sourceSchemas.hopperMemberships.array(), async (_context) => {
     const { ids, offset, limit } = hopperSubset(context);
-    return (await existing(ids, async id => (await readMembers(context, generation, id, { offset, limit }))
+    return (await existing(ids, async id => (await readMembers(context, id, { offset, limit }))
       .map((row, index) => ({ ...row, rank: offset + index })))).flat();
   }), select: response => response.data,
 }));
@@ -914,7 +909,7 @@ export const authorizations = createCollection(queryCollectionOptions({
   },
 }));
 
-async function mentions(context: QueryFunctionContext, direction: 'inbound' | 'outbound', generation: Generation) {
+async function mentions(context: QueryFunctionContext, direction: 'inbound' | 'outbound') {
   const resource = direction === 'inbound' ? 'mentions-in' : 'mentions-out';
   const { filters } = parseLoadSubsetOptions(context.meta?.loadSubsetOptions);
   const query: NonNullable<ListMentionsData['query']> = { direction };
@@ -936,7 +931,7 @@ async function mentions(context: QueryFunctionContext, direction: 'inbound' | 'o
   const window = pageWindow(context, [['orderKey', 'asc']]);
   return (await Promise.all((targets ?? [undefined]).map(targetItemId => {
     const selected = { ...query, ...(targetItemId === undefined ? {} : { targetItemId }) };
-    return cursorRows(context, resource, generation, [selected], (cursor, signal) => unwrap(BlyggerApi.listMentions({ client,
+    return cursorRows(context, resource, [selected], (cursor, signal) => unwrap(BlyggerApi.listMentions({ client,
       query: { ...selected, cursor, limit: direction === 'inbound' ? 11 : 26 }, signal })), window);
   }))).flat();
 }
@@ -949,8 +944,8 @@ export const inbound = createCollection(queryCollectionOptions({
   id: 'mentions-in', syncMode: 'on-demand', queryKey: ['mentions-in', 'rows'], queryClient,
   getKey: (row) => row.id,
   queryFn: (context) =>
-    cachedQuery(context, 'mentions', sourceSchemas.inbound.array(), async (_context, generation) =>
-      (await mentions(context, 'inbound', generation)).filter((row): row is Mention => 'hidden' in row)),
+    cachedQuery(context, sourceSchemas.inbound.array(), async (_context) =>
+      (await mentions(context, 'inbound')).filter((row): row is Mention => 'hidden' in row)),
   select: (response) => response.data,
   onUpdate: async ({ transaction, collection }) => {
     for (const mutation of transaction.mutations) {
@@ -968,7 +963,7 @@ inbound.createIndex(row => row.targetItemId, { indexType: BasicIndex });
 export const mentionGroups = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.mentionGroups, id: 'mention-groups', syncMode: 'on-demand',
   queryKey: ['mention-groups', 'rows'], queryClient, getKey: row => row.targetItemId,
-  queryFn: context => cachedQuery(context, 'mentions', sourceSchemas.mentionGroups.array(), async (_context, generation) => {
+  queryFn: context => cachedQuery(context, sourceSchemas.mentionGroups.array(), async (_context) => {
     const { filters } = parseLoadSubsetOptions(context.meta?.loadSubsetOptions);
     const ids = subsetIds(context, 'targetItemId');
     const query: NonNullable<ListMentionGroupsData['query']> = {};
@@ -981,7 +976,7 @@ export const mentionGroups = createCollection(queryCollectionOptions({
     const window = pageWindow(context, [['orderKey', 'asc']]);
     return (await Promise.all((ids ?? [undefined]).map(targetItemId => {
       const selected = { ...query, ...(targetItemId === undefined ? {} : { targetItemId }) };
-      return cursorRows(context, 'mention-groups', generation, [selected], (cursor, signal) =>
+      return cursorRows(context, 'mention-groups', [selected], (cursor, signal) =>
         unwrap(BlyggerApi.listMentionGroups({ client, query: { ...selected, cursor, limit: 11 }, signal })), window);
     }))).flat();
   }), select: response => response.data,
@@ -989,7 +984,7 @@ export const mentionGroups = createCollection(queryCollectionOptions({
 export const mentionSummary = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.mentionSummary, id: 'mention-summary', syncMode: 'on-demand',
   queryKey: ['mention-summary', 'rows'], queryClient, getKey: row => row.key,
-  queryFn: context => cachedQuery(context, 'mentions', sourceSchemas.mentionSummary.array(), async ({ signal }) =>
+  queryFn: context => cachedQuery(context, sourceSchemas.mentionSummary.array(), async ({ signal }) =>
     [{ ...await unwrap(BlyggerApi.getMentionSummary({ client, signal })), key: 'mentions' as const }]),
   select: response => response.data,
 }));
@@ -1003,8 +998,8 @@ export const outbound = createCollection(queryCollectionOptions({
   id: 'mentions-out', syncMode: 'on-demand', queryKey: ['mentions-out', 'rows'], queryClient,
   getKey: (row) => row.id,
   queryFn: (context) =>
-    cachedQuery(context, 'mentions', sourceSchemas.outbound.array(), async (_context, generation) =>
-      (await mentions(context, 'outbound', generation)).filter((row): row is OutboundMention => "nextAttemptAt" in row)),
+    cachedQuery(context, sourceSchemas.outbound.array(), async (_context) =>
+      (await mentions(context, 'outbound')).filter((row): row is OutboundMention => "nextAttemptAt" in row)),
   select: (response) => response.data,
 }));
 // A source card joins the mention to the Reading tables: whether an import of
@@ -1016,7 +1011,7 @@ export const mentionSources = createCollection(queryCollectionOptions({
   id: 'mention-sources', syncMode: 'on-demand', queryKey: ['mention-sources'], queryClient,
   getKey: (row) => row.key,
   queryFn: (context) =>
-    cachedQuery(context, ['mentions', 'reading'], sourceSchemas.mentionSources.array(), async ({ signal }) => {
+    cachedQuery(context, sourceSchemas.mentionSources.array(), async ({ signal }) => {
       const ids = subsetIds(context, 'key');
       if (!ids) throw new Error('Mention sources require a key predicate');
       return existing(ids, async (id) => ({

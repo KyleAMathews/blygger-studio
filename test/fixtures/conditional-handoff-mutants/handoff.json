@@ -1,0 +1,50 @@
+[
+  {
+    "id": "detached-generation-handoff",
+    "source": "src/conditional-operation.ts",
+    "find": "definition.handler({ ...ctx, conditionalSnapshot: snapshot }, parsed)",
+    "replace": "definition.handler(ctx, parsed)",
+    "intent": "Restore redundant outer/cursor generation brackets and exceed the preserved batch binding-call budget.",
+    "author": "Codex (self-generated from confirmed batch regression and controlled handoff counterexamples)"
+  },
+  {
+    "id": "ignored-completed-generation",
+    "source": "src/conditional-operation.ts",
+    "find": "snapshot.after ?? await readChanges(ctx.env.DB)",
+    "replace": "await readChanges(ctx.env.DB)",
+    "intent": "Discard the completed cursor snapshot and spend a redundant post-projection D1 round.",
+    "author": "Codex (self-generated from confirmed batch regression and controlled handoff counterexamples)"
+  },
+  {
+    "id": "cursor-reuses-first-snapshot-on-retry",
+    "source": "src/cursor-page.ts",
+    "find": "const retry = await attempt();",
+    "replace": "const retry = await attempt(snapshot?.before);",
+    "intent": "Retry a changed first page with the obsolete initial generation instead of fresh state.",
+    "author": "Codex (self-generated from confirmed batch regression and controlled handoff counterexamples)"
+  },
+  {
+    "id": "cursor-trusts-initial-as-complete",
+    "source": "src/cursor-page.ts",
+    "find": "const complete = await readChanges(db);",
+    "replace": "const complete = snapshot?.before ?? await readChanges(db);",
+    "intent": "Treat the first snapshot as post-projection proof and miss a write during selection.",
+    "author": "Codex (self-generated from confirmed batch regression and controlled handoff counterexamples)"
+  },
+  {
+    "id": "cursor-completes-failed-projection",
+    "source": "src/cursor-page.ts",
+    "find": "if (!same(before, current)) return;",
+    "replace": "if (snapshot) snapshot.after = complete;\n    if (!same(before, current)) return;",
+    "intent": "Publish a completed generation receipt before the cursor stability guard accepts the projection.",
+    "author": "Codex (self-generated from confirmed batch regression and controlled handoff counterexamples)"
+  },
+  {
+    "id": "stamp-crosses-full-generation-change",
+    "source": "src/conditional-operation.ts",
+    "find": "if (result.ok && snapshot && before === JSON.stringify(snapshot.after ?? await readChanges(ctx.env.DB))) stable = before;",
+    "replace": "if (result.ok && snapshot) stable = JSON.stringify(snapshot.after ?? await readChanges(ctx.env.DB));",
+    "intent": "Stamp stale bytes with the latest full generation even when a broader dependency changed during projection.",
+    "author": "Codex (self-generated from confirmed batch regression and controlled handoff counterexamples)"
+  }
+]
