@@ -45,6 +45,13 @@ an optional **instruction** written beneath the toggle, the classifier also read
 changelog note, and an entry whose note calls a large change minor stays in view with a chip
 ("note says minor · 35% changed"). With no instruction, notes are never sent.
 
+**Waking a phone or iPad no longer flashes a read error.** On wake every view refetches at
+once, often before the network is back (Safari: "Load failed"), and a page walk that spanned
+the sleep finds its cursor expired. Such a failure now retries on its own, backing off, and
+shows its banner (and enters the error log) only if it lasts more than six seconds. Some
+views never polled again and kept the banner until *retry reads*; they now recover by
+themselves. Other read failures show at once, as before.
+
 **Migrations:** 0052 (`agentic_feeds`), 0053 (`helper_results`), 0054
 (`imported_change_queue`). 0050 stays reserved for #146. Contract and SDK: bumped at release.
 

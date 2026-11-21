@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useLayoutEffect,
+  useRef,
   useState,
   useSyncExternalStore,
 } from 'react';
@@ -240,6 +241,58 @@ export async function retryReadProblems(sources: readonly ReadSource[], client: 
 const subscribeReadProblems = (notify: () => void) => subscribeReadHealth(readSources, notify);
 const readProblemSnapshot = () => currentReadProblem(readSources);
 
+/**
+ * A transient read failure retries on its own, and is shown (and so logged)
+ * only if it outlasts READ_BANNER_MS. Waking a phone or iPad refetches every
+ * collection at once, often before the network is back; Safari says "Load
+ * failed", and a cursor walked across the sleep has expired. Those heal in a
+ * second or two and are not the owner's business. A real outage still shows,
+ * with "retry reads"; retries back off while it lasts. Any other failure (a
+ * server error, a refused page) shows at once, as before: retrying it would
+ * restart the window and quietly drop the page that was asked for.
+ */
+export const READ_RETRY_MS = 2_000;
+export const READ_BANNER_MS = 6_000;
+const READ_RETRY_MAX_MS = 60_000;
+/** A network failure, or a cursor that expired while it was walked: both heal on a fresh read. */
+export function transientReadProblem(problem: Error): boolean {
+  const error = problem.cause instanceof Error ? problem.cause : problem;
+  if (error instanceof TypeError) return true;
+  const body = 'body' in error && typeof error.body === 'object' && error.body ? error.body as Record<string, unknown> : undefined;
+  return body?.code === 'cursor-expired';
+}
+function useSettledReadProblem(problem: Error | undefined): Error | undefined {
+  const [shown, setShown] = useState<Error>();
+  const attempts = useRef(0);
+  // When this run of failures began: a retry that fails again is a new error
+  // object, and must not restart the banner's delay.
+  const since = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (!problem) {
+      attempts.current = 0;
+      since.current = undefined;
+      setShown(undefined);
+      return;
+    }
+    if (!transientReadProblem(problem)) {
+      setShown(problem);
+      return;
+    }
+    since.current ??= Date.now();
+    const delay = Math.min(READ_RETRY_MS * 2 ** attempts.current, READ_RETRY_MAX_MS);
+    const retry = setTimeout(() => {
+      attempts.current++;
+      void retryReadProblems(readSources);
+    }, delay);
+    const show = setTimeout(() => setShown(problem), Math.max(0, since.current + READ_BANNER_MS - Date.now()));
+    return () => {
+      clearTimeout(retry);
+      clearTimeout(show);
+    };
+  }, [problem]);
+  return problem ? shown : undefined;
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const settings = useSettings();
   const update = useUpdateState();
@@ -250,7 +303,8 @@ export function Layout({ children }: { children: ReactNode }) {
   const framed = chrome.framed ?? true;
   const wide = chrome.wide ?? (path === '/reading' || path.startsWith('/edit/'));
   const readProblem = useSyncExternalStore(subscribeReadProblems, readProblemSnapshot);
-  const error = readProblem?.cause ?? readProblem;
+  const shownProblem = useSettledReadProblem(readProblem);
+  const error = shownProblem?.cause ?? shownProblem;
   // The studio wears the reading theme. Until settings load, the theme
   // applied at startup (the last one seen on this device) stays.
   const theme = settings?.theme;
