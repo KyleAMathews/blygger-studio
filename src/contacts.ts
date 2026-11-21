@@ -163,24 +163,39 @@ export interface ConsumedHandles {
   unresolved: string[];
 }
 
+/**
+ * The handles a token may be, longest first: itself, then each prefix that ends before a
+ * `-` or `_`. Handles may hold both, so `@mike-driven` is first read whole; when the book
+ * has no `mike-driven`, it is `@mike` followed by the word's own `-driven` (session 76).
+ */
+function handleCandidates(token: string): string[] {
+  const out = [token];
+  for (let i = token.length - 1; i > 0; i--) if (token[i] === "-" || token[i] === "_") out.push(token.slice(0, i));
+  return out.filter((h) => HANDLE.test(h));
+}
+
 export async function consumeHandles(db: D1Database, md: string): Promise<ConsumedHandles> {
   const spots = handleSpots(md);
   if (!spots.length) return { text: md, cards: new Map(), unresolved: [] };
   const handles = [...new Set(spots.map((s) => s.handle))];
-  const { results } = await db.prepare("SELECT * FROM contacts WHERE handle IN (SELECT value FROM json_each(?))").bind(JSON.stringify(handles)).all<ContactRow>();
+  const candidates = [...new Set(handles.flatMap(handleCandidates).map((h) => h.toLowerCase()))];
+  const { results } = await db.prepare("SELECT * FROM contacts WHERE lower(handle) IN (SELECT value FROM json_each(?))").bind(JSON.stringify(candidates)).all<ContactRow>();
   const known = new Map(results.map((row) => [row.handle.toLowerCase(), row]));
+  const match = (token: string) => handleCandidates(token).find((h) => known.has(h.toLowerCase()));
   const cards = new Map<string, string>();
   let text = "", last = 0;
   for (const spot of spots) {
-    const row = known.get(spot.handle.toLowerCase());
-    if (!row) continue;
+    const handle = match(spot.handle);
+    if (!handle) continue;
+    const row = known.get(handle.toLowerCase())!;
     const link = mentionLink(row);
     cards.set(link, mentionCard(row));
+    // Only `@` and the handle become the link; the rest of the word stays the author's.
     text += md.slice(last, spot.at) + link;
-    last = spot.at + spot.length;
+    last = spot.at + 1 + handle.length;
   }
   text += md.slice(last);
-  const unresolved = handles.filter((h) => !known.has(h.toLowerCase()));
+  const unresolved = handles.filter((h) => !match(h));
   const empty = !results.length && !(await db.prepare("SELECT 1 FROM contacts LIMIT 1").first());
   return { text, cards, unresolved: empty ? [] : unresolved };
 }
