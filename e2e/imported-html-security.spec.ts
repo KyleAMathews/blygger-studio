@@ -25,7 +25,12 @@ for (const attack of importedHtmlAttacks) test('stored imported HTML cannot exec
   if ('click' in attack) {
     const link = article.locator('a').filter({ hasText: attack.click });
     // Removing active markup is allowed; preserving active authority is not.
-    if (await link.count()) await link.click({ force: true });
+    // Centred first: a forced click skips the overlap check, and on a phone
+    // the fixed bottom tab bar can sit over a link scrolled only into view.
+    if (await link.count()) {
+      await link.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await link.click({ force: true });
+    }
   }
   // Two rendering turns let insertion/load callbacks settle without a sleep.
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
