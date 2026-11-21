@@ -139,6 +139,36 @@ describe("[[id]] and ![[id]] are one `!` and two different acts apart", () => {
   });
 });
 
+describe("what the reader suite asks of a publisher (#102)", () => {
+  it("links another blyg's item that names no page to its item document, never the f/ convention (§5.8, #85)", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
+    const remoteId = newId();
+    await importFrom(THEIRS, { id: remoteId, kind: "fragment", version: 1, content_md: "A fragment whose document names no page." });
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `[[${remoteId}]]` })).json.id as string;
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
+    const doc = await itemDoc(id);
+    expect(doc.content_html).toContain(`<a href="${THEIRS}items/${remoteId}.json">`);
+    expect(doc.content_html).not.toContain(`${THEIRS}f/`);
+  });
+
+  it("refuses a directive line in a fragment, in its body or in generated output (§10.3, #100)", async () => {
+    const cookie = await login();
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
+    const target = await createAndPublish(cookie, "Small tools, used daily.");
+    for (const contentMd of [`Opening.\n\n![[${target}]]\n\nClosing.`, `Opening.\n\n[TK]write it[=]Mine.\n\n![[${target}]][/TK]`]) {
+      const draft = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd })).json.id as string;
+      const res = await apiJson(cookie, "POST", `/blyg/api/items/${draft}/publish`, {});
+      expect(res.status).toBe(400);
+      expect(res.json.details.errors[0].directive).toBe(`![[${target}]]`);
+      expect(res.json.details.errors[0].reason).toMatch(/fragment can't quote/);
+    }
+    // In code it is text, as everywhere (§10.1, #54).
+    const code = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "```\n![[" + target + "]]\n```" })).json.id as string;
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${code}/publish`, {})).status).toBe(200);
+  });
+});
+
 describe("[[id]] link text (roadmap row 8)", () => {
   it("takes the target's opening heading as the link text", async () => {
     const cookie = await login();

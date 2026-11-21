@@ -8,6 +8,7 @@ import { parseCustomTheme } from "./themes.ts";
 // Data access + publish-flow semantics — v0.1-plan §3.1.
 
 import { consumeHandles, withMentionCards } from "./contacts.ts";
+import { directiveLines } from "./directives.ts";
 import { mathErrors, renderMarkdown } from "./markdown.ts";
 import { MathPublishError } from "./math.ts";
 import { mathFailures, withMathFailures } from "./math-render.ts";
@@ -465,6 +466,12 @@ async function publishScoped(db: D1Database, item: ItemRow, note: string | null,
     }
     transclusionsJson = JSON.stringify(withCites);
   } else {
+    // A fragment quotes nothing (§10.3, #100, #102): a directive line, in the body or
+    // in a generated block's output (#60), is a publish error, never literal text.
+    const quoted = [links.text, ...annotated.blockSources.values()].flatMap(directiveLines);
+    if (quoted.length) {
+      throw new TransclusionResolveError(quoted.map((directive) => ({ directive, reason: "a fragment can't quote another item: make this a thread, or link it with [[id]]" })));
+    }
     contentHtml = spliceLinks(applyGeneratedWrappers(renderMarkdown(links.text), annotated));
   }
   // Every render above recorded the formulas that failed in it (R1): what was

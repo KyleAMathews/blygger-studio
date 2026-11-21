@@ -289,7 +289,7 @@ describe("an own-line directive in TK output (decision #60)", () => {
     expect(doc.content_html).not.toContain("![[");
   });
 
-  it("transcludes in a block scope with provenance, inside the div.blyg-tk-gen", async () => {
+  it("transcludes in a block scope with provenance, outside the div.blyg-tk-gen, which closes before it (#102)", async () => {
     const cookie = await login();
     const quoted = await createAndPublish(cookie, "small tools beat big tools");
     const before = await createAndPublish(cookie, "a quote before the scope");
@@ -317,9 +317,10 @@ describe("an own-line directive in TK output (decision #60)", () => {
     const quote = html.indexOf(`<blockquote class="blyg-transclusion" data-blyg-id="${quoted}" data-blyg-version="1">`);
     expect(gen).toBeGreaterThan(-1);
     expect(quote).toBeGreaterThan(gen);
-    expect(html.slice(gen, quote)).toContain("<p>Mine.</p>");
-    expect(html.slice(gen, quote)).not.toContain("</div>");
-    expect(html.slice(quote)).toMatch(/small tools beat big tools[\s\S]*<\/blockquote>\s*<\/div>/);
+    // A baked quote is someone else's words, not generated (§5.7, #102): the
+    // wrapper closes before it, and with no output after it, does not reopen.
+    expect(html.slice(gen, quote)).toBe('<div class="blyg-tk-gen"><p>Mine.</p>\n</div>\n');
+    expect(html.slice(quote)).toMatch(/small tools beat big tools[\s\S]*<\/blockquote>\n<p>Outro\.<\/p>/);
     expect(html).toMatch(/<p>Intro\.<\/p>\n<div class="blyg-tk-gen">/);
   });
 
@@ -329,7 +330,8 @@ describe("an own-line directive in TK output (decision #60)", () => {
     const res = await apiJson(cookie, "POST", "/blyg/api/preview", { contentMd: outputWithQuote(quoted), kind: "thread" });
     expect(res.status).toBe(200);
     expect(res.json.transclusions).toEqual([{ id: quoted, version: 1 }]);
-    expect(res.json.html).toMatch(/<div class="blyg-tk-gen"><p>Mine\.<\/p>[\s\S]*<blockquote class="blyg-transclusion"[\s\S]*<\/blockquote>\s*<\/div>/);
+    expect(res.json.html).toMatch(/<div class="blyg-tk-gen"><p>Mine\.<\/p>\n<\/div>\n<blockquote class="blyg-transclusion"/);
+    expect(res.json.html).not.toMatch(/<\/blockquote>\s*<\/div>/);
     expect(res.json.html).not.toContain("![[");
   });
 
