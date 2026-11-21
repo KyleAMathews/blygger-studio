@@ -5,6 +5,7 @@
 // the omissions (pinned files, endcaps, feed) and the reader's https: filter.
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { readChanges } from "../src/changes.ts";
 import { pollSubscription } from "../src/importer/poll.ts";
 import { createSubscription, getImportedItem, getSubscription } from "../src/importer/store.ts";
 import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
@@ -14,7 +15,8 @@ const BSKY = "https://bsky.app/profile/did:plc:abcdexample234/post/3lzexample22"
 const CAST = "https://farcaster.xyz/someone/0xabc123";
 const path = (id: string) => `/blyg/api/items/${id}/syndication`;
 const doc = async (id: string) => (await getPublic(`/blyg/items/${id}.json`)).json<Record<string, any>>();
-const changes = async (cookie: string) => (await apiJson(cookie, "GET", "/blyg/api/changes")).json.domains as Record<string, number>;
+// The change counters, read directly: /changes left the API in 0.67.0 (#111).
+const changes = async (_cookie: string) => (await readChanges(env.DB)).domains as Record<string, number>;
 
 describe("own items: GET/PUT /items/{id}/syndication", () => {
   it("writes the live document in place: no version, no changelog entry, no feed entry", async () => {

@@ -114,18 +114,13 @@ A matching current representation returns 304 without a body. Resource and
 access checks precede validation, so a validator does not bypass private media
 access or make an absent resource available.
 
-Private resource GETs also return an `ETag` and accept `If-None-Match`.
+Private operation GETs also return an `ETag` and accept `If-None-Match`.
 Successful resource reads use `Cache-Control: private, no-cache`; errors,
 authentication endpoints, writes and batch envelopes retain `no-store`.
 Authentication, scope checks, quotas, feature checks and input validation run
 before conditional evaluation. A matching read returns a bodyless `304` with
-its current `ETag`. Clients revalidate resource GETs directly.
-
-`GET /changes` and the SDK's `getChanges` are deprecated. They retain their
-existing epoch/domain response, authorization and `no-store` policy in Studio
-0.65.0 and 0.66.0. They do not support conditional reads. They will be removed
-in Studio 0.67.0 with private contract 6.0.0. Migrate polling clients to the
-resource GETs they need.
+its current `ETag`. Contract 6.0.0 removes `GET /changes` without an alias.
+Clients revalidate resource GETs directly.
 
 Each `/read-batch` child accepts an optional `ifNoneMatch` field. Child results
 use the same validators as direct GETs: a match returns `{ status: 304,

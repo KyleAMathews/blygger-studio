@@ -31772,7 +31772,7 @@
             "polling-cache-maintenance",
             "polling-cache"
           ],
-          "predicate": "Historical /changes HTTP success observation is restored for the approved two-release compatibility window. Every source-effect read requires200/no-store and the complete valid epoch/domain shape; RSS syntax, saved cardinality and generation/metadata equality remain unchanged.",
+          "predicate": "Historical /changes success observation is superseded by approved internal change-state read availability after endpoint deletion; RSS syntax, saved cardinality and generation/metadata equality remain unchanged.",
           "checkpointHints": [
             "checkpoint-1",
             "checkpoint-2"
@@ -31905,7 +31905,7 @@
           "properties": [
             "polling-cache-state-readers"
           ],
-          "predicate": "Original unauthenticated401/no-store obligation is restored for Kyle Mathews' approved two-release /changes compatibility window,2026-11-19. The real anonymous receiver also exposes no epoch/domain state; adjacent legacy full-response cases require authenticated200/no-store/noETag with the complete token even under explicit If-None-Match.",
+          "predicate": "Original unauthenticated401/no-store obligation is obsolete after Kyle Mathews approved deletion of /changes without compatibility,2026-11-18. Replacement receives authenticatedGET /blyg/api/changes and requires404, so auth cannot hide an alias.",
           "checkpointHints": [
             "checkpoint-14",
             "checkpoint-14"
@@ -32132,7 +32132,7 @@
         {
           "id": "checkpoint-1",
           "file": "test/polling-cache.oracle.test.ts",
-          "value": "change response status"
+          "value": "change-state read"
         },
         {
           "id": "checkpoint-2",
@@ -32272,8 +32272,8 @@
         "caseHash": "a54902f9815b4cf202b99d1961aa8ba900da2a651f890820b34daf4361f5e926"
       },
       "etagReplacement": {
-        "authority": "Kyle Mathews,2026-11-19: retain deprecated /changes and getChanges unchanged for two releases, remove in the third. Studio continues conditional resource GETs without /changes preflights. Keep cancellation boundaries; Query owns acceptance.",
-        "serverPreservation": "All123 original server comparison records, triggerFields/family/event rows, source/read/mention/time/restore histories,17D1/R2 publication schedules and feed generated grammar remain. Real /changes HTTP reads restore original source/domain receiving coverage with200/no-store and full token shape. Nativeblob rejection and anonymous401/no-store remain. New full-response cases vary every domain, epoch identity and safe-integer boundaries and preserve explicit If-None-Match200/noETag behavior.",
+        "authority": "Kyle Mathews,2026-11-18: replace /changes preflights with conditional resource GETs; delete /changes with no backwards compatibility. Keep cancellation boundaries; Query owns acceptance.",
+        "serverPreservation": "All123 original server comparison records, triggerFields/family/event rows, source/read/mention/time/restore histories,17D1/R2 publication schedules and feed generated grammar remain. Direct readChanges(DB) replaces removed HTTP transport only. Nativeblob rejection remains. Auth401/no-store is explicitly superseded by authenticated404 deletion check.",
         "clientGrammar": "Preserve write/poll/fail/restore/evict arrays1\u201320 plus finalpoll,50runs,fixedseed20261001 and random campaigns, constructedunchanged/failedretry/restore/evict. StudioQueryReference retains source vs fetched state; opaqueETag+body replaces client epoch/revision label. Evict discards the reusable SDK representation; ordinary Query eviction separately preserves it.",
         "joinedGrammar": "Preserve items/reading arrays0\u20134 and counters0\u201310, empty/joined/repeated constructions. Obsolete client counter-sum policy becomes selecteddependency changes vs unrelateddependency reuse under opaque conditional representation identities.",
         "integrationCases": [

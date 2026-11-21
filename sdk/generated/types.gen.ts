@@ -58,24 +58,6 @@ export type Capabilities = {
     }>;
 };
 
-export type ChangeState = {
-    epoch: string;
-    domains: {
-        items: number;
-        reading: number;
-        subscriptions: number;
-        hoppers: number;
-        signals: number;
-        settings: number;
-        feed: number;
-        mentions: number;
-        responses: number;
-        interactions: number;
-        browse: number;
-        shelf: number;
-    };
-};
-
 export type Item = {
     id: string;
     revision: number;
@@ -1269,75 +1251,6 @@ export type GetCapabilitiesResponses = {
 };
 
 export type GetCapabilitiesResponse = GetCapabilitiesResponses[keyof GetCapabilitiesResponses];
-
-export type GetChangesData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/changes';
-};
-
-export type GetChangesErrors = {
-    /**
-     * Request failed
-     */
-    400: ApiError;
-    /**
-     * Request failed
-     */
-    401: ApiError;
-    /**
-     * Request failed
-     */
-    403: ApiError;
-    /**
-     * Request failed
-     */
-    404: ApiError;
-    /**
-     * Request failed
-     */
-    405: ApiError;
-    /**
-     * Request failed
-     */
-    409: ApiError;
-    /**
-     * Request failed
-     */
-    413: ApiError;
-    /**
-     * Request failed
-     */
-    415: ApiError;
-    /**
-     * Request failed
-     */
-    422: ApiError;
-    /**
-     * Request failed
-     */
-    429: ApiError;
-    /**
-     * Request failed
-     */
-    500: ApiError;
-    /**
-     * Request failed
-     */
-    502: ApiError;
-};
-
-export type GetChangesError = GetChangesErrors[keyof GetChangesErrors];
-
-export type GetChangesResponses = {
-    /**
-     * Success
-     */
-    200: ChangeState;
-};
-
-export type GetChangesResponse = GetChangesResponses[keyof GetChangesResponses];
 
 export type ListItemsData = {
     body?: never;

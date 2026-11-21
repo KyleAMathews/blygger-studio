@@ -20,7 +20,7 @@ export const ErrorSchema = z.object({
 }).strict().openapi("ApiError");
 
 export function route<P extends string>(id: string, policy: OperationPolicy, method: RouteConfig["method"], path: P, response: z.ZodType, body?: z.ZodType, status = 200, query?: z.ZodObject, optionalBody = false): RouteConfig & { path: P; policy: OperationPolicy } {
-  const conditional = method === 'get' && id !== 'getChanges';
+  const conditional = method === 'get';
   if (body instanceof z.ZodObject) body = body.strict();
   const params = Object.fromEntries([...path.matchAll(/\{(\w+)\}/g)].map((m) => [m[1], ["v", "version"].includes(m[1]) ? z.coerce.number().int().positive() : z.string().min(1)]));
   return createRoute({ policy,

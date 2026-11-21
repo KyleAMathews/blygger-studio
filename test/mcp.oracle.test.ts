@@ -11,9 +11,7 @@
  * ```
  *
  * Contract: decision #52 selects four independent owner scopes and API/MCP audience
- * separation. The read inventory retains getChanges during its two-release
- * deprecation (Kyle Mathews, GitHub KyleAMathews, 2026-11-19).
- * MCP authorization requires token audience validation and forbids token
+ * separation. MCP authorization requires token audience validation and forbids token
  * passthrough; transport specifies receiving Origin and protocol handling:
  * https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization
  * https://modelcontextprotocol.io/specification/2025-11-25/basic/transports
@@ -457,7 +455,7 @@ const histories: McpPlan[] = [
 const drivers = {"confidential-oauth": runConfidentialOauth,"protocol-handshake": runProtocolHandshake,"oauth-discovery": runOauthDiscovery,"scope-inventory": runScopeInventory,"mention-projections": runMentionProjections,"item-publication": runItemPublication,"scope-challenges": runScopeChallenges,"request-authority": runRequestAuthority,"protocol-classification": runProtocolClassification,"access-expiry": runAccessExpiry,"message-classification": runMessageClassification};
 oracleProperty({
  id: 'mcp', owns: ['src/mcp.ts'],
- law: { statement: 'For every bounded MCP receiving history, explicit granted scopes and resource bind access, permitted operations preserve REST and publication values, and native protocol classification preserves its documented response and discovery contract.', authority: 'Decision #52; docs/client-access.md; decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-19: retain getChanges unchanged for two releases; MCP authorization and Streamable HTTP specifications linked above; RFC6750 §3 and RFC8707 §2', limits: 'All original finite scope/mount/protocol/expiry/publication histories; not arbitrary tool arguments or deployed host-root metadata publication.' },
+ law: { statement: 'For every bounded MCP receiving history, explicit granted scopes and resource bind access, permitted operations preserve REST and publication values, and native protocol classification preserves its documented response and discovery contract.', authority: 'Decision #52; docs/client-access.md; decision #111: getChanges removed in Studio 0.67.0 / private contract 6.0.0; MCP authorization and Streamable HTTP specifications linked above; RFC6750 §3 and RFC8707 §2', limits: 'All original finite scope/mount/protocol/expiry/publication histories; not arbitrary tool arguments or deployed host-root metadata publication.' },
  histories, label: plan => plan.name, model: mcpReference,
  driver: async (plan, observe) => { await withOracleStorage(() => active.run(observe, () => drivers[plan.boundary](plan))); observe('MCP receiving complete', true); },
  check: (_plan, trace, expected) => {

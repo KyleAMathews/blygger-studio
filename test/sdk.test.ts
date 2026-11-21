@@ -12,20 +12,15 @@ import { ReadingEntrySchema } from "../src/contract/routes.ts";
 const clientFor = (cookie = "") => createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
 
 describe("generated SDK against the real Worker", () => {
-  it("retains the deprecated changes endpoint in HTTP, OpenAPI and the generated SDK", async () => {
+  it("has removed the changes endpoint from HTTP, OpenAPI and the generated SDK (0.67.0, contract 6.0.0, decision #111)", async () => {
     const cookie = await login();
-    const response = await SELF.fetch(`${BASE}/blyg/api/changes`, { headers: { cookie, 'if-none-match': '*' } });
-    expect(response.status).toBe(200);
-    expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(response.headers.get('etag')).toBeNull();
-    const changes = await response.json();
-    expect(await unwrap(BlyggerApi.getChanges({ client: clientFor(cookie) }))).toEqual(changes);
+    const response = await SELF.fetch(`${BASE}/blyg/api/changes`, { headers: { cookie } });
+    expect(response.status).toBe(404);
     const document = await SELF.fetch(`${BASE}/blyg/api/openapi.json`, { headers: { cookie } });
     expect(document.status).toBe(200);
-    const operation = (await document.json<{ paths: Record<string, { get: { deprecated?: boolean; responses: Record<string, unknown> } }> }>()).paths['/changes'].get;
-    expect(operation.deprecated).toBe(true);
-    expect(operation.responses).not.toHaveProperty('304');
-    expect(routes.getChanges.deprecated).toBe(true);
+    expect((await document.json<{ paths: Record<string, unknown> }>()).paths).not.toHaveProperty('/changes');
+    expect(routes).not.toHaveProperty('getChanges');
+    expect(BlyggerApi).not.toHaveProperty('getChanges');
   });
   it("creates, reads, edits, publishes, pins, restores and withdraws through named methods", async () => {
     const client = clientFor(await login());

@@ -5,9 +5,6 @@ prep-PR review. Its base commit and SHA-256 digests identify that earlier source
 The review subsequently found missing derived-writer, public-SDK and owner-read
 histories; the zero-gap counts below apply only to this earlier campaign.
 Current review evidence is recorded separately in `review.evidence.md`.
-The immediate `/changes` removal described in this historical cut was
-superseded on 2026-11-19: Kyle Mathews approved retaining the endpoint and SDK
-operation unchanged for two releases, with deprecation metadata, then removal.
 No commit or deployment was made.
 
 The package is pinned to `@tanstack/oracles@97a4e7a` from pkg.pr.new.
