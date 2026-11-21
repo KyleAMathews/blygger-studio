@@ -2,8 +2,8 @@ import { fixtureJson } from './api-fixture';
 import { test, expect, type Page } from './fixture';
 
 // Markdown's structure in a textarea: Tab and Shift+Tab nest a list item,
-// Shift+Enter breaks a line inside a paragraph, and the toolbar has each for a
-// keyboard without a Tab key. What is typed must render as what was meant.
+// the toolbar breaks a line inside a paragraph (and has each for a keyboard
+// without a Tab key), and Shift+Enter is a plain newline. What is typed must render as what was meant.
 async function login(page: Page) {
   await page.goto('/studio/login');
   await page.locator('[name=password]').fill('test-password');
@@ -46,15 +46,14 @@ test('Tab off a list leaves the text alone and moves on', async ({ page }, info)
   await expect(box(page)).not.toBeFocused();
 });
 
-test('Shift+Enter breaks a line of verse inside one paragraph', async ({ page }, info) => {
+test('Shift+Enter is a plain newline, never the backslash break', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'a hardware keyboard');
-  await open(page, 'Tyger Tyger, burning bright,');
+  await open(page, 'Tyger Tyger, burning bright.');
   await end(page);
+  // What an iPad keyboard sends for Return once it has turned Shift on after a full stop.
   await page.keyboard.press('Shift+Enter');
   await page.keyboard.type('In the forests of the night;');
-  await expect(box(page)).toHaveValue('Tyger Tyger, burning bright,\\\nIn the forests of the night;');
-  await expect(page.locator('#preview-body p')).toHaveCount(1);
-  await expect(page.locator('#preview-body p br')).toHaveCount(1);
+  await expect(box(page)).toHaveValue('Tyger Tyger, burning bright.\nIn the forests of the night;');
 });
 
 test('the toolbar does the same without a Tab key, and makes a code block', async ({ page }, info) => {
