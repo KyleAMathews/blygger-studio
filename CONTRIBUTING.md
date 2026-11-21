@@ -18,6 +18,7 @@ The full page, with the test for each rung, a first hour on a local node and the
 - The Studio is the reference client and stays plain. A pull request that adds an opinion will be asked to become an extension.
 - `npm test` and `npm run typecheck` must pass. CI also runs the browser suite and `npm run check:template`.
 - If you change a route in `src/contract/`, run `npm run sdk:generate` and commit the result.
+- **Size a pull request to be worth a CI run.** The full run takes about 50 minutes, so a pull request should be either one deep feature or a batch of small changes, not one small change. Add later small fixes as commits to an open pull request rather than opening new ones. The same goes for pushes to `main` and for releases. The one exception is a fix that a live node needs now.
 - Say in the description what a reviewer should check or try. It is read in full before merge.
 - Never develop against a live blyg. Use `npm run dev` and a local database.
 - Venkat Rao merges by default. Kyle Mathews and Aneesh Sathe are also maintainers. They work through pull requests like everyone else, and push to `main` or merge only when Venkat is unavailable or hands a merge to them.
