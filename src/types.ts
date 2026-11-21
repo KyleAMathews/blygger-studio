@@ -466,6 +466,8 @@ export interface Settings {
   ai_model_changelog: string;
   /** Feed scoring: stored now, used once the smart feed's agent exists. */
   ai_model_feed: string;
+  /** Text helpers (catch-up-summary, src/helpers/); empty uses ai_model_changelog. */
+  ai_model_helpers: string;
   /**
    * The change classifier (session 49): a decision model id (Clef, Jev), or
    * empty, which is off and the default. See src/change-class.ts.
@@ -570,6 +572,8 @@ export interface Settings {
    * (decision #86) is a ruled shape awaiting its two-node gate.
    */
   hopper_feeds: boolean;
+  /** Background 4b: judge other blygs' new versions with the change classifier (off by default). */
+  bg_model_imported: boolean;
   /** The setup wizard's state: `pending` (fresh install), `notice` (existing node, told once), `done`. */
   setup: "pending" | "notice" | "done";
   /** Where to ask. Configurable so a fork checks its own releases, not ours. */

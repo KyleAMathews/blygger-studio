@@ -164,9 +164,12 @@ function notConfigured(spec: ProviderSpec): string {
   return `${spec.key_secret} is not configured (the ${spec.label} API key)`;
 }
 
-const PURPOSE_LABELS: Record<AiPurpose, string> = { tk: "TK generation", changelog: "changelog notes", feed: "feed scoring" };
+const PURPOSE_LABELS: Record<AiPurpose, string> = { tk: "TK generation", changelog: "changelog notes", feed: "feed scoring", helpers: "text helpers" };
 
-export function modelFor(settings: Pick<Settings, "ai_model_tk" | "ai_model_changelog" | "ai_model_feed">, purpose: AiPurpose): string {
+export function modelFor(settings: Pick<Settings, "ai_model_tk" | "ai_model_changelog" | "ai_model_feed" | "ai_model_helpers">, purpose: AiPurpose): string {
+  // Text helpers (src/helpers/) write short summaries, as change notes do, so
+  // an unset helpers model falls back to the change-notes model.
+  if (purpose === "helpers") return settings.ai_model_helpers.trim() || settings.ai_model_changelog;
   return purpose === "tk" ? settings.ai_model_tk : purpose === "changelog" ? settings.ai_model_changelog : settings.ai_model_feed;
 }
 

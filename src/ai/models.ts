@@ -50,7 +50,7 @@ export interface Manifest {
 export const MODELS = manifest as Manifest;
 
 /** The AI functions that take a model. Authoring is reserved; nothing calls it yet. */
-export const AI_PURPOSES = ["tk", "changelog", "feed"] as const;
+export const AI_PURPOSES = ["tk", "changelog", "feed", "helpers"] as const;
 export type AiPurpose = (typeof AI_PURPOSES)[number];
 
 /** A model's provider: its manifest entry, else the provider whose prefix the id starts with. */

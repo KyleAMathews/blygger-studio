@@ -143,6 +143,7 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     ai_model_tk: map.ai_model_tk ?? map.ai_model ?? "",
     ai_model_changelog: map.ai_model_changelog ?? map.ai_model ?? "",
     ai_model_feed: map.ai_model_feed ?? "",
+    ai_model_helpers: map.ai_model_helpers ?? "",
     // Off by default: an empty model is no classifier (session 49).
     ai_model_classify: map.ai_model_classify ?? "",
     change_category_in_note: map.change_category_in_note !== "off",
@@ -185,6 +186,7 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     links_blygger_com: map.links_blygger_com !== "off",
     // Off by default (spec 0.4 §13.5, decision #86): publishing hopper feeds is opt-in.
     hopper_feeds: map.hopper_feeds === "on",
+    bg_model_imported: map.bg_model_imported === "on",
     update_check: map.update_check !== "off",
     update_feed_url: map.update_feed_url ?? "",
     /** Cleared until the operator has seen the "alerts are on" notice once. */

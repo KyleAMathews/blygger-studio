@@ -28,4 +28,11 @@ export const HELPERS: readonly Helper[] = [
     description: "Lay a reading entry's nested quotes out oldest first, each card holding only that post's own words, so a conversation stored inside out can be read in order. After Burrow 0.23.0's Catch up.",
     ui: "Catch up, in a reading entry's ⋯ menu when it has quotes",
   },
+  {
+    name: "catch-up-summary",
+    kind: "text",
+    operation: "summarizeCatchUp",
+    description: "A few sentences over catch-up's cards: who said what, oldest first, and where the conversation stands. Written once for the versions it reads and kept; disclosed as generated.",
+    ui: "summarize, in the Catch up sheet",
+  },
 ];

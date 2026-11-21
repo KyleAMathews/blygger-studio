@@ -68,6 +68,8 @@ import type { ChangeCategory } from "./change-category.ts";
 import { isDecisionModel } from "./ai/models.ts";
 import { platformFetchFor } from "./importer/http.ts";
 import { importedSubject, ownChangelog, ownSubject, summarizeChangelog, type ChangelogEntry } from "./changelog-summary.ts";
+import { catchUp } from "./helpers/catch-up.ts";
+import { summarizeCatchUp, summarySubject } from "./helpers/catch-up-summary.ts";
 import { blygSubscription } from "./read-api.ts";
 import { fetchImportedHistory } from "./imported-history.ts";
 import { reconcileIndex } from "./importer/poll.ts";
@@ -516,6 +518,19 @@ const summarizeChangelogOperation = async (context: OperationContext, input: Ope
   return success({ summary: result.summary, model: result.model, version: result.version, cached: result.cached });
 };
 
+// The catch-up-summary helper (helpers-plan.md §7): catch-up's cards, then a
+// summary of them, cached by their versions (src/helpers/catch-up-summary.ts).
+const summarizeCatchUpOperation = async (context: OperationContext, input: OperationInput) => {
+  const body = input.body as { sub: string; remoteId: string };
+  const settings = await getSettings(context.env.DB);
+  const laid = await catchUp(context.env.DB, body, siteOrigin(settings, context.url, normalizeMount(context.env.MOUNT)));
+  if (!laid) return failure('not-found', { error: "not a published or current entry this reader holds" });
+  const result = await summarizeCatchUp(context.env, summarySubject(body.sub, body.remoteId), laid.cards);
+  if (!result.ok) return modelFailure({ error: result.error }, result.status);
+  const { ok: _ok, ...summary } = result;
+  return success(summary);
+};
+
 // --- Snapshot freshness (decision #33's direct check; #38: detect always,
 // refresh only on a decision, never silently) ---
 
@@ -767,6 +782,7 @@ const SETTINGS_KEYS = [
   "ai_model_tk",
   "ai_model_changelog",
   "ai_model_feed",
+  "ai_model_helpers",
   "ai_model_classify",
   "feed_prompt",
   "ai_style_prompt",
@@ -796,13 +812,13 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
   for (const key of SETTINGS_KEYS) {
     if (typeof body[key] === "string") patch[key] = body[key] as string;
   }
-  for (const key of ["accept_mentions", "update_check", "show_responses_default", "highlight_generated_default", "auto_change_notes", "change_category_in_note", "update_notice_ack", "links_collections", "links_opml", "links_blygger_org", "links_blygger_com", "hopper_feeds"] as const) {
+  for (const key of ["accept_mentions", "update_check", "show_responses_default", "highlight_generated_default", "auto_change_notes", "change_category_in_note", "update_notice_ack", "links_collections", "links_opml", "links_blygger_org", "links_blygger_com", "hopper_feeds", "bg_model_imported"] as const) {
     if (typeof body[key] === "boolean") patch[key] = body[key] ? "on" : "off";
   }
   // Decision models answer questions and write no text (src/ai/models.ts): the
   // classifier takes only a decision model, and no text function takes one.
   if (patch.ai_model_classify?.trim() && !isDecisionModel(patch.ai_model_classify.trim())) return failure('invalid-input', { error: `aiModelClassify must be a decision model (Clef, Jev), not "${patch.ai_model_classify}"` });
-  for (const [field, key] of [["aiModelTk", "ai_model_tk"], ["aiModelChangelog", "ai_model_changelog"], ["aiModelFeed", "ai_model_feed"]] as const) {
+  for (const [field, key] of [["aiModelTk", "ai_model_tk"], ["aiModelChangelog", "ai_model_changelog"], ["aiModelFeed", "ai_model_feed"], ["aiModelHelpers", "ai_model_helpers"]] as const) {
     if (patch[key]?.trim() && isDecisionModel(patch[key].trim())) return failure('invalid-input', { error: `${field} cannot be a decision model ("${patch[key]}"): decision models write no text` });
   }
   if (typeof patch.picker_typing === "string" && !["auto", "editor", "panel"].includes(patch.picker_typing)) return failure('invalid-input', { error: "pickerTyping must be auto, editor or panel" });
@@ -992,6 +1008,7 @@ export const itemOperations = {
   classifyChange: classifyChangeOperation,
   draftNote: draftNoteOperation,
   summarizeChangelog: summarizeChangelogOperation,
+  summarizeCatchUp: summarizeCatchUpOperation,
   listStaleThreads: listStaleThreadsOperation,
   getItemFreshness: getItemFreshnessOperation,
   refreshItem: refreshItemOperation,

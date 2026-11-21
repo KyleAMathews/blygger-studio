@@ -38,6 +38,7 @@ import { mentionFetchFor } from "./mentions/http.ts";
 import { receiveMention, verifyMention } from "./mentions/receive.ts";
 
 import { drainOutbound } from "./mentions/send.ts";
+import { drainImportedChanges } from "./background-model.ts";
 import { pruneFailedInbound } from "./mentions/store.ts";
 import type { Env, Settings } from "./types.ts";
 import { FEED_PAGE_SIZE, WEBMENTION_PATH } from "./types.ts";
@@ -480,6 +481,12 @@ export default {
     const at = new Date(controller.scheduledTime);
     if (at.getUTCHours() === 0 && at.getUTCMinutes() < 15) daily();
     ctx.waitUntil(runScheduledPoll(env.DB, platformFetchFor(env)));
+    // Background 4b: imported changes queued by earlier polls, judged a few at a
+    // time under the AI budget. Not on the minute tick, which promises an
+    // unchanged tick only two small D1 reads (test/polling-cache.oracle.test.ts).
+    ctx.waitUntil(drainImportedChanges(env).catch(() => {
+      console.warn('Imported change classification failed');
+    }));
     ctx.waitUntil(backfillImportedMentions(env.DB).catch(() => {
       console.warn('Imported mentions backfill failed');
     }));

@@ -152,6 +152,10 @@ export type Settings = {
     aiModelChangelog: string;
     aiModelFeed: string;
     /**
+     * The model for text helpers (catch-up-summary); empty, the default, uses the change-notes model.
+     */
+    aiModelHelpers: string;
+    /**
      * The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms.
      */
     aiModelClassify: string;
@@ -243,6 +247,10 @@ export type Settings = {
      * Link blygger.com, the directory of blygs, in the links section.
      */
     linksBlyggerCom: boolean;
+    /**
+     * Off by default: other blygs' new versions are judged by the change classifier (aiModelClassify), one decision-model call each under the AI budget, and a typo or minor label sends the entry to Background with the minor rule. Versions the measured rules settle are not sent; the changelog note never is. Studio-private and reader-only.
+     */
+    bgModelImported: boolean;
     /**
      * Off by default: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json (spec 0.4 §13.5, decision #86). Publish side only: subscribing to another blyg's hopper works with this off.
      */
@@ -365,6 +373,30 @@ export type CatchUp = {
          */
         html: string;
     }>;
+};
+
+export type CatchUpSummary = {
+    /**
+     * A few plain sentences, oldest first: who said what and where the conversation stands. Generated: place it in a thread only as an impyrt span.
+     */
+    summary: string;
+    model: string;
+    /**
+     * When it was written.
+     */
+    at: string;
+    /**
+     * Every post it read, oldest first, in the §5.9 reference shape (no origin for your own items).
+     */
+    sources: Array<{
+        id: string;
+        version: number | null;
+        origin?: string;
+    }>;
+    /**
+     * True when the same versions were summarized before and nothing was spent.
+     */
+    cached: boolean;
 };
 
 export type AgenticEdition = {
@@ -2983,6 +3015,10 @@ export type UpdateSettingsData = {
         aiModelChangelog?: string;
         aiModelFeed?: string;
         /**
+         * The model for text helpers (catch-up-summary); empty, the default, uses the change-notes model.
+         */
+        aiModelHelpers?: string;
+        /**
          * The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms.
          */
         aiModelClassify?: string;
@@ -3074,6 +3110,10 @@ export type UpdateSettingsData = {
          * Link blygger.com, the directory of blygs, in the links section.
          */
         linksBlyggerCom?: boolean;
+        /**
+         * Off by default: other blygs' new versions are judged by the change classifier (aiModelClassify), one decision-model call each under the AI budget, and a typo or minor label sends the entry to Background with the minor rule. Versions the measured rules settle are not sent; the changelog note never is. Studio-private and reader-only.
+         */
+        bgModelImported?: boolean;
         /**
          * Off by default: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json (spec 0.4 §13.5, decision #86). Publish side only: subscribing to another blyg's hopper works with this off.
          */
@@ -4050,6 +4090,81 @@ export type CatchUpResponses = {
 };
 
 export type CatchUpResponse = CatchUpResponses[keyof CatchUpResponses];
+
+export type SummarizeCatchUpData = {
+    body: {
+        /**
+         * The subscription the entry is held under, or "~own" for one of your own published items.
+         */
+        sub: string;
+        remoteId: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/helpers/catch-up-summary';
+};
+
+export type SummarizeCatchUpErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type SummarizeCatchUpError = SummarizeCatchUpErrors[keyof SummarizeCatchUpErrors];
+
+export type SummarizeCatchUpResponses = {
+    /**
+     * Success
+     */
+    200: CatchUpSummary;
+};
+
+export type SummarizeCatchUpResponse = SummarizeCatchUpResponses[keyof SummarizeCatchUpResponses];
 
 export type ListAgenticFeedsData = {
     body?: never;

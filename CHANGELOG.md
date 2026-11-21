@@ -18,6 +18,35 @@ not have its own repo until session 26.
 
 ---
 
+## Unreleased (the 0.69.0 batch)
+
+**The Agentic feed's foundations** (blygger-spec `docs/agentic-feed-plan.md` §9, row 52):
+`GET /agentic`, `GET`/`PUT /agentic/{feed}` (`expectedRevision`, the closed field set),
+the digest tab, and each edition composed into a private draft thread. Scopes are
+`owner:read`/`owner:manage` until the narrow ones are reviewed.
+
+**Helpers** (blygger-spec `docs/helpers-plan.md`, row 143): `GET /helpers`, the catalogue.
+**`catch-up`** (`POST /helpers/catch-up`, mechanical; after Burrow 0.23.0's Catch up):
+an entry's ⋯ → *catch up* opens a sheet laying the conversation it carries out oldest
+first, each card that post's own words. **`catch-up-summary`**
+(`POST /helpers/catch-up-summary`, text): *summarize* in that sheet, a few sentences by the
+new **text helpers** model (Settings → AI; blank uses the change-notes model), written once
+per set of versions and kept, with its sources in the §5.9 reference shape. Custom sheets
+may now use router links (the sheet host has the router's context).
+
+**Background: other blygs' changes judged by the classifier** (blygger-spec
+`docs/background-plan.md` §7.2, phase 4b's first half). Opt-in, under Settings → Background
+→ *judge other blygs' changes too*, and only with a change classifier chosen in Settings →
+AI. A new version the measured rules leave open is judged on the quarter-hour poll, ten at a
+time, under the daily AI budget; *typo* or *minor* sends it to Background as a minor change,
+*major* leaves it. Only the two texts are sent, never the author's note. Over the budget the
+measured rules decide. The `minor` rule now covers your own and other blygs' minor changes.
+
+**Migrations:** 0052 (`agentic_feeds`), 0053 (`helper_results`), 0054
+(`imported_change_queue`). 0050 stays reserved for #146. Contract and SDK: bumped at release.
+
+---
+
 ## 0.68.0 — Reading reorganised: Feed (pace-layered), Mentions, Agentic feed, Saved, Background, Raw; Background's measured rules
 
 **Reading has six tabs** (Venkat, session 77): **Feed**, **Mentions**, **Agentic feed**,

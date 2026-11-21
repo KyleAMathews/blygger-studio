@@ -681,7 +681,11 @@ function backgroundLabel(entry: Reading): string | null {
   if (reasons[0] === 'quotes-refreshed') return 'quotes refreshed';
   if (reasons[0] === 'quotes-material') return 'quotes refreshed (rewritten)';
   if (reasons[0] === 'near-same') return 'small edit';
-  if (reasons[0] === 'minor') return typeof detail?.category === 'string' ? `minor change (${detail.category})` : 'minor change';
+  if (reasons[0] === 'minor') {
+    // Own items carry the category at the top (4a); imported ones under `classify` (4b).
+    const category = detail?.category ?? (detail?.classify as { category?: unknown } | undefined)?.category;
+    return typeof category === 'string' ? `minor change (${category})` : 'minor change';
+  }
   if (reasons[0] === 'superseded') return 'followed within 15 min';
   return null;
 }

@@ -616,6 +616,10 @@
           "aiModelFeed": {
             "type": "string"
           },
+          "aiModelHelpers": {
+            "type": "string",
+            "description": "The model for text helpers (catch-up-summary); empty, the default, uses the change-notes model."
+          },
           "aiModelClassify": {
             "type": "string",
             "description": "The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms."
@@ -790,6 +794,10 @@
             "type": "boolean",
             "description": "Link blygger.com, the directory of blygs, in the links section."
           },
+          "bgModelImported": {
+            "type": "boolean",
+            "description": "Off by default: other blygs' new versions are judged by the change classifier (aiModelClassify), one decision-model call each under the AI budget, and a typo or minor label sends the entry to Background with the minor rule. Versions the measured rules settle are not sent; the changelog note never is. Studio-private and reader-only."
+          },
           "hopperFeeds": {
             "type": "boolean",
             "description": "Off by default: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json (spec 0.4 §13.5, decision #86). Publish side only: subscribing to another blyg's hopper works with this off."
@@ -867,6 +875,7 @@
           "aiModelTk",
           "aiModelChangelog",
           "aiModelFeed",
+          "aiModelHelpers",
           "aiModelClassify",
           "changeCategoryInNote",
           "feedPrompt",
@@ -893,6 +902,7 @@
           "linksOpml",
           "linksBlyggerOrg",
           "linksBlyggerCom",
+          "bgModelImported",
           "hopperFeeds",
           "setup",
           "updateFeedUrl",
@@ -1182,6 +1192,58 @@
         "required": [
           "ordered",
           "cards"
+        ]
+      },
+      "CatchUpSummary": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string",
+            "description": "A few plain sentences, oldest first: who said what and where the conversation stands. Generated: place it in a thread only as an impyrt span."
+          },
+          "model": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "description": "When it was written."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "origin": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "version"
+              ]
+            },
+            "description": "Every post it read, oldest first, in the §5.9 reference shape (no origin for your own items)."
+          },
+          "cached": {
+            "type": "boolean",
+            "description": "True when the same versions were summarized before and nothing was spent."
+          }
+        },
+        "required": [
+          "summary",
+          "model",
+          "at",
+          "sources",
+          "cached"
         ]
       },
       "AgenticEdition": {
@@ -8549,6 +8611,10 @@
                   "aiModelFeed": {
                     "type": "string"
                   },
+                  "aiModelHelpers": {
+                    "type": "string",
+                    "description": "The model for text helpers (catch-up-summary); empty, the default, uses the change-notes model."
+                  },
                   "aiModelClassify": {
                     "type": "string",
                     "description": "The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms."
@@ -8713,6 +8779,10 @@
                   "linksBlyggerCom": {
                     "type": "boolean",
                     "description": "Link blygger.com, the directory of blygs, in the links section."
+                  },
+                  "bgModelImported": {
+                    "type": "boolean",
+                    "description": "Off by default: other blygs' new versions are judged by the change classifier (aiModelClassify), one decision-model call each under the AI budget, and a typo or minor label sends the entry to Background with the minor rule. Versions the measured rules settle are not sent; the changelog note never is. Studio-private and reader-only."
                   },
                   "hopperFeeds": {
                     "type": "boolean",
@@ -11069,6 +11139,184 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CatchUp"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/helpers/catch-up-summary": {
+      "post": {
+        "operationId": "summarizeCatchUp",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:draft"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sub": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "The subscription the entry is held under, or \"~own\" for one of your own published items."
+                  },
+                  "remoteId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  }
+                },
+                "required": [
+                  "sub",
+                  "remoteId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatchUpSummary"
                 }
               }
             }

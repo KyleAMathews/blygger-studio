@@ -81,3 +81,10 @@ export const CatchUpSchema = z.object({
     html: z.string().describe("The post's own words: its layer with every quote inside it taken out, sanitized."),
   })),
 }).openapi("CatchUp");
+
+export const CatchUpSummarySchema = z.object({
+  summary: z.string().describe("A few plain sentences, oldest first: who said what and where the conversation stands. Generated: place it in a thread only as an impyrt span."),
+  model: z.string(), at: z.string().describe("When it was written."),
+  sources: z.array(z.object({ id: z.string(), version: z.number().int().nullable(), origin: z.string().optional() })).describe("Every post it read, oldest first, in the §5.9 reference shape (no origin for your own items)."),
+  cached: z.boolean().describe("True when the same versions were summarized before and nothing was spent."),
+}).openapi("CatchUpSummary");

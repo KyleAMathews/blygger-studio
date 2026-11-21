@@ -404,3 +404,5 @@
 .catch-up-card { border-left: 3px solid var(--rule-strong); padding-left: 10px; }
 .catch-up-meta { color: var(--ink-soft); font-size: .8rem; margin: 0 0 4px; }
 .catch-up-body > :first-child { margin-top: 0; }
+.catch-up-summary { margin: 8px 0 0; }
+.catch-up-summary .assistant-said { padding: 4px 6px; margin: 0 0 4px; }

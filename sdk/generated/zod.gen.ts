@@ -177,6 +177,7 @@ export const zSettings = z.object({
     aiModelTk: z.string(),
     aiModelChangelog: z.string(),
     aiModelFeed: z.string(),
+    aiModelHelpers: z.string(),
     aiModelClassify: z.string(),
     changeCategoryInNote: z.boolean(),
     feedPrompt: z.string(),
@@ -231,6 +232,7 @@ export const zSettings = z.object({
     linksOpml: z.boolean(),
     linksBlyggerOrg: z.boolean(),
     linksBlyggerCom: z.boolean(),
+    bgModelImported: z.boolean(),
     hopperFeeds: z.boolean(),
     setup: z.enum([
         'pending',
@@ -299,6 +301,18 @@ export const zCatchUp = z.object({
         label: z.string().nullable(),
         html: z.string()
     }))
+});
+
+export const zCatchUpSummary = z.object({
+    summary: z.string(),
+    model: z.string(),
+    at: z.string(),
+    sources: z.array(z.object({
+        id: z.string(),
+        version: z.int().nullable(),
+        origin: z.string().optional()
+    })),
+    cached: z.boolean()
 });
 
 /**
@@ -1381,6 +1395,7 @@ export const zUpdateSettingsBody = z.object({
     aiModelTk: z.string().optional(),
     aiModelChangelog: z.string().optional(),
     aiModelFeed: z.string().optional(),
+    aiModelHelpers: z.string().optional(),
     aiModelClassify: z.string().optional(),
     changeCategoryInNote: z.boolean().optional(),
     feedPrompt: z.string().optional(),
@@ -1435,6 +1450,7 @@ export const zUpdateSettingsBody = z.object({
     linksOpml: z.boolean().optional(),
     linksBlyggerOrg: z.boolean().optional(),
     linksBlyggerCom: z.boolean().optional(),
+    bgModelImported: z.boolean().optional(),
     hopperFeeds: z.boolean().optional(),
     setup: z.enum([
         'pending',
@@ -1613,6 +1629,16 @@ export const zCatchUpBody = z.object({
  * Success
  */
 export const zCatchUpResponse = zCatchUp;
+
+export const zSummarizeCatchUpBody = z.object({
+    sub: z.string().min(1).max(128),
+    remoteId: z.string().min(1).max(256)
+}).strict();
+
+/**
+ * Success
+ */
+export const zSummarizeCatchUpResponse = zCatchUpSummary;
 
 export const zListAgenticFeedsHeaders = z.object({
     'if-none-match': z.string().optional()

@@ -60,6 +60,7 @@ const fields = [
   "aiModelTk",
   "aiModelChangelog",
   "aiModelFeed",
+  "aiModelHelpers",
   "aiModelClassify",
   "feedPrompt",
   "agenticTitle",
@@ -68,6 +69,7 @@ const fields = [
   "readerChangelogDisplay",
   "readerOrder",
   "backgroundRules",
+  "bgModelImported",
   "changelogSummaryPrompt",
   "acceptMentions",
   "updateCheck",
@@ -541,10 +543,26 @@ function SettingsForm({ initial }: { initial: Settings }) {
             onChange={(event) => change('backgroundRules', { ...form.backgroundRules, minor: event.target.checked })}
           />
           <span>
-            Your own minor changes
+            Minor changes
             <span className="hint">
               a version the change classifier calls a typo, minor or refresh
               (Settings → AI → change classifier)
+            </span>
+          </span>
+        </label>
+        <label className="check sub-check">
+          <input
+            type="checkbox"
+            disabled={!form.aiModelClassify?.trim()}
+            checked={!!form.bgModelImported}
+            onChange={(event) => change('bgModelImported', event.target.checked)}
+          />
+          <span>
+            Judge other blygs&rsquo; changes too
+            <span className="hint">
+              {form.aiModelClassify?.trim()
+                ? 'one classifier call per new version the rules above leave open, ten every quarter hour, under your daily AI budget; over it, the rules above decide. Only the two texts are sent, never the author’s note.'
+                : 'choose a change classifier model in Settings → AI first'}
             </span>
           </span>
         </label>
@@ -856,6 +874,15 @@ function SettingsForm({ initial }: { initial: Settings }) {
             )
           : null}
       </section>
+      <section className="card" id="ai-helpers">
+        <h3 className="card-h">text helpers</h3>
+        <p className="hint">
+          Small writing jobs you and your agents ask for, such as the summary
+          in <em>Catch up</em>. Each is written once for the versions it reads
+          and kept. Blank uses the change-notes model.
+        </p>
+        <ModelField fkey="aiModelHelpers" label="Model" name="text helpers" manifest={aiModels} form={form} change={change} />
+      </section>
       <section className="card" id="ai-feed">
         <h3 className="card-h">agentic feed</h3>
         <ModelField fkey="aiModelFeed" label="Model" name="agentic feed" hint="not used yet" manifest={aiModels} form={form} change={change} />
@@ -1149,6 +1176,7 @@ const FUNCTIONS = [
   { key: "aiModelTk", label: 'TK generation' },
   { key: "aiModelChangelog", label: 'changelog notes' },
   { key: "aiModelFeed", label: 'agentic feed', hint: 'for the Agentic feed; not used yet' },
+  { key: "aiModelHelpers", label: 'text helpers', hint: 'Catch up summaries; blank uses the change-notes model' },
 ] as const;
 const OTHER = '__other__';
 

@@ -7,7 +7,7 @@ import { ItemRevisionSchema } from "./schemas.ts";
 import { BackgroundRulesPatchSchema, SettingsSchema } from './settings.ts';
 import { SyndicationEntrySchema } from './resources.ts';
 import { SYNDICATION_MAX } from '../syndication.ts';
-import { AgenticEditionInputSchema, CatchUpSchema, agenticEditionSchema } from './agentic.ts';
+import { AgenticEditionInputSchema, CatchUpSchema, CatchUpSummarySchema, agenticEditionSchema } from './agentic.ts';
 import { ShelfEntrySchema, ShelfSchema, ContactSchema, HopperMembershipSchema, SignalSchema, OutboundMentionSchema, InteractionSchema, ThumbSchema, BrowseStepSchema } from './resources.ts';
 import { CHANGE_CATEGORIES } from "../change-category.ts";
 import { READ_BATCH_MAX, READ_ID_MAX, READ_VERSION_MAX } from '../importer/read-state.ts';
@@ -151,6 +151,10 @@ export const routes = {
     sub: z.string().min(1).max(128).describe('The subscription the entry is held under, or "~own" for one of your own published items.'),
     remoteId: z.string().min(1).max(256),
   }).strict().describe("The catch-up helper: an entry's nested quotes laid out oldest first, each card holding only that post's own words. Mechanical: no model, no network. After Burrow 0.23.0's Catch up.")),
+  summarizeCatchUp: route("summarizeCatchUp", draftOperation({"writes":[],"network":true}), "post", "/helpers/catch-up-summary", CatchUpSummarySchema, z.object({
+    sub: z.string().min(1).max(128).describe('The subscription the entry is held under, or "~own" for one of your own published items.'),
+    remoteId: z.string().min(1).max(256),
+  }).strict().describe("The catch-up-summary helper: a few sentences over catch-up's cards, written by the owner's text-helpers model (blank: the change-notes model) under the AI budget. Kept per entry and keyed by every card's version, so asking again about the same versions costs nothing. 409 when the entry quotes nothing or another request is writing it. Studio-private.")),
   listAgenticFeeds: route("listAgenticFeeds", readOperation(), "get", "/agentic", z.object({ feeds: z.array(z.object({ id: z.string(), title: z.string().describe("The feed's name: the tab's label and the heading of its editions."), revision: z.number().int().nonnegative(), updatedAt: z.string().nullable() })) }).describe("The agentic feeds in the owner's order. One, `default`, until the Studio offers more (blygger-spec docs/agentic-feed-plan.md §3.3).")),
   getAgentic: route("getAgentic", readOperation(), "get", "/agentic/{feed}", AgenticEditionSchema),
   putAgentic: route("putAgentic", manageOperation({"writes":["presentation"],"destructive":true}), "put", "/agentic/{feed}", AgenticEditionSchema, z.object({
