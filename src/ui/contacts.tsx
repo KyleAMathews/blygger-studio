@@ -4,13 +4,13 @@
  * server consumes them at publish on every write path, so everything here is a
  * convenience over that resolver (#91).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Contact } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import { Button, Failure } from './components.tsx';
 import { setTextAt } from './caret.ts';
 import { client } from './data.ts';
-import { handleInsert, handleTrigger, sameContactUrl, suggestHandle } from './handle-trigger.ts';
+import { handleInsert, handleTrigger, punctuationAfterPick, sameContactUrl, suggestHandle } from './handle-trigger.ts';
 import { customSheet, Sheet, toast } from './sheets.tsx';
 import './picker.css';
 
@@ -233,12 +233,31 @@ export function HandlePicker({ input, text, change }: {
     .slice(0, 8);
   useEffect(() => setSelected(0), [query]);
   const open = active && matches.length > 0;
+  // Where the last pick left the caret, so punctuation typed next can close up the space.
+  const picked = useRef<number | null>(null);
   const pick = (contact: Contact) => {
     if (!trigger) return;
     const next = handleInsert(text, trigger, contact.handle);
     if (input.current) setTextAt(input.current, change, next.text, next.caret);
     else change(next.text);
+    picked.current = next.caret;
   };
+  useEffect(() => {
+    const element = input.current;
+    if (!element) return;
+    const typed = (event: InputEvent) => {
+      const at = picked.current;
+      picked.current = null;
+      if (at === null || event.inputType !== 'insertText' || !event.data) return;
+      if (element.selectionStart !== at || element.selectionEnd !== at) return;
+      const next = punctuationAfterPick(element.value, at, event.data);
+      if (!next) return;
+      event.preventDefault();
+      setTextAt(element, change, next.text, next.caret);
+    };
+    element.addEventListener('beforeinput', typed);
+    return () => element.removeEventListener('beforeinput', typed);
+  }, [input, change]);
   useEffect(() => {
     const element = input.current;
     if (!element || !open) return;

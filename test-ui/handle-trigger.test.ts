@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { handleInsert, handleTrigger, sameContactUrl, suggestHandle } from '../src/ui/handle-trigger.ts';
+import { handleInsert, handleTrigger, punctuationAfterPick, sameContactUrl, suggestHandle } from '../src/ui/handle-trigger.ts';
 
 const at = (text: string) => handleTrigger(text, text.length);
 
@@ -32,5 +32,23 @@ describe('sameContactUrl', () => {
     expect(sameContactUrl('https://A.example/blyg/', 'https://a.example/blyg')).toBe(true);
     expect(sameContactUrl('https://a.example/', 'https://a.example/blyg')).toBe(false);
     expect(sameContactUrl('not a url', 'not a url')).toBe(true);
+  });
+});
+
+describe('punctuationAfterPick', () => {
+  // After a pick the text reads '@kyle ' with the caret after the space.
+  const picked = 'In @kyle ';
+  it('takes the space back for punctuation typed straight after a pick', () => {
+    expect(punctuationAfterPick(picked, picked.length, "'")).toEqual({ text: "In @kyle'", caret: 9 });
+    expect(punctuationAfterPick(picked, picked.length, '\u2019')).toEqual({ text: 'In @kyle\u2019', caret: 9 });
+    for (const typed of ['-', ',', '.', ':', ';', '!', '?', ')', '\u201d', '\u2026', '\u2014', '/', '_']) {
+      expect(punctuationAfterPick(picked, picked.length, typed)?.text).toBe(`In @kyle${typed}`);
+    }
+  });
+  it('leaves letters, spaces and a moved caret alone', () => {
+    expect(punctuationAfterPick(picked, picked.length, 'a')).toBeNull();
+    expect(punctuationAfterPick(picked, picked.length, ' ')).toBeNull();
+    expect(punctuationAfterPick(picked, 3, "'")).toBeNull();
+    expect(punctuationAfterPick('In @kyle', 8, "'")).toBeNull();
   });
 });

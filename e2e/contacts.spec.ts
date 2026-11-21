@@ -28,6 +28,10 @@ test('a contact added in Settings is offered at @, and an unknown one gets a sof
   await editor.press('Enter');
   await expect(editor).toHaveValue(`Thanks @${handle} `);
   await expect(picker).toHaveCount(0);
+  // A possessive typed straight after the pick takes the pick's space (session 76).
+  await editor.pressSequentially("'s case ");
+  await expect(editor).toHaveValue(`Thanks @${handle}'s case `);
+  await expect(page.locator('#preview-body')).toContainText("@Ada Ruiz's case");
 
   await editor.pressSequentially(`and @nobody${handle}`);
   await expect(page.getByRole('status').filter({ hasText: `@nobody${handle} is not in your` })).toBeVisible();
