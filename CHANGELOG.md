@@ -18,6 +18,43 @@ not have its own repo until session 26.
 
 ---
 
+## 0.67.0 — Copies elsewhere (`syndication`); `/changes` removed; three publisher changes for the reader suite
+
+**Copies elsewhere** (#148/#160, Aneesh Sathe; spec 0.4 §16.14, decision #98). When
+you post an item somewhere else too (Bluesky, a newsletter, any https page), list the
+copy from the editor's ⋯ menu, **copies elsewhere…**. The live item document carries
+`syndication: [{ url, version }]`, written in place: no new version, no changelog
+entry, no feed entry, no mention. Pinned files and a withdrawal's endcap never carry
+it. The public page shows the copies as `u-syndication` links. On the reading side,
+imported items keep the entries their author published (well-formed https only), and
+the reader says "the author says it is also at …". Nothing hides or merges another
+party's post on the strength of an entry. Owner API: `GET` and `PUT
+/items/{id}/syndication` (`owner:read`, `owner:publish`), with the item's revision.
+This build ships ahead of the spec's promotion of §16.14, as hopper feeds did; the
+promotion follows a live run between two nodes.
+
+**`GET /changes` and the SDK's `getChanges` are removed** (#162, decision #111), as
+0.65.0 announced. Poll the resources you need with conditional GETs (`If-None-Match`,
+bodyless `304`); the SDK's `conditionalReads` option does this for you. The Studio
+stopped calling `/changes` in 0.65.0.
+
+**What the reader conformance suite asks of a publisher** (#161, decision #102):
+- A directive line in a fragment is a publish error, in its body or in generated
+  output, instead of publishing as literal text. Make it a thread, or link with
+  `[[id]]`.
+- A link to another blyg's item whose document names no `page` points at its item
+  document, never a guessed `f/…/` address.
+- A quote baked from an own-line directive in generated output sits outside the
+  `blyg-tk-gen` wrapper, which closes before it and reopens after; the scope keeps its
+  one `generated[]` entry.
+
+The reader suite (blygger-spec `conformance/reader`) passes 103 of 103.
+
+**Private contract 6.0.0, SDK 0.22.0** (breaking: `getChanges` is gone; syndication's
+two operations are new). **Migrations:** `0049_syndication.sql` (`item_syndication`,
+`imported_items.syndication_json`, and the `change_imported_items_update` trigger
+recreated). Apply it before deploying.
+
 ## 0.66.0 — Editor bars and replaceable controls; mentions in natural grammar; two editor fixes
 
 **Editor bars** (#154). A new extension slot, `editorBar`: a bar of controls in a row
