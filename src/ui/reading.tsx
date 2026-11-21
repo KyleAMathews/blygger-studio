@@ -52,6 +52,7 @@ import {
   useChrome,
   useSettings,
   SourceLink,
+  CopiesElsewhere,
 } from './components.tsx';
 import { Toggle, ToggleGroup } from './buttons.tsx';
 import { Tab, Tabs } from './primitives.tsx';
@@ -1214,6 +1215,7 @@ function Article({ entry, actions, origin }: { entry: Reading; actions: Actions;
         <EntryTitle title={content.title} url={a.url} as="h2" className="entry-title article-title" />
         <ReaderBody html={content.html} origin={origin} className="content entry-body article-body" />
         <SourceLink url={a.url} />
+        <CopiesElsewhere entries={entry.imported?.syndication} />
         <BurstParts entry={entry} open />
       </div>
       {a.imported && !entry.l0 && a.historyOpen ? (

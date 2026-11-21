@@ -1,5 +1,5 @@
 // Generated from OpenAPI. Do not edit.
-import { zGetCapabilitiesResponse, zListItemsResponse, zGetSettingsResponse, zListSubscriptionsResponse, zGetShelfResponse, zListContactsResponse, zListHoppersResponse, zGetItemSummaryResponse, zListSignalsResponse, zListInteractionsResponse, zListThumbsResponse, zGetSignalSummaryResponse, zGetAiModelsResponse, zListMentionsResponse, zListMentionGroupsResponse, zGetMentionSummaryResponse, zSearchResponse, zGetReadingSummaryResponse, zListReadingResponse, zListImportedReadingResponse, zPeekItemResponse, zListBrowseResponse, zGetUpdateStateResponse, zListStaleThreadsResponse, zGetForkOptionsResponse, zExtLineageGlyphGetLineageResponse, zExtLineageGlyphListSummariesResponse, zExtWordCountListCountsResponse, zGetItemResponse, zGetSubscriptionResponse, zGetHopperResponse, zListItemVersionsResponse, zListHopperMembershipsResponse, zGetMentionSourceResponse, zGetItemFreshnessResponse, zGetVersionResponse, zGetImportedItemResponse, zGetImportedHistoryResponse, zGetImportedVersionResponse } from './zod.gen.js';
+import { zGetCapabilitiesResponse, zListItemsResponse, zGetSettingsResponse, zListSubscriptionsResponse, zGetShelfResponse, zListContactsResponse, zListHoppersResponse, zGetItemSummaryResponse, zListSignalsResponse, zListInteractionsResponse, zListThumbsResponse, zGetSignalSummaryResponse, zGetAiModelsResponse, zListMentionsResponse, zListMentionGroupsResponse, zGetMentionSummaryResponse, zSearchResponse, zGetReadingSummaryResponse, zListReadingResponse, zListImportedReadingResponse, zPeekItemResponse, zListBrowseResponse, zGetUpdateStateResponse, zListStaleThreadsResponse, zGetForkOptionsResponse, zExtLineageGlyphGetLineageResponse, zExtLineageGlyphListSummariesResponse, zExtWordCountListCountsResponse, zGetItemResponse, zGetSyndicationResponse, zGetSubscriptionResponse, zGetHopperResponse, zListItemVersionsResponse, zListHopperMembershipsResponse, zGetMentionSourceResponse, zGetItemFreshnessResponse, zGetVersionResponse, zGetImportedItemResponse, zGetImportedHistoryResponse, zGetImportedVersionResponse } from './zod.gen.js';
 export const readValidators = [
   { pattern: new RegExp("^/capabilities$"), schema: zGetCapabilitiesResponse },
   { pattern: new RegExp("^/items$"), schema: zListItemsResponse },
@@ -30,6 +30,7 @@ export const readValidators = [
   { pattern: new RegExp("^/ext/lineage-glyph/summaries$"), schema: zExtLineageGlyphListSummariesResponse },
   { pattern: new RegExp("^/ext/word-count/counts$"), schema: zExtWordCountListCountsResponse },
   { pattern: new RegExp("^/items/[^/]+$"), schema: zGetItemResponse },
+  { pattern: new RegExp("^/items/[^/]+/syndication$"), schema: zGetSyndicationResponse },
   { pattern: new RegExp("^/subscriptions/[^/]+$"), schema: zGetSubscriptionResponse },
   { pattern: new RegExp("^/hoppers/[^/]+$"), schema: zGetHopperResponse },
   { pattern: new RegExp("^/items/[^/]+/versions$"), schema: zListItemVersionsResponse },

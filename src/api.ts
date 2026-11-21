@@ -1,4 +1,5 @@
 import { retainedMediaSql } from './media-retention.ts';
+import { httpsUrl, listSyndication, refuseSyndication, replaceSyndication, type SyndicationEntry } from './syndication.ts';
 import { assertCurrentRevision, assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
 import { consumeHandles, contactResource, createContact, deleteContact, getContact, handleTaken, HANDLE, listContacts, resolveContact, updateContact } from './contacts.ts';
 import { readShelf, replaceShelf, type ShelfEntry } from './shelf.ts';
@@ -605,6 +606,27 @@ const withdrawItemOperation = async (context: OperationContext, input: Operation
   return success({ ok: true, version, revision: item.revision + 1 });
 };
 
+// §16.14 syndication (decision #98): see src/syndication.ts for the rules.
+const getSyndicationOperation = async (context: OperationContext, input: OperationInput) => {
+  const item = await getItem(context.env.DB, input.path.id);
+  if (!item) return failure('not-found', { error: "not found" });
+  return success({ entries: await listSyndication(context.env.DB, item.id), revision: item.revision });
+};
+const putSyndicationOperation = async (context: OperationContext, input: OperationInput) => {
+  const item = await observedItem(context, input);
+  if (!item) return failure('not-found', { error: "not found" });
+  const body = input.body as { entries: SyndicationEntry[]; expectedRevision: number };
+  const refusal = refuseSyndication(item, body.entries);
+  if (refusal) {
+    // A malformed URL is the caller's input; a draft or withdrawn item, or a
+    // version not yet published, is the item's state.
+    return body.entries.some(entry => !httpsUrl(entry.url))
+      ? failure('invalid-input', { error: refusal.refused })
+      : failure('conflict', { error: refusal.refused });
+  }
+  return success(await replaceSyndication(context.env.DB, item, body.entries, body.expectedRevision));
+};
+
 const pinItemOperation = async (context: OperationContext, input: OperationInput) => {
   const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
@@ -951,6 +973,8 @@ export const itemOperations = {
   generateItem: generateItemOperation,
   withdrawItem: withdrawItemOperation,
   pinItem: pinItemOperation,
+  getSyndication: getSyndicationOperation,
+  putSyndication: putSyndicationOperation,
   restoreItem: restoreItemOperation,
   deleteItem: deleteItemOperation,
   uploadMedia: uploadMediaOperation,
