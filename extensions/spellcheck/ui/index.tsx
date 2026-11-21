@@ -1,7 +1,9 @@
 // Spellcheck (docs/extensions.md): a "spelling" button in an editor bar opens a sheet with two
 // checks. The dictionary check runs in the browser against a US English word list the server
 // sends the first time (spell.ts); the AI proofread sends the saved draft to the blyg's TK model
-// (server.ts). Fixes go into the text box through the editor bar's own edit path.
+// (server.ts). Words the list lacks come from the blyg's dictionary (GET /dictionary), every
+// source; "add to dictionary" adds to the author's own ("owner"). Fixes go into the text box
+// through the editor bar's own edit path.
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { BlyggerApi, Sheet, toast, unwrap } from '../../../src/ui/extension-api.ts';
 import type { EditorBarContext, StudioExtension } from '../../../src/ui/extension-api.ts';
@@ -9,29 +11,29 @@ import { misspellings, speller, unpack, type Misspelling, type Speller } from '.
 import './spellcheck.css';
 
 const NAME = 'spellcheck';
-const DICTIONARY_KEY = 'blyg.spellcheck.dictionary';
+const OWNER = 'owner';
+type Dictionary = { sources: { source: string; words: string[] }[]; revision: number };
 
-/** Words the author added, on this device. */
-function personal(): string[] {
-  try {
-    const stored = JSON.parse(localStorage.getItem(DICTIONARY_KEY) ?? '[]');
-    return Array.isArray(stored) ? stored.filter((w) => typeof w === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-function addPersonal(word: string) {
-  try {
-    localStorage.setItem(DICTIONARY_KEY, JSON.stringify([...new Set([...personal(), word])].sort()));
-  } catch {
-    toast('Added for now; this browser would not remember it');
+/** Adds a word to the author's own words in the blyg's dictionary; once more on a revision conflict. */
+async function addToDictionary(context: EditorBarContext, word: string) {
+  for (let attempt = 0; ; attempt++) {
+    const dictionary = (await unwrap(BlyggerApi.getDictionary({ client: context.client }))) as Dictionary;
+    const own = dictionary.sources.find((s) => s.source === OWNER)?.words ?? [];
+    try {
+      await unwrap(BlyggerApi.putDictionarySource({ client: context.client, path: { source: OWNER }, body: { words: [...own, word], expectedRevision: dictionary.revision } }));
+      return;
+    } catch (e) {
+      if (attempt > 0 || (e as { statusCode?: number }).statusCode !== 409) throw e;
+    }
   }
 }
 
-// One word list a page, fetched the first time a check runs.
+// One word list a page, with the blyg's dictionary, fetched the first time a check runs.
 let loading: Promise<Speller> | null = null;
 function load(context: EditorBarContext) {
-  loading ??= unwrap(BlyggerApi.extSpellcheckGetWords({ client: context.client })).then(async (r) => speller(await unpack((r as { gz: string }).gz), personal()));
+  loading ??= Promise.all([unwrap(BlyggerApi.extSpellcheckGetWords({ client: context.client })), unwrap(BlyggerApi.getDictionary({ client: context.client }))]).then(
+    async ([list, dictionary]) => speller(await unpack((list as { gz: string }).gz), (dictionary as Dictionary).sources.flatMap((s) => s.words)),
+  );
   loading.catch(() => {
     loading = null;
   });
@@ -110,7 +112,13 @@ function SpellSheet({ live, close, onCount }: { live: RefObject<EditorBarContext
                 </span>
                 <span className="spellcheck-actions">
                   <button type="button" className="link-btn" onClick={() => { ignored.add(word); refresh((n) => n + 1); }}>ignore</button>
-                  <button type="button" className="link-btn" onClick={() => { check.add(word); addPersonal(word); refresh((n) => n + 1); }}>add to dictionary</button>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => void context.run(async () => { await addToDictionary(context, word); check.add(word); refresh((n) => n + 1); })}
+                  >
+                    add to dictionary
+                  </button>
                 </span>
               </li>
             ))}
@@ -172,6 +180,6 @@ function SpellBar({ context }: { context: EditorBarContext }) {
 export const extension: StudioExtension = {
   name: NAME,
   label: 'Spellcheck',
-  description: 'A “spelling” button in the editor: a US English dictionary check with suggestions, and an AI proofread of the draft.',
+  description: 'A “spelling” button in the editor: a US English check with suggestions, using the blyg’s dictionary, and an AI proofread of the draft.',
   editorBar: { label: 'Spelling', row: 'above', blocks: 1, component: SpellBar },
 };

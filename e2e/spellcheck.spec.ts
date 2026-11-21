@@ -15,7 +15,11 @@ const setExtensions = (page: Page, extensions: string[]) =>
 
 test.beforeEach(async ({ page }) => {
   await login(page);
-  await page.evaluate(() => { localStorage.removeItem('blyg.editorBars.hidden'); localStorage.removeItem('blyg.spellcheck.dictionary'); });
+  await page.evaluate(async () => {
+    localStorage.removeItem('blyg.editorBars.hidden');
+    const { revision } = await (await fetch('/api/dictionary')).json();
+    await fetch('/api/dictionary/owner', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ words: [], expectedRevision: revision }) });
+  });
   await setExtensions(page, ['spellcheck']);
 });
 test.afterEach(async ({ page }) => {
@@ -41,7 +45,7 @@ test('the composer: a misspelling is listed, a suggestion fixes it, ignore leave
   await expect(page.locator('[data-action=spellcheck]')).toHaveText('spelling · 1');
 });
 
-test('the full editor offers the AI proofread, and add to dictionary is remembered', async ({ page }) => {
+test('the full editor offers the AI proofread; add to dictionary goes to the blyg’s dictionary', async ({ page }) => {
   const id = await page.evaluate(async () => (await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: 'A blyg is clean.', kind: 'thread' }) })).json()).id as string);
   await page.goto(`/studio/edit/${id}`);
   await page.locator('[data-action=spellcheck]').click();
@@ -49,6 +53,7 @@ test('the full editor offers the AI proofread, and add to dictionary is remember
   await expect(sheet.locator('[data-action=spellcheck-proofread]')).toBeVisible();
   await sheet.locator('li[data-word="blyg"]').getByRole('button', { name: 'add to dictionary' }).click();
   await expect(sheet.locator('[data-spellcheck-clean]')).toBeVisible();
+  expect(await page.evaluate(async () => (await (await fetch('/api/dictionary')).json()).sources.find((s: { source: string }) => s.source === 'owner')?.words)).toEqual(['blyg']);
   await page.reload();
   await page.locator('[data-action=spellcheck]').click();
   await expect(page.locator('.spellcheck-sheet [data-spellcheck-clean]')).toBeVisible();
