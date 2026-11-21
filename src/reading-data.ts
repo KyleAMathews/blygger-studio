@@ -10,7 +10,7 @@ import { OWN_SUBSCRIPTION } from "./own-subscription.ts";
 import { linkLabel } from "./link-label.ts";
 import { BACKGROUND_RULES, entryBackground, importedBackgroundSql, ownBackgroundSql, type BackgroundRule } from "./background.ts";
 
-type Identity = { source: 'own' | 'imported'; id: string; sub: string; at: number | string | null };
+export type Identity = { source: 'own' | 'imported'; id: string; sub: string; at: number | string | null };
 /** Foreign dates are normalized before storage. Prefixes extend UTC lexical
  * ordering across JS's signed six-digit years, which SQLite cannot parse. */
 function dateOrderSql(column: string) {
@@ -107,7 +107,8 @@ export async function readingData(db: D1Database, query: CursorQuery, source: st
     project: (selectedRows: Identity[]) => readingEntries(db, selectedRows, raw ? [] : rules),
   });
 }
-async function readingEntries(db: D1Database, selectedRows: Identity[], rules: readonly BackgroundRule[]) {
+/** Reading entries for the given identities, in their order; one that is no longer held is left out. */
+export async function readingEntries(db: D1Database, selectedRows: Identity[], rules: readonly BackgroundRule[]) {
   const ownIds = selectedRows.filter((r) => r.source === "own").map((r) => r.id);
   const importedIds = selectedRows.filter((r) => r.source === "imported");
   // Public pages hold at most50 identities. JSON pairs also keep internal calls within D1 bind limits.

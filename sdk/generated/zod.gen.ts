@@ -192,6 +192,7 @@ export const zSettings = z.object({
         'summary'
     ]),
     changelogSummaryPrompt: z.string(),
+    agenticTitle: z.string(),
     readerOrder: z.enum(['newest', 'pace-layered']),
     backgroundRules: z.object({
         burst: z.boolean(),
@@ -283,6 +284,137 @@ export const zShelf = z.object({
     entries: z.array(zShelfEntry),
     revision: z.int().gte(0)
 });
+
+/**
+ * Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read.
+ */
+export const zEntryBackground = z.object({
+    reasons: z.array(z.string()),
+    placement: z.enum(['background', 'foreground']).nullable(),
+    blyg: z.boolean(),
+    detail: z.record(z.string(), z.unknown()).optional()
+});
+
+/**
+ * The reading entry the reference resolves to, as GET /reading returns it.
+ */
+export const zReadingEntry = z.object({
+    key: z.string(),
+    source: z.enum(['own', 'imported']),
+    kind: z.enum(['fragment', 'thread']),
+    withdrawn: z.boolean(),
+    l0: z.boolean(),
+    contentHtml: z.string(),
+    displayAt: z.string(),
+    own: z.object({
+        id: z.string(),
+        kind: z.enum(['fragment', 'thread']),
+        withdrawn: z.boolean(),
+        updated: z.string(),
+        contentHtml: z.string()
+    }).optional(),
+    imported: z.object({
+        subscriptionId: z.string(),
+        subscriptionTitle: z.string(),
+        remoteId: z.string(),
+        kind: z.enum(['fragment', 'thread']),
+        withdrawn: z.boolean(),
+        l0: z.boolean(),
+        updated: z.string().nullable(),
+        observedAt: z.string(),
+        contentHtml: z.string(),
+        pinnedVersionRetained: z.number().nullable(),
+        sourceUrl: z.string().nullable(),
+        version: z.int(),
+        readVersion: z.int().nullable(),
+        syndication: z.array(zSyndicationEntry).optional()
+    }).optional(),
+    background: zEntryBackground,
+    parts: z.array(z.object({
+        sub: z.string(),
+        id: z.string(),
+        label: z.string()
+    })).optional()
+});
+
+export const zAgenticEntry = z.object({
+    sub: z.string().min(1).max(128),
+    remoteId: z.string().min(1).max(256),
+    version: z.int().gt(0).optional(),
+    headline: z.string().min(1).max(200).optional(),
+    summary: z.string().min(1).max(2000).optional(),
+    reason: z.string().min(1).max(500).optional(),
+    present: z.enum([
+        'full',
+        'excerpt',
+        'title',
+        'folded'
+    ]).optional(),
+    group: z.string().min(1).max(60).optional()
+}).strict();
+
+export const zAgenticResolvedEntry = zAgenticEntry.and(z.object({
+    entry: zReadingEntry
+}).strict());
+
+export const zAgenticEdition = z.object({
+    revision: z.int().gte(0),
+    updatedAt: z.string().nullable(),
+    mode: z.enum(['sections', 'scores']).nullable(),
+    edition: z.unknown().optional(),
+    layout: z.object({
+        title: z.string().nullable(),
+        lede: z.string().nullable(),
+        agent: z.object({
+            name: z.string(),
+            model: z.string().optional()
+        }),
+        generatedAt: z.string().nullable(),
+        sections: z.array(z.object({
+            title: z.string(),
+            kind: z.enum([
+                'lead',
+                'section',
+                'briefs'
+            ]),
+            note: z.string().nullable(),
+            entries: z.array(zAgenticResolvedEntry)
+        }))
+    }).nullable(),
+    draft: z.object({
+        id: z.string()
+    }).nullable()
+});
+
+export const zAgenticSection = z.object({
+    title: z.string().min(1).max(200),
+    kind: z.enum([
+        'lead',
+        'section',
+        'briefs'
+    ]).optional(),
+    note: z.string().min(1).max(4000).optional(),
+    entries: z.array(zAgenticEntry).max(50)
+}).strict();
+
+export const zAgenticScore = z.object({
+    sub: z.string().min(1).max(128),
+    remoteId: z.string().min(1).max(256),
+    score: z.number(),
+    reason: z.string().min(1).max(500).optional()
+}).strict();
+
+export const zAgenticEditionInput = z.object({
+    title: z.string().min(1).max(200).optional(),
+    lede: z.string().min(1).max(4000).optional(),
+    agent: z.object({
+        name: z.string().min(1).max(80),
+        model: z.string().min(1).max(120).optional()
+    }).strict(),
+    generatedAt: z.iso.datetime().optional(),
+    sections: z.array(zAgenticSection).min(1).max(20).optional(),
+    scores: z.array(zAgenticScore).min(1).max(500).optional()
+}).strict();
 
 export const zContact = z.object({
     id: z.string(),
@@ -530,55 +662,6 @@ export const zMentionGroup = z.object({
     verifiedAt: z.string(),
     lastSeen: z.string(),
     firstId: z.string()
-});
-
-/**
- * Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read.
- */
-export const zEntryBackground = z.object({
-    reasons: z.array(z.string()),
-    placement: z.enum(['background', 'foreground']).nullable(),
-    blyg: z.boolean(),
-    detail: z.record(z.string(), z.unknown()).optional()
-});
-
-export const zReadingEntry = z.object({
-    key: z.string(),
-    source: z.enum(['own', 'imported']),
-    kind: z.enum(['fragment', 'thread']),
-    withdrawn: z.boolean(),
-    l0: z.boolean(),
-    contentHtml: z.string(),
-    displayAt: z.string(),
-    own: z.object({
-        id: z.string(),
-        kind: z.enum(['fragment', 'thread']),
-        withdrawn: z.boolean(),
-        updated: z.string(),
-        contentHtml: z.string()
-    }).optional(),
-    imported: z.object({
-        subscriptionId: z.string(),
-        subscriptionTitle: z.string(),
-        remoteId: z.string(),
-        kind: z.enum(['fragment', 'thread']),
-        withdrawn: z.boolean(),
-        l0: z.boolean(),
-        updated: z.string().nullable(),
-        observedAt: z.string(),
-        contentHtml: z.string(),
-        pinnedVersionRetained: z.number().nullable(),
-        sourceUrl: z.string().nullable(),
-        version: z.int(),
-        readVersion: z.int().nullable(),
-        syndication: z.array(zSyndicationEntry).optional()
-    }).optional(),
-    background: zEntryBackground,
-    parts: z.array(z.object({
-        sub: z.string(),
-        id: z.string(),
-        label: z.string()
-    })).optional()
 });
 
 export const zImportedReadingEntry = z.object({
@@ -1297,6 +1380,7 @@ export const zUpdateSettingsBody = z.object({
         'summary'
     ]).optional(),
     changelogSummaryPrompt: z.string().optional(),
+    agenticTitle: z.string().optional(),
     readerOrder: z.enum(['newest', 'pace-layered']).optional(),
     backgroundRules: z.object({
         burst: z.boolean().optional(),
@@ -1482,6 +1566,25 @@ export const zPutShelfBody = z.object({
  * Success
  */
 export const zPutShelfResponse = zShelf;
+
+export const zGetAgenticHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+/**
+ * Success
+ */
+export const zGetAgenticResponse = zAgenticEdition;
+
+export const zPutAgenticBody = z.object({
+    edition: zAgenticEditionInput,
+    expectedRevision: z.int().gte(0)
+}).strict();
+
+/**
+ * Success
+ */
+export const zPutAgenticResponse = zAgenticEdition;
 
 export const zListContactsHeaders = z.object({
     'if-none-match': z.string().optional()

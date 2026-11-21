@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Blygger Studio API",
-    "version": "6.1.0",
+    "version": "6.2.0",
     "description": "Private authoring and reading API. Protocol files remain a separate public interface."
   },
   "servers": [
@@ -652,6 +652,10 @@
             "type": "string",
             "description": "Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."
           },
+          "agenticTitle": {
+            "type": "string",
+            "description": "The owner's name for the Agentic feed tab (\"Daily digest\", \"My briefing\"), at most 40 characters; also the heading of each edition's thread. Empty restores \"Agentic feed\"."
+          },
           "readerOrder": {
             "type": "string",
             "enum": [
@@ -870,6 +874,7 @@
           "changelogDisplay",
           "readerChangelogDisplay",
           "changelogSummaryPrompt",
+          "agenticTitle",
           "readerOrder",
           "backgroundRules",
           "acceptMentions",
@@ -1093,6 +1098,585 @@
         "required": [
           "sub",
           "remoteId"
+        ],
+        "additionalProperties": false
+      },
+      "AgenticEdition": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Send it back as expectedRevision for a conditional replace; every successful PUT bumps it. A never-written edition is at 0."
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "sections",
+              "scores",
+              null
+            ]
+          },
+          "edition": {
+            "description": "The edition as the assistant wrote it (AgenticEditionInput); null before the first PUT."
+          },
+          "layout": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "lede": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "agent": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              },
+              "generatedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sections": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "lead",
+                        "section",
+                        "briefs"
+                      ]
+                    },
+                    "note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AgenticResolvedEntry"
+                      }
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "kind",
+                    "note",
+                    "entries"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "title",
+              "lede",
+              "agent",
+              "generatedAt",
+              "sections"
+            ],
+            "description": "What the tab draws: sections with each reference resolved to its reading entry. A reference that no longer resolves (unsubscribed, discarded, withdrawn) is left out, and a section left empty is dropped."
+          },
+          "draft": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "description": "The edition as a conformant blyg thread: a draft (private, owner-only) composed from headings, quotes, links and impyrt spans for the assistant's words, which the owner may edit and publish like any thread. A new draft starts when the owner has edited or published the previous one."
+          }
+        },
+        "required": [
+          "revision",
+          "updatedAt",
+          "mode",
+          "layout",
+          "draft"
+        ]
+      },
+      "AgenticResolvedEntry": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AgenticEntry"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "entry": {
+                "$ref": "#/components/schemas/ReadingEntry"
+              }
+            },
+            "required": [
+              "entry"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "ReadingEntry": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "own",
+              "imported"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "fragment",
+              "thread"
+            ]
+          },
+          "withdrawn": {
+            "type": "boolean"
+          },
+          "l0": {
+            "type": "boolean"
+          },
+          "contentHtml": {
+            "type": "string"
+          },
+          "displayAt": {
+            "type": "string"
+          },
+          "own": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "fragment",
+                  "thread"
+                ]
+              },
+              "withdrawn": {
+                "type": "boolean"
+              },
+              "updated": {
+                "type": "string"
+              },
+              "contentHtml": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "withdrawn",
+              "updated",
+              "contentHtml"
+            ]
+          },
+          "imported": {
+            "type": "object",
+            "properties": {
+              "subscriptionId": {
+                "type": "string"
+              },
+              "subscriptionTitle": {
+                "type": "string"
+              },
+              "remoteId": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "fragment",
+                  "thread"
+                ]
+              },
+              "withdrawn": {
+                "type": "boolean"
+              },
+              "l0": {
+                "type": "boolean"
+              },
+              "updated": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "observedAt": {
+                "type": "string"
+              },
+              "contentHtml": {
+                "type": "string"
+              },
+              "pinnedVersionRetained": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "sourceUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "description": "The version of the item held here. A readVersion below it means a newer version arrived after the owner read it."
+              },
+              "readVersion": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "The highest version the owner has marked read; null when unread or cleared."
+              },
+              "syndication": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SyndicationEntry"
+                },
+                "description": "The origin's `syndication` member (spec 0.4 §16.14) as last fetched, https: entries only: copies the publisher says they made on other networks. The publisher's claim; absent when none."
+              }
+            },
+            "required": [
+              "subscriptionId",
+              "subscriptionTitle",
+              "remoteId",
+              "kind",
+              "withdrawn",
+              "l0",
+              "updated",
+              "observedAt",
+              "contentHtml",
+              "pinnedVersionRetained",
+              "sourceUrl",
+              "version",
+              "readVersion"
+            ]
+          },
+          "background": {
+            "$ref": "#/components/schemas/EntryBackground"
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sub": {
+                  "type": "string",
+                  "description": "The subscription the part is held under, or \"~own\"."
+                },
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sub",
+                "id",
+                "label"
+              ]
+            },
+            "description": "A thread's burst (spec §13.7's fold): the items of its blyg it was first to name, published with it, now in Background as `burst`. Present only on a thread that has them, while the burst rule is on."
+          }
+        },
+        "required": [
+          "key",
+          "source",
+          "kind",
+          "withdrawn",
+          "l0",
+          "contentHtml",
+          "displayAt",
+          "background"
+        ],
+        "description": "The reading entry the reference resolves to, as GET /reading returns it."
+      },
+      "EntryBackground": {
+        "type": "object",
+        "properties": {
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The automatic reasons that count under Settings (withdrawn always), in order: withdrawn, then each enabled rule that applies."
+          },
+          "placement": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "background",
+              "foreground",
+              null
+            ],
+            "description": "The owner's choice on this entry, which beats every rule; null when the rules decide."
+          },
+          "blyg": {
+            "type": "boolean",
+            "description": "The owner moved this entry's whole blyg to Background."
+          },
+          "detail": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "What a reason's label says, such as the change category behind minor."
+          }
+        },
+        "required": [
+          "reasons",
+          "placement",
+          "blyg"
+        ],
+        "description": "Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read."
+      },
+      "AgenticEntry": {
+        "type": "object",
+        "properties": {
+          "sub": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "The subscription the entry is held under, or \"~own\" for one of the owner's own items (as Saved names entries)."
+          },
+          "remoteId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "The item's id: the own item's id, else the imported item's remote id."
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "The version the assistant judged. Shown so a reader can tell when the item has moved on since."
+          },
+          "headline": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "A headline for the entry in this edition. Written by the assistant and shown as its own, disclosed as generated."
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "A short summary or dek. Written by the assistant and shown as its own, disclosed as generated."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Why the reader is seeing it. Written by the assistant and shown as its own, disclosed as generated."
+          },
+          "present": {
+            "type": "string",
+            "enum": [
+              "full",
+              "excerpt",
+              "title",
+              "folded"
+            ],
+            "description": "How much of the entry to show: the full text, an excerpt (the default), only its title, or folded under its group's first entry."
+          },
+          "group": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Entries in a section with the same group are shown together under the first of them."
+          }
+        },
+        "required": [
+          "sub",
+          "remoteId"
+        ],
+        "additionalProperties": false
+      },
+      "AgenticEditionInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "The edition's name, a masthead line. Written by the assistant and shown as its own, disclosed as generated."
+          },
+          "lede": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000,
+            "description": "An opening paragraph for the whole edition. Written by the assistant and shown as its own, disclosed as generated."
+          },
+          "agent": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80,
+                "description": "Who wrote the edition: \"resident\" for the Studio's own assistant, else the outside assistant's name."
+              },
+              "model": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120,
+                "description": "The model it used, when it says."
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the assistant made the edition (ISO 8601 UTC)."
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgenticSection"
+            },
+            "minItems": 1,
+            "maxItems": 20,
+            "description": "Edition mode: the assistant lays out the sections itself. Send sections or scores, never both."
+          },
+          "scores": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgenticScore"
+            },
+            "minItems": 1,
+            "maxItems": 500,
+            "description": "Scores mode: per-entry scores; the Studio lays out one section, highest first. Send sections or scores, never both."
+          }
+        },
+        "required": [
+          "agent"
+        ],
+        "additionalProperties": false
+      },
+      "AgenticSection": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "The section's heading. Written by the assistant."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "lead",
+              "section",
+              "briefs"
+            ],
+            "description": "A layout hint: the lead story, an ordinary section (the default), or a column of briefs."
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000,
+            "description": "An introduction to the section. Written by the assistant and shown as its own, disclosed as generated."
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgenticEntry"
+            },
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "title",
+          "entries"
+        ],
+        "additionalProperties": false
+      },
+      "AgenticScore": {
+        "type": "object",
+        "properties": {
+          "sub": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "The subscription the entry is held under, or \"~own\" for one of the owner's own items (as Saved names entries)."
+          },
+          "remoteId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "The item's id: the own item's id, else the imported item's remote id."
+          },
+          "score": {
+            "type": "number",
+            "description": "Higher is shown first. Any finite number; only the order matters."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Why the reader is seeing it. Written by the assistant and shown as its own, disclosed as generated."
+          }
+        },
+        "required": [
+          "sub",
+          "remoteId",
+          "score"
         ],
         "additionalProperties": false
       },
@@ -2109,231 +2693,6 @@
           "lastSeen",
           "firstId"
         ]
-      },
-      "ReadingEntry": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string"
-          },
-          "source": {
-            "type": "string",
-            "enum": [
-              "own",
-              "imported"
-            ]
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "fragment",
-              "thread"
-            ]
-          },
-          "withdrawn": {
-            "type": "boolean"
-          },
-          "l0": {
-            "type": "boolean"
-          },
-          "contentHtml": {
-            "type": "string"
-          },
-          "displayAt": {
-            "type": "string"
-          },
-          "own": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "fragment",
-                  "thread"
-                ]
-              },
-              "withdrawn": {
-                "type": "boolean"
-              },
-              "updated": {
-                "type": "string"
-              },
-              "contentHtml": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "kind",
-              "withdrawn",
-              "updated",
-              "contentHtml"
-            ]
-          },
-          "imported": {
-            "type": "object",
-            "properties": {
-              "subscriptionId": {
-                "type": "string"
-              },
-              "subscriptionTitle": {
-                "type": "string"
-              },
-              "remoteId": {
-                "type": "string"
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "fragment",
-                  "thread"
-                ]
-              },
-              "withdrawn": {
-                "type": "boolean"
-              },
-              "l0": {
-                "type": "boolean"
-              },
-              "updated": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "observedAt": {
-                "type": "string"
-              },
-              "contentHtml": {
-                "type": "string"
-              },
-              "pinnedVersionRetained": {
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "sourceUrl": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "version": {
-                "type": "integer",
-                "description": "The version of the item held here. A readVersion below it means a newer version arrived after the owner read it."
-              },
-              "readVersion": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
-                "description": "The highest version the owner has marked read; null when unread or cleared."
-              },
-              "syndication": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SyndicationEntry"
-                },
-                "description": "The origin's `syndication` member (spec 0.4 §16.14) as last fetched, https: entries only: copies the publisher says they made on other networks. The publisher's claim; absent when none."
-              }
-            },
-            "required": [
-              "subscriptionId",
-              "subscriptionTitle",
-              "remoteId",
-              "kind",
-              "withdrawn",
-              "l0",
-              "updated",
-              "observedAt",
-              "contentHtml",
-              "pinnedVersionRetained",
-              "sourceUrl",
-              "version",
-              "readVersion"
-            ]
-          },
-          "background": {
-            "$ref": "#/components/schemas/EntryBackground"
-          },
-          "parts": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "sub": {
-                  "type": "string",
-                  "description": "The subscription the part is held under, or \"~own\"."
-                },
-                "id": {
-                  "type": "string"
-                },
-                "label": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "sub",
-                "id",
-                "label"
-              ]
-            },
-            "description": "A thread's burst (spec §13.7's fold): the items of its blyg it was first to name, published with it, now in Background as `burst`. Present only on a thread that has them, while the burst rule is on."
-          }
-        },
-        "required": [
-          "key",
-          "source",
-          "kind",
-          "withdrawn",
-          "l0",
-          "contentHtml",
-          "displayAt",
-          "background"
-        ]
-      },
-      "EntryBackground": {
-        "type": "object",
-        "properties": {
-          "reasons": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "The automatic reasons that count under Settings (withdrawn always), in order: withdrawn, then each enabled rule that applies."
-          },
-          "placement": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "background",
-              "foreground",
-              null
-            ],
-            "description": "The owner's choice on this entry, which beats every rule; null when the rules decide."
-          },
-          "blyg": {
-            "type": "boolean",
-            "description": "The owner moved this entry's whole blyg to Background."
-          },
-          "detail": {
-            "type": "object",
-            "additionalProperties": {},
-            "description": "What a reason's label says, such as the change category behind minor."
-          }
-        },
-        "required": [
-          "reasons",
-          "placement",
-          "blyg"
-        ],
-        "description": "Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read."
       },
       "ImportedReadingEntry": {
         "type": "object",
@@ -8143,6 +8502,10 @@
                     "type": "string",
                     "description": "Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."
                   },
+                  "agenticTitle": {
+                    "type": "string",
+                    "description": "The owner's name for the Agentic feed tab (\"Daily digest\", \"My briefing\"), at most 40 characters; also the heading of each edition's thread. Empty restores \"Agentic feed\"."
+                  },
                   "readerOrder": {
                     "type": "string",
                     "enum": [
@@ -10218,6 +10581,359 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Shelf"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agentic": {
+      "get": {
+        "operationId": "getAgentic",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgenticEdition"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putAgentic",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "edition": {
+                    "$ref": "#/components/schemas/AgenticEditionInput"
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Required. Replace only if the edition is still at this revision (read it with GET /agentic; a never-written edition is at 0); otherwise 409 revision-conflict with the current edition in details.current. One assistant drives the edition at a time; this keeps a slow run from overwriting a newer one."
+                  }
+                },
+                "required": [
+                  "edition",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgenticEdition"
                 }
               }
             }

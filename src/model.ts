@@ -156,6 +156,8 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     bg_rules: parseBackgroundRules(map.bg_rules),
     // Pace-layered unless the owner switched the Feed tab to chronological (Venkat, session 77).
     reader_order: map.reader_order === "newest" ? "newest" : "pace-layered",
+    // The owner may call the tab anything: "Daily digest", "My briefing" (Venkat, session 77).
+    agentic_title: map.agentic_title?.trim() || "Agentic feed",
     // Default on: an existing deployment's behaviour must not change under it.
     accept_mentions: map.accept_mentions !== "off",
     // On by default (Venkat, session 28). The argument for off was that a

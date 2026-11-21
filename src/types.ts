@@ -489,8 +489,10 @@ export interface Settings {
   changelog_summary_prompt: string;
   /** Which Background rules count in the reader (src/background.ts); all on by default. */
   bg_rules: Record<BackgroundRule, boolean>;
-  /** The reader's order (src/feeds/reader-order.ts): newest first, the default, or pace-layered. */
+  /** The reader's order (src/feeds/reader-order.ts): pace-layered, the default, or newest first. */
   reader_order: ReaderOrder;
+  /** The owner's name for the Agentic feed tab, also the heading of each edition's thread. */
+  agentic_title: string;
   /**
    * Whether this blyg receives Webmentions (0.3 §15, which is **OPTIONAL at
    * every level**). When false the endpoint 404s, the manifest omits its

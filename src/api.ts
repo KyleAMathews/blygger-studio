@@ -20,6 +20,7 @@ import { ItemCreateSchema, ItemEditSchema } from "./contract/routes.ts";
 import { compiledExtensionNames } from "../build/extensions.names.ts";
 import { BACKGROUND_RULES, settleOwnBackground } from "./background.ts";
 import { READER_ORDERS } from "./feeds/reader-order.ts";
+import { readEdition, replaceEdition, type AgenticEditionInput } from "./agentic.ts";
 // Owner API (cookie auth, JSON) — v0.1-plan §3.3.
 
 import { canBeFrontPage, MAX_LINKS, postsPathError } from "./front-page.ts";
@@ -772,6 +773,7 @@ const SETTINGS_KEYS = [
   "changelog_display",
   "reader_changelog_display",
   "reader_order",
+  "agentic_title",
   "changelog_summary_prompt",
   "picker_typing",
   "feed_order",
@@ -807,6 +809,7 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
   for (const [field, key] of [["changelogDisplay", "changelog_display"], ["readerChangelogDisplay", "reader_changelog_display"]] as const) {
     if (typeof patch[key] === "string" && !(CHANGELOG_DISPLAYS as readonly string[]).includes(patch[key])) return failure('invalid-input', { error: `${field} must be latest, history or summary` });
   }
+  if (typeof patch.agentic_title === "string" && patch.agentic_title.trim().length > 40) return failure('invalid-input', { error: "agenticTitle is at most 40 characters" });
   if (typeof patch.reader_order === "string" && !(READER_ORDERS as readonly string[]).includes(patch.reader_order)) return failure('invalid-input', { error: `readerOrder must be ${READER_ORDERS.join(" or ")}` });
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return failure('invalid-input', { error: `unknown timezone: ${patch.timezone}` });
   if (patch.author_url && !(URL.canParse(patch.author_url) && ["http:", "https:"].includes(new URL(patch.author_url).protocol))) return failure('invalid-input', { error: "authorUrl must be an absolute http(s) URL" });
@@ -956,7 +959,18 @@ const putShelfOperation = async (context: OperationContext, input: OperationInpu
   return failure('conflict', { error: 'shelf revision conflict; reload and try again', code: 'revision-conflict', current: await readShelf(context.env.DB) });
 };
 
+// The Agentic feed's edition: see src/agentic.ts for the rules both operations share.
+const getAgenticOperation = async (context: OperationContext) => success(await readEdition(context.env.DB));
+const putAgenticOperation = async (context: OperationContext, input: OperationInput) => {
+  const body = input.body as { edition: AgenticEditionInput; expectedRevision: number };
+  if (await replaceEdition(context.env.DB, body.edition, body.expectedRevision, new Date().toISOString())) return success(await readEdition(context.env.DB));
+  // The current edition rides in the error so an assistant can rebase and retry.
+  return failure('conflict', { error: 'agentic edition revision conflict; reload and try again', code: 'revision-conflict', current: await readEdition(context.env.DB) });
+};
+
 export const itemOperations = {
+  getAgentic: getAgenticOperation,
+  putAgentic: putAgenticOperation,
   getShelf: getShelfOperation,
   putShelf: putShelfOperation,
   listContacts: listContactsOperation,

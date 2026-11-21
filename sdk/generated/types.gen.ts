@@ -174,6 +174,10 @@ export type Settings = {
      */
     changelogSummaryPrompt: string;
     /**
+     * The owner's name for the Agentic feed tab ("Daily digest", "My briefing"), at most 40 characters; also the heading of each edition's thread. Empty restores "Agentic feed".
+     */
+    agenticTitle: string;
+    /**
      * The Feed tab's order: pace-layered (the default), the home page's order run over everything you read (ROADMAP row 69), or newest first, shown as chronological. Hoppers and Saved keep their own order.
      */
     readerOrder: 'newest' | 'pace-layered';
@@ -333,6 +337,231 @@ export type ShelfEntry = {
      * The item's id: the own item's id under "~own", else the imported item's remote id.
      */
     remoteId: string;
+};
+
+export type AgenticEdition = {
+    /**
+     * Send it back as expectedRevision for a conditional replace; every successful PUT bumps it. A never-written edition is at 0.
+     */
+    revision: number;
+    updatedAt: string | null;
+    mode: 'sections' | 'scores' | null;
+    /**
+     * The edition as the assistant wrote it (AgenticEditionInput); null before the first PUT.
+     */
+    edition?: unknown;
+    /**
+     * What the tab draws: sections with each reference resolved to its reading entry. A reference that no longer resolves (unsubscribed, discarded, withdrawn) is left out, and a section left empty is dropped.
+     */
+    layout: {
+        title: string | null;
+        lede: string | null;
+        agent: {
+            name: string;
+            model?: string;
+        };
+        generatedAt: string | null;
+        sections: Array<{
+            title: string;
+            kind: 'lead' | 'section' | 'briefs';
+            note: string | null;
+            entries: Array<AgenticResolvedEntry>;
+        }>;
+    } | null;
+    /**
+     * The edition as a conformant blyg thread: a draft (private, owner-only) composed from headings, quotes, links and impyrt spans for the assistant's words, which the owner may edit and publish like any thread. A new draft starts when the owner has edited or published the previous one.
+     */
+    draft: {
+        id: string;
+    } | null;
+};
+
+export type AgenticResolvedEntry = AgenticEntry & {
+    entry: ReadingEntry;
+};
+
+/**
+ * The reading entry the reference resolves to, as GET /reading returns it.
+ */
+export type ReadingEntry = {
+    key: string;
+    source: 'own' | 'imported';
+    kind: 'fragment' | 'thread';
+    withdrawn: boolean;
+    l0: boolean;
+    contentHtml: string;
+    displayAt: string;
+    own?: {
+        id: string;
+        kind: 'fragment' | 'thread';
+        withdrawn: boolean;
+        updated: string;
+        contentHtml: string;
+    };
+    imported?: {
+        subscriptionId: string;
+        subscriptionTitle: string;
+        remoteId: string;
+        kind: 'fragment' | 'thread';
+        withdrawn: boolean;
+        l0: boolean;
+        updated: string | null;
+        observedAt: string;
+        contentHtml: string;
+        pinnedVersionRetained: number | null;
+        sourceUrl: string | null;
+        /**
+         * The version of the item held here. A readVersion below it means a newer version arrived after the owner read it.
+         */
+        version: number;
+        /**
+         * The highest version the owner has marked read; null when unread or cleared.
+         */
+        readVersion: number | null;
+        /**
+         * The origin's `syndication` member (spec 0.4 §16.14) as last fetched, https: entries only: copies the publisher says they made on other networks. The publisher's claim; absent when none.
+         */
+        syndication?: Array<SyndicationEntry>;
+    };
+    background: EntryBackground;
+    /**
+     * A thread's burst (spec §13.7's fold): the items of its blyg it was first to name, published with it, now in Background as `burst`. Present only on a thread that has them, while the burst rule is on.
+     */
+    parts?: Array<{
+        /**
+         * The subscription the part is held under, or "~own".
+         */
+        sub: string;
+        id: string;
+        label: string;
+    }>;
+};
+
+/**
+ * Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read.
+ */
+export type EntryBackground = {
+    /**
+     * The automatic reasons that count under Settings (withdrawn always), in order: withdrawn, then each enabled rule that applies.
+     */
+    reasons: Array<string>;
+    /**
+     * The owner's choice on this entry, which beats every rule; null when the rules decide.
+     */
+    placement: 'background' | 'foreground' | null;
+    /**
+     * The owner moved this entry's whole blyg to Background.
+     */
+    blyg: boolean;
+    /**
+     * What a reason's label says, such as the change category behind minor.
+     */
+    detail?: {
+        [key: string]: unknown;
+    };
+};
+
+export type AgenticEntry = {
+    /**
+     * The subscription the entry is held under, or "~own" for one of the owner's own items (as Saved names entries).
+     */
+    sub: string;
+    /**
+     * The item's id: the own item's id, else the imported item's remote id.
+     */
+    remoteId: string;
+    /**
+     * The version the assistant judged. Shown so a reader can tell when the item has moved on since.
+     */
+    version?: number;
+    /**
+     * A headline for the entry in this edition. Written by the assistant and shown as its own, disclosed as generated.
+     */
+    headline?: string;
+    /**
+     * A short summary or dek. Written by the assistant and shown as its own, disclosed as generated.
+     */
+    summary?: string;
+    /**
+     * Why the reader is seeing it. Written by the assistant and shown as its own, disclosed as generated.
+     */
+    reason?: string;
+    /**
+     * How much of the entry to show: the full text, an excerpt (the default), only its title, or folded under its group's first entry.
+     */
+    present?: 'full' | 'excerpt' | 'title' | 'folded';
+    /**
+     * Entries in a section with the same group are shown together under the first of them.
+     */
+    group?: string;
+};
+
+export type AgenticEditionInput = {
+    /**
+     * The edition's name, a masthead line. Written by the assistant and shown as its own, disclosed as generated.
+     */
+    title?: string;
+    /**
+     * An opening paragraph for the whole edition. Written by the assistant and shown as its own, disclosed as generated.
+     */
+    lede?: string;
+    agent: {
+        /**
+         * Who wrote the edition: "resident" for the Studio's own assistant, else the outside assistant's name.
+         */
+        name: string;
+        /**
+         * The model it used, when it says.
+         */
+        model?: string;
+    };
+    /**
+     * When the assistant made the edition (ISO 8601 UTC).
+     */
+    generatedAt?: string;
+    /**
+     * Edition mode: the assistant lays out the sections itself. Send sections or scores, never both.
+     */
+    sections?: Array<AgenticSection>;
+    /**
+     * Scores mode: per-entry scores; the Studio lays out one section, highest first. Send sections or scores, never both.
+     */
+    scores?: Array<AgenticScore>;
+};
+
+export type AgenticSection = {
+    /**
+     * The section's heading. Written by the assistant.
+     */
+    title: string;
+    /**
+     * A layout hint: the lead story, an ordinary section (the default), or a column of briefs.
+     */
+    kind?: 'lead' | 'section' | 'briefs';
+    /**
+     * An introduction to the section. Written by the assistant and shown as its own, disclosed as generated.
+     */
+    note?: string;
+    entries: Array<AgenticEntry>;
+};
+
+export type AgenticScore = {
+    /**
+     * The subscription the entry is held under, or "~own" for one of the owner's own items (as Saved names entries).
+     */
+    sub: string;
+    /**
+     * The item's id: the own item's id, else the imported item's remote id.
+     */
+    remoteId: string;
+    /**
+     * Higher is shown first. Any finite number; only the order matters.
+     */
+    score: number;
+    /**
+     * Why the reader is seeing it. Written by the assistant and shown as its own, disclosed as generated.
+     */
+    reason?: string;
 };
 
 export type Contact = {
@@ -578,84 +807,6 @@ export type MentionGroup = {
      * Smallest receipt id among receipts tied at both group timestamps.
      */
     firstId: string;
-};
-
-export type ReadingEntry = {
-    key: string;
-    source: 'own' | 'imported';
-    kind: 'fragment' | 'thread';
-    withdrawn: boolean;
-    l0: boolean;
-    contentHtml: string;
-    displayAt: string;
-    own?: {
-        id: string;
-        kind: 'fragment' | 'thread';
-        withdrawn: boolean;
-        updated: string;
-        contentHtml: string;
-    };
-    imported?: {
-        subscriptionId: string;
-        subscriptionTitle: string;
-        remoteId: string;
-        kind: 'fragment' | 'thread';
-        withdrawn: boolean;
-        l0: boolean;
-        updated: string | null;
-        observedAt: string;
-        contentHtml: string;
-        pinnedVersionRetained: number | null;
-        sourceUrl: string | null;
-        /**
-         * The version of the item held here. A readVersion below it means a newer version arrived after the owner read it.
-         */
-        version: number;
-        /**
-         * The highest version the owner has marked read; null when unread or cleared.
-         */
-        readVersion: number | null;
-        /**
-         * The origin's `syndication` member (spec 0.4 §16.14) as last fetched, https: entries only: copies the publisher says they made on other networks. The publisher's claim; absent when none.
-         */
-        syndication?: Array<SyndicationEntry>;
-    };
-    background: EntryBackground;
-    /**
-     * A thread's burst (spec §13.7's fold): the items of its blyg it was first to name, published with it, now in Background as `burst`. Present only on a thread that has them, while the burst rule is on.
-     */
-    parts?: Array<{
-        /**
-         * The subscription the part is held under, or "~own".
-         */
-        sub: string;
-        id: string;
-        label: string;
-    }>;
-};
-
-/**
- * Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read.
- */
-export type EntryBackground = {
-    /**
-     * The automatic reasons that count under Settings (withdrawn always), in order: withdrawn, then each enabled rule that applies.
-     */
-    reasons: Array<string>;
-    /**
-     * The owner's choice on this entry, which beats every rule; null when the rules decide.
-     */
-    placement: 'background' | 'foreground' | null;
-    /**
-     * The owner moved this entry's whole blyg to Background.
-     */
-    blyg: boolean;
-    /**
-     * What a reason's label says, such as the change category behind minor.
-     */
-    detail?: {
-        [key: string]: unknown;
-    };
 };
 
 export type ImportedReadingEntry = {
@@ -2826,6 +2977,10 @@ export type UpdateSettingsData = {
          */
         changelogSummaryPrompt?: string;
         /**
+         * The owner's name for the Agentic feed tab ("Daily digest", "My briefing"), at most 40 characters; also the heading of each edition's thread. Empty restores "Agentic feed".
+         */
+        agenticTitle?: string;
+        /**
          * The Feed tab's order: pace-layered (the default), the home page's order run over everything you read (ROADMAP row 69), or newest first, shown as chronological. Hoppers and Saved keep their own order.
          */
         readerOrder?: 'newest' | 'pace-layered';
@@ -3700,6 +3855,156 @@ export type PutShelfResponses = {
 };
 
 export type PutShelfResponse = PutShelfResponses[keyof PutShelfResponses];
+
+export type GetAgenticData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/agentic';
+};
+
+export type GetAgenticErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetAgenticError = GetAgenticErrors[keyof GetAgenticErrors];
+
+export type GetAgenticResponses = {
+    /**
+     * Success
+     */
+    200: AgenticEdition;
+};
+
+export type GetAgenticResponse = GetAgenticResponses[keyof GetAgenticResponses];
+
+export type PutAgenticData = {
+    body: {
+        edition: AgenticEditionInput;
+        /**
+         * Required. Replace only if the edition is still at this revision (read it with GET /agentic; a never-written edition is at 0); otherwise 409 revision-conflict with the current edition in details.current. One assistant drives the edition at a time; this keeps a slow run from overwriting a newer one.
+         */
+        expectedRevision: number;
+    };
+    path?: never;
+    query?: never;
+    url: '/agentic';
+};
+
+export type PutAgenticErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type PutAgenticError = PutAgenticErrors[keyof PutAgenticErrors];
+
+export type PutAgenticResponses = {
+    /**
+     * Success
+     */
+    200: AgenticEdition;
+};
+
+export type PutAgenticResponse = PutAgenticResponses[keyof PutAgenticResponses];
 
 export type ListContactsData = {
     body?: never;

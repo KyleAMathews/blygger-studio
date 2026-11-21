@@ -62,6 +62,7 @@ const fields = [
   "aiModelFeed",
   "aiModelClassify",
   "feedPrompt",
+  "agenticTitle",
   "aiStylePrompt",
   "changelogDisplay",
   "readerChangelogDisplay",
@@ -151,6 +152,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
       | "siteUrl"
       | "aiStylePrompt"
       | "feedPrompt"
+      | "agenticTitle"
       | "changelogSummaryPrompt"
       | "updateFeedUrl",
     label: string,
@@ -857,6 +859,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
       <section className="card" id="ai-feed">
         <h3 className="card-h">agentic feed</h3>
         <ModelField fkey="aiModelFeed" label="Model" name="agentic feed" hint="not used yet" manifest={aiModels} form={form} change={change} />
+        {field("agenticTitle", 'Tab name: what you call it in Reading, and the heading of each edition', false, 'Agentic feed')}
         {field(
           "feedPrompt",
           'Agentic feed prompt: how your assistant should organize what you read',

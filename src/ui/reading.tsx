@@ -59,6 +59,7 @@ import { Tab, Tabs } from './primitives.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { IconButton, Tooltip } from './primitives.tsx';
 import { shelfLabel, toggleShelf, useShelf } from './shelf.tsx';
+import { AgenticFeed } from './agentic.tsx';
 import { displayUrl, sourceTitleAndUrl } from '../importer/util.ts';
 import { ReaderBody, TrailBar, ownOrigin, useEndTrail, useSubscriptionRows } from './reader-links.tsx';
 import { currentTrail, visit } from './browse.ts';
@@ -1540,6 +1541,8 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
   const navigate = useNavigate();
   const bar = useRef<HTMLDivElement>(null);
   const tab = isFeed(lens) ? 'all' : lens;
+  // The owner names the Agentic feed tab (session 77): "Daily digest", "My briefing".
+  const agenticTitle = useSettings()?.agenticTitle || LENS_LABELS.agentic;
   // On a phone the bar scrolls sideways; keep the chosen tab in view.
   useEffect(() => {
     const el = bar.current?.querySelector<HTMLElement>('[aria-checked=true]');
@@ -1569,7 +1572,7 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
             value={value}
             onClick={() => go(value)}
           >
-            {LENS_LABELS[value]}
+            {value === 'agentic' ? agenticTitle : LENS_LABELS[value]}
           </Toggle>
         ))}
       </ToggleGroup>
@@ -2086,7 +2089,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
         </div>
       ) : null}
       {isPlaceholder(lens) ? (
-        <LensPlaceholder />
+        <AgenticFeed />
       ) : (
         <>
           {lens === 'background' ? <p className="view-sub">{BACKGROUND_NOTE}</p> : null}
