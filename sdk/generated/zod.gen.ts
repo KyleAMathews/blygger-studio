@@ -152,6 +152,16 @@ export const zItem = z.object({
     ])
 });
 
+export const zSyndicationEntry = z.object({
+    url: z.string().min(1).max(2048),
+    version: z.int().gt(0)
+}).strict();
+
+export const zSyndication = z.object({
+    entries: z.array(zSyndicationEntry),
+    revision: z.int().gt(0).lte(9007199254740991)
+});
+
 export const zCustomTheme = z.object({
     dark: z.boolean(),
     page: z.string().regex(/^#[0-9a-fA-F]{6}$/),
@@ -398,7 +408,8 @@ export const zImportedItem = z.object({
     transclusions: z.array(z.unknown()).nullable(),
     stubOf: z.record(z.string(), z.unknown()).nullable(),
     forkedFrom: z.record(z.string(), z.unknown()).nullable(),
-    generated: z.array(z.unknown()).nullable()
+    generated: z.array(z.unknown()).nullable(),
+    syndication: z.array(zSyndicationEntry).nullish()
 });
 
 export const zHopperMembership = z.object({
@@ -572,7 +583,8 @@ export const zReadingEntry = z.object({
         pinnedVersionRetained: z.number().nullable(),
         sourceUrl: z.string().nullable(),
         version: z.int(),
-        readVersion: z.int().nullable()
+        readVersion: z.int().nullable(),
+        syndication: z.array(zSyndicationEntry).optional()
     }).optional(),
     background: zEntryBackground,
     parts: z.array(z.object({
@@ -596,6 +608,7 @@ export const zImportedReadingEntry = z.object({
     sourceUrl: z.string().nullable(),
     version: z.int(),
     readVersion: z.int().nullable(),
+    syndication: z.array(zSyndicationEntry).nullable(),
     origin: z.string(),
     created: z.string().nullable(),
     contentMd: z.string(),
@@ -1169,6 +1182,33 @@ export const zPinItemResponse = z.object({
     version: z.number(),
     already: z.boolean()
 });
+
+export const zGetSyndicationHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+export const zGetSyndicationPath = z.object({
+    id: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zGetSyndicationResponse = zSyndication;
+
+export const zPutSyndicationBody = z.object({
+    entries: z.array(zSyndicationEntry).max(20),
+    expectedRevision: z.int().gt(0).lte(9007199254740991)
+}).strict();
+
+export const zPutSyndicationPath = z.object({
+    id: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zPutSyndicationResponse = zSyndication;
 
 export const zRestoreItemBody = z.object({
     expectedRevision: z.int().gt(0).lte(9007199254740991),
