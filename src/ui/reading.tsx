@@ -669,7 +669,11 @@ function backgroundLabel(entry: Reading): string | null {
   if (reasons[0] === 'burst') return 'part of a burst';
   if (reasons[0] === 'wordless') return 'no words of its own';
   if (reasons[0] === 'maintenance') return 'republished unchanged';
+  if (reasons[0] === 'quotes-refreshed') return 'quotes refreshed';
+  if (reasons[0] === 'quotes-material') return 'quotes refreshed (rewritten)';
+  if (reasons[0] === 'near-same') return 'small edit';
   if (reasons[0] === 'minor') return typeof detail?.category === 'string' ? `minor change (${detail.category})` : 'minor change';
+  if (reasons[0] === 'superseded') return 'followed within 15 min';
   return null;
 }
 

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Blygger Studio API",
-    "version": "6.0.0",
+    "version": "6.1.0",
     "description": "Private authoring and reading API. Protocol files remain a separate public interface."
   },
   "servers": [
@@ -652,6 +652,14 @@
             "type": "string",
             "description": "Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."
           },
+          "readerOrder": {
+            "type": "string",
+            "enum": [
+              "newest",
+              "pace-layered"
+            ],
+            "description": "The reader's order: newest first (the default), or pace-layered, the home page's order run over everything you read (ROADMAP row 69). Hoppers and the Shelf keep their own order."
+          },
           "backgroundRules": {
             "type": "object",
             "properties": {
@@ -664,7 +672,19 @@
               "maintenance": {
                 "type": "boolean"
               },
+              "quotes-refreshed": {
+                "type": "boolean"
+              },
+              "quotes-material": {
+                "type": "boolean"
+              },
+              "near-same": {
+                "type": "boolean"
+              },
               "minor": {
+                "type": "boolean"
+              },
+              "superseded": {
                 "type": "boolean"
               }
             },
@@ -672,7 +692,11 @@
               "burst",
               "wordless",
               "maintenance",
-              "minor"
+              "quotes-refreshed",
+              "quotes-material",
+              "near-same",
+              "minor",
+              "superseded"
             ],
             "description": "Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read."
           },
@@ -846,6 +870,7 @@
           "changelogDisplay",
           "readerChangelogDisplay",
           "changelogSummaryPrompt",
+          "readerOrder",
           "backgroundRules",
           "acceptMentions",
           "updateCheck",
@@ -8118,6 +8143,14 @@
                     "type": "string",
                     "description": "Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."
                   },
+                  "readerOrder": {
+                    "type": "string",
+                    "enum": [
+                      "newest",
+                      "pace-layered"
+                    ],
+                    "description": "The reader's order: newest first (the default), or pace-layered, the home page's order run over everything you read (ROADMAP row 69). Hoppers and the Shelf keep their own order."
+                  },
                   "backgroundRules": {
                     "type": "object",
                     "properties": {
@@ -8130,7 +8163,19 @@
                       "maintenance": {
                         "type": "boolean"
                       },
+                      "quotes-refreshed": {
+                        "type": "boolean"
+                      },
+                      "quotes-material": {
+                        "type": "boolean"
+                      },
+                      "near-same": {
+                        "type": "boolean"
+                      },
                       "minor": {
+                        "type": "boolean"
+                      },
+                      "superseded": {
                         "type": "boolean"
                       }
                     },

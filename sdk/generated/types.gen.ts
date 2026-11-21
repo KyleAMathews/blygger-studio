@@ -174,13 +174,21 @@ export type Settings = {
      */
     changelogSummaryPrompt: string;
     /**
+     * The reader's order: newest first (the default), or pace-layered, the home page's order run over everything you read (ROADMAP row 69). Hoppers and the Shelf keep their own order.
+     */
+    readerOrder: 'newest' | 'pace-layered';
+    /**
      * Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read.
      */
     backgroundRules: {
         burst: boolean;
         wordless: boolean;
         maintenance: boolean;
+        'quotes-refreshed': boolean;
+        'quotes-material': boolean;
+        'near-same': boolean;
         minor: boolean;
+        superseded: boolean;
     };
     acceptMentions: boolean;
     updateCheck: boolean;
@@ -2818,13 +2826,21 @@ export type UpdateSettingsData = {
          */
         changelogSummaryPrompt?: string;
         /**
+         * The reader's order: newest first (the default), or pace-layered, the home page's order run over everything you read (ROADMAP row 69). Hoppers and the Shelf keep their own order.
+         */
+        readerOrder?: 'newest' | 'pace-layered';
+        /**
          * Background rules to turn on or off; rules not named keep their stored value.
          */
         backgroundRules?: {
             burst?: boolean;
             wordless?: boolean;
             maintenance?: boolean;
+            'quotes-refreshed'?: boolean;
+            'quotes-material'?: boolean;
+            'near-same'?: boolean;
             minor?: boolean;
+            superseded?: boolean;
         };
         acceptMentions?: boolean;
         updateCheck?: boolean;

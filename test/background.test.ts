@@ -104,7 +104,8 @@ describe("own items' minor change (4a)", () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "Coordination through traces.");
     const key = `own:${id}`;
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "Coordination through trace." });
+    // Labelled a typo by the classifier but too large for the measured near-same rule, so `minor` acts alone.
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "Coordination through traces, which the classifier calls a typo fix." });
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, { note: "Typo.", changeCategory: "typo" })).status).toBe(200);
     const row = (await reading(cookie, "sub=own&background=true")).find((r) => r.key === key)!;
     expect(row.background).toMatchObject({ reasons: ["minor"], placement: null, detail: { category: "typo" } });
@@ -112,7 +113,7 @@ describe("own items' minor change (4a)", () => {
 
     expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { backgroundRules: { minor: false } })).status).toBe(200);
     expect(keys(await reading(cookie, "sub=own"))).toContain(key);
-    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.backgroundRules).toEqual({ burst: true, wordless: true, maintenance: true, minor: false });
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.backgroundRules).toEqual({ burst: true, wordless: true, maintenance: true, "quotes-refreshed": true, "quotes-material": true, "near-same": true, minor: false, superseded: true });
     await apiJson(cookie, "PATCH", "/blyg/api/settings", { backgroundRules: { minor: true } });
     expect(keys(await reading(cookie, "sub=own&background=true"))).toContain(key);
 

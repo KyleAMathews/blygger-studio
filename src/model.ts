@@ -154,6 +154,8 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     changelog_summary_prompt: map.changelog_summary_prompt ?? "",
     // Background rules in the reader (migration 0046): all on until turned off.
     bg_rules: parseBackgroundRules(map.bg_rules),
+    // Newest first until the owner chooses (ROADMAP row 69).
+    reader_order: map.reader_order === "pace-layered" ? "pace-layered" : "newest",
     // Default on: an existing deployment's behaviour must not change under it.
     accept_mentions: map.accept_mentions !== "off",
     // On by default (Venkat, session 28). The argument for off was that a

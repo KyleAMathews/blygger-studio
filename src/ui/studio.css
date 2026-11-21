@@ -170,6 +170,7 @@ details.card[open] > summary { margin-bottom: 12px; }
 }
 .check { display: flex; gap: 10px; align-items: flex-start; font-size: .9rem; margin: 6px 0 12px; }
 .check input { margin-top: 4px; accent-color: var(--pencil); }
+.check.sub-check { margin-left: 26px; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .row > input { flex: 1; min-width: 0; }
 .spacer { flex: 1; }

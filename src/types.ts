@@ -1,4 +1,5 @@
 import type { BackgroundRule } from "./background.ts";
+import type { ReaderOrder } from "./feeds/reader-order.ts";
 import type { CustomTheme } from "./themes.ts";
 export interface Env {
   DB: D1Database;
@@ -488,6 +489,8 @@ export interface Settings {
   changelog_summary_prompt: string;
   /** Which Background rules count in the reader (src/background.ts); all on by default. */
   bg_rules: Record<BackgroundRule, boolean>;
+  /** The reader's order (src/feeds/reader-order.ts): newest first, the default, or pace-layered. */
+  reader_order: ReaderOrder;
   /**
    * Whether this blyg receives Webmentions (0.3 §15, which is **OPTIONAL at
    * every level**). When false the endpoint 404s, the manifest omits its

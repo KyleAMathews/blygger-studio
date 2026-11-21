@@ -18,6 +18,39 @@ not have its own repo until session 26.
 
 ---
 
+## 0.68.0 — Background's measured rules; the reader can be pace-layered
+
+**Background, phase 2** (blygger-spec `docs/background-plan.md` §2, §7.1; ROADMAP row 112).
+Three more rules send an entry to Background, each with its chip and its toggle in
+Settings → Background, all on by default:
+
+- **Quotes refreshed:** a new version with the same text whose quotes now show newer
+  versions of what they quote. A refresh that brought in a quote whose text was
+  rewritten is its own case, **including rewritten quotes**, on by default; turn it off
+  to keep those in the main lenses.
+- **Small edits:** a new version that changes at most 40 characters and 2 % of the
+  text (`isNearSame`, the measure the home page's order already used).
+- **Followed within 15 minutes:** an item its blyg followed with a newer item within 15
+  minutes. A later version of it brings it back. Applies to your own items in your
+  reader too; public pages are unchanged. The window is a constant for now.
+
+**The reader can be pace-layered** (ROADMAP row 69). Settings → reader order: newest
+first (the default) or pace-layered, the home page's order run over everything you
+read. New items arrive on top and sink as others come, more slowly the more their blyg
+has pinned them; a new version climbs one place, none when it was maintenance. Only a
+blyg's own pins count (decision #73). The importer now keeps each item's changelog and
+which of its versions arrived as maintenance; an item imported earlier counts as its
+first and latest versions until its next version arrives. The order is stored and
+rebuilt when the reading collection changes, so pages keep the ordinary cursor; the
+replay ranks the newest 500 entries and the rest follow newest first. Hoppers and the
+Shelf keep their own order.
+
+Private contract **6.1.0** (`readerOrder`, new Background rules), SDK 0.23.0.
+
+**Migrations:** **0051** (`imported_items.changelog_json`, `maintenance_json`, the
+`imported_items` change trigger recreated with them, `reading_order`,
+`reading_order_state`). 0050 is reserved for #146.
+
 ## 0.67.1 — Copies elsewhere show in the reader
 
 0.67.0's reader kept an imported item's copies elsewhere but showed them only in the

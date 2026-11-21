@@ -1,6 +1,7 @@
 import { readSyndication } from "./syndication.ts";
 import { authoredItemKindSql, authoredVersionKind } from './version-state.ts';
 import { cursorPage, type CursorQuery } from "./cursor-page.ts";
+import { ensureReaderOrder, type ReaderOrder } from "./feeds/reader-order.ts";
 import { buildReadingFeed, type OwnEntryInput, type ImportedEntryInput } from "./importer/reading.ts";
 import { sourceTitleAndUrl } from "./importer/util.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
@@ -19,17 +20,28 @@ function dateOrderSql(column: string) {
     ELSE '1' || strftime('%Y-%m-%dT%H:%M:%SZ', ${column}) END`;
 }
 /** Background (src/background.ts) is the owner's choice, then the blyg's, then the enabled rules. */
-function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolean, rules: readonly BackgroundRule[], hopper?: string, mentioning?: string[], shelf = false) {
+/**
+ * A pace-layered position as an `at` key (src/feeds/reader-order.ts): position
+ * 0 sorts highest, newest first, and an entry newer than the stored order
+ * (none can be, once ensureReaderOrder has run, but a row may land between)
+ * sorts above every position.
+ */
+const paceAtSql = (alias: string) => `CASE WHEN ${alias}.position IS NULL THEN '4' ELSE '3' || printf('%09d', 999999999 - ${alias}.position) END`;
+function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolean, rules: readonly BackgroundRule[], hopper?: string, mentioning?: string[], shelf = false, order: ReaderOrder = 'newest') {
   if (shelf) return shelfIdentitySql(hopper);
+  // A hopper keeps the order things were added to it.
+  const pace = order === 'pace-layered' && !hopper;
   const enabled = JSON.stringify(rules);
   const binds = [enabled, ...(kind ? [kind] : []), ...(hopper ? [hopper] : []), enabled, ...(kind ? [kind] : []), ...(mentioning ? [JSON.stringify(mentioning)] : [])];
   const updated = dateOrderSql('ii.updated'), observed = dateOrderSql('ii.observed_at');
-  const sql = `SELECT 'own' AS source, i.id, '' AS sub, ${dateOrderSql('i.updated')} AS at
+  const sql = `SELECT 'own' AS source, i.id, '' AS sub, ${pace ? paceAtSql('ro') : dateOrderSql('i.updated')} AS at
     FROM items i LEFT JOIN versions p ON i.kind = 'withdrawn' AND p.item_id = i.id AND p.version = i.version - 1
+    ${pace ? "LEFT JOIN reading_order ro ON ro.source = 'own' AND ro.sub = '' AND ro.id = i.id" : ''}
     WHERE i.status IN ('public','withdrawn') AND (${ownBackgroundSql()}) = ${background ? 1 : 0}${hopper || mentioning ? ' AND 0' : ''}${kind ? ` AND ${authoredItemKindSql('p')} = ?` : ''}
     UNION ALL SELECT 'imported', ii.remote_id, ii.subscription_id,
-      ${hopper ? 'hi.added_at' : `CASE WHEN ${updated} < ${observed} THEN ${updated} ELSE ${observed} END`}
+      ${hopper ? 'hi.added_at' : pace ? paceAtSql('ro') : `CASE WHEN ${updated} < ${observed} THEN ${updated} ELSE ${observed} END`}
     FROM imported_items ii ${hopper ? 'JOIN hopper_items hi ON hi.subscription_id = ii.subscription_id AND hi.remote_id = ii.remote_id AND hi.hopper_id = ?' : ''}
+    ${pace ? "LEFT JOIN reading_order ro ON ro.source = 'imported' AND ro.sub = ii.subscription_id AND ro.id = ii.remote_id" : ''}
     WHERE (${importedBackgroundSql()}) = ${background ? 1 : 0}${kind ? ' AND ii.kind = ?' : ''}${mentioning ? ` AND EXISTS (SELECT 1 FROM imported_mentions m
       WHERE m.subscription_id = ii.subscription_id AND m.remote_id = ii.remote_id AND m.target IN (SELECT value FROM json_each(?)))` : ''}`;
   return { sql, binds };
@@ -70,11 +82,12 @@ export async function readingSummary(db: D1Database, source: string | undefined,
   return { counts: result, selected };
 }
 /** Select one bounded keyset of identities before loading or sanitizing bodies. */
-export async function readingData(db: D1Database, query: CursorQuery, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES, shelf = false) {
+export async function readingData(db: D1Database, query: CursorQuery, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES, shelf = false, order: ReaderOrder = 'newest') {
   const selected = source ?? 'all';
-  const identities = identitySql(kind, background, rules, hopper, mentioning, shelf);
+  if (order === 'pace-layered' && !hopper && !shelf) await ensureReaderOrder(db);
+  const identities = identitySql(kind, background, rules, hopper, mentioning, shelf, order);
   return cursorPage(db, { ...query, limit: query.limit ?? 25 }, {
-    name: 'reading', filters: [selected, kind ?? null, background, hopper ?? null, mentioning?.join(' ') ?? null, rules.join(' '), shelf], domains: ['reading', 'subscriptions', ...(hopper ? ['hoppers' as const] : []), ...(shelf ? ['shelf' as const] : [])],
+    name: 'reading', filters: [selected, kind ?? null, background, hopper ?? null, mentioning?.join(' ') ?? null, rules.join(' '), shelf, order], domains: ['reading', 'subscriptions', ...(hopper ? ['hoppers' as const] : []), ...(shelf ? ['shelf' as const] : [])],
     sql: `SELECT * FROM (${identities.sql})${selected === 'all' ? '' : selected === 'own' ? " WHERE source = 'own'" : ' WHERE sub = ? OR NOT EXISTS (SELECT 1 FROM subscriptions WHERE id = ?)'}`,
     binds: [...identities.binds, ...(selected !== 'all' && selected !== 'own' ? [selected, selected] : [])],
     order: [{ column: 'at', direction: 'desc' }, { column: 'source', direction: 'asc' }, { column: 'sub', direction: 'asc' }, { column: 'id', direction: 'asc' }],

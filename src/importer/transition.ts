@@ -35,7 +35,12 @@ export interface NormalizedItemDoc {
   generated?: unknown[];
   /** v0.3 §2.3.2: origin-relative permalink the origin declares for itself; undefined when it doesn't. */
   page?: string;
+  /** §5.2 `changelog`, the members a reader's ordering uses (migration 0051); undefined when absent. */
+  changelog?: ChangelogEntry[];
 }
+
+/** One changelog entry as the reader keeps it: version, time, note and pin flag. */
+export interface ChangelogEntry { version: number; at: string; note: string | null; pinned: boolean }
 
 export type ImporterFlag =
   | "regression"
@@ -103,8 +108,21 @@ function normalizeItemDoc(raw: unknown): NormalizeResult {
       forked_from: plainObject(r.forked_from),
       generated: Array.isArray(r.generated) ? r.generated : undefined,
       page: typeof r.page === "string" && r.page ? r.page : undefined,
+      changelog: changelogList(r.changelog),
     },
   };
+}
+
+/** A document's changelog as a reader may use it: entries with an integer version, oldest first. */
+function changelogList(raw: unknown): ChangelogEntry[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const list = raw.flatMap((e) => {
+    if (!e || typeof e !== "object") return [];
+    const r = e as Record<string, unknown>;
+    if (typeof r.version !== "number" || !Number.isInteger(r.version) || r.version < 1) return [];
+    return [{ version: r.version, at: typeof r.at === "string" ? r.at : "", note: typeof r.note === "string" ? r.note : null, pinned: r.pinned === true }];
+  });
+  return list.sort((a, b) => a.version - b.version);
 }
 
 /** A document's `links` as a reader may use it (§10.3a): entries with an id, the rest dropped. */
