@@ -45,7 +45,7 @@ const ignored = new Set<string>();
 type Issue = { find: string; replace: string; why: string };
 type Proofread = { issues: Issue[]; model: string; truncated: boolean };
 
-function SpellSheet({ live, close, onCount }: { live: RefObject<EditorBarContext>; close: () => void; onCount: (n: number) => void }) {
+function SpellSheet({ live, close, focus, onChange }: { live: RefObject<EditorBarContext>; close: () => void; focus?: string; onChange: () => void }) {
   const context = live.current!;
   const [check, setCheck] = useState<Speller | null>(null);
   const [failed, setFailed] = useState<string>();
@@ -57,14 +57,19 @@ function SpellSheet({ live, close, onCount }: { live: RefObject<EditorBarContext
     load(context).then(setCheck, (e) => setFailed(e instanceof Error ? e.message : String(e)));
   }, []);
   const found = check ? misspellings(context.shown, check, ignored) : [];
-  useEffect(() => onCount(found.length));
   const groups = new Map<string, Misspelling[]>();
-  for (const m of found) groups.set(m.word, [...(groups.get(m.word) ?? []), m]);
+  // The word clicked in the text comes first.
+  if (focus) for (const m of found) if (m.word === focus) groups.set(m.word, [...(groups.get(m.word) ?? []), m]);
+  for (const m of found) if (m.word !== focus) groups.set(m.word, [...(groups.get(m.word) ?? []), m]);
+  const changed = () => {
+    refresh((n) => n + 1);
+    onChange();
+  };
 
   // Last first, so the offsets of the others still hold.
   const replaceAll = (word: string, by: string) => {
     for (const m of [...(groups.get(word) ?? [])].reverse()) live.current!.replace(m.start, m.end, by);
-    refresh((n) => n + 1);
+    changed();
   };
   const show = (m: Misspelling) => {
     close();
@@ -98,7 +103,7 @@ function SpellSheet({ live, close, onCount }: { live: RefObject<EditorBarContext
         ) : (
           <ul className="spellcheck-list">
             {[...groups].map(([word, at]) => (
-              <li key={word} data-word={word}>
+              <li key={word} data-word={word} data-focused={word === focus || undefined}>
                 <button type="button" className="spellcheck-word link-btn" title="Show it in the text" onClick={() => show(at[0])}>
                   {word}
                 </button>
@@ -111,11 +116,11 @@ function SpellSheet({ live, close, onCount }: { live: RefObject<EditorBarContext
                   ))}
                 </span>
                 <span className="spellcheck-actions">
-                  <button type="button" className="link-btn" onClick={() => { ignored.add(word); refresh((n) => n + 1); }}>ignore</button>
+                  <button type="button" className="link-btn" onClick={() => { ignored.add(word); changed(); }}>ignore</button>
                   <button
                     type="button"
                     className="link-btn"
-                    onClick={() => void context.run(async () => { await addToDictionary(context, word); check.add(word); refresh((n) => n + 1); })}
+                    onClick={() => void context.run(async () => { await addToDictionary(context, word); check.add(word); changed(); })}
                   >
                     add to dictionary
                   </button>
@@ -164,14 +169,31 @@ function SpellSheet({ live, close, onCount }: { live: RefObject<EditorBarContext
 function SpellBar({ context }: { context: EditorBarContext }) {
   const live = useRef(context);
   live.current = context;
+  // This bar replaces the browser's spellcheck when it won the claim: it underlines as the author types.
+  const owns = context.bar.owns.includes('spellcheck');
+  const [check, setCheck] = useState<Speller | null>(null);
   const [count, setCount] = useState<number | null>(null);
+  const [version, setVersion] = useState(0);
+  const changed = () => setVersion((n) => n + 1);
+  const open = (focus?: string) => context.openSheet((close) => <SpellSheet live={live} close={close} focus={focus} onChange={changed} />);
+  useEffect(() => {
+    if (owns) load(context).then(setCheck, (e) => context.showError(e));
+  }, [owns]);
+  useEffect(() => {
+    if (!owns || !check) return;
+    // Once typing pauses; the Studio moves the marks with each edit meanwhile.
+    const timer = setTimeout(() => {
+      const found = misspellings(live.current.shown, check, ignored);
+      setCount(found.length);
+      live.current.mark(
+        found.map((m) => ({ start: m.start, end: m.end, kind: 'spelling' as const, title: 'not in the dictionary' })),
+        (mark) => open(live.current.shown.slice(mark.start, mark.end)),
+      );
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [owns, check, context.shown, version]);
   return (
-    <button
-      type="button"
-      className="act spellcheck-open"
-      data-action="spellcheck"
-      onClick={() => context.openSheet((close) => <SpellSheet live={live} close={close} onCount={setCount} />)}
-    >
+    <button type="button" className="act spellcheck-open" data-action="spellcheck" onClick={() => open()}>
       spelling{count ? ` · ${count}` : ''}
     </button>
   );
@@ -180,6 +202,8 @@ function SpellBar({ context }: { context: EditorBarContext }) {
 export const extension: StudioExtension = {
   name: NAME,
   label: 'Spellcheck',
-  description: 'A “spelling” button in the editor: a US English check with suggestions, using the blyg’s dictionary, and an AI proofread of the draft.',
-  editorBar: { label: 'Spelling', row: 'above', blocks: 1, component: SpellBar },
+  description: 'Spellcheck in the editor, in place of the browser’s: misspellings underlined as you type, a US English check with suggestions using the blyg’s dictionary, and an AI proofread of the draft.',
+  // Replaces the browser's spellcheck (docs/extensions.md, "Replaceable controls"): it underlines
+  // misspellings as the author types, and the browser's own is back when the bar is off screen.
+  editorBar: { label: 'Spelling', row: 'above', blocks: 1, replaces: ['spellcheck'], component: SpellBar },
 };

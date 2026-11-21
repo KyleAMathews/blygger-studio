@@ -58,3 +58,30 @@ test('the full editor offers the AI proofread; add to dictionary goes to the bly
   await page.locator('[data-action=spellcheck]').click();
   await expect(page.locator('.spellcheck-sheet [data-spellcheck-clean]')).toBeVisible();
 });
+
+test('it replaces the browser’s spellcheck: misspellings underlined as you type, a click opens that word', async ({ page }) => {
+  const id = await page.evaluate(async () => (await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: 'A blorpt and teh end.', kind: 'thread' }) })).json()).id as string);
+  await page.goto(`/studio/edit/${id}`);
+  const box = page.locator('#md-input');
+  await expect(box).toHaveAttribute('spellcheck', 'false');
+  const marks = page.locator('.ed-marks .ed-mark-spelling');
+  await expect(marks).toHaveText(['blorpt', 'teh']);
+  // Typing a new one: underlined once typing pauses.
+  await box.evaluate((el: HTMLTextAreaElement) => { el.focus(); el.setSelectionRange(el.value.length, el.value.length); });
+  await page.keyboard.type(' Recieve it.');
+  await expect(marks).toHaveText(['blorpt', 'teh', 'Recieve']);
+  // A click on one opens the sheet with that word first.
+  const at = await marks.nth(1).boundingBox();
+  await page.mouse.click(at!.x + at!.width / 2, at!.y + at!.height / 2);
+  const first = page.locator('.spellcheck-sheet li[data-word]').first();
+  await expect(first).toHaveAttribute('data-word', 'teh');
+  await first.locator('[data-suggestion="the"]').click();
+  await page.keyboard.press('Escape');
+  await expect(marks).toHaveText(['blorpt', 'Recieve']);
+  // Hidden from the bars menu: the browser's own spellcheck is back, and nothing is underlined.
+  await page.getByRole('button', { name: 'editor bars' }).click();
+  await page.locator('.ext-bars-list li[data-extension="spellcheck"]').getByRole('checkbox').uncheck();
+  await page.keyboard.press('Escape');
+  await expect(box).not.toHaveAttribute('spellcheck', 'false');
+  await expect(page.locator('.ed-marks')).toHaveCount(0);
+});

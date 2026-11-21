@@ -10,3 +10,4 @@
 .spellcheck-find { text-decoration: line-through; color: var(--ink-soft); }
 .spellcheck-replace { font-weight: 600; }
 .spellcheck-error { color: var(--alert); }
+.spellcheck-list li[data-focused] { background: color-mix(in srgb, var(--alert) 8%, transparent); border-radius: 6px; padding-left: var(--s2); padding-right: var(--s2); }
