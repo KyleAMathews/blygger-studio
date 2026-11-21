@@ -1821,7 +1821,9 @@ function useHeldOut(
       item: { id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision },
     });
   const regionsOf = (full: string): EditorRegion[] => (failed ? [] : found(full));
-  const regions = regionsOf(text);
+  // Found once per render: the box's regions, and the ones an editor bar's control sees.
+  const all = found(text);
+  const regions = failed ? [] : all;
   const parts = split(text, regions);
   const hiding = regions.length > 0 && !showing;
   /** `caret` is the text box's caret after a typed edit; tools that set the text leave it out. */
@@ -1853,7 +1855,6 @@ function useHeldOut(
   };
   // For an editor bar that shows its own control (EditorBarContext.regions). Hiding also
   // leaves the fail-safe: the regions are found afresh in the text as it now stands.
-  const all = found(text);
   const control = all.length
     ? {
         labels: [...new Set(all.flatMap((region) => region.label.split(', ')))],
@@ -2657,7 +2658,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           <div className="row ed-foot">
             <CharCount fragment={!isThread} length={length} />
             <DraftCounter text={visible} item={{ id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision }} run={action.run} />
-            {bars.ownsToggle && !focus.active ? null : held.notice}
+            {bars.replaced('regionToggle') && !focus.active ? null : held.notice}
             <span className="spacer" />
             {isPublic ? (
               <a href={publicPath(shareable)} target="_blank" rel="noreferrer">

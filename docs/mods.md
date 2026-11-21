@@ -51,9 +51,11 @@ When a mod needs a surface the Studio lacks, propose it as a pull request to thi
 | Dropping marked fragments from `feed.xml` | Refused | The spec says every published item is one event and nothing publishes quietly (§7). To keep notes off the home page, use a home page order, which may leave items out. Readers decide what to bury (§13.7). |
 | A server hook that runs on publish | Refused | Poll resource GETs with ETags from a tool on a token, or add an extension action that writes through `client` in the browser. |
 
-## Two promises a mod keeps
+## Three promises a mod keeps
 
 **The generator string stays `blygger-studio/x.y.z`.** A mod does not rename the client. The ecosystem census counts clients by that string, and update notices depend on it. If a mod needs an identity, it goes in its extension metadata.
+
+**Model text is disclosed.** Text a mod puts into a draft from a model goes through the Studio's generate endpoint, or in as `[TK]impyrt <model>=…[/TK]` for text generated elsewhere (spec §5.7 rule 7), so it publishes with a `generated[]` record. The Studio cannot tell model text from typing, so this is the mod's promise, of the same standing as the generator string ([`extensions.md`](extensions.md#editor-bars), session 76).
 
 **Not forking is the mod's own promise.** The Studio keeps its extension points as stable as it can and announces breaking changes in [`CHANGELOG.md`](../CHANGELOG.md). It makes no version promise about them yet. A mod that outgrows these surfaces and forks has become another client. That is fine, and the [fork section of the README](../README.md#if-you-fork-this) says what we ask of one.
 

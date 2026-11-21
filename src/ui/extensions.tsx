@@ -19,7 +19,7 @@
 import type { ErrorInfo, ReactNode } from 'react';
 import { Component, useState } from 'react';
 import type { EditorRegion } from './editor-regions.ts';
-import type { BarPlace, BarRow, DraftCounterContext, EditorBarContext, EditorRegionsContext, EntryAction, EntryContext, MenuZone, StudioContext, StudioExtension } from './extension-api.ts';
+import type { BarPlace, BarRow, DraftCounterContext, ReplaceableControl, EditorBarContext, EditorRegionsContext, EntryAction, EntryContext, MenuZone, StudioContext, StudioExtension } from './extension-api.ts';
 import { errorLog } from './error-log.ts';
 import { Sheet, type MenuRow } from './sheets.tsx';
 
@@ -86,13 +86,14 @@ export function extensionContext<C extends StudioContext>(extension: Pick<Studio
 }
 
 /** Renders nothing once its extension throws; the rest of the Studio carries on. */
-export class ExtensionBoundary extends Component<{ name: string; slot: string; children?: ReactNode }, { failed: boolean }> {
+export class ExtensionBoundary extends Component<{ name: string; slot: string; onFail?: (name: string) => void; children?: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };
   }
   componentDidCatch(error: unknown, _info: ErrorInfo) {
     report(this.props.name, this.props.slot, error);
+    this.props.onFail?.(this.props.name);
   }
   render() {
     return this.state.failed ? null : this.props.children;
@@ -237,7 +238,26 @@ export function barPlacement(extensions: readonly StudioExtension[], hidden: rea
     menu: at('menu'),
     /** Where a bar is; undefined for one the author hid. */
     placeOf: (extension: StudioExtension) => place.get(extension.name),
+    /**
+     * The bar that owns a replaceable control: the first enabled bar in compiled order to
+     * claim it, wherever it was placed and whether or not it is hidden. A fixed owner: a
+     * claim that lost never takes over, and the Studio's own control stands in while the
+     * owner is off screen.
+     */
+    ownerOf: (control: ReplaceableControl) => bars.find((extension) => extension.editorBar!.replaces?.includes(control)),
   };
+}
+
+/** The replaceable controls the editor bars know of. */
+const REPLACEABLE: readonly ReplaceableControl[] = ['regionToggle'];
+
+/**
+ * Whether a bar stands in for a Studio control now: its owner is in a row and has not
+ * failed. Otherwise the Studio renders its own (docs/extensions.md, "Replaceable controls").
+ */
+export function barReplaces(placement: ReturnType<typeof barPlacement>, control: ReplaceableControl, failed: readonly string[]) {
+  const owner = placement.ownerOf(control);
+  return !!owner && !failed.includes(owner.name) && [...placement.above, ...placement.below].includes(owner);
 }
 
 const HIDDEN_BARS_KEY = 'blyg.editorBars.hidden';
@@ -269,8 +289,9 @@ export type BarHostContext = Omit<HostContext<EditorBarContext>, 'bar' | 'openSh
 
 /**
  * The editor bars of one screen: the two rows and the bars menu. `above` and `below` are
- * rendered where the screen puts them; the menu button ends the row above. `ownsToggle`
- * says a bar on screen shows the regions control, so the screen leaves its notice out.
+ * rendered where the screen puts them; the bars menu button ends the row above.
+ * `replaced(control)` says a bar stands in for that Studio control now, so the screen
+ * leaves its own out.
  * Off is invisible: with no bar enabled, both rows are null.
  */
 export function useEditorBars(extensions: readonly StudioExtension[], host: BarHostContext) {
@@ -278,19 +299,23 @@ export function useEditorBars(extensions: readonly StudioExtension[], host: BarH
   const [sheet, setSheet] = useState<OpenSheet | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [opened, setOpened] = useState<string | null>(null);
+  // Bars that threw: their boundary renders nothing, so a control they owned is the Studio's again.
+  const [failed, setFailed] = useState<readonly string[]>([]);
+  const fail = (name: string) => setFailed((now) => (now.includes(name) ? now : [...now, name]));
   const placement = barPlacement(extensions, hidden);
-  if (!placement.bars.length) return { above: null, below: null, ownsToggle: false };
+  if (!placement.bars.length) return { above: null, below: null, replaced: () => false };
+  const owns = (extension: StudioExtension) => REPLACEABLE.filter((control) => placement.ownerOf(control) === extension);
   const close = () => setSheet(null);
   const contextFor = (extension: StudioExtension, place: BarPlace): EditorBarContext =>
     extensionContext<EditorBarContext>(extension, 'editorBar', {
       ...host,
       openSheet: (render) => setSheet({ name: extension.name, render }),
-      bar: { asked: askedRow(extension), place, blocks: place === 'menu' ? MAX_BAR_BLOCKS : barBlocks(extension) },
+      bar: { asked: askedRow(extension), place, blocks: place === 'menu' ? MAX_BAR_BLOCKS : barBlocks(extension), owns: owns(extension) },
     } as HostContext<EditorBarContext>);
   const bar = (extension: StudioExtension, place: BarPlace) => {
     const Bar = extension.editorBar!.component;
     return (
-      <ExtensionBoundary key={extension.name} name={extension.name} slot="editorBar">
+      <ExtensionBoundary key={extension.name} name={extension.name} slot="editorBar" onFail={fail}>
         <div className="ext-bar" data-extension={extension.name} data-blocks={place === 'menu' ? undefined : barBlocks(extension)}>
           <Bar context={contextFor(extension, place)} />
         </div>
@@ -299,8 +324,8 @@ export function useEditorBars(extensions: readonly StudioExtension[], host: BarH
   };
   const openedBar = placement.menu.find((extension) => extension.name === opened);
   const menuButton = (
-    <button type="button" className="act icon-only tool ext-bars-menu" aria-label="editor bars" title="Editor bars: show, hide, or open one that has no room" onClick={() => setMenuOpen(true)}>
-      ⋯
+    <button type="button" className="act tool ext-bars-menu" aria-label="editor bars" title="Editor bars: show, hide, or open one that has no room" onClick={() => setMenuOpen(true)}>
+      bars
     </button>
   );
   const above = (
@@ -341,6 +366,6 @@ export function useEditorBars(extensions: readonly StudioExtension[], host: BarH
       {placement.below.map((extension) => bar(extension, 'below'))}
     </div>
   ) : null;
-  const ownsToggle = [...placement.above, ...placement.below].some((extension) => extension.editorBar!.ownsRegionToggle);
-  return { above, below, ownsToggle };
+  const replaced = (control: ReplaceableControl) => barReplaces(placement, control, failed);
+  return { above, below, replaced };
 }

@@ -26,7 +26,8 @@
 .ed-tools { margin: 0 0 var(--s1) calc(-1 * var(--s2)); }
 /* Editor bars (extensions.tsx, useEditorBars): rows of their own above and below the text
    box, apart from the Studio's tools. Each bar gets the blocks it was given; what it puts
-   past them scrolls inside it. The ⋯ at the end of the row above is the bars menu. */
+   past them scrolls inside it. The labelled "bars" button ending the row above is the bars
+   menu, labelled so it is not taken for the item's ⋯. */
 .ext-bars { --bar-block: 7rem; display: flex; align-items: center; gap: var(--s2); min-width: 0; font-size: .84rem; }
 .ext-bars-above { margin: 0 0 var(--s1); }
 .ext-bars-below { margin: var(--s1) 0 0; }

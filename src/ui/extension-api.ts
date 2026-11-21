@@ -112,6 +112,13 @@ export interface EditorRegionsContext {
 export type BarRow = 'above' | 'below';
 /** Where a bar was put: a row, or the bars menu when neither row had room. */
 export type BarPlace = BarRow | 'menu';
+/**
+ * The Studio's own controls an extension may replace (docs/extensions.md, "Replaceable
+ * controls"). The list is short and grows one entry at a time, each with its contract.
+ * `regionToggle`: the held-out notice beside the counts, which shows and hides the
+ * held-out regions.
+ */
+export type ReplaceableControl = 'regionToggle';
 
 /**
  * What an editor bar is handed, in the composer and the full editor. Offsets are in the
@@ -140,8 +147,12 @@ export interface EditorBarContext extends StudioContext {
   regions?: { labels: string[]; hidden: boolean; show(): void; hide(): void };
   /** Open a sheet owned by this extension. `close` dismisses it. */
   openSheet(render: (close: () => void) => ReactNode): void;
-  /** The row and blocks this bar asked for, and what the Studio gave it. */
-  bar: { asked: BarRow; place: BarPlace; blocks: number };
+  /**
+   * The row and blocks this bar asked for, and what the Studio gave it. `owns` lists the
+   * controls this bar replaces: those it claimed in `replaces` and won. Render a
+   * replacement only for a control in `owns`; a claim that lost leaves the Studio's own.
+   */
+  bar: { asked: BarRow; place: BarPlace; blocks: number; owns: ReplaceableControl[] };
 }
 
 /** A row an extension adds to an entry's ⋯ sheet, below the Studio's own. */
@@ -186,11 +197,13 @@ export interface StudioExtension {
     row?: BarRow;
     blocks?: number;
     /**
-     * This bar shows its own control for the held-out regions (`context.regions`), so the
-     * Studio leaves out its notice beside the counts while the bar is in a row on screen.
-     * Hidden, in the menu or in focus view, the notice comes back.
+     * The Studio's controls this bar replaces (docs/extensions.md, "Replaceable controls").
+     * The first enabled bar in compiled order to claim a control owns it; `context.bar.owns`
+     * says whether this one did. The Studio leaves its own control out only while the owner
+     * is in a row on screen and has not failed: hidden, in the menu, crashed or in focus
+     * view, the Studio's control is back.
      */
-    ownsRegionToggle?: boolean;
+    replaces?: ReplaceableControl[];
     component: ComponentType<{ context: EditorBarContext }>;
   };
   /** A page of its own at /studio/ext/<name>, linked from More. */
