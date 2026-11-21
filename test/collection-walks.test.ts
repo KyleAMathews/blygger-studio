@@ -43,7 +43,8 @@ it("walks every other collection completely across tied timestamps and page boun
     ["hoppers", keys, cursor => unwrap(api.listHoppers({ client, query: { cursor, limit: width } }))],
     ["inbound mentions", keys, cursor => unwrap(api.listMentions({ client, query: { direction: "inbound", cursor, limit: width } }))],
     ["outbound mentions", keys, cursor => unwrap(api.listMentions({ client, query: { direction: "outbound", cursor, limit: width } }))],
-    ["reading", [...ids].sort().map(id => `own:${id}`), cursor => unwrap(api.listReading({ client, query: { sub: "own", cursor, limit: width } }))],
+    // Chronological: its tie-break by id is what this walk checks (pace-layered is the default since session 77).
+    ["reading", [...ids].sort().map(id => `own:${id}`), cursor => unwrap(api.listReading({ client, query: { sub: "own", order: "newest", cursor, limit: width } }))],
     // Search has no documented tie-break promise. Give it distinct dates to
     // test paging rather than inventing a new ordering contract here.
   ];

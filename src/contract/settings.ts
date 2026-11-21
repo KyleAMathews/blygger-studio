@@ -32,7 +32,7 @@ export const SettingsSchema = z.object({
   changelogDisplay: z.enum(["latest", "history", "summary"]).describe("What an item's own public page shows of its changelog: the latest note (the default), every note, or an AI summary of them. A summary is written once per new version with the change-notes model, and is studio-private: it never reaches the item document or the feed."),
   readerChangelogDisplay: z.enum(["latest", "history", "summary"]).describe("The same choice for blyg items in the reader. In summary mode a card shows the latest note and the summary is written when the item is opened."),
   changelogSummaryPrompt: z.string().describe("Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."),
-  readerOrder: z.enum(["newest", "pace-layered"]).describe("The reader's order: newest first (the default), or pace-layered, the home page's order run over everything you read (ROADMAP row 69). Hoppers and the Shelf keep their own order."),
+  readerOrder: z.enum(["newest", "pace-layered"]).describe("The Feed tab's order: pace-layered (the default), the home page's order run over everything you read (ROADMAP row 69), or newest first, shown as chronological. Hoppers and Saved keep their own order."),
   backgroundRules: z.object(Object.fromEntries(BACKGROUND_RULES.map((rule) => [rule, z.boolean()])) as Record<BackgroundRule, z.ZodBoolean>).describe("Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read."),
   acceptMentions: z.boolean(),
   updateCheck: z.boolean(),

@@ -4,8 +4,9 @@
 // a new item from any blyg arrives on top and a new version climbs one place, a
 // maintenance version none; an imported item's inputs are its stored changelog
 // and the versions judged maintenance on arrival; pages are cut from stored
-// positions with the ordinary cursor; hoppers keep their own order; newest
-// first stays the default.
+// positions with the ordinary cursor; hoppers keep their own order;
+// pace-layered is the default (session 77) and a request may name its order;
+// Raw is the imported entries as they came, with nothing moved or folded.
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import { putSettings } from "../src/model.ts";
@@ -18,7 +19,10 @@ import { itemDocBody } from "./importer/fixtures.ts";
 import { apiJson, login } from "./helpers.ts";
 
 const db = () => env.DB;
-afterEach(() => putSettings(db(), { reader_order: "newest", bg_rules: "{}" }));
+afterEach(async () => {
+  await db().prepare("DELETE FROM settings WHERE key = 'reader_order'").run();
+  await putSettings(db(), { bg_rules: "{}" });
+});
 
 const ORIGIN = "https://paced.example/blyg/";
 const key = (sub: string, id: string) => `imported:${JSON.stringify([sub, id])}`;
@@ -97,9 +101,9 @@ describe("positions", () => {
 });
 
 describe("the reading API", () => {
-  it("keeps newest first by default and refuses an unknown order", async () => {
+  it("is pace-layered by default and refuses an unknown order", async () => {
     const cookie = await login();
-    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.readerOrder).toBe("newest");
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.readerOrder).toBe("pace-layered");
     expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { readerOrder: "random" })).status).toBe(400);
   });
 
@@ -122,6 +126,7 @@ describe("the reading API", () => {
     await arrive(a, { id: old, created: at(300) });
     await arrive(b, { id: mid, created: at(200) }, "https://other-paced.example/");
     await arrive(a, { id: fresh, created: at(100) });
+    await putSettings(db(), { reader_order: "newest" });
     const scope = `limit=50&sub=all`;
     const ours = (items: { key: string }[]) => items.map((e) => e.key).filter((k) => [key(a, old), key(b, mid), key(a, fresh)].includes(k));
     expect(ours((await page(cookie, scope)).items)).toEqual([key(a, fresh), key(b, mid), key(a, old)]);
@@ -132,6 +137,9 @@ describe("the reading API", () => {
     expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { readerOrder: "pace-layered" })).status).toBe(200);
     expect(ours((await page(cookie, scope)).items)).toEqual([key(a, fresh), key(a, old), key(b, mid)]);
 
+    // A request may name its order whatever the setting says.
+    expect(ours((await page(cookie, `${scope}&order=newest`)).items)[0]).toBe(key(a, old));
+
     // Pages are cut from the stored positions; the cursor expires when the collection moves.
     const first = await page(cookie, "limit=1&sub=all");
     expect(first.page.nextCursor).toBeTruthy();
@@ -139,5 +147,22 @@ describe("the reading API", () => {
     expect(second.items[0]!.key).not.toBe(first.items[0]!.key);
     await arrive(b, { id: newId(), created: at(1) }, "https://other-paced.example/");
     expect((await apiJson(cookie, "GET", `/blyg/api/reading?limit=1&sub=all&cursor=${second.page.nextCursor}`)).status).toBe(409);
+  });
+
+  it("Raw lists what came in, newest first, with nothing moved to Background or folded", async () => {
+    const cookie = await login();
+    const sub = await subscription("https://raw.example/");
+    const [first, second, gone] = [newId(), newId(), newId()];
+    await arrive(sub, { id: first, created: at(20) }, "https://raw.example/");
+    await arrive(sub, { id: second, created: at(10) }, "https://raw.example/");
+    await arrive(sub, { id: gone, created: at(5) }, "https://raw.example/");
+    // `superseded` sends the first to Background; moving one there by hand and withdrawing one change nothing in Raw.
+    expect((await apiJson(cookie, "PUT", `/blyg/api/reading/placement`, { source: "imported", sub, id: second, placement: "background" })).status).toBe(200);
+    const doc = JSON.parse(await itemDocBody({ id: gone, kind: "withdrawn", version: 2, created: at(5), updated: at(1), origin: "https://raw.example/" }));
+    await applyEffect(db(), sub, gone, transition({ local: { status: "current", version: 1 }, doc }).effect, new Date().toISOString());
+    expect((await page(cookie, `limit=50&sub=${sub}`)).items).toEqual([]);
+    expect((await page(cookie, `limit=50&sub=${sub}&raw=true`)).items.map((e) => e.key)).toEqual([key(sub, gone), key(sub, second), key(sub, first)]);
+    // Own items are not incoming.
+    expect((await page(cookie, "limit=50&sub=all&raw=true")).items.every((e) => e.key.startsWith("imported:"))).toBe(true);
   });
 });

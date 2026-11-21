@@ -141,9 +141,11 @@ function readingLocation(search: Record<string, unknown>): {
   view?: 'sources';
 } {
   const offset = readingOffset(search);
+  // Smart Feed was renamed Agentic feed (session 77); old links still land there.
+  const named = search.lens === 'smart' ? 'agentic' : search.lens;
   const lens =
-    typeof search.lens === 'string' && (LENSES as readonly string[]).includes(search.lens) && search.lens !== 'all'
-      ? (search.lens as Lens)
+    typeof named === 'string' && (LENSES as readonly string[]).includes(named) && named !== 'all'
+      ? (named as Lens)
       : undefined;
   const withLens = lens ? { lens } : {};
   if (search.view === 'sources') return { view: 'sources', ...withLens };
@@ -169,7 +171,7 @@ const reading = createRoute({
       await Promise.all([
         preloadDetail(hopperInfo(deps.hopper), 'Hopper'),
         preloadView(readingSummaryView(readingKey('hopper:' + deps.hopper, deps.lens))),
-        ...(deps.lens === 'smart' ? [] : [preloadView(readingView(readingKey('hopper:' + deps.hopper, deps.lens), deps.offset))]),
+        ...(deps.lens === 'agentic' ? [] : [preloadView(readingView(readingKey('hopper:' + deps.hopper, deps.lens), deps.offset))]),
         preloadView(listViews.subscriptions),
         preloadView(listViews.hoppers),
         preloadView(listViews.signals),
@@ -190,11 +192,11 @@ const reading = createRoute({
       preloadView(listViews.subscriptions),
       preloadView(listViews.hoppers),
       ...(deps.view === 'sources' ? [] : [preloadView(listViews.signals)]),
-      ...(deps.view === 'sources' && deps.lens !== 'background' && deps.lens !== 'smart'
+      ...(deps.view === 'sources' && deps.lens !== 'background' && deps.lens !== 'agentic'
         ? [preloadHopperInfos()]
         : []),
     ]);
-    if (deps.sub === undefined || deps.lens === 'smart') return;
+    if (deps.sub === undefined || deps.lens === 'agentic') return;
     const page = readingSummaryView(key).toArray[0];
     if (
       page &&

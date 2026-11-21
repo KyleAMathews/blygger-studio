@@ -2087,7 +2087,8 @@ export const zGetReadingSummaryQuery = z.object({
     kind: z.enum(['thread', 'fragment']).optional(),
     background: z.enum(['true']).optional(),
     mentions: z.enum(['true']).optional(),
-    shelf: z.enum(['true']).optional()
+    shelf: z.enum(['true']).optional(),
+    raw: z.enum(['true']).optional()
 });
 
 /**
@@ -2114,7 +2115,9 @@ export const zListReadingQuery = z.object({
     kind: z.enum(['thread', 'fragment']).optional(),
     background: z.enum(['true']).optional(),
     mentions: z.enum(['true']).optional(),
-    shelf: z.enum(['true']).optional()
+    shelf: z.enum(['true']).optional(),
+    raw: z.enum(['true']).optional(),
+    order: z.enum(['pace-layered', 'newest']).optional()
 });
 
 /**

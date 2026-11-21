@@ -623,11 +623,16 @@ export function createDraftAction(id?: string, observedRevision?: number) {
 
 export type Reading = Omit<z.infer<typeof sourceSchemas.reading>, 'view'>;
 /**
- * Reading lenses (0.25.0). "threads" and "fragments" narrow a timeline and its
- * counts by kind; "shelf" is the shelved entries in the owner's order (row 115);
- * "smart" is a placeholder for the AI-ranked feed.
+ * Reading lenses. The tabs (session 77, Venkat) are Feed, Mentions, Agentic
+ * feed, Saved, Background and Raw (READING_TABS); "all", "threads" and
+ * "fragments" are the Feed tab narrowed by kind. "shelf" is Saved, the shelved
+ * entries in the owner's order (row 115); "agentic" is the assistant-organised
+ * feed, a placeholder until its agent is built; "raw" is what came in,
+ * unaltered.
  */
-export const LENSES = ['all', 'mentions', 'smart', 'fragments', 'threads', 'shelf', 'background'] as const;
+export const LENSES = ['all', 'threads', 'fragments', 'mentions', 'agentic', 'shelf', 'background', 'raw'] as const;
+export const READING_TABS = ['all', 'mentions', 'agentic', 'shelf', 'background', 'raw'] as const;
+export const FEED_LENSES = ['all', 'threads', 'fragments'] as const;
 export type Lens = (typeof LENSES)[number];
 export const lensKind = (lens: Lens | undefined): 'thread' | 'fragment' | undefined =>
   lens === 'threads' ? 'thread' : lens === 'fragments' ? 'fragment' : undefined;
@@ -636,7 +641,7 @@ export const lensKind = (lens: Lens | undefined): 'thread' | 'fragment' | undefi
  * unfiltered view (so every existing key is unchanged), `sub~kind` otherwise.
  */
 export const readingKey = (sub: string, lens?: Lens) => {
-  if (lens === 'background' || lens === 'mentions' || lens === 'shelf') return `${sub}~${lens}`;
+  if (lens === 'background' || lens === 'mentions' || lens === 'shelf' || lens === 'raw') return `${sub}~${lens}`;
   const kind = lensKind(lens);
   return kind ? `${sub}~${kind}` : sub;
 };
@@ -665,8 +670,8 @@ export const reading = createCollection(queryCollectionOptions({
   select: response => response.data,
 }));
 export function readingQuery(view: string) {
-  const [sub, filter] = view.split('~') as [string, 'thread' | 'fragment' | 'background' | 'mentions' | 'shelf' | undefined];
-  return { ...(sub.startsWith('hopper:') ? { hopper: sub.slice('hopper:'.length) } : { sub }), ...(filter === 'background' ? { background: 'true' as const } : filter === 'mentions' ? { mentions: 'true' as const } : filter === 'shelf' ? { shelf: 'true' as const } : filter ? { kind: filter } : {}) };
+  const [sub, filter] = view.split('~') as [string, 'thread' | 'fragment' | 'background' | 'mentions' | 'shelf' | 'raw' | undefined];
+  return { ...(sub.startsWith('hopper:') ? { hopper: sub.slice('hopper:'.length) } : { sub }), ...(filter === 'background' ? { background: 'true' as const } : filter === 'mentions' ? { mentions: 'true' as const } : filter === 'shelf' ? { shelf: 'true' as const } : filter === 'raw' ? { raw: 'true' as const } : filter ? { kind: filter } : {}) };
 }
 export const readingSummaries = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.readingSummaries, id: 'reading-summary', syncMode: 'on-demand',

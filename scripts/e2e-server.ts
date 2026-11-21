@@ -15,6 +15,8 @@ for (const migration of await readD1Migrations("./migrations")) {
 // `superseded` rule (an item followed within 15 minutes) would hide most of
 // them from the reader; the Worker suite tests that rule.
 await db.prepare("INSERT INTO settings (key, value) VALUES ('bg_rules', ?)").bind(JSON.stringify({ superseded: false })).run();
+// Pace-layered is the default (session 77); the specs assert newest-first orders, and the Worker suite tests the replay.
+await db.prepare("INSERT INTO settings (key, value) VALUES ('reader_order', 'newest')").run();
 await db.prepare("INSERT INTO subscriptions (id, kind, origin, feed_url, title, created) VALUES ('parity-native', 'blyg', 'https://source.example/', 'https://source.example/feed.xml', 'Native source', '2026-10-01T00:00:00Z'), ('parity-rss', 'rss', 'https://legacy.example/', 'https://legacy.example/feed', 'Legacy source', '2026-10-01T00:00:00Z')").run();
 for (const [sub, id, state, pin, l0, md, html, page] of [
   ['parity-native', '00000000000000000000000001', 'current', null, 0, '# Native title\n\nFrozen source text.', '<h1>Native title</h1><p>Frozen source text.</p><blockquote class="blyg-transclusion">Frozen quote from a prior version.</blockquote>', 'native'],

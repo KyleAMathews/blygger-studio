@@ -27,8 +27,9 @@ function dateOrderSql(column: string) {
  * sorts above every position.
  */
 const paceAtSql = (alias: string) => `CASE WHEN ${alias}.position IS NULL THEN '4' ELSE '3' || printf('%09d', 999999999 - ${alias}.position) END`;
-function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolean, rules: readonly BackgroundRule[], hopper?: string, mentioning?: string[], shelf = false, order: ReaderOrder = 'newest') {
+function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolean, rules: readonly BackgroundRule[], hopper?: string, mentioning?: string[], shelf = false, order: ReaderOrder = 'newest', raw = false) {
   if (shelf) return shelfIdentitySql(hopper);
+  if (raw) return rawIdentitySql(kind);
   // A hopper keeps the order things were added to it.
   const pace = order === 'pace-layered' && !hopper;
   const enabled = JSON.stringify(rules);
@@ -45,6 +46,16 @@ function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolea
     WHERE (${importedBackgroundSql()}) = ${background ? 1 : 0}${kind ? ' AND ii.kind = ?' : ''}${mentioning ? ` AND EXISTS (SELECT 1 FROM imported_mentions m
       WHERE m.subscription_id = ii.subscription_id AND m.remote_id = ii.remote_id AND m.target IN (SELECT value FROM json_each(?)))` : ''}`;
   return { sql, binds };
+}
+/**
+ * The Raw tab: what came in, unaltered. Imported entries only, newest first,
+ * with no Background rule, placement or fold applied, withdrawn ones included.
+ */
+function rawIdentitySql(kind: 'thread' | 'fragment' | undefined) {
+  const updated = dateOrderSql('ii.updated'), observed = dateOrderSql('ii.observed_at');
+  const sql = `SELECT 'imported' AS source, ii.remote_id AS id, ii.subscription_id AS sub, CASE WHEN ${updated} < ${observed} THEN ${updated} ELSE ${observed} END AS at
+    FROM imported_items ii WHERE 1${kind ? ' AND ii.kind = ?' : ''}`;
+  return { sql, binds: kind ? [kind] : [] };
 }
 /**
  * The Shelf lens (ROADMAP row 115): the shelved entries (src/shelf.ts) in the
@@ -66,8 +77,8 @@ function shelfIdentitySql(hopper?: string) {
   return { sql, binds: hopper ? [hopper] : [] };
 }
 /** Counts are a named summary. Page construction never materializes the full identity set. */
-export async function readingSummary(db: D1Database, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES, shelf = false) {
-  const { sql, binds } = identitySql(kind, background, rules, hopper, mentioning, shelf);
+export async function readingSummary(db: D1Database, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES, shelf = false, raw = false) {
+  const { sql, binds } = identitySql(kind, background, rules, hopper, mentioning, shelf, 'newest', raw);
   const [counts, subs] = await Promise.all([
     db.prepare(`SELECT source, sub, COUNT(*) AS total FROM (${sql}) GROUP BY source, sub`).bind(...binds).all<{ source: string; sub: string; total: number }>(),
     db.prepare('SELECT id FROM subscriptions').all<{ id: string }>(),
@@ -82,16 +93,18 @@ export async function readingSummary(db: D1Database, source: string | undefined,
   return { counts: result, selected };
 }
 /** Select one bounded keyset of identities before loading or sanitizing bodies. */
-export async function readingData(db: D1Database, query: CursorQuery, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES, shelf = false, order: ReaderOrder = 'newest') {
+export async function readingData(db: D1Database, query: CursorQuery, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES, shelf = false, order: ReaderOrder = 'newest', raw = false) {
   const selected = source ?? 'all';
+  if (raw) order = 'newest';
   if (order === 'pace-layered' && !hopper && !shelf) await ensureReaderOrder(db);
-  const identities = identitySql(kind, background, rules, hopper, mentioning, shelf, order);
+  const identities = identitySql(kind, background, rules, hopper, mentioning, shelf, order, raw);
   return cursorPage(db, { ...query, limit: query.limit ?? 25 }, {
-    name: 'reading', filters: [selected, kind ?? null, background, hopper ?? null, mentioning?.join(' ') ?? null, rules.join(' '), shelf, order], domains: ['reading', 'subscriptions', ...(hopper ? ['hoppers' as const] : []), ...(shelf ? ['shelf' as const] : [])],
+    name: 'reading', filters: [selected, kind ?? null, background, hopper ?? null, mentioning?.join(' ') ?? null, rules.join(' '), shelf, order, raw], domains: ['reading', 'subscriptions', ...(hopper ? ['hoppers' as const] : []), ...(shelf ? ['shelf' as const] : [])],
     sql: `SELECT * FROM (${identities.sql})${selected === 'all' ? '' : selected === 'own' ? " WHERE source = 'own'" : ' WHERE sub = ? OR NOT EXISTS (SELECT 1 FROM subscriptions WHERE id = ?)'}`,
     binds: [...identities.binds, ...(selected !== 'all' && selected !== 'own' ? [selected, selected] : [])],
     order: [{ column: 'at', direction: 'desc' }, { column: 'source', direction: 'asc' }, { column: 'sub', direction: 'asc' }, { column: 'id', direction: 'asc' }],
-    project: (selectedRows: Identity[]) => readingEntries(db, selectedRows, rules),
+    // Raw shows no fold: with no rules, no thread lists its parts.
+    project: (selectedRows: Identity[]) => readingEntries(db, selectedRows, raw ? [] : rules),
   });
 }
 async function readingEntries(db: D1Database, selectedRows: Identity[], rules: readonly BackgroundRule[]) {

@@ -174,7 +174,7 @@ export type Settings = {
      */
     changelogSummaryPrompt: string;
     /**
-     * The reader's order: newest first (the default), or pace-layered, the home page's order run over everything you read (ROADMAP row 69). Hoppers and the Shelf keep their own order.
+     * The Feed tab's order: pace-layered (the default), the home page's order run over everything you read (ROADMAP row 69), or newest first, shown as chronological. Hoppers and Saved keep their own order.
      */
     readerOrder: 'newest' | 'pace-layered';
     /**
@@ -2826,7 +2826,7 @@ export type UpdateSettingsData = {
          */
         changelogSummaryPrompt?: string;
         /**
-         * The reader's order: newest first (the default), or pace-layered, the home page's order run over everything you read (ROADMAP row 69). Hoppers and the Shelf keep their own order.
+         * The Feed tab's order: pace-layered (the default), the home page's order run over everything you read (ROADMAP row 69), or newest first, shown as chronological. Hoppers and Saved keep their own order.
          */
         readerOrder?: 'newest' | 'pace-layered';
         /**
@@ -6452,6 +6452,10 @@ export type GetReadingSummaryData = {
          * Only shelved entries (GET /shelf), in the owner's shelf order, whatever their Background placement. Own drafts are left out: they are not reading entries.
          */
         shelf?: 'true';
+        /**
+         * The Raw tab: imported entries as they came in, newest first, with no Background rule, placement or fold applied and withdrawn ones included. Only sub and kind narrow it.
+         */
+        raw?: 'true';
     };
     url: '/reading/summary';
 };
@@ -6560,6 +6564,14 @@ export type ListReadingData = {
          * Only shelved entries (GET /shelf), in the owner's shelf order, whatever their Background placement. Own drafts are left out: they are not reading entries.
          */
         shelf?: 'true';
+        /**
+         * The Raw tab: imported entries as they came in, newest first, with no Background rule, placement or fold applied and withdrawn ones included. Only sub and kind narrow it.
+         */
+        raw?: 'true';
+        /**
+         * The order for this request; without it, the readerOrder setting. Hoppers and the Shelf keep their own order, and raw is always newest first.
+         */
+        order?: 'pace-layered' | 'newest';
     };
     url: '/reading';
 };

@@ -29,7 +29,7 @@ import type {
 } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { Lens, Reading } from './data.ts';
-import { LENSES, readingKey } from './data.ts';
+import { FEED_LENSES, READING_TABS, readingKey, settings as settingsCollection } from './data.ts';
 import {
   reading,
   readingView,
@@ -501,7 +501,7 @@ function useEntryActions({
   const shelved = useShelf();
   const shelfEntry = hopperSub && (!entry.withdrawn || imported?.pinnedVersionRetained != null) ? { sub: hopperSub, remoteId: id } : null;
   const shelf = shelfEntry
-    ? { label: shelfLabel(shelved, shelfEntry), on: shelfLabel(shelved, shelfEntry) === 'remove from shelf', toggle: () => run(() => toggleShelf(shelved, shelfEntry)) }
+    ? { label: shelfLabel(shelved, shelfEntry), on: shelfLabel(shelved, shelfEntry) === 'remove from saved', toggle: () => run(() => toggleShelf(shelved, shelfEntry)) }
     : null;
   const addToHopper = () =>
     run(async () => {
@@ -782,7 +782,7 @@ function EntryBar({ entry, a }: { entry: Reading; a: EntryActions }) {
       ) : null}
       {a.shelf ? (
         <Button className="act" data-action="shelf" aria-label={a.shelf.label} onClick={() => void a.shelf?.toggle()}>
-          {a.shelf.on ? '−' : '+'} <span className="act-wide">{a.shelf.on ? 'remove from' : 'add to'} </span>shelf
+          {a.shelf.on ? '✓ saved' : '+ save'}
         </Button>
       ) : null}
       <Tooltip label="more actions">
@@ -1518,24 +1518,29 @@ function useLensSearch(): { lens?: Lens } {
   return lens === 'all' ? {} : { lens };
 }
 const LENS_LABELS: Record<Lens, string> = {
-  all: 'All',
+  all: 'Feed',
   threads: 'Threads',
   fragments: 'Fragments',
-  shelf: 'Shelf',
   mentions: 'Mentions',
+  agentic: 'Agentic feed',
+  shelf: 'Saved',
   background: 'Background',
-  smart: 'Smart Feed',
+  raw: 'Raw',
 };
+const isFeed = (lens: Lens) => (FEED_LENSES as readonly string[]).includes(lens);
 /**
- * The lens bar at the top of every reading screen. All, Threads and Fragments
- * filter whatever is open (the sources list's counts too); Background and
- * Smart Feed are placeholders that telegraph where reading is going.
+ * The tab bar at the top of every reading screen (session 77, Venkat): Feed,
+ * Mentions, Agentic feed, Saved, Background, Raw. The Feed is ordered and
+ * folded by structure only (pace-layered, Background's rules); the Agentic
+ * feed is where an assistant makes editorial judgments; Raw is what came in,
+ * unaltered. Threads and Fragments narrow the Feed, from its own controls.
  */
 function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sources?: boolean }) {
   const lens = useContext(LensContext);
   const navigate = useNavigate();
   const bar = useRef<HTMLDivElement>(null);
-  // On a phone the bar scrolls sideways; keep the chosen lens in view.
+  const tab = isFeed(lens) ? 'all' : lens;
+  // On a phone the bar scrolls sideways; keep the chosen tab in view.
   useEffect(() => {
     const el = bar.current?.querySelector<HTMLElement>('[aria-checked=true]');
     const box = bar.current;
@@ -1543,7 +1548,7 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
     // Scroll only the bar, never the page.
     if (el.offsetLeft + el.offsetWidth > box.scrollLeft + box.clientWidth) box.scrollLeft = el.offsetLeft + el.offsetWidth - box.clientWidth;
     else if (el.offsetLeft < box.scrollLeft) box.scrollLeft = el.offsetLeft;
-  }, [lens]);
+  }, [tab]);
   const place = sources
     ? { view: 'sources' as const }
     : hopper
@@ -1551,39 +1556,80 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
       : sub && sub !== 'all'
         ? { sub, offset: 0 }
         : {};
+  const go = (value: Lens) => void navigate({ to: '/reading', search: { ...place, ...(value === 'all' ? {} : { lens: value }) } });
   // Buttons, not router Links: a Link to /reading counts as "current" under
-  // every lens, which would mark All active alongside the real choice.
+  // every lens, which would mark Feed active alongside the real choice.
   return (
-    <ToggleGroup ref={bar} className="lens-bar" aria-label="reading lens" value={[lens]}>
-      {LENSES.map((value) => (
-        <Toggle
-          key={value}
-          className={value === 'background' || value === 'smart' ? 'seg-dashed' : undefined}
-          value={value}
-          onClick={() =>
-            void navigate({ to: '/reading', search: { ...place, ...(value === 'all' ? {} : { lens: value }) } })
-          }
-        >
-          {LENS_LABELS[value]}
-        </Toggle>
-      ))}
-    </ToggleGroup>
+    <>
+      <ToggleGroup ref={bar} className="lens-bar" aria-label="reading tabs" value={[tab]}>
+        {READING_TABS.map((value) => (
+          <Toggle
+            key={value}
+            className={value === 'agentic' ? 'seg-dashed' : undefined}
+            value={value}
+            onClick={() => go(value)}
+          >
+            {LENS_LABELS[value]}
+          </Toggle>
+        ))}
+      </ToggleGroup>
+      {isFeed(lens) ? <FeedControls lens={lens} go={go} hopper={hopper} /> : null}
+    </>
   );
 }
-const SHELF_NOTE = 'What you put on your shelf, yours and the blygs you read, in your order. Your drafts on it are under compose.';
+/**
+ * The Feed's own controls: which kinds it shows, and its order (pace-layered,
+ * the default, or chronological). The order is the readerOrder setting, so it
+ * holds across visits and devices; a hopper keeps its own order.
+ */
+function FeedControls({ lens, go, hopper }: { lens: Lens; go: (lens: Lens) => void; hopper?: string }) {
+  const settings = useSettings();
+  const order = settings?.readerOrder ?? 'pace-layered';
+  const switchOrder = async (next: 'pace-layered' | 'newest') => {
+    if (next === order) return;
+    await settingsCollection.update('settings', (row) => {
+      row.readerOrder = next;
+    }).when('settled');
+    await queryClient.invalidateQueries({ queryKey: ['reading'] });
+  };
+  return (
+    <div className="feed-controls">
+      <ToggleGroup className="feed-kinds" aria-label="feed kinds" value={[lens]}>
+        {FEED_LENSES.map((value) => (
+          <Toggle key={value} value={value} onClick={() => go(value)}>
+            {value === 'all' ? 'All' : LENS_LABELS[value]}
+          </Toggle>
+        ))}
+      </ToggleGroup>
+      {hopper ? null : (
+        <ToggleGroup className="feed-order" aria-label="feed order" value={[order]}>
+          <Toggle value="pace-layered" onClick={() => void switchOrder('pace-layered').catch(() => toast('Could not change the order.'))}>
+            Pace-layered
+          </Toggle>
+          <Toggle value="newest" onClick={() => void switchOrder('newest').catch(() => toast('Could not change the order.'))}>
+            Chronological
+          </Toggle>
+        </ToggleGroup>
+      )}
+    </div>
+  );
+}
+const SHELF_NOTE = 'What you saved, yours and the blygs you read, in your order. Your drafts in it are under compose.';
 const MENTIONS_NOTE = 'Items you already read that name you. A find, not a notification: nobody told you, and nothing here is verified.';
-/** Withdrawn posts are background: every other lens leaves them out. */
-export const BACKGROUND_NOTE = 'Withdrawn posts, yours and the blygs you read. They are kept out of the other views.';
-export const SMART_FEED_NOTE = 'Coming soon. Feed sorted and filtered by your AI agent. You can already set its prompt in Settings.';
-const isPlaceholder = (lens: Lens): lens is 'smart' => lens === 'smart';
+const RAW_NOTE = 'What came in from the blygs you read, newest first, as it arrived: nothing moved to Background, nothing folded.';
+/** What the Feed leaves out: withdrawn posts, small and maintenance changes, folded parts, and what you moved. */
+export const BACKGROUND_NOTE = 'What the Feed leaves out: withdrawn posts, republished or barely changed versions, parts folded under their thread, and what you moved here. Settings → Background says which rules act.';
+export const AGENTIC_FEED_NOTE = 'Coming soon. An assistant who organizes your reading for you. You can already set its prompt in Settings.';
+const isPlaceholder = (lens: Lens): lens is 'agentic' => lens === 'agentic';
 function LensPlaceholder() {
   return (
     <div className="empty lens-placeholder">
       <span className="em" aria-hidden="true">
         ✦
       </span>
-      <strong>Coming soon.</strong> Feed sorted and filtered by your AI agent.
-      You can already set its prompt in <Link to="/settings">Settings</Link>.
+      <strong>Coming soon.</strong> An assistant who organizes your reading for
+      you: what you should see, and how. You can already set its prompt in{' '}
+      <Link to="/settings" hash="ai-feed">Settings</Link>.
     </div>
   );
 }
@@ -2045,7 +2091,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
         <>
           {lens === 'background' ? <p className="view-sub">{BACKGROUND_NOTE}</p> : null}
           {lens === 'mentions' ? <p className="view-sub">{MENTIONS_NOTE}</p> : null}
-          {lens === 'shelf' ? <p className="view-sub">{SHELF_NOTE}</p> : null}
+          {lens === 'shelf' ? <p className="view-sub">{SHELF_NOTE}</p> : lens === 'raw' ? <p className="view-sub">{RAW_NOTE}</p> : null}
           {entries.isLoading ? <p className="view-sub">Loading reading…</p> : null}
           <EntryList entries={entries.data ?? []} actions={actions} />
           {!entries.isLoading && !entries.data?.length ? (
@@ -2053,7 +2099,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
               <span className="em" aria-hidden="true">
                 ◫
               </span>
-              {lens === 'background' ? 'Nothing withdrawn.' : lens === 'mentions' ? 'Nothing you read mentions you yet.' : lens === 'shelf' ? 'Nothing on your shelf yet: “add to shelf” on any entry puts it here.' : 'No items yet.'}
+              {lens === 'background' ? 'Nothing withdrawn.' : lens === 'mentions' ? 'Nothing you read mentions you yet.' : lens === 'shelf' ? 'Nothing saved yet: “save” on any entry puts it here.' : 'No items yet.'}
             </div>
           ) : null}
           <Pager

@@ -39,7 +39,7 @@ test('the Mentions lens shows only finds, with no tally, and highlights the ment
       await route.fulfill({ response, json: body });
     });
     await page.goto('/studio/reading?sub=all');
-    await page.getByRole('group', { name: 'reading lens' }).getByRole('button', { name: 'Mentions', exact: true }).click();
+    await page.getByRole('group', { name: 'reading tabs' }).getByRole('button', { name: 'Mentions', exact: true }).click();
     await expect(page).toHaveURL(/lens=mentions/);
     await expect(page.getByText(/A find, not a notification/)).toBeVisible();
     expect(asked).toBe(true);

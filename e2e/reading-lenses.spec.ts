@@ -14,7 +14,7 @@ async function login(page: Page) {
 const api = (page: Page, method: string, path: string, body?: unknown) =>
   page.evaluate(fixtureJson, { method, path: `/api${path}`, body });
 
-test('lenses filter by kind, keep themselves across screens, keep withdrawn posts to Background, and show the Smart Feed placeholder', async ({ page }) => {
+test('the tabs, the Feed narrowed by kind across screens, withdrawn posts in Background, Raw, and the Agentic feed placeholder', async ({ page }) => {
   await login(page);
   // The fragment and the thread quoting it are published seconds apart: a burst
   // (session 72) would fold the fragment into Background. This test is about the lenses.
@@ -27,13 +27,17 @@ test('lenses filter by kind, keep themselves across screens, keep withdrawn post
   await api(page, 'POST', `/items/${thread}/publish`, {});
 
   await page.goto('/studio/reading?view=sources');
-  const bar = page.getByRole('group', { name: 'reading lens' });
-  await expect(bar.getByRole('button')).toHaveText(['All', 'Mentions', 'Smart Feed', 'Fragments', 'Threads', 'Shelf', 'Background']);
+  const bar = page.getByRole('group', { name: 'reading tabs' });
+  await expect(bar.getByRole('button')).toHaveText(['Feed', 'Mentions', 'Agentic feed', 'Saved', 'Background', 'Raw']);
+  const kinds = page.getByRole('group', { name: 'feed kinds' });
+  await expect(kinds.getByRole('button')).toHaveText(['All', 'Threads', 'Fragments']);
+  await expect(page.getByRole('group', { name: 'feed order' }).getByRole('button')).toHaveText(['Pace-layered', 'Chronological']);
 
-  await bar.getByRole('button', { name: 'Threads' }).click();
+  await kinds.getByRole('button', { name: 'Threads' }).click();
   await expect(page).toHaveURL(/lens=threads/);
-  // Exactly one lens is current.
-  await expect(bar.locator('[aria-pressed=true]')).toHaveText(['Threads']);
+  // The Feed tab stays current, and exactly one kind is chosen.
+  await expect(bar.locator('[aria-pressed=true]')).toHaveText(['Feed']);
+  await expect(kinds.locator('[aria-pressed=true]')).toHaveText(['Threads']);
   await page.getByRole('link', { name: /my blyg/ }).first().click();
   await expect(page).toHaveURL(/sub=own.*lens=threads|lens=threads.*sub=own/);
   await expect(page.locator('.reading-entry').filter({ hasText: `Lens thread ${stamp}` })).toBeVisible();
@@ -41,7 +45,7 @@ test('lenses filter by kind, keep themselves across screens, keep withdrawn post
   const fragmentEntry = page.locator('.reading-entry').filter({ hasText: `Lens fragment ${stamp}` }).filter({ hasNotText: `Lens thread ${stamp}` });
   await expect(fragmentEntry).toHaveCount(0);
 
-  await bar.getByRole('button', { name: 'Fragments' }).click();
+  await kinds.getByRole('button', { name: 'Fragments' }).click();
   await expect(fragmentEntry).toBeVisible();
   await expect(page.locator('.reading-entry').filter({ hasText: `Lens thread ${stamp}` })).toHaveCount(0);
 
@@ -51,23 +55,28 @@ test('lenses filter by kind, keep themselves across screens, keep withdrawn post
   const withdrawn = page.locator(`.reading-entry[data-key="own:${thread}"]`);
   await bar.getByRole('button', { name: 'Background' }).click();
   await expect(page).toHaveURL(/lens=background/);
-  await expect(page.locator('.view-sub').first()).toContainText('Withdrawn posts');
+  await expect(page.locator('.view-sub').first()).toContainText('What the Feed leaves out');
   await expect(withdrawn).toBeVisible();
   await expect(withdrawn).toContainText('withdrawn');
   await expect(page.locator(`.reading-entry[data-key="own:${frag}"]`)).toHaveCount(0);
-  await bar.getByRole('button', { name: 'All' }).click();
+  await bar.getByRole('button', { name: 'Feed', exact: true }).click();
   await expect(page.locator(`.reading-entry[data-key="own:${frag}"]`)).toBeVisible();
   await expect(withdrawn).toHaveCount(0);
-  await bar.getByRole('button', { name: 'Threads' }).click();
+  await page.getByRole('group', { name: 'feed kinds' }).getByRole('button', { name: 'Threads' }).click();
   await expect(withdrawn).toHaveCount(0);
-  await bar.getByRole('button', { name: 'Smart Feed' }).click();
-  await expect(page.locator('.lens-placeholder')).toContainText('Coming soon. Feed sorted and filtered by your AI agent.');
+  // Raw is incoming only: our own items are not in it.
+  await bar.getByRole('button', { name: 'Raw' }).click();
+  await expect(page).toHaveURL(/lens=raw/);
+  await expect(page.locator('.view-sub').first()).toContainText('as it arrived');
+  await expect(page.locator(`.reading-entry[data-key="own:${frag}"]`)).toHaveCount(0);
+  await bar.getByRole('button', { name: 'Agentic feed' }).click();
+  await expect(page.locator('.lens-placeholder')).toContainText('An assistant who organizes your reading for');
   // The placeholder keeps the screen's head: tabs, title and count, ＋.
   await expect(page.getByRole('tablist', { name: 'reading view' })).toBeVisible();
   await expect(page.getByRole('heading', { name: /^my blyg/ })).toContainText(/\d+ items/);
   await expect(page.getByRole('button', { name: 'subscribe', exact: true })).toBeVisible();
   await page.locator('.lens-placeholder').getByRole('link', { name: 'Settings' }).click();
-  await expect(page).toHaveURL(/\/studio\/settings$/);
+  await expect(page).toHaveURL(/\/studio\/settings#ai-feed$/);
   } finally {
     await api(page, 'PATCH', '/settings', { backgroundRules: { burst: true } });
   }
@@ -101,7 +110,7 @@ test('settings: a model per AI function from the manifest, other…, a reserved 
     await expect(page.locator('.provider-keys li').nth(3)).toContainText('Cloudflare Workers AI no binding (AI)');
     await page.locator('#aiModelTk').selectOption('claude-sonnet-5-5');
     await page.locator('#aiModelFeed').selectOption('__other__');
-    await page.getByLabel('feed scoring model id').fill('gemini-9-future');
+    await page.getByLabel('agentic feed model id').fill('gemini-9-future');
     await expect(page.locator('#ai_model_authoring')).toBeDisabled();
     await page.locator('#feedPrompt').fill('Prioritize tech news.');
     await page.locator('#settings-form button[type=submit]').first().click();
@@ -113,7 +122,7 @@ test('settings: a model per AI function from the manifest, other…, a reserved 
     // An unlisted saved model reopens as other…, with its id shown.
     await page.reload();
     await expect(page.locator('#aiModelFeed')).toHaveValue('__other__');
-    await expect(page.getByLabel('feed scoring model id')).toHaveValue('gemini-9-future');
+    await expect(page.getByLabel('agentic feed model id')).toHaveValue('gemini-9-future');
   } finally {
     await api(page, 'PATCH', '/settings', { aiModelTk: before.aiModelTk, aiModelChangelog: before.aiModelChangelog, aiModelFeed: before.aiModelFeed, feedPrompt: before.feedPrompt });
   }

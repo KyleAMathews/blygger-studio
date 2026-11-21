@@ -855,21 +855,22 @@ function SettingsForm({ initial }: { initial: Settings }) {
           : null}
       </section>
       <section className="card" id="ai-feed">
-        <h3 className="card-h">smart feed</h3>
-        <ModelField fkey="aiModelFeed" label="Model" name="feed scoring" hint="not used yet" manifest={aiModels} form={form} change={change} />
+        <h3 className="card-h">agentic feed</h3>
+        <ModelField fkey="aiModelFeed" label="Model" name="agentic feed" hint="not used yet" manifest={aiModels} form={form} change={change} />
         {field(
           "feedPrompt",
-          'Scoring prompt: how the agent should score new items',
+          'Agentic feed prompt: how your assistant should organize what you read',
           true,
           'e.g. Prioritize tech news and significant updates to items I have interacted with or liked. Deprioritize sports content, trivial updates, and items like ones I have disliked.',
         )}
         <p className="hint">
-          The prompt is a rubric. Your agent will score each new item in your
-          reading against it, then sort the Smart Feed by score or hide items
-          below a threshold. It will read your <Link to="/signals">signals</Link>{' '}
-          (thumbs, hoppers, stubs, forks and quotes) to know what you have
-          liked and engaged with. The agent is not built yet: this prompt is
-          saved now so the Smart Feed can use it when it is.
+          The Agentic feed is an assistant who organizes your reading for you:
+          it makes editorial judgments about what you should see and how, which
+          the Feed never does (the Feed uses AI only for structure, like folding
+          small changes). This prompt is its brief. It will read your{' '}
+          <Link to="/signals">signals</Link> (thumbs, hoppers, stubs, forks and
+          quotes) to know what you have liked and engaged with. The assistant is
+          not built yet: the prompt is saved now so it can use it when it is.
         </p>
       </section>
       <section className="card" id="ai-authoring">
@@ -1144,7 +1145,7 @@ function SettingsNav() {
 const FUNCTIONS = [
   { key: "aiModelTk", label: 'TK generation' },
   { key: "aiModelChangelog", label: 'changelog notes' },
-  { key: "aiModelFeed", label: 'feed scoring', hint: 'for the Smart Feed; not used yet' },
+  { key: "aiModelFeed", label: 'agentic feed', hint: 'for the Agentic feed; not used yet' },
 ] as const;
 const OTHER = '__other__';
 

@@ -219,9 +219,10 @@ const mentioning = async (context: OperationContext, input: OperationInput) => {
 const backgroundRules = async (context: OperationContext) => enabledRules((await getSettings(context.env.DB)).bg_rules);
 const listReadingOperation = async (context: OperationContext, input: OperationInput) => {
   const settings = await getSettings(context.env.DB);
-  return success({ ...await readingData(context.env.DB, { ...input.query, limit: input.query.limit ?? 25 }, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), enabledRules(settings.bg_rules), input.query.shelf === 'true', settings.reader_order), readState: true as const, readStateClear: true as const });
+  const order = input.query.order === 'newest' || input.query.order === 'pace-layered' ? input.query.order : settings.reader_order;
+  return success({ ...await readingData(context.env.DB, { ...input.query, limit: input.query.limit ?? 25 }, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), enabledRules(settings.bg_rules), input.query.shelf === 'true', order, input.query.raw === 'true'), readState: true as const, readStateClear: true as const });
 };
-const getReadingSummaryOperation = async (context: OperationContext, input: OperationInput) => success(await readingSummary(context.env.DB, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), await backgroundRules(context), input.query.shelf === 'true'));
+const getReadingSummaryOperation = async (context: OperationContext, input: OperationInput) => success(await readingSummary(context.env.DB, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), await backgroundRules(context), input.query.shelf === 'true', input.query.raw === 'true'));
 // Imported items only, keyset-paged, for clients that author from what they read (studio#11).
 const listImportedReadingOperation = async (context: OperationContext, input: OperationInput) => {
   return success(await importedReading(context.env.DB, input.query.cursor, Number(input.query.limit ?? IMPORTED_READING_DEFAULT)));

@@ -18,7 +18,19 @@ not have its own repo until session 26.
 
 ---
 
-## 0.68.0 — Background's measured rules; the reader can be pace-layered
+## 0.68.0 — Reading reorganised: Feed (pace-layered), Mentions, Agentic feed, Saved, Background, Raw; Background's measured rules
+
+**Reading has six tabs** (Venkat, session 77): **Feed**, **Mentions**, **Agentic feed**,
+**Saved**, **Background**, **Raw**. The Feed makes structural decisions only: its order,
+and what it folds or moves to Background. It carries its own controls: All, Threads or
+Fragments, and **Pace-layered** (now the default everywhere) or **Chronological**,
+remembered in the `readerOrder` setting. The **Agentic feed** (formerly Smart Feed) is
+where an assistant will make editorial judgments about what you see and how; its prompt
+is now the *agentic feed prompt* in Settings, and the tab is still a placeholder.
+**Saved** is the Shelf renamed, and an entry's action reads **+ save**. **Raw** is what
+came in from the blygs you read, newest first, with nothing moved to Background and
+nothing folded. Old `lens=smart` links open the Agentic feed. The reading API takes
+`raw=true` and an `order` per request.
 
 **Background, phase 2** (blygger-spec `docs/background-plan.md` §2, §7.1; ROADMAP row 112).
 Three more rules send an entry to Background, each with its chip and its toggle in
@@ -34,9 +46,8 @@ Settings → Background, all on by default:
   minutes. A later version of it brings it back. Applies to your own items in your
   reader too; public pages are unchanged. The window is a constant for now.
 
-**The reader can be pace-layered** (ROADMAP row 69). Settings → reader order: newest
-first (the default) or pace-layered, the home page's order run over everything you
-read. New items arrive on top and sink as others come, more slowly the more their blyg
+**The Feed is pace-layered** (ROADMAP row 69): the home page's order run over everything
+you read, chosen in the Feed tab or Settings → reader order. New items arrive on top and sink as others come, more slowly the more their blyg
 has pinned them; a new version climbs one place, none when it was maintenance. Only a
 blyg's own pins count (decision #73). The importer now keeps each item's changelog and
 which of its versions arrived as maintenance; an item imported earlier counts as its

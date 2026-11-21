@@ -286,7 +286,10 @@
 /* Reading lenses (0.25.0) */
 .lens-bar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .lens-bar::-webkit-scrollbar { display: none; }
-.lens-bar .toggle-group-item { text-decoration: none; }
+.lens-bar .toggle-group-item { text-decoration: none; white-space: nowrap; }
+/* The Feed tab's own controls: kinds on the left, order on the right; they wrap on a phone. */
+.feed-controls { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; align-items: center; margin-top: 8px; }
+.feed-controls .toggle-group { font-size: .85em; }
 .lens-placeholder a { font-weight: 600; }
 
 /* Custom theme editor (Settings → theme → Custom). */

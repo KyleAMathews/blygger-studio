@@ -39,14 +39,14 @@ test('an entry moves to Background and back from its ⋯ menu, and Background sa
     await choose(page, entry, 'move to Background');
     await expect(entry).toHaveCount(0);
 
-    await page.getByRole('group', { name: 'reading lens' }).getByRole('button', { name: 'Background' }).click();
+    await page.getByRole('group', { name: 'reading tabs' }).getByRole('button', { name: 'Background' }).click();
     await expect(page).toHaveURL(/lens=background/);
     await expect(entry).toHaveCount(1);
     await expect(entry.locator('.badge-why')).toHaveText('you moved this');
 
     await choose(page, entry, 'move to Foreground');
     await expect(entry).toHaveCount(0);
-    await page.getByRole('group', { name: 'reading lens' }).getByRole('button', { name: 'All' }).click();
+    await page.getByRole('group', { name: 'reading tabs' }).getByRole('button', { name: 'Feed', exact: true }).click();
     await expect(entry).toHaveCount(1);
     // A choice of Foreground can be cleared, and the rules decide again.
     await choose(page, entry, 'clear my choice');
