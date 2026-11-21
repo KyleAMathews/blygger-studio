@@ -9,6 +9,7 @@ import {
   createRouter,
   redirect,
   Outlet,
+  RouterContextProvider,
   RouterProvider,
 } from '@tanstack/react-router';
 import { Layout, basepath } from './components.tsx';
@@ -401,7 +402,11 @@ declare module '@tanstack/react-router' {
 createRoot(document.getElementById('studio-root')!).render(
   <TooltipProvider>
     <RouterProvider router={router} />
-    <SheetHost />
+    {/* The host sits outside RouterProvider so a sheet outlives a failed or
+        pending root route; the context lets a custom sheet use Link. */}
+    <RouterContextProvider router={router}>
+      <SheetHost />
+    </RouterContextProvider>
   </TooltipProvider>,
 );
 // Installable PWA: the worker caches only the shell's static assets (see

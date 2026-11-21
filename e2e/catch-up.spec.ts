@@ -37,4 +37,8 @@ test('catch up lays a quote chain out oldest first, each card its own words', as
   await expect(cards.nth(2)).toContainText(`Third word ${stamp}.`);
   await expect(cards.nth(2)).not.toContainText(`Second word ${stamp}.`);
   await expect(cards.nth(0).locator('.catch-up-meta')).toContainText('you · v1');
+  // A card's source is a router link (the sheet host has the router's context).
+  await cards.nth(0).getByRole('link', { name: 'you' }).click();
+  await expect(sheet).toBeHidden();
+  await expect(page).toHaveURL(new RegExp(`/studio/reading/~own/${a}$`));
 });
