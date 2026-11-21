@@ -108,6 +108,53 @@ export interface EditorRegionsContext {
   item: NonNullable<DraftCounterContext['item']>;
 }
 
+/** The editor bar rows: above the text box, or below it. */
+export type BarRow = 'above' | 'below';
+/** Where a bar was put: a row, or the bars menu when neither row had room. */
+export type BarPlace = BarRow | 'menu';
+/**
+ * The Studio's own controls an extension may replace (docs/extensions.md, "Replaceable
+ * controls"). The list is short and grows one entry at a time, each with its contract.
+ * `regionToggle`: the held-out notice beside the counts, which shows and hides the
+ * held-out regions.
+ */
+export type ReplaceableControl = 'regionToggle';
+
+/**
+ * What an editor bar is handed, in the composer and the full editor. Offsets are in the
+ * text box's text (`shown`): what the author sees, without held-out regions. Edits go
+ * through the same path as the Studio's own tools, so regions, autosave and the
+ * preview follow them.
+ */
+export interface EditorBarContext extends StudioContext {
+  /** The whole text as it stands now, saved or not. */
+  text: string;
+  /** What the text box shows: `text` without held-out regions. */
+  shown: string;
+  /** The item open in the full editor. Absent in the composer. */
+  item?: DraftCounterContext['item'];
+  /** The text box's selection now (start = end for a caret). */
+  selection(): { start: number; end: number };
+  /** Put `text` in place of the selection, or at the caret, and leave the caret after it. */
+  insert(text: string): void;
+  /** Replace [start, end) of the shown text with `text`. */
+  replace(start: number, end: number, text: string): void;
+  /**
+   * The held-out regions (`editorRegions`, every extension's together), in the full editor
+   * while there are any. `hide` also takes the editor out of its fail-safe, where it was
+   * showing the whole text after an edit it could not rejoin.
+   */
+  regions?: { labels: string[]; hidden: boolean; show(): void; hide(): void };
+  /** Open a sheet owned by this extension. `close` dismisses it. */
+  openSheet(render: (close: () => void) => ReactNode): void;
+  /**
+   * The row and blocks this bar asked for, and what the Studio gave it. `owns` lists the
+   * controls this bar replaces: those it claimed in `replaces` and won. Render a
+   * replacement only for a control in `owns`; a claim that lost leaves the Studio's own.
+   */
+  bar: { asked: BarRow; place: BarPlace; blocks: number; owns: ReplaceableControl[] };
+}
+
 /** A row an extension adds to an entry's ⋯ sheet, below the Studio's own. */
 export interface EntryAction {
   icon?: ReactNode;
@@ -137,6 +184,28 @@ export interface StudioExtension {
    * where it was cut lands before it.
    */
   editorRegions?: (context: EditorRegionsContext) => EditorRegion[];
+  /**
+   * A bar of controls in the composer and the full editor, in a row of its own above or
+   * below the text box, apart from the Studio's tools. `row` (default `above`) and
+   * `blocks` (1–4, default 1; a block holds about one labelled button) are a request: the
+   * Studio shares the rows among the bars and moves what doesn't fit to the bars menu
+   * (see barPlacement). The author can hide any bar from that menu.
+   */
+  editorBar?: {
+    /** Names the bar in the bars menu. */
+    label: string;
+    row?: BarRow;
+    blocks?: number;
+    /**
+     * The Studio's controls this bar replaces (docs/extensions.md, "Replaceable controls").
+     * The first enabled bar in compiled order to claim a control owns it; `context.bar.owns`
+     * says whether this one did. The Studio leaves its own control out only while the owner
+     * is in a row on screen and has not failed: hidden, in the menu, crashed or in focus
+     * view, the Studio's control is back.
+     */
+    replaces?: ReplaceableControl[];
+    component: ComponentType<{ context: EditorBarContext }>;
+  };
   /** A page of its own at /studio/ext/<name>, linked from More. */
   page?: {
     title: string;

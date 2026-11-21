@@ -24,6 +24,22 @@
 .composer-tools, .ed-tools { display: flex; align-items: center; gap: 0; flex-wrap: wrap; min-width: 0; }
 .composer-tools .full-editor { font-size: .78rem; }
 .ed-tools { margin: 0 0 var(--s1) calc(-1 * var(--s2)); }
+/* Editor bars (extensions.tsx, useEditorBars): rows of their own above and below the text
+   box, apart from the Studio's tools. Each bar gets the blocks it was given; what it puts
+   past them scrolls inside it. The labelled "bars" button ending the row above is the bars
+   menu, labelled so it is not taken for the item's ⋯. */
+.ext-bars { --bar-block: 7rem; display: flex; align-items: center; gap: var(--s2); min-width: 0; font-size: .84rem; }
+.ext-bars-above { margin: 0 0 var(--s1); }
+.ext-bars-below { margin: var(--s1) 0 0; }
+.ext-bar { display: flex; align-items: center; gap: var(--s1); min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.ext-bar[data-blocks="1"] { max-width: calc(1 * var(--bar-block)); }
+.ext-bar[data-blocks="2"] { max-width: calc(2 * var(--bar-block)); }
+.ext-bar[data-blocks="3"] { max-width: calc(3 * var(--bar-block)); }
+.ext-bar[data-blocks="4"] { max-width: calc(4 * var(--bar-block)); }
+.ext-bars-list { list-style: none; margin: 0; padding: 0; }
+.ext-bars-list li { display: flex; align-items: center; gap: var(--s2); padding: var(--s2) 0; border-top: 1px solid var(--rule); flex-wrap: wrap; }
+.ext-bars-list li:first-child { border-top: none; }
+.ext-bars-list label { flex: 1; min-width: 0; }
 .tool .ico { width: 19px; height: 19px; }
 .counter { font-size: .82rem; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; margin-left: auto; }
 .counter.over, .ed-foot .counter.over { color: var(--alert); }
@@ -184,12 +200,13 @@
 @media (max-width: 899px) {
   .editor-grid[data-pane=draft] .preview-pane,
   .editor-grid[data-pane=preview] .editor-pane,
-  .editor-grid[data-pane=preview] .ed-tools { display: none; }
+  .editor-grid[data-pane=preview] .ed-tools,
+  .editor-grid[data-pane=preview] > .ext-bars { display: none; }
 }
 @media (min-width: 900px) {
   .editor .pane-toggle { display: none; }
   .editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; align-items: start; }
-  .editor-grid > .ed-tools { grid-column: 1 / -1; }
+  .editor-grid > .ed-tools, .editor-grid > .ext-bars { grid-column: 1 / -1; }
 }
 .ed-head .focus-enter { margin-left: auto; }
 /* Focus view: the editor fills the screen with the same textarea and nothing else
@@ -202,7 +219,7 @@
 html.focus-view { overflow: hidden; scrollbar-gutter: auto; }
 .focus-view .topbar, .focus-view .views > :not(.screen) { display: none; }
 .editor.is-focus { --focus-foot: calc(26px + env(safe-area-inset-bottom)); position: fixed; inset: 0 0 var(--focus-keyboard, 0px); z-index: 40; display: flex; flex-direction: column; background: var(--card); color: var(--ink); }
-.editor.is-focus > :not(.editor-grid, #error-banner-slot, .focus-bar, .focus-hot), .editor.is-focus .editor-grid > .ed-tools, .editor.is-focus .editor-pane > :not(.ta-wrap, .ed-foot) { display: none; }
+.editor.is-focus > :not(.editor-grid, #error-banner-slot, .focus-bar, .focus-hot), .editor.is-focus .editor-grid > .ed-tools, .editor.is-focus .editor-grid > .ext-bars, .editor.is-focus .editor-pane > :not(.ta-wrap, .ed-foot) { display: none; }
 .editor.is-focus #error-banner-slot:not(:empty) { padding: 60px var(--s4) var(--s2); padding-top: calc(60px + env(safe-area-inset-top)); }
 .editor.is-focus .editor-grid { position: relative; }
 .editor.is-focus .editor-grid, .editor.is-focus .editor-grid .editor-pane, .editor.is-focus .ta-wrap { display: flex; flex-direction: column; align-items: stretch; flex: 1; min-height: 0; }

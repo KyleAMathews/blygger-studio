@@ -10,6 +10,7 @@ Extensions are one of three places a mod can live; [`mods.md`](mods.md) says whi
 
 | Name | What it does |
 | --- | --- |
+| `bars-example` | A bar above the editor's text box: inserts a mark at the cursor and, with `regions-example` on, shows and hides the held paragraphs in place of the Studio's notice. The template to copy for an editor bar. |
 | `example` | Fills each UI slot and does nothing that matters. The template to copy, and what the slot tests enable. |
 | `feed-example` | Adds a "Pinned first" home page order: pinned items at the top, most pins first, then the rest newest first. Server only (`feeds.ts`, `server.ts`); the template to copy for a feed order of your own. |
 | `inspect` | Adds "inspect" to each reading entry's ⋯ sheet: the record this Studio holds for it, and its JSON. Browser only; shipped in `extensions.json`. |
@@ -28,6 +29,7 @@ Extensions are one of three places a mod can live; [`mods.md`](mods.md) says whi
 | Reading actions | Rows after the Studio's own in an entry's ⋯ sheet | `entryActions(context)` |
 | Draft counter | Something beside the character count, in the composer and the full editor | `draftCounter` (a component) |
 | Editor regions | Parts of the full editor's text kept out of its text box: hidden each time the editor opens, read-only when shown | `editorRegions(context)` (see "Editor regions" below) |
+| Editor bars | A bar of controls in a row of its own above or below the text box, in the composer and the full editor, that can edit the text. It asks for a row and room; the Studio decides | `editorBar` (see "Editor bars" below) |
 | Sheets | A sheet of its own, opened from a reading byline or reading actions | `context.openSheet(render)` |
 | A page | A screen at `/studio/ext/<name>`, linked from More | `page` |
 | A main-menu entry | Asks for a link to that page in a menu zone: `top` (above the Studio's own tabs), `visible` (among them, where the Studio puts it: above compose) or `hidden` (More). The Studio decides; see "Menu zones" below | `page.mainMenu` (an icon and a `zone`); the label is `page.title` |
@@ -61,7 +63,7 @@ editor keeps them out of its text box.
   everything; only the text box leaves the regions out. Each edit made there is joined with the regions
   before the draft gets it.
 - **Hidden each time the editor opens.** A notice beside the counts ("chapter navigation hidden · show")
-  shows them. Showing is not remembered.
+  shows them, unless an editor bar has taken that control over ("Editor bars"). Showing is not remembered.
 - **Read-only when shown.** An edit that touches a region is refused with a toast. Typing right at a
   region's edge is fine.
 - **Where typed text goes:** text typed where a region was cut lands before it. So start a region with
@@ -72,6 +74,74 @@ editor keeps them out of its text box.
 - Called on every change: keep it quick and pure. Overlapping regions are merged. A throwing
   extension holds nothing out. The full editor only; the composer and quick edit show everything.
 - A text box can't style part of its text, so this hides; it can't dim.
+
+## Editor bars
+
+For controls an extension wants beside the text it works on: insert a citation at the cursor, step
+to the next chapter, show the nav it holds out. The Studio's own tool row and counts stay as they are;
+bars go in two rows of their own, one above the text box and one below it, in the composer and the
+full editor.
+
+```ts
+editorBar: { label: 'Book', row: 'above', blocks: 2, replaces: ['regionToggle'], component: BookBar }
+```
+
+- **Asking for room:** `row` (`above`, the default, or `below`) and `blocks` (1–4, default 1; a block
+  holds about one labelled button) are a request. Each row holds 4 blocks. A row is filled first by
+  the bars that asked for it, in compiled order, each taking what it asked for while that fits; a bar
+  that doesn't fit tries the other row, then goes to the **bars menu**. A bar gets the blocks it asked
+  for or nothing in a row: what it renders past them scrolls inside it. Asking for less is the way to
+  a row. `context.bar` says what it asked for, where it went (`above`, `below` or `menu`), and in
+  `owns` which Studio controls it replaces (see "Replaceable controls").
+- **The bars menu** is the button labelled "bars" at the end of the row above, labelled so it is not
+  taken for the item's ⋯. It lists every bar with a switch to hide or
+  show it, remembered on this device, and opens a bar that had no room in a sheet. A hidden bar takes
+  no room.
+- **The context:** `text` (the whole text) and `shown` (what the box shows, without held-out regions),
+  `selection()`, `insert(text)` (in place of the selection, caret after) and `replace(start, end,
+  text)`, all in `shown` offsets. Edits go through the same path as the Studio's own tools, so
+  held-out regions, autosave and the preview follow them. `item` in the full editor, as for the draft
+  counter. `openSheet(render)`, and the usual verbs.
+- **Held-out regions:** in the full editor, while any extension holds text out, `context.regions` has
+  their `labels`, whether they are `hidden`, and `show()` / `hide()` (for every extension's regions
+  at once). `hide()` also takes the editor out of its fail-safe. A bar may replace the Studio's
+  notice for them (`replaces: ['regionToggle']`, see "Replaceable controls").
+- **Model text.** A bar that puts model-generated text into a draft MUST disclose it: through the
+  Studio's generate endpoint for instructed generation, or as `[TK]impyrt <model>=…[/TK]` for text
+  the bar obtained elsewhere (spec §5.7 rule 7, decision #37). Never insert it bare: `insert()` text
+  publishes as the author's own, with no `generated[]` entry. The Studio cannot tell, so this is a
+  review rule for extensions in this repository and a promise for mods (`mods.md`).
+- **Focus view** leaves the bars out, like the Studio's tool row. Focus view is the text and nothing
+  else; that is its point.
+- Off is invisible: with no bar enabled there is no bar row and no bars menu.
+
+## Replaceable controls
+
+A short list of the Studio's own controls that an extension may replace with its own version (ruled
+session 76, 2026-11-20, reviewed by Fable the same day). It is not a general override: the Studio
+decides by its own rule whether to render its control, and extension markup never goes inside a
+built-in one. Entries are added one at a time, when an extension needs one, and each must clear the
+bar in [`mods.md`](mods.md#the-bar-a-hook-must-clear).
+
+Every entry keeps the same contract:
+
+- **It still does the job.** A replacement drives the Studio's own state through its context, never
+  state of its own, so the built-in and the replacement cannot disagree. Only presentation and
+  workflow may differ.
+- **One owner.** The first enabled extension in compiled order to claim a control owns it, wherever it
+  was placed and whether or not the author hid it. A claim that lost never takes over. The owner is
+  told (`owns` in its context) and renders its replacement only then.
+- **The built-in comes back.** The Studio renders its own control whenever the owner is not standing in
+  for it: off, hidden, in a menu, crashed, or in focus view. The control is never lost.
+- **Parity.** A replacement is reachable by keyboard and names what it does, as the control it
+  replaces does.
+
+| Control | Replaced from | What the replacement must still do |
+|---|---|---|
+| `regionToggle` | An editor bar: `editorBar.replaces` | Show and hide the held-out regions through `context.regions` (`show()`, `hide()`, `hidden`), naming them by `labels`. The Studio's notice beside the counts returns while the bar is not in a row on screen. |
+
+A future entry, for example the TK button, would add a row with its own contract. A TK replacement
+would have to generate through the Studio's generate endpoint, so the `generated[]` record stays honest.
 
 ## Menu zones
 
@@ -95,8 +165,8 @@ page: { title: 'Dashboard', mainMenu: { icon: '⌂', zone: 'top' }, component: P
 - **Runtime loading.** No extension is fetched, evaluated or configured by URL at run time. The Studio runs with the owner's session cookie, so any script that runs there can act as the owner: publish, mint tokens, read drafts. Remote code in that session would be a credential-theft surface. Only code compiled into the build runs, and every extension is code the operator chose to compile in, from this repository or vendored at a pinned commit. [Vendoring](extension-vendoring.md) keeps this rule: it copies pinned source into the build on the operator's machine and never loads anything at run time.
 - **Writes.** Extension routes are GETs under `/api/ext/<name>/`. The permission model classifies them as `owner:read`, and a route registered with any other method or prefix is refused when the Worker starts. An extension that wants to change something uses the existing contract through `client`, under the same scopes as any client.
 - **The wire.** An extension does not reach `blyg.json`, public pages, feeds, `content_html` or mentions. It is studio furniture for one owner. The one exception is order: a feed order may decide the sequence of the home page's cards, and nothing else (session 46; see "Feed orders").
-- **Changing the Studio's own controls.** No slot rewrites, hides or annotates a built-in button, row or label. #35 needed this (hover previews on `stub ↗`, tips on ⋯ rows), and it was left out because it would make the base UI's markup depend on extension code. See the open questions in the extension PR.
-- **Other screens.** The slots are on the reading view, beside the composer's and full editor's character count and in the full editor's text box (held-out regions), plus an extension's own page. New slots should be added when an extension needs them, not before.
+- **Changing the Studio's own controls.** No slot rewrites, hides or annotates a built-in button, row or label, except the controls listed under "Replaceable controls", which an extension may replace whole under that section's contract. #35 needed this (hover previews on `stub ↗`, tips on ⋯ rows), and it was left out because it would make the base UI's markup depend on extension code. That still holds for replaceable controls: the Studio decides by its own rule whether to render its control, and extension markup never goes inside a built-in one.
+- **Other screens.** The slots are on the reading view, beside the composer's and full editor's character count, in the editor bar rows above and below the composer's and full editor's text box, and in the full editor's text box (held-out regions), plus an extension's own page. New slots should be added when an extension needs them, not before.
 
 ## Writing one
 

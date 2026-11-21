@@ -59,7 +59,7 @@ Say which mod needs it and why rungs 3 and 4 do not reach.
 
 ### 6. A mod
 
-A mod is a kind of blyg, not a pile of settings. [blykker](https://github.com/blygger/blykker), the first, keeps a blyg arranged as a book. It began as a `book.json` and a script on the owner API, added extensions second, and proposed hooks upstream third. A mod keeps two promises ([`mods.md`](mods.md#two-promises-a-mod-keeps)): the generator string stays `blygger-studio/x.y.z`, and it does not fork.
+A mod is a kind of blyg, not a pile of settings. [blykker](https://github.com/blygger/blykker), the first, keeps a blyg arranged as a book. It began as a `book.json` and a script on the owner API, added extensions second, and proposed hooks upstream third. A mod keeps three promises ([`mods.md`](mods.md#three-promises-a-mod-keeps)): the generator string stays `blygger-studio/x.y.z`, model text it inserts is disclosed, and it does not fork.
 
 ### 7. A local patch
 
