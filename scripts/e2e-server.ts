@@ -21,6 +21,8 @@ for (const [sub, id, state, pin, l0, md, html, page] of [
 ] as const) await db.prepare('INSERT INTO imported_items (subscription_id, remote_id, kind, state, version, observed_at, content_md, content_html, pinned_version_retained, l0, page) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)').bind(sub, id, 'fragment', state, '2026-10-01T00:00:00Z', md, html, pin, l0, page).run();
 // Lineage (the lineage-glyph extension): the native item quotes its sibling and stubs a plain URL.
 await db.prepare("UPDATE imported_items SET transclusions_json = ?, stub_of_json = ? WHERE subscription_id = 'parity-native' AND remote_id = '00000000000000000000000001'").bind(JSON.stringify([{ id: '00000000000000000000000002', version: 1 }]), JSON.stringify({ url: 'https://news.example/story', cited: { source: 'News site', url: 'https://news.example/story', retrieved: '2026-10-01T00:00:00Z' } })).run();
+// §16.14: the short sibling names a copy elsewhere, so its card has no "more" to reach the full view.
+await db.prepare("UPDATE imported_items SET syndication_json = ? WHERE subscription_id = 'parity-native' AND remote_id = '00000000000000000000000004'").bind(JSON.stringify([{ url: 'https://social.example/post/1', version: 1 }])).run();
 await db.prepare("INSERT INTO hoppers (id, name, slug, created) VALUES ('parity-hopper', 'Frozen hopper', 'frozen-hopper', '2026-10-01T00:00:00Z')").run();
 await db.prepare("INSERT INTO hopper_items (hopper_id, subscription_id, remote_id, added_at) VALUES ('parity-hopper', 'parity-native', '00000000000000000000000001', '2026-10-01T00:00:00Z')").run();
 await mf.ready;

@@ -122,6 +122,20 @@ test('an imported blyg entry opens by its address with the action row, and openi
   }
 });
 
+test('copies elsewhere show on the card and in the full view opened by its address', async ({ page }) => {
+  await login(page);
+  const copies = (scope: ReturnType<Page['locator']>) => scope.locator('.entry-syndication');
+  // A short entry has no "more", so the card is the only place a reader sees it.
+  await page.goto('/studio/reading?sub=parity-native');
+  const short = card(page, 'Second live text.');
+  await expect(short.getByRole('button', { name: 'more', exact: true })).toHaveCount(0);
+  await expect(copies(short)).toContainText('the author says it is also at social.example');
+  await expect(copies(short).getByRole('link', { name: 'social.example' })).toHaveAttribute('href', 'https://social.example/post/1');
+  // Opened by its address, the entry is fetched on its own rather than taken from the feed.
+  await page.goto('/studio/reading/parity-native/00000000000000000000000004');
+  await expect(copies(page.locator('.reading-article'))).toContainText('the author says it is also at social.example');
+});
+
 test('a legacy RSS entry opens in the full view from its timeline', async ({ page }) => {
   await login(page);
   // Short entries are not clamped; the full view is still at their address.

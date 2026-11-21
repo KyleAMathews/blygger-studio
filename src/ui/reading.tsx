@@ -877,6 +877,7 @@ function Entry({
           <ChangeLead entry={entry} />
           <Body html={entry.contentHtml} url={url} l0={entry.l0} onMore={openArticle} />
           <SourceLink url={url} />
+          <CopiesElsewhere entries={imported?.syndication} />
           <BurstParts entry={entry} />
         </div>
         {imported && !entry.l0 && a.historyOpen ? (
@@ -1097,6 +1098,7 @@ function importedEntry(
       version: item.version,
       // The standalone import resource carries no owner read-state join.
       readVersion: null,
+      ...(item.syndication ? { syndication: item.syndication } : {}),
     },
   };
 }

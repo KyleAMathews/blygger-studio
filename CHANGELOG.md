@@ -18,6 +18,18 @@ not have its own repo until session 26.
 
 ---
 
+## 0.67.1 — Copies elsewhere show in the reader
+
+0.67.0's reader kept an imported item's copies elsewhere but showed them only in the
+full view, and only when that view was reached from the feed. A short entry has no
+"more", so for most fragments the line never appeared; and the full view opened by
+its address (a reload, a shared link) dropped the entries. Found by the syndication
+gate run between venkateshrao and protocol-institute (decision #98). Now every reading
+card shows "the author says it is also at …" under its source line, and the full view
+carries it however it was opened. Contract and SDK unchanged.
+
+**Migrations:** none.
+
 ## 0.67.0 — Copies elsewhere (`syndication`); `/changes` removed; three publisher changes for the reader suite
 
 **Copies elsewhere** (#148/#160, Aneesh Sathe; spec 0.4 §16.14, decision #98). When
