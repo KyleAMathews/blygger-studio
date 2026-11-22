@@ -228,7 +228,7 @@ export async function applyEffect(
 ): Promise<void> {
   // What was held, read before the write replaces it: Background measures a version against it.
   const held = "doc" in effect && !opts.l0 && effect.type !== "import"
-    ? await db.prepare("SELECT content_hash AS hash, transclusions_json AS quotes, links_json AS links FROM imported_items WHERE subscription_id = ? AND remote_id = ?")
+    ? await db.prepare("SELECT content_hash AS hash, transclusions_json AS quotes, links_json AS links, content_md AS contentMd, content_html AS contentHtml FROM imported_items WHERE subscription_id = ? AND remote_id = ?")
       .bind(subscriptionId, remoteId).first<HeldVersion>()
     : null;
   await writeEffect(db, subscriptionId, remoteId, effect, observedAt, opts);

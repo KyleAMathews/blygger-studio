@@ -65,6 +65,7 @@ const fields = [
   "aiStylePrompt",
   "changelogDisplay",
   "readerChangelogDisplay",
+  "readerOrder",
   "backgroundRules",
   "changelogSummaryPrompt",
   "acceptMentions",
@@ -475,6 +476,26 @@ function SettingsForm({ initial }: { initial: Settings }) {
           shows just its version line.
         </p>
       </section>
+      <section className="card" id="reader-order">
+        <h3 className="card-h">reader order</h3>
+        <div className="field" role="radiogroup" aria-labelledby="reader-order-label">
+          <span id="reader-order-label">Order what you read</span>
+          {(
+            [
+              ['newest', 'Newest first', 'by when each item or version arrived'],
+              ['pace-layered', 'Pace-layered', 'the home page’s order over everything you read: new items arrive on top and sink as others come, more slowly the more their blyg has pinned them, and a new version climbs one place'],
+            ] as const
+          ).map(([value, label, hint]) => (
+            <label className="check" key={value}>
+              <input type="radio" name="readerOrder" value={value} checked={(form.readerOrder ?? 'newest') === value} onChange={() => change('readerOrder', value)} />
+              <span>
+                {label} <span className="hint">{hint}</span>
+              </span>
+            </label>
+          ))}
+          <span className="hint">Hoppers and the Shelf keep their own order.</span>
+        </div>
+      </section>
       <section className="card" id="background">
         <h3 className="card-h">Background</h3>
         <p className="hint">
@@ -494,10 +515,15 @@ function SettingsForm({ initial }: { initial: Settings }) {
           ['burst', 'Parts published with a thread', 'items a thread names that were published with it, within 15 minutes; the thread lists them as “+N parts”'],
           ['wordless', 'Posts with no words of their own', 'only quotes of other posts, nothing the author wrote'],
           ['maintenance', 'Republished unchanged', 'a new version with the same text and the same quotes'],
+          ['quotes-refreshed', 'Quotes refreshed', 'a new version with the same text whose quotes now show newer versions of what they quote'],
+          ['quotes-material', 'Including rewritten quotes', 'a refresh that brings in a quote whose text was rewritten; off keeps those in the main lenses'],
+          ['near-same', 'Small edits', 'a new version that changes at most 40 characters and 2% of the text'],
+          ['superseded', 'Followed within 15 minutes', 'an item its blyg followed with a newer item within 15 minutes; a later version of it comes back'],
         ] as const).map(([rule, label, hint]) => (
-          <label className="check" key={rule} data-rule={rule}>
+          <label className={rule === 'quotes-material' ? 'check sub-check' : 'check'} key={rule} data-rule={rule}>
             <input
               type="checkbox"
+              disabled={rule === 'quotes-material' && form.backgroundRules?.['quotes-refreshed'] === false}
               checked={form.backgroundRules?.[rule] ?? true}
               onChange={(event) => change('backgroundRules', { ...form.backgroundRules, [rule]: event.target.checked })}
             />
@@ -829,21 +855,22 @@ function SettingsForm({ initial }: { initial: Settings }) {
           : null}
       </section>
       <section className="card" id="ai-feed">
-        <h3 className="card-h">smart feed</h3>
-        <ModelField fkey="aiModelFeed" label="Model" name="feed scoring" hint="not used yet" manifest={aiModels} form={form} change={change} />
+        <h3 className="card-h">agentic feed</h3>
+        <ModelField fkey="aiModelFeed" label="Model" name="agentic feed" hint="not used yet" manifest={aiModels} form={form} change={change} />
         {field(
           "feedPrompt",
-          'Scoring prompt: how the agent should score new items',
+          'Agentic feed prompt: how your assistant should organize what you read',
           true,
           'e.g. Prioritize tech news and significant updates to items I have interacted with or liked. Deprioritize sports content, trivial updates, and items like ones I have disliked.',
         )}
         <p className="hint">
-          The prompt is a rubric. Your agent will score each new item in your
-          reading against it, then sort the Smart Feed by score or hide items
-          below a threshold. It will read your <Link to="/signals">signals</Link>{' '}
-          (thumbs, hoppers, stubs, forks and quotes) to know what you have
-          liked and engaged with. The agent is not built yet: this prompt is
-          saved now so the Smart Feed can use it when it is.
+          The Agentic feed is an assistant who organizes your reading for you:
+          it makes editorial judgments about what you should see and how, which
+          the Feed never does (the Feed uses AI only for structure, like folding
+          small changes). This prompt is its brief. It will read your{' '}
+          <Link to="/signals">signals</Link> (thumbs, hoppers, stubs, forks and
+          quotes) to know what you have liked and engaged with. The assistant is
+          not built yet: the prompt is saved now so it can use it when it is.
         </p>
       </section>
       <section className="card" id="ai-authoring">
@@ -1118,7 +1145,7 @@ function SettingsNav() {
 const FUNCTIONS = [
   { key: "aiModelTk", label: 'TK generation' },
   { key: "aiModelChangelog", label: 'changelog notes' },
-  { key: "aiModelFeed", label: 'feed scoring', hint: 'for the Smart Feed; not used yet' },
+  { key: "aiModelFeed", label: 'agentic feed', hint: 'for the Agentic feed; not used yet' },
 ] as const;
 const OTHER = '__other__';
 

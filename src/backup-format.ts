@@ -9,11 +9,16 @@ export const BACKUP_FORMAT_VERSION = 1;
 export const BACKUP_TABLES: ReadonlySet<string> = new Set([
   'browse_log', 'change_class', 'change_state', 'changelog_summaries', 'contacts', 'hopper_items', 'hoppers',
   'imported_items', 'imported_mentions', 'imported_mentions_backfill', 'interactions', 'item_syndication', 'items', 'link_probe',
-  'media', 'mentions_in', 'mentions_out', 'read_state', 'reading_placement', 'settings', 'shelf', 'shelf_revision', 'signals', 'subscriptions', 'version_media', 'versions',
+  'media', 'mentions_in', 'mentions_out', 'read_state', 'reading_order', 'reading_order_state', 'reading_placement', 'settings', 'shelf', 'shelf_revision', 'signals', 'subscriptions', 'version_media', 'versions',
 ]);
 /** Migration tables deliberately left out: credentials, grants and abuse budgets. */
 export const CREDENTIAL_TABLES: ReadonlySet<string> = new Set([
   'oauth_authorizations', 'oauth_records', 'oauth_revocations', 'oauth_state', 'rateLimit', 'security_budgets', 'security_registrations',
+]);
+
+/** Derived search state is rebuilt from restored source rows by migration 0050's triggers. */
+export const DERIVED_TABLES: ReadonlySet<string> = new Set([
+  'search_documents', 'search_fts', 'search_fts_data', 'search_fts_idx', 'search_fts_docsize', 'search_fts_config',
 ]);
 
 /** Everything not on the allow-list stays on the node. */
@@ -43,4 +48,3 @@ export function backupFileName(origin: string, mount: string, now: Date): string
   const path = mount.replace(/^\//, '').replace(/[^a-z0-9.-]/gi, '-');
   return `blyg-backup-${host}${path ? '-' + path : ''}-${now.toISOString().slice(0, 10)}.tar`;
 }
-

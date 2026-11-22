@@ -7,7 +7,7 @@
 // thread lists them; a part's later version leaves; an item outside the window,
 // or from another blyg, never folds; each rule's toggle moves its items at once.
 import { env } from "cloudflare:test";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { putSettings } from "../src/model.ts";
 import { applyEffect, createSubscription } from "../src/importer/store.ts";
 import { transition, type LocalState } from "../src/importer/transition.ts";
@@ -18,6 +18,10 @@ import { itemDocBody } from "./importer/fixtures.ts";
 import { apiJson, createAndPublish, login } from "./helpers.ts";
 
 const db = () => env.DB;
+// Parts published minutes apart are also followed within the superseded
+// window (phase 2); this file tests the fold, so that rule is off here.
+const ONLY_FOLD = JSON.stringify({ superseded: false });
+beforeEach(() => putSettings(db(), { bg_rules: ONLY_FOLD }));
 afterEach(() => putSettings(db(), { bg_rules: "{}" }));
 
 const ORIGIN = "https://burst.example/blyg/";
@@ -57,7 +61,7 @@ describe("the measured tests", () => {
     const quotes = JSON.stringify([{ id: "a", version: 1 }]);
     expect(versionReasons({ hash: "h", quotes, contentMd: "x" }, { hash: "h", quotes })).toEqual(["maintenance"]);
     // Quotes refreshed: the same hash, but a quote moved. Not maintenance (phase 2's own rule).
-    expect(versionReasons({ hash: "h", quotes: JSON.stringify([{ id: "a", version: 2 }]), contentMd: "x" }, { hash: "h", quotes })).toEqual([]);
+    expect(versionReasons({ hash: "h", quotes: JSON.stringify([{ id: "a", version: 2 }]), contentMd: "x" }, { hash: "h", quotes })).toEqual(["quotes-refreshed"]);
     expect(versionReasons({ hash: "h2", quotes, contentMd: "x" }, { hash: "h", quotes })).toEqual([]);
     expect(versionReasons({ hash: "h", quotes, contentMd: "x" }, null)).toEqual([]);
   });
@@ -99,7 +103,7 @@ describe("a burst from a blyg you read", () => {
     const off = await reading(cookie, `sub=${sub}`);
     expect(off.map((e) => e.key)).toEqual(expect.arrayContaining([key(sub, p1), key(sub, p2)]));
     expect(off.find((e) => e.key === key(sub, thread))!.parts).toBeUndefined();
-    await putSettings(db(), { bg_rules: "{}" });
+    await putSettings(db(), { bg_rules: ONLY_FOLD });
 
     // A part's later version is a normal update: it leaves Background.
     await arrive(sub, { id: p1, version: 2, created: at(3), updated: at(0), md: "rewritten with more words" });

@@ -174,13 +174,21 @@ export type Settings = {
      */
     changelogSummaryPrompt: string;
     /**
+     * The Feed tab's order: pace-layered (the default), the home page's order run over everything you read (ROADMAP row 69), or newest first, shown as chronological. Hoppers and Saved keep their own order.
+     */
+    readerOrder: 'newest' | 'pace-layered';
+    /**
      * Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read.
      */
     backgroundRules: {
         burst: boolean;
         wordless: boolean;
         maintenance: boolean;
+        'quotes-refreshed': boolean;
+        'quotes-material': boolean;
+        'near-same': boolean;
         minor: boolean;
+        superseded: boolean;
     };
     acceptMentions: boolean;
     updateCheck: boolean;
@@ -2818,13 +2826,21 @@ export type UpdateSettingsData = {
          */
         changelogSummaryPrompt?: string;
         /**
+         * The Feed tab's order: pace-layered (the default), the home page's order run over everything you read (ROADMAP row 69), or newest first, shown as chronological. Hoppers and Saved keep their own order.
+         */
+        readerOrder?: 'newest' | 'pace-layered';
+        /**
          * Background rules to turn on or off; rules not named keep their stored value.
          */
         backgroundRules?: {
             burst?: boolean;
             wordless?: boolean;
             maintenance?: boolean;
+            'quotes-refreshed'?: boolean;
+            'quotes-material'?: boolean;
+            'near-same'?: boolean;
             minor?: boolean;
+            superseded?: boolean;
         };
         acceptMentions?: boolean;
         updateCheck?: boolean;
@@ -6235,6 +6251,9 @@ export type SearchData = {
          */
         cursor?: string;
         limit?: number;
+        /**
+         * Omit or leave blank to browse by date. A nonblank query returns hits only when at least one of its first eight terms has three or more Unicode characters. Shorter terms can narrow those hits.
+         */
         q?: string;
         source?: 'all' | 'mine' | 'imported';
         sub?: string;
@@ -6436,6 +6455,10 @@ export type GetReadingSummaryData = {
          * Only shelved entries (GET /shelf), in the owner's shelf order, whatever their Background placement. Own drafts are left out: they are not reading entries.
          */
         shelf?: 'true';
+        /**
+         * The Raw tab: imported entries as they came in, newest first, with no Background rule, placement or fold applied and withdrawn ones included. Only sub and kind narrow it.
+         */
+        raw?: 'true';
     };
     url: '/reading/summary';
 };
@@ -6544,6 +6567,14 @@ export type ListReadingData = {
          * Only shelved entries (GET /shelf), in the owner's shelf order, whatever their Background placement. Own drafts are left out: they are not reading entries.
          */
         shelf?: 'true';
+        /**
+         * The Raw tab: imported entries as they came in, newest first, with no Background rule, placement or fold applied and withdrawn ones included. Only sub and kind narrow it.
+         */
+        raw?: 'true';
+        /**
+         * The order for this request; without it, the readerOrder setting. Hoppers and the Shelf keep their own order, and raw is always newest first.
+         */
+        order?: 'pace-layered' | 'newest';
     };
     url: '/reading';
 };

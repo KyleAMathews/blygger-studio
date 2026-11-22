@@ -50,13 +50,13 @@ export const ownIds = (entries: readonly ShelfEntry[]) => entries.filter((entry)
 /** Add or remove one entry; the label and the toast say which. */
 export async function toggleShelf(entries: readonly ShelfEntry[], entry: ShelfEntry) {
   const on = entries.some((other) => same(other, entry));
-  if (!on && entries.length >= SHELF_MAX) throw new Error(`The shelf holds at most ${SHELF_MAX} items. Remove one first.`);
+  if (!on && entries.length >= SHELF_MAX) throw new Error(`Saved holds at most ${SHELF_MAX} items. Remove one first.`);
   await setShelf(on ? entries.filter((other) => !same(other, entry)) : [...entries, entry]);
-  toast(on ? 'Removed from shelf' : 'Added to shelf', { tone: 'ok' });
+  toast(on ? 'Removed from Saved' : 'Saved', { tone: 'ok' });
 }
 
 export const shelfLabel = (entries: readonly ShelfEntry[], entry: ShelfEntry) =>
-  (entries.some((other) => same(other, entry)) ? 'remove from shelf' : 'add to shelf');
+  (entries.some((other) => same(other, entry)) ? 'remove from saved' : 'save');
 
 /** Swap one own item with its neighbouring own item; other entries keep their places. */
 function move(entries: readonly ShelfEntry[], id: string, by: -1 | 1) {
@@ -79,7 +79,7 @@ export function Shelf() {
   const byId = new Map(rows.map((row) => [row.id, row]));
   return (
     <section className="shelf" aria-labelledby="shelf-h">
-      <h3 className="shelf-h" id="shelf-h">shelf</h3>
+      <h3 className="shelf-h" id="shelf-h">saved</h3>
       <ol className="list shelf-list">
         {ids.map((id, index) => {
           const item = byId.get(id);
@@ -99,8 +99,8 @@ export function Shelf() {
                   <Button className="btn btn-ghost btn-mini" aria-label="move down" disabled={action.busy || index === ids.length - 1}
                     onClick={() => void action.run(() => setShelf(move(entries, id, 1)))}>↓</Button>
                 </Tooltip>
-                <Tooltip label="remove from shelf">
-                  <Button className="btn btn-ghost btn-mini" aria-label="remove from shelf" disabled={action.busy}
+                <Tooltip label="remove from saved">
+                  <Button className="btn btn-ghost btn-mini" aria-label="remove from saved" disabled={action.busy}
                     onClick={() => void action.run(() => toggleShelf(entries, ownEntry(id)))}>✕</Button>
                 </Tooltip>
               </span>

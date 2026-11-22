@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Blygger Studio API",
-    "version": "6.0.0",
+    "version": "6.1.0",
     "description": "Private authoring and reading API. Protocol files remain a separate public interface."
   },
   "servers": [
@@ -652,6 +652,14 @@
             "type": "string",
             "description": "Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."
           },
+          "readerOrder": {
+            "type": "string",
+            "enum": [
+              "newest",
+              "pace-layered"
+            ],
+            "description": "The Feed tab's order: pace-layered (the default), the home page's order run over everything you read (ROADMAP row 69), or newest first, shown as chronological. Hoppers and Saved keep their own order."
+          },
           "backgroundRules": {
             "type": "object",
             "properties": {
@@ -664,7 +672,19 @@
               "maintenance": {
                 "type": "boolean"
               },
+              "quotes-refreshed": {
+                "type": "boolean"
+              },
+              "quotes-material": {
+                "type": "boolean"
+              },
+              "near-same": {
+                "type": "boolean"
+              },
               "minor": {
+                "type": "boolean"
+              },
+              "superseded": {
                 "type": "boolean"
               }
             },
@@ -672,7 +692,11 @@
               "burst",
               "wordless",
               "maintenance",
-              "minor"
+              "quotes-refreshed",
+              "quotes-material",
+              "near-same",
+              "minor",
+              "superseded"
             ],
             "description": "Which Background rules count in the reader, all on by default (blygger-spec docs/background-plan.md). Withdrawn items are always in Background. Reader-only: nothing published changes, and nothing is marked read."
           },
@@ -846,6 +870,7 @@
           "changelogDisplay",
           "readerChangelogDisplay",
           "changelogSummaryPrompt",
+          "readerOrder",
           "backgroundRules",
           "acceptMentions",
           "updateCheck",
@@ -8118,6 +8143,14 @@
                     "type": "string",
                     "description": "Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."
                   },
+                  "readerOrder": {
+                    "type": "string",
+                    "enum": [
+                      "newest",
+                      "pace-layered"
+                    ],
+                    "description": "The Feed tab's order: pace-layered (the default), the home page's order run over everything you read (ROADMAP row 69), or newest first, shown as chronological. Hoppers and Saved keep their own order."
+                  },
                   "backgroundRules": {
                     "type": "object",
                     "properties": {
@@ -8130,7 +8163,19 @@
                       "maintenance": {
                         "type": "boolean"
                       },
+                      "quotes-refreshed": {
+                        "type": "boolean"
+                      },
+                      "quotes-material": {
+                        "type": "boolean"
+                      },
+                      "near-same": {
+                        "type": "boolean"
+                      },
                       "minor": {
+                        "type": "boolean"
+                      },
+                      "superseded": {
                         "type": "boolean"
                       }
                     },
@@ -16932,9 +16977,11 @@
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Omit or leave blank to browse by date. A nonblank query returns hits only when at least one of its first eight terms has three or more Unicode characters. Shorter terms can narrow those hits."
             },
             "required": false,
+            "description": "Omit or leave blank to browse by date. A nonblank query returns hits only when at least one of its first eight terms has three or more Unicode characters. Shorter terms can narrow those hits.",
             "name": "q",
             "in": "query"
           },
@@ -17526,6 +17573,19 @@
           {
             "schema": {
               "type": "string",
+              "enum": [
+                "true"
+              ],
+              "description": "The Raw tab: imported entries as they came in, newest first, with no Background rule, placement or fold applied and withdrawn ones included. Only sub and kind narrow it."
+            },
+            "required": false,
+            "description": "The Raw tab: imported entries as they came in, newest first, with no Background rule, placement or fold applied and withdrawn ones included. Only sub and kind narrow it.",
+            "name": "raw",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
               "description": "Previously accepted ETag for this exact resource and request context."
             },
             "required": false,
@@ -17823,6 +17883,33 @@
             "required": false,
             "description": "Only shelved entries (GET /shelf), in the owner's shelf order, whatever their Background placement. Own drafts are left out: they are not reading entries.",
             "name": "shelf",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ],
+              "description": "The Raw tab: imported entries as they came in, newest first, with no Background rule, placement or fold applied and withdrawn ones included. Only sub and kind narrow it."
+            },
+            "required": false,
+            "description": "The Raw tab: imported entries as they came in, newest first, with no Background rule, placement or fold applied and withdrawn ones included. Only sub and kind narrow it.",
+            "name": "raw",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pace-layered",
+                "newest"
+              ],
+              "description": "The order for this request; without it, the readerOrder setting. Hoppers and the Shelf keep their own order, and raw is always newest first."
+            },
+            "required": false,
+            "description": "The order for this request; without it, the readerOrder setting. Hoppers and the Shelf keep their own order, and raw is always newest first.",
+            "name": "order",
             "in": "query"
           },
           {

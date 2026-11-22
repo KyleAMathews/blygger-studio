@@ -62,7 +62,7 @@ export function SignalsPage() {
       <p className="view-sub signals-note">
         A private record of what you have liked, disliked, collected in hoppers
         and responded to. It is never published. A future feed agent will read it,
-        with the prompt you set in Settings, to sort your Smart Feed.
+        with the prompt you set in Settings, to organize your Agentic feed.
       </p>
       <Tabs label="signals view" value={view} onValueChange={(value) => setView(value as View)}>
         {VIEWS.map((v) => (

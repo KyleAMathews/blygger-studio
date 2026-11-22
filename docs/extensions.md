@@ -11,6 +11,7 @@ Extensions are one of three places a mod can live; [`mods.md`](mods.md) says whi
 | Name | What it does |
 | --- | --- |
 | `bars-example` | A bar above the editor's text box: inserts a mark at the cursor and, with `regions-example` on, shows and hides the held paragraphs in place of the Studio's notice. The template to copy for an editor bar. |
+| `claims` | Forecasts anyone can check, as `claim` and `resolution` blocks. A bar in the composer and full editor (**+ claim**) asks plain questions and inserts the block; with one in the post it shows it in a few words and reopens it. A reading byline badge on entries with a claim (how sure, when it's due, ◆ pinned or ◇ not) opens the claim: pin it or resolve it on your own (a `resolution` block appended, published and pinned), or fork someone else's to forecast it too. A Claims page scores your claims on each one as first pinned. Browser only; shipped in `extensions.json`. Source and the shared parser: [miguelito4/blyg-claims](https://github.com/miguelito4/blyg-claims). |
 | `example` | Fills each UI slot and does nothing that matters. The template to copy, and what the slot tests enable. |
 | `feed-example` | Adds a "Pinned first" home page order: pinned items at the top, most pins first, then the rest newest first. Server only (`feeds.ts`, `server.ts`); the template to copy for a feed order of your own. |
 | `inspect` | Adds "inspect" to each reading entry's ⋯ sheet: the record this Studio holds for it, and its JSON. Browser only; shipped in `extensions.json`. |
@@ -249,7 +250,7 @@ The same holds for MCP, which serves the contract: an extension's reads are MCP 
 
 Two steps. Both are needed, and both default to off.
 
-1. **Compile it in.** `extensions.json` (committed) lists what every release carries: `inspect` and `reading-time`, the two browser-only extensions with no server half, so a node can try the mechanism with one switch in Settings. Anything with a server half (`lineage-glyph`, any route under `/api/ext/`) is never in it and needs your own build. Put your own list in a gitignored `extensions.local.json` at the repository root, which is merged at build like `models.local.json`:
+1. **Compile it in.** `extensions.json` (committed) lists what every release carries: `claims`, `inspect` and `reading-time`, the browser-only extensions with no server half, so a node can try the mechanism with one switch in Settings. Anything with a server half (`lineage-glyph`, any route under `/api/ext/`) is never in it and needs your own build. Put your own list in a gitignored `extensions.local.json` at the repository root, which is merged at build like `models.local.json`:
 
    ```json
    { "compile": ["lineage-glyph"] }

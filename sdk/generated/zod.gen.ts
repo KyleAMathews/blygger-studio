@@ -192,11 +192,16 @@ export const zSettings = z.object({
         'summary'
     ]),
     changelogSummaryPrompt: z.string(),
+    readerOrder: z.enum(['newest', 'pace-layered']),
     backgroundRules: z.object({
         burst: z.boolean(),
         wordless: z.boolean(),
         maintenance: z.boolean(),
-        minor: z.boolean()
+        'quotes-refreshed': z.boolean(),
+        'quotes-material': z.boolean(),
+        'near-same': z.boolean(),
+        minor: z.boolean(),
+        superseded: z.boolean()
     }),
     acceptMentions: z.boolean(),
     updateCheck: z.boolean(),
@@ -1292,11 +1297,16 @@ export const zUpdateSettingsBody = z.object({
         'summary'
     ]).optional(),
     changelogSummaryPrompt: z.string().optional(),
+    readerOrder: z.enum(['newest', 'pace-layered']).optional(),
     backgroundRules: z.object({
         burst: z.boolean().optional(),
         wordless: z.boolean().optional(),
         maintenance: z.boolean().optional(),
-        minor: z.boolean().optional()
+        'quotes-refreshed': z.boolean().optional(),
+        'quotes-material': z.boolean().optional(),
+        'near-same': z.boolean().optional(),
+        minor: z.boolean().optional(),
+        superseded: z.boolean().optional()
     }).strict().optional(),
     acceptMentions: z.boolean().optional(),
     updateCheck: z.boolean().optional(),
@@ -2077,7 +2087,8 @@ export const zGetReadingSummaryQuery = z.object({
     kind: z.enum(['thread', 'fragment']).optional(),
     background: z.enum(['true']).optional(),
     mentions: z.enum(['true']).optional(),
-    shelf: z.enum(['true']).optional()
+    shelf: z.enum(['true']).optional(),
+    raw: z.enum(['true']).optional()
 });
 
 /**
@@ -2104,7 +2115,9 @@ export const zListReadingQuery = z.object({
     kind: z.enum(['thread', 'fragment']).optional(),
     background: z.enum(['true']).optional(),
     mentions: z.enum(['true']).optional(),
-    shelf: z.enum(['true']).optional()
+    shelf: z.enum(['true']).optional(),
+    raw: z.enum(['true']).optional(),
+    order: z.enum(['pace-layered', 'newest']).optional()
 });
 
 /**

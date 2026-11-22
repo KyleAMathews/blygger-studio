@@ -25,12 +25,12 @@ test('items go on the shelf, reorder, and come off again', async ({ page }) => {
   await expect(shelf).toHaveCount(0);
   const rowA = await expandRow(page, a);
   await rowA.locator('[data-action="shelf"]').click();
-  await expect(rowA.locator('[data-action="shelf"]')).toHaveText('remove from shelf');
+  await expect(rowA.locator('[data-action="shelf"]')).toHaveText('remove from saved');
   await expect(shelf.locator('.shelf-row')).toHaveCount(1);
 
   // The editor's ⋯ menu offers the same action.
   await page.goto(`/studio/edit/${b}`);
-  await editorMenu(page, 'add to shelf');
+  await editorMenu(page, 'save');
   await page.goto('/studio/');
 
   const rows = shelf.locator('.shelf-row');
@@ -41,7 +41,7 @@ test('items go on the shelf, reorder, and come off again', async ({ page }) => {
   await expect(rows.nth(0)).toContainText(`Reading log ${tag}`);
   await expect.poll(async () => (await api(page, 'GET', '/api/shelf')).json.entries).toEqual([{ sub: '~own', remoteId: b }, { sub: '~own', remoteId: a }]);
 
-  await rows.nth(0).getByRole('button', { name: 'remove from shelf' }).click();
+  await rows.nth(0).getByRole('button', { name: 'remove from saved' }).click();
   await expect(rows).toHaveCount(1);
   await expect(rows.nth(0)).toContainText(`Now page ${tag}`);
   await expect.poll(async () => (await api(page, 'GET', '/api/shelf')).json.entries).toEqual([{ sub: '~own', remoteId: a }]);
@@ -77,19 +77,19 @@ test('reading entries go on the shelf, and the Shelf lens lists them in order', 
     await page.goto('/studio/reading?sub=parity-native');
     const imported = page.locator(native);
     await imported.locator('[data-action="shelf"]').click();
-    await expect(imported.locator('[data-action="shelf"]')).toHaveAccessibleName('remove from shelf');
+    await expect(imported.locator('[data-action="shelf"]')).toHaveAccessibleName('remove from saved');
     await page.goto('/studio/reading?sub=own');
     const own = page.locator(`.reading-entry[data-key="own:${mine}"]`);
     await own.locator('[data-action="shelf"]').click();
-    await expect(own.locator('[data-action="shelf"]')).toHaveAccessibleName('remove from shelf');
+    await expect(own.locator('[data-action="shelf"]')).toHaveAccessibleName('remove from saved');
     await expect.poll(async () => (await api(page, 'GET', '/api/shelf')).json.entries).toEqual([
       { sub: 'parity-native', remoteId: '00000000000000000000000001' },
       { sub: '~own', remoteId: mine },
     ]);
 
     await page.goto('/studio/reading');
-    const bar = page.getByRole('group', { name: 'reading lens' });
-    await bar.getByRole('button', { name: 'Shelf' }).click();
+    const bar = page.getByRole('group', { name: 'reading tabs' });
+    await bar.getByRole('button', { name: 'Saved' }).click();
     await expect(page).toHaveURL(/lens=shelf/);
     await expect(page.locator('.reading-entry')).toHaveCount(2);
     await expect(page.locator('.reading-entry').nth(0)).toHaveAttribute('data-key', /parity-native/);
@@ -99,7 +99,7 @@ test('reading entries go on the shelf, and the Shelf lens lists them in order', 
     await page.locator(native).locator('[data-action="shelf"]').click();
     await expect(page.locator('.reading-entry')).toHaveCount(1);
     await page.locator(`.reading-entry[data-key="own:${mine}"]`).locator('[data-action="shelf"]').click();
-    await expect(page.locator('.empty')).toContainText('Nothing on your shelf yet');
+    await expect(page.locator('.empty')).toContainText('Nothing saved yet');
     expect(errors).toEqual([]);
   } finally {
     await clear();

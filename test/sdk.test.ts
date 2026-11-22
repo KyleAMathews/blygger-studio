@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { BlyggerApi, unwrap, BlyggerApiError, createBlyggerClient } from "../sdk/dist/browser.js";
 import { itemDetail } from "../src/item-data.ts";
 import { readingData } from "../src/reading-data.ts";
+import { BACKGROUND_RULES } from "../src/background.ts";
 import { routes } from "../src/contract/routes.ts";
 import { login, BASE, apiJson } from "./helpers.ts";
 import { createSubscription, upsertL0Item } from "../src/importer/store.ts";
@@ -176,7 +177,8 @@ describe("generated SDK against the real Worker", () => {
       const value = Reflect.get(target, key);
       return typeof value === "function" ? value.bind(target) : value;
     } });
-    const page = await readingData(counted, { limit: 25 }, "own");
+    // Published seconds apart, so `superseded` would send all but the newest to Background; this counts queries, not rules.
+    const page = await readingData(counted, { limit: 25 }, "own", undefined, false, undefined, undefined, BACKGROUND_RULES.filter((rule) => rule !== "superseded"));
     expect(page.items.map((row) => row.own?.id)).toEqual(ids.slice(1).reverse());
     expect(page.items[0].contentHtml).toContain("budget 25");
     // Leave room for the SSR page's settings, hoppers and signals reads.

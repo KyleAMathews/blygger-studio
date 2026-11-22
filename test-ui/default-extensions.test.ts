@@ -1,4 +1,4 @@
-// The extensions releases carry (extensions.json): reading-time and inspect.
+// The extensions releases carry (extensions.json): claims, reading-time and inspect.
 //   1. What ships is browser-only. An extension with a server half adds routes
 //      under /api/ext/, and those stay a deliberate operator build.
 //   2. reading-time counts words, and Han/kana/Hangul characters, from the
@@ -22,7 +22,7 @@ const EXTENSIONS = JSON.parse(/export const EXTENSIONS = (\[[^\]]*\]) as const;/
 test('releases carry only catalogued, browser-only extensions', () => {
   expect(EXTENSIONS).toContain('reading-time');
   const shipped = (JSON.parse(readFileSync('extensions.json', 'utf8')) as { compile: string[] }).compile;
-  expect(shipped).toEqual(['inspect', 'reading-time']);
+  expect(shipped).toEqual(['claims', 'inspect', 'reading-time']);
   for (const name of shipped) {
     expect(EXTENSIONS).toContain(name);
     expect(existsSync(`extensions/${name}/server.ts`), `${name} has a server half and cannot ship in releases`).toBe(false);

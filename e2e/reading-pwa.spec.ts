@@ -97,8 +97,8 @@ test('every reading card shows its source URL, opening in a new tab, as the ⋯ 
   const cards = page.locator('.reading-entry');
   await expect(cards.first()).toBeVisible();
   const count = await cards.count();
-  await expect(page.locator('.reading-entry .entry-src')).toHaveCount(count);
-  for (const link of await page.locator('.entry-src').all()) await expect(link).toHaveAttribute('target', '_blank');
+  await expect(page.locator('.reading-entry a.entry-src')).toHaveCount(count);
+  for (const link of await page.locator('a.entry-src, .entry-syndication a').all()) await expect(link).toHaveAttribute('target', '_blank');
   await page.goto('/studio/reading?sub=parity-native');
   const link = nativeEntry(page).locator('.entry-src');
   const sheet = await entryMenu(page, nativeEntry(page));
