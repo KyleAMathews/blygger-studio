@@ -351,54 +351,6 @@ export function onFormatKey(event: React.KeyboardEvent<HTMLTextAreaElement>) {
   applyEdit(el, edit);
 }
 
-/** Keep a selected terminal LF on the native undo stack when Return replaces it. */
-export function bindFormatInput(el: HTMLTextAreaElement) {
-  let handling = false, composing = false;
-  const startComposition = () => { composing = true; };
-  const endComposition = () => { composing = false; };
-  const beforeInput = (event: InputEvent) => {
-    if (handling || composing || event.isComposing || event.defaultPrevented || !event.cancelable || !event.isTrusted
-      || event.target !== el || el.readOnly || el.disabled || !el.isConnected || document.activeElement !== el
-      || (event.inputType !== 'insertLineBreak' && event.inputType !== 'insertParagraph')) return;
-    const value = el.value, from = el.selectionStart, to = el.selectionEnd, direction = el.selectionDirection;
-    if (to - from <= 1 || to !== value.length || value[to - 1] !== '\n' || typeof document.execCommand !== 'function') return;
-    // Native deletion snaps a range inside a grapheme. Leave those ranges to
-    // the browser rather than expanding the author's selection ourselves.
-    if (![...new Intl.Segmenter().segment(value)].some(part => part.index === from)) return;
-    const next = value.slice(0, from) + '\n';
-    let received = false, done = false;
-    const receive = (input: Event) => {
-      if (input.target !== el || !input.isTrusted) return;
-      received = true;
-      // React reads the caret synchronously to rebase hidden editor regions.
-      if (el.value === next) el.setSelectionRange(from + 1, from + 1);
-    };
-    handling = true;
-    el.addEventListener('input', receive, true);
-    try {
-      // Reuse the final LF. Chromium can otherwise lose it on native redo
-      // after replacing a selection ending at the textarea's trailing LF.
-      el.setSelectionRange(from, to - 1, direction);
-      done = document.execCommand('delete');
-    } catch { /* A refused native command leaves Return to its usual default. */ }
-    finally { handling = false; el.removeEventListener('input', receive, true); }
-    // A controlled receiver may restore protected text while consuming input.
-    // That is still a completed command; allowing the default would edit twice.
-    if (done || received) {
-      event.preventDefault();
-      if (el.value === next) el.setSelectionRange(from + 1, from + 1);
-    } else if (el.value === value) el.setSelectionRange(from, to, direction);
-  };
-  el.addEventListener('compositionstart', startComposition);
-  el.addEventListener('compositionend', endComposition);
-  el.addEventListener('beforeinput', beforeInput);
-  return () => {
-    el.removeEventListener('compositionstart', startComposition);
-    el.removeEventListener('compositionend', endComposition);
-    el.removeEventListener('beforeinput', beforeInput);
-  };
-}
-
 /** Write an edit into the textarea as if typed, and leave the selection where the edit says. */
 export function applyEdit(el: HTMLTextAreaElement, edit: FormatEdit) {
   el.focus({ preventScroll: true });

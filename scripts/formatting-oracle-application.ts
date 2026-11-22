@@ -47,7 +47,7 @@ export async function formattingApplicationBundle(authoringSource?: string, shee
       }));
       builder.onLoad({ filter: /\/src\/ui\/format-shortcuts\.ts$/ }, () => ({
         contents: [
-          'formatEdit', 'indentEdit', 'breakEdit', 'codeBlockEdit', 'formulaEdit', 'formatKey', 'structureKey', 'onFormatKey', 'bindFormatInput', 'applyEdit',
+          'formatEdit', 'indentEdit', 'breakEdit', 'codeBlockEdit', 'formulaEdit', 'formatKey', 'structureKey', 'onFormatKey', 'applyEdit',
         ].map(name => `export function ${name}(...args) { return globalThis.__oracleSut.${name}(...args); }`).join('\n'), loader: 'js'
       }));
       builder.onLoad({ filter: /\/src\/ui\/links\.ts$/ }, () => ({

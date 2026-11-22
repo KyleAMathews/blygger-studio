@@ -14,14 +14,14 @@
  * bold(); type(); italic(); link() // → each edit consumes the prior content
  * indent(); break(); type(); code() // → structure and typing share one document
  * formula(); select(); paste(url) // → explicit ranges and completed links compose
- * undo(); type(); redo() // → abandoned content cannot return
+ * bold(); italic(); undo(); formula(); redo() // → abandoned formatting cannot return
  *
  * Why can an individually correct command fail in a sequence? Its selection is
  * the next command's input, and React must receive native edits before a later
  * toolbar action reads them. For every legal mixed history, each accepted edit
  * obeys its adopted command law over the current input document; typing replaces
- * its range, paste links selected text, and native undo/redo restores the source
- * on its branch. Enter/Space toolbar activation must deliver the same command.
+ * its range, paste links selected text, and Undo/Redo of app-applied formatting
+ * restores the source on its branch. Enter/Space toolbar activation must deliver the same command.
  *
  * Authority: decision by Kyle Mathews (GitHub KyleAMathews),2026-11-18: strengthen
  * arbitrary mixed actions over the adopted independent formatting models,
@@ -38,7 +38,7 @@
  * Decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-21: follow main;
  * break actions retain their command semantics via click/Enter/Space toolbar
  * activation. Separate native-newline actions interleave real Enter/Shift+Enter
- * with selection, formatting, syntax contexts, continuation and native undo.
+ * with selection, formatting, syntax contexts and continuation.
  * They splice exactly LF, record trusted target/modifier/default-prevention
  * receipt, and remain distinct from the hard-break toolbar command.
  * Only pre-command public inputs instantiate previously permitted choices;
@@ -49,8 +49,8 @@
  * triple-fence serialization is exact only for tick-free selections. A selected
  * collision admits any valid literal fence preserving body and context; later
  * actions consume its exact chosen source and selection. Native undo
- * stops at no-op transactions and DOM pour-over paste, whose host history is
- * outside the shortcut promise; forced
+ * stops at no-op transactions, browser-default typing/newlines and DOM paste,
+ * whose engine history is outside the application promise; forced
  * fallback histories never promise undo. Undo selection itself is unconstrained;
  * the next public caret resolves the original current-range intent. This oracle does not claim an
  * arbitrary Markdown document or OS clipboard/preview coverage. Container
@@ -65,8 +65,8 @@ import { traceValue } from './editor-oracles/document-oracle.ts';
 import { checkMixedPrefix, mixedCheckpoints } from './editor-oracles/mixed-check-oracle.ts';
 const law = 'mixed browser editing history';
 oracleProperty({
-  id: 'editor-browser-mixed', owns: ['src/ui/format-shortcuts.ts#onFormatKey', 'src/ui/format-shortcuts.ts#applyEdit', 'src/ui/format-shortcuts.ts#bindFormatInput', 'src/ui/format-shortcuts.ts#codeBlockEdit', 'src/ui/format-shortcuts.ts#formulaEdit', 'src/ui/links.ts#insertLink'],
-  law: { statement: 'For every legal mixed action history, source and selection obey the adopted per-command models after every action, including preservation of every selected list parent-child link when indenting a range, typing/paste use the prior input document, and native undo/redo respects the remaining branch.', authority: 'Decision by Kyle Mathews (GitHub KyleAMathews),2026-11-18: arbitrary mixed-action browser histories, Unicode/paragraph boundaries and undo followed by a new edit, retaining adopted command guarantees; decision by Kyle Mathews (GitHub KyleAMathews),2026-11-21: follow main, native Enter/Shift+Enter insert ordinary newlines while toolbar break retains its Markdown command semantics.', limits: 'Twelve actions, bounded source alphabet, full editor; constructive selected-list scenes contain two through four one-line items, 1–9 digit preceding parents and space/tab marker/indentation recipes. Their complete selected ancestry is checked; unselected descendants and arbitrary code-containing list bodies are not established; tick-free default code serialization; selected collisions permit any valid literal fence preserving exact body/context and body selection. Native undo only on native changed-source transactions up to no-op/DOM-paste boundaries; no native undo after forced fallback. Constructive fenced-container scenes add at most two quote levels and one bullet or 1–9 digit list, with the existing bounded text alphabet plus quote/fence markers, 16 selected code points and 64 suffix code points. No automatic continuation prefix. No arbitrary Markdown, OS clipboard or preview claim; undo caret is unconstrained.' },
+  id: 'editor-browser-mixed', owns: ['src/ui/format-shortcuts.ts#onFormatKey', 'src/ui/format-shortcuts.ts#applyEdit', 'src/ui/format-shortcuts.ts#codeBlockEdit', 'src/ui/format-shortcuts.ts#formulaEdit', 'src/ui/links.ts#insertLink'],
+  law: { statement: 'For every legal mixed action history, source and selection obey the adopted per-command models after every action, including preservation of every selected list parent-child link when indenting a range, typing/paste use the prior input document, and Undo/Redo of app-applied formatting respects the remaining branch.', authority: 'Decision by Kyle Mathews (GitHub KyleAMathews),2026-11-18: arbitrary mixed-action browser histories, Unicode/paragraph boundaries and undo followed by a new edit, retaining adopted command guarantees; decision by Kyle Mathews (GitHub KyleAMathews),2026-11-21: follow main, native Enter/Shift+Enter insert ordinary newlines while toolbar break retains its Markdown command semantics; 2026-11-22: browser-native Undo defects are outside this application promise.', limits: 'Twelve actions, bounded source alphabet, full editor; constructive selected-list scenes contain two through four one-line items, 1–9 digit preceding parents and space/tab marker/indentation recipes. Their complete selected ancestry is checked; unselected descendants and arbitrary code-containing list bodies are not established; tick-free default code serialization; selected collisions permit any valid literal fence preserving exact body/context and body selection. Native undo only for app-applied changed-source formatting transactions up to no-op/default-typing/default-newline/DOM-paste boundaries; no native undo after forced fallback. Constructive fenced-container scenes add at most two quote levels and one bullet or 1–9 digit list, with the existing bounded text alphabet plus quote/fence markers, 16 selected code points and 64 suffix code points. No automatic continuation prefix. No arbitrary Markdown, OS clipboard or preview claim; undo caret is unconstrained.' },
   histories: { arbitrary: mixedArbitrary, runs: 25, fixedSeeds: [20261118], states: [...new Set(Object.values(mixedCases).flatMap(h => mixedStates(mixedPlan(h))))], constructed: Object.entries(mixedCases).map(([name, h]) => ({ name, enters: mixedStates(mixedPlan(h)), build: () => h })) },
   resolve: mixedPlan, model: mixedModel, reached: mixedStates, driver: mixedDriver,
   check: (p, trace, expected) => checkMixedPrefix(p, trace, expected, law)
@@ -142,7 +142,7 @@ oracleProperty({
       const selection = state.selection.map(at => at <= start ? at : Math.max(start, at + delta));
       return { ...o, value: { ...(o.value as object), value, selection } };
     }) },
-    { name: 'redo returns abandoned branch', law, history: { constructed: 'branch-false-true' }, corrupt: trace => trace.map(o => o.checkpoint === 'step4' ? { ...o, value: { ...(o.value as object), value: 'abandoned' } } : o) },
+    { name: 'redo returns abandoned branch', law, history: { constructed: 'formatting-branch' }, corrupt: trace => trace.map(o => o.checkpoint === 'step4' ? { ...o, value: { ...(o.value as object), value: 'abandoned' } } : o) },
   ],
 });
 

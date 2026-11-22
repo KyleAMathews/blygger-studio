@@ -103,7 +103,6 @@ export const sessionStates = (h: Session) => [h.journey, h.mobile ? 'mobile' : '
   ...('hardBreakHistory' in h ? ['toolbarBreakUndo', 'toolbarBreakSelection'] : []),
   ...('targetInput' in h ? ['keyTypedLinkTarget'] : []),
   ...(h.journey === 'mixedInline' && h.commands.length > 1 ? ['interleavedTyping'] : []),
-  ...(h.journey === 'branchHistory' && h.native ? ['redoDiscarded'] : []),
   ...('newlineDirect' in h ? ['directNativeNewlineContinuation'] : []),
   ...(h.journey === 'newline' && 'newlineKey' in h ? [h.newlineKey === 'Enter' ? 'nativeEnter' : 'nativeShiftEnter', h.newlinePosition === 'selection' ? 'newlineSelection' : 'newlineCaret', h.newlinePosition === 'end' ? 'newlineAtEnd' : 'newlineInterior', ...(h.newlinePlatform === 'IPAD' ? ['simulatedIPAD'] : [])] : []),
   ...(h.journey === 'inline' || h.journey === 'newline' ? h.surface === 'editorToQuick' ? ['editor', 'quick', 'sameItemTransition', 'loadedWholeSource'] : [h.surface, ...(h.surface !== 'composer' ? ['loadedWholeSource'] : []), ...(h.journey === 'inline' && h.surface === 'composer' && h.native ? ['undoRerender'] : [])] : ['editor'])];
@@ -141,7 +140,6 @@ export function sessionPlan(h: Session) {
     begin(source, from, to);
     const preview: (keyof Step)[] = h.surface === 'editor' ? ['paragraphs', 'breaks'] : [];
     actions.push({ kind: 'key', key: h.newlineKey, intent: 'newline', checkpoint: 'newline', fields: [...fields, 'keyInput', ...(h.newlinePlatform === 'IPAD' ? ['platform' as const] : []), ...preview] });
-    if (h.native && !('newlineDirect' in h)) { key('undo', 'newlineUndo', ['value']); key('redo', 'newlineRedo', ['value']); }
     actions.push({ kind: 'type', text: h.sibling, checkpoint: 'newlineContinuation', fields: [...fields, ...preview], ...structuralDelivery });
   } else if (h.journey === 'mixedInline' || h.journey === 'branchHistory') {
     const prefix = h.before + ' ';
@@ -164,7 +162,6 @@ export function sessionPlan(h: Session) {
       if (h.native) { key('undo', 'branchUndo', ['value']); wrappers = wrapperHistory.at(-2)!; }
       actions.push({ kind: 'select', from: prefix.length + wrappers, to: prefix.length + wrappers + h.body.length });
       actions.push({ kind: 'type', text: h.sibling, checkpoint: 'branchReplace', fields });
-      if (h.native) key('redo', 'branchRedo', ['value']);
       actions.push({ kind: 'select', from: prefix.length + wrappers, to: prefix.length + wrappers + h.sibling.length });
       key(h.commands[0]!, 'branchFormat');
     }

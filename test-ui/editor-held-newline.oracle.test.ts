@@ -1,19 +1,18 @@
 /**
- * This oracle owns native newline receiving at a hidden or shown editor region.
- * It checks the actual full editor immediately after the key and after clicked
- * Save, owning bindFormatInput, useFormatInput and Editor's held-region receiver.
+ * This oracle owns native replacement receiving at a hidden or shown editor region.
+ * It checks the actual full editor immediately after one key and clicked Save, owning Editor's held-region receiver.
  *
  * selectAcrossHiddenCut(); press('Enter'); save() // → LF before the intact held paragraph
  * showHeld(); selectThroughHeld(); press('Shift+Enter'); save() // → full draft unchanged, read-only feedback
  * showHeld(); selectFromHeldEnd(); press('Enter'); save() // → intact held paragraph followed by LF
  *
- * A compatibility command can change the DOM and then have React restore it.
+ * Native input can change the DOM and then have React restore it.
  * It can also leave the right visible text while handing React a wrong caret,
  * moving a hidden paragraph to the other side of the replacement. The immediate
  * visible source and the complete saved source distinguish those failures.
- * For every terminal newline replacement surrounding a hidden cut, the region
- * follows the replacement. For every shown overlap, the edit is refused with
- * read-only feedback and preserves the full draft; its exact edge accepts.
+ * For every terminal replacement surrounding a hidden cut, the region
+ * follows the replacement. Ordinary typing and newlines share this placement.
+ * For every shown overlap, the edit is refused with read-only feedback and preserves the full draft; its exact edge accepts.
  * Every accepted newline retains the ordinary mixed oracle's LF, caret, focus
  * and trusted unprevented key promises. Save completes without an action error
  * and stores the complete source, including the held paragraph.
@@ -23,9 +22,8 @@
  * Decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-18: protect full existing
  * editor behavior; 2026-11-21: Enter and Shift+Enter use ordinary native LF.
  * Segment recipes vary safe nonempty Unicode words, three region placements,
- * both keys and viewports, including a native delete that delivers trusted input
- * before its controlled false/throw signal. Actual command/input receipts qualify
- * reach for those controls; absence is an unreached driver premise. The model constructs the complete draft directly
+ * both keys and viewports, plus one ordinary ASCII key. The model constructs
+ * the complete draft directly
  * from input segments, reusing the mixed model for accepted visible edits. A
  * unified region-rebasing model would duplicate the scanner this checks.
  * The real compiled regions-example supplies regions, and real React receives
@@ -47,15 +45,15 @@ import { heldNewlineDriver } from './editor-oracles/held-newline-driver-oracle.t
 const law = 'native newline held-region receiving';
 oracleProperty({
   id: 'editor-browser-held-newline',
-  owns: ['src/ui/format-shortcuts.ts#bindFormatInput', 'src/ui/authoring.tsx#useFormatInput', 'src/ui/authoring.tsx#Editor'],
-  law: { statement: 'For every terminal native newline at a held editor paragraph, replacement surrounding a hidden cut keeps the paragraph after LF, shown overlap refuses with feedback and preserves the complete draft, its exact edge accepts ordinary LF/caret/focus/key behavior, and immediate Save stores the complete resulting source without an action error.',
+  owns: ['src/ui/authoring.tsx#Editor'],
+  law: { statement: 'For every terminal native replacement at a held editor paragraph, replacement surrounding a hidden cut keeps the paragraph after the replacement, shown overlap refuses with feedback and preserves the complete draft, its exact edge accepts ordinary text or LF with caret/focus/key behavior, and immediate Save stores the complete resulting source without an action error.',
     authority: 'docs/extensions.md, Editor regions: whole draft, read-only when shown, typed-text placement and exact-edge acceptance; Decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-18: protect full existing editor behavior; 2026-11-21: follow main ordinary native Enter/Shift+Enter.',
-    limits: 'One real regions-example paragraph, nonempty safe Unicode segment words up to eight code points, desktop/mobile viewport, Enter/Shift+Enter and immediate full-editor Save. No refused-edit caret or undo promise, arbitrary region parsing or physical IME claim.' },
+    limits: 'One real regions-example paragraph, nonempty safe Unicode segment words up to eight code points, desktop/mobile viewport, Enter/Shift+Enter or one ordinary ASCII typing key and immediate full-editor Save. No refused-edit caret or undo promise, arbitrary region parsing or physical IME claim.' },
   histories: { arbitrary: heldNewlineArbitrary, runs: 25, fixedSeeds: [20261118],
     states: [...new Set(Object.values(heldNewlineCases).flatMap(h => heldNewlineStates(heldNewlinePlan(h))))],
     constructed: Object.entries(heldNewlineCases).map(([name, h]) => ({ name, enters: heldNewlineStates(heldNewlinePlan(h)), build: () => h })) },
   resolve: heldNewlinePlan, model: heldNewlineModel, driver: heldNewlineDriver,
-  reached: (p, trace) => (traceValue(trace, 'key0') as { event?: { trusted?: boolean } })?.event?.trusted ? heldNewlineStates(p, trace) : [],
+  reached: (p, trace) => (traceValue(trace, 'key0') as { event?: { trusted?: boolean } })?.event?.trusted ? heldNewlineStates(p) : [],
   check: (p, trace, expected) => {
     const opened = differs('opened', law, traceValue(trace, 'opened'), { value: p.h.left + (p.h.mode === 'hidden' ? '\n\n' : '\n\nz\n'), notice: 'hidden' });
     if (opened) return opened;
@@ -72,8 +70,8 @@ oracleProperty({
       const action = differs('input0', law, expected.history.steps[0]!.actions.some(action => JSON.stringify(action) === JSON.stringify(input.action)), true, 'input0.action');
       if (action) return action;
       const key = differs('key0', law, traceValue(trace, 'key0'), {
-        requested: p.h.key, before: { focused: true, selection: [p.from, p.full.length] },
-        event: { key: 'Enter', shiftKey: p.h.key === 'Shift+Enter', altKey: false, ctrlKey: false,
+        requested: 'text' in p.h ? p.h.text : p.h.key, before: { focused: true, selection: [p.from, p.full.length] },
+        event: { key: 'text' in p.h ? p.h.text[0] : 'Enter', shiftKey: !('text' in p.h) && p.h.key === 'Shift+Enter', altKey: false, ctrlKey: false,
           metaKey: false, trusted: true, target: true, defaultPrevented: false },
       }, 'key0.receiving');
       if (key) return key;
@@ -91,10 +89,6 @@ oracleProperty({
       ?? differs('errors', law, traceValue(trace, 'errors'), []) ?? pass;
   },
   calibrations: [
-    { name: 'restored protected source receives a second default edit', law, difference: 'step0.readonly source', history: { constructed: 'rejected-Enter-afterFalse' },
-      corrupt: trace => trace.map(item => item.checkpoint === 'step0' ? { ...item, value: { ...(item.value as object), value: 'lost restored held text' } } : item) },
-    { name: 'throw-after-input loses the complete held draft', law, difference: 'saved.full source', history: { constructed: 'rejected-Shift+Enter-afterThrow' },
-      corrupt: trace => trace.map(item => item.checkpoint === 'saved' ? { ...item, value: { ...(item.value as object), source: 'lost restored held text' } } : item) },
     { name: 'shown protected source corrupts before key then heals', law, difference: 'input0.continuity', history: { constructed: 'rejected-Enter-false' },
       corrupt: trace => trace.map(item => item.checkpoint === 'input0' ? { ...item, value: { ...(item.value as object), value: '!' + (item.value as { value: string }).value.slice(1) } } : item) },
     { name: 'shown protected source corrupts during range delivery', law, difference: 'input0.delivered', history: { constructed: 'rejected-Enter-false' },

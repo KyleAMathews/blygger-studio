@@ -1,8 +1,0 @@
-{
-  "id": "native-newline-rewrites-text-input",
-  "source": "src/ui/format-shortcuts.ts",
-  "intent": "Apply selected terminal-LF compatibility deletion to ordinary trusted insertText. The unchanged mixed source judgment must reject missing replacement text.",
-  "author": "Codex (self-generated from boundary review)",
-  "find": "      || (event.inputType !== 'insertLineBreak' && event.inputType !== 'insertParagraph')) return;",
-  "replace": "      ) return;"
-}

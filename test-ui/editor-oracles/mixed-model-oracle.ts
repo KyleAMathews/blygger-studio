@@ -335,7 +335,10 @@ function advance(s: HistoryState, action: MixedAction): Candidate {
   const edit = change(current, action);
   if (!edit) return { rule: exact(current), undo, redo, redoKnown };
   const value = apply(current.value, edit);
-  if (action.kind === 'paste') { undo.length = 0; redo.length = 0; redoKnown = false; }
+  // Default typing/newlines and DOM paste belong to the browser's history
+  // engine. Judge their immediate source, then resume known Undo only after
+  // another app-applied formatting edit (Kyle Mathews, 2026-11-22).
+  if (action.kind === 'paste' || action.kind === 'type' || action.kind === 'newline') { undo.length = 0; redo.length = 0; redoKnown = false; }
   else if (value !== current.value) { undo.push(copy(current)); redo.length = 0; redoKnown = true; }
   else { undo.length = 0; redo.length = 0; redoKnown = false; }
   return { rule: { kind: 'exact', value, selection: [edit.start, edit.end] }, undo, redo, redoKnown };
@@ -474,6 +477,9 @@ for (const mobile of [false, true]) for (const native of [false, true]) {
   mixedCases[`structure-${mobile}-${native}`] = { ...base, mobile, native, scene: 'list', body: 'child', actions: [act('indent', { at: 'end' }), act('bold', { at: 'line', a: 13 }), act('outdent', { at: 'end' }), act('break', { at: 'end' }), act('type'), act('code'), act('formula', { at: 'all' }), act('undo'), act('redo')] };
   mixedCases[`branch-${mobile}-${native}`] = { ...base, mobile, native, actions: [act('bold'), act('italic'), act('undo'), act('type', { at: 'all' }), act('redo'), act('paste', { at: 'all' }), act('formula', { at: 'all' }), act('code', { at: 'all', activation: 'Enter' })] };
 }
+// Branch abandonment remains an actual Undo/Redo test using app commands.
+// Default typing no longer stands in for application-owned history behavior.
+mixedCases['formatting-branch'] = { ...base, actions: [act('bold'), act('italic'), act('undo'), act('formula', { at: 'all' }), act('redo')] };
 for (const scene of ['prose', 'list', 'code', 'formula', 'multiline'] as const) mixedCases[scene] = { ...base, scene, actions: [act('break', { at: 'end' }), act('type'), act('italic', { at: 'all' }), act('formula', { at: 'all', activation: 'Space' })] };
 mixedCases.selection = { ...base, actions: [act('select', { at: 'range', a: 1, b: 4 }), act('bold'), act('type'), act('formula', { at: 'caret', a: 2 })] };
 for (const a of [0, 1, 2, 3, 4]) mixedCases['openingOffset' + a] = { ...base, scene: 'code', body: 'a', actions: [act('break', { at: 'caret', a }), act('bold')] };

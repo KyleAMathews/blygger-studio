@@ -1,0 +1,182 @@
+{
+  "baseCommit": "c0ea19c222b709c0cb9674b4ada1e552d46bc385",
+  "reviewedCommit": "The accompanying commit; production bytes identified below.",
+  "decision": "Kyle Mathews (GitHub KyleAMathews), 2026-11-22: leave Chromium browser-native Undo defects outside the application promise.",
+  "seed": 20261118,
+  "browser": "chromium",
+  "reports": {
+    "session": {
+      "directory": "/private/tmp/blygger-native-scope-session-final-20261122",
+      "run": {
+        "id": "cb199db05bb4",
+        "inputs": "2 source files, 2 oracle files, 0 ordinary test files, 89 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "baseline": [
+        {
+          "file": "test-ui/editor-newline-history.oracle.test.ts",
+          "ordinary": false,
+          "passed": 154,
+          "failed": 0,
+          "skipped": 0
+        },
+        {
+          "file": "test-ui/editor-session.oracle.test.ts",
+          "ordinary": false,
+          "passed": 231,
+          "failed": 0,
+          "skipped": 0
+        }
+      ],
+      "nondeterministic": [],
+      "mutants": [
+        {
+          "id": "authored:browser-native-undo-required",
+          "source": "src/ui/format-shortcuts.ts",
+          "function": "applyEdit",
+          "line": 362,
+          "outcome": "killed",
+          "by": [
+            "editor-browser-session > fixed seed 20261118: composer-desktop"
+          ],
+          "laws": [
+            "browser editing history"
+          ]
+        },
+        {
+          "id": "authored:shift-enter-handler-hard-break",
+          "source": "src/ui/format-shortcuts.ts",
+          "function": "onFormatKey",
+          "line": 339,
+          "outcome": "killed",
+          "by": [
+            "editor-browser-newline-history > fixed seed 20261118: composer-Shift+Enter-terminal",
+            "editor-browser-session > fixed seed 20261118: newline-composer-2"
+          ],
+          "laws": [
+            "browser native input receiving",
+            "browser editing history"
+          ]
+        }
+      ],
+      "resultsSha256": "36fba1e029cf1e95894353b2f96a323cda172fc9231a30aa5710c0eac534bb46",
+      "topologySha256": "22541212ca5c49fe4f24e6bc2a2719ae22b2c06f155d0aa4bc86592d14919b9b"
+    },
+    "held": {
+      "directory": "/private/tmp/blygger-native-scope-held-final-20261122",
+      "run": {
+        "id": "afd3e55b71f3",
+        "inputs": "2 source files, 1 oracle files, 0 ordinary test files, 89 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "baseline": [
+        {
+          "file": "test-ui/editor-held-newline.oracle.test.ts",
+          "ordinary": false,
+          "passed": 73,
+          "failed": 0,
+          "skipped": 0
+        }
+      ],
+      "nondeterministic": [],
+      "mutants": [
+        {
+          "id": "authored:accept-shown-native-newline",
+          "source": "src/ui/authoring.tsx",
+          "function": "change",
+          "line": 1839,
+          "outcome": "killed",
+          "by": [
+            "editor-browser-held-newline > fixed seed 20261118: rejected-Enter-false"
+          ],
+          "laws": [
+            "native newline held-region receiving"
+          ]
+        },
+        {
+          "id": "authored:refuse-native-newline-at-region-edge",
+          "source": "src/ui/authoring.tsx",
+          "function": "change",
+          "line": 1838,
+          "outcome": "killed",
+          "by": [
+            "editor-browser-held-newline > fixed seed 20261118: edge-Enter-false"
+          ],
+          "laws": [
+            "native newline held-region receiving"
+          ]
+        }
+      ],
+      "resultsSha256": "807cf3f5a43742df34176de8c1d1033e084b54b63fb074ad2179e6c648d492be",
+      "topologySha256": "0d6f9bb220ac205e0a7cf2e6f7d3c51ecb8372176519b6dca6d9fd6493550c5b"
+    },
+    "branch": {
+      "directory": "/private/tmp/blygger-native-scope-branch-final-20261122",
+      "run": {
+        "id": "1154c820f068",
+        "inputs": "1 source files, 1 oracle files, 0 ordinary test files, 89 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "baseline": [
+        {
+          "file": "test-ui/editor-mixed.oracle.test.ts",
+          "ordinary": false,
+          "passed": 1,
+          "failed": 0,
+          "skipped": 1264
+        }
+      ],
+      "nondeterministic": [],
+      "mutants": [
+        {
+          "id": "authored:browser-native-undo-required",
+          "source": "src/ui/format-shortcuts.ts",
+          "function": "applyEdit",
+          "line": 362,
+          "outcome": "killed",
+          "by": [
+            "editor-browser-mixed > random seed: formatting-branch"
+          ],
+          "laws": [
+            "mixed browser editing history"
+          ]
+        }
+      ],
+      "resultsSha256": "8d37239784e5ea3a2d4071e3058069cf90ceb0e5d1299494bafdad5c613a24aa",
+      "topologySha256": "04d48119c6e132b7bae85a6372f717dbc6df8bbc9521ff7dedecea2e67a620d7"
+    }
+  },
+  "executedSourceSha256": {
+    "src/ui/format-shortcuts.ts": "cd4e11616742ace082c165c145408d9ea4ec273ffe3b43a9d18763d19051e6ee",
+    "src/ui/authoring.tsx": "bee02b051fddcd26a773ef47f558915fd4fd59405b0f78e4b8845f2fdb13931c",
+    "scripts/formatting-oracle-application.ts": "dc00e69a2c81da2a7229577bf9df2c2832ae45089864aa2d63e00c9936e87992",
+    "test-ui/editor-session.oracle.test.ts": "9b5dd239e5fe281ae9d5f2a18b9707a7a22f33598a1bbc8973d2b95081a5eb16",
+    "test-ui/editor-newline-history.oracle.test.ts": "63d6df4a749dab6e5b2a097c6cedce7c5f77a7d97c89c7eeed8272bb6fa0eb13",
+    "test-ui/editor-held-newline.oracle.test.ts": "cc1c6334bdd8c7ecb0798dd06f8e9ed9a0ce6e40273bf5c490589e18f29aa00a",
+    "test-ui/editor-mixed.oracle.test.ts": "ba1b2643640f31e0d74c3c5540ab801bc4ae92dffd9206ea89cef5c109903637",
+    "test-ui/editor-oracles/session-model-oracle.ts": "7b12fe02fe449601f1fea06ac63612fde3df5d77634181ba9dd0724f3be2fe62",
+    "test-ui/editor-oracles/newline-history-model-oracle.ts": "8a41e8bd7cc41adfd3d870a8998f5252e5dcf4fdc0983be44dfc5dc9b17ff361",
+    "test-ui/editor-oracles/newline-history-driver-oracle.ts": "f94c7b8638cf6247921cac75f51c39809e41abb8da15afe78ef89e5865624e31",
+    "test-ui/editor-oracles/held-newline-model-oracle.ts": "e9baa8ff65444dc4f8ab420b9c7bdf9c5ce81629bcdab3255cb65528241bd0e2",
+    "test-ui/editor-oracles/held-newline-driver-oracle.ts": "605fcdbfc301ee2ed37bd29a0576cb3c07730f6e79ce84cf7c69f6a0032e4e1c",
+    "test-ui/editor-oracles/mixed-model-oracle.ts": "1b5eecdae17d3d238f8c72189513d3da921ca60989ea5966d125af37bce90d27"
+  },
+  "finalSourceSha256": {
+    "src/ui/format-shortcuts.ts": "cd4e11616742ace082c165c145408d9ea4ec273ffe3b43a9d18763d19051e6ee",
+    "src/ui/authoring.tsx": "bee02b051fddcd26a773ef47f558915fd4fd59405b0f78e4b8845f2fdb13931c",
+    "scripts/formatting-oracle-application.ts": "dc00e69a2c81da2a7229577bf9df2c2832ae45089864aa2d63e00c9936e87992",
+    "test-ui/editor-session.oracle.test.ts": "9b5dd239e5fe281ae9d5f2a18b9707a7a22f33598a1bbc8973d2b95081a5eb16",
+    "test-ui/editor-newline-history.oracle.test.ts": "63d6df4a749dab6e5b2a097c6cedce7c5f77a7d97c89c7eeed8272bb6fa0eb13",
+    "test-ui/editor-held-newline.oracle.test.ts": "cc1c6334bdd8c7ecb0798dd06f8e9ed9a0ce6e40273bf5c490589e18f29aa00a",
+    "test-ui/editor-mixed.oracle.test.ts": "ba1b2643640f31e0d74c3c5540ab801bc4ae92dffd9206ea89cef5c109903637",
+    "test-ui/editor-oracles/session-model-oracle.ts": "7b12fe02fe449601f1fea06ac63612fde3df5d77634181ba9dd0724f3be2fe62",
+    "test-ui/editor-oracles/newline-history-model-oracle.ts": "8a41e8bd7cc41adfd3d870a8998f5252e5dcf4fdc0983be44dfc5dc9b17ff361",
+    "test-ui/editor-oracles/newline-history-driver-oracle.ts": "675d8c07020ecee4c9e9a1dcf7edc0dde0aa0bb19127d0b5ab27c910545abcf1",
+    "test-ui/editor-oracles/held-newline-model-oracle.ts": "e9baa8ff65444dc4f8ab420b9c7bdf9c5ce81629bcdab3255cb65528241bd0e2",
+    "test-ui/editor-oracles/held-newline-driver-oracle.ts": "597e8ca4c62699e2c4038831ab12e5604a9fa171b5f9e0e0ad237d537c46e8fd",
+    "test-ui/editor-oracles/mixed-model-oracle.ts": "1b5eecdae17d3d238f8c72189513d3da921ca60989ea5966d125af37bce90d27"
+  },
+  "postRunCleanup": "Only the held driver unused global-array initializations and two drivers unused type members were removed after the focused runs. Production/model/check source bytes did not change. Final lint/typecheck and CI cover these harness cleanups.",
+  "limits": [
+    "Branch replay executes one registered unit twice and skips 1264 other registrations; CI supplies complete mixed baseline.",
+    "Selected mutants only; no full mutation portfolio acceptance.",
+    "No Chromium Undo repair, custom history adapter, physical IME/device or matched Safari/iOS claim."
+  ]
+}

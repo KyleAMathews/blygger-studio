@@ -1,8 +1,0 @@
-{
-  "id": "detach-native-newline-hook",
-  "source": "src/ui/authoring.tsx",
-  "find": "    const unbind = bindFormatInput(el);",
-  "replace": "    const unbind = () => {};",
-  "intent": "Detach the actual native beforeinput listener on the React textarea. The registered terminal-LF history must reject original redo loss through exact instrumented authoring source.",
-  "author": "Codex (self-generated after inspecting the oracle)"
-}

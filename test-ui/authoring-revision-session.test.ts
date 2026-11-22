@@ -87,7 +87,7 @@ function harness(component: 'ItemRow' | 'Editor') {
     Fragment: 'Fragment',
     useNavigate: () => async () => {}, useLiveQuery: () => ({}), hoppers: {},
     stripStaleUploads: (text: string) => text, initiallyOpen: () => false,
-    useUpload: () => ({}), useTextTools: () => ({}), useFormatInput: () => () => {},
+    useUpload: () => ({}), useTextTools: () => ({}),
     useHeldOut: (_text: string, _current: unknown, _item: unknown, edit: (text: string) => void) => ({ box: _text, change: edit, notice: null }),
     confirm: async () => true,
   };

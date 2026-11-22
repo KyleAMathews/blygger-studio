@@ -6,7 +6,7 @@
  * Cmd/Ctrl+B, I, B, I // → styles toggle using each returned selection
  * undo(); switchKind() // → the undone source survives React's next render
  * bold(); type(); italic() // → each edit consumes the prior content/selection
- * undo(); type(); redo() // → a new edit discards the abandoned redo branch
+ * undo(); type(); bold() // → formatting consumes the replacement text
  * Tab; typeSibling(); Shift+Tab; undo() // → nested items render and undo restores them
  * toolbar.break(); typeLine() // → one paragraph containing a real rendered break
  * Shift+Enter; typeLine() // → ordinary newline, one paragraph without a br
@@ -17,8 +17,8 @@
  * Empty emphasis pairs are included: removing their external markers is a native
  * deletion whose undo restores the pair, rather than undoing earlier typing.
  * Interleaved replacements keep the same semantic selection bookmark as styles
- * change. After undo followed by a replacement, redo cannot resurrect the old
- * branch; the next format command must operate on the replacement text.
+ * change. After undo followed by a typed replacement, the next format command
+ * must operate on the replacement text.
  * Selections inside ordinary words retain native undo too; a word-boundary
  * classifier would preserve source through fallback while losing that history.
  * For every link placeholder, typing uses its returned target caret. Every editor
@@ -32,8 +32,9 @@
  * is unprevented; continuation remains one ordinary paragraph with no rendered
  * br in full-editor prose. A selected hard-break toolbar edit instead renders
  * one br; undo removes it and restores the selected source, and redo restores
- * the hard break. Native undo/redo restores the exact prior/next
- * source. Composer and quick-edit receive the same native source/range promises.
+ * the hard break. Composer and quick-edit receive the same native source/range
+ * promises. Browser-default typing/newline Undo and grouping are outside this
+ * application promise. App-applied formatting retains exact Undo/Redo checks.
  * Simulated navigator.platform IPAD is recorded, without claiming an on-screen
  * keyboard or physical iPad. Toolbar structure/formula edits have
  * the same source/selection promises and restore textarea focus; an impossible
@@ -51,7 +52,9 @@
  * and decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-18: retain their
  * behavior in browser oracles. Decision by Kyle Mathews (GitHub KyleAMathews),
  * 2026-11-21: follow main; native Shift+Enter is an ordinary newline and the
- * hard-break toolbar retains breakEdit. Commands use independent semantic annotations,
+ * hard-break toolbar retains breakEdit. Decision by Kyle Mathews (GitHub
+ * KyleAMathews), 2026-11-22: browser-native Undo defects are outside the
+ * application promise. Commands use independent semantic annotations,
  * never production to predict source. Both Chromium viewport profiles, all
  * three surfaces and forced native failure are constructed, alongside generated
  * prose, empty emphasis pairs and one-to-eight-command histories. The app's formatter dependency calls
@@ -136,7 +139,7 @@ const corruptStep = (checkpoint: string, field: keyof Step, value: unknown) => (
 oracleProperty({
   id: 'editor-browser-session',
   owns: ['src/ui/format-shortcuts.ts#onFormatKey', 'src/ui/format-shortcuts.ts#applyEdit', 'src/ui/format-shortcuts.ts#formulaEdit', 'src/ui/format-shortcuts.ts#codeBlockEdit'],
-  law: { statement: 'For every generated browser action history, each editor receives the intended formatting, source, selection and focus; native undo and React rerender preserve it, and the actual preview renders the intended structure.', authority: 'e2e/format-shortcuts.spec.ts and e2e/markdown-structure.spec.ts at 28b0c8d642a87e5810ad6eabd95c2d1714c53396; decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-18: browser oracles replace fixed formatting tests; strengthen mixed-action coverage including undo followed by a new edit and replay adopted laws in additional browser engines with host differences explicit; decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-21: follow main, native Enter/Shift+Enter insert ordinary newlines while the toolbar retains hard-break semantics.', limits: 'Chromium and Firefox desktop/small-viewport receiving paths; WebKit has a separate native-history finding. Plain prose and hyphen parents, eight emphasis commands with interleaved replacements, eight words per field. Native undo only when the real command is available; DOM paste event without OS clipboard. No arbitrary mixing of structural commands or syntax-aware contexts. Newline rendering is bounded ordinary prose; native Enter/Shift+Enter only, simulated navigator.platform IPAD, no physical on-screen keyboard or command-modified Enter insertion claim.' },
+  law: { statement: 'For every generated browser action history, each editor receives the intended formatting, source, selection and focus; Undo/Redo of app-applied formatting and React rerender preserve it, and the actual preview renders the intended structure.', authority: 'e2e/format-shortcuts.spec.ts and e2e/markdown-structure.spec.ts at 28b0c8d642a87e5810ad6eabd95c2d1714c53396; decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-18: browser oracles replace fixed formatting tests; strengthen mixed-action coverage including undo followed by a new edit and replay adopted laws in additional browser engines with host differences explicit; decision by Kyle Mathews (GitHub KyleAMathews), 2026-11-21: follow main, native Enter/Shift+Enter insert ordinary newlines while the toolbar retains hard-break semantics; 2026-11-22: browser-native Undo defects are outside this application promise.', limits: 'Chromium and Firefox desktop/small-viewport receiving paths; WebKit has a separate native-history finding. Plain prose and hyphen parents, eight emphasis commands with interleaved replacements, eight words per field. Undo/Redo covers app-applied formatting only when the real command is available; browser-default typing/newline history and grouping are outside this promise; DOM paste event without OS clipboard. No arbitrary mixing of structural commands or syntax-aware contexts. Newline rendering is bounded ordinary prose; native Enter/Shift+Enter only, simulated navigator.platform IPAD, no physical on-screen keyboard or command-modified Enter insertion claim.' },
   histories: { arbitrary: sessionArbitrary, runs: 25, fixedSeeds: [20261118], states: [...new Set(Object.values(sessionCases).flatMap(sessionStates))], constructed: Object.entries(sessionCases).map(([name, h]) => ({ name, enters: sessionStates(h), build: () => h })) },
   resolve: sessionPlan, model: p => ({ steps: sessionModel(p), errors: [] }), reached: p => sessionStates(p.h),
   driver: sessionDriver,
@@ -148,7 +151,6 @@ oracleProperty({
     { name: 'format lost textarea focus', law: 'browser editing history', history: { constructed: 'composer-desktop' }, corrupt: corruptStep('format0', 'focused', false) },
     { name: 'React resurrected the undone edit', law: 'browser editing history', history: { constructed: 'composer-desktop' }, corrupt: corruptStep('undoneState', 'value', '') },
     { name: 'preview lost a nested sibling', law: 'browser editing history', history: { constructed: 'list-desktop' }, corrupt: corruptStep('sibling', 'nested', []) },
-    { name: 'redo resurrected an abandoned edit', law: 'browser editing history', history: { constructed: 'branchHistory-native-desktop' }, corrupt: corruptStep('branchRedo', 'value', 'abandoned edit') },
     { name: 'key typing lost a link target character', law: 'browser editing history', history: { constructed: 'composer-character-target-desktop' }, corrupt: corruptStep('target', 'value', 'see [this](https://x.example)') },
     { name: 'key typing returned the wrong target caret', law: 'browser editing history', history: { constructed: 'composer-character-target-desktop' }, corrupt: corruptStep('target', 'selection', [0, 0]) },
     { name: 'key typing lost textarea focus', law: 'browser editing history', history: { constructed: 'composer-character-target-desktop' }, corrupt: corruptStep('target', 'focused', false) },
@@ -159,7 +161,6 @@ oracleProperty({
     { name: 'direct native newline lost continuation', law: 'browser editing history', history: { constructed: 'newline-main-shift-enter-direct' }, corrupt: corruptStep('newlineContinuation', 'value', '') },
     { name: 'hard-break undo retained rendered break', law: 'browser editing history', history: { constructed: 'hard-break-selection-history-Enter' }, corrupt: corruptStep('breakUndo', 'breaks', 1) },
     { name: 'hard-break redo lost rendered break', law: 'browser editing history', history: { constructed: 'hard-break-selection-history-Space' }, corrupt: corruptStep('breakRedo', 'breaks', 0) },
-    { name: 'native newline undo lost replaced source', law: 'browser editing history', history: { constructed: 'newline-editor-2' }, corrupt: corruptStep('newlineUndo', 'value', '') },
     { name: 'simulated iPad platform was not delivered', law: 'browser editing history', history: { constructed: 'newline-ipad-shift-enter-full-stop' }, corrupt: corruptStep('newline', 'platform', 'not IPAD') },
     { name: 'structural receiving lost password-form arrival', law: 'browser receiving premise', history: { constructed: 'receiving-list-desktop' }, corrupt: trace => trace.filter(item => item.checkpoint !== 'receivingSetup') },
     { name: 'structural receiving loaded body instead of whole source', law: 'browser receiving premise', history: { constructed: 'receiving-list-desktop' }, corrupt: corruptStep('loadedStructural', 'value', 'apples') },

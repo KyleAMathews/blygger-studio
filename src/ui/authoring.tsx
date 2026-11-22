@@ -9,7 +9,7 @@
  */
 import { createHopper, createItem, addHopperItem, uploadMedia } from './server-mutations.ts';
 import type { ReactNode, RefObject } from 'react';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery, useLiveInfiniteQuery, and, eq } from '@tanstack/react-db';
 import { Link, useNavigate, useBlocker } from '@tanstack/react-router';
 import { formatDateIn } from '../dates.ts';
@@ -46,7 +46,7 @@ import type { EditorRegion } from './editor-regions.ts';
 import { HandlePicker } from './contacts.tsx';
 import { editSyndication } from './syndication.tsx';
 import { ownEntry, ownIds, Shelf, shelfLabel, toggleShelf, useShelf } from './shelf.tsx';
-import { applyEdit, bindFormatInput, breakEdit, codeBlockEdit, formulaEdit, indentEdit, onFormatKey } from './format-shortcuts.ts';
+import { applyEdit, breakEdit, codeBlockEdit, formulaEdit, indentEdit, onFormatKey } from './format-shortcuts.ts';
 import { BracketPicker } from './picker.tsx';
 import { revealCaret, setTextAt } from './caret.ts';
 import { Draft } from './draft.ts';
@@ -72,19 +72,6 @@ interface Shareable {
 }
 interface Published extends Shareable {
   version: number;
-}
-
-/** Native beforeinput has no equivalent in React's synthetic beforeinput plugin. */
-function useFormatInput(ref?: RefObject<HTMLTextAreaElement | null>) {
-  return useCallback((el: HTMLTextAreaElement | null) => {
-    if (!el) return;
-    if (ref) ref.current = el;
-    const unbind = bindFormatInput(el);
-    return () => {
-      unbind();
-      if (ref?.current === el) ref.current = null;
-    };
-  }, [ref]);
 }
 
 function useAction() {
@@ -1045,7 +1032,6 @@ export function Compose({ q }: { q?: string } = {}) {
   const [published, setPublished] = useState<Published>();
   const [filter, setFilter] = useState<Filter>('all');
   const input = useRef<HTMLTextAreaElement>(null);
-  const formatInput = useFormatInput(input);
   const result = useLiveInfiniteQuery(q => {
     let query = q.from({ item: items });
     if (filter === 'drafts') query = query.where(({ item }) => eq(item.version, 0));
@@ -1155,7 +1141,7 @@ export function Compose({ q }: { q?: string } = {}) {
         {bars.above}
         <div className="ta-wrap">
           <textarea
-            ref={formatInput}
+            ref={input}
             id="composer-text"
             className={boxClass(kind === 'fragment', length)}
             aria-label="compose"
@@ -1319,7 +1305,6 @@ function ItemRow({
   const sharing = useSharing();
   const action = useAction();
   const shelved = useShelf();
-  const formatInput = useFormatInput();
   const [expanded, setExpanded] = useState(false);
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(item.contentMd);
@@ -1496,7 +1481,6 @@ function ItemRow({
           {open ? (
             <div className="quick-edit" id={`qe-${item.id}`}>
               <textarea
-                ref={formatInput}
                 aria-label="quick edit"
                 className={boxClass(kind === 'fragment', length)}
                 value={text}
@@ -2126,7 +2110,6 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
   const [historyOpen, setHistoryOpen] = useState(() => initiallyOpen('history'));
   const leaving = useRef(false);
   const input = useRef<HTMLTextAreaElement>(null);
-  const formatInput = useFormatInput(input);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const save = async () => {
     clearTimeout(saveTimer.current);
@@ -2661,7 +2644,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
               className={boxClass(!isThread, length, 'md')}
               aria-label="draft"
               readOnly={replacing}
-              ref={formatInput}
+              ref={input}
               value={held.box}
               {...textareaProps(upload, tools)}
               onChange={(event) => {

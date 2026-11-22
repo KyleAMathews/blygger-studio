@@ -1,8 +1,0 @@
-{
-  "id": "native-newline-clobbers-restored-source",
-  "source": "src/ui/format-shortcuts.ts",
-  "find": "    if (done || received) {",
-  "replace": "    if (!done && received && el.value !== next) el.value = next;\n    if (done || received) {",
-  "intent": "A false/throw fallback trusts the computed native result over the protected source React restored. Only completed-input restoration controls trigger; source authority must reject at the shown protected step.",
-  "author": "Codex (self-generated from NBR-002 follow-up)"
-}

@@ -1,8 +1,0 @@
-{
-  "id": "original-terminal-newline-redo",
-  "source": "src/ui/format-shortcuts.ts",
-  "find": "    const next = value.slice(0, from) + '\\n';",
-  "replace": "    return;\n    const next = value.slice(0, from) + '\\n';",
-  "intent": "Restore native replacement of a selected terminal LF, including Chromium losing that LF on redo. The unchanged newline-history law must reject the original source-history defect.",
-  "author": "Codex (self-generated after inspecting the oracle)"
-}

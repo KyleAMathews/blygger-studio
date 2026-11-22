@@ -1,8 +1,0 @@
-{
-  "id": "native-newline-drops-completed-input-receipt",
-  "source": "src/ui/format-shortcuts.ts",
-  "intent": "Ignore a genuine native input when delete subsequently returns false or throws. The existing source law must reject the extra browser default newline.",
-  "author": "Codex (self-generated from boundary review)",
-  "find": "    if (done || received) {",
-  "replace": "    if (done) {"
-}

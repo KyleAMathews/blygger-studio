@@ -1,8 +1,0 @@
-{
-  "id": "native-newline-restored-input-ignored",
-  "source": "src/ui/format-shortcuts.ts",
-  "find": "    if (done || received) {",
-  "replace": "    if (done || (received && el.value === next)) {",
-  "intent": "Treat genuine native input as unconsumed after React restores protected source; false/throw then permits a second default edit. The held source/refusal judgment must reject.",
-  "author": "Codex (self-generated from NBR-002)"
-}

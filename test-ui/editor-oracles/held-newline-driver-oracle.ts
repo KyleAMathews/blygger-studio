@@ -3,7 +3,6 @@ import { applicationDriver, deferred, hostEvent } from './application-driver-ora
 import { mixedInputAction, type MixedInput } from './mixed-model-oracle.ts';
 import type { HeldNewlinePlan } from './held-newline-model-oracle.ts';
 import type { Observe } from './document-oracle.ts';
-import { installNativeCommandProvider, requireNativeCommandInput } from './native-command-provider-oracle.ts';
 import { appendFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -20,7 +19,6 @@ export async function heldNewlineDriver(p: HeldNewlinePlan, observe: Observe) {
     judged(checkpoint, value);
   };
   await applicationDriver(p.h.mobile, observe, async ({ context, page }) => {
-    await installNativeCommandProvider(context, 'command' in p.h ? p.h.command : 'available');
     const settingsResponse = await context.request.get('/api/settings');
     if (!settingsResponse.ok()) throw new Error('Held newline settings setup failed: ' + settingsResponse.status());
     const settings = await settingsResponse.json();
@@ -55,11 +53,12 @@ export async function heldNewlineDriver(p: HeldNewlinePlan, observe: Observe) {
       }, action.range);
       const input: MixedInput = { ...before, action, delivered };
       observe('input0', input);
-      const keyBefore = await box.evaluate((el: HTMLTextAreaElement) => {
-        const host = window as typeof window & { __heldKey?: KeyboardEvent; __heldInputs?: object[]; __formattingNativeCommands?: object[]; __formattingNativeTarget?: HTMLTextAreaElement };
-        host.__heldKey = undefined; host.__heldInputs = []; host.__formattingNativeCommands = []; host.__formattingNativeTarget = el;
+      const requested = 'text' in p.h ? p.h.text : p.h.key;
+      const keyBefore = await box.evaluate((el: HTMLTextAreaElement, requested) => {
+        const host = window as typeof window & { __heldKey?: KeyboardEvent; __heldInputs?: object[] };
+        host.__heldKey = undefined; host.__heldInputs = [];
         const key = (event: KeyboardEvent) => {
-          if (event.key !== 'Enter') return;
+          if (event.key !== (requested === 'Enter' || requested === 'Shift+Enter' ? 'Enter' : requested[0])) return;
           el.removeEventListener('keydown', key); host.__heldKey = event;
         };
         el.addEventListener('keydown', key);
@@ -71,8 +70,9 @@ export async function heldNewlineDriver(p: HeldNewlinePlan, observe: Observe) {
             value: el.value, selection: [el.selectionStart, el.selectionEnd] });
         });
         return { focused: document.activeElement === el, selection: [el.selectionStart, el.selectionEnd] };
-      });
-      await page.keyboard.press(p.h.key);
+      }, requested);
+      if ('text' in p.h) await page.keyboard.type(p.h.text);
+      else await page.keyboard.press(p.h.key);
       const receipt = await box.evaluate((el: HTMLTextAreaElement) => {
         const host = window as typeof window & { __heldKey?: KeyboardEvent; __heldInputs?: object[] };
         const event = host.__heldKey;
@@ -80,13 +80,11 @@ export async function heldNewlineDriver(p: HeldNewlinePlan, observe: Observe) {
           ctrlKey: event.ctrlKey, metaKey: event.metaKey, trusted: event.isTrusted,
           target: event.target === el, defaultPrevented: event.defaultPrevented }, inputs: host.__heldInputs };
       });
-      observe('key0', { requested: p.h.key, before: keyBefore, event: receipt.event });
+      observe('key0', { requested, before: keyBefore, event: receipt.event });
       observe('nativeInputs', receipt.inputs);
       const step = await box.evaluate((el: HTMLTextAreaElement) => ({ value: el.value,
-        selection: [el.selectionStart, el.selectionEnd], focused: document.activeElement === el,
-        delivery: { commands: (window as typeof window & { __formattingNativeCommands?: object[] }).__formattingNativeCommands ?? [] } }));
+        selection: [el.selectionStart, el.selectionEnd], focused: document.activeElement === el }));
       appendFileSync(file, JSON.stringify({ event: 'native-step-before-premise', value: step }) + '\n');
-      requireNativeCommandInput('command' in p.h ? p.h.command : 'available', step.delivery.commands);
       observe('step0', step);
       observe('region', { notice: await page.locator('[data-held-out]').evaluateAll(nodes => nodes[0]?.getAttribute('data-held-out') ?? null),
         messages: await page.locator('.toast-message').allTextContents() });
