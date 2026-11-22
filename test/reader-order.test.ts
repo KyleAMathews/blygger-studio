@@ -177,6 +177,26 @@ describe("the reading API", () => {
     expect(await sentinel()).toBeNull();
   });
 
+  it("leaves out imports whose subscription is gone: no empty pages, no count (session 79)", async () => {
+    const cookie = await login();
+    const sub = await subscription("https://held.example/");
+    const kept = newId();
+    await arrive(sub, { id: kept, created: at(30) }, "https://held.example/");
+    // Rows an old unsubscribe left behind: no subscription, so no position and no projection.
+    const orphans = Array.from({ length: 3 }, () => newId());
+    for (const id of orphans) await db().prepare("INSERT INTO imported_items (subscription_id, remote_id, kind, state, version, observed_at, content_md, content_html, l0) VALUES ('gone-sub', ?, 'fragment', 'current', 1, ?, 'x', '<p>x</p>', 0)").bind(id, at(1)).run();
+    for (const order of ["pace-layered", "newest"]) {
+      const first = await page(cookie, `limit=1&sub=all&order=${order}`);
+      expect(first.items).toHaveLength(1);
+      expect(first.items[0]!.key).not.toContain("gone-sub");
+    }
+    const summary = (await apiJson(cookie, "GET", "/blyg/api/reading/summary?sub=all")).json as { counts: { subscriptions: Record<string, number> } };
+    expect(summary.counts.subscriptions["gone-sub"]).toBeUndefined();
+    const raw = await page(cookie, "limit=50&sub=all&raw=true");
+    expect(raw.items.some((e) => e.key.includes("gone-sub"))).toBe(false);
+    await db().prepare("DELETE FROM imported_items WHERE subscription_id = 'gone-sub'").run();
+  });
+
   it("Raw lists what came in, newest first, with nothing moved to Background or folded", async () => {
     const cookie = await login();
     const sub = await subscription("https://raw.example/");
