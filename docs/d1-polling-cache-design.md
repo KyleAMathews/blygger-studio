@@ -199,6 +199,7 @@ identity and force a new feed build. This lifecycle is outside the current model
 | Subscription title/origin/membership | Subscriptions/Reading/hopper detail | Provenance title/origin effects |
 | Subscription poll diagnostics | Subscriptions | No |
 | Hoppers/membership/signals | Hoppers/detail/signals | No direct XML dependency found |
+| Read marks (`read_state`, migration 0026) | `marks` (migration 0057): Reading responses carry `readVersion`, so conditional reads revalidate, but Reading cursors watch `reading` and do not expire on a mark | No |
 
 For the implementation, spell out watched-view dependencies separately from
 counter names. Hopper detail watches imported HTML and membership as well as

@@ -197,6 +197,24 @@ describe("the reading API", () => {
     await db().prepare("DELETE FROM imported_items WHERE subscription_id = 'gone-sub'").run();
   });
 
+  it("a read mark between two pages leaves the cursor valid (session 79)", async () => {
+    const cookie = await login();
+    await putSettings(db(), { bg_rules: JSON.stringify({ superseded: false, "near-same": false }) });
+    const sub = await subscription("https://marks.example/");
+    const [a, b] = [newId(), newId()];
+    await arrive(sub, { id: a, created: at(20) }, "https://marks.example/");
+    await arrive(sub, { id: b, created: at(10) }, "https://marks.example/");
+    for (const order of ["newest", "pace-layered"]) {
+      const first = await page(cookie, `limit=1&sub=${sub}&order=${order}`);
+      expect(first.page.nextCursor).toBeTruthy();
+      // Scanning marks what was seen while the next page is still to come.
+      expect((await apiJson(cookie, "PUT", `/blyg/api/reading/${sub}/${order === "newest" ? b : a}/read`, { version: 1 })).status).toBeLessThan(300);
+      const res = await apiJson(cookie, "GET", `/blyg/api/reading?limit=1&sub=${sub}&order=${order}&cursor=${first.page.nextCursor}`);
+      expect(res.status).toBe(200);
+      await apiJson(cookie, "DELETE", `/blyg/api/reading/${sub}/${order === "newest" ? b : a}/read`);
+    }
+  });
+
   it("Raw lists what came in, newest first, with nothing moved to Background or folded", async () => {
     const cookie = await login();
     const sub = await subscription("https://raw.example/");
