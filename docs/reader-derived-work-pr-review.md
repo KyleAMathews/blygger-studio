@@ -5,6 +5,13 @@
 Its earlier source manifest and results remain historical. This record covers
 the subsequent cache publication repair and stronger receiving checks.
 
+Before publication, merge `557185d` incorporated main's `ed245f4`: card-date
+dragging and the mount oracle's contract-version expectation. Those two files
+do not overlap this change. Every reviewed file in the manifest remained
+byte-identical after the merge, and build plus Worker/UI/oracle TypeScript
+passed on the combined tree (`prep-pr-merged-head-checks.AhoPCg`). The execution
+receipts below retain their original source cuts.
+
 ## Laws and enforcement
 
 The adopted #170 promise remains correct Reading results with derived work
