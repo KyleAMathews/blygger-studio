@@ -33,7 +33,7 @@ test('the studio wears the reading theme from settings, and repaints when it cha
 
     // Changing it in settings repaints the studio without a reload.
     await page.goto('/studio/settings');
-    await page.locator('.theme-opt').filter({ hasText: 'Cream' }).click();
+    await page.getByRole('radiogroup', { name: 'Public theme' }).locator('.theme-opt').filter({ hasText: 'Cream' }).click();
     await page.getByRole('button', { name: 'save settings', exact: true }).click();
     await expect(page.getByRole('status')).toHaveText('saved');
     await expect.poll(() => cssVar(page, '--pencil')).toBe('#8a5a2b');

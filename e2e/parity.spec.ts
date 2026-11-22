@@ -239,7 +239,7 @@ test('settings keep timezone, receive policy, themes and update preferences', as
   await page.locator('#timezone').selectOption('America/Denver');
   await page.locator('#acceptMentions').uncheck();
   await page.locator('#updateCheck').uncheck();
-  await page.locator('.theme-opt').filter({ hasText: 'Paper' }).click();
+  await page.getByRole('radiogroup', { name: 'Public theme' }).locator('.theme-opt').filter({ hasText: 'Paper' }).click();
   await page.getByRole('button', { name: 'save settings', exact: true }).click();
   await expect(page.getByRole('status')).toHaveText('saved');
   await page.reload();
