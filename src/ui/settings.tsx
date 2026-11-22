@@ -72,6 +72,7 @@ const fields = [
   "backgroundRules",
   "bgModelImported",
   "bgInstruction",
+  "bgFlagDisagreement",
   "changelogSummaryPrompt",
   "acceptMentions",
   "updateCheck",
@@ -577,6 +578,21 @@ function SettingsForm({ initial }: { initial: Settings }) {
               'e.g. Treat a note that says it fixes typos as a typo, unless whole sentences changed.',
             )
           : null}
+        {form.bgModelImported && form.aiModelClassify?.trim() && form.bgInstruction?.trim() ? (
+          <label className="check sub-check">
+            <input
+              type="checkbox"
+              checked={form.bgFlagDisagreement ?? true}
+              onChange={(event) => change('bgFlagDisagreement', event.target.checked)}
+            />
+            <span>
+              Keep an entry in view when its note understates the change
+              <span className="hint">
+                a note that says “typo” or “minor” while much of the text changed; off, the classifier&rsquo;s label decides
+              </span>
+            </span>
+          </label>
+        ) : null}
       </section>
       </section>
       <section className="settings-section" id="appearance" aria-labelledby="appearance-h">

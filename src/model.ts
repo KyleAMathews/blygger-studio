@@ -188,6 +188,7 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     hopper_feeds: map.hopper_feeds === "on",
     bg_model_imported: map.bg_model_imported === "on",
     bg_instruction: map.bg_instruction ?? "",
+    bg_flag_disagreement: map.bg_flag_disagreement !== "off",
     studio_theme: map.studio_theme ?? "",
     update_check: map.update_check !== "off",
     update_feed_url: map.update_feed_url ?? "",

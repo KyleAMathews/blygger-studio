@@ -43,7 +43,9 @@ time, under the daily AI budget; *typo* or *minor* sends it to Background as a m
 measured rules decide. The `minor` rule now covers your own and other blygs' minor changes. With
 an optional **instruction** written beneath the toggle, the classifier also reads each version's
 changelog note, and an entry whose note calls a large change minor stays in view with a chip
-("note says minor · 35% changed"). With no instruction, notes are never sent.
+("note says minor · 35% changed"). With no instruction, notes are never sent. A second
+toggle beneath the instruction turns that keep-in-view default off, so the classifier's label
+alone decides.
 
 **The reader draws generated text as the public pages do** (session 78): the tinted box and
 the robot on every `[TK]` span the reader shows, your own items and other blygs' alike,

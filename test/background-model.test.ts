@@ -25,7 +25,7 @@ beforeEach(async () => {
   await db().prepare("DELETE FROM security_budgets").run();
   await db().prepare("DELETE FROM imported_change_queue").run();
 });
-afterEach(() => putSettings(db(), { bg_model_imported: "off", ai_model_classify: "", bg_instruction: "" }));
+afterEach(() => putSettings(db(), { bg_model_imported: "off", ai_model_classify: "", bg_instruction: "", bg_flag_disagreement: "on" }));
 
 function fakeAi(choice: string, note?: string) {
   const calls: { model: string; input: any }[] = [];
@@ -140,11 +140,29 @@ describe("Background 4b: the classifier on imported changes", () => {
     expect(sent).toContain("Just a typo.");
     expect(sent).toContain("Trust notes that say typo.");
     expect(Object.keys(calls[0]!.input.questions)).toEqual(["change", "note"]);
+    // The owner's instruction comes first, delimited, before any fetched text (Fable's review, §14).
+    const state = calls[0]!.input.state as string;
+    expect(state.indexOf("Trust notes that say typo.")).toBeLessThan(state.indexOf("Stigmergy"));
+    expect(state.indexOf("END READER INSTRUCTION")).toBeLessThan(state.indexOf("Just a typo."));
     expect(await entry(cookie, sub, id, true)).toBeUndefined();
     const shown = (await entry(cookie, sub, id, false))!;
     expect(shown.background.reasons).not.toContain("minor");
     expect(shown.background.detail?.classify).toMatchObject({ category: "minor", instructed: true, disagree: { note: "typo" } });
     expect(shown.background.detail?.classify.disagree.changed).toBeGreaterThan(10);
+  });
+
+  it("with the disagreement default turned off, the label decides even when the note understates the change", async () => {
+    const cookie = await login();
+    await putSettings(db(), { bg_model_imported: "on", ai_model_classify: CLEF, bg_instruction: "Trust notes that say typo.", bg_flag_disagreement: "off" });
+    const sub = await subscription();
+    const id = newId();
+    await arrive(sub, id, 1, V1);
+    await arrive(sub, id, 2, `${V2} A whole new argument follows here.`, "Just a typo.");
+    const { ai } = fakeAi("minor", "typo");
+    expect(await drainImportedChanges(withAi(ai))).toBe(1);
+    const back = (await entry(cookie, sub, id, true))!;
+    expect(back.background.reasons).toContain("minor");
+    expect(back.background.detail?.classify.disagree).toBeUndefined();
   });
 
   it("under a routing instruction, an agreeing small change goes to Background, marked as yours", async () => {

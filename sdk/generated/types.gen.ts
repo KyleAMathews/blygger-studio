@@ -252,6 +252,10 @@ export type Settings = {
      */
     linksBlyggerCom: boolean;
     /**
+     * On by default; matters only while bgInstruction is written. On: an entry whose changelog note claims a typo or minor change while much of its text changed stays in view, marked. Off: the classifier's label decides.
+     */
+    bgFlagDisagreement: boolean;
+    /**
      * Empty by default. The owner's routing instruction for judging other blygs' changes (decision #96): while set, the classifier also reads each version's changelog note with it, and an entry whose note claims a small change against a large measured one stays in view with a chip saying so. With it empty, notes are never sent.
      */
     bgInstruction: string;
@@ -3122,6 +3126,10 @@ export type UpdateSettingsData = {
          * Link blygger.com, the directory of blygs, in the links section.
          */
         linksBlyggerCom?: boolean;
+        /**
+         * On by default; matters only while bgInstruction is written. On: an entry whose changelog note claims a typo or minor change while much of its text changed stays in view, marked. Off: the classifier's label decides.
+         */
+        bgFlagDisagreement?: boolean;
         /**
          * Empty by default. The owner's routing instruction for judging other blygs' changes (decision #96): while set, the classifier also reads each version's changelog note with it, and an entry whose note claims a small change against a large measured one stays in view with a chip saying so. With it empty, notes are never sent.
          */

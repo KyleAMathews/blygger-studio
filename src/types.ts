@@ -576,6 +576,8 @@ export interface Settings {
   bg_model_imported: boolean;
   /** Background 4b: the owner's routing instruction; non-empty sends the note too (#96 (a)). Empty by default. */
   bg_instruction: string;
+  /** Under a routing instruction, keep in view an entry whose note understates the change (on by default; Fable's amendment, session 78). */
+  bg_flag_disagreement: boolean;
   /** The Studio's own theme (session 78): empty, the default, wears `theme`; else a theme name or "custom". Public pages always use `theme`. */
   studio_theme: string;
   /** The setup wizard's state: `pending` (fresh install), `notice` (existing node, told once), `done`. */
