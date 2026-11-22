@@ -1,0 +1,1495 @@
+{
+  "scope": "Native receiving oracle strengthening only; no production edits or further test retirement; partial mutation selections, not full portfolio/PR acceptance.",
+  "baseCommit": "480fc6afd49e844100a39170a62a1b58b9caebce",
+  "pin": "97a4e7a",
+  "preparedAt": "2026-11-21T21:00:23.870733+00:00",
+  "source": [
+    {
+      "path": "test-ui/editor-newline-history.oracle.test.ts",
+      "sha256": "a98c7a080fb7fa917fbb7039d0a6c390da15dcb8e4e0d9daa2f9767fff3aadc8"
+    },
+    {
+      "path": "test-ui/editor-held-newline.oracle.test.ts",
+      "sha256": "ccf8b7aa5eb32f113e9c7798ba0193733a0d0a42a8ff7f549988ae139f8ef1a4"
+    },
+    {
+      "path": "test-ui/editor-oracles/newline-history-model-oracle.ts",
+      "sha256": "341190afdee56ac0e1d20e1ded059fc786e3457ebd477be62258926ac166ab69"
+    },
+    {
+      "path": "test-ui/editor-oracles/newline-history-driver-oracle.ts",
+      "sha256": "8913f3f7ac890865149678ffc6827210ba9b8ef6c5be92771357c908793bab7b"
+    },
+    {
+      "path": "test-ui/editor-oracles/held-newline-model-oracle.ts",
+      "sha256": "13d6df39ed3ad04986f60dccf6b003867efa4c043fc642bcead00d510c3da97b"
+    },
+    {
+      "path": "test-ui/editor-oracles/held-newline-driver-oracle.ts",
+      "sha256": "e088481b39ad5125b727640faf380de89705afa39d6b9bb14bf22318e4e803c1"
+    },
+    {
+      "path": "test-ui/editor-oracles/native-command-provider-oracle.ts",
+      "sha256": "7bb8be2520c10d94b35dba61553501348476222ca75d9732ccd2eea9ebe1a7e6"
+    },
+    {
+      "path": "test-ui/editor-oracle-mutants/review-native-newline-binds-once-only.json",
+      "sha256": "b285e80971b8f22852c5795468bae2ee97221cb3df3b9f291cc747e7db4e4d32"
+    },
+    {
+      "path": "test-ui/editor-oracle-mutants/review-native-newline-drops-completed-input-receipt.json",
+      "sha256": "2cc6cc9d149b14bb4218f4d99367934db8497ad1037de15f402d4ccfd4abe943"
+    },
+    {
+      "path": "test-ui/editor-oracle-mutants/review-native-newline-restored-input-ignored.json",
+      "sha256": "601199b09286337a734c82048e75658e32676139172e2fb3deb180ecc6c0b6c1"
+    },
+    {
+      "path": "test-ui/editor-oracle-mutants/review-native-newline-rewrites-text-input.json",
+      "sha256": "606206565875434b50043882532c62e40e62d24569466fe1d0b7835e6efd09b9"
+    },
+    {
+      "path": "test-ui/editor-oracle-mutants/review-native-newline-clobbers-restored-source.json",
+      "sha256": "c70e5a254436a9dcf1dfab2de487d8fcaa1dcffa2a162e7099b5c3ed9c73c9e8"
+    }
+  ],
+  "productionPreserved": [
+    {
+      "path": "src/ui/format-shortcuts.ts",
+      "main": "444ca9cc09ea8b937c4ffde9b8bd0bee37e0b7d838bba4af0deed738ee86ade7",
+      "candidate": "444ca9cc09ea8b937c4ffde9b8bd0bee37e0b7d838bba4af0deed738ee86ade7"
+    },
+    {
+      "path": "src/ui/authoring.tsx",
+      "main": "a6b1db5652ddf346c6df3a236319c49cb506004b218ef6101b6f336e2f072417",
+      "candidate": "a6b1db5652ddf346c6df3a236319c49cb506004b218ef6101b6f336e2f072417"
+    }
+  ],
+  "jobs": {
+    "v4-native-chromium": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/v4-native-chromium",
+      "resultSha256": "4ce8a5b66b1c2fcf6112c049fd4c1e11016ce3a400552d75030796f5d9531c84",
+      "runId": "2753488c56a6",
+      "baseline": [
+        {
+          "file": "test-ui/editor-newline-history.oracle.test.ts",
+          "ordinary": false,
+          "passed": 243,
+          "failed": 0,
+          "skipped": 0
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": false,
+      "mutants": [
+        {
+          "id": "authored:detach-native-newline-hook",
+          "key": "src/ui/authoring.tsx#authored:detach-native-newline-hook",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-newline-history > fixed seed 20261118: composer-Enter-terminal"
+          ],
+          "laws": [
+            "browser native newline history"
+          ],
+          "seconds": 3.711967082999996
+        },
+        {
+          "id": "authored:original-terminal-newline-redo",
+          "key": "src/ui/format-shortcuts.ts#authored:original-terminal-newline-redo",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-newline-history > fixed seed 20261118: composer-Enter-terminal"
+          ],
+          "laws": [
+            "browser native newline history"
+          ],
+          "seconds": 5.44165716599999
+        },
+        {
+          "id": "authored:native-newline-binds-once-only",
+          "key": "src/ui/authoring.tsx#authored:native-newline-binds-once-only",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-newline-history > fixed seed 20261118: reopen-quick-Enter-terminal"
+          ],
+          "laws": [
+            "browser native newline history"
+          ],
+          "seconds": 32.578507500000065
+        },
+        {
+          "id": "authored:native-newline-drops-completed-input-receipt",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-drops-completed-input-receipt",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-newline-history > fixed seed 20261118: composer-Enter-afterFalse"
+          ],
+          "laws": [
+            "browser native newline history"
+          ],
+          "seconds": 42.61741504199989
+        },
+        {
+          "id": "authored:native-newline-rewrites-text-input",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-rewrites-text-input",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-newline-history > fixed seed 20261118: type-terminal-composer-empty-lines"
+          ],
+          "laws": [
+            "browser native newline history"
+          ],
+          "seconds": 49.06871354200004
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 7,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 0,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 33904,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:58:47.816386+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-drops-completed-input-receipt",
+          "authored:native-newline-rewrites-text-input",
+          "authored:native-newline-binds-once-only",
+          "authored:detach-native-newline-hook",
+          "authored:original-terminal-newline-redo"
+        ],
+        "config": "vitest.oracle.config.ts"
+      }
+    },
+    "v3-held-chromium": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/v3-held-chromium",
+      "resultSha256": "aaf90acefc6ef193674819b425c2ab2d83841131005bef3786f2e04cd88b426d",
+      "runId": "c36f441ce012",
+      "baseline": [
+        {
+          "file": "test-ui/editor-held-newline.oracle.test.ts",
+          "ordinary": false,
+          "passed": 84,
+          "failed": 0,
+          "skipped": 0
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": false,
+      "mutants": [
+        {
+          "id": "authored:native-newline-restored-input-ignored",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-restored-input-ignored",
+          "outcome": "survived",
+          "seconds": 98.123716791
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 3,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 0,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 19346,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:40:35.877652+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-restored-input-ignored"
+        ],
+        "config": "vitest.oracle.config.ts"
+      }
+    },
+    "v4-native-firefox-receiving": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/v4-native-firefox-receiving",
+      "resultSha256": "5387a5fd2d0a72ecc4963bec29fc59adf8bd6c7a90db012d1a5c12d20ec3ed93",
+      "runId": "3983dc7c0632",
+      "baseline": [
+        {
+          "file": "test-ui/editor-newline-history.oracle.test.ts",
+          "ordinary": false,
+          "passed": 25,
+          "failed": 0,
+          "skipped": 218
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": false,
+      "mutants": [
+        {
+          "id": "authored:native-newline-binds-once-only",
+          "key": "src/ui/authoring.tsx#authored:native-newline-binds-once-only",
+          "outcome": "survived",
+          "seconds": 39.40784425000001
+        },
+        {
+          "id": "authored:native-newline-drops-completed-input-receipt",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-drops-completed-input-receipt",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-newline-history > fixed seed 20261118: composer-Enter-afterFalse"
+          ],
+          "laws": [
+            "browser native newline history"
+          ],
+          "seconds": 20.872817417000014
+        },
+        {
+          "id": "authored:native-newline-rewrites-text-input",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-rewrites-text-input",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-newline-history > fixed seed 20261118: key-text-composer-unicode"
+          ],
+          "laws": [
+            "browser native newline history"
+          ],
+          "seconds": 44.32682625000001
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 5,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 0,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 33895,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:50:33.327402+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-drops-completed-input-receipt",
+          "authored:native-newline-rewrites-text-input",
+          "authored:native-newline-binds-once-only"
+        ],
+        "config": "build/receiving-new-native.config.mjs"
+      }
+    },
+    "v4-native-webkit-receiving": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/v4-native-webkit-receiving",
+      "resultSha256": "903ccf7584447cde55faae98b93d1c7f535f54df79db6794d00e3df3b264ddf1",
+      "runId": "3983dc7c0632",
+      "baseline": [
+        {
+          "file": "test-ui/editor-newline-history.oracle.test.ts",
+          "ordinary": false,
+          "passed": 25,
+          "failed": 0,
+          "skipped": 218
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": false,
+      "mutants": [
+        {
+          "id": "authored:native-newline-binds-once-only",
+          "key": "src/ui/authoring.tsx#authored:native-newline-binds-once-only",
+          "outcome": "survived",
+          "seconds": 43.4224185
+        },
+        {
+          "id": "authored:native-newline-drops-completed-input-receipt",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-drops-completed-input-receipt",
+          "outcome": "survived",
+          "seconds": 46.433555083000016
+        },
+        {
+          "id": "authored:native-newline-rewrites-text-input",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-rewrites-text-input",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-newline-history > fixed seed 20261118: type-terminal-composer-empty-lines"
+          ],
+          "laws": [
+            "browser native newline history"
+          ],
+          "seconds": 31.722807792000008
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 5,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 0,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 33901,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:51:00.777296+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-drops-completed-input-receipt",
+          "authored:native-newline-rewrites-text-input",
+          "authored:native-newline-binds-once-only"
+        ],
+        "config": "build/receiving-new-native.config.mjs"
+      }
+    },
+    "v3-held-restored-source": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/v3-held-restored-source",
+      "resultSha256": "956f39799dab5341dfefe360928da7f35f50a56c90a8a9f769e066f33a3680d4",
+      "runId": "74c19a80497f",
+      "baseline": [
+        {
+          "file": "test-ui/editor-held-newline.oracle.test.ts",
+          "ordinary": false,
+          "passed": 3,
+          "failed": 0,
+          "skipped": 81
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": false,
+      "mutants": [
+        {
+          "id": "authored:native-newline-clobbers-restored-source",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-clobbers-restored-source",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-held-newline > fixed seed 20261118: rejected-Enter-afterFalse"
+          ],
+          "laws": [
+            "native newline held-region receiving"
+          ],
+          "seconds": 4.403720625
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 3,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 0,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 23885,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:39:30.417560+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-clobbers-restored-source"
+        ],
+        "config": "build/held-after-signal.config.mjs"
+      }
+    },
+    "v3-held-firefox-receiving": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/v3-held-firefox-receiving",
+      "resultSha256": "eda82adb1aa2aa3a37b27a96d3ad46d4b6989376c0ebdde35b5a1035d300fe0d",
+      "runId": "74c19a80497f",
+      "baseline": [
+        {
+          "file": "test-ui/editor-held-newline.oracle.test.ts",
+          "ordinary": false,
+          "passed": 3,
+          "failed": 0,
+          "skipped": 81
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": false,
+      "mutants": [
+        {
+          "id": "authored:native-newline-clobbers-restored-source",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-clobbers-restored-source",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-held-newline > fixed seed 20261118: rejected-Enter-afterFalse"
+          ],
+          "laws": [
+            "native newline held-region receiving"
+          ],
+          "seconds": 7.093000459000002
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 3,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 0,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 25799,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:41:38.206209+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-clobbers-restored-source"
+        ],
+        "config": "build/held-after-signal.config.mjs"
+      }
+    },
+    "v3-held-webkit-receiving": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/v3-held-webkit-receiving",
+      "resultSha256": "b50c70ea972b34f11447586bb436391c1b4fbc0c4d91c8d56668466468dd322e",
+      "runId": "74c19a80497f",
+      "baseline": [
+        {
+          "file": "test-ui/editor-held-newline.oracle.test.ts",
+          "ordinary": false,
+          "passed": 3,
+          "failed": 0,
+          "skipped": 81
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": false,
+      "mutants": [
+        {
+          "id": "authored:native-newline-clobbers-restored-source",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-clobbers-restored-source",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-held-newline > fixed seed 20261118: rejected-Shift+Enter-afterThrow"
+          ],
+          "laws": [
+            "native newline held-region receiving"
+          ],
+          "seconds": 12.58072075
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 3,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 0,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 25818,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:41:41.646605+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-clobbers-restored-source"
+        ],
+        "config": "build/held-after-signal.config.mjs"
+      }
+    },
+    "main-native-receiving": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/main-native-receiving",
+      "resultSha256": "7fac9d5849f2bdf8d43c10cb4341b19f165ba276dad6187023be31c5386ccff7",
+      "runId": "0a3db82c2ae7",
+      "baseline": [
+        {
+          "file": "test-ui/editor-newline-history.oracle.test.ts",
+          "ordinary": false,
+          "passed": 25,
+          "failed": 0,
+          "skipped": 218
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": false,
+      "mutants": [
+        {
+          "id": "authored:native-newline-binds-once-only",
+          "key": "src/ui/authoring.tsx#authored:native-newline-binds-once-only",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-newline-history > fixed seed 20261118: reopen-quick-Enter-terminal"
+          ],
+          "laws": [
+            "browser native newline history"
+          ],
+          "seconds": 4.513241125
+        },
+        {
+          "id": "authored:native-newline-drops-completed-input-receipt",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-drops-completed-input-receipt",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-newline-history > fixed seed 20261118: composer-Enter-afterFalse"
+          ],
+          "laws": [
+            "browser native newline history"
+          ],
+          "seconds": 9.039482082999996
+        },
+        {
+          "id": "authored:native-newline-rewrites-text-input",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-rewrites-text-input",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-newline-history > fixed seed 20261118: type-terminal-composer-empty-lines"
+          ],
+          "laws": [
+            "browser native newline history"
+          ],
+          "seconds": 15.667181375
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 5,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 0,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 39498,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:53:56.558113+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-drops-completed-input-receipt",
+          "authored:native-newline-rewrites-text-input",
+          "authored:native-newline-binds-once-only"
+        ],
+        "config": "build/receiving-new-native.config.mjs"
+      }
+    },
+    "main-held-receiving": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/main-held-receiving",
+      "resultSha256": "f1e8ee5c3d7f0a04b16989dc7279437ca8ee036a5d437bcb22843854d95d058b",
+      "runId": "b40305f99797",
+      "baseline": [
+        {
+          "file": "test-ui/editor-held-newline.oracle.test.ts",
+          "ordinary": false,
+          "passed": 3,
+          "failed": 0,
+          "skipped": 81
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": false,
+      "mutants": [
+        {
+          "id": "authored:native-newline-clobbers-restored-source",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-clobbers-restored-source",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-held-newline > fixed seed 20261118: rejected-Enter-afterFalse"
+          ],
+          "laws": [
+            "native newline held-region receiving"
+          ],
+          "seconds": 3.3264758750000003
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 3,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 0,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 39623,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:53:08.756010+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-clobbers-restored-source"
+        ],
+        "config": "build/held-after-signal.config.mjs"
+      }
+    }
+  },
+  "diagnosticControls": {
+    "missing": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/v4-acquisition-missing",
+      "resultSha256": "b84e9d1820346c5b3678e398f9641dbe1c74d0c2c282526c4b10018fcb251f74",
+      "runId": "65a095590e95",
+      "baseline": [
+        {
+          "file": "test-ui/editor-newline-history.oracle.test.ts",
+          "ordinary": false,
+          "failure": "editor-browser-newline-history > fixed seed 20261118: composer-Enter-afterFalse: Error: Native command driver premise missing: trusted input at the intended textarea before afterFalse",
+          "passed": 0,
+          "failed": 3,
+          "skipped": 240
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": true,
+      "mutants": [
+        {
+          "id": "authored:native-newline-drops-completed-input-receipt",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-drops-completed-input-receipt",
+          "outcome": "blocked"
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 1,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 1,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 33905,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:48:19.976076+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-drops-completed-input-receipt"
+        ],
+        "config": "build/acquisition-missing.config.mjs"
+      }
+    },
+    "untrusted": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/v4-acquisition-untrusted",
+      "resultSha256": "2c803a3fb07ccba810592ee5e831566352b384a58e66afbe18709678a8ef8c13",
+      "runId": "1f9e5e81b4b5",
+      "baseline": [
+        {
+          "file": "test-ui/editor-newline-history.oracle.test.ts",
+          "ordinary": false,
+          "failure": "editor-browser-newline-history > fixed seed 20261118: composer-Enter-afterFalse: Error: Native command driver premise missing: trusted input at the intended textarea before afterFalse",
+          "passed": 0,
+          "failed": 3,
+          "skipped": 240
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": true,
+      "mutants": [
+        {
+          "id": "authored:native-newline-drops-completed-input-receipt",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-drops-completed-input-receipt",
+          "outcome": "blocked"
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 1,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 1,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 33915,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:48:20.494124+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-drops-completed-input-receipt"
+        ],
+        "config": "build/acquisition-untrusted.config.mjs"
+      }
+    },
+    "mistargeted": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/v4-acquisition-mistargeted",
+      "resultSha256": "33338a059a77da8fdb2a79639dd859daee128cbbb4d207ff9ff38d61c13a324b",
+      "runId": "4fb091ab01ac",
+      "baseline": [
+        {
+          "file": "test-ui/editor-newline-history.oracle.test.ts",
+          "ordinary": false,
+          "failure": "editor-browser-newline-history > fixed seed 20261118: composer-Enter-afterFalse: Error: Native command driver premise missing: trusted input at the intended textarea before afterFalse",
+          "passed": 0,
+          "failed": 3,
+          "skipped": 240
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": true,
+      "mutants": [
+        {
+          "id": "authored:native-newline-drops-completed-input-receipt",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-drops-completed-input-receipt",
+          "outcome": "blocked"
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 1,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 1,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 33908,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:48:20.086615+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-drops-completed-input-receipt"
+        ],
+        "config": "build/acquisition-mistargeted.config.mjs"
+      }
+    },
+    "wrong-input-type": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/v4-acquisition-wrong-input-type",
+      "resultSha256": "01497775a6917684a0c84e38effd3e304111028d92505b410932c529a0bfd767",
+      "runId": "7ec2964b361c",
+      "baseline": [
+        {
+          "file": "test-ui/editor-newline-history.oracle.test.ts",
+          "ordinary": false,
+          "failure": "editor-browser-newline-history > fixed seed 20261118: type-terminal-editor-unicode: Error: Native text driver premise missing: trusted text delivery at the intended textarea",
+          "passed": 0,
+          "failed": 2,
+          "skipped": 241
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": true,
+      "mutants": [
+        {
+          "id": "authored:native-newline-drops-completed-input-receipt",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-drops-completed-input-receipt",
+          "outcome": "blocked"
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 1,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 1,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 33902,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:48:16.502127+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-drops-completed-input-receipt"
+        ],
+        "config": "build/acquisition-wrong-input-type.config.mjs"
+      }
+    },
+    "wrong-signal": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/v4-acquisition-wrong-signal",
+      "resultSha256": "6c93b7f6347cdabccb1dc30fa2db1e2c47f4723dc23c1e66d0c092fbafe7b208",
+      "runId": "5fe57f307325",
+      "baseline": [
+        {
+          "file": "test-ui/editor-newline-history.oracle.test.ts",
+          "ordinary": false,
+          "failure": "editor-browser-newline-history > fixed seed 20261118: composer-Enter-afterFalse: Error: Native command driver premise missing: trusted input at the intended textarea before afterFalse",
+          "passed": 0,
+          "failed": 1,
+          "skipped": 242
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": true,
+      "mutants": [
+        {
+          "id": "authored:native-newline-drops-completed-input-receipt",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-drops-completed-input-receipt",
+          "outcome": "blocked"
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 1,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 1,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 35446,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:49:18.862816+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-drops-completed-input-receipt"
+        ],
+        "config": "build/acquisition-wrong-signal.config.mjs"
+      }
+    },
+    "target-binding": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/v4-acquisition-target-binding",
+      "resultSha256": "b8d3845c583b81be35646e4bf320251b3d4a11a653f591e25909a5cc9f6b2f88",
+      "runId": "583eeb1329ce",
+      "baseline": [
+        {
+          "file": "test-ui/editor-newline-history.oracle.test.ts",
+          "ordinary": false,
+          "failure": "editor-browser-newline-history > fixed seed 20261118: composer-Enter-afterFalse: Error: Native command driver premise missing: trusted input at the intended textarea before afterFalse",
+          "passed": 0,
+          "failed": 1,
+          "skipped": 242
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": true,
+      "mutants": [
+        {
+          "id": "authored:native-newline-drops-completed-input-receipt",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-drops-completed-input-receipt",
+          "outcome": "blocked"
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 1,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 1,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 35441,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:49:18.744383+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-drops-completed-input-receipt"
+        ],
+        "config": "build/acquisition-target-binding.config.mjs"
+      }
+    },
+    "valid": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/v4-acquisition-valid",
+      "resultSha256": "fa4a7cfb25f88632c3b7187aec67a10422f81407553544a842a2849ed2b5b289",
+      "runId": "6bbbf03ba39e",
+      "baseline": [
+        {
+          "file": "test-ui/editor-newline-history.oracle.test.ts",
+          "ordinary": false,
+          "passed": 3,
+          "failed": 0,
+          "skipped": 240
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": false,
+      "mutants": [
+        {
+          "id": "authored:native-newline-drops-completed-input-receipt",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-drops-completed-input-receipt",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-newline-history > fixed seed 20261118: composer-Enter-afterFalse"
+          ],
+          "laws": [
+            "browser native newline history"
+          ],
+          "seconds": 4.208647624999999
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 3,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 0,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 35439,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:49:25.503575+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-drops-completed-input-receipt"
+        ],
+        "config": "build/acquisition-valid.config.mjs"
+      }
+    },
+    "valid-corrupt-source": {
+      "root": "/private/tmp/blygger-native-boundaries-5l3ciacw/v4-acquisition-valid-corrupt-source",
+      "resultSha256": "c81924ed648d40c954ef022cfa6bb317ea33c71fffd5a11eb63ffc8ea067d6dc",
+      "runId": "85addabeb8a0",
+      "baseline": [
+        {
+          "file": "test-ui/editor-newline-history.oracle.test.ts",
+          "ordinary": false,
+          "failure": "editor-browser-newline-history > fixed seed 20261118: composer-Enter-afterFalse: OracleViolation: editor-browser-newline-history violated at checkpoint \"step0\" (law: browser native newline history).",
+          "passed": 0,
+          "failed": 3,
+          "skipped": 240
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": true,
+      "mutants": [
+        {
+          "id": "authored:native-newline-drops-completed-input-receipt",
+          "key": "src/ui/format-shortcuts.ts#authored:native-newline-drops-completed-input-receipt",
+          "outcome": "blocked"
+        }
+      ],
+      "evidence": {
+        "reused": 0,
+        "computed": 1,
+        "cut": 0,
+        "idle": 0,
+        "spin": 0,
+        "rerun": 0,
+        "unchanged": 0,
+        "budget": 0
+      },
+      "cleanup": {
+        "exitCode": 1,
+        "operatorStopped": false,
+        "hardStop": false,
+        "processGroup": 35451,
+        "groupAbsent": true,
+        "finished": "2026-11-21T20:49:29.473254+00:00"
+      },
+      "options": {
+        "contexts": 2,
+        "sources": [
+          "src/ui/format-shortcuts.ts",
+          "src/ui/authoring.tsx"
+        ],
+        "seed": "20261118",
+        "only": [
+          "authored:native-newline-drops-completed-input-receipt"
+        ],
+        "config": "build/acquisition-valid-corrupt-source.config.mjs"
+      }
+    }
+  },
+  "rawAcquisitionSummary": {
+    "v4-native-chromium": {
+      "counts": {
+        "allRawTraces": 943,
+        "completedSaved": 943,
+        "completedStep0": 943,
+        "requiredAsciiKeys:composer": 8,
+        "requiredAsciiKeys:editor": 22,
+        "requiredAsciiKeys:quick": 8,
+        "requiredCommand:afterFalse:composer": 25,
+        "requiredCommand:afterFalse:editor": 22,
+        "requiredCommand:afterFalse:quick": 18,
+        "requiredCommand:afterThrow:composer": 26,
+        "requiredCommand:afterThrow:editor": 18,
+        "requiredCommand:afterThrow:quick": 18,
+        "requiredNativeText:composer": 36,
+        "requiredNativeText:editor": 52,
+        "requiredNativeText:quick": 24,
+        "requiredQuickRemount": 55
+      },
+      "completed": true
+    },
+    "v3-held-chromium": {
+      "counts": {
+        "allRawTraces": 477,
+        "completedSaved": 477,
+        "completedStep0": 477,
+        "requiredCommand:afterFalse:edge": 48,
+        "requiredCommand:afterFalse:hidden": 30,
+        "requiredCommand:afterFalse:rejected": 33,
+        "requiredCommand:afterThrow:edge": 36,
+        "requiredCommand:afterThrow:hidden": 36,
+        "requiredCommand:afterThrow:rejected": 45
+      },
+      "completed": true
+    },
+    "v4-native-firefox-receiving": {
+      "counts": {
+        "allRawTraces": 111,
+        "completedSaved": 111,
+        "completedStep0": 111,
+        "requiredAsciiKeys:composer": 8,
+        "requiredAsciiKeys:editor": 3,
+        "requiredAsciiKeys:quick": 3,
+        "requiredCommand:afterFalse:composer": 13,
+        "requiredCommand:afterFalse:editor": 8,
+        "requiredCommand:afterFalse:quick": 8,
+        "requiredCommand:afterThrow:composer": 8,
+        "requiredCommand:afterThrow:editor": 8,
+        "requiredCommand:afterThrow:quick": 8,
+        "requiredNativeText:composer": 16,
+        "requiredNativeText:editor": 11,
+        "requiredNativeText:quick": 11,
+        "requiredQuickRemount": 20
+      },
+      "completed": true
+    },
+    "v4-native-webkit-receiving": {
+      "counts": {
+        "allRawTraces": 120,
+        "completedSaved": 120,
+        "completedStep0": 120,
+        "requiredAsciiKeys:composer": 4,
+        "requiredAsciiKeys:editor": 4,
+        "requiredAsciiKeys:quick": 4,
+        "requiredCommand:afterFalse:composer": 10,
+        "requiredCommand:afterFalse:editor": 10,
+        "requiredCommand:afterFalse:quick": 10,
+        "requiredCommand:afterThrow:composer": 10,
+        "requiredCommand:afterThrow:editor": 10,
+        "requiredCommand:afterThrow:quick": 10,
+        "requiredNativeText:composer": 16,
+        "requiredNativeText:editor": 12,
+        "requiredNativeText:quick": 12,
+        "requiredQuickRemount": 20
+      },
+      "completed": true
+    },
+    "v3-held-restored-source": {
+      "counts": {
+        "allRawTraces": 12,
+        "completedSaved": 12,
+        "completedStep0": 12,
+        "requiredCommand:afterFalse:edge": 2,
+        "requiredCommand:afterFalse:hidden": 1,
+        "requiredCommand:afterFalse:rejected": 7,
+        "requiredCommand:afterThrow:rejected": 2
+      },
+      "completed": true
+    },
+    "v3-held-firefox-receiving": {
+      "counts": {
+        "allRawTraces": 12,
+        "completedSaved": 12,
+        "completedStep0": 12,
+        "requiredCommand:afterFalse:edge": 2,
+        "requiredCommand:afterFalse:hidden": 1,
+        "requiredCommand:afterFalse:rejected": 7,
+        "requiredCommand:afterThrow:rejected": 2
+      },
+      "completed": true
+    },
+    "v3-held-webkit-receiving": {
+      "counts": {
+        "allRawTraces": 20,
+        "completedSaved": 20,
+        "completedStep0": 20,
+        "requiredCommand:afterFalse:edge": 2,
+        "requiredCommand:afterFalse:hidden": 1,
+        "requiredCommand:afterFalse:rejected": 4,
+        "requiredCommand:afterThrow:hidden": 3,
+        "requiredCommand:afterThrow:rejected": 10
+      },
+      "completed": true
+    },
+    "main-native-receiving": {
+      "counts": {
+        "allRawTraces": 84,
+        "completedSaved": 84,
+        "completedStep0": 84,
+        "requiredAsciiKeys:composer": 2,
+        "requiredAsciiKeys:editor": 2,
+        "requiredAsciiKeys:quick": 2,
+        "requiredCommand:afterFalse:composer": 11,
+        "requiredCommand:afterFalse:editor": 6,
+        "requiredCommand:afterFalse:quick": 6,
+        "requiredCommand:afterThrow:composer": 6,
+        "requiredCommand:afterThrow:editor": 6,
+        "requiredCommand:afterThrow:quick": 6,
+        "requiredNativeText:composer": 10,
+        "requiredNativeText:editor": 6,
+        "requiredNativeText:quick": 6,
+        "requiredQuickRemount": 21
+      },
+      "completed": true
+    },
+    "main-held-receiving": {
+      "counts": {
+        "allRawTraces": 12,
+        "completedSaved": 12,
+        "completedStep0": 12,
+        "requiredCommand:afterFalse:edge": 2,
+        "requiredCommand:afterFalse:hidden": 1,
+        "requiredCommand:afterFalse:rejected": 7,
+        "requiredCommand:afterThrow:rejected": 2
+      },
+      "completed": true
+    }
+  },
+  "saveIdentityAudit": {
+    "v4-native-chromium": {
+      "traces": 943,
+      "saved": 943,
+      "injected": 12,
+      "literalIds": 1240,
+      "staleControls": 2,
+      "staleConflicts": 2,
+      "projectionMismatches": []
+    },
+    "v4-native-firefox-receiving": {
+      "traces": 111,
+      "saved": 111,
+      "injected": 0,
+      "literalIds": 148,
+      "staleControls": 0,
+      "staleConflicts": 0,
+      "projectionMismatches": []
+    },
+    "v4-native-webkit-receiving": {
+      "traces": 120,
+      "saved": 120,
+      "injected": 0,
+      "literalIds": 156,
+      "staleControls": 0,
+      "staleConflicts": 0,
+      "projectionMismatches": []
+    },
+    "main-native-receiving": {
+      "traces": 84,
+      "saved": 84,
+      "injected": 0,
+      "literalIds": 111,
+      "staleControls": 0,
+      "staleConflicts": 0,
+      "projectionMismatches": []
+    },
+    "v4-acquisition-valid": {
+      "traces": 11,
+      "saved": 11,
+      "injected": 0,
+      "literalIds": 18,
+      "staleControls": 0,
+      "staleConflicts": 0,
+      "projectionMismatches": []
+    },
+    "v4-acquisition-valid-corrupt-source": {
+      "traces": 17,
+      "saved": 17,
+      "injected": 0,
+      "literalIds": 32,
+      "staleControls": 0,
+      "staleConflicts": 0,
+      "projectionMismatches": []
+    }
+  },
+  "audits": [
+    {
+      "path": "/private/tmp/blygger-native-boundaries-5l3ciacw/grammar-audit.json",
+      "sha256": "47e65205ca933f9e5c2eca530a4455666bde89cab57b4eecab8d49e843c2105e"
+    },
+    {
+      "path": "/private/tmp/blygger-native-boundaries-5l3ciacw/grammar-v2-audit.json",
+      "sha256": "d4bca47e7397e54c9475427bac1e8342189c1e0f92da31a0fdc79a00f989014d"
+    },
+    {
+      "path": "/private/tmp/blygger-native-boundaries-5l3ciacw/grammar-v4-audit.json",
+      "sha256": "e96b0b78a5a2a490b63338f0fee7f1cf39bd29c314951cf7ec7487f8e41296a2"
+    },
+    {
+      "path": "/private/tmp/blygger-native-boundaries-5l3ciacw/type-erasure-audit.json",
+      "sha256": "259865150675d2a86e7570dbdcc8955e0c96d8edae2beef208229e3de0c8aafe"
+    },
+    {
+      "path": "/private/tmp/blygger-native-boundaries-5l3ciacw/v4-semantic-preservation.json",
+      "sha256": "75613e31dc7c4c4d42e4540f4caced23c8f014b05b11934a7c2e91a5c429306d"
+    },
+    {
+      "path": "/private/tmp/blygger-native-boundaries-5l3ciacw/v4-runtime-source-delta.json",
+      "sha256": "c9db438bba0a1ba3a1d71d7a90af771f3514300195bbb9d6fd968647ae5fa6dd"
+    },
+    {
+      "path": "/private/tmp/blygger-native-boundaries-5l3ciacw/integration-final-receipt.json",
+      "sha256": "6aa1560f328a8cbf15d57978002585f83cb712a96e77028466f8b84aae7c68c8"
+    },
+    {
+      "path": "/private/tmp/blygger-native-boundaries-5l3ciacw/v4-raw-acquisition-audit.json",
+      "sha256": "18021602f5375927316a8270efeae6a830fab5f4a69b02dafcb99440136c9937"
+    },
+    {
+      "path": "/private/tmp/blygger-native-boundaries-5l3ciacw/v4-raw-save-audit.json",
+      "sha256": "e8b0f5c6b3ed5dfed6e30fd25034c6d4562f030e7bffa58397ba4a466917bf45"
+    }
+  ],
+  "reviews": [
+    {
+      "path": "/private/tmp/blygger-native-boundaries-extension-review-HIqLkyQI/REPORT.md",
+      "sha256": "6c23958f3fbf5f487e62fb51ec29587c0f39a94e2c7d12c28f6f260586340fa5"
+    },
+    {
+      "path": "/private/tmp/blygger-native-boundaries-v2-source-review-7cfV4Ysr/REPORT.md",
+      "sha256": "4545079a0a4a9dbbab509a1197ec3a46b8c65403ae6a969353ede6c6611391d0"
+    },
+    {
+      "path": "/private/tmp/blygger-native-boundaries-v3-source-review-K39Z6gHA/REPORT.md",
+      "sha256": "4b801a04b26aedb2c0f8f691a7d48762875a3cfa587bfb825b7f8f63236c6804"
+    },
+    {
+      "path": "/private/tmp/blygger-native-boundaries-v4-source-review-_7x49ewo/REPORT.md",
+      "sha256": "71f0d0ed7293c332d9391009c3e00e0ee83318519d03289e9aa195f574427288"
+    },
+    {
+      "path": "/private/tmp/blygger-firefox-native-text-source-review-xubn_997/REPORT.md",
+      "sha256": "22e7323b542744a72ccc8f7ad680f50d73d15879a9c761769c407af7e5512761"
+    },
+    {
+      "path": "/private/tmp/blygger-held-restoration-survivor-review-2Iid4yHK/REPORT.md",
+      "sha256": "0c3c7042999f07b00607b97fb0b36a101c2bb8ad0f4ff8db11450db8a0fa011d"
+    },
+    {
+      "path": "/private/tmp/blygger-v4-cross-engine-survivor-review-2c7qjbnk/REPORT.md",
+      "sha256": "f2d42c677a8692939a75090abe435e461431ea574db8e78f3c05b5b46ae4ede0"
+    },
+    {
+      "path": "/private/tmp/blygger-split-loss-accounting-kvrrw2w2/REPORT.md",
+      "sha256": "a5daf547367b6db4214a99cfcbb49f6551b44ab858bb3ad3efc200f9ffb579ec"
+    }
+  ],
+  "checklist": {
+    "ORC-001": "Existing law/authority and check blocks byte-preserved; no new product or event-count policy.",
+    "ORC-002": "Independent mixed source/history model and protected-segment expected source retained; runtime source helpers are not predictors.",
+    "ORC-003": "Oracle prose identifies source, Save, controlled signals and host limits; test-free drivers/models explain their own roles.",
+    "ORC-004": "49 original native cases retained through V1; all 71 V3 cases/plans/models/default states reconstructed in V4; three ASCII-key additions legal; original 12 held recipes retained plus 12 signal neighbors. Original exclusions remain and ASCII-key newline is rejected. Static reconstruction is not browser equivalence.",
+    "ORC-005": "Actual composer/full/quick, quick replacement node, actual regions-example receiver and clicked Save; exact textarea receipt acquisition precedes the owed step.",
+    "ORC-006": "Full native and held calibrations passed; valid-premise corruption fails source law; missing/trust/target/signal/input-type controls fail setup; five full-native mutants and separate protected overwrite challenge rejected. Surviving keys stay open.",
+    "ORC-007": "25 runs, fixed 20261118 and random-named campaigns retained; both full passes. Existing deterministic ambient-randomness limitation remains open.",
+    "ORC-008": "Expected source/history state machine unchanged; new history axes have distinguishing receiving witnesses. No state quotient or production-result branch introduced.",
+    "ORC-009": "Text commit, ASCII keys, command signal and remount map explicitly to public input/action/Save facts; no physical IME claim.",
+    "ORC-010": "Per-action beforeinput/input recorders disposed and command arrays reset; existing failure-preserving cleanup retained. Every listed supervisor exited naturally with its process group absent. Optional explicit clearing of the armed target is only a review hygiene idea, not a demonstrated leak.",
+    "ORC-011": "No new shared source-semantic-fault hypothesis was identified; provider acquisition review does not itself require another expected-source formulation.",
+    "ORC-012": "This prepared repository record binds base commit, exact uncommitted source hashes and reports; commit/versioning remains part of prep-pr. Full portfolio audit/readiness is not claimed.",
+    "ORC-013": "Real remount, genuine synchronous delete before forced signal, held source restoration and ordinary ASCII beforeinput have required receiving witnesses and relevant corruptions/mutants.",
+    "ORC-014": "Delete/input is real browser behavior; subsequent false/throw is controlled and not represented as normal browser policy. Firefox composition API commit is distinct from physical IME. Existing cross-device/host limits remain.",
+    "ORC-015": "Reach requires actual trusted intended-target receipts/matching signal or actual replacement-node fact. Ordinary ASCII keys require offered noncomposing cancelable insertText. Missing acquisition cannot emit the owed step or earn a source kill.",
+    "ORC-016": "Only oracleProperty registrations and test-free companions; no example unit tests or complementary Playwright suite added."
+  },
+  "remaining": [
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:native-newline-restored-input-ignored",
+      "scope": "Full Chromium held oracle",
+      "gap": "not-judged",
+      "evidence": "v3-held-chromium",
+      "detail": "Second default edit is refused/restored again; nativeInputs multiplicity differs while source, feedback and Save agree. No event-count, refused-caret or refused-undo law added."
+    },
+    {
+      "key": "src/ui/authoring.tsx#authored:native-newline-binds-once-only",
+      "scope": "Firefox/WebKit focused new receiving histories",
+      "gap": "not-judged",
+      "detail": "Source history remains valid; changed undo/redo selection is an adopted host freedom and later typing consumes its public range. Raw traces retained."
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:native-newline-drops-completed-input-receipt",
+      "scope": "WebKit focused new receiving histories",
+      "gap": "not-observed",
+      "detail": "Real completed-delete premise is reached but no distinguishing wrong source witness found; this is not acquisition failure."
+    },
+    {
+      "scope": "Broader native boundary",
+      "gap": "confirmed-open",
+      "detail": "Composition lifecycle/latch, canceled beforeinput, direct cleanup release, remaining guard/range witnesses and physical IME/iPad remain separate; general success-without-mutation recovery is unadopted."
+    },
+    {
+      "scope": "prep-pr",
+      "gap": "confirmed-open",
+      "detail": "Compose integration/Retry/full-graph evidence and collection-load symptom, final full semantic loss and mutation audit, complete cold Linux CI measurement, review walkthrough/approval, commit and PR remain."
+    }
+  ],
+  "staticChecks": {
+    "fullTypecheck": "passed all 3 configs on final candidate and integrated main",
+    "changedFileLint": "passed integrated main",
+    "migrationInventory": "passed:890 comparisons, 193 declarations,301 rows / 29 suites, 38 implementations; not semantic equivalence",
+    "registry": "18 files,41 property IDs unchanged"
+  },
+  "integration": {
+    "preimagesMatched": true,
+    "filesCopied": 12,
+    "dependencySourceComparison": "614 files compared; only non-executable sdk/LICENSE absent in scratch outside the explicit change set. Main retains it.",
+    "annotationsOnlyDelta": "Final driver differs from V4 only in erased event annotations/casts; TypeScript and esbuild output are byte-identical. Integrated main receiving is verified separately."
+  },
+  "processNote": "Raw split plan preceded edits, but its per-item serialization was late. The later audit explicitly acknowledges that ordering miss and imports every occurrence; it does not retroactively satisfy ledger-first ordering. Existing statuses/evidence are retained."
+}

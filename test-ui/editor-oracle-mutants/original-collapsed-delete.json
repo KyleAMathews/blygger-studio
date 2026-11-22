@@ -1,0 +1,8 @@
+{
+  "id": "original-collapsed-delete",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "edit.insert || edit.from === edit.to ? document.execCommand('insertText', false, edit.insert)",
+  "replace": "edit.insert ? document.execCommand('insertText', false, edit.insert)",
+  "intent": "An empty replacement at a collapsed caret must preserve adjacent source in the native browser path.",
+  "author": "Independent browser review; RED reproduced by parent"
+}

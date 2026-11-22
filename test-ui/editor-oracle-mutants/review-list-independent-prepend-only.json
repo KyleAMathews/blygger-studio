@@ -1,0 +1,8 @@
+{
+  "id": "review-list-independent-prepend-only",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  const write = () => rows.map((row, index) => row.marker ? indents[index] + marker(index) + row.gap + row.body : row.line).join('\\n');",
+  "replace": "  const write = () => rows.map((row, index) => {\n    if (!row.marker) return row.line;\n    let indent = indents[index]!;\n    if (!out) {\n      let extra = INDENT.length;\n      while (column(row.indent, extra) < column(indent)) extra++;\n      indent = ' '.repeat(extra) + row.indent;\n    }\n    return indent + marker(index) + row.gap + row.body;\n  }).join('\\n');",
+  "intent": "Choose each peer independently but require prepend-only whitespace; the tab-phase witness needs changing final leading whitespace.",
+  "author": "Codex; independent oracle-review hostile design after unchanged-production RED; Codex source-only r2 rebase, self-generated after oracle/review inspection"
+}

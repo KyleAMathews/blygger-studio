@@ -1,0 +1,8 @@
+{
+  "id": "original-wide-parent-indent",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": ": aligned === undefined ? ' '.repeat(spaces) + row.indent : ' '.repeat(aligned));",
+  "replace": ": aligned === undefined ? INDENT + row.indent : ' '.repeat(aligned));",
+  "intent": "Children of supported wide ordered parents must render as nested list items.",
+  "author": "Codex, self-generated after review and oracle inspection; Codex source-only r2 rebase, self-generated after oracle/review inspection"
+}

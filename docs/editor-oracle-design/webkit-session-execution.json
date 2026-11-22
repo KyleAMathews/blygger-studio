@@ -1,0 +1,826 @@
+{
+  "base": "28b0c8d642a87e5810ad6eabd95c2d1714c53396",
+  "packagePin": "97a4e7a8e4b870c269bff297a16bf8435d258640",
+  "reviewedInputs": "docs/editor-oracle-design/webkit-ui-transition-run-inputs.json",
+  "reviewedInputsSha256": "66835128683da8f0822a718ca8ab05f5df0736f9972257826140523b49d7d07b",
+  "scope": "Exact native Undo/Redo and in-app formatting-session receiving on explicit macOS WebKit host; no general Safari, default r2370, raw-navigation migration, or full mutation-campaign closure claim.",
+  "runs": [
+    {
+      "directory": "build/formatting-oracles/session-mixed-webkit-native-boundary",
+      "engine": "webkit",
+      "premise": "r2370; superseded blind native-window pulse",
+      "reportSha256": "47da8a1ad42678309d9d3d8c078b77f9bc9f91fb35f9a7f625b47e170fc5180d",
+      "streamSha256": "99f931b88f213262d07866f6e736e99a5cabceaa58860537de072c1fb41999fd",
+      "run": {
+        "id": "4b3aaf3cba41",
+        "inputs": "1 source files, 1 oracle files, 0 ordinary test files, 36 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "provisional": true,
+      "baseline": [
+        {
+          "file": "test-ui/editor-session.oracle.test.ts",
+          "ordinary": false,
+          "failure": "editor-browser-session > fixed seed 20261118: editorToQuick-desktop: OracleViolation: editor-browser-session violated at checkpoint \"errors\" (law: browser editing history).",
+          "passed": 131,
+          "failed": 7,
+          "skipped": 0
+        }
+      ],
+      "repeat": {
+        "checks": 0,
+        "seconds": [
+          530.3,
+          0.0
+        ],
+        "nondeterministic": 0
+      },
+      "nondeterministic": [],
+      "outcomes": {
+        "blocked": 3
+      },
+      "selectedChallenges": [
+        {
+          "id": "authored:browser-native-undo-required",
+          "key": "src/ui/format-shortcuts.ts#authored:browser-native-undo-required",
+          "outcome": "blocked",
+          "blockedBy": [
+            "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-session.oracle.test.ts"
+          ]
+        },
+        {
+          "id": "authored:document-start-formatting",
+          "key": "src/ui/format-shortcuts.ts#authored:document-start-formatting",
+          "outcome": "blocked",
+          "blockedBy": [
+            "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-session.oracle.test.ts"
+          ]
+        },
+        {
+          "id": "authored:native-delete-undo",
+          "key": "src/ui/format-shortcuts.ts#authored:native-delete-undo",
+          "outcome": "blocked",
+          "blockedBy": [
+            "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-session.oracle.test.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "directory": "build/formatting-oracles/session-webkit-witness-r2395-final",
+      "engine": "webkit",
+      "premise": "r2395; acknowledged native boundary, former hard-goto transition",
+      "reportSha256": "df50abfae3693dc2688f33e806b2851080d0b04f5b2f52bba7cd6ecc7f26f7ca",
+      "streamSha256": "dd1c2e1ec2d100f0e877fdc9cc76cbc67f97a69153ed7f0f5c3817c20ce28a68",
+      "run": {
+        "id": "ad7c4be40270",
+        "inputs": "1 source files, 1 oracle files, 0 ordinary test files, 40 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "provisional": true,
+      "baseline": [
+        {
+          "file": "test-ui/editor-session.oracle.test.ts",
+          "ordinary": false,
+          "failure": "editor-browser-session > determinism: constructed history: editorToQuick-desktop: Error: editor-browser-session: two runs of \"constructed history: editorToQuick-desktop\" recorded different traces at observation 5 (\"quickLoaded\").",
+          "passed": 136,
+          "failed": 2,
+          "skipped": 0
+        }
+      ],
+      "repeat": {
+        "checks": 0,
+        "seconds": [
+          385.6,
+          0.0
+        ],
+        "nondeterministic": 0
+      },
+      "nondeterministic": [],
+      "outcomes": {
+        "blocked": 3
+      },
+      "selectedChallenges": [
+        {
+          "id": "authored:browser-native-undo-required",
+          "key": "src/ui/format-shortcuts.ts#authored:browser-native-undo-required",
+          "outcome": "blocked",
+          "blockedBy": [
+            "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-session.oracle.test.ts"
+          ]
+        },
+        {
+          "id": "authored:document-start-formatting",
+          "key": "src/ui/format-shortcuts.ts#authored:document-start-formatting",
+          "outcome": "blocked",
+          "blockedBy": [
+            "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-session.oracle.test.ts"
+          ]
+        },
+        {
+          "id": "authored:native-delete-undo",
+          "key": "src/ui/format-shortcuts.ts#authored:native-delete-undo",
+          "outcome": "blocked",
+          "blockedBy": [
+            "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-session.oracle.test.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "directory": "build/formatting-oracles/session-witness-chromium",
+      "engine": "chromium",
+      "premise": "historical full session baseline before compose-link repair",
+      "reportSha256": "765d7a802a8d4fb7cb9a40bdde08f437d0b3bfa8cbc115e5da53786790a5928f",
+      "streamSha256": "c025a74ef07cf65dabc14cb5bce18a3497cb5642359af68aa876ed9b315e561a",
+      "run": {
+        "id": "d211c58e048b",
+        "inputs": "1 source files, 1 oracle files, 0 ordinary test files, 40 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "provisional": false,
+      "baseline": [
+        {
+          "file": "test-ui/editor-session.oracle.test.ts",
+          "ordinary": false,
+          "passed": 138,
+          "failed": 0,
+          "skipped": 0
+        }
+      ],
+      "repeat": {
+        "checks": 138,
+        "seconds": [
+          100.4,
+          97.9
+        ],
+        "nondeterministic": 0
+      },
+      "nondeterministic": [],
+      "outcomes": {
+        "killed": 3
+      },
+      "selectedChallenges": [
+        {
+          "id": "authored:browser-native-undo-required",
+          "key": "src/ui/format-shortcuts.ts#authored:browser-native-undo-required",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-session > fixed seed 20261118: composer-desktop"
+          ],
+          "laws": [
+            "browser editing history"
+          ]
+        },
+        {
+          "id": "authored:document-start-formatting",
+          "key": "src/ui/format-shortcuts.ts#authored:document-start-formatting",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-session > fixed seed 20261118: editor-desktop"
+          ],
+          "laws": [
+            "browser editing history"
+          ]
+        },
+        {
+          "id": "authored:native-delete-undo",
+          "key": "src/ui/format-shortcuts.ts#authored:native-delete-undo",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-session > fixed seed 20261118: empty-bold-desktop"
+          ],
+          "laws": [
+            "browser editing history"
+          ]
+        }
+      ]
+    },
+    {
+      "directory": "build/formatting-oracles/session-witness-firefox",
+      "engine": "firefox",
+      "premise": "historical full session baseline before compose-link repair",
+      "reportSha256": "52a5374498071da3119f66ca513b3e5e3bab90b17a9761e8edc3175e50797d41",
+      "streamSha256": "bf99b9ba0ab0f3ab89debcaa00a8872e2178f0024c1d12b7f89662d99b672e7a",
+      "run": {
+        "id": "d211c58e048b",
+        "inputs": "1 source files, 1 oracle files, 0 ordinary test files, 40 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "provisional": false,
+      "baseline": [
+        {
+          "file": "test-ui/editor-session.oracle.test.ts",
+          "ordinary": false,
+          "passed": 138,
+          "failed": 0,
+          "skipped": 0
+        }
+      ],
+      "repeat": {
+        "checks": 138,
+        "seconds": [
+          155.7,
+          140.2
+        ],
+        "nondeterministic": 0
+      },
+      "nondeterministic": [],
+      "outcomes": {
+        "killed": 3
+      },
+      "selectedChallenges": [
+        {
+          "id": "authored:browser-native-undo-required",
+          "key": "src/ui/format-shortcuts.ts#authored:browser-native-undo-required",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-session > fixed seed 20261118: composer-desktop"
+          ],
+          "laws": [
+            "browser editing history"
+          ]
+        },
+        {
+          "id": "authored:document-start-formatting",
+          "key": "src/ui/format-shortcuts.ts#authored:document-start-formatting",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-session > fixed seed 20261118: editor-desktop"
+          ],
+          "laws": [
+            "browser editing history"
+          ]
+        },
+        {
+          "id": "authored:native-delete-undo",
+          "key": "src/ui/format-shortcuts.ts#authored:native-delete-undo",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-session > fixed seed 20261118: empty-bold-desktop"
+          ],
+          "laws": [
+            "browser editing history"
+          ]
+        }
+      ]
+    },
+    {
+      "directory": "build/formatting-oracles/session-webkit-ui-transition-r2395",
+      "engine": "webkit",
+      "premise": "r2395; acknowledged native boundary and actual compose Router Link",
+      "reportSha256": "5e2735b4f5c189bc26b32b15f04e534a03b533103fff5177f2b7a5ea3bcb7055",
+      "streamSha256": "8e2de132c754329e1d342e36c31bd58c8f76972456caf70299eef04f21a1a49e",
+      "run": {
+        "id": "ad7c4be40270",
+        "inputs": "1 source files, 1 oracle files, 0 ordinary test files, 40 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "provisional": false,
+      "baseline": [
+        {
+          "file": "test-ui/editor-session.oracle.test.ts",
+          "ordinary": false,
+          "passed": 138,
+          "failed": 0,
+          "skipped": 0
+        }
+      ],
+      "repeat": {
+        "checks": 138,
+        "seconds": [
+          386.4,
+          388.3
+        ],
+        "nondeterministic": 0
+      },
+      "nondeterministic": [],
+      "outcomes": {
+        "killed": 3
+      },
+      "selectedChallenges": [
+        {
+          "id": "authored:browser-native-undo-required",
+          "key": "src/ui/format-shortcuts.ts#authored:browser-native-undo-required",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-session > fixed seed 20261118: composer-desktop"
+          ],
+          "laws": [
+            "browser editing history"
+          ]
+        },
+        {
+          "id": "authored:document-start-formatting",
+          "key": "src/ui/format-shortcuts.ts#authored:document-start-formatting",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-session > fixed seed 20261118: editor-desktop"
+          ],
+          "laws": [
+            "browser editing history"
+          ]
+        },
+        {
+          "id": "authored:native-delete-undo",
+          "key": "src/ui/format-shortcuts.ts#authored:native-delete-undo",
+          "outcome": "killed",
+          "by": [
+            "editor-browser-session > fixed seed 20261118: empty-bold-desktop"
+          ],
+          "laws": [
+            "browser editing history"
+          ]
+        }
+      ]
+    }
+  ],
+  "stoppedPartial": {
+    "directory": "build/formatting-oracles/session-webkit-witness-r2395",
+    "trace": "build/formatting-oracles/session-webkit-witness-r2395/run-70510-1.jsonl",
+    "traceSha256": "d575cd43d1d9d4ac592ddf4a627493102bc497351de8a7eeb7424354573b3e95",
+    "observed": {
+      "pass": 75
+    },
+    "status": "Stopped incomplete; no finalized report, repeat or mutation claim."
+  },
+  "setupFailures": [
+    {
+      "action": "First final link-driven attempt inside filesystem sandbox",
+      "error": "localhost bind EPERM, preserved alongside cleanup error",
+      "classification": "Setup failure; not RED, not a mutation kill.",
+      "recovery": "Same command successfully rerun with approved localhost/browser execution."
+    }
+  ],
+  "preserved": {
+    "constructed": 42,
+    "runs": 25,
+    "fixedSeeds": [
+      20261118
+    ],
+    "sessionModelSha256": "d6bb8085476ca484670d2abd501bb7322374eb6186bf5561523412aec556d296",
+    "formatterSha256": "3da803515b024126d880c6d25db23f77145df1a41fccdbe4db650aa11427cb54",
+    "sourceFieldsCheckpoints": "Unchanged; every immediate product snapshot remains before native-host boundary."
+  },
+  "open": [
+    "Original raw hard-navigation witness, pending-save schedule and explicit Stay/Leave receiving in a registered oracle; warning must not be conflated with automatic discard acceptance.",
+    "Matched Playwright JavaScript/native upgrade and default WebKit command; current evidence uses explicit mixed-version r2395 native override.",
+    "Actual Safari/physical mobile input, arbitrary structural mixed histories, OS clipboard and previously recorded full-campaign framework findings remain outside this receiving repair."
+  ],
+  "unloadChoiceResearch": {
+    "classification": "Exploratory controlled-host receiving probe only, not a registered oracle RED/GREEN or mutation kill.",
+    "script": "/private/tmp/blygger-webkit-unload-choice-probe.mts",
+    "scriptSha256": "8fd3405571bc757dc50b33ca44a9d18b21a09f7ab046ee47a4bf332bd00151ee",
+    "rawReceipt": "/private/tmp/blygger-webkit-unload-choice-probe.json",
+    "rawReceiptSha256": "6056e256473f0b35a8d04d542bef86d15c57e1b7b1bd7a6075f4b828b67fd82e",
+    "conclusion": "Both profiles receive a real warning. Dismiss retains latest source and departure does not complete. Accept permits departure and reads the last persisted source. Earlier unhandled warning was automatically accepted; no missing product unload guard demonstrated.",
+    "receipts": [
+      {
+        "decision": "dismiss",
+        "mobile": false,
+        "snapshots": [
+          {
+            "phase": "format",
+            "value": "*two*"
+          },
+          {
+            "phase": "format",
+            "value": "two"
+          },
+          {
+            "phase": "undo",
+            "value": "*two*"
+          },
+          {
+            "phase": "redo",
+            "value": "two"
+          }
+        ],
+        "afterUndo": "*two*",
+        "beforeNavigation": {
+          "activation": {
+            "active": true,
+            "sticky": true
+          },
+          "textarea": "two",
+          "server": "*two*"
+        },
+        "dialogs": [
+          {
+            "type": "beforeunload",
+            "message": "",
+            "phase": "navigation",
+            "decision": "dismiss",
+            "handled": true
+          }
+        ],
+        "navigationCompleted": false,
+        "navigationError": {
+          "name": "TimeoutError",
+          "message": "TimeoutError: page.goto: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:60657/studio\", waiting until \"load\"\u001b[22m\n"
+        },
+        "navigationURL": "http://127.0.0.1:60657/studio/edit/15v3a6yfkmd7r4ba2934nnxmx9",
+        "stayed": true,
+        "visibleAfterNavigation": "two",
+        "quickLoaded": null,
+        "finalSaveStatus": 200,
+        "server": "two",
+        "correlatedEvents": [
+          {
+            "type": "input",
+            "phase": "format",
+            "inputType": "insertText",
+            "value": "*two*"
+          },
+          {
+            "type": "input",
+            "phase": "format",
+            "inputType": "insertText",
+            "value": "two"
+          },
+          {
+            "type": "input",
+            "phase": "undo",
+            "inputType": "historyUndo",
+            "value": "*two*"
+          },
+          {
+            "type": "patch-response",
+            "phase": "undo",
+            "status": 200,
+            "body": {
+              "expectedRevision": 1,
+              "contentMd": "*two*"
+            }
+          },
+          {
+            "type": "input",
+            "phase": "redo",
+            "inputType": "historyRedo",
+            "value": "two"
+          },
+          {
+            "type": "held-final-save",
+            "phase": "redo",
+            "body": {
+              "expectedRevision": 2,
+              "contentMd": "two"
+            }
+          },
+          {
+            "type": "patch-response",
+            "phase": "navigation",
+            "status": 200,
+            "body": {
+              "expectedRevision": 2,
+              "contentMd": "two"
+            }
+          }
+        ]
+      },
+      {
+        "decision": "dismiss",
+        "mobile": true,
+        "snapshots": [
+          {
+            "phase": "format",
+            "value": "*two*"
+          },
+          {
+            "phase": "format",
+            "value": "two"
+          },
+          {
+            "phase": "undo",
+            "value": "*two*"
+          },
+          {
+            "phase": "redo",
+            "value": "two"
+          }
+        ],
+        "afterUndo": "*two*",
+        "beforeNavigation": {
+          "activation": {
+            "active": true,
+            "sticky": true
+          },
+          "textarea": "two",
+          "server": "*two*"
+        },
+        "dialogs": [
+          {
+            "type": "beforeunload",
+            "message": "",
+            "phase": "navigation",
+            "decision": "dismiss",
+            "handled": true
+          }
+        ],
+        "navigationCompleted": false,
+        "navigationError": {
+          "name": "TimeoutError",
+          "message": "TimeoutError: page.goto: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:60657/studio\", waiting until \"load\"\u001b[22m\n"
+        },
+        "navigationURL": "http://127.0.0.1:60657/studio/edit/64j7ey7zmbb7750jwaeys5cte6",
+        "stayed": true,
+        "visibleAfterNavigation": "two",
+        "quickLoaded": null,
+        "finalSaveStatus": 200,
+        "server": "two",
+        "correlatedEvents": [
+          {
+            "type": "input",
+            "phase": "format",
+            "inputType": "insertText",
+            "value": "*two*"
+          },
+          {
+            "type": "input",
+            "phase": "format",
+            "inputType": "insertText",
+            "value": "two"
+          },
+          {
+            "type": "input",
+            "phase": "undo",
+            "inputType": "historyUndo",
+            "value": "*two*"
+          },
+          {
+            "type": "patch-response",
+            "phase": "undo",
+            "status": 200,
+            "body": {
+              "expectedRevision": 1,
+              "contentMd": "*two*"
+            }
+          },
+          {
+            "type": "input",
+            "phase": "redo",
+            "inputType": "historyRedo",
+            "value": "two"
+          },
+          {
+            "type": "held-final-save",
+            "phase": "redo",
+            "body": {
+              "expectedRevision": 2,
+              "contentMd": "two"
+            }
+          },
+          {
+            "type": "patch-response",
+            "phase": "navigation",
+            "status": 200,
+            "body": {
+              "expectedRevision": 2,
+              "contentMd": "two"
+            }
+          }
+        ]
+      },
+      {
+        "decision": "accept",
+        "mobile": false,
+        "snapshots": [
+          {
+            "phase": "format",
+            "value": "*two*"
+          },
+          {
+            "phase": "format",
+            "value": "two"
+          },
+          {
+            "phase": "undo",
+            "value": "*two*"
+          },
+          {
+            "phase": "redo",
+            "value": "two"
+          }
+        ],
+        "afterUndo": "*two*",
+        "beforeNavigation": {
+          "activation": {
+            "active": true,
+            "sticky": true
+          },
+          "textarea": "two",
+          "server": "*two*"
+        },
+        "dialogs": [
+          {
+            "type": "beforeunload",
+            "message": "",
+            "phase": "navigation",
+            "decision": "accept",
+            "handled": true
+          }
+        ],
+        "navigationCompleted": true,
+        "navigationError": null,
+        "navigationURL": "http://127.0.0.1:60657/studio",
+        "stayed": false,
+        "visibleAfterNavigation": null,
+        "quickLoaded": "*two*",
+        "finalSaveStatus": null,
+        "server": "*two*",
+        "correlatedEvents": [
+          {
+            "type": "input",
+            "phase": "format",
+            "inputType": "insertText",
+            "value": "*two*"
+          },
+          {
+            "type": "input",
+            "phase": "format",
+            "inputType": "insertText",
+            "value": "two"
+          },
+          {
+            "type": "input",
+            "phase": "undo",
+            "inputType": "historyUndo",
+            "value": "*two*"
+          },
+          {
+            "type": "patch-response",
+            "phase": "undo",
+            "status": 200,
+            "body": {
+              "expectedRevision": 1,
+              "contentMd": "*two*"
+            }
+          },
+          {
+            "type": "input",
+            "phase": "redo",
+            "inputType": "historyRedo",
+            "value": "two"
+          },
+          {
+            "type": "held-final-save",
+            "phase": "redo",
+            "body": {
+              "expectedRevision": 2,
+              "contentMd": "two"
+            }
+          }
+        ]
+      },
+      {
+        "decision": "accept",
+        "mobile": true,
+        "snapshots": [
+          {
+            "phase": "format",
+            "value": "*two*"
+          },
+          {
+            "phase": "format",
+            "value": "two"
+          },
+          {
+            "phase": "undo",
+            "value": "*two*"
+          },
+          {
+            "phase": "redo",
+            "value": "two"
+          }
+        ],
+        "afterUndo": "*two*",
+        "beforeNavigation": {
+          "activation": {
+            "active": true,
+            "sticky": true
+          },
+          "textarea": "two",
+          "server": "*two*"
+        },
+        "dialogs": [
+          {
+            "type": "beforeunload",
+            "message": "",
+            "phase": "navigation",
+            "decision": "accept",
+            "handled": true
+          }
+        ],
+        "navigationCompleted": true,
+        "navigationError": null,
+        "navigationURL": "http://127.0.0.1:60657/studio",
+        "stayed": false,
+        "visibleAfterNavigation": null,
+        "quickLoaded": "*two*",
+        "finalSaveStatus": null,
+        "server": "*two*",
+        "correlatedEvents": [
+          {
+            "type": "input",
+            "phase": "format",
+            "inputType": "insertText",
+            "value": "*two*"
+          },
+          {
+            "type": "patch-response",
+            "phase": "format",
+            "status": 200,
+            "body": {
+              "expectedRevision": 1,
+              "contentMd": "*two*"
+            }
+          },
+          {
+            "type": "input",
+            "phase": "format",
+            "inputType": "insertText",
+            "value": "two"
+          },
+          {
+            "type": "input",
+            "phase": "undo",
+            "inputType": "historyUndo",
+            "value": "*two*"
+          },
+          {
+            "type": "patch-response",
+            "phase": "undo",
+            "status": 200,
+            "body": {
+              "expectedRevision": 2,
+              "contentMd": "*two*"
+            }
+          },
+          {
+            "type": "input",
+            "phase": "redo",
+            "inputType": "historyRedo",
+            "value": "two"
+          },
+          {
+            "type": "held-final-save",
+            "phase": "redo",
+            "body": {
+              "expectedRevision": 3,
+              "contentMd": "two"
+            }
+          }
+        ]
+      }
+    ],
+    "timeoutDisposition": "Each dismiss branch intentionally cancels departure; page.goto waits20s then times out while URL/source remain at editor. This research navigation receipt is not an oracle timeout, RED result or kill."
+  },
+  "affectedRouteReceiving": [
+    {
+      "engine": "chromium",
+      "report": "build/formatting-oracles/session-ui-transition-chromium.json",
+      "reportSha256": "1187a030458ddf15c65362db8a0cb0ed9ffa2ae7d242affe47f5f330f7a52a34",
+      "success": true,
+      "passed": 12,
+      "failed": 0,
+      "pending": 126,
+      "pattern": "editorToQuick",
+      "scope": "Twelve selected existing registered constructions: fixed seed, random seed and determinism across native/fallback and both viewports.126other registrations intentionally skipped; not a full session or mutation rerun.",
+      "tests": [
+        "editor-browser-session fixed seed 20261118: editorToQuick-desktop",
+        "editor-browser-session fixed seed 20261118: editorToQuick-fallback-desktop",
+        "editor-browser-session fixed seed 20261118: editorToQuick-mobile",
+        "editor-browser-session fixed seed 20261118: editorToQuick-fallback-mobile",
+        "editor-browser-session random seed: editorToQuick-desktop",
+        "editor-browser-session random seed: editorToQuick-fallback-desktop",
+        "editor-browser-session random seed: editorToQuick-mobile",
+        "editor-browser-session random seed: editorToQuick-fallback-mobile",
+        "editor-browser-session determinism: constructed history: editorToQuick-desktop",
+        "editor-browser-session determinism: constructed history: editorToQuick-fallback-desktop",
+        "editor-browser-session determinism: constructed history: editorToQuick-mobile",
+        "editor-browser-session determinism: constructed history: editorToQuick-fallback-mobile"
+      ]
+    },
+    {
+      "engine": "firefox",
+      "report": "build/formatting-oracles/session-ui-transition-firefox.json",
+      "reportSha256": "3e7be88f79891f6499a1c204114186868d3c05d58519c3676bb292e7d9c13e7a",
+      "success": true,
+      "passed": 12,
+      "failed": 0,
+      "pending": 126,
+      "pattern": "editorToQuick",
+      "scope": "Twelve selected existing registered constructions: fixed seed, random seed and determinism across native/fallback and both viewports.126other registrations intentionally skipped; not a full session or mutation rerun.",
+      "tests": [
+        "editor-browser-session fixed seed 20261118: editorToQuick-desktop",
+        "editor-browser-session fixed seed 20261118: editorToQuick-fallback-desktop",
+        "editor-browser-session fixed seed 20261118: editorToQuick-mobile",
+        "editor-browser-session fixed seed 20261118: editorToQuick-fallback-mobile",
+        "editor-browser-session random seed: editorToQuick-desktop",
+        "editor-browser-session random seed: editorToQuick-fallback-desktop",
+        "editor-browser-session random seed: editorToQuick-mobile",
+        "editor-browser-session random seed: editorToQuick-fallback-mobile",
+        "editor-browser-session determinism: constructed history: editorToQuick-desktop",
+        "editor-browser-session determinism: constructed history: editorToQuick-fallback-desktop",
+        "editor-browser-session determinism: constructed history: editorToQuick-mobile",
+        "editor-browser-session determinism: constructed history: editorToQuick-fallback-mobile"
+      ]
+    }
+  ],
+  "frameworkProvenanceFinding": "Failed136/2 raw-goto report and green138/0 compose-link report share run id ad7c4be40270 despite imported driver difference. Engine variants also shared ids earlier. Cite exact directory, report SHA256 and source manifest, never run id alone."
+}

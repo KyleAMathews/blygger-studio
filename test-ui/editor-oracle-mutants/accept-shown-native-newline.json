@@ -1,0 +1,8 @@
+{
+  "id": "accept-shown-native-newline",
+  "source": "src/ui/authoring.tsx",
+  "find": "      if (!hit) return edit(next);",
+  "replace": "      return edit(next);",
+  "intent": "Accept native deletion overlapping a shown read-only region. The real held-region receiver oracle must reject lost protected source before a later Save can conceal it.",
+  "author": "Codex (self-generated after inspecting the oracle)"
+}

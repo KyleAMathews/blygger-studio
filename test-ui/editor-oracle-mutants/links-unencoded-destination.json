@@ -1,0 +1,8 @@
+{
+  "id": "links-unencoded-destination",
+  "source": "src/ui/links.ts",
+  "find": "function destination(url: string) {",
+  "replace": "function destination(url: string) { return url;",
+  "intent": "Destination parentheses and whitespace must not terminate Markdown.",
+  "author": "Codex; self-authored completed-link oracle challenge"
+}

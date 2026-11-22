@@ -1,0 +1,8 @@
+{
+  "id": "links-drop-page-selector",
+  "source": "src/ui/links.ts",
+  "find": "url.searchParams.delete(key);",
+  "replace": "url.searchParams.delete(key); url.searchParams.delete('id');",
+  "intent": "Tracker removal must retain a page-selecting query parameter.",
+  "author": "Codex; self-authored completed-link oracle challenge"
+}

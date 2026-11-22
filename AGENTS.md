@@ -758,8 +758,13 @@ optimization project.
 - Lint each oracle file and each changed production file after you edit it.
   Fix every report. Do not disable a rule.
 - Oracle files: `{test,test-ui,test-browser,test-oracles}/**/*.oracle.test.ts`.
-  Gap checks: `npm run test:oracles` (all runtimes), or
-  `npm run test:oracles:worker`, `npm run test:oracles:studio`, and
-  `npm run test:oracles:browser`. Ordinary Worker/UI commands exclude oracle files.
+  Routine checks: `npm run test:oracles` (all runtimes), or
+  `npm run test:oracles:worker`, `npm run test:oracles:studio`,
+  `npm run test:oracles:browser`, and `npm run test:oracles:formatting`.
+  The formatting routine runs both complete unmutated passes through the gap
+  runner. CI partitions complete files and requires its full aggregate gate.
+  Use `npm run test:formatting` for the full mutation audit, required for oracle
+  changes, sensitivity evidence, gap closure and replacing prior tests.
+  Ordinary Worker/UI commands exclude oracle files.
 
 <!-- END @tanstack/oracles -->

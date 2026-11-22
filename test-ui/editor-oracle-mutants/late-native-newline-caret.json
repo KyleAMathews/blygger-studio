@@ -1,0 +1,8 @@
+{
+  "id": "late-native-newline-caret",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "      // React reads the caret synchronously to rebase hidden editor regions.\n      if (el.value === next) el.setSelectionRange(from + 1, from + 1);",
+  "replace": "      // Deliberately hand React the deletion caret; final caret is corrected too late.\n      if (el.value === next) el.setSelectionRange(from, from);",
+  "intent": "Move a real hidden region to the wrong side of a native newline by giving React the pre-correction caret. The visible final LF alone cannot reject this defect; the full saved source must.",
+  "author": "Codex (self-generated after inspecting the oracle)"
+}

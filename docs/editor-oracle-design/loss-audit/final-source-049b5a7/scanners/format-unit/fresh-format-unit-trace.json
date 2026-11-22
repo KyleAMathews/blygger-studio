@@ -1,0 +1,3595 @@
+{
+  "schemaVersion": 1,
+  "instrument": "Hidden-signal recovery assay (loss-audit)",
+  "scope": "One original only: scanners/format-unit/latest-format-shortcuts.test.ts, authority copy identical; frozen candidate source/config.",
+  "candidateHead": "049b5a7bf9661a22ff4cee31b156b7dd2cbee194",
+  "originalSha256": "4187c4b45f9296f33aed8683416353907ecda5cc4e3c5581891f7106c89143cf",
+  "authorityOriginalSha256": "4187c4b45f9296f33aed8683416353907ecda5cc4e3c5581891f7106c89143cf",
+  "manifestSha256": "8d0e4e905da94e7a3c341955c30c23881711087b1b556eac669771e12d1f1a08",
+  "projectGlossarySha256": "ba7d8a950180a26bf3e84e069fa9bd2c9450772e337d5a481c538556c10e5179",
+  "readout": {
+    "boundedResult": "no supported omission found in this one original",
+    "observationCount": 91,
+    "missingOrWeakened": [],
+    "runtimeAcceptance": false,
+    "full16Readiness": "pending; not evaluated by this assay",
+    "deletionOrRestorationAuthorization": false
+  },
+  "limitations": [
+    "Static reads and literal-source parsing only; no browser, build, test, campaign, mutation, install, remote job or integration edit.",
+    "Production path, construction, observations and registered checks are source-traced intentions; no claim that setup succeeded, a path ran, reach was measured, a check passed or a mutant was killed.",
+    "Compared with the original local Vitest helpers, every migrated helper check now requires browser-source transformation, browser/application fixture and cookie setup (browser-driver-oracle.ts:21,37\u201351,65\u201394). Code-block default-source/selection observations additionally occur after awaited authenticated fragment preview (editor-code-block.oracle.test.ts:62; browser-driver-oracle.ts:264\u2013269). Setup/interaction success and completion of these later checkpoints remain unmeasured; a setup failure is not a law rejection or passing behavior evidence.",
+    "Models are read independently against this original; production output is not authority. No new law or usefulness judgment is made.",
+    "Candidate AGENTS.md was read in full. Its external environment/session documents were not brought into this isolated packet review; no environment operation or session/deployment action was attempted.",
+    "A fresh source-only pass still selects an interpretation of asserted observations; token-tree equivalence for the list HTML predicate is a static argument, not a renderer execution.",
+    "No sibling original tests, other scanners directories, earlier audits or other scanner conclusions were read.",
+    "Source provenance notes referring to earlier restoration decisions were read only inside executable candidate law blocks; they do not establish runtime or deletion acceptance."
+  ],
+  "commonTransport": {
+    "sourceFactory": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/browser-source-oracle.ts:43",
+    "factoryCompilation": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/browser-source-oracle.ts:58",
+    "browserRun": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/browser-driver-oracle.ts:107",
+    "browserInstall": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/browser-driver-oracle.ts:118",
+    "browserCall": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/browser-driver-oracle.ts:247",
+    "semantics": "Exact supplied production module source is compiled into a factory; browserRun installs it on a Playwright page; browserCall spreads the provided args directly into sut[method]. No DOM editing event is required by these helper-level originals. Markdown list/verse rendering remains default MarkdownIt in Node as in the original.",
+    "argumentFidelity": "Original formatEdit calls have four arguments; indentEdit four with explicit false/true; formatKey two with explicit platform boolean; structureKey one explicit event object; formulaEdit, breakEdit and codeBlockEdit three. Candidate uses the same counts and values. No original optional argument is silently replaced by an explicit alternative.",
+    "registration": {
+      "inventory": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/property-registry-oracle.ts:4",
+      "properties": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/property-registry-oracle.ts:23",
+      "configuration": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/vitest.oracle.config.ts:5",
+      "setup": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/configure-oracles.ts:5",
+      "command": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/package.json:65",
+      "runner": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/scripts/formatting-oracles.ts:114"
+    },
+    "guaranteeBoundary": "Named constructions are statically registered through histories.constructed/build in the same property as generated cases; this is a guaranteed input if that property executes, not probabilistic random coverage and not an observed runtime guarantee.",
+    "sourceSelectionFact": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/document-oracle.ts:24",
+    "registeredComparison": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/document-oracle.ts:31",
+    "constructionHelper": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/document-oracle.ts:35"
+  },
+  "routes": {
+    "single": {
+      "property": "editor-emphasis-single",
+      "oracle": "editor-inline.oracle.test.ts",
+      "registrationLine": 54,
+      "driverLine": 58,
+      "checkLine": 59,
+      "modelFile": "inline-model-oracle.ts",
+      "resolverLine": 136,
+      "modelLine": 141,
+      "sourceLine": 106,
+      "args": "[text, from, to, kind]",
+      "facts": "result.output (complete source), result.selection (both offsets), result.usable; error",
+      "check": "single-line emphasis",
+      "oraclePointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-inline.oracle.test.ts:54",
+      "driverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-inline.oracle.test.ts:58",
+      "checkPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-inline.oracle.test.ts:59",
+      "productionPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/src/ui/format-shortcuts.ts:106",
+      "modelPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:141",
+      "resolverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:136"
+    },
+    "multi": {
+      "property": "editor-emphasis-multiline",
+      "oracle": "editor-inline.oracle.test.ts",
+      "registrationLine": 64,
+      "driverLine": 68,
+      "checkLine": 69,
+      "modelFile": "inline-model-oracle.ts",
+      "resolverLine": 207,
+      "modelLine": 212,
+      "sourceLine": 106,
+      "args": "[text, from, to, kind]",
+      "facts": "result.output (complete source), result.selection (both offsets), result.usable; error",
+      "check": "multiline emphasis",
+      "oraclePointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-inline.oracle.test.ts:64",
+      "driverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-inline.oracle.test.ts:68",
+      "checkPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-inline.oracle.test.ts:69",
+      "productionPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/src/ui/format-shortcuts.ts:106",
+      "modelPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:212",
+      "resolverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:207"
+    },
+    "link": {
+      "property": "editor-link",
+      "oracle": "editor-inline.oracle.test.ts",
+      "registrationLine": 74,
+      "driverLine": 78,
+      "checkLine": 79,
+      "modelFile": "inline-model-oracle.ts",
+      "resolverLine": 229,
+      "modelLine": 258,
+      "sourceLine": 106,
+      "args": "[text, from, to, 'link']",
+      "facts": "result.output (complete source), result.selection (both offsets), result.usable; error",
+      "check": "link insertion",
+      "oraclePointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-inline.oracle.test.ts:74",
+      "driverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-inline.oracle.test.ts:78",
+      "checkPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-inline.oracle.test.ts:79",
+      "productionPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/src/ui/format-shortcuts.ts:106",
+      "modelPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:258",
+      "resolverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:229"
+    },
+    "formula": {
+      "property": "editor-formula",
+      "oracle": "editor-inline.oracle.test.ts",
+      "registrationLine": 84,
+      "driverLine": 88,
+      "checkLine": 89,
+      "modelFile": "inline-model-oracle.ts",
+      "resolverLine": 229,
+      "modelLine": 308,
+      "sourceLine": 243,
+      "args": "[text, from, to]",
+      "facts": "result.output (complete source), result.selection (both offsets), result.usable; error",
+      "check": "formula wrapping",
+      "oraclePointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-inline.oracle.test.ts:84",
+      "driverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-inline.oracle.test.ts:88",
+      "checkPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-inline.oracle.test.ts:89",
+      "productionPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/src/ui/format-shortcuts.ts:243",
+      "modelPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:308",
+      "resolverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:229"
+    },
+    "list": {
+      "property": "editor-list-source",
+      "oracle": "editor-list.oracle.test.ts",
+      "registrationLine": 80,
+      "driverLine": 84,
+      "checkLine": 90,
+      "modelFile": "list-model-oracle.ts",
+      "resolverLine": 114,
+      "modelLine": 137,
+      "sourceLine": 127,
+      "args": "[text, from, to, out] (out explicitly false or true)",
+      "facts": "result.edit (including literal null and both selection offsets), result.output (complete source); error",
+      "check": "list source and selection",
+      "oraclePointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-list.oracle.test.ts:80",
+      "driverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-list.oracle.test.ts:84",
+      "checkPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-list.oracle.test.ts:90",
+      "productionPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/src/ui/format-shortcuts.ts:127",
+      "modelPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:137",
+      "resolverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:114"
+    },
+    "nest": {
+      "property": "editor-list-rendering",
+      "oracle": "editor-list.oracle.test.ts",
+      "registrationLine": 119,
+      "driverLine": 124,
+      "checkLine": 136,
+      "modelFile": "list-model-oracle.ts",
+      "resolverLine": 486,
+      "modelLine": 494,
+      "sourceLine": 127,
+      "args": "[text, from, to, false]",
+      "facts": "result.tight, structure (ordered tokens including first-child ancestry/body), noCode, noPre; selected text and caretAtEnd; error",
+      "check": "rendered list nesting",
+      "oraclePointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-list.oracle.test.ts:119",
+      "driverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-list.oracle.test.ts:124",
+      "checkPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-list.oracle.test.ts:136",
+      "productionPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/src/ui/format-shortcuts.ts:127",
+      "modelPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:494",
+      "resolverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:486"
+    },
+    "break": {
+      "property": "editor-line-break",
+      "oracle": "editor-line-break.oracle.test.ts",
+      "registrationLine": 58,
+      "driverLine": 47,
+      "checkLine": 66,
+      "modelFile": "break-model-oracle.ts",
+      "resolverLine": 69,
+      "modelLine": 84,
+      "sourceLine": 213,
+      "args": "[text, from, to]",
+      "facts": "edit (complete edit including caret), output (complete source); error",
+      "check": "line break",
+      "oraclePointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-line-break.oracle.test.ts:58",
+      "driverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-line-break.oracle.test.ts:47",
+      "checkPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-line-break.oracle.test.ts:66",
+      "productionPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/src/ui/format-shortcuts.ts:213",
+      "modelPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/break-model-oracle.ts:84",
+      "resolverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/break-model-oracle.ts:69"
+    },
+    "verse": {
+      "property": "editor-line-break-verse",
+      "oracle": "editor-line-break.oracle.test.ts",
+      "registrationLine": 98,
+      "driverLine": 123,
+      "checkLine": 136,
+      "modelFile": "break-model-oracle.ts",
+      "resolverLine": 120,
+      "modelLine": 118,
+      "sourceLine": 213,
+      "args": "[output, output.length, output.length] at each break",
+      "facts": "verse.output, verse.html (full default MarkdownIt HTML), verse.carets (every edit); error",
+      "check": "verse hard breaks",
+      "oraclePointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-line-break.oracle.test.ts:98",
+      "driverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-line-break.oracle.test.ts:123",
+      "checkPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-line-break.oracle.test.ts:136",
+      "productionPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/src/ui/format-shortcuts.ts:213",
+      "modelPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/break-model-oracle.ts:118",
+      "resolverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/break-model-oracle.ts:120"
+    },
+    "code": {
+      "properties": [
+        "editor-code-block.default-source",
+        "editor-code-block.selection"
+      ],
+      "oracle": "editor-code-block.oracle.test.ts",
+      "registrationLine": 142,
+      "driverLine": 52,
+      "checkLine": 149,
+      "selectionRegistrationLine": 129,
+      "selectionCheckLine": 136,
+      "modelFile": "block-model-oracle.ts",
+      "resolverLine": 41,
+      "modelLine": 76,
+      "sourceLine": 224,
+      "args": "[text, from, to]",
+      "facts": "defaultSource (full source for all six original inputs); selection.text, afterNewline, beforeNewline, bodyStart/bodyEnd (exact body geometry)",
+      "check": "default source compatibility AND selection",
+      "oraclePointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-code-block.oracle.test.ts:142",
+      "driverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-code-block.oracle.test.ts:52",
+      "checkPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-code-block.oracle.test.ts:149",
+      "productionPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/src/ui/format-shortcuts.ts:224",
+      "modelPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/block-model-oracle.ts:76",
+      "resolverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/block-model-oracle.ts:41"
+    },
+    "key": {
+      "property": "editor-key-classification",
+      "oracle": "editor-keyboard.oracle.test.ts",
+      "registrationLine": 47,
+      "driverLine": 51,
+      "checkLine": 58,
+      "modelFile": "keyboard-model-oracle.ts",
+      "resolverLine": 27,
+      "modelLine": 18,
+      "sourceLine": 260,
+      "args": "formatKey: [event, mac]; structureKey: [event]",
+      "facts": "result.format and result.structure including null; error",
+      "check": "key classification",
+      "oraclePointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-keyboard.oracle.test.ts:47",
+      "driverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-keyboard.oracle.test.ts:51",
+      "checkPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-keyboard.oracle.test.ts:58",
+      "productionPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/src/ui/format-shortcuts.ts:260",
+      "modelPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:18",
+      "resolverPointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+    }
+  },
+  "observations": [
+    {
+      "id": "O001",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 19,
+        "markedInput": "a \u00abword\u00bb b",
+        "expectedMarked": "a **\u00abword\u00bb** b",
+        "expected": {
+          "output": "a **word** b",
+          "selection": [
+            4,
+            8
+          ]
+        }
+      },
+      "call": {
+        "text": "a word b",
+        "from": 2,
+        "to": 6,
+        "method": "formatEdit",
+        "arguments": [
+          "a word b",
+          2,
+          6,
+          "bold"
+        ],
+        "argumentCount": 4
+      },
+      "route": "single",
+      "guaranteedConstruction": {
+        "name": "sourceBold",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:94"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "bold"
+    },
+    {
+      "id": "O002",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 20,
+        "markedInput": "a \u00abword\u00bb b",
+        "expectedMarked": "a *\u00abword\u00bb* b",
+        "expected": {
+          "output": "a *word* b",
+          "selection": [
+            3,
+            7
+          ]
+        }
+      },
+      "call": {
+        "text": "a word b",
+        "from": 2,
+        "to": 6,
+        "method": "formatEdit",
+        "arguments": [
+          "a word b",
+          2,
+          6,
+          "italic"
+        ],
+        "argumentCount": 4
+      },
+      "route": "single",
+      "guaranteedConstruction": {
+        "name": "sourceItalic",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:95"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "italic"
+    },
+    {
+      "id": "O003",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 21,
+        "markedInput": "a **\u00abword\u00bb** b",
+        "expectedMarked": "a \u00abword\u00bb b",
+        "expected": {
+          "output": "a word b",
+          "selection": [
+            2,
+            6
+          ]
+        }
+      },
+      "call": {
+        "text": "a **word** b",
+        "from": 4,
+        "to": 8,
+        "method": "formatEdit",
+        "arguments": [
+          "a **word** b",
+          4,
+          8,
+          "bold"
+        ],
+        "argumentCount": 4
+      },
+      "route": "single",
+      "guaranteedConstruction": {
+        "name": "sourceOutsideBold",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:96"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "bold"
+    },
+    {
+      "id": "O004",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 22,
+        "markedInput": "a *\u00abword\u00bb* b",
+        "expectedMarked": "a \u00abword\u00bb b",
+        "expected": {
+          "output": "a word b",
+          "selection": [
+            2,
+            6
+          ]
+        }
+      },
+      "call": {
+        "text": "a *word* b",
+        "from": 3,
+        "to": 7,
+        "method": "formatEdit",
+        "arguments": [
+          "a *word* b",
+          3,
+          7,
+          "italic"
+        ],
+        "argumentCount": 4
+      },
+      "route": "single",
+      "guaranteedConstruction": {
+        "name": "sourceOutsideItalic",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:97"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "italic"
+    },
+    {
+      "id": "O005",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 23,
+        "markedInput": "a \u00ab**word**\u00bb b",
+        "expectedMarked": "a \u00abword\u00bb b",
+        "expected": {
+          "output": "a word b",
+          "selection": [
+            2,
+            6
+          ]
+        }
+      },
+      "call": {
+        "text": "a **word** b",
+        "from": 2,
+        "to": 10,
+        "method": "formatEdit",
+        "arguments": [
+          "a **word** b",
+          2,
+          10,
+          "bold"
+        ],
+        "argumentCount": 4
+      },
+      "route": "single",
+      "guaranteedConstruction": {
+        "name": "sourceSelectedBold",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:98"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "bold"
+    },
+    {
+      "id": "O006",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 24,
+        "markedInput": "a \u00ab*word*\u00bb b",
+        "expectedMarked": "a \u00abword\u00bb b",
+        "expected": {
+          "output": "a word b",
+          "selection": [
+            2,
+            6
+          ]
+        }
+      },
+      "call": {
+        "text": "a *word* b",
+        "from": 2,
+        "to": 8,
+        "method": "formatEdit",
+        "arguments": [
+          "a *word* b",
+          2,
+          8,
+          "italic"
+        ],
+        "argumentCount": 4
+      },
+      "route": "single",
+      "guaranteedConstruction": {
+        "name": "sourceSelectedItalic",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:99"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "italic"
+    },
+    {
+      "id": "O007",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 25,
+        "markedInput": "a **\u00abword\u00bb** b",
+        "expectedMarked": "a ***\u00abword\u00bb*** b",
+        "expected": {
+          "output": "a ***word*** b",
+          "selection": [
+            5,
+            9
+          ]
+        }
+      },
+      "call": {
+        "text": "a **word** b",
+        "from": 4,
+        "to": 8,
+        "method": "formatEdit",
+        "arguments": [
+          "a **word** b",
+          4,
+          8,
+          "italic"
+        ],
+        "argumentCount": 4
+      },
+      "route": "single",
+      "guaranteedConstruction": {
+        "name": "sourceAddItalicInsideBold",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:100"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "italic"
+    },
+    {
+      "id": "O008",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 26,
+        "markedInput": "a *\u00abword\u00bb* b",
+        "expectedMarked": "a ***\u00abword\u00bb*** b",
+        "expected": {
+          "output": "a ***word*** b",
+          "selection": [
+            5,
+            9
+          ]
+        }
+      },
+      "call": {
+        "text": "a *word* b",
+        "from": 3,
+        "to": 7,
+        "method": "formatEdit",
+        "arguments": [
+          "a *word* b",
+          3,
+          7,
+          "bold"
+        ],
+        "argumentCount": 4
+      },
+      "route": "single",
+      "guaranteedConstruction": {
+        "name": "sourceAddBoldInsideItalic",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:101"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "bold"
+    },
+    {
+      "id": "O009",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 27,
+        "markedInput": "a ***\u00abword\u00bb*** b",
+        "expectedMarked": "a *\u00abword\u00bb* b",
+        "expected": {
+          "output": "a *word* b",
+          "selection": [
+            3,
+            7
+          ]
+        }
+      },
+      "call": {
+        "text": "a ***word*** b",
+        "from": 5,
+        "to": 9,
+        "method": "formatEdit",
+        "arguments": [
+          "a ***word*** b",
+          5,
+          9,
+          "bold"
+        ],
+        "argumentCount": 4
+      },
+      "route": "single",
+      "guaranteedConstruction": {
+        "name": "sourceRemoveBoldKeepOutsideItalic",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:102"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "bold"
+    },
+    {
+      "id": "O010",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 28,
+        "markedInput": "a ***\u00abword\u00bb*** b",
+        "expectedMarked": "a **\u00abword\u00bb** b",
+        "expected": {
+          "output": "a **word** b",
+          "selection": [
+            4,
+            8
+          ]
+        }
+      },
+      "call": {
+        "text": "a ***word*** b",
+        "from": 5,
+        "to": 9,
+        "method": "formatEdit",
+        "arguments": [
+          "a ***word*** b",
+          5,
+          9,
+          "italic"
+        ],
+        "argumentCount": 4
+      },
+      "route": "single",
+      "guaranteedConstruction": {
+        "name": "sourceRemoveItalicKeepOutsideBold",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:103"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "italic"
+    },
+    {
+      "id": "O011",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 29,
+        "markedInput": "a| b",
+        "expectedMarked": "a**|** b",
+        "expected": {
+          "output": "a**** b",
+          "selection": [
+            3,
+            3
+          ]
+        }
+      },
+      "call": {
+        "text": "a b",
+        "from": 1,
+        "to": 1,
+        "method": "formatEdit",
+        "arguments": [
+          "a b",
+          1,
+          1,
+          "bold"
+        ],
+        "argumentCount": 4
+      },
+      "route": "single",
+      "guaranteedConstruction": {
+        "name": "sourceEmptyBold",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:104"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "bold"
+    },
+    {
+      "id": "O012",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 30,
+        "markedInput": "a| b",
+        "expectedMarked": "a*|* b",
+        "expected": {
+          "output": "a** b",
+          "selection": [
+            2,
+            2
+          ]
+        }
+      },
+      "call": {
+        "text": "a b",
+        "from": 1,
+        "to": 1,
+        "method": "formatEdit",
+        "arguments": [
+          "a b",
+          1,
+          1,
+          "italic"
+        ],
+        "argumentCount": 4
+      },
+      "route": "single",
+      "guaranteedConstruction": {
+        "name": "sourceEmptyItalic",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:105"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "italic"
+    },
+    {
+      "id": "O013",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 31,
+        "markedInput": "a**|** b",
+        "expectedMarked": "a| b",
+        "expected": {
+          "output": "a b",
+          "selection": [
+            1,
+            1
+          ]
+        }
+      },
+      "call": {
+        "text": "a**** b",
+        "from": 3,
+        "to": 3,
+        "method": "formatEdit",
+        "arguments": [
+          "a**** b",
+          3,
+          3,
+          "bold"
+        ],
+        "argumentCount": 4
+      },
+      "route": "single",
+      "guaranteedConstruction": {
+        "name": "sourceEmptyOutsideBold",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:106"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "bold"
+    },
+    {
+      "id": "O014",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 32,
+        "markedInput": "a*|* b",
+        "expectedMarked": "a| b",
+        "expected": {
+          "output": "a b",
+          "selection": [
+            1,
+            1
+          ]
+        }
+      },
+      "call": {
+        "text": "a** b",
+        "from": 2,
+        "to": 2,
+        "method": "formatEdit",
+        "arguments": [
+          "a** b",
+          2,
+          2,
+          "italic"
+        ],
+        "argumentCount": 4
+      },
+      "route": "single",
+      "guaranteedConstruction": {
+        "name": "sourceEmptyOutsideItalic",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:107"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "italic"
+    },
+    {
+      "id": "O015",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 33,
+        "markedInput": "\u00abword \u00bbb",
+        "expectedMarked": "**\u00abword\u00bb** b",
+        "expected": {
+          "output": "**word** b",
+          "selection": [
+            2,
+            6
+          ]
+        }
+      },
+      "call": {
+        "text": "word b",
+        "from": 0,
+        "to": 5,
+        "method": "formatEdit",
+        "arguments": [
+          "word b",
+          0,
+          5,
+          "bold"
+        ],
+        "argumentCount": 4
+      },
+      "route": "single",
+      "guaranteedConstruction": {
+        "name": "sourceTrailingWhitespace",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:108"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "bold"
+    },
+    {
+      "id": "O016",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 39,
+        "markedInput": "\u00abone\n\ntwo\u00bb",
+        "expectedMarked": "\u00ab**one**\n\n**two**\u00bb",
+        "expected": {
+          "output": "**one**\n\n**two**",
+          "selection": [
+            0,
+            16
+          ]
+        }
+      },
+      "call": {
+        "text": "one\n\ntwo",
+        "from": 0,
+        "to": 8,
+        "method": "formatEdit",
+        "arguments": [
+          "one\n\ntwo",
+          0,
+          8,
+          "bold"
+        ],
+        "argumentCount": 4
+      },
+      "route": "multi",
+      "guaranteedConstruction": {
+        "name": "sourceBlank",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:190"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "bold"
+    },
+    {
+      "id": "O017",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 40,
+        "markedInput": "\u00ab**one**\n\n**two**\u00bb",
+        "expectedMarked": "\u00abone\n\ntwo\u00bb",
+        "expected": {
+          "output": "one\n\ntwo",
+          "selection": [
+            0,
+            8
+          ]
+        }
+      },
+      "call": {
+        "text": "**one**\n\n**two**",
+        "from": 0,
+        "to": 16,
+        "method": "formatEdit",
+        "arguments": [
+          "**one**\n\n**two**",
+          0,
+          16,
+          "bold"
+        ],
+        "argumentCount": 4
+      },
+      "route": "multi",
+      "guaranteedConstruction": {
+        "name": "sourceRemoveAcrossBlank",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:192"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "bold"
+    },
+    {
+      "id": "O018",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 41,
+        "markedInput": "\u00abone\n*two*\u00bb",
+        "expectedMarked": "\u00ab*one*\n**two**\u00bb",
+        "expected": {
+          "output": "*one*\n**two**",
+          "selection": [
+            0,
+            13
+          ]
+        }
+      },
+      "call": {
+        "text": "one\n*two*",
+        "from": 0,
+        "to": 9,
+        "method": "formatEdit",
+        "arguments": [
+          "one\n*two*",
+          0,
+          9,
+          "italic"
+        ],
+        "argumentCount": 4
+      },
+      "route": "multi",
+      "guaranteedConstruction": {
+        "name": "sourceMixed",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:197"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "italic"
+    },
+    {
+      "id": "O019",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 47,
+        "markedInput": "a \u00abword\u00bb b",
+        "expectedMarked": "a [word](|) b",
+        "expected": {
+          "output": "a [word]() b",
+          "selection": [
+            9,
+            9
+          ]
+        }
+      },
+      "call": {
+        "text": "a word b",
+        "from": 2,
+        "to": 6,
+        "method": "formatEdit",
+        "arguments": [
+          "a word b",
+          2,
+          6,
+          "link"
+        ],
+        "argumentCount": 4
+      },
+      "route": "link",
+      "guaranteedConstruction": {
+        "name": "sourceLabel",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:247"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "link"
+    },
+    {
+      "id": "O020",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 48,
+        "markedInput": "\u00abhttps://x.example/a\u00bb",
+        "expectedMarked": "[|](https://x.example/a)",
+        "expected": {
+          "output": "[](https://x.example/a)",
+          "selection": [
+            1,
+            1
+          ]
+        }
+      },
+      "call": {
+        "text": "https://x.example/a",
+        "from": 0,
+        "to": 19,
+        "method": "formatEdit",
+        "arguments": [
+          "https://x.example/a",
+          0,
+          19,
+          "link"
+        ],
+        "argumentCount": 4
+      },
+      "route": "link",
+      "guaranteedConstruction": {
+        "name": "sourceWholeDocumentTarget",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:249"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "link"
+    },
+    {
+      "id": "O021",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 49,
+        "markedInput": "a | b",
+        "expectedMarked": "a [|]() b",
+        "expected": {
+          "output": "a []() b",
+          "selection": [
+            3,
+            3
+          ]
+        }
+      },
+      "call": {
+        "text": "a  b",
+        "from": 2,
+        "to": 2,
+        "method": "formatEdit",
+        "arguments": [
+          "a  b",
+          2,
+          2,
+          "link"
+        ],
+        "argumentCount": 4
+      },
+      "route": "link",
+      "guaranteedConstruction": {
+        "name": "sourceCaret",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:251"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "callKind": "link"
+    },
+    {
+      "id": "O022",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 56,
+        "expression": "expect(formatKey(key('b', { metaKey: true }), true)).toBe('bold');",
+        "expected": "bold"
+      },
+      "call": {
+        "method": "formatKey",
+        "arguments": [
+          {
+            "key": "b",
+            "metaKey": true,
+            "ctrlKey": false,
+            "altKey": false,
+            "shiftKey": false
+          },
+          true
+        ],
+        "argumentCount": 2
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord3",
+        "history": {
+          "key": "b",
+          "mask": 1,
+          "mac": true
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O023",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 57,
+        "expression": "expect(formatKey(key('k', { ctrlKey: true }), true)).toBeNull();",
+        "expected": null
+      },
+      "call": {
+        "method": "formatKey",
+        "arguments": [
+          {
+            "key": "k",
+            "metaKey": false,
+            "ctrlKey": true,
+            "altKey": false,
+            "shiftKey": false
+          },
+          true
+        ],
+        "argumentCount": 2
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord133",
+        "history": {
+          "key": "k",
+          "mask": 2,
+          "mac": true
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O024",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 60,
+        "expression": "expect(formatKey(key('i', { ctrlKey: true }), false)).toBe('italic');",
+        "expected": "italic"
+      },
+      "call": {
+        "method": "formatKey",
+        "arguments": [
+          {
+            "key": "i",
+            "metaKey": false,
+            "ctrlKey": true,
+            "altKey": false,
+            "shiftKey": false
+          },
+          false
+        ],
+        "argumentCount": 2
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord68",
+        "history": {
+          "key": "i",
+          "mask": 2,
+          "mac": false
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O025",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 61,
+        "expression": "expect(formatKey(key('i', { metaKey: true }), false)).toBeNull();",
+        "expected": null
+      },
+      "call": {
+        "method": "formatKey",
+        "arguments": [
+          {
+            "key": "i",
+            "metaKey": true,
+            "ctrlKey": false,
+            "altKey": false,
+            "shiftKey": false
+          },
+          false
+        ],
+        "argumentCount": 2
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord66",
+        "history": {
+          "key": "i",
+          "mask": 1,
+          "mac": false
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O026",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 64,
+        "expression": "expect(formatKey(key('b'), false)).toBeNull();",
+        "expected": null
+      },
+      "call": {
+        "method": "formatKey",
+        "arguments": [
+          {
+            "key": "b",
+            "metaKey": false,
+            "ctrlKey": false,
+            "altKey": false,
+            "shiftKey": false
+          },
+          false
+        ],
+        "argumentCount": 2
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord0",
+        "history": {
+          "key": "b",
+          "mask": 0,
+          "mac": false
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O027",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 65,
+        "expression": "expect(formatKey(key('x', { ctrlKey: true }), false)).toBeNull();",
+        "expected": null
+      },
+      "call": {
+        "method": "formatKey",
+        "arguments": [
+          {
+            "key": "x",
+            "metaKey": false,
+            "ctrlKey": true,
+            "altKey": false,
+            "shiftKey": false
+          },
+          false
+        ],
+        "argumentCount": 2
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord196",
+        "history": {
+          "key": "x",
+          "mask": 2,
+          "mac": false
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O028",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 66,
+        "expression": "expect(formatKey(key('b', { ctrlKey: true, shiftKey: true }), false)).toBeNull();",
+        "expected": null
+      },
+      "call": {
+        "method": "formatKey",
+        "arguments": [
+          {
+            "key": "b",
+            "metaKey": false,
+            "ctrlKey": true,
+            "altKey": false,
+            "shiftKey": true
+          },
+          false
+        ],
+        "argumentCount": 2
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord20",
+        "history": {
+          "key": "b",
+          "mask": 10,
+          "mac": false
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O029",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 67,
+        "expression": "expect(formatKey(key('B', { ctrlKey: true }), false)).toBe('bold');",
+        "expected": "bold"
+      },
+      "call": {
+        "method": "formatKey",
+        "arguments": [
+          {
+            "key": "B",
+            "metaKey": false,
+            "ctrlKey": true,
+            "altKey": false,
+            "shiftKey": false
+          },
+          false
+        ],
+        "argumentCount": 2
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord36",
+        "history": {
+          "key": "B",
+          "mask": 2,
+          "mac": false
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O030",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 89,
+        "markedInput": "- a\n- b|",
+        "expectedMarked": "- a\n    - b|",
+        "expected": {
+          "output": "- a\n    - b",
+          "selection": [
+            11,
+            11
+          ]
+        }
+      },
+      "call": {
+        "text": "- a\n- b",
+        "from": 7,
+        "to": 7,
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n- b",
+          7,
+          7,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalIndentBullet",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:78"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O031",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 90,
+        "markedInput": "- a\n|- b",
+        "expectedMarked": "- a\n    |- b",
+        "expected": {
+          "output": "- a\n    - b",
+          "selection": [
+            8,
+            8
+          ]
+        }
+      },
+      "call": {
+        "text": "- a\n- b",
+        "from": 4,
+        "to": 4,
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n- b",
+          4,
+          4,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalIndentBeforeMarker",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:79"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O032",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 92,
+        "markedInput": "1. a\n2. b|\n3. c",
+        "expectedMarked": "1. a\n    1. b|\n3. c",
+        "expected": {
+          "output": "1. a\n    1. b\n3. c",
+          "selection": [
+            13,
+            13
+          ]
+        }
+      },
+      "call": {
+        "text": "1. a\n2. b\n3. c",
+        "from": 9,
+        "to": 9,
+        "method": "indentEdit",
+        "arguments": [
+          "1. a\n2. b\n3. c",
+          9,
+          9,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalNumberRestart",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:80"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O033",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 93,
+        "markedInput": "1. a\n    1. b\n2. c|",
+        "expectedMarked": "1. a\n    1. b\n    2. c|",
+        "expected": {
+          "output": "1. a\n    1. b\n    2. c",
+          "selection": [
+            22,
+            22
+          ]
+        }
+      },
+      "call": {
+        "text": "1. a\n    1. b\n2. c",
+        "from": 18,
+        "to": 18,
+        "method": "indentEdit",
+        "arguments": [
+          "1. a\n    1. b\n2. c",
+          18,
+          18,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalNumberContinuation",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:81"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O034",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 94,
+        "markedInput": "9. a\n10. b|",
+        "expectedMarked": "9. a\n    1. b|",
+        "expected": {
+          "output": "9. a\n    1. b",
+          "selection": [
+            13,
+            13
+          ]
+        }
+      },
+      "call": {
+        "text": "9. a\n10. b",
+        "from": 10,
+        "to": 10,
+        "method": "indentEdit",
+        "arguments": [
+          "9. a\n10. b",
+          10,
+          10,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalNumberWidth",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:82"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O035",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 95,
+        "markedInput": "* a\n    + b| c",
+        "expectedMarked": "* a\n        + b| c",
+        "expected": {
+          "output": "* a\n        + b c",
+          "selection": [
+            15,
+            15
+          ]
+        }
+      },
+      "call": {
+        "text": "* a\n    + b c",
+        "from": 11,
+        "to": 11,
+        "method": "indentEdit",
+        "arguments": [
+          "* a\n    + b c",
+          11,
+          11,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalMixedBullets",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:83"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O036",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 96,
+        "markedInput": "- a\n10) b|",
+        "expectedMarked": "- a\n    1) b|",
+        "expected": {
+          "output": "- a\n    1) b",
+          "selection": [
+            12,
+            12
+          ]
+        }
+      },
+      "call": {
+        "text": "- a\n10) b",
+        "from": 9,
+        "to": 9,
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n10) b",
+          9,
+          9,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalParenthesis",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:84"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O037",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 97,
+        "markedInput": "- a\n-|",
+        "expectedMarked": "- a\n    -|",
+        "expected": {
+          "output": "- a\n    -",
+          "selection": [
+            9,
+            9
+          ]
+        }
+      },
+      "call": {
+        "text": "- a\n-",
+        "from": 5,
+        "to": 5,
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n-",
+          5,
+          5,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalEmptyMarker",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:85"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O038",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 101,
+        "markedInput": "- a\n    - b|",
+        "expectedMarked": "- a\n- b|",
+        "expected": {
+          "output": "- a\n- b",
+          "selection": [
+            7,
+            7
+          ]
+        }
+      },
+      "call": {
+        "text": "- a\n    - b",
+        "from": 11,
+        "to": 11,
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n    - b",
+          11,
+          11,
+          true
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalOut4",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:86"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": true
+    },
+    {
+      "id": "O039",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 102,
+        "markedInput": "- a\n  - b|",
+        "expectedMarked": "- a\n- b|",
+        "expected": {
+          "output": "- a\n- b",
+          "selection": [
+            7,
+            7
+          ]
+        }
+      },
+      "call": {
+        "text": "- a\n  - b",
+        "from": 9,
+        "to": 9,
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n  - b",
+          9,
+          9,
+          true
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalOut2",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:87"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": true
+    },
+    {
+      "id": "O040",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 103,
+        "markedInput": "- a\n\t- b|",
+        "expectedMarked": "- a\n- b|",
+        "expected": {
+          "output": "- a\n- b",
+          "selection": [
+            7,
+            7
+          ]
+        }
+      },
+      "call": {
+        "text": "- a\n\t- b",
+        "from": 8,
+        "to": 8,
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n\t- b",
+          8,
+          8,
+          true
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalOutTab",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:88"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": true
+    },
+    {
+      "id": "O041",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 104,
+        "markedInput": "- a\n        - b|",
+        "expectedMarked": "- a\n    - b|",
+        "expected": {
+          "output": "- a\n    - b",
+          "selection": [
+            11,
+            11
+          ]
+        }
+      },
+      "call": {
+        "text": "- a\n        - b",
+        "from": 15,
+        "to": 15,
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n        - b",
+          15,
+          15,
+          true
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalOut8",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:89"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": true
+    },
+    {
+      "id": "O042",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 106,
+        "markedInput": "- a\n  |  - b",
+        "expectedMarked": "- a\n|- b",
+        "expected": {
+          "output": "- a\n- b",
+          "selection": [
+            4,
+            4
+          ]
+        }
+      },
+      "call": {
+        "text": "- a\n    - b",
+        "from": 6,
+        "to": 6,
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n    - b",
+          6,
+          6,
+          true
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalCaretInsideIndent",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:90"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": true
+    },
+    {
+      "id": "O043",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 110,
+        "markedInput": "- a\n\u00ab- b\n\n- c\u00bb\n- d",
+        "expectedMarked": "- a\n\u00ab    - b\n\n    - c\u00bb\n- d",
+        "expected": {
+          "output": "- a\n    - b\n\n    - c\n- d",
+          "selection": [
+            4,
+            20
+          ]
+        }
+      },
+      "call": {
+        "text": "- a\n- b\n\n- c\n- d",
+        "from": 4,
+        "to": 12,
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n- b\n\n- c\n- d",
+          4,
+          12,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalMultiple",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:91"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O044",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 111,
+        "markedInput": "- a\n\u00ab    - b\n    - c\u00bb",
+        "expectedMarked": "- a\n\u00ab- b\n- c\u00bb",
+        "expected": {
+          "output": "- a\n- b\n- c",
+          "selection": [
+            4,
+            11
+          ]
+        }
+      },
+      "call": {
+        "text": "- a\n    - b\n    - c",
+        "from": 4,
+        "to": 19,
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n    - b\n    - c",
+          4,
+          19,
+          true
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalMultipleOut",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:92"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": true
+    },
+    {
+      "id": "O045",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 113,
+        "markedInput": "- x\n\u00ab- a\n\u00bb- b",
+        "expectedMarked": "- x\n\u00ab    - a\u00bb\n- b",
+        "expected": {
+          "output": "- x\n    - a\n- b",
+          "selection": [
+            4,
+            11
+          ]
+        }
+      },
+      "call": {
+        "text": "- x\n- a\n- b",
+        "from": 4,
+        "to": 8,
+        "method": "indentEdit",
+        "arguments": [
+          "- x\n- a\n- b",
+          4,
+          8,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalNextStart",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:93"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O046",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 117,
+        "markedInput": "plain| text",
+        "expectedMarked": "\u2205",
+        "expected": {
+          "edit": null,
+          "declined": true
+        }
+      },
+      "call": {
+        "text": "plain text",
+        "from": 5,
+        "to": 5,
+        "method": "indentEdit",
+        "arguments": [
+          "plain text",
+          5,
+          5,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalPlain",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:94"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O047",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 118,
+        "markedInput": "|",
+        "expectedMarked": "\u2205",
+        "expected": {
+          "edit": null,
+          "declined": true
+        }
+      },
+      "call": {
+        "text": "",
+        "from": 0,
+        "to": 0,
+        "method": "indentEdit",
+        "arguments": [
+          "",
+          0,
+          0,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalEmpty",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:95"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O048",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 119,
+        "markedInput": "-not a list|",
+        "expectedMarked": "\u2205",
+        "expected": {
+          "edit": null,
+          "declined": true
+        }
+      },
+      "call": {
+        "text": "-not a list",
+        "from": 11,
+        "to": 11,
+        "method": "indentEdit",
+        "arguments": [
+          "-not a list",
+          11,
+          11,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalNonlist",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:96"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O049",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 120,
+        "markedInput": "\u00ab- a\nprose\u00bb",
+        "expectedMarked": "\u2205",
+        "expected": {
+          "edit": null,
+          "declined": true
+        }
+      },
+      "call": {
+        "text": "- a\nprose",
+        "from": 0,
+        "to": 9,
+        "method": "indentEdit",
+        "arguments": [
+          "- a\nprose",
+          0,
+          9,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalMixedSelection",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:97"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O050",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 121,
+        "markedInput": "- already at the margin|",
+        "expectedMarked": "\u2205",
+        "expected": {
+          "edit": null,
+          "declined": true
+        }
+      },
+      "call": {
+        "text": "- already at the margin",
+        "from": 23,
+        "to": 23,
+        "method": "indentEdit",
+        "arguments": [
+          "- already at the margin",
+          23,
+          23,
+          true
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalMarginOut",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:98"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": true
+    },
+    {
+      "id": "O051",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 122,
+        "markedInput": "**bold** start|",
+        "expectedMarked": "\u2205",
+        "expected": {
+          "edit": null,
+          "declined": true
+        }
+      },
+      "call": {
+        "text": "**bold** start",
+        "from": 14,
+        "to": 14,
+        "method": "indentEdit",
+        "arguments": [
+          "**bold** start",
+          14,
+          14,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalBoldProse",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:99"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O052",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 124,
+        "markedInput": "- first|\n- second",
+        "expectedMarked": "\u2205",
+        "expected": {
+          "edit": null,
+          "declined": true
+        }
+      },
+      "call": {
+        "text": "- first\n- second",
+        "from": 7,
+        "to": 7,
+        "method": "indentEdit",
+        "arguments": [
+          "- first\n- second",
+          7,
+          7,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalNoParent",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:100"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O053",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 125,
+        "markedInput": "prose\n\n- first|",
+        "expectedMarked": "\u2205",
+        "expected": {
+          "edit": null,
+          "declined": true
+        }
+      },
+      "call": {
+        "text": "prose\n\n- first",
+        "from": 14,
+        "to": 14,
+        "method": "indentEdit",
+        "arguments": [
+          "prose\n\n- first",
+          14,
+          14,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "list",
+      "guaranteedConstruction": {
+        "name": "originalProseParent",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:101"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "out": false
+    },
+    {
+      "id": "O054",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 133,
+        "inputLine": 131,
+        "markedInput": "- a\n- b|",
+        "expectedPredicate": "whitespace-collapsed HTML matches /<li>a<[uo]l><li>b/"
+      },
+      "call": {
+        "text": "- a\n- b",
+        "from": 7,
+        "to": 7,
+        "out": false,
+        "renderer": "new MarkdownIt() with default options",
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n- b",
+          7,
+          7,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "nest",
+      "guaranteedConstruction": {
+        "name": "originalBulletChild",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:351"
+      },
+      "preservationReason": "Expected tight token tree retains parent a followed immediately by its nested list first item b; existing-sublist history retains b before c. noPre is compared literally for every history. Tight paragraph/inline restrictions prevent extra intervening markup.",
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O055",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 133,
+        "inputLine": 131,
+        "markedInput": "- a\n    - b\n    - c|",
+        "expectedPredicate": "whitespace-collapsed HTML matches /<li>a<[uo]l><li>b/"
+      },
+      "call": {
+        "text": "- a\n    - b\n    - c",
+        "from": 19,
+        "to": 19,
+        "out": false,
+        "renderer": "new MarkdownIt() with default options",
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n    - b\n    - c",
+          19,
+          19,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "nest",
+      "guaranteedConstruction": {
+        "name": "originalExistingSublist",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:355"
+      },
+      "preservationReason": "Expected tight token tree retains parent a followed immediately by its nested list first item b; existing-sublist history retains b before c. noPre is compared literally for every history. Tight paragraph/inline restrictions prevent extra intervening markup.",
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O056",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 133,
+        "inputLine": 131,
+        "markedInput": "- a\n2. b|",
+        "expectedPredicate": "whitespace-collapsed HTML matches /<li>a<[uo]l><li>b/"
+      },
+      "call": {
+        "text": "- a\n2. b",
+        "from": 8,
+        "to": 8,
+        "out": false,
+        "renderer": "new MarkdownIt() with default options",
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n2. b",
+          8,
+          8,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "nest",
+      "guaranteedConstruction": {
+        "name": "originalMixedLists",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:354"
+      },
+      "preservationReason": "Expected tight token tree retains parent a followed immediately by its nested list first item b; existing-sublist history retains b before c. noPre is compared literally for every history. Tight paragraph/inline restrictions prevent extra intervening markup.",
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O057",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 133,
+        "inputLine": 131,
+        "markedInput": "1. a\n2. b|",
+        "expectedPredicate": "whitespace-collapsed HTML matches /<li>a<[uo]l><li>b/"
+      },
+      "call": {
+        "text": "1. a\n2. b",
+        "from": 9,
+        "to": 9,
+        "out": false,
+        "renderer": "new MarkdownIt() with default options",
+        "method": "indentEdit",
+        "arguments": [
+          "1. a\n2. b",
+          9,
+          9,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "nest",
+      "guaranteedConstruction": {
+        "name": "originalNumberedChild1",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:352"
+      },
+      "preservationReason": "Expected tight token tree retains parent a followed immediately by its nested list first item b; existing-sublist history retains b before c. noPre is compared literally for every history. Tight paragraph/inline restrictions prevent extra intervening markup.",
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O058",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 133,
+        "inputLine": 131,
+        "markedInput": "10. a\n11. b|",
+        "expectedPredicate": "whitespace-collapsed HTML matches /<li>a<[uo]l><li>b/"
+      },
+      "call": {
+        "text": "10. a\n11. b",
+        "from": 11,
+        "to": 11,
+        "out": false,
+        "renderer": "new MarkdownIt() with default options",
+        "method": "indentEdit",
+        "arguments": [
+          "10. a\n11. b",
+          11,
+          11,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "nest",
+      "guaranteedConstruction": {
+        "name": "originalNumberedChild10",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:353"
+      },
+      "preservationReason": "Expected tight token tree retains parent a followed immediately by its nested list first item b; existing-sublist history retains b before c. noPre is compared literally for every history. Tight paragraph/inline restrictions prevent extra intervening markup.",
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O059",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 134,
+        "inputLine": 131,
+        "markedInput": "- a\n- b|",
+        "expectedPredicate": "HTML excludes literal <pre>"
+      },
+      "call": {
+        "text": "- a\n- b",
+        "from": 7,
+        "to": 7,
+        "out": false,
+        "renderer": "new MarkdownIt() with default options",
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n- b",
+          7,
+          7,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "nest",
+      "guaranteedConstruction": {
+        "name": "originalBulletChild",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:351"
+      },
+      "preservationReason": "Expected tight token tree retains parent a followed immediately by its nested list first item b; existing-sublist history retains b before c. noPre is compared literally for every history. Tight paragraph/inline restrictions prevent extra intervening markup.",
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O060",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 134,
+        "inputLine": 131,
+        "markedInput": "- a\n    - b\n    - c|",
+        "expectedPredicate": "HTML excludes literal <pre>"
+      },
+      "call": {
+        "text": "- a\n    - b\n    - c",
+        "from": 19,
+        "to": 19,
+        "out": false,
+        "renderer": "new MarkdownIt() with default options",
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n    - b\n    - c",
+          19,
+          19,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "nest",
+      "guaranteedConstruction": {
+        "name": "originalExistingSublist",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:355"
+      },
+      "preservationReason": "Expected tight token tree retains parent a followed immediately by its nested list first item b; existing-sublist history retains b before c. noPre is compared literally for every history. Tight paragraph/inline restrictions prevent extra intervening markup.",
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O061",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 134,
+        "inputLine": 131,
+        "markedInput": "- a\n2. b|",
+        "expectedPredicate": "HTML excludes literal <pre>"
+      },
+      "call": {
+        "text": "- a\n2. b",
+        "from": 8,
+        "to": 8,
+        "out": false,
+        "renderer": "new MarkdownIt() with default options",
+        "method": "indentEdit",
+        "arguments": [
+          "- a\n2. b",
+          8,
+          8,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "nest",
+      "guaranteedConstruction": {
+        "name": "originalMixedLists",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:354"
+      },
+      "preservationReason": "Expected tight token tree retains parent a followed immediately by its nested list first item b; existing-sublist history retains b before c. noPre is compared literally for every history. Tight paragraph/inline restrictions prevent extra intervening markup.",
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O062",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 134,
+        "inputLine": 131,
+        "markedInput": "1. a\n2. b|",
+        "expectedPredicate": "HTML excludes literal <pre>"
+      },
+      "call": {
+        "text": "1. a\n2. b",
+        "from": 9,
+        "to": 9,
+        "out": false,
+        "renderer": "new MarkdownIt() with default options",
+        "method": "indentEdit",
+        "arguments": [
+          "1. a\n2. b",
+          9,
+          9,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "nest",
+      "guaranteedConstruction": {
+        "name": "originalNumberedChild1",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:352"
+      },
+      "preservationReason": "Expected tight token tree retains parent a followed immediately by its nested list first item b; existing-sublist history retains b before c. noPre is compared literally for every history. Tight paragraph/inline restrictions prevent extra intervening markup.",
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O063",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 134,
+        "inputLine": 131,
+        "markedInput": "10. a\n11. b|",
+        "expectedPredicate": "HTML excludes literal <pre>"
+      },
+      "call": {
+        "text": "10. a\n11. b",
+        "from": 11,
+        "to": 11,
+        "out": false,
+        "renderer": "new MarkdownIt() with default options",
+        "method": "indentEdit",
+        "arguments": [
+          "10. a\n11. b",
+          11,
+          11,
+          false
+        ],
+        "argumentCount": 4
+      },
+      "route": "nest",
+      "guaranteedConstruction": {
+        "name": "originalNumberedChild10",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/list-model-oracle.ts:353"
+      },
+      "preservationReason": "Expected tight token tree retains parent a followed immediately by its nested list first item b; existing-sublist history retains b before c. noPre is compared literally for every history. Tight paragraph/inline restrictions prevent extra intervening markup.",
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O064",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 142,
+        "markedInput": "Tyger Tyger, burning bright,|",
+        "expectedMarked": "Tyger Tyger, burning bright,\\\n|",
+        "expected": {
+          "output": "Tyger Tyger, burning bright,\\\n",
+          "selection": [
+            30,
+            30
+          ]
+        }
+      },
+      "call": {
+        "text": "Tyger Tyger, burning bright,",
+        "from": 28,
+        "to": 28,
+        "method": "breakEdit",
+        "arguments": [
+          "Tyger Tyger, burning bright,",
+          28,
+          28
+        ],
+        "argumentCount": 3
+      },
+      "route": "break",
+      "guaranteedConstruction": {
+        "name": "oldVerseLine",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/break-model-oracle.ts:43"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O065",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 143,
+        "markedInput": "one| two",
+        "expectedMarked": "one\\\n| two",
+        "expected": {
+          "output": "one\\\n two",
+          "selection": [
+            5,
+            5
+          ]
+        }
+      },
+      "call": {
+        "text": "one two",
+        "from": 3,
+        "to": 3,
+        "method": "breakEdit",
+        "arguments": [
+          "one two",
+          3,
+          3
+        ],
+        "argumentCount": 3
+      },
+      "route": "break",
+      "guaranteedConstruction": {
+        "name": "oldMidLine",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/break-model-oracle.ts:44"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O066",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 144,
+        "markedInput": "a \u00abone\u00bb two",
+        "expectedMarked": "a \\\n| two",
+        "expected": {
+          "output": "a \\\n two",
+          "selection": [
+            4,
+            4
+          ]
+        }
+      },
+      "call": {
+        "text": "a one two",
+        "from": 2,
+        "to": 5,
+        "method": "breakEdit",
+        "arguments": [
+          "a one two",
+          2,
+          5
+        ],
+        "argumentCount": 3
+      },
+      "route": "break",
+      "guaranteedConstruction": {
+        "name": "oldSelection",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/break-model-oracle.ts:45"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O067",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 146,
+        "markedInput": "|",
+        "expectedMarked": "\n|",
+        "expected": {
+          "output": "\n",
+          "selection": [
+            1,
+            1
+          ]
+        }
+      },
+      "call": {
+        "text": "",
+        "from": 0,
+        "to": 0,
+        "method": "breakEdit",
+        "arguments": [
+          "",
+          0,
+          0
+        ],
+        "argumentCount": 3
+      },
+      "route": "break",
+      "guaranteedConstruction": {
+        "name": "oldEmptyDocument",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/break-model-oracle.ts:46"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O068",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 147,
+        "markedInput": "a\n\n|",
+        "expectedMarked": "a\n\n\n|",
+        "expected": {
+          "output": "a\n\n\n",
+          "selection": [
+            4,
+            4
+          ]
+        }
+      },
+      "call": {
+        "text": "a\n\n",
+        "from": 3,
+        "to": 3,
+        "method": "breakEdit",
+        "arguments": [
+          "a\n\n",
+          3,
+          3
+        ],
+        "argumentCount": 3
+      },
+      "route": "break",
+      "guaranteedConstruction": {
+        "name": "oldBlankParagraph",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/break-model-oracle.ts:47"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O069",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 148,
+        "markedInput": "a\\|",
+        "expectedMarked": "a\\\n|",
+        "expected": {
+          "output": "a\\\n",
+          "selection": [
+            3,
+            3
+          ]
+        }
+      },
+      "call": {
+        "text": "a\\",
+        "from": 2,
+        "to": 2,
+        "method": "breakEdit",
+        "arguments": [
+          "a\\",
+          2,
+          2
+        ],
+        "argumentCount": 3
+      },
+      "route": "break",
+      "guaranteedConstruction": {
+        "name": "oldUnpairedSlash",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/break-model-oracle.ts:48"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O070",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 150,
+        "markedInput": "```\nline|\n```",
+        "expectedMarked": "```\nline\n|\n```",
+        "expected": {
+          "output": "```\nline\n\n```",
+          "selection": [
+            9,
+            9
+          ]
+        }
+      },
+      "call": {
+        "text": "```\nline\n```",
+        "from": 8,
+        "to": 8,
+        "method": "breakEdit",
+        "arguments": [
+          "```\nline\n```",
+          8,
+          8
+        ],
+        "argumentCount": 3
+      },
+      "route": "break",
+      "guaranteedConstruction": {
+        "name": "oldInsideBackticks",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/break-model-oracle.ts:49"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O071",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 151,
+        "markedInput": "```\ncode\n```\nafter|",
+        "expectedMarked": "```\ncode\n```\nafter\\\n|",
+        "expected": {
+          "output": "```\ncode\n```\nafter\\\n",
+          "selection": [
+            20,
+            20
+          ]
+        }
+      },
+      "call": {
+        "text": "```\ncode\n```\nafter",
+        "from": 18,
+        "to": 18,
+        "method": "breakEdit",
+        "arguments": [
+          "```\ncode\n```\nafter",
+          18,
+          18
+        ],
+        "argumentCount": 3
+      },
+      "route": "break",
+      "guaranteedConstruction": {
+        "name": "oldAfterFence",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/break-model-oracle.ts:50"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O072",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 152,
+        "markedInput": "~~~~\n```\nstill code|",
+        "expectedMarked": "~~~~\n```\nstill code\n|",
+        "expected": {
+          "output": "~~~~\n```\nstill code\n",
+          "selection": [
+            20,
+            20
+          ]
+        }
+      },
+      "call": {
+        "text": "~~~~\n```\nstill code",
+        "from": 19,
+        "to": 19,
+        "method": "breakEdit",
+        "arguments": [
+          "~~~~\n```\nstill code",
+          19,
+          19
+        ],
+        "argumentCount": 3
+      },
+      "route": "break",
+      "guaranteedConstruction": {
+        "name": "oldOppositeMarker",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/break-model-oracle.ts:51"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O073",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 158,
+        "inputLine": 157,
+        "lines": [
+          "one",
+          "two",
+          "three"
+        ],
+        "expectedHtml": "<p>one<br>\ntwo<br>\nthree</p>\n"
+      },
+      "route": "verse",
+      "guaranteedConstruction": {
+        "name": "two breaks",
+        "history": [
+          "one",
+          "two",
+          "three"
+        ],
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-line-break.oracle.test.ts:111"
+      },
+      "preservationReason": "Same sequential two breakEdit calls at the current caret, then inserts next line at returned selection; complete default MarkdownIt HTML compared, with every intermediate edit/caret also recorded.",
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O074",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 165,
+        "markedInput": "|",
+        "expectedMarked": "```\n|\n```",
+        "expected": {
+          "output": "```\n\n```",
+          "selection": [
+            4,
+            4
+          ]
+        }
+      },
+      "call": {
+        "text": "",
+        "from": 0,
+        "to": 0,
+        "method": "codeBlockEdit",
+        "arguments": [
+          "",
+          0,
+          0
+        ],
+        "argumentCount": 3
+      },
+      "route": "code",
+      "guaranteedConstruction": {
+        "name": "empty",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/block-model-oracle.ts:22"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "preservationReason": "All original picked strings lack backticks, so defaultSource is observed and checked against the literal triple-backtick/LF model. Selection check locates the exact body start using parser maps and raw line offsets; body-relative start/end plus full source establish the original absolute caret/range."
+    },
+    {
+      "id": "O075",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 166,
+        "markedInput": "text|",
+        "expectedMarked": "text\n\n```\n|\n```",
+        "expected": {
+          "output": "text\n\n```\n\n```",
+          "selection": [
+            10,
+            10
+          ]
+        }
+      },
+      "call": {
+        "text": "text",
+        "from": 4,
+        "to": 4,
+        "method": "codeBlockEdit",
+        "arguments": [
+          "text",
+          4,
+          4
+        ],
+        "argumentCount": 3
+      },
+      "route": "code",
+      "guaranteedConstruction": {
+        "name": "oldText",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/block-model-oracle.ts:57"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "preservationReason": "All original picked strings lack backticks, so defaultSource is observed and checked against the literal triple-backtick/LF model. Selection check locates the exact body start using parser maps and raw line offsets; body-relative start/end plus full source establish the original absolute caret/range."
+    },
+    {
+      "id": "O076",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 167,
+        "markedInput": "text\n|",
+        "expectedMarked": "text\n\n```\n|\n```",
+        "expected": {
+          "output": "text\n\n```\n\n```",
+          "selection": [
+            10,
+            10
+          ]
+        }
+      },
+      "call": {
+        "text": "text\n",
+        "from": 5,
+        "to": 5,
+        "method": "codeBlockEdit",
+        "arguments": [
+          "text\n",
+          5,
+          5
+        ],
+        "argumentCount": 3
+      },
+      "route": "code",
+      "guaranteedConstruction": {
+        "name": "oldTextLf",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/block-model-oracle.ts:58"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "preservationReason": "All original picked strings lack backticks, so defaultSource is observed and checked against the literal triple-backtick/LF model. Selection check locates the exact body start using parser maps and raw line offsets; body-relative start/end plus full source establish the original absolute caret/range."
+    },
+    {
+      "id": "O077",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 168,
+        "markedInput": "text\n\n|\n\nmore",
+        "expectedMarked": "text\n\n```\n|\n```\n\nmore",
+        "expected": {
+          "output": "text\n\n```\n\n```\n\nmore",
+          "selection": [
+            10,
+            10
+          ]
+        }
+      },
+      "call": {
+        "text": "text\n\n\n\nmore",
+        "from": 6,
+        "to": 6,
+        "method": "codeBlockEdit",
+        "arguments": [
+          "text\n\n\n\nmore",
+          6,
+          6
+        ],
+        "argumentCount": 3
+      },
+      "route": "code",
+      "guaranteedConstruction": {
+        "name": "oldBothSides",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/block-model-oracle.ts:59"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "preservationReason": "All original picked strings lack backticks, so defaultSource is observed and checked against the literal triple-backtick/LF model. Selection check locates the exact body start using parser maps and raw line offsets; body-relative start/end plus full source establish the original absolute caret/range."
+    },
+    {
+      "id": "O078",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 169,
+        "markedInput": "\u00ablet a = 1;\nlet b = 2;\u00bb",
+        "expectedMarked": "```\n\u00ablet a = 1;\nlet b = 2;\u00bb\n```",
+        "expected": {
+          "output": "```\nlet a = 1;\nlet b = 2;\n```",
+          "selection": [
+            4,
+            25
+          ]
+        }
+      },
+      "call": {
+        "text": "let a = 1;\nlet b = 2;",
+        "from": 0,
+        "to": 21,
+        "method": "codeBlockEdit",
+        "arguments": [
+          "let a = 1;\nlet b = 2;",
+          0,
+          21
+        ],
+        "argumentCount": 3
+      },
+      "route": "code",
+      "guaranteedConstruction": {
+        "name": "oldSelectedCode",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/block-model-oracle.ts:60"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "preservationReason": "All original picked strings lack backticks, so defaultSource is observed and checked against the literal triple-backtick/LF model. Selection check locates the exact body start using parser maps and raw line offsets; body-relative start/end plus full source establish the original absolute caret/range."
+    },
+    {
+      "id": "O079",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 170,
+        "markedInput": "before\n\u00abcode\n\u00bbafter",
+        "expectedMarked": "before\n\n```\n\u00abcode\u00bb\n```\n\nafter",
+        "expected": {
+          "output": "before\n\n```\ncode\n```\n\nafter",
+          "selection": [
+            12,
+            16
+          ]
+        }
+      },
+      "call": {
+        "text": "before\ncode\nafter",
+        "from": 7,
+        "to": 12,
+        "method": "codeBlockEdit",
+        "arguments": [
+          "before\ncode\nafter",
+          7,
+          12
+        ],
+        "argumentCount": 3
+      },
+      "route": "code",
+      "guaranteedConstruction": {
+        "name": "oldTrailingLf",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/block-model-oracle.ts:61"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution",
+      "preservationReason": "All original picked strings lack backticks, so defaultSource is observed and checked against the literal triple-backtick/LF model. Selection check locates the exact body start using parser maps and raw line offsets; body-relative start/end plus full source establish the original absolute caret/range."
+    },
+    {
+      "id": "O080",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 178,
+        "expression": "expect(key('Tab')).toBe('indent');",
+        "expected": "indent"
+      },
+      "call": {
+        "method": "structureKey",
+        "arguments": [
+          {
+            "key": "Tab",
+            "metaKey": false,
+            "ctrlKey": false,
+            "altKey": false,
+            "shiftKey": false
+          }
+        ],
+        "argumentCount": 1
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord224",
+        "history": {
+          "key": "Tab",
+          "mask": 0,
+          "mac": false
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O081",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 179,
+        "expression": "expect(key('Tab', { shiftKey: true })).toBe('outdent');",
+        "expected": "outdent"
+      },
+      "call": {
+        "method": "structureKey",
+        "arguments": [
+          {
+            "key": "Tab",
+            "metaKey": false,
+            "ctrlKey": false,
+            "altKey": false,
+            "shiftKey": true
+          }
+        ],
+        "argumentCount": 1
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord240",
+        "history": {
+          "key": "Tab",
+          "mask": 8,
+          "mac": false
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O082",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 180,
+        "expression": "expect(key('Enter', { shiftKey: true })).toBe('break');",
+        "expected": "break"
+      },
+      "call": {
+        "method": "structureKey",
+        "arguments": [
+          {
+            "key": "Enter",
+            "metaKey": false,
+            "ctrlKey": false,
+            "altKey": false,
+            "shiftKey": true
+          }
+        ],
+        "argumentCount": 1
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord272",
+        "history": {
+          "key": "Enter",
+          "mask": 8,
+          "mac": false
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O083",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 181,
+        "expression": "expect(key('Enter')).toBeNull();",
+        "expected": null
+      },
+      "call": {
+        "method": "structureKey",
+        "arguments": [
+          {
+            "key": "Enter",
+            "metaKey": false,
+            "ctrlKey": false,
+            "altKey": false,
+            "shiftKey": false
+          }
+        ],
+        "argumentCount": 1
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord256",
+        "history": {
+          "key": "Enter",
+          "mask": 0,
+          "mac": false
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O084",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 183,
+        "expression": "expect(key('Enter', { shiftKey: true, metaKey: true })).toBeNull();",
+        "expected": null
+      },
+      "call": {
+        "method": "structureKey",
+        "arguments": [
+          {
+            "key": "Enter",
+            "metaKey": true,
+            "ctrlKey": false,
+            "altKey": false,
+            "shiftKey": true
+          }
+        ],
+        "argumentCount": 1
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord274",
+        "history": {
+          "key": "Enter",
+          "mask": 9,
+          "mac": false
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O085",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 184,
+        "expression": "expect(key('Enter', { shiftKey: true, ctrlKey: true })).toBeNull();",
+        "expected": null
+      },
+      "call": {
+        "method": "structureKey",
+        "arguments": [
+          {
+            "key": "Enter",
+            "metaKey": false,
+            "ctrlKey": true,
+            "altKey": false,
+            "shiftKey": true
+          }
+        ],
+        "argumentCount": 1
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord276",
+        "history": {
+          "key": "Enter",
+          "mask": 10,
+          "mac": false
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O086",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 185,
+        "expression": "expect(key('Tab', { ctrlKey: true })).toBeNull();",
+        "expected": null
+      },
+      "call": {
+        "method": "structureKey",
+        "arguments": [
+          {
+            "key": "Tab",
+            "metaKey": false,
+            "ctrlKey": true,
+            "altKey": false,
+            "shiftKey": false
+          }
+        ],
+        "argumentCount": 1
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord228",
+        "history": {
+          "key": "Tab",
+          "mask": 2,
+          "mac": false
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O087",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 186,
+        "expression": "expect(key('Tab', { altKey: true })).toBeNull();",
+        "expected": null
+      },
+      "call": {
+        "method": "structureKey",
+        "arguments": [
+          {
+            "key": "Tab",
+            "metaKey": false,
+            "ctrlKey": false,
+            "altKey": true,
+            "shiftKey": false
+          }
+        ],
+        "argumentCount": 1
+      },
+      "route": "key",
+      "guaranteedConstruction": {
+        "name": "chord232",
+        "history": {
+          "key": "Tab",
+          "mask": 4,
+          "mac": false
+        },
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/keyboard-model-oracle.ts:27"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O088",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 193,
+        "markedInput": "|",
+        "expectedMarked": "$|$",
+        "expected": {
+          "output": "$$",
+          "selection": [
+            1,
+            1
+          ]
+        }
+      },
+      "call": {
+        "text": "",
+        "from": 0,
+        "to": 0,
+        "method": "formulaEdit",
+        "arguments": [
+          "",
+          0,
+          0
+        ],
+        "argumentCount": 3
+      },
+      "route": "formula",
+      "guaranteedConstruction": {
+        "name": "sourceEmptyDocument",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:272"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O089",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 194,
+        "markedInput": "area \u00abpi r^2\u00bb here",
+        "expectedMarked": "area $\u00abpi r^2\u00bb$ here",
+        "expected": {
+          "output": "area $pi r^2$ here",
+          "selection": [
+            6,
+            12
+          ]
+        }
+      },
+      "call": {
+        "text": "area pi r^2 here",
+        "from": 5,
+        "to": 11,
+        "method": "formulaEdit",
+        "arguments": [
+          "area pi r^2 here",
+          5,
+          11
+        ],
+        "argumentCount": 3
+      },
+      "route": "formula",
+      "guaranteedConstruction": {
+        "name": "sourceArea",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:274"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O090",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 195,
+        "markedInput": "\u00ab\\int f\ndx\u00bb",
+        "expectedMarked": "$$\u00ab\\int f\ndx\u00bb$$",
+        "expected": {
+          "output": "$$\\int f\ndx$$",
+          "selection": [
+            2,
+            11
+          ]
+        }
+      },
+      "call": {
+        "text": "\\int f\ndx",
+        "from": 0,
+        "to": 9,
+        "method": "formulaEdit",
+        "arguments": [
+          "\\int f\ndx",
+          0,
+          9
+        ],
+        "argumentCount": 3
+      },
+      "route": "formula",
+      "guaranteedConstruction": {
+        "name": "sourceMultiline",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:276"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    },
+    {
+      "id": "O091",
+      "original": {
+        "file": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/scanners/format-unit/latest-format-shortcuts.test.ts",
+        "line": 196,
+        "markedInput": "a \u00ab x \u00bb b",
+        "expectedMarked": "a $\u00abx\u00bb$ b",
+        "expected": {
+          "output": "a $x$ b",
+          "selection": [
+            3,
+            4
+          ]
+        }
+      },
+      "call": {
+        "text": "a  x  b",
+        "from": 2,
+        "to": 5,
+        "method": "formulaEdit",
+        "arguments": [
+          "a  x  b",
+          2,
+          5
+        ],
+        "argumentCount": 3
+      },
+      "route": "formula",
+      "guaranteedConstruction": {
+        "name": "sourceTrimmed",
+        "pointer": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/candidate/test-ui/editor-oracles/inline-model-oracle.ts:278"
+      },
+      "status": "preserved-in-source",
+      "vanishedAt": null,
+      "evidenceStatus": "read from source; no execution"
+    }
+  ],
+  "inspectedCandidateSha256": {
+    "AGENTS.md": "aaa9fdbea2f6a8939f65949ba50ff0a2f28e733dde1b62dc1a5687508c24fd39",
+    "src/ui/format-shortcuts.ts": "01fbdcd4a2d7d0582cf91ccbb0374c6aefae5fdf5b14c529e8d21ea92fcd8b84",
+    "package.json": "2eb82c7e99c9d37f8d608d4421993a02aeba88cd030f07f144edffa3356ddadd",
+    "vitest.oracle.config.ts": "546d32074fb0a54fcd6261439626bf3ab831c13f6e61fbed88275a376936070b",
+    "vitest.oracles.config.ts": "213afe6040fa113132b60b07c7487f24be3ba3e2ea4160ef80d82a4872583fd2",
+    "vitest.ui.config.ts": "bc0f4a6d1eb873d54c4bc09cd5acd032b7de8ee1c6136d7e4668ba1269549745",
+    "vitest.browser-oracles.config.ts": "59b36a0324baac1ac1cbacdc255dee9d7d68faead63ef5ab8278c59a16a13722",
+    "scripts/formatting-oracles.ts": "b60ed165e3f1f632f7abf1d8b44d028149a2b59fc47c13d5cbdd3b66ef43e664",
+    "test-ui/editor-inline.oracle.test.ts": "c6994c41de8641db8d937794ac1d1e799404f6901ab68eafa3728b2307a5f13e",
+    "test-ui/editor-list.oracle.test.ts": "349ba9ddf59945f3f32793d5b3f5efd0076606ba55775d054078b36daf7255d9",
+    "test-ui/editor-keyboard.oracle.test.ts": "7f5208dd78eebfc466eb04d4755aa8fc820f3569f5aeb4abf74c56aaa467cefd",
+    "test-ui/editor-code-block.oracle.test.ts": "4af0756ef155d3e0aa2da387a01cc65f623a114bd9d84d9d886b1296ad6ec45a",
+    "test-ui/editor-line-break.oracle.test.ts": "bb0e9a77a7714da90a91182e045ae1a276528102a0d5323e6e81e15045844a8c",
+    "test-ui/editor-oracles/inline-model-oracle.ts": "c8e00da445fbc8419f2798f882bea35d0760172d67d074f4c5aeed4aecbab21c",
+    "test-ui/editor-oracles/list-model-oracle.ts": "59acc0dd484822262b114c578002eee579e5724368fb49c20d1c7a6f23968edc",
+    "test-ui/editor-oracles/keyboard-model-oracle.ts": "cba9fd1800a7e8a72a955a5544b1d1d5715f6f24fcc6bab687ce6c94210f16ca",
+    "test-ui/editor-oracles/block-model-oracle.ts": "500a572b079e7304d5cd8af497617e8298b8d1fa23da261dfe4bb6204b1a88bb",
+    "test-ui/editor-oracles/break-model-oracle.ts": "fe57377f1fb28f774873dc98ab69086e6b037244e526d6f526e82061fa11734f",
+    "test-ui/editor-oracles/document-oracle.ts": "c1c3f482b750530ceaa83e8afee6c0021b18c241dc722dce5fc723265db81466",
+    "test-ui/editor-oracles/browser-driver-oracle.ts": "d4ccc78bb85f5e7321562bbfb26830171df817d361d491684cbdf15b3ae5a151",
+    "test-ui/editor-oracles/browser-source-oracle.ts": "4056c22a4282a0f2e3ca5766d516ff9a5cfb7be3f3729932f916a92cebffff5b",
+    "test-ui/editor-oracles/property-registry-oracle.ts": "ad8aa60de918e0dd7a6854b3a1321f9a86f23645c783ea82927cfca590e99b79",
+    "test-ui/editor-oracles/configure-oracles.ts": "f48b86d2af552a440d02fb4272a1516bb6a89c9767f2b8b86136275703f9d858"
+  }
+}

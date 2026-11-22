@@ -1,0 +1,8 @@
+{
+  "id": "original-closing-fence-newline",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": ".some(token => token.type === 'fence' && token.map !== null && token.map[1] > line);",
+  "replace": ".some(token => token.type === 'fence' && token.map !== null && token.map[1] > line\n      && !(token.map[1] === line + 1 && token.map[1] - token.map[0] === (token.content.match(/\\n/g) ?? []).length + 2));",
+  "intent": "Misclassify only the current actual closing-delimiter line as prose, retaining parser-based container/open-body classification. A closed token span has one opener, its content lines, and one closer; The hard-break command (breakEdit through the toolbar) must still preserve that closer with an ordinary newline. Native Enter/Shift+Enter remains a separate ordinary-newline path under the approved 2026-11-21 mapping.",
+  "author": "Codex, self-generated after review and oracle inspection; Codex source-only combined-fence rebase, self-generated after oracle/review inspection"
+}

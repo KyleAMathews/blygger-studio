@@ -1,0 +1,14 @@
+{
+  "utc": "2026-11-19T16:00:02.794638+00:00",
+  "head": "2d153071e83261e62be5a1ec926c3f1f3e2fe26a",
+  "sourceRun": "1f59e4a95d2f",
+  "status": "applied exact verified source; full integration workflow run pending",
+  "transportPatchSha256": "2b3e7017389defa45547e60a520678d4e17d87083e2af49fc563854857218c7f",
+  "copied": {
+    "src/ui/sheets.tsx": "3db1bb055755a995aea1cc25885917d05c0d74abd4ccd7f3a5503602cdd04070",
+    "test-ui/editor-workflows.oracle.test.ts": "d84d13f33c5fd75b86f0873eb1ddee9277f0ca3cbb6009753fe0f3b14d9c49ff",
+    "test-ui/editor-oracles/workflow-driver-oracle.ts": "a9454f5f9ce5cc9a97128b9bfe1720cd7f422fb9b59b7fee6ec172ea611b8cbd",
+    "test-ui/editor-oracle-mutants/original-stacked-toast-feedback.json": "d8c333e9ee34d0540b1e82339f6592fe66538f28326fb06897feb14ca8a446fa"
+  },
+  "temporaryReplayConfigCopied": false
+}

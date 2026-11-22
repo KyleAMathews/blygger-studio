@@ -1,0 +1,8 @@
+{
+  "id": "receiver-replacement-stuck",
+  "source": "src/ui/authoring.tsx",
+  "find": "      setSaved(true);\n    } finally {\n      setReplacing(false);\n    }\n  };\n  const discardDraft",
+  "replace": "      setSaved(true);\n    } finally {\n      setReplacing(true);\n    }\n  };\n  const discardDraft",
+  "intent": "Restore success and rejection must both release readonly/control gates independently of action.busy.",
+  "author": "Codex; authored receiver challenges from BRACKET-001/FOCUS-001/REPLACE-001 audit"
+}

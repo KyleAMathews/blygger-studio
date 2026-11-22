@@ -1,0 +1,8 @@
+{
+  "id": "browser-native-undo-required",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "const exactNativeRange = boundaries.has(edit.from) && boundaries.has(edit.to);",
+  "replace": "const exactNativeRange = false;",
+  "intent": "Ordinary app formatting must remain on the native undo stack; exact source alone does not establish delivery.",
+  "author": "Browser review seam challenge"
+}

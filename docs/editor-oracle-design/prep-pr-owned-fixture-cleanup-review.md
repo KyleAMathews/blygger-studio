@@ -1,0 +1,37 @@
+# Owned publication fixture cleanup
+
+This record covers a browser-oracle harness repair, with unchanged production. The formatting-only mixed oracle expects a cold public search index. Replacement receiving histories created real public items but retained them after browser teardown. A later legal `[[` plus Shift+Enter could therefore activate the real link picker and correctly consume the key before formatting.
+
+Reviewed base: `049b5a7bf9661a22ff4cee31b156b7dd2cbee194`. The selected-host cleanup patch is `f0414363a14ed3b44c61206c0aa70b3b5781341c27fe4fed2e2e18ed62c13554` and requires the combined transport/registry patch `213b03147e403f2cec2c721867ff82bce1447be2528eaf8209b096ae01b11b70`. Receiver preimage `a50f521926a04106045b9fbfea2682d644dd1496b57c7d4a78465ba058ffb088`; postimage `e5763ea41fea600e2a7c929a3cdd499e5505d2e563b8ea608249aa6e296c0cee`; new fixture helper `d15566928aee23a88bdaa1e42b36ddf0d29e7f857688f0f2f482942c89290e8b`.
+
+## Decisive receiving evidence
+
+The disposable application and all dependencies were physically frozen. Before cleanup, four diagnostic mixed constructions passed against the cold app and the actual existing replacement receiving construction passed. Against that same warm app, three of four mixed constructions failed the registered `mixed browser editing history` law; the first failure was `step4.state`. These are selected constructed histories, not a measured random failure rate. The gap report was provisional and correctly blocked the authored mutant after the failing baseline.
+
+The histories use `[[`, zero/four/eight/ten real no-op indent toolbar actions, then native Shift+Enter. They are additive scratch diagnostics within the unchanged 1–12 action arbitrary. A unique five-action receiving snapshot shows the native key's target value `[[`, a real picker populated by receiver fixture `35h137d2tbvzy35t8c2zkghkhw`, and trusted Shift+Enter reaching `onFormatKey` with both prevention flags already true after the picker inserted that exact item. This is evidence of an incorrect harness premise, not a product picker defect.
+
+After the selected-host cleanup, the same cold4→receiver1→warm4 sequence passed twice at seed20261118 with zero nondeterminism. Default real search remained empty after receiving. The selected authored break and readonly key-gate controls were rejected at registered product laws; those controls establish check sensitivity in this focused scope, not complete mutation coverage. All pre-existing325 mixed constructions, generator bounds, budget25, fixed seed, models, checks and observations are preserved. Removing only cleanup additions reconstructs the exact original receiver bytes.
+
+A separate ownership receiving control keeps another public fixture in the app. Its complete item response and search representation stay unchanged. Successful/rejected restore and Save continuations—four original constructed histories—pass twice with zero nondeterminism. Passive observations cover6 real restore and2 Save PATCH routes; all12 cleanup HTTP requests follow actual context close, settled tracked context/page route tasks and the original errors checkpoint. Only each receiver's own item ID is targeted.
+
+## Resource and error behavior
+
+The driver captures its selected `browserApplicationHost()` descriptor before running, records the item ID immediately after creation and before publishing, and wraps the original application driver in a fixture resource scope. After the original observations and teardown settle, cleanup requires the actual context-close event and a fresh `Promise.allSettled(drain)` barrier. A timeout does not imply underlying settlement; failure of either barrier blocks withdrawal and remains a distinct cleanup error.
+
+Cleanup uses an independent local HTTP request after browser context disposal. It reads only the owned ID's latest status/revision, leaves draft/withdrawn items alone, and withdraws a public item with that revision. It awaits both HTTP bodies and bounds each request. It never clears a database or changes picker responses. Capturing the selected host explicitly also supports a baseline pool that clears singleton environment fields.
+
+Nineteen deterministic engineering probes check held-run/barrier/release ordering, awaited release, exact primary error identity including falsy thrown values, separate cleanup errors and AggregateError cause, failed-settlement refusal, owned-ID and revision behavior, malformed/failed responses, and response-body settlement. They are focused harness probes, not product oracle kills or replacement unit tests. They pass with singleton host environment fields deliberately absent. Strict transitive TypeScript checks603 source files with zero diagnostics; scoped ESLint passes;17,277 frozen dependency files remain unchanged.
+
+## Review corrections and limits
+
+Independent finding HF-R01 identified that the first cleanup revision reread singleton environment fields. It now takes the exact selected host descriptor. HF-R02 identified that initial passive route counts covered context routes alone. Expanded instrumentation also tracks page routes, including actual restore and Save tasks; earlier evidence retains its narrower scope. The raw findings and earlier favorable/unfavorable attempts remain in the append-only ledger.
+
+Initial staging failed before running tests because of an incomplete node_modules overlay. Another attempt encountered missing dependency bytes during a concurrent installation; that separate warm history is setup-only. A later matched-browser absence and sandbox-localhost refusal also ran zero tests. None is claimed as a law failure or kill. The final packet physically freezes all packages and uses matched Playwright Chromium1248, version156.0.8078.4, headless-shell SHA256 `77d8278b1ac9d0687fad4e817ea83023ede09b1deef36e1864b49ba194ac9634`.
+
+This is focused singleton receiving evidence on the combined selected-host adapter's fallback. Actual baseline-broker receiving and the full16-file acceptance remain separate root gates. This record does not claim all formatting gaps are closed. No product laws, history domain, random budgets or production behavior changed.
+
+The package ORC-010 cleanup requirement governs this repair. ORC-002/003/004/007/008/009/011/013/015/016 acquire no new product-model or grammar obligation here: the existing product oracle is unchanged and the four scratch histories only diagnose its host premise. ORC-005/006/014 have the real receiving/check sensitivity evidence above; ORC-012 is bounded to this repair and its stated gates. ORC-001 introduces no new product promise.
+
+Artifact packet: `/var/folders/zy/zxh2j5n97vq2tt8d8q7_1t5r0000gp/T/blygger-shared-host-postmerge-qi5keagq`. Key records: `frozen-manifest.json`, `cleanup-selected-host-manifest.json`, `cleanup-source-preservation.json`, `cleanup-controls-selected-host.json`, `selected-host-typecheck.json`, `final-dependency-verification.json`, `results-unclean`, `results-selected-host`, `selected-host-neighbor-ownership-check.json`, and their uniquely named receiving snapshots.
+
+Independent focused gate: PASS. Report SHA256 `f264654ce94248ec7ec7ef5b5de897c1192354b2652d408dcb14be2353bcd850`. The reviewer verified exact patch binding/pre/postimages, all39 property expressions and original325 mixed constructions, failure controls source/results, and real restore/save/foreign ownership receipts. HF-R01/HF-R02 are fixed for the two reported defects. Actual broker/full16 receiving and complete mutation readiness remain separate gates.

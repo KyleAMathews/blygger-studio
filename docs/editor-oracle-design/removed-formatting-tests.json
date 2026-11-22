@@ -1,0 +1,11 @@
+{
+  "baseCommit": "28b0c8d642a87e5810ad6eabd95c2d1714c53396",
+  "sha256": {
+    "test-ui/format-shortcuts.test.ts": "4187c4b45f9296f33aed8683416353907ecda5cc4e3c5581891f7106c89143cf",
+    "e2e/format-shortcuts.spec.ts": "fc12dd43513125d2d634bb3782d1ebf13f2a3fad1bfd4d495f5dff7d39c1df08",
+    "e2e/markdown-structure.spec.ts": "04089a07d25329fa4abb9baf253faa5df21a38586cbe564c4c62af4a1055c50f"
+  },
+  "sourceAudit": "browser-review/browser-final-receiving-closure.md",
+  "finalReceivingAddendum": "browser-review/intra-word-receiving-addendum.md",
+  "oracleRun": "2026-11-18T17-57-47.947Z"
+}

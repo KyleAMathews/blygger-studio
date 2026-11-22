@@ -1,0 +1,13 @@
+{
+  "oldConstructions": 27,
+  "newConstructions": 36,
+  "newCodeConstructions": 19,
+  "seed": 20261118,
+  "generatedHistories": 1500,
+  "sharedSteps": 9567,
+  "oldPermitted": 9567,
+  "freeSteps": 0,
+  "previewActionDeltas": 0,
+  "historyCaretOutputDeltas": 0,
+  "variantChecks": 52
+}

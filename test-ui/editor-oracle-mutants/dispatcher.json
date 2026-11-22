@@ -1,0 +1,1 @@
+{"id": "review-four-character-dispatch", "source": "src/ui/format-shortcuts.ts", "find": "formatEdit(el.value, from, to, kind)", "replace": "formatEdit(el.value, from, from + 4, kind)", "intent": "A keyboard command must forward the actual selection, including empty carets and partial selections.", "author": "Independent reviewer; reproduced by parent"}

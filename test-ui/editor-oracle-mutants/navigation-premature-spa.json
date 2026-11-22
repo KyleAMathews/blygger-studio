@@ -1,0 +1,8 @@
+{
+  "id": "navigation-premature-spa",
+  "source": "src/ui/authoring.tsx",
+  "find": "      if (leaving.current) return false;\n      if (replacementPending.current) return true;\n      if (!draft.current!.dirty) return false;\n      try {\n        return !(await save());\n      } catch (error) {\n        await action.run(async () => {\n          throw error;\n        });\n        return true;\n      }",
+  "replace": "      if (leaving.current) return false;\n      if (replacementPending.current) return true;\n      if (!draft.current!.dirty) return false;\n      try {\n        void save(); return false;\n      } catch (error) {\n        await action.run(async () => {\n          throw error;\n        });\n        return true;\n      }",
+  "intent": "The actual compose guard must await delivery; native unload warnings and Draft semantics remain unchanged.",
+  "author": "Independent navigation receiver review"
+}

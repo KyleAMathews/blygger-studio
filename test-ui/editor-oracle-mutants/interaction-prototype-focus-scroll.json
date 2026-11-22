@@ -1,0 +1,8 @@
+{
+  "id": "interaction-prototype-focus-scroll",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  el.focus({ preventScroll: true });",
+  "replace": "  HTMLElement.prototype.focus.call(el);",
+  "intent": "Prototype focus cannot bypass a nonempty actual focus receipt or preserve-scroll law.",
+  "author": "Codex; challenges from independent interaction oracle review INT-001 through INT-004"
+}

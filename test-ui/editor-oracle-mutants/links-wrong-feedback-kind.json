@@ -1,0 +1,8 @@
+{
+  "id": "links-wrong-feedback-kind",
+  "source": "src/ui/links.ts",
+  "find": "const what = result.linked ? 'linked selection' : 'inserted link';",
+  "replace": "const what = !result.linked ? 'linked selection' : 'inserted link';",
+  "intent": "Feedback must distinguish a selected label from an inserted autolink.",
+  "author": "Codex; self-authored completed-link oracle challenge"
+}

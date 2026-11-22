@@ -1,0 +1,120 @@
+{
+  "status": "completed disposable host probes; no product oracle or CI runtime verdict",
+  "date": "2026-11-19",
+  "baseCommit": "28b0c8d642a87e5810ad6eabd95c2d1714c53396",
+  "oraclePin": "97a4e7a",
+  "playwright": "1.64.1",
+  "chromium": "156.0.8078.80",
+  "node": "v24.8.0",
+  "platform": "linux",
+  "architecture": "arm64",
+  "image": "mcr.microsoft.com/playwright:v1.64.1-noble",
+  "imageIndexDigest": "sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f",
+  "stagingDirectory": "/private/tmp/blygger-oracle-ci-gagmlkz4",
+  "files": {
+    "repository/clipboard-isolation-probe.mjs": {
+      "sha256": "0d6ba223b5aa0f191f9c4abef4e13fb717417cd6deef19476c1efe057df2c0de",
+      "bytes": 2904
+    },
+    "clipboard-isolation-output.json": {
+      "sha256": "c760839be27ae61d85128992537ce3c75077ab6e5c4801f97a73ec7c97e0b3af",
+      "bytes": 9746
+    },
+    "clipboard-isolation-error.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "repository/clipboard-isolation-stress.mjs": {
+      "sha256": "a36b9ea784f2100212e7ab2bad3f1d4248ef4a6e1e3cc878954c894e13b7fb01",
+      "bytes": 2890
+    },
+    "clipboard-isolation-stress-output.json": {
+      "sha256": "189ff749b3e05edcd41de4f386a1db5173e9150d28f163f19ae9c7a447fb3371",
+      "bytes": 64880
+    },
+    "clipboard-isolation-stress-error.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "node-linux": {
+      "sha256": "3e74ab04f89a2396eaf14721e6cd47ef9a33dba9edd409600ff0f7783d2f6e29",
+      "bytes": 126278720
+    },
+    "snapshot.json": {
+      "sha256": "a237dd1c71d95e3ab6643ffdc57fa636469f8f4bbb79c03b0952d8a2c8ac2a4c",
+      "bytes": 96814
+    }
+  },
+  "initialProbe": [
+    {
+      "mode": "shared-browser-server",
+      "rounds": 8,
+      "readPastePairs": 16,
+      "mismatchedArrangedInputs": 8,
+      "firstRound": {
+        "arranged": [
+          "oracle-clipboard-shared-browser-server-0-0-🍐",
+          "oracle-clipboard-shared-browser-server-0-1-🍐"
+        ],
+        "received": [
+          {
+            "read": "oracle-clipboard-shared-browser-server-0-1-🍐",
+            "nativePaste": "oracle-clipboard-shared-browser-server-0-1-🍐"
+          },
+          {
+            "read": "oracle-clipboard-shared-browser-server-0-1-🍐",
+            "nativePaste": "oracle-clipboard-shared-browser-server-0-1-🍐"
+          }
+        ]
+      }
+    },
+    {
+      "mode": "separate-browser-servers",
+      "rounds": 8,
+      "readPastePairs": 16,
+      "mismatchedArrangedInputs": 0,
+      "firstRound": {
+        "arranged": [
+          "oracle-clipboard-separate-browser-servers-0-0-🍐",
+          "oracle-clipboard-separate-browser-servers-0-1-🍐"
+        ],
+        "received": [
+          {
+            "read": "oracle-clipboard-separate-browser-servers-0-0-🍐",
+            "nativePaste": "oracle-clipboard-separate-browser-servers-0-0-🍐"
+          },
+          {
+            "read": "oracle-clipboard-separate-browser-servers-0-1-🍐",
+            "nativePaste": "oracle-clipboard-separate-browser-servers-0-1-🍐"
+          }
+        ]
+      }
+    }
+  ],
+  "concurrentSeparateProcessStress": {
+    "processes": 4,
+    "profiles": [
+      {
+        "mobileViewport": false,
+        "rounds": 20,
+        "readPastePairs": 80,
+        "mismatchedArrangedInputs": 0,
+        "trustedInsertFromPasteInputs": 80
+      },
+      {
+        "mobileViewport": true,
+        "rounds": 20,
+        "readPastePairs": 80,
+        "mismatchedArrangedInputs": 0,
+        "trustedInsertFromPasteInputs": 80
+      }
+    ]
+  },
+  "limits": [
+    "Linux arm64 headless Chromium only; no macOS, WebKit or future-version isolation claim.",
+    "Separate Linux container OS and no host browser or host clipboard mounted.",
+    "Native paste waits for an actual input event, not expected text.",
+    "Desktop/iPhone13 viewport profiles are not physical mobile evidence.",
+    "No production oracle, mutation kill or CI timing claim."
+  ]
+}

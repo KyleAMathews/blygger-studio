@@ -1,0 +1,8 @@
+{
+  "id": "native-newline-binds-once-only",
+  "source": "src/ui/authoring.tsx",
+  "intent": "Bind only the first node in a quick editor lifetime. Initial receiving stays intact, but the reopened textarea loses native terminal-LF history handling.",
+  "author": "Codex (self-generated from boundary review)",
+  "find": "function useFormatInput(ref?: RefObject<HTMLTextAreaElement | null>) {\n  return useCallback((el: HTMLTextAreaElement | null) => {\n    if (!el) return;",
+  "replace": "function useFormatInput(ref?: RefObject<HTMLTextAreaElement | null>) {\n  const hasBound = useRef(false);\n  return useCallback((el: HTMLTextAreaElement | null) => {\n    if (!el || hasBound.current) return;\n    hasBound.current = true;"
+}

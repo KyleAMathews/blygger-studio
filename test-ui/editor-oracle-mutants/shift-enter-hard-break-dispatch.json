@@ -1,0 +1,8 @@
+{
+  "id": "shift-enter-hard-break-dispatch",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  if (event.key === 'Tab') return event.shiftKey ? 'outdent' : 'indent';\n  return null;",
+  "replace": "  if (event.key === 'Tab') return event.shiftKey ? 'outdent' : 'indent';\n  if (event.key === 'Enter' && event.shiftKey) return 'break' as never;\n  return null;",
+  "intent": "Restore Shift+Enter hard-break dispatch, violating the approved native ordinary-newline shortcut law; editor-key-classification chord272 must reject the break result.",
+  "author": "Codex (self-generated after inspecting the oracle)"
+}

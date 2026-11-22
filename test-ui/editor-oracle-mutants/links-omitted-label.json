@@ -1,0 +1,8 @@
+{
+  "id": "links-omitted-label",
+  "source": "src/ui/links.ts",
+  "find": "export function linkMarkdown(url: string, selection = ''): string {",
+  "replace": "export function linkMarkdown(url: string, selection = 'link'): string {",
+  "intent": "An omitted label must still create an autolink; explicit empty labels alone cannot challenge the default.",
+  "author": "Codex; independent loss-audit challenge"
+}

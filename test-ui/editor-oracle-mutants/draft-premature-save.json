@@ -1,0 +1,8 @@
+{
+  "id": "draft-premature-save",
+  "source": "src/ui/draft.ts",
+  "find": "return this.persist(text).then(() => {\n      this.persistedRevision = Math.max(this.persistedRevision, revision);\n      return this.revision === revision;\n    });",
+  "replace": "void this.persist(text).then(() => {\n      this.persistedRevision = Math.max(this.persistedRevision, revision);\n      return this.revision === revision;\n    });\n    return Promise.resolve(true);",
+  "intent": "A save cannot report completion before its submitted write is acknowledged; SPA departure must remain blocked.",
+  "author": "Navigation implementation review"
+}

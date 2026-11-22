@@ -1,0 +1,8 @@
+{
+  "id": "review-list-raw-trailing-blank-extent",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "const contentEnd = contentEnds[token.map![1] - 1]!;",
+  "replace": "const contentEnd = Math.max(token.map![1], contentEnds[token.map![1] - 1]!);",
+  "intent": "Restore r1 raw trailing-blank extent behavior at the contentEnd decision: unselected trailing blank lines incorrectly prevent the complete selected forest from being corrected. Nonblank extent behavior is unchanged.",
+  "author": "Codex, self-generated from independent r1 trailing-blank source finding; runtime pending"
+}

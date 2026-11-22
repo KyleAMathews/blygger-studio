@@ -1,0 +1,8 @@
+{
+  "id": "review-valid-input-missing-break-return",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "export function breakEdit(text: string, from: number, to: number): FormatEdit {\n",
+  "replace": "export function breakEdit(text: string, from: number, to: number): FormatEdit {\n  if (text.slice(0, from).includes('\\0')) return null as unknown as FormatEdit;\n",
+  "intent": "Return an illegal null break result for valid source with preceding NUL, while preserving all standard semantic break histories. The valid-input oracle must distinguish this mandatory return from allowed list declines.",
+  "author": "Independent oracle reviewer"
+}

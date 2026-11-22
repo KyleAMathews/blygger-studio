@@ -1,0 +1,8 @@
+{
+  "id": "original-parent-padding-indent",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": ": aligned === undefined ? ' '.repeat(spaces) + row.indent : ' '.repeat(aligned));",
+  "replace": ": aligned === undefined ? (!out && opening?.[1] === level && /^\\d/.test(opening[2]!) ? ' '.repeat(Math.max(INDENT.length, opening[2]!.length + 1)) : INDENT) + row.indent : ' '.repeat(aligned));",
+  "intent": "Restore the original marker-width-plus-one rule, ignoring the actual parent gap and tab stops. A supported paragraph parent must receive a real nested child.",
+  "author": "Codex, original defect after registered RED; Codex source-only r2 rebase, self-generated after oracle/review inspection"
+}

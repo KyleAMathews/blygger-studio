@@ -1,0 +1,5 @@
+{
+  "id": "navigation-dirty-false", "source": "src/ui/draft.ts",
+  "find": "return this.currentRevision !== this.persistedRevision;", "replace": "return false;",
+  "intent": "Edited-back text must still trigger the real unload warning while edit events remain unacknowledged.", "author": "Navigation oracle review"
+}

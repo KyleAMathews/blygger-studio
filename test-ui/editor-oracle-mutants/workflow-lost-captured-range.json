@@ -1,0 +1,8 @@
+{
+  "id": "workflow-lost-captured-range",
+  "source": "src/ui/authoring.tsx",
+  "find": "linkInto(el, clip, at, change);",
+  "replace": "linkInto(el, clip, { start: el.value.length, end: el.value.length }, change);",
+  "intent": "Clipboard insertion must keep the captured selection.",
+  "author": "Codex; challenges from independent workflow receiving review"
+}

@@ -1,0 +1,41 @@
+{
+  "baseHead": "049b5a7bf9661a22ff4cee31b156b7dd2cbee194",
+  "scope": "Reviewed runtime/registry/fixture source; browser receiving acceptance pending",
+  "patchSha256": {
+    "runtimeRegistry": "213b03147e403f2cec2c721867ff82bce1447be2528eaf8209b096ae01b11b70",
+    "ownedFixture": "f0414363a14ed3b44c61206c0aa70b3b5781341c27fe4fed2e2e18ed62c13554"
+  },
+  "sourcePostimages": {
+    "scripts/formatting-oracles.ts": "b60ed165e3f1f632f7abf1d8b44d028149a2b59fc47c13d5cbdd3b66ef43e664",
+    "scripts/formatting-oracle-topology.ts": "6c7c4065dff20ba969cd3e6c23e56d4270317f5c910e7931af07eb2cecebf95e",
+    "scripts/formatting-oracle-application-pool.ts": "9f125a6f4c3d35317624306930859b0657432204299935cb51dcc7fb970a2524",
+    "scripts/formatting-baseline-runner.ts": "03302f3a82410b2e5084a2d20035d61bc685d2350304b89b1059cce229a6056f",
+    "scripts/formatting-baseline-runner.patch": "69f048cf3c049f2c9f0f90c230be7f8330805e1bdbe0d31a90685241150ad797",
+    "scripts/formatting-baseline-runner-manifest.json": "1fbf5b2e2f60778463c7182f7554d081b107e51d3aa2060133b4d623495a452f",
+    "test-ui/editor-oracles/browser-engine-oracle.ts": "771d591d619af9933e2aac6bf2af8c357974ef3b7e22e079fd72da984f88ad72",
+    "test-ui/editor-oracles/browser-driver-oracle.ts": "d4ccc78bb85f5e7321562bbfb26830171df817d361d491684cbdf15b3ae5a151",
+    "test-ui/editor-oracles/application-driver-oracle.ts": "45748c2a5171b79ba669fd634a9beeef0a8995585ac8d0131c0fecafd5c23b2e",
+    "test-ui/editor-oracles/session-driver-oracle.ts": "8a2e6345e1d0ddbe9d6282943ccf10cc10cb2f76bf0fb7aef0500f65a2a0eb11",
+    "test-ui/editor-oracles/receiver-fields-oracle.ts": "93fd23fe56ba97161f22f35939cb08d3756f3bbca555a15879334250960c88d5",
+    "test-ui/editor-receivers.oracle.test.ts": "01a5e53f8e28e0b0f87fbc9dac15c21bbc623108ab3a62668735cefcccfc1433",
+    "test-ui/editor-bracket-receiver.oracle.test.ts": "2e9ecee7362a6465dda72033342f3eb103d2a266dd698cc9d95731b928b6d142",
+    "test-ui/editor-escape-layers.oracle.test.ts": "f100c40e48eb7305dcaf6e4406c1ba09da5a5d824952a5bcef61db647b2b353b",
+    "vitest.oracle.config.ts": "546d32074fb0a54fcd6261439626bf3ab831c13f6e61fbed88275a376936070b",
+    "scripts/check-oracle-migration.ts": "aef7a36598a22b75f70172cf7582fbf4432e11a5038b34f9acd739620ac6cfd4",
+    "test-ui/editor-oracles/property-registry-oracle.ts": "ad8aa60de918e0dd7a6854b3a1321f9a86f23645c783ea82927cfca590e99b79",
+    "test-ui/editor-oracles/configure-oracles.ts": "f48b86d2af552a440d02fb4272a1516bb6a89c9767f2b8b86136275703f9d858",
+    "test-ui/editor-oracles/receiver-driver-oracle.ts": "e5763ea41fea600e2a7c929a3cdd499e5505d2e563b8ea608249aa6e296c0cee",
+    "test-ui/editor-oracles/receiver-fixture-oracle.ts": "d15566928aee23a88bdaa1e42b36ddf0d29e7f857688f0f2f482942c89290e8b"
+  },
+  "productionFormatterSha256": "01fbdcd4a2d7d0582cf91ccbb0374c6aefae5fdf5b14c529e8d21ea92fcd8b84",
+  "localChecks": {
+    "typecheck": "passed: repository, UI and oracle projects",
+    "scopedLint": "passed:18 changed TypeScript roots",
+    "migrationInventory": "passed:38 suite implementations,890 comparisons,193 cases,301 table rows,123 additional feed comparisons"
+  },
+  "runtimeLimits": [
+    "Frozen two-file Linux smoke is a separate pre-cleanup source check.",
+    "Final complete16-file/two-pass baseline, actual broker cleanup, unchanged budgets and timing remain pending.",
+    "No whole-owned-code mutation closure or PR readiness follows from this source record."
+  ]
+}

@@ -97,6 +97,22 @@ jobs:
       - run: npm run test:ui -- --maxWorkers=2
       - run: npm test -- --maxWorkers=2
       - run: npm run test:upgrade
+  formatting-baseline:
+    uses: ./.github/workflows/formatting-baseline.yml
+    with:
+      # Preserve the existing Check ceiling pending complete measurement.
+      timeout-minutes: 360
+  formatting-oracles:
+    if: always()
+    needs: formatting-baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the complete formatting baseline aggregate
+        env:
+          FORMATTING_RESULT: ${{ needs.formatting-baseline.result }}
+        run: test "$FORMATTING_RESULT" = success
+
   sdk-generation:
     runs-on: ubuntu-latest
     timeout-minutes: 10

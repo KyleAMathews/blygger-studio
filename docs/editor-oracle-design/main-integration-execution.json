@@ -1,0 +1,682 @@
+{
+  "head": "764cb40d15b8062dad70032f262807f4472ec962",
+  "branch": "oracles-main-integration",
+  "oraclePin": "97a4e7a",
+  "createdUtc": "2026-11-19T15:38:05.236978+00:00",
+  "build": "passed after supplied-sheets transport and singleton toast repair",
+  "typecheck": "passed after build; earlier concurrent build/typecheck attempt raced SDK output deletion and failed, then sequential rerun passed",
+  "remainingUI": {
+    "files": 30,
+    "passed": 247,
+    "failed": 0,
+    "scope": "Repeated after toast/transport application"
+  },
+  "runs": [
+    {
+      "path": "build/formatting-oracles/main-integration-session/results.json",
+      "sha256": "07c436f13404db86d00c98f771adb7257ed74d132be03b899528082963cc749e",
+      "run": {
+        "id": "cae918bc8af5",
+        "inputs": "1 source files, 1 oracle files, 0 ordinary test files, 75 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "baseline": [],
+      "provisional": false,
+      "nondeterministic": [],
+      "results": []
+    },
+    {
+      "path": "build/formatting-oracles/main-integration-session-fence/results.json",
+      "sha256": "8d18a777ad3f00720d70470b3313acb691734bfae38771f27300a813669b3a9f",
+      "run": {
+        "id": "044c396855dc",
+        "inputs": "1 source files, 1 oracle files, 0 ordinary test files, 75 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "baseline": [
+        {
+          "file": "test-ui/editor-session.oracle.test.ts",
+          "ordinary": false,
+          "passed": 138,
+          "failed": 0,
+          "skipped": 0
+        }
+      ],
+      "provisional": false,
+      "nondeterministic": [],
+      "results": [
+        {
+          "id": "authored:original-three-backtick-wrapper",
+          "key": "src/ui/format-shortcuts.ts#authored:original-three-backtick-wrapper",
+          "outcome": "survived",
+          "class": "not-observed",
+          "function": "codeBlockEdit"
+        }
+      ]
+    },
+    {
+      "path": "build/formatting-oracles/main-integration-code-block/results.json",
+      "sha256": "78aa5616cfd2ee4ce808242c56f77a0b78054dd39e9a33ef5675dd44bfb5eec5",
+      "run": {
+        "id": "01c99960f7cf",
+        "inputs": "1 source files, 1 oracle files, 0 ordinary test files, 75 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "baseline": [
+        {
+          "file": "test-ui/editor-code-block.oracle.test.ts",
+          "ordinary": false,
+          "passed": 315,
+          "failed": 0,
+          "skipped": 0
+        }
+      ],
+      "provisional": false,
+      "nondeterministic": [],
+      "results": [
+        {
+          "id": "authored:original-three-backtick-wrapper",
+          "key": "src/ui/format-shortcuts.ts#authored:original-three-backtick-wrapper",
+          "outcome": "killed",
+          "class": null,
+          "function": "codeBlockEdit"
+        }
+      ]
+    },
+    {
+      "path": "build/formatting-oracles/main-integration-draft-accept/results.json",
+      "sha256": "718e616fc16726b0d6dd4e8c4f75bc999c1a38c2a85cc4455995fc2c009ef73f",
+      "run": {
+        "id": "262887d5bbbf",
+        "inputs": "1 source files, 1 oracle files, 0 ordinary test files, 75 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "baseline": [
+        {
+          "file": "test-ui/editor-receivers.oracle.test.ts",
+          "ordinary": false,
+          "passed": 232,
+          "failed": 0,
+          "skipped": 0
+        }
+      ],
+      "provisional": false,
+      "nondeterministic": [],
+      "results": [
+        {
+          "id": "ui/draft.ts:M3",
+          "key": "src/ui/draft.ts#Draft.accept:delete-call:this . edit ( text ) ;",
+          "outcome": "killed",
+          "class": null,
+          "function": "Draft.accept",
+          "by": [
+            "editor-browser-replacement-gates > fixed seed 20261118: saveThenBold-success-false"
+          ],
+          "laws": [
+            "held replacement formatting gate"
+          ]
+        }
+      ],
+      "scope": "Completed prior merged runtime snapshot before subsequent supplied-sheets transport and toast repair; final current-source regression still required."
+    },
+    {
+      "path": "build/formatting-oracles/empty-selection-guard-real/results.json",
+      "sha256": "8c64f08e6ef7ca88f4f115e700b1f0eb64524336d2c623ab1a4b3790faabdf5a",
+      "run": {
+        "id": "80b9512942ca",
+        "inputs": "1 source files, 1 oracle files, 0 ordinary test files, 76 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "baseline": [],
+      "nondeterministic": [],
+      "results": [],
+      "provisional": false,
+      "wrapperExit": 1,
+      "scope": "Intentional wrong selector: zero execution rejected by wrapper; no oracle evidence"
+    },
+    {
+      "path": "build/formatting-oracles/current-guard-code-block/results.json",
+      "sha256": "ca386f2b31c0ba76ca19207ddaebbb4754333c1cb54e6d2caa3f66962d64811f",
+      "run": {
+        "id": "1bd7333ac656",
+        "inputs": "1 source files, 1 oracle files, 0 ordinary test files, 76 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "baseline": [
+        {
+          "file": "test-ui/editor-code-block.oracle.test.ts",
+          "ordinary": false,
+          "passed": 315,
+          "failed": 0,
+          "skipped": 0
+        }
+      ],
+      "nondeterministic": [],
+      "results": [
+        {
+          "id": "authored:original-three-backtick-wrapper",
+          "authored": true,
+          "authoredId": "original-three-backtick-wrapper",
+          "source": "src/ui/format-shortcuts.ts",
+          "key": "src/ui/format-shortcuts.ts#authored:original-three-backtick-wrapper",
+          "operator": "authored",
+          "function": "codeBlockEdit",
+          "intent": "Restore the original fixed fence, allowing selected backtick fences to end the code block early.",
+          "author": "Codex (self-generated after inspecting the oracle)",
+          "original": "const fence = '`'.repeat((body.match(/`+/g) ?? []).reduce((size, run) => Math.max(size, run.length + 1), 3));",
+          "replacement": "const fence = '```';",
+          "line": 184,
+          "outcome": "killed",
+          "by": [
+            "editor-code-block.literal > fixed seed 20261118: fence"
+          ],
+          "laws": [
+            "literal contents"
+          ],
+          "randomAlso": false,
+          "seconds": 1.5805917499999995
+        }
+      ],
+      "provisional": false,
+      "wrapperExit": 0,
+      "scope": "Current integration positive selection:315 baseline registrations twice, expected authored fence mutant killed, zero nondeterminism"
+    }
+  ],
+  "workflowRed": {
+    "capture": "/private/tmp/blygger-main-linux-j74l_hd2/repository/build/formatting-oracles/main-integration-workflows/run-185-1.jsonl",
+    "sha256": "eca1565d9deec6d9666c9f31e828ea594ab82d18156bd44328fa175ea7e8c6f8",
+    "completedRegistrations": 101,
+    "failures": [
+      {
+        "key": "/workspace/test-ui/editor-workflows.oracle.test.ts > editor-browser-workflows > fixed seed 20261118: originalClipboard",
+        "state": "fail",
+        "route": "fixed seed",
+        "verdicts": [
+          {
+            "property": "editor-browser-workflows",
+            "law": "completed-link workflow receipt",
+            "checkpoint": "step1",
+            "route": "fixed seed"
+          }
+        ],
+        "message": "OracleViolation: editor-browser-workflows violated at checkpoint \"step1\" (law: completed-link workflow receipt).\nLaw: For every completed-link workflow, the real editor receives escaped source, tracker feedback and caret at each action; sheets preserve captured ranges, canceled/invalid insertions preserve source, and paste interception respects selected URLs versus native defaults and nonimage files.\nDifference: step1.toastCount must match the workflow receipt\nHistory: {\"mobile\":false,\"surface\":\"composer\",\"before\":\"\",\"picked\":\"\",\"after\":\"\",\"operations\":[{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"raw\":\"\"},\"typed\":{\"protocol\":\"http\",\"path\":[],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"raw\":\"\"},\"typed\":{\"raw\":\"\"},\"activation\":\"click\"}]}\nAuthority: e2e/compose-pwa.spec.ts clipboard/paste histories at28b0c8d642a87e5810ad6eabd95c2d1714c53396; Decision by Kyle Mathews (GitHub KyleAMathews),2026-11-18: all existing clipboard/sheet/paste and keyboard activation oracle work.\nKnown limits: Chromium OS clipboard and controlled denial; five actions; helper URL/label bounds. Nonimage file event only; does not establish image-upload/OS permission UI, paste undo or arbitrary rendered Markdown labels. Full transition owes source; selection after navigation is unconstrained.\nRerun: -t '^editor-browser-workflows(?: | > )fixed seed 20261118: originalClipboard$'",
+        "ms": 17620
+      },
+      {
+        "key": "/workspace/test-ui/editor-workflows.oracle.test.ts > editor-browser-workflows > fixed seed 20261118: originalPaste",
+        "state": "fail",
+        "route": "fixed seed",
+        "verdicts": [
+          {
+            "property": "editor-browser-workflows",
+            "law": "completed-link workflow receipt",
+            "checkpoint": "step4",
+            "route": "fixed seed"
+          },
+          {
+            "property": "editor-browser-workflows",
+            "law": "completed-link workflow receipt",
+            "checkpoint": "step1",
+            "route": "fixed seed"
+          }
+        ],
+        "message": "OracleViolation: editor-browser-workflows violated at checkpoint \"step1\" (law: completed-link workflow receipt).\nLaw: For every completed-link workflow, the real editor receives escaped source, tracker feedback and caret at each action; sheets preserve captured ranges, canceled/invalid insertions preserve source, and paste interception respects selected URLs versus native defaults and nonimage files.\nDifference: step1.toastCount must match the workflow receipt\nHistory: {\"mobile\":false,\"surface\":\"composer\",\"before\":\"\",\"picked\":\"\",\"after\":\"\",\"operations\":[{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"raw\":\"\"},\"typed\":{\"protocol\":\"http\",\"path\":[],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":0,\"b\":3,\"raw\":{\"raw\":\"https://example.net/\"},\"typed\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"}]}\nAuthority: e2e/compose-pwa.spec.ts clipboard/paste histories at28b0c8d642a87e5810ad6eabd95c2d1714c53396; Decision by Kyle Mathews (GitHub KyleAMathews),2026-11-18: all existing clipboard/sheet/paste and keyboard activation oracle work.\nKnown limits: Chromium OS clipboard and controlled denial; five actions; helper URL/label bounds. Nonimage file event only; does not establish image-upload/OS permission UI, paste undo or arbitrary rendered Markdown labels. Full transition owes source; selection after navigation is unconstrained.\nRerun: -t '^editor-browser-workflows(?: | > )fixed seed 20261118: originalPaste$'",
+        "ms": 62191
+      },
+      {
+        "key": "/workspace/test-ui/editor-workflows.oracle.test.ts > editor-browser-workflows > fixed seed 20261118: originalClipboardMobile",
+        "state": "fail",
+        "route": "fixed seed",
+        "verdicts": [
+          {
+            "property": "editor-browser-workflows",
+            "law": "completed-link workflow receipt",
+            "checkpoint": "step1",
+            "route": "fixed seed"
+          }
+        ],
+        "message": "OracleViolation: editor-browser-workflows violated at checkpoint \"step1\" (law: completed-link workflow receipt).\nLaw: For every completed-link workflow, the real editor receives escaped source, tracker feedback and caret at each action; sheets preserve captured ranges, canceled/invalid insertions preserve source, and paste interception respects selected URLs versus native defaults and nonimage files.\nDifference: step1.toastCount must match the workflow receipt\nHistory: {\"mobile\":false,\"surface\":\"composer\",\"before\":\"\",\"picked\":\"\",\"after\":\"\",\"operations\":[{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"raw\":\"\"},\"typed\":{\"protocol\":\"http\",\"path\":[],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"raw\":\"\"},\"typed\":{\"raw\":\"\"},\"activation\":\"click\"}]}\nAuthority: e2e/compose-pwa.spec.ts clipboard/paste histories at28b0c8d642a87e5810ad6eabd95c2d1714c53396; Decision by Kyle Mathews (GitHub KyleAMathews),2026-11-18: all existing clipboard/sheet/paste and keyboard activation oracle work.\nKnown limits: Chromium OS clipboard and controlled denial; five actions; helper URL/label bounds. Nonimage file event only; does not establish image-upload/OS permission UI, paste undo or arbitrary rendered Markdown labels. Full transition owes source; selection after navigation is unconstrained.\nRerun: -t '^editor-browser-workflows(?: | > )fixed seed 20261118: originalClipboardMobile$'",
+        "ms": 28043
+      },
+      {
+        "key": "/workspace/test-ui/editor-workflows.oracle.test.ts > editor-browser-workflows > fixed seed 20261118: originalPasteMobile",
+        "state": "fail",
+        "route": "fixed seed",
+        "verdicts": [
+          {
+            "property": "editor-browser-workflows",
+            "law": "completed-link workflow receipt",
+            "checkpoint": "step4",
+            "route": "fixed seed"
+          }
+        ],
+        "message": "OracleViolation: editor-browser-workflows violated at checkpoint \"step4\" (law: completed-link workflow receipt).\nLaw: For every completed-link workflow, the real editor receives escaped source, tracker feedback and caret at each action; sheets preserve captured ranges, canceled/invalid insertions preserve source, and paste interception respects selected URLs versus native defaults and nonimage files.\nDifference: step4.toastCount must match the workflow receipt\nHistory: {\"mobile\":false,\"surface\":\"composer\",\"before\":\"\",\"picked\":\"\",\"after\":\"\",\"operations\":[{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"raw\":\"\"},\"typed\":{\"protocol\":\"http\",\"path\":[],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"paste\",\"at\":\"caret\",\"a\":0,\"b\":0,\"raw\":{\"raw\":\"https://example.com/q\"},\"typed\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"paste\",\"at\":\"range\",\"a\":0,\"b\":3,\"raw\":{\"raw\":\"not a url\"},\"typed\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"full\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[{\"key\":\"utm_source\",\"value\":\"x\"},{\"key\":\"fbclid\",\"value\":\"y\"}],\"fragment\":\"\",\"padding\":\"\"},\"typed\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"paste\",\"at\":\"range\",\"a\":0,\"b\":3,\"raw\":{\"raw\":\"https://example.net/\"},\"typed\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"}]}\nAuthority: e2e/compose-pwa.spec.ts clipboard/paste histories at28b0c8d642a87e5810ad6eabd95c2d1714c53396; Decision by Kyle Mathews (GitHub KyleAMathews),2026-11-18: all existing clipboard/sheet/paste and keyboard activation oracle work.\nKnown limits: Chromium OS clipboard and controlled denial; five actions; helper URL/label bounds. Nonimage file event only; does not establish image-upload/OS permission UI, paste undo or arbitrary",
+        "ms": 60347
+      },
+      {
+        "key": "/workspace/test-ui/editor-workflows.oracle.test.ts > editor-browser-workflows > fixed seed 20261118: generated",
+        "state": "fail",
+        "route": "fixed seed",
+        "verdicts": [
+          {
+            "property": "editor-browser-workflows",
+            "law": "completed-link workflow receipt",
+            "checkpoint": "step1",
+            "route": "fixed seed"
+          }
+        ],
+        "message": "OracleViolation: editor-browser-workflows violated at checkpoint \"step1\" (law: completed-link workflow receipt).\nLaw: For every completed-link workflow, the real editor receives escaped source, tracker feedback and caret at each action; sheets preserve captured ranges, canceled/invalid insertions preserve source, and paste interception respects selected URLs versus native defaults and nonimage files.\nDifference: step1.toastCount must match the workflow receipt\nHistory: {\"mobile\":false,\"surface\":\"composer\",\"before\":\"\",\"picked\":\"\",\"after\":\"\",\"operations\":[{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"protocol\":\"http\",\"path\":[],\"parameters\":[],\"fragment\":\"\",\"padding\":\" \"},\"typed\":{\"raw\":\"\\udf61\uefd6\u7a70\u487c\u1bb7\u4122\u44a2\u709c\"},\"activation\":\"Space\"},{\"kind\":\"invalidTyped\",\"at\":\"end\",\"a\":55,\"b\":14,\"raw\":{\"protocol\":\"HTTP\",\"path\":[\"2\",\"s\",\"C\",\"x\",\"h\",\"r\"],\"parameters\":[{\"key\":\"ref\",\"value\":\"BG=9D=VL44\"},{\"key\":\"utm_0\",\"value\":\"=VjGflt\"},{\"key\":\"igshid\",\"value\":\"j\"},{\"key\":\"ref_src\",\"value\":\"DGEWlR\"}],\"fragment\":\"-ft\u03b1\",\"padding\":\"  \"},\"typed\":{\"raw\":\"\uc9ef\u4c3d\u64a0\u5ae4\u8ff6\u8400\ucfbd\u738c\u3808\uca99\"},\"activation\":\"Enter\"},{\"kind\":\"files\",\"at\":\"range\",\"a\":45,\"b\":15,\"raw\":{\"protocol\":\"http\",\"path\":[\"v\",\"I\",\"D\",\"0\",\"2\",\"V\"],\"parameters\":[{\"key\":\"utm_\ud83d\ude00\",\"value\":\"SEdUi5MeZ\"}],\"fragment\":\"n&\",\"padding\":\"\"},\"typed\":{\"protocol\":\"HTTPS\",\"path\":[\"%29\",\"\u03b1\",\"%2F\",\"M\",\"C\",\"k\",\"N\",\"H\",\"j\"],\"parameters\":[],\"fragment\":\"3\",\"padding\":\"  \"},\"activation\":\"Enter\"},{\"kind\":\"full\",\"at\":\"caret\",\"a\":4,\"b\":56,\"raw\":{\"protocol\":\"http\",\"path\":[\"2\"],\"parameters\":[],\"fragment\":\"4&yxk6\",\"padding\":\"\"},\"typed\":{\"protocol\":\"http\",\"path\":[\"G\",\"M\",\"f\",\"(\",\"x\",\"a\",\"O\",\"d\",\"E\"],\"parameters\":[{\"key\":\"si\",\"value\":\"X eh8JS\"}],\"fragment\":\"oi\u03b1c\",\"padding\":\" \"},\"activation\":\"Space\"},{\"kind\":\"nativePaste\",\"at\":\"end\",\"a\":40,\"b\":40,\"raw\":{\"raw\":\"\u4adf\uc06a\u0dfe\"},\"typed\":{\"raw\":\"\"},\"activation\":\"click\"}]}\nAuthority: e2e/compose-pwa.spec.ts clipboard/paste histories at28b0c8d642a87e5810ad6eabd95c2d1714c53396; Decision by Kyle Mathews (GitHub KyleAMathews),2026-11-18: all existing cl",
+        "ms": 60422
+      },
+      {
+        "key": "/workspace/test-ui/editor-workflows.oracle.test.ts > editor-browser-workflows > random seed: originalClipboard",
+        "state": "fail",
+        "route": "fixed seed",
+        "verdicts": [
+          {
+            "property": "editor-browser-workflows",
+            "law": "completed-link workflow receipt",
+            "checkpoint": "step1",
+            "route": "fixed seed"
+          }
+        ],
+        "message": "OracleViolation: editor-browser-workflows violated at checkpoint \"step1\" (law: completed-link workflow receipt).\nLaw: For every completed-link workflow, the real editor receives escaped source, tracker feedback and caret at each action; sheets preserve captured ranges, canceled/invalid insertions preserve source, and paste interception respects selected URLs versus native defaults and nonimage files.\nDifference: step1.toastCount must match the workflow receipt\nHistory: {\"mobile\":false,\"surface\":\"composer\",\"before\":\"\",\"picked\":\"\",\"after\":\"\",\"operations\":[{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"raw\":\"\"},\"typed\":{\"protocol\":\"http\",\"path\":[],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"raw\":\"\"},\"typed\":{\"raw\":\"\"},\"activation\":\"click\"}]}\nAuthority: e2e/compose-pwa.spec.ts clipboard/paste histories at28b0c8d642a87e5810ad6eabd95c2d1714c53396; Decision by Kyle Mathews (GitHub KyleAMathews),2026-11-18: all existing clipboard/sheet/paste and keyboard activation oracle work.\nKnown limits: Chromium OS clipboard and controlled denial; five actions; helper URL/label bounds. Nonimage file event only; does not establish image-upload/OS permission UI, paste undo or arbitrary rendered Markdown labels. Full transition owes source; selection after navigation is unconstrained.\nRerun: ORACLE_SEED=20261118 ORACLE_PATH=0:0:0:0:1:1:1:1:1:1 ORACLE_PROPERTY='editor-browser-workflows' ORACLE_UNIT='random seed: originalClipboard' vitest run -t '^editor-browser-workflows(?: | > )random seed: originalClipboard$'",
+        "ms": 24301
+      },
+      {
+        "key": "/workspace/test-ui/editor-workflows.oracle.test.ts > editor-browser-workflows > random seed: originalPaste",
+        "state": "fail",
+        "route": "fixed seed",
+        "verdicts": [
+          {
+            "property": "editor-browser-workflows",
+            "law": "completed-link workflow receipt",
+            "checkpoint": "step4",
+            "route": "fixed seed"
+          }
+        ],
+        "message": "OracleViolation: editor-browser-workflows violated at checkpoint \"step4\" (law: completed-link workflow receipt).\nLaw: For every completed-link workflow, the real editor receives escaped source, tracker feedback and caret at each action; sheets preserve captured ranges, canceled/invalid insertions preserve source, and paste interception respects selected URLs versus native defaults and nonimage files.\nDifference: step4.toastCount must match the workflow receipt\nHistory: {\"mobile\":false,\"surface\":\"composer\",\"before\":\"\",\"picked\":\"\",\"after\":\"\",\"operations\":[{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"raw\":\"\"},\"typed\":{\"protocol\":\"http\",\"path\":[\"a\"],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"paste\",\"at\":\"caret\",\"a\":0,\"b\":0,\"raw\":{\"raw\":\"https://example.com/q\"},\"typed\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"paste\",\"at\":\"range\",\"a\":0,\"b\":3,\"raw\":{\"raw\":\"not a url\"},\"typed\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"full\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[{\"key\":\"utm_source\",\"value\":\"x\"},{\"key\":\"fbclid\",\"value\":\"y\"}],\"fragment\":\"\",\"padding\":\"\"},\"typed\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"paste\",\"at\":\"range\",\"a\":0,\"b\":3,\"raw\":{\"raw\":\"https://example.net/\"},\"typed\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"}]}\nAuthority: e2e/compose-pwa.spec.ts clipboard/paste histories at28b0c8d642a87e5810ad6eabd95c2d1714c53396; Decision by Kyle Mathews (GitHub KyleAMathews),2026-11-18: all existing clipboard/sheet/paste and keyboard activation oracle work.\nKnown limits: Chromium OS clipboard and controlled denial; five actions; helper URL/label bounds. Nonimage file event only; does not establish image-upload/OS permission UI, paste undo or arbitr",
+        "ms": 60276
+      },
+      {
+        "key": "/workspace/test-ui/editor-workflows.oracle.test.ts > editor-browser-workflows > random seed: originalClipboardMobile",
+        "state": "fail",
+        "route": "fixed seed",
+        "verdicts": [
+          {
+            "property": "editor-browser-workflows",
+            "law": "completed-link workflow receipt",
+            "checkpoint": "step1",
+            "route": "fixed seed"
+          }
+        ],
+        "message": "OracleViolation: editor-browser-workflows violated at checkpoint \"step1\" (law: completed-link workflow receipt).\nLaw: For every completed-link workflow, the real editor receives escaped source, tracker feedback and caret at each action; sheets preserve captured ranges, canceled/invalid insertions preserve source, and paste interception respects selected URLs versus native defaults and nonimage files.\nDifference: step1.toastCount must match the workflow receipt\nHistory: {\"mobile\":false,\"surface\":\"composer\",\"before\":\"\",\"picked\":\"\",\"after\":\"\",\"operations\":[{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"raw\":\"\"},\"typed\":{\"protocol\":\"http\",\"path\":[],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"raw\":\"\"},\"typed\":{\"raw\":\"\"},\"activation\":\"click\"}]}\nAuthority: e2e/compose-pwa.spec.ts clipboard/paste histories at28b0c8d642a87e5810ad6eabd95c2d1714c53396; Decision by Kyle Mathews (GitHub KyleAMathews),2026-11-18: all existing clipboard/sheet/paste and keyboard activation oracle work.\nKnown limits: Chromium OS clipboard and controlled denial; five actions; helper URL/label bounds. Nonimage file event only; does not establish image-upload/OS permission UI, paste undo or arbitrary rendered Markdown labels. Full transition owes source; selection after navigation is unconstrained.\nRerun: ORACLE_SEED=20261118 ORACLE_PATH=0:0:0:0:0:1:1:1:1:1:1 ORACLE_PROPERTY='editor-browser-workflows' ORACLE_UNIT='random seed: originalClipboardMobile' vitest run -t '^editor-browser-workflows(?: | > )random seed: originalClipboardMobile$'",
+        "ms": 37034
+      },
+      {
+        "key": "/workspace/test-ui/editor-workflows.oracle.test.ts > editor-browser-workflows > random seed: originalPasteMobile",
+        "state": "fail",
+        "route": "fixed seed",
+        "verdicts": [
+          {
+            "property": "editor-browser-workflows",
+            "law": "completed-link workflow receipt",
+            "checkpoint": "step4",
+            "route": "fixed seed"
+          }
+        ],
+        "message": "OracleViolation: editor-browser-workflows violated at checkpoint \"step4\" (law: completed-link workflow receipt).\nLaw: For every completed-link workflow, the real editor receives escaped source, tracker feedback and caret at each action; sheets preserve captured ranges, canceled/invalid insertions preserve source, and paste interception respects selected URLs versus native defaults and nonimage files.\nDifference: step4.toastCount must match the workflow receipt\nHistory: {\"mobile\":false,\"surface\":\"composer\",\"before\":\"\",\"picked\":\"\",\"after\":\"\",\"operations\":[{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"raw\":\"\"},\"typed\":{\"protocol\":\"http\",\"path\":[\"a\"],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"paste\",\"at\":\"caret\",\"a\":0,\"b\":0,\"raw\":{\"raw\":\"https://example.com/q\"},\"typed\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"paste\",\"at\":\"range\",\"a\":0,\"b\":3,\"raw\":{\"raw\":\"not a url\"},\"typed\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"full\",\"at\":\"current\",\"a\":0,\"b\":0,\"raw\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[{\"key\":\"utm_source\",\"value\":\"x\"},{\"key\":\"fbclid\",\"value\":\"y\"}],\"fragment\":\"\",\"padding\":\"\"},\"typed\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"},{\"kind\":\"paste\",\"at\":\"range\",\"a\":0,\"b\":3,\"raw\":{\"raw\":\"https://example.net/\"},\"typed\":{\"protocol\":\"https\",\"path\":[\"a\"],\"parameters\":[],\"fragment\":\"\",\"padding\":\"\"},\"activation\":\"click\"}]}\nAuthority: e2e/compose-pwa.spec.ts clipboard/paste histories at28b0c8d642a87e5810ad6eabd95c2d1714c53396; Decision by Kyle Mathews (GitHub KyleAMathews),2026-11-18: all existing clipboard/sheet/paste and keyboard activation oracle work.\nKnown limits: Chromium OS clipboard and controlled denial; five actions; helper URL/label bounds. Nonimage file event only; does not establish image-upload/OS permission UI, paste undo or arbitr",
+        "ms": 60647
+      }
+    ],
+    "completeReport": false,
+    "intentionalInterrupt": {
+      "signal": "SIGINT",
+      "cliPidInsideOwnedContainer": 185,
+      "reason": "Registered reproducible toast-count failures established; preserve them and fix before replaying more expensive failing histories.",
+      "container": "blygger-main-workflow-control",
+      "exit": 3
+    },
+    "scope": "Partial registered baseline RED only. No GREEN, completed gap audit, or mutant kill."
+  },
+  "limits": [
+    "Session-only fence mutant survives because nested-fence payloads belong to code-block oracle; exact mutant killed in code-block run. This is not whole-suite mutation closure.",
+    "Original full reference remains unchanged/running on old main. Its reports do not validate upstream UI.",
+    "Clipboard tests remain pending merged-source final gates.",
+    "CI scheduler candidate has only bounded source acceptance and first real diagnostic control, no measured full CI budget.",
+    "Draft.accept M3 now killed in completed prior merged snapshot262887d5bbbf; current-source comprehensive rerun still pending after transport/toast application.",
+    "Selected toast replay before stable diagnostics910ed1b7e0ee had8 nondeterministic rows and a mutation timeout; retained with no kill/acceptance credit.",
+    "The empty replace attempt was refused before execution; corrected mutant replacement is a source comment removing explicit ID.",
+    "Source-supported publishTangle late-input overwrite remains unexecuted hypothesis with no adopted publish/reconcile law.",
+    "Empty-selection guard is applied and actual zero-selection run80b9512942ca now correctly exits1; positive current code-block run1bd7333ac656 exits0 with315checks and authored kill. Mixed valid+unknown selectors remain separate.",
+    "Full workflow attemptbc80a076e443 is provisional due to one composer-startup timeout; fixture accumulation/performance hypothesis under source audit.",
+    "CI baseline-only mode is being designed; no per-PR speed claim or workflow change adopted yet."
+  ],
+  "toastSelectedReplay": {
+    "path": "/private/tmp/blygger-main-linux-j74l_hd2/repository/build/formatting-oracles/toast-singleton-green-replay-v3/results.json",
+    "sha256": "18c6e77978f0977e68856c37fdde23a6cbf15c873b5cbfca1d57a3a2f4acf4bf",
+    "run": {
+      "id": "1f59e4a95d2f",
+      "inputs": "2 source files, 1 oracle files, 0 ordinary test files, 76 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+    },
+    "baseline": [
+      {
+        "file": "test-ui/editor-workflows.oracle.test.ts",
+        "ordinary": false,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 153
+      }
+    ],
+    "nondeterministic": [],
+    "results": [
+      {
+        "id": "authored:original-stacked-toast-feedback",
+        "authored": true,
+        "authoredId": "original-stacked-toast-feedback",
+        "source": "src/ui/sheets.tsx",
+        "key": "src/ui/sheets.tsx#authored:original-stacked-toast-feedback",
+        "operator": "authored",
+        "function": "toast",
+        "intent": "Restore newly generated toast identities so consecutive link notices accumulate instead of replacing the current message.",
+        "author": "Codex; regression observed after integrating upstream Base UI toast migration",
+        "original": "    id: 'studio-feedback',\n",
+        "replacement": "    // Regression: let Base UI assign a fresh toast identity.\n",
+        "line": 121,
+        "outcome": "killed",
+        "by": [
+          "editor-browser-workflows > fixed seed 20261118: originalClipboard"
+        ],
+        "laws": [
+          "completed-link workflow receipt"
+        ],
+        "randomAlso": false,
+        "seconds": 26.095366470000002
+      }
+    ],
+    "provisional": false,
+    "scope": "Explicit partial existing-history replay only, 8 registrations including6 calibrations; full maintained workflow run pending. Original defect rejected step1.toastCount2 versus1.",
+    "repairAppliedToIntegration": true,
+    "transportAppliedToIntegration": true,
+    "temporaryReplayConfigMaintained": false
+  },
+  "updatedUtc": "2026-11-19T18:34:00.237379+00:00",
+  "fullWorkflowAttempt": {
+    "path": "/private/tmp/blygger-main-linux-j74l_hd2/repository/build/formatting-oracles/main-integration-workflows-green/results.json",
+    "sha256": "f44469a31fc2eef25404eb4a80b2e2a784edc9b4a4ba4f983e3318e7872ea16e",
+    "run": {
+      "id": "bc80a076e443",
+      "inputs": "2 source files, 1 oracle files, 0 ordinary test files, 76 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+    },
+    "baseline": [
+      {
+        "file": "test-ui/editor-workflows.oracle.test.ts",
+        "ordinary": false,
+        "failure": "editor-browser-workflows > fixed seed 20261118: fragment-cleanup-paste-part?#next: TimeoutError: locator.waitFor: Timeout 7000ms exceeded.",
+        "passed": 160,
+        "failed": 1,
+        "skipped": 0
+      }
+    ],
+    "provisional": true,
+    "results": [
+      {
+        "id": "authored:original-stacked-toast-feedback",
+        "authored": true,
+        "authoredId": "original-stacked-toast-feedback",
+        "source": "src/ui/sheets.tsx",
+        "key": "src/ui/sheets.tsx#authored:original-stacked-toast-feedback",
+        "operator": "authored",
+        "function": "toast",
+        "intent": "Restore newly generated toast identities so consecutive link notices accumulate instead of replacing the current message.",
+        "author": "Codex; regression observed after integrating upstream Base UI toast migration",
+        "original": "    id: 'studio-feedback',\n",
+        "replacement": "    // Regression: let Base UI assign a fresh toast identity.\n",
+        "line": 121,
+        "outcome": "blocked",
+        "blockedBy": [
+          "/workspace/test-ui/editor-workflows.oracle.test.ts"
+        ]
+      },
+      {
+        "id": "authored:workflow-cancel-inserts",
+        "authored": true,
+        "authoredId": "workflow-cancel-inserts",
+        "source": "src/ui/authoring.tsx",
+        "key": "src/ui/authoring.tsx#authored:workflow-cancel-inserts",
+        "operator": "authored",
+        "function": "linkFromClipboard",
+        "intent": "Cancel must preserve original source.",
+        "author": "Codex; challenges from independent workflow receiving review",
+        "original": "        if (typed === null) return;",
+        "replacement": "        if (typed === null) { linkInto(el, 'https://cancel.example/', at, change); return; }",
+        "line": 330,
+        "outcome": "blocked",
+        "blockedBy": [
+          "/workspace/test-ui/editor-workflows.oracle.test.ts"
+        ]
+      }
+    ],
+    "scope": "Full maintained workflow first baseline160pass1setupfailure; second baseline not run and both selected mutants blocked. No whole-workflow GREEN credit. Startup #composer-text timeout under investigation; no registered violation.",
+    "sourceManifest": "/private/tmp/blygger-main-linux-j74l_hd2/full-workflow-green-inputs.json"
+  },
+  "historicalRunsHead": "2d153071e83261e62be5a1ec926c3f1f3e2fe26a",
+  "headScope": "Current integration base; existing runtime receipts below keep their historical source snapshots and do not establish current-head oracle acceptance.",
+  "latestMerge": {
+    "from": "2d153071e83261e62be5a1ec926c3f1f3e2fe26a",
+    "to": "764cb40d15b8062dad70032f262807f4472ec962",
+    "upstreamVerifiedUtc": "2026-11-19T16:41:38.327528+00:00",
+    "remote": "origin/main and live git ls-remote agree at764cb40",
+    "conflicts": false,
+    "changedFiles": [
+      "AGENTS.md",
+      "CHANGELOG.md",
+      "package-lock.json",
+      "package.json",
+      "src/client.ts"
+    ],
+    "dependencyUpdates": {
+      "hono": "4.13.14 -> 4.13.18",
+      "fast-xml-parser": "5.11.2 -> 5.12.1",
+      "fast-xml-builder": "1.3.1 -> 1.3.2",
+      "is-unsafe": "2.0.2 -> 2.0.3"
+    },
+    "install": {
+      "command": "npm ci --legacy-peer-deps --no-audit --no-fund",
+      "status": "passed, including postinstall build",
+      "log": "/private/tmp/blygger-main-764cb40-install.log",
+      "workaround": null
+    },
+    "typecheck": "passed after install/build",
+    "remainingUI": {
+      "files": 30,
+      "passed": 247,
+      "failed": 0
+    },
+    "diffCheck": "passed",
+    "preservedBackupStash": "a35129821820af7c12dbe3a5b4be89327389cd32",
+    "oracleRuntime": "Complete current-head candidate baseline passed4383registrations twice across14files; independent accounting/source/derivation review accepted. CI timing/hostcleanup acceptance remains pending.",
+    "candidate": "/private/tmp/blygger-ci-764cb40-e0vnxfbb/repository",
+    "candidateDependencies": "Assembled Linux dependency snapshot as candidate-composition.json records; not fresh Linux npm-ci timing evidence"
+  },
+  "ciBaselineCandidate764cb40": {
+    "path": "/private/tmp/blygger-ci-764cb40-e0vnxfbb/repository/build/formatting-oracles/ci764-complete",
+    "run": {
+      "id": "adbe1df71f7a",
+      "inputs": "3 source files, 14 oracle files, 0 ordinary test files, 76 authored mutants, seed 20261118, pool threads"
+    },
+    "resultsSha256": "9dc905078f882cc12ec94e3a41f8d8d87539aa56c2d9f32e497df70a9c8e6f8c",
+    "purpose": "baseline-only",
+    "status": "baseline-completed",
+    "provisional": false,
+    "nondeterministic": [],
+    "passes": [
+      {
+        "name": "first",
+        "files": 14,
+        "passed": 4383,
+        "failed": 0,
+        "skipped": 0,
+        "captureRows": 4383,
+        "captureSha256": "a2d5a50465cd5ae831fb6364601e2765686c63a225d8e78f4804b18a1c53119f"
+      },
+      {
+        "name": "repeat",
+        "files": 14,
+        "passed": 4383,
+        "failed": 0,
+        "skipped": 0,
+        "captureRows": 4383,
+        "captureSha256": "74d4a5739595c778a6bdb645dcd13b8dc0ed924d4c172019bdc263e70c56a1a2"
+      }
+    ],
+    "mutationAudit": {
+      "status": "not-run"
+    },
+    "mutationResults": null,
+    "independentReview": "/private/tmp/blygger-ci764-runtime-review.l_d9wdee/final-artifact-review.json",
+    "independentReviewSha256": "9f58006a1609874f7fbd1a3216328e61d2c8845ba3083f4560017e34e708cfec",
+    "scope": "Complete maintained baseline, not mutation audit or CI readiness; assembled dependency snapshot; hostsleep and omittedinit preserve timing/cleanup limitations; three instrumentationcall/hit differences despite stable public observations"
+  },
+  "currentCancellationReceipt": {
+    "path": "/private/tmp/blygger-current-cancel-h9n5mq_4/repository/build/formatting-oracles/current-cancel-replay",
+    "run": {
+      "id": "2d634afa6797",
+      "inputs": "2 source files, 1 oracle files, 0 ordinary test files, 76 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+    },
+    "resultsSha256": "83a463f1a9108cd1076f2103335cf82e80580a446a145aa67060c9524ccca91e",
+    "baseline": [
+      {
+        "file": "test-ui/editor-workflows.oracle.test.ts",
+        "ordinary": false,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 153
+      }
+    ],
+    "provisional": false,
+    "nondeterministic": [],
+    "results": [
+      {
+        "id": "authored:workflow-cancel-inserts",
+        "authored": true,
+        "authoredId": "workflow-cancel-inserts",
+        "source": "src/ui/authoring.tsx",
+        "key": "src/ui/authoring.tsx#authored:workflow-cancel-inserts",
+        "operator": "authored",
+        "function": "linkFromClipboard",
+        "intent": "Cancel must preserve original source.",
+        "author": "Codex; challenges from independent workflow receiving review",
+        "original": "        if (typed === null) return;",
+        "replacement": "        if (typed === null) { linkInto(el, 'https://cancel.example/', at, change); return; }",
+        "line": 330,
+        "outcome": "killed",
+        "by": [
+          "editor-browser-workflows > fixed seed 20261118: cancel-desktop"
+        ],
+        "laws": [
+          "completed-link workflow receipt"
+        ],
+        "randomAlso": false,
+        "seconds": 9.376059795000002
+      }
+    ],
+    "independentReview": "/private/tmp/blygger-cancel-runtime-review.iAXl5f/review.json",
+    "independentReviewSha256": "c4b02f8d770f89350b2112ad207e16630b7e77fa28deb86aceb07b30a852a433",
+    "scope": "Actual registered fixed cancel-desktop receiving rejection at step0, source/value difference; explicit partial replay2fixedhistories+6calibrations,153skipped; no separate random/determinismtests or mobilemutantkill. All8repeat observationhashesmatchbothcomplete baselinepasses. First rawcaptureunarchived; reported8pass twice/nondeterminism0. No fullaudit/timing/cleanup/retirement claim."
+  },
+  "remoteBaselineAttempt764cb40": {
+    "status": "failed-and-timed-out; first baseline2failures, repeat incomplete; no report or CI readiness",
+    "setup": "Fresh Linux npm-ci/build/typecheck on Node22.18.0; exact public oracle tarball seeded by lockfile integrity after initial pkg.pr.new ECONNRESET; source and lock unchanged; init container capped4CPUs/8GiB",
+    "firstBaselineFailures": {
+      "file": "test-ui/editor-navigation.oracle.test.ts",
+      "count": 2,
+      "representative": "editor-browser-navigation > random seed: generated"
+    },
+    "repeatCapturedFailures": [
+      {
+        "registration": "editor-browser-navigation > fixed seed 20261118: generated",
+        "ms": 51660,
+        "message": "TimeoutError locator.click7000ms waiting for created-item .item-head after departure",
+        "verdicts": []
+      },
+      {
+        "registration": "editor-browser-navigation > random seed: generated",
+        "ms": 60306,
+        "message": "TimeoutError locator.click7000ms waiting for created-item .item-head after departure",
+        "verdicts": []
+      }
+    ],
+    "capture": "/private/tmp/blygger-remote-ci-20261119-1719/reviewer-repeat-failed-capture.json",
+    "captureSha256": "694ed60c897d68157d3b3fcd08e122f4e4df8beb21b1ddfa7199d4c3bce58520",
+    "classification": "Driver interaction timeout before law comparison. Source proves unsupported first-page target-acquisition premise: sharedDB histories, list25, real loadmore; specific failed targets pagination position unobserved. No production-bug or exact-cause claim.",
+    "next": "Reviewed bounded realUI paging repair demonstrated and applied; complete navigation60checks twice and3selectedkills independently accepted;16file CI split/queue candidate remains separate.",
+    "exitCode": 124,
+    "elapsedSeconds": 1500.391869,
+    "startedUtc": "2026-11-19T17:33:34.303201Z",
+    "finishedUtc": "2026-11-19T17:58:34.695072Z",
+    "completeReport": false,
+    "firstPassAccounting": {
+      "files": 14,
+      "registrations": 4383,
+      "navigationFailures": 2
+    },
+    "finalPartialArchive": "/private/tmp/blygger-remote-ci-20261119-1719/reviewer-final-partial.tar.gz",
+    "finalPartialArchiveSha256": "2db634b2b13a8f5ab3bb086e35501dba671acc0e7eb3b1f1c5fec11f2911f19f",
+    "finalIdentity": {
+      "sourceFiles": 1082,
+      "pristinePackageFiles": 78,
+      "derivedRunnerFiles": 78,
+      "allUnchanged": true,
+      "browserAcquisitions": 28
+    },
+    "cleanup": "Owned measurement container absent; no individual browser cleanup claim"
+  },
+  "navigationPaginationRepair": {
+    "status": "applied-to-integration",
+    "lawChanged": false,
+    "productionChanged": false,
+    "repairPatchSha256": "d08f9612c0490a14b61da51ba2912b69dfd0cfc662c9ab5bde08fd2e3a0e83c1",
+    "typeOnlyPatchSha256": "8c924ae1b7f798a44b0621281b1f17ba349a386a7de6dbcec686a4b6c0dec0c4",
+    "typeOnlyEmittedJavaScriptSha256": "c06500061889efabcab9b158105cd6cbbe59bf99ca61f44d2ce0ed2af283583d",
+    "forcedPaging": {
+      "status": "independently-accepted",
+      "newerItems": 26,
+      "mountedFirstPage": 25,
+      "executed": 1,
+      "skipped": 59,
+      "passes": 2,
+      "oldFailure": "Initial actual7s card timeout retained in stderr; canonical final failure shrunk to fixture guard; host failure, not productionRED",
+      "mutant": "navigation-dirty-false killed by formatted editor departure"
+    },
+    "completeNavigation": {
+      "runId": "33621e5ec185",
+      "resultsSha256": "0494a540630525d1d8653b72b4c9af0a7e6f26e6608304e881d6c82b26fe17ad",
+      "passes": 2,
+      "passedPerPass": 60,
+      "failed": 0,
+      "skipped": 0,
+      "nondeterministic": [],
+      "mutantsSelected": 3,
+      "mutantsKilled": 3,
+      "elapsedSeconds": 555.5295541530068,
+      "exitCode": 0,
+      "independentReview": "accepted"
+    },
+    "integrationTypecheck": "passed",
+    "record": "docs/editor-oracle-design/navigation-pagination-receiving.md",
+    "limits": "Complete navigation baseline and3selectedmutants only; source-reviewed diagnostic guard branches are not all separately executed; not fullformatting/audit/CI acceptance"
+  },
+  "receiverSplitCandidate": {
+    "status": "reviewed candidate with type-only follow-up passed build/typecheck; complete baseline measurement active; no CI adoption",
+    "proposal": "/private/tmp/blygger-receiver-split-proposal-v2-p3b77sm5",
+    "patchSha256": "72c7875965a43acad10c79d5f48affde5646393d42abb03b2bd529782f20d9c9",
+    "expectedFiles": 16,
+    "expectedRegistrationsPerPass": 4383,
+    "movedReceiverKeys": 50,
+    "unchangedReceiverKeys": 182,
+    "reviewedQueue": "baseline-only exactly-once dynamic file claim with completepassbarrier and canonical report order",
+    "adopted": false,
+    "runtimeJob": "~/work/blygger-ci-split-764cb40-20261119-1830",
+    "localScripts": "/private/tmp/blygger-ci-split-764cb40-20261119-1830",
+    "previousPreparation": "~/work/blygger-ci-split-764cb40-20261119-1825: build passed; typecheck TS2322 at diagnostic-helper return; browser baseline never started",
+    "measurementOuterSeconds": 1800,
+    "measurementOuterReason": "Prior first pass about842s predicts1684s for two passes before any proposed scheduling gain; original test/history budgets preserved",
+    "typeOnlyFollowup": "8c924ae1b7f798a44b0621281b1f17ba349a386a7de6dbcec686a4b6c0dec0c4",
+    "independentSourceReview": "source-accepted,139hash/bodybindings and232keybijection; receiver--only membership regression repaired in v2"
+  }
+}

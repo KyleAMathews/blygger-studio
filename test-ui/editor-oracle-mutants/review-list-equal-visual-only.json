@@ -1,0 +1,8 @@
+{
+  "id": "review-list-equal-visual-only",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  const write = () => rows.map((row, index) => row.marker ? indents[index] + marker(index) + row.gap + row.body : row.line).join('\\n');",
+  "replace": "  const write = () => rows.map((row, index) => row.marker ? (!out && opening && selected.some(candidate => column(candidate.indent) !== column(opening[1]!)) ? INDENT + row.indent : indents[index]) + marker(index) + row.gap + row.body : row.line).join('\\n');",
+  "intent": "Accept only equal marker columns as semantic siblings; the legal column3/4/5 container neighbors distinguish this narrow repair.",
+  "author": "Codex; independent oracle-review hostile design after unchanged-production RED; Codex source-only r2 rebase, self-generated after oracle/review inspection"
+}

@@ -1,0 +1,8 @@
+{
+  "id": "loss-audit-default-wrapper",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "const fence = '`'.repeat((body.match(/`+/g) ?? []).reduce((size, run) => Math.max(size, run.length + 1), 3));",
+  "replace": "const fence = '`'.repeat((body.match(/`+/g) ?? []).reduce((size, run) => Math.max(size, run.length + 1), 4));",
+  "intent": "Retain established triple-backtick default source serialization on nonconflicting selections.",
+  "author": "Codex, self-generated after review and oracle inspection"
+}

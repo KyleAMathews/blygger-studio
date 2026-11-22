@@ -1,0 +1,469 @@
+{
+  "scope": "Read-only artifact inspection; no product tests or browser jobs executed by reviewer. Full mutation/report/post-input acceptance pending.",
+  "preInputs": {
+    "path": "build/formatting-oracles/final-current-chromium-integrated/pre-inputs.json",
+    "sha256": "7775e8e70909566c1178ea914e08d215d830e69ef4498c7c868f2eefab5f45ab",
+    "files": 402
+  },
+  "phases": [
+    {
+      "name": "first",
+      "registrations": 4367,
+      "states": {
+        "pass": 4367
+      },
+      "calibrations": 77,
+      "determinism": 1482,
+      "originalUnitMapping": {
+        "passingRegistrations": 184,
+        "missingOrWrong": []
+      },
+      "H1ToH6Mapping": {
+        "passingRegistrations": 28,
+        "missingOrWrong": []
+      },
+      "captures": [
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-1.jsonl",
+          "sha256": "48dfbbd718e4123b8fa0ae90541d24db005060e2c5d3eff68d08256232b6d68d",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-code-block.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 315,
+          "states": {
+            "pass": 315
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-2.jsonl",
+          "sha256": "68e014e8ae78336eeb84b6423789c50a4b074804190326a2b7692a750b0eb2d2",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-draft.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 40,
+          "states": {
+            "pass": 40
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-3.jsonl",
+          "sha256": "28c6d060f7c3fb6719ef039fae40a4ab27491a816b0e5f33ac8781704e42cb12",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-inline.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 330,
+          "states": {
+            "pass": 330
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-4.jsonl",
+          "sha256": "b9b562c8eea86eda9a1fc08da80a12a4a38494a8ad3440e9c7fc519f4fc4cd6d",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-interactions.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 195,
+          "states": {
+            "pass": 195
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-5.jsonl",
+          "sha256": "00734c54c6535d901e159b3bd531bd91e6b478b466196ce6e02dba0f8052f299",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-keyboard.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 1762,
+          "states": {
+            "pass": 1762
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-6.jsonl",
+          "sha256": "b62b537a3cd2e501ab632bc6d2cba1ae8008f472e3acc0dc0bf366c89797d71f",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-line-break.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 171,
+          "states": {
+            "pass": 171
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-7.jsonl",
+          "sha256": "c5c0809f41b7f821edd19ea1216b13deab853206670e0bf14be495cffc482e02",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-links.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 363,
+          "states": {
+            "pass": 363
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-8.jsonl",
+          "sha256": "ab27dffca2e77adc6c8f139598f5fc3a6c8e6fa52159cc82e94eed9284ae89da",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-list.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 411,
+          "states": {
+            "pass": 411
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-9.jsonl",
+          "sha256": "d3ae4d6857b67631d28dfeaa7117b038570d6194962251e6c32c87d03292916b",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-mixed.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 186,
+          "states": {
+            "pass": 186
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-10.jsonl",
+          "sha256": "e2797474ee14f486ae4c37b47bc1e4960a3a6c55ce5c24ab3aa15a9ddd6223d6",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-navigation.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 60,
+          "states": {
+            "pass": 60
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-11.jsonl",
+          "sha256": "6c9f688130c4c4948508d7598fb55189201eef8b200985260e1ae544e135a28b",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-receivers.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 216,
+          "states": {
+            "pass": 216
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-12.jsonl",
+          "sha256": "7b4412539cde2f000a5ba48a36db63bcaa4d898e5362ace1ceff32e40094d289",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-session.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 138,
+          "states": {
+            "pass": 138
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-13.jsonl",
+          "sha256": "df772e127fdfe40661f678549d3763472588206d75c085525bb829c30c67b91c",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-valid-input.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 19,
+          "states": {
+            "pass": 19
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-14.jsonl",
+          "sha256": "a7f36eee32b1d6cfecedc0015c285b94ec47c47fe5f636f93b63600960bacf48",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-workflows.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 161,
+          "states": {
+            "pass": 161
+          }
+        }
+      ]
+    },
+    {
+      "name": "repeat",
+      "registrations": 4367,
+      "states": {
+        "pass": 4367
+      },
+      "calibrations": 77,
+      "determinism": 1482,
+      "originalUnitMapping": {
+        "passingRegistrations": 184,
+        "missingOrWrong": []
+      },
+      "H1ToH6Mapping": {
+        "passingRegistrations": 28,
+        "missingOrWrong": []
+      },
+      "captures": [
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-15.jsonl",
+          "sha256": "a17126a1b342d5dc2f2415b2b3894f56758f5a69f7f491e915180c494bd2fcd3",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-code-block.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 315,
+          "states": {
+            "pass": 315
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-16.jsonl",
+          "sha256": "3d3a9aa1063feeabf1d9e6054e3e24c305916c7b2b2694e441649f80bf84888f",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-draft.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 40,
+          "states": {
+            "pass": 40
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-17.jsonl",
+          "sha256": "3e6b8ef9bf51916ef88f79b7a660f40a318b951dcb9d1fd8a795270da5252373",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-inline.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 330,
+          "states": {
+            "pass": 330
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-18.jsonl",
+          "sha256": "28305649405a00886c22e61328d5910b0242d6c6cb7ccfed202ee7e8472a487f",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-interactions.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 195,
+          "states": {
+            "pass": 195
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-19.jsonl",
+          "sha256": "3c09d69f7c8098255f330d94e799ce8e14978845a95d3ef4e5b7f1ab7c0f4cf9",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-keyboard.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 1762,
+          "states": {
+            "pass": 1762
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-20.jsonl",
+          "sha256": "485c994b6a09f10a9acf30aa280f1c598766dc2a10b306845adcb553b2c9c1af",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-line-break.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 171,
+          "states": {
+            "pass": 171
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-21.jsonl",
+          "sha256": "e52e940797ed42027a5397b2b68254d74b4bc6899f8e553e84a18f6e37160531",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-links.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 363,
+          "states": {
+            "pass": 363
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-22.jsonl",
+          "sha256": "be0994d70154cf18e0599f0b74e364e6113dbe545b17b1e54677532ea942cf6e",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-list.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 411,
+          "states": {
+            "pass": 411
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-23.jsonl",
+          "sha256": "2755fcbb506b35a0ec42d0d471e26dbe91d6c2b4a04403f038529ecf47bfa186",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-mixed.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 186,
+          "states": {
+            "pass": 186
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-24.jsonl",
+          "sha256": "3c9766525ebdfa4e2286e1e8982ada345cfbaede5e90e68b48d394e6eca89a01",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-navigation.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 60,
+          "states": {
+            "pass": 60
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-25.jsonl",
+          "sha256": "5e40e973b5427ff8b3835adf3769865665fc35abcc5f4943dd9b817f7d97afdc",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-receivers.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 216,
+          "states": {
+            "pass": 216
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-26.jsonl",
+          "sha256": "f30e9ef26ed6fae1ae0046711f84a8ef70f49ccb50feffba726dc423843ed8b1",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-session.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 138,
+          "states": {
+            "pass": 138
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-27.jsonl",
+          "sha256": "6f8f46129d7e9ad31d42ee0d388b99d1d59eae61fb0889f208efbbc6060a81f9",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-valid-input.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 19,
+          "states": {
+            "pass": 19
+          }
+        },
+        {
+          "path": "build/formatting-oracles/final-current-chromium-integrated/preserved-live-captures/run-94017-28.jsonl",
+          "sha256": "06dfd5aad1ae5c613ab2ce16990d0cf9ded6164036380cfc9c9e3adc1fbed9d1",
+          "file": "/Users/kyle.mathews/programs/blygger-studio/.worktrees/oracles-explore/test-ui/editor-workflows.oracle.test.ts",
+          "closedReceipts": 1,
+          "registrations": 161,
+          "states": {
+            "pass": 161
+          }
+        }
+      ]
+    }
+  ],
+  "repeatedKeySetsMatch": true,
+  "observedHashDeltas": [],
+  "originalUnitAssertedObservations": 91,
+  "requiredUnitPropertyHistoryPairs": 92,
+  "unitRoutes": {
+    "editor-emphasis-single": [
+      "sourceBold",
+      "sourceItalic",
+      "sourceOutsideBold",
+      "sourceOutsideItalic",
+      "sourceSelectedBold",
+      "sourceSelectedItalic",
+      "sourceAddItalicInsideBold",
+      "sourceAddBoldInsideItalic",
+      "sourceRemoveBoldKeepOutsideItalic",
+      "sourceRemoveItalicKeepOutsideBold",
+      "sourceEmptyBold",
+      "sourceEmptyItalic",
+      "sourceEmptyOutsideBold",
+      "sourceEmptyOutsideItalic",
+      "sourceTrailingWhitespace"
+    ],
+    "editor-emphasis-multiline": [
+      "sourceBlank",
+      "sourceRemoveAcrossBlank",
+      "sourceMixed"
+    ],
+    "editor-link": [
+      "sourceLabel",
+      "sourceWholeDocumentTarget",
+      "sourceCaret"
+    ],
+    "editor-formula": [
+      "sourceEmptyDocument",
+      "sourceArea",
+      "sourceMultiline",
+      "sourceTrimmed"
+    ],
+    "editor-list-source": [
+      "originalIndentBullet",
+      "originalIndentBeforeMarker",
+      "originalNumberRestart",
+      "originalNumberContinuation",
+      "originalNumberWidth",
+      "originalMixedBullets",
+      "originalParenthesis",
+      "originalEmptyMarker",
+      "originalOut4",
+      "originalOut2",
+      "originalOutTab",
+      "originalOut8",
+      "originalCaretInsideIndent",
+      "originalMultiple",
+      "originalMultipleOut",
+      "originalNextStart",
+      "originalPlain",
+      "originalEmpty",
+      "originalNonlist",
+      "originalMixedSelection",
+      "originalMarginOut",
+      "originalBoldProse",
+      "originalNoParent",
+      "originalProseParent"
+    ],
+    "editor-list-rendering": [
+      "originalBulletChild",
+      "originalNumberedChild1",
+      "originalNumberedChild10",
+      "originalMixedLists",
+      "originalExistingSublist"
+    ],
+    "editor-line-break": [
+      "oldVerseLine",
+      "oldMidLine",
+      "oldSelection",
+      "oldEmptyDocument",
+      "oldBlankParagraph",
+      "oldUnpairedSlash",
+      "oldInsideBackticks",
+      "oldAfterFence",
+      "oldOppositeMarker"
+    ],
+    "editor-line-break-verse": [
+      "two breaks"
+    ],
+    "editor-code-block.default-source": [
+      "empty",
+      "oldText",
+      "oldTextLf",
+      "oldBothSides",
+      "oldSelectedCode",
+      "oldTrailingLf"
+    ],
+    "editor-code-block.selection": [
+      "empty",
+      "oldText",
+      "oldTextLf",
+      "oldBothSides",
+      "oldSelectedCode",
+      "oldTrailingLf"
+    ],
+    "editor-key-classification": [
+      "chord3",
+      "chord133",
+      "chord68",
+      "chord66",
+      "chord0",
+      "chord196",
+      "chord20",
+      "chord36",
+      "chord224",
+      "chord240",
+      "chord272",
+      "chord256",
+      "chord274",
+      "chord276",
+      "chord228",
+      "chord232"
+    ]
+  },
+  "originalBrowserObservations": 28,
+  "browserRoutes": {
+    "editor-browser-session": [
+      "composer-desktop",
+      "composer-mobile",
+      "editorToQuick-desktop",
+      "editorToQuick-mobile",
+      "list-desktop",
+      "list-mobile",
+      "tab-desktop",
+      "tab-mobile",
+      "verse-desktop",
+      "verse-mobile",
+      "toolbar-desktop",
+      "toolbar-mobile"
+    ],
+    "editor-browser-navigation": [
+      "original-leave-desktop",
+      "original-leave-mobile"
+    ]
+  }
+}

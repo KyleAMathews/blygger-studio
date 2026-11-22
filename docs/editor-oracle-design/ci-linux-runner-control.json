@@ -1,0 +1,82 @@
+{
+  "createdUtc": "2026-11-19T15:39:40.581962+00:00",
+  "scope": "One registered draft authored challenge, same frozen project source/pin/seed, unmodified and composed runners, Linux arm64 Node24.8 Playwright1.64.1 Chromium156.0.8078.80, contexts1 shared BrowserServer.",
+  "candidatePatchSha256": "fd4de796806b60e7f262dc0ae82b380c56d9d5088b5c95f08c9b7bf6c051cff7",
+  "runs": [
+    {
+      "report": "/private/tmp/blygger-oracle-ci-gagmlkz4/repository/build/formatting-oracles/linux-control-draft-after-build/results.json",
+      "sha256": "5f3d9cc792bbe0240a253a3bb71299dd8b407017e2eed2ae6c9e3a09375aa5da",
+      "run": {
+        "id": "815cf286aa30",
+        "inputs": "1 source files, 1 oracle files, 0 ordinary test files, 75 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "baseline": [
+        {
+          "file": "test-ui/editor-draft.oracle.test.ts",
+          "ordinary": false,
+          "passed": 40,
+          "failed": 0,
+          "skipped": 0
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": false,
+      "results": [
+        {
+          "id": "authored:draft-old-ack-regresses",
+          "key": "src/ui/draft.ts#authored:draft-old-ack-regresses",
+          "outcome": "killed",
+          "class": null,
+          "law": null,
+          "checkpoint": null,
+          "tests": null
+        }
+      ]
+    },
+    {
+      "report": "/private/tmp/blygger-oracle-ci-gagmlkz4/repository/build/formatting-oracles/linux-candidate-draft-control/results.json",
+      "sha256": "bb43515870071348451a8d2d196b3c8da9ef53aa039bb2ec0c682f2d15515e1f",
+      "run": {
+        "id": "33950ecef03f",
+        "ownerOrder": {
+          "mode": "existing",
+          "requested": null,
+          "resolved": [
+            "test-ui/editor-draft.oracle.test.ts"
+          ]
+        },
+        "inputs": "1 source files, 1 oracle files, 0 ordinary test files, 75 authored mutants, seed 20261118, pool threads; a partial run (--only or --sample)"
+      },
+      "baseline": [
+        {
+          "file": "test-ui/editor-draft.oracle.test.ts",
+          "ordinary": false,
+          "passed": 40,
+          "failed": 0,
+          "skipped": 0
+        }
+      ],
+      "nondeterministic": [],
+      "provisional": false,
+      "results": [
+        {
+          "id": "authored:draft-old-ack-regresses",
+          "key": "src/ui/draft.ts#authored:draft-old-ack-regresses",
+          "outcome": "killed",
+          "class": null,
+          "law": null,
+          "checkpoint": null,
+          "tests": null
+        }
+      ]
+    }
+  ],
+  "classificationMatches": true,
+  "baselineSummaryMatches": true,
+  "limits": [
+    "This single-owner one-authored diagnostic does not exercise multi-owner stopping, operator waves/lazy selection, concurrency or clipboard isolation.",
+    "Successful raw per-test capture files were pruned by the runner; no full observation-hash equality claim is made. Future comparison runs require capture preservation.",
+    "No complete mutation report, CI duration budget or process isolation acceptance follows.",
+    "Original live macOS reference and both project worktrees retain their installed runner unchanged."
+  ]
+}

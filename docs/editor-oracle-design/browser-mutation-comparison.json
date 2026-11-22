@@ -1,0 +1,2679 @@
+{
+  "baseCommit": "28b0c8d642a87e5810ad6eabd95c2d1714c53396",
+  "frozenRun": {
+    "id": "26036d9bd01b",
+    "inputs": "1 source files, 6 oracle files, 0 ordinary test files, 21 authored mutants, seed 20261118, pool threads"
+  },
+  "browserRun": {
+    "id": "311825838445",
+    "inputs": "1 source files, 7 oracle files, 0 ordinary test files, 30 authored mutants, seed 20261118, pool threads"
+  },
+  "frozenTotal": 361,
+  "browserTotal": 381,
+  "sharedTotal": 354,
+  "sharedPreviouslyKilled": 352,
+  "sharedStillKilled": 351,
+  "lostKills": [
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:binary-swap:const allOn = filled . length > 0 && filled . every ( ( l ) => { const core = l . trim ( ) ; const run = Math . min ( stars ( core ) , endStars ( core ) ) ; return core . length > run * 2 && isOn ( run , kind ) ; } ) ;~2",
+      "before": "killed",
+      "after": "survived",
+      "beforeId": "ui/format-shortcuts.ts:M22",
+      "afterId": "ui/format-shortcuts.ts:M22"
+    }
+  ],
+  "removedKeys": [
+    {
+      "key": "src/ui/format-shortcuts.ts#KEYS:field-drop:const KEYS : Record < string , FormatKind > = { b : 'bold' , i : 'italic' , k : 'link' } ;",
+      "oldId": "ui/format-shortcuts.ts:M278",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#KEYS:field-drop:const KEYS : Record < string , FormatKind > = { b : 'bold' , i : 'italic' , k : 'link' } ;~2",
+      "oldId": "ui/format-shortcuts.ts:M279",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#KEYS:field-drop:const KEYS : Record < string , FormatKind > = { b : 'bold' , i : 'italic' , k : 'link' } ;~3",
+      "oldId": "ui/format-shortcuts.ts:M280",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:bool-flip:const done = edit . insert ? document . execCommand ( 'insertText' , false , edit . insert ) : document . execCommand ( 'delete' ) ;",
+      "oldId": "ui/format-shortcuts.ts:M330",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:value-undefined:const done = edit . insert ? document . execCommand ( 'insertText' , false , edit . insert ) : document . execCommand ( 'delete' ) ;",
+      "oldId": "ui/format-shortcuts.ts:M329",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:value-undefined:const done = edit . insert ? document . execCommand ( 'insertText' , false , edit . insert ) : document . execCommand ( 'delete' ) ;~2",
+      "oldId": "ui/format-shortcuts.ts:M331",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatKey:value-undefined:const key = event . key . toLowerCase ( ) ;",
+      "oldId": "ui/format-shortcuts.ts:M292",
+      "outcome": "killed"
+    }
+  ],
+  "newKeys": [
+    {
+      "key": "src/ui/format-shortcuts.ts#KEYS:field-drop:const KEYS : Record < string , FormatKind > = { b : 'bold' , B : 'bold' , i : 'italic' , I : 'italic' , k : 'link' , K : 'link' } ;",
+      "id": "ui/format-shortcuts.ts:M278",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#KEYS:field-drop:const KEYS : Record < string , FormatKind > = { b : 'bold' , B : 'bold' , i : 'italic' , I : 'italic' , k : 'link' , K : 'link' } ;~2",
+      "id": "ui/format-shortcuts.ts:M279",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#KEYS:field-drop:const KEYS : Record < string , FormatKind > = { b : 'bold' , B : 'bold' , i : 'italic' , I : 'italic' , k : 'link' , K : 'link' } ;~3",
+      "id": "ui/format-shortcuts.ts:M280",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#KEYS:field-drop:const KEYS : Record < string , FormatKind > = { b : 'bold' , B : 'bold' , i : 'italic' , I : 'italic' , k : 'link' , K : 'link' } ;~4",
+      "id": "ui/format-shortcuts.ts:M281",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#KEYS:field-drop:const KEYS : Record < string , FormatKind > = { b : 'bold' , B : 'bold' , i : 'italic' , I : 'italic' , k : 'link' , K : 'link' } ;~5",
+      "id": "ui/format-shortcuts.ts:M282",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#KEYS:field-drop:const KEYS : Record < string , FormatKind > = { b : 'bold' , B : 'bold' , i : 'italic' , I : 'italic' , k : 'link' , K : 'link' } ;~6",
+      "id": "ui/format-shortcuts.ts:M283",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:binary-swap:const done = exactNativeRange && ( edit . insert || edit . from === edit . to ? document . execCommand ( 'insertText' , false , edit . insert ) : document . execCommand ( 'delete' ) ) ;",
+      "id": "ui/format-shortcuts.ts:M337",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:binary-swap:const done = exactNativeRange && ( edit . insert || edit . from === edit . to ? document . execCommand ( 'insertText' , false , edit . insert ) : document . execCommand ( 'delete' ) ) ;~2",
+      "id": "ui/format-shortcuts.ts:M338",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:binary-swap:const done = exactNativeRange && ( edit . insert || edit . from === edit . to ? document . execCommand ( 'insertText' , false , edit . insert ) : document . execCommand ( 'delete' ) ) ;~3",
+      "id": "ui/format-shortcuts.ts:M339",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:binary-swap:const exactNativeRange = boundaries . has ( edit . from ) && boundaries . has ( edit . to ) ;",
+      "id": "ui/format-shortcuts.ts:M334",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:bool-flip:const done = exactNativeRange && ( edit . insert || edit . from === edit . to ? document . execCommand ( 'insertText' , false , edit . insert ) : document . execCommand ( 'delete' ) ) ;",
+      "id": "ui/format-shortcuts.ts:M341",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:delete-call:boundaries . add ( el . value . length ) ;",
+      "id": "ui/format-shortcuts.ts:M333",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:value-undefined:const boundaries = new Set ( Array . from ( new Intl . Segmenter ( ) . segment ( el . value ) , part => part . index ) ) ;",
+      "id": "ui/format-shortcuts.ts:M331",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:value-undefined:const boundaries = new Set ( Array . from ( new Intl . Segmenter ( ) . segment ( el . value ) , part => part . index ) ) ;~2",
+      "id": "ui/format-shortcuts.ts:M332",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:value-undefined:const done = exactNativeRange && ( edit . insert || edit . from === edit . to ? document . execCommand ( 'insertText' , false , edit . insert ) : document . execCommand ( 'delete' ) ) ;",
+      "id": "ui/format-shortcuts.ts:M340",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:value-undefined:const done = exactNativeRange && ( edit . insert || edit . from === edit . to ? document . execCommand ( 'insertText' , false , edit . insert ) : document . execCommand ( 'delete' ) ) ;~2",
+      "id": "ui/format-shortcuts.ts:M342",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:value-undefined:const exactNativeRange = boundaries . has ( edit . from ) && boundaries . has ( edit . to ) ;",
+      "id": "ui/format-shortcuts.ts:M335",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:value-undefined:const exactNativeRange = boundaries . has ( edit . from ) && boundaries . has ( edit . to ) ;~2",
+      "id": "ui/format-shortcuts.ts:M336",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:browser-extra-keydown",
+      "id": "authored:browser-extra-keydown",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:browser-native-undo-required",
+      "id": "authored:browser-native-undo-required",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:loss-audit-loose-parent",
+      "id": "authored:loss-audit-loose-parent",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:native-delete-undo",
+      "id": "authored:native-delete-undo",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:one-grapheme-endpoint",
+      "id": "authored:one-grapheme-endpoint",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:original-collapsed-delete",
+      "id": "authored:original-collapsed-delete",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:original-native-grapheme-range",
+      "id": "authored:original-native-grapheme-range",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:original-unicode-format-key",
+      "id": "authored:original-unicode-format-key",
+      "outcome": "killed"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:word-segmentation-range",
+      "id": "authored:word-segmentation-range",
+      "outcome": "killed"
+    }
+  ],
+  "shared": [
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:bool-flip:el . dispatchEvent ( new Event ( 'input' , { bubbles : true } ) ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M338",
+      "afterId": "ui/format-shortcuts.ts:M349"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:bool-flip:el . focus ( { preventScroll : true } ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M327",
+      "afterId": "ui/format-shortcuts.ts:M329"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:delete-call:el . dispatchEvent ( new Event ( 'input' , { bubbles : true } ) ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M336",
+      "afterId": "ui/format-shortcuts.ts:M347"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:delete-call:el . dispatchEvent ( new Event ( 'selectionchange' ) ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M340",
+      "afterId": "ui/format-shortcuts.ts:M351"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:delete-call:el . focus ( { preventScroll : true } ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M325",
+      "afterId": "ui/format-shortcuts.ts:M327"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:delete-call:el . setRangeText ( edit . insert , edit . from , edit . to ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M335",
+      "afterId": "ui/format-shortcuts.ts:M346"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:delete-call:el . setSelectionRange ( edit . from , edit . to ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M328",
+      "afterId": "ui/format-shortcuts.ts:M330"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:delete-call:el . setSelectionRange ( edit . start , edit . end ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M339",
+      "afterId": "ui/format-shortcuts.ts:M350"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:drop-not:if ( ! done ) { el . setRangeText ( edit . insert , edit . from , edit . to ) ; el . dispatchEvent ( new Event ( 'input' , { bubbles : true } ) ) ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M334",
+      "afterId": "ui/format-shortcuts.ts:M345"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:field-drop:el . dispatchEvent ( new Event ( 'input' , { bubbles : true } ) ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M337",
+      "afterId": "ui/format-shortcuts.ts:M348"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:field-drop:el . focus ( { preventScroll : true } ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M326",
+      "afterId": "ui/format-shortcuts.ts:M328"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:if-false:if ( ! done ) { el . setRangeText ( edit . insert , edit . from , edit . to ) ; el . dispatchEvent ( new Event ( 'input' , { bubbles : true } ) ) ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M333",
+      "afterId": "ui/format-shortcuts.ts:M344"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#applyEdit:if-true:if ( ! done ) { el . setRangeText ( edit . insert , edit . from , edit . to ) ; el . dispatchEvent ( new Event ( 'input' , { bubbles : true } ) ) ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M332",
+      "afterId": "ui/format-shortcuts.ts:M343"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:document-start-formatting",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:document-start-formatting",
+      "afterId": "authored:document-start-formatting"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:fragment-url-link",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:fragment-url-link",
+      "afterId": "authored:fragment-url-link"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:loss-audit-caret-outside-block",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:loss-audit-caret-outside-block",
+      "afterId": "authored:loss-audit-caret-outside-block"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:loss-audit-default-wrapper",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:loss-audit-default-wrapper",
+      "afterId": "authored:loss-audit-default-wrapper"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:multiline-display-only",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:multiline-display-only",
+      "afterId": "authored:multiline-display-only"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:original-any-backslash-is-break",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:original-any-backslash-is-break",
+      "afterId": "authored:original-any-backslash-is-break"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:original-closing-fence-newline",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:original-closing-fence-newline",
+      "afterId": "authored:original-closing-fence-newline"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:original-existing-display-formula",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:original-existing-display-formula",
+      "afterId": "authored:original-existing-display-formula"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:original-inherited-format-key",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:original-inherited-format-key",
+      "afterId": "authored:original-inherited-format-key"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:original-initial-newline-span",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:original-initial-newline-span",
+      "afterId": "authored:original-initial-newline-span"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:original-marker-only-multiline",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:original-marker-only-multiline",
+      "afterId": "authored:original-marker-only-multiline"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:original-three-backtick-wrapper",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:original-three-backtick-wrapper",
+      "afterId": "authored:original-three-backtick-wrapper"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:original-unicode-fence-tail",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:original-unicode-fence-tail",
+      "afterId": "authored:original-unicode-fence-tail"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:original-whitespace-overlap",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:original-whitespace-overlap",
+      "afterId": "authored:original-whitespace-overlap"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:original-wide-parent-indent",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:original-wide-parent-indent",
+      "afterId": "authored:original-wide-parent-indent"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:review-four-character-dispatch",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:review-four-character-dispatch",
+      "afterId": "authored:review-four-character-dispatch"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:review-list-duplicate-child",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:review-list-duplicate-child",
+      "afterId": "authored:review-list-duplicate-child"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:review-list-eof-outdent",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:review-list-eof-outdent",
+      "afterId": "authored:review-list-eof-outdent"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:review-list-valid-nul-context",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:review-list-valid-nul-context",
+      "afterId": "authored:review-list-valid-nul-context"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:review-unseen-context",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:review-unseen-context",
+      "afterId": "authored:review-unseen-context"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#authored:review-verse-invalid-end",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "authored:review-verse-invalid-end",
+      "afterId": "authored:review-verse-invalid-end"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:arithmetic-swap:const line = before . slice ( before . lastIndexOf ( '\\n' ) + 1 ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M224",
+      "afterId": "ui/format-shortcuts.ts:M224"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:binary-swap:const plain = ! line . trim ( ) || slashes % 2 === 1 || inFence ( text , from ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M227",
+      "afterId": "ui/format-shortcuts.ts:M227"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:binary-swap:const plain = ! line . trim ( ) || slashes % 2 === 1 || inFence ( text , from ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M228",
+      "afterId": "ui/format-shortcuts.ts:M228"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:binary-swap:const plain = ! line . trim ( ) || slashes % 2 === 1 || inFence ( text , from ) ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M231",
+      "afterId": "ui/format-shortcuts.ts:M231"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:drop-not:const plain = ! line . trim ( ) || slashes % 2 === 1 || inFence ( text , from ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M229",
+      "afterId": "ui/format-shortcuts.ts:M229"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:field-drop:return { from , to , insert , start : from + insert . length , end : from + insert . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M234",
+      "afterId": "ui/format-shortcuts.ts:M234"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:field-drop:return { from , to , insert , start : from + insert . length , end : from + insert . length } ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M235",
+      "afterId": "ui/format-shortcuts.ts:M235"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:field-drop:return { from , to , insert , start : from + insert . length , end : from + insert . length } ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M236",
+      "afterId": "ui/format-shortcuts.ts:M236"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:field-drop:return { from , to , insert , start : from + insert . length , end : from + insert . length } ;~4",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M237",
+      "afterId": "ui/format-shortcuts.ts:M237"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:field-drop:return { from , to , insert , start : from + insert . length , end : from + insert . length } ;~5",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M238",
+      "afterId": "ui/format-shortcuts.ts:M238"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:return-undefined:return { from , to , insert , start : from + insert . length , end : from + insert . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M233",
+      "afterId": "ui/format-shortcuts.ts:M233"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:value-undefined:const before = text . slice ( 0 , from ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M222",
+      "afterId": "ui/format-shortcuts.ts:M222"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:value-undefined:const line = before . slice ( before . lastIndexOf ( '\\n' ) + 1 ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M223",
+      "afterId": "ui/format-shortcuts.ts:M223"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:value-undefined:const line = before . slice ( before . lastIndexOf ( '\\n' ) + 1 ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M225",
+      "afterId": "ui/format-shortcuts.ts:M225"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:value-undefined:const plain = ! line . trim ( ) || slashes % 2 === 1 || inFence ( text , from ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M230",
+      "afterId": "ui/format-shortcuts.ts:M230"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:value-undefined:const plain = ! line . trim ( ) || slashes % 2 === 1 || inFence ( text , from ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M232",
+      "afterId": "ui/format-shortcuts.ts:M232"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#breakEdit:value-undefined:const slashes = / \\ \\ * $ / . exec ( line ) ! [ 0 ] . length ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M226",
+      "afterId": "ui/format-shortcuts.ts:M226"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:arithmetic-swap:const fence = '`' . repeat ( ( body . match ( / `+/g) ?? []).reduce((size, run) => Math.max(size, run.length + 1), 3));",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M256",
+      "afterId": "ui/format-shortcuts.ts:M256"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:arithmetic-swap:const inside = from + lead . length + fence . length + 1 ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M257",
+      "afterId": "ui/format-shortcuts.ts:M257"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:arithmetic-swap:const lead = from === 0 || text . slice ( 0 , from ) . endsWith ( '\\n\\n' ) ? '' : text [ from - 1 ] === '\\n' ? '\\n' : '\\n\\n' ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M244",
+      "afterId": "ui/format-shortcuts.ts:M244"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:binary-swap:const fence = '`' . repeat ( ( body . match ( / `+/g) ?? []).reduce((size, run) => Math.max(size, run.length + 1), 3));",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M253",
+      "afterId": "ui/format-shortcuts.ts:M253"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:binary-swap:const lead = from === 0 || text . slice ( 0 , from ) . endsWith ( '\\n\\n' ) ? '' : text [ from - 1 ] === '\\n' ? '\\n' : '\\n\\n' ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M240",
+      "afterId": "ui/format-shortcuts.ts:M240"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:binary-swap:const lead = from === 0 || text . slice ( 0 , from ) . endsWith ( '\\n\\n' ) ? '' : text [ from - 1 ] === '\\n' ? '\\n' : '\\n\\n' ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M241",
+      "afterId": "ui/format-shortcuts.ts:M241"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:binary-swap:const lead = from === 0 || text . slice ( 0 , from ) . endsWith ( '\\n\\n' ) ? '' : text [ from - 1 ] === '\\n' ? '\\n' : '\\n\\n' ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M243",
+      "afterId": "ui/format-shortcuts.ts:M243"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:binary-swap:const tail = ! rest || rest . startsWith ( '\\n\\n' ) ? '' : rest . startsWith ( '\\n' ) ? '\\n' : '\\n\\n' ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M246",
+      "afterId": "ui/format-shortcuts.ts:M246"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:drop-not:const tail = ! rest || rest . startsWith ( '\\n\\n' ) ? '' : rest . startsWith ( '\\n' ) ? '\\n' : '\\n\\n' ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M247",
+      "afterId": "ui/format-shortcuts.ts:M247"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:field-drop:return { from , to , insert , start : inside , end : inside + body . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M259",
+      "afterId": "ui/format-shortcuts.ts:M259"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:field-drop:return { from , to , insert , start : inside , end : inside + body . length } ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M260",
+      "afterId": "ui/format-shortcuts.ts:M260"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:field-drop:return { from , to , insert , start : inside , end : inside + body . length } ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M261",
+      "afterId": "ui/format-shortcuts.ts:M261"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:field-drop:return { from , to , insert , start : inside , end : inside + body . length } ;~4",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M262",
+      "afterId": "ui/format-shortcuts.ts:M262"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:field-drop:return { from , to , insert , start : inside , end : inside + body . length } ;~5",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M263",
+      "afterId": "ui/format-shortcuts.ts:M263"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:return-undefined:return { from , to , insert , start : inside , end : inside + body . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M258",
+      "afterId": "ui/format-shortcuts.ts:M258"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:value-undefined:const body = picked . replace ( / \\ n$ / , '' ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M250",
+      "afterId": "ui/format-shortcuts.ts:M250"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:value-undefined:const fence = '`' . repeat ( ( body . match ( / `+/g) ?? []).reduce((size, run) => Math.max(size, run.length + 1), 3));",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M251",
+      "afterId": "ui/format-shortcuts.ts:M251"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:value-undefined:const fence = '`' . repeat ( ( body . match ( / `+/g) ?? []).reduce((size, run) => Math.max(size, run.length + 1), 3));~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M252",
+      "afterId": "ui/format-shortcuts.ts:M252"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:value-undefined:const fence = '`' . repeat ( ( body . match ( / `+/g) ?? []).reduce((size, run) => Math.max(size, run.length + 1), 3));~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M254",
+      "afterId": "ui/format-shortcuts.ts:M254"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:value-undefined:const fence = '`' . repeat ( ( body . match ( / `+/g) ?? []).reduce((size, run) => Math.max(size, run.length + 1), 3));~4",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M255",
+      "afterId": "ui/format-shortcuts.ts:M255"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:value-undefined:const lead = from === 0 || text . slice ( 0 , from ) . endsWith ( '\\n\\n' ) ? '' : text [ from - 1 ] === '\\n' ? '\\n' : '\\n\\n' ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M242",
+      "afterId": "ui/format-shortcuts.ts:M242"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:value-undefined:const picked = text . slice ( from , to ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M239",
+      "afterId": "ui/format-shortcuts.ts:M239"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:value-undefined:const rest = text . slice ( to ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M245",
+      "afterId": "ui/format-shortcuts.ts:M245"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:value-undefined:const tail = ! rest || rest . startsWith ( '\\n\\n' ) ? '' : rest . startsWith ( '\\n' ) ? '\\n' : '\\n\\n' ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M248",
+      "afterId": "ui/format-shortcuts.ts:M248"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#codeBlockEdit:value-undefined:const tail = ! rest || rest . startsWith ( '\\n\\n' ) ? '' : rest . startsWith ( '\\n' ) ? '\\n' : '\\n\\n' ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M249",
+      "afterId": "ui/format-shortcuts.ts:M249"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:binary-swap:const allOn = filled . length > 0 && filled . every ( ( l ) => { const core = l . trim ( ) ; const run = Math . min ( stars ( core ) , endStars ( core ) ) ; return core . length > run * 2 && isOn ( run , kind ) ; } ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M21",
+      "afterId": "ui/format-shortcuts.ts:M21"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:binary-swap:const allOn = filled . length > 0 && filled . every ( ( l ) => { const core = l . trim ( ) ; const run = Math . min ( stars ( core ) , endStars ( core ) ) ; return core . length > run * 2 && isOn ( run , kind ) ; } ) ;~2",
+      "before": "killed",
+      "after": "survived",
+      "beforeId": "ui/format-shortcuts.ts:M22",
+      "afterId": "ui/format-shortcuts.ts:M22"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:binary-swap:if ( inner && inner . length > innerRun * 2 && isOn ( innerRun , kind ) ) { const bare = inner . slice ( w , inner . length - w ) ; return { from : a , to : b , insert : bare , start : a , end : a + bare . length } ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M50",
+      "afterId": "ui/format-shortcuts.ts:M50"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:binary-swap:if ( inner && inner . length > innerRun * 2 && isOn ( innerRun , kind ) ) { const bare = inner . slice ( w , inner . length - w ) ; return { from : a , to : b , insert : bare , start : a , end : a + bare . length } ; }~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M51",
+      "afterId": "ui/format-shortcuts.ts:M51"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:binary-swap:if ( inner && inner . length > innerRun * 2 && isOn ( innerRun , kind ) ) { const bare = inner . slice ( w , inner . length - w ) ; return { from : a , to : b , insert : bare , start : a , end : a + bare . length } ; }~3",
+      "before": "survived",
+      "after": "survived",
+      "beforeId": "ui/format-shortcuts.ts:M52",
+      "afterId": "ui/format-shortcuts.ts:M52"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:binary-swap:return core . length > run * 2 && isOn ( run , kind ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M29",
+      "afterId": "ui/format-shortcuts.ts:M29"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:binary-swap:return core . length > run * 2 && isOn ( run , kind ) ;~2",
+      "before": "survived",
+      "after": "survived",
+      "beforeId": "ui/format-shortcuts.ts:M30",
+      "afterId": "ui/format-shortcuts.ts:M30"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:drop-not:const insert = lines . map ( ( l ) => ( l . trim ( ) ? wrapLine ( l , kind , ! allOn ) : l ) ) . join ( '\\n' ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M35",
+      "afterId": "ui/format-shortcuts.ts:M35"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from , to , insert , start : from , end : from + insert . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M37",
+      "afterId": "ui/format-shortcuts.ts:M37"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from , to , insert , start : from , end : from + insert . length } ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M38",
+      "afterId": "ui/format-shortcuts.ts:M38"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from , to , insert , start : from , end : from + insert . length } ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M39",
+      "afterId": "ui/format-shortcuts.ts:M39"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from , to , insert , start : from , end : from + insert . length } ;~4",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M40",
+      "afterId": "ui/format-shortcuts.ts:M40"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from , to , insert , start : from , end : from + insert . length } ;~5",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M41",
+      "afterId": "ui/format-shortcuts.ts:M41"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from : a , to : b , insert : bare , start : a , end : a + bare . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M56",
+      "afterId": "ui/format-shortcuts.ts:M56"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from : a , to : b , insert : bare , start : a , end : a + bare . length } ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M57",
+      "afterId": "ui/format-shortcuts.ts:M57"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from : a , to : b , insert : bare , start : a , end : a + bare . length } ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M58",
+      "afterId": "ui/format-shortcuts.ts:M58"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from : a , to : b , insert : bare , start : a , end : a + bare . length } ;~4",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M59",
+      "afterId": "ui/format-shortcuts.ts:M59"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from : a , to : b , insert : bare , start : a , end : a + bare . length } ;~5",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M60",
+      "afterId": "ui/format-shortcuts.ts:M60"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from : a , to : b , insert : mark + inner + mark , start : a + w , end : a + w + inner . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M77",
+      "afterId": "ui/format-shortcuts.ts:M77"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from : a , to : b , insert : mark + inner + mark , start : a + w , end : a + w + inner . length } ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M78",
+      "afterId": "ui/format-shortcuts.ts:M78"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from : a , to : b , insert : mark + inner + mark , start : a + w , end : a + w + inner . length } ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M79",
+      "afterId": "ui/format-shortcuts.ts:M79"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from : a , to : b , insert : mark + inner + mark , start : a + w , end : a + w + inner . length } ;~4",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M80",
+      "afterId": "ui/format-shortcuts.ts:M80"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from : a , to : b , insert : mark + inner + mark , start : a + w , end : a + w + inner . length } ;~5",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M81",
+      "afterId": "ui/format-shortcuts.ts:M81"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from : a - w , to : b + w , insert : inner , start : a - w , end : a - w + inner . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M70",
+      "afterId": "ui/format-shortcuts.ts:M70"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from : a - w , to : b + w , insert : inner , start : a - w , end : a - w + inner . length } ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M71",
+      "afterId": "ui/format-shortcuts.ts:M71"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from : a - w , to : b + w , insert : inner , start : a - w , end : a - w + inner . length } ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M72",
+      "afterId": "ui/format-shortcuts.ts:M72"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from : a - w , to : b + w , insert : inner , start : a - w , end : a - w + inner . length } ;~4",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M73",
+      "afterId": "ui/format-shortcuts.ts:M73"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:field-drop:return { from : a - w , to : b + w , insert : inner , start : a - w , end : a - w + inner . length } ;~5",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M74",
+      "afterId": "ui/format-shortcuts.ts:M74"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:if-false:if ( inner && inner . length > innerRun * 2 && isOn ( innerRun , kind ) ) { const bare = inner . slice ( w , inner . length - w ) ; return { from : a , to : b , insert : bare , start : a , end : a + bare . length } ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M49",
+      "afterId": "ui/format-shortcuts.ts:M49"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:if-false:if ( isOn ( run , kind ) ) { return { from : a - w , to : b + w , insert : inner , start : a - w , end : a - w + inner . length } ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M67",
+      "afterId": "ui/format-shortcuts.ts:M67"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:if-false:if ( picked . includes ( '\\n' ) ) { const lines = picked . split ( '\\n' ) ; const filled = lines . filter ( ( l ) => l . trim ( ) ) ; const allOn = filled . length > 0 && filled . every ( ( l ) => { const core = l . trim ( ) ; const run = Math . min ( stars ( core ) , endStars ( core ) ) ; return core . length > run * 2 && isOn ( run , kind ) ; } ) ; const insert = lines . map ( ( l ) => ( l . trim ( ) ? wrapLine ( l , kind , ! allOn ) : l ) ) . join ( '\\n' ) ; return { from , to , insert , start : from , end : from + insert . length } ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M16",
+      "afterId": "ui/format-shortcuts.ts:M16"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:if-true:if ( inner && inner . length > innerRun * 2 && isOn ( innerRun , kind ) ) { const bare = inner . slice ( w , inner . length - w ) ; return { from : a , to : b , insert : bare , start : a , end : a + bare . length } ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M48",
+      "afterId": "ui/format-shortcuts.ts:M48"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:if-true:if ( isOn ( run , kind ) ) { return { from : a - w , to : b + w , insert : inner , start : a - w , end : a - w + inner . length } ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M66",
+      "afterId": "ui/format-shortcuts.ts:M66"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:if-true:if ( picked . includes ( '\\n' ) ) { const lines = picked . split ( '\\n' ) ; const filled = lines . filter ( ( l ) => l . trim ( ) ) ; const allOn = filled . length > 0 && filled . every ( ( l ) => { const core = l . trim ( ) ; const run = Math . min ( stars ( core ) , endStars ( core ) ) ; return core . length > run * 2 && isOn ( run , kind ) ; } ) ; const insert = lines . map ( ( l ) => ( l . trim ( ) ? wrapLine ( l , kind , ! allOn ) : l ) ) . join ( '\\n' ) ; return { from , to , insert , start : from , end : from + insert . length } ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M15",
+      "afterId": "ui/format-shortcuts.ts:M15"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:return-undefined:return core . length > run * 2 && isOn ( run , kind ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M28",
+      "afterId": "ui/format-shortcuts.ts:M28"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:return-undefined:return { from , to , insert , start : from , end : from + insert . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M36",
+      "afterId": "ui/format-shortcuts.ts:M36"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:return-undefined:return { from : a , to : b , insert : bare , start : a , end : a + bare . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M55",
+      "afterId": "ui/format-shortcuts.ts:M55"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:return-undefined:return { from : a , to : b , insert : mark + inner + mark , start : a + w , end : a + w + inner . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M76",
+      "afterId": "ui/format-shortcuts.ts:M76"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:return-undefined:return { from : a - w , to : b + w , insert : inner , start : a - w , end : a - w + inner . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M69",
+      "afterId": "ui/format-shortcuts.ts:M69"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const allOn = filled . length > 0 && filled . every ( ( l ) => { const core = l . trim ( ) ; const run = Math . min ( stars ( core ) , endStars ( core ) ) ; return core . length > run * 2 && isOn ( run , kind ) ; } ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M23",
+      "afterId": "ui/format-shortcuts.ts:M23"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const b = Math . max ( a , to - tail ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M42",
+      "afterId": "ui/format-shortcuts.ts:M42"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const bare = inner . slice ( w , inner . length - w ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M54",
+      "afterId": "ui/format-shortcuts.ts:M54"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const core = l . trim ( ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M24",
+      "afterId": "ui/format-shortcuts.ts:M24"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const filled = lines . filter ( ( l ) => l . trim ( ) ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M19",
+      "afterId": "ui/format-shortcuts.ts:M19"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const filled = lines . filter ( ( l ) => l . trim ( ) ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M20",
+      "afterId": "ui/format-shortcuts.ts:M20"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const inner = text . slice ( a , b ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M44",
+      "afterId": "ui/format-shortcuts.ts:M44"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const innerRun = Math . min ( stars ( inner ) , endStars ( inner ) ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M45",
+      "afterId": "ui/format-shortcuts.ts:M45"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const innerRun = Math . min ( stars ( inner ) , endStars ( inner ) ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M46",
+      "afterId": "ui/format-shortcuts.ts:M46"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const innerRun = Math . min ( stars ( inner ) , endStars ( inner ) ) ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M47",
+      "afterId": "ui/format-shortcuts.ts:M47"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const insert = lines . map ( ( l ) => ( l . trim ( ) ? wrapLine ( l , kind , ! allOn ) : l ) ) . join ( '\\n' ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M32",
+      "afterId": "ui/format-shortcuts.ts:M32"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const insert = lines . map ( ( l ) => ( l . trim ( ) ? wrapLine ( l , kind , ! allOn ) : l ) ) . join ( '\\n' ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M33",
+      "afterId": "ui/format-shortcuts.ts:M33"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const insert = lines . map ( ( l ) => ( l . trim ( ) ? wrapLine ( l , kind , ! allOn ) : l ) ) . join ( '\\n' ) ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M34",
+      "afterId": "ui/format-shortcuts.ts:M34"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const lines = picked . split ( '\\n' ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M18",
+      "afterId": "ui/format-shortcuts.ts:M18"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const mark = '*' . repeat ( w ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M75",
+      "afterId": "ui/format-shortcuts.ts:M75"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const picked = text . slice ( from , to ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M14",
+      "afterId": "ui/format-shortcuts.ts:M14"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const run = Math . min ( endStars ( text . slice ( 0 , a ) ) , stars ( text . slice ( b ) ) ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M61",
+      "afterId": "ui/format-shortcuts.ts:M61"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const run = Math . min ( endStars ( text . slice ( 0 , a ) ) , stars ( text . slice ( b ) ) ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M62",
+      "afterId": "ui/format-shortcuts.ts:M62"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const run = Math . min ( endStars ( text . slice ( 0 , a ) ) , stars ( text . slice ( b ) ) ) ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M63",
+      "afterId": "ui/format-shortcuts.ts:M63"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const run = Math . min ( endStars ( text . slice ( 0 , a ) ) , stars ( text . slice ( b ) ) ) ;~4",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M64",
+      "afterId": "ui/format-shortcuts.ts:M64"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const run = Math . min ( endStars ( text . slice ( 0 , a ) ) , stars ( text . slice ( b ) ) ) ;~5",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M65",
+      "afterId": "ui/format-shortcuts.ts:M65"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const run = Math . min ( stars ( core ) , endStars ( core ) ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M25",
+      "afterId": "ui/format-shortcuts.ts:M25"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const run = Math . min ( stars ( core ) , endStars ( core ) ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M26",
+      "afterId": "ui/format-shortcuts.ts:M26"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const run = Math . min ( stars ( core ) , endStars ( core ) ) ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M27",
+      "afterId": "ui/format-shortcuts.ts:M27"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:const w = width ( kind ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M43",
+      "afterId": "ui/format-shortcuts.ts:M43"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:if ( inner && inner . length > innerRun * 2 && isOn ( innerRun , kind ) ) { const bare = inner . slice ( w , inner . length - w ) ; return { from : a , to : b , insert : bare , start : a , end : a + bare . length } ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M53",
+      "afterId": "ui/format-shortcuts.ts:M53"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:if ( isOn ( run , kind ) ) { return { from : a - w , to : b + w , insert : inner , start : a - w , end : a - w + inner . length } ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M68",
+      "afterId": "ui/format-shortcuts.ts:M68"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:if ( picked . includes ( '\\n' ) ) { const lines = picked . split ( '\\n' ) ; const filled = lines . filter ( ( l ) => l . trim ( ) ) ; const allOn = filled . length > 0 && filled . every ( ( l ) => { const core = l . trim ( ) ; const run = Math . min ( stars ( core ) , endStars ( core ) ) ; return core . length > run * 2 && isOn ( run , kind ) ; } ) ; const insert = lines . map ( ( l ) => ( l . trim ( ) ? wrapLine ( l , kind , ! allOn ) : l ) ) . join ( '\\n' ) ; return { from , to , insert , start : from , end : from + insert . length } ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M17",
+      "afterId": "ui/format-shortcuts.ts:M17"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#emphasis:value-undefined:return core . length > run * 2 && isOn ( run , kind ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M31",
+      "afterId": "ui/format-shortcuts.ts:M31"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#endStars:value-undefined:const endStars = ( s : string ) => / \\ ** $ / . exec ( s ) ! [ 0 ] . length ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M2",
+      "afterId": "ui/format-shortcuts.ts:M2"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatEdit:binary-swap:return kind === 'link' ? link ( text , from , to ) : emphasis ( text , from , to , kind ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M103",
+      "afterId": "ui/format-shortcuts.ts:M103"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatEdit:return-undefined:return kind === 'link' ? link ( text , from , to ) : emphasis ( text , from , to , kind ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M102",
+      "afterId": "ui/format-shortcuts.ts:M102"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatEdit:value-undefined:return kind === 'link' ? link ( text , from , to ) : emphasis ( text , from , to , kind ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M104",
+      "afterId": "ui/format-shortcuts.ts:M104"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatEdit:value-undefined:return kind === 'link' ? link ( text , from , to ) : emphasis ( text , from , to , kind ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M105",
+      "afterId": "ui/format-shortcuts.ts:M105"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatKey:binary-swap:if ( event . altKey || event . shiftKey ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M283",
+      "afterId": "ui/format-shortcuts.ts:M286"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatKey:binary-swap:if ( mac ? ! event . metaKey || event . ctrlKey : ! event . ctrlKey || event . metaKey ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M287",
+      "afterId": "ui/format-shortcuts.ts:M290"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatKey:binary-swap:if ( mac ? ! event . metaKey || event . ctrlKey : ! event . ctrlKey || event . metaKey ) return null ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M289",
+      "afterId": "ui/format-shortcuts.ts:M292"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatKey:drop-not:if ( mac ? ! event . metaKey || event . ctrlKey : ! event . ctrlKey || event . metaKey ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M288",
+      "afterId": "ui/format-shortcuts.ts:M291"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatKey:drop-not:if ( mac ? ! event . metaKey || event . ctrlKey : ! event . ctrlKey || event . metaKey ) return null ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M290",
+      "afterId": "ui/format-shortcuts.ts:M293"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatKey:if-false:if ( event . altKey || event . shiftKey ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M282",
+      "afterId": "ui/format-shortcuts.ts:M285"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatKey:if-false:if ( mac ? ! event . metaKey || event . ctrlKey : ! event . ctrlKey || event . metaKey ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M286",
+      "afterId": "ui/format-shortcuts.ts:M289"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatKey:if-true:if ( event . altKey || event . shiftKey ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M281",
+      "afterId": "ui/format-shortcuts.ts:M284"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatKey:if-true:if ( mac ? ! event . metaKey || event . ctrlKey : ! event . ctrlKey || event . metaKey ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M285",
+      "afterId": "ui/format-shortcuts.ts:M288"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatKey:return-undefined:return Object . hasOwn ( KEYS , key ) ? KEYS [ key ] ! : null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M293",
+      "afterId": "ui/format-shortcuts.ts:M295"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatKey:return-undefined:return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M284",
+      "afterId": "ui/format-shortcuts.ts:M287"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatKey:return-undefined:return null ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M291",
+      "afterId": "ui/format-shortcuts.ts:M294"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formatKey:value-undefined:return Object . hasOwn ( KEYS , key ) ? KEYS [ key ] ! : null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M294",
+      "afterId": "ui/format-shortcuts.ts:M296"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formulaEdit:binary-swap:const displayed = inner . length >= 4 && inner . startsWith ( '$$' ) && inner . endsWith ( '$$' ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M266",
+      "afterId": "ui/format-shortcuts.ts:M266"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formulaEdit:binary-swap:const displayed = inner . length >= 4 && inner . startsWith ( '$$' ) && inner . endsWith ( '$$' ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M267",
+      "afterId": "ui/format-shortcuts.ts:M267"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formulaEdit:binary-swap:const displayed = inner . length >= 4 && inner . startsWith ( '$$' ) && inner . endsWith ( '$$' ) ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M268",
+      "afterId": "ui/format-shortcuts.ts:M268"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formulaEdit:field-drop:return { from , to , insert , start , end : from + insert . length - edge } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M273",
+      "afterId": "ui/format-shortcuts.ts:M273"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formulaEdit:field-drop:return { from , to , insert , start , end : from + insert . length - edge } ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M274",
+      "afterId": "ui/format-shortcuts.ts:M274"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formulaEdit:field-drop:return { from , to , insert , start , end : from + insert . length - edge } ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M275",
+      "afterId": "ui/format-shortcuts.ts:M275"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formulaEdit:field-drop:return { from , to , insert , start , end : from + insert . length - edge } ;~4",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M276",
+      "afterId": "ui/format-shortcuts.ts:M276"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formulaEdit:field-drop:return { from , to , insert , start , end : from + insert . length - edge } ;~5",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M277",
+      "afterId": "ui/format-shortcuts.ts:M277"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formulaEdit:return-undefined:return { from , to , insert , start , end : from + insert . length - edge } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M272",
+      "afterId": "ui/format-shortcuts.ts:M272"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formulaEdit:value-undefined:const displayed = inner . length >= 4 && inner . startsWith ( '$$' ) && inner . endsWith ( '$$' ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M269",
+      "afterId": "ui/format-shortcuts.ts:M269"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formulaEdit:value-undefined:const displayed = inner . length >= 4 && inner . startsWith ( '$$' ) && inner . endsWith ( '$$' ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M270",
+      "afterId": "ui/format-shortcuts.ts:M270"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formulaEdit:value-undefined:const inner = picked . trim ( ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M265",
+      "afterId": "ui/format-shortcuts.ts:M265"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formulaEdit:value-undefined:const mark = displayed ? '' : picked . includes ( '\\n' ) ? '$$' : '$' ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M271",
+      "afterId": "ui/format-shortcuts.ts:M271"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#formulaEdit:value-undefined:const picked = text . slice ( from , to ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M264",
+      "afterId": "ui/format-shortcuts.ts:M264"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:arithmetic-swap:if ( index === lines . length - 1 ) return true ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M217",
+      "afterId": "ui/format-shortcuts.ts:M217"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:binary-swap:if ( fence [ 0 ] === open [ 0 ] && fence . length >= open . length && / ^ [ \\ t ] * $ / . test ( line . slice ( match ! [ 0 ] . length ) ) ) { if ( index === lines . length - 1 ) return true ; open = null ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M208",
+      "afterId": "ui/format-shortcuts.ts:M208"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:binary-swap:if ( fence [ 0 ] === open [ 0 ] && fence . length >= open . length && / ^ [ \\ t ] * $ / . test ( line . slice ( match ! [ 0 ] . length ) ) ) { if ( index === lines . length - 1 ) return true ; open = null ; }~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M209",
+      "afterId": "ui/format-shortcuts.ts:M209"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:binary-swap:if ( fence [ 0 ] === open [ 0 ] && fence . length >= open . length && / ^ [ \\ t ] * $ / . test ( line . slice ( match ! [ 0 ] . length ) ) ) { if ( index === lines . length - 1 ) return true ; open = null ; }~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M210",
+      "afterId": "ui/format-shortcuts.ts:M210"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:binary-swap:if ( fence [ 0 ] === open [ 0 ] && fence . length >= open . length && / ^ [ \\ t ] * $ / . test ( line . slice ( match ! [ 0 ] . length ) ) ) { if ( index === lines . length - 1 ) return true ; open = null ; }~4",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M211",
+      "afterId": "ui/format-shortcuts.ts:M211"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:binary-swap:if ( index === lines . length - 1 ) return true ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M216",
+      "afterId": "ui/format-shortcuts.ts:M216"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:binary-swap:return open !== null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M221",
+      "afterId": "ui/format-shortcuts.ts:M221"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:bool-flip:return true ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M219",
+      "afterId": "ui/format-shortcuts.ts:M219"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:drop-not:if ( ! fence ) continue ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M202",
+      "afterId": "ui/format-shortcuts.ts:M202"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:drop-not:if ( ! open ) open = fence ; else if ( fence [ 0 ] === open [ 0 ] && fence . length >= open . length && / ^ [ \\ t ] * $ / . test ( line . slice ( match ! [ 0 ] . length ) ) ) { if ( index === lines . length - 1 ) return true ; open = null ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M205",
+      "afterId": "ui/format-shortcuts.ts:M205"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:if-false:if ( ! fence ) continue ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M201",
+      "afterId": "ui/format-shortcuts.ts:M201"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:if-false:if ( ! open ) open = fence ; else if ( fence [ 0 ] === open [ 0 ] && fence . length >= open . length && / ^ [ \\ t ] * $ / . test ( line . slice ( match ! [ 0 ] . length ) ) ) { if ( index === lines . length - 1 ) return true ; open = null ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M204",
+      "afterId": "ui/format-shortcuts.ts:M204"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:if-false:if ( fence [ 0 ] === open [ 0 ] && fence . length >= open . length && / ^ [ \\ t ] * $ / . test ( line . slice ( match ! [ 0 ] . length ) ) ) { if ( index === lines . length - 1 ) return true ; open = null ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M207",
+      "afterId": "ui/format-shortcuts.ts:M207"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:if-false:if ( index === lines . length - 1 ) return true ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M215",
+      "afterId": "ui/format-shortcuts.ts:M215"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:if-true:if ( ! fence ) continue ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M200",
+      "afterId": "ui/format-shortcuts.ts:M200"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:if-true:if ( ! open ) open = fence ; else if ( fence [ 0 ] === open [ 0 ] && fence . length >= open . length && / ^ [ \\ t ] * $ / . test ( line . slice ( match ! [ 0 ] . length ) ) ) { if ( index === lines . length - 1 ) return true ; open = null ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M203",
+      "afterId": "ui/format-shortcuts.ts:M203"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:if-true:if ( fence [ 0 ] === open [ 0 ] && fence . length >= open . length && / ^ [ \\ t ] * $ / . test ( line . slice ( match ! [ 0 ] . length ) ) ) { if ( index === lines . length - 1 ) return true ; open = null ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M206",
+      "afterId": "ui/format-shortcuts.ts:M206"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:if-true:if ( index === lines . length - 1 ) return true ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M214",
+      "afterId": "ui/format-shortcuts.ts:M214"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:optional-chain:const fence = match ?. [ 1 ] ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M199",
+      "afterId": "ui/format-shortcuts.ts:M199"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:return-undefined:return open !== null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M220",
+      "afterId": "ui/format-shortcuts.ts:M220"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:return-undefined:return true ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M218",
+      "afterId": "ui/format-shortcuts.ts:M218"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:value-undefined:const lines = text . slice ( 0 , at ) . split ( '\\n' ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M196",
+      "afterId": "ui/format-shortcuts.ts:M196"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:value-undefined:const match = / ^ { 0 , 3 } ( `{3,}|~{3,})/.exec(line);",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M198",
+      "afterId": "ui/format-shortcuts.ts:M198"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:value-undefined:for ( const [ index , line ] of lines . entries ( ) ) { const match = / ^ { 0 , 3 } ( `{3,}|~{3,})/.exec(line);\n    const fence = match?.[1];\n    if (!fence) continue;\n    if (!open) open = fence;\n    else if (fence[0] === open[0] && fence.length >= open.length && /^[ \\t]*$/.test(line.slice(match![0].length))) {\n      // A newline on the closing delimiter must not turn it into literal code.\n      if (index === lines.length - 1) return true;\n      open = null;\n    }\n  }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M197",
+      "afterId": "ui/format-shortcuts.ts:M197"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:value-undefined:if ( fence [ 0 ] === open [ 0 ] && fence . length >= open . length && / ^ [ \\ t ] * $ / . test ( line . slice ( match ! [ 0 ] . length ) ) ) { if ( index === lines . length - 1 ) return true ; open = null ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M212",
+      "afterId": "ui/format-shortcuts.ts:M212"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#inFence:value-undefined:if ( fence [ 0 ] === open [ 0 ] && fence . length >= open . length && / ^ [ \\ t ] * $ / . test ( line . slice ( match ! [ 0 ] . length ) ) ) { if ( index === lines . length - 1 ) return true ; open = null ; }~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M213",
+      "afterId": "ui/format-shortcuts.ts:M213"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:arithmetic-swap:const indent = ! out && opening ?. [ 1 ] === level ? ' ' . repeat ( Math . max ( INDENT . length , opening [ 2 ] ! . length + 1 ) ) : INDENT ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M147",
+      "afterId": "ui/format-shortcuts.ts:M147"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:binary-swap:const above = text . slice ( 0 , start ) . trimEnd ( ) . split ( '\\n' ) . pop ( ) ?? '' ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M137",
+      "afterId": "ui/format-shortcuts.ts:M137"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:binary-swap:const continues = lines . slice ( 0 , first ) . length === 0 && above . startsWith ( depth ) && / ^ \\ d { 1 , 9 } [ . ) ] / . test ( above . slice ( depth . length ) ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M164",
+      "afterId": "ui/format-shortcuts.ts:M164"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:binary-swap:const continues = lines . slice ( 0 , first ) . length === 0 && above . startsWith ( depth ) && / ^ \\ d { 1 , 9 } [ . ) ] / . test ( above . slice ( depth . length ) ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M165",
+      "afterId": "ui/format-shortcuts.ts:M165"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:binary-swap:const continues = lines . slice ( 0 , first ) . length === 0 && above . startsWith ( depth ) && / ^ \\ d { 1 , 9 } [ . ) ] / . test ( above . slice ( depth . length ) ) ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M166",
+      "afterId": "ui/format-shortcuts.ts:M166"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:binary-swap:const indent = ! out && opening ?. [ 1 ] === level ? ' ' . repeat ( Math . max ( INDENT . length , opening [ 2 ] ! . length + 1 ) ) : INDENT ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M141",
+      "afterId": "ui/format-shortcuts.ts:M141"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:binary-swap:const indent = ! out && opening ?. [ 1 ] === level ? ' ' . repeat ( Math . max ( INDENT . length , opening [ 2 ] ! . length + 1 ) ) : INDENT ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M143",
+      "afterId": "ui/format-shortcuts.ts:M143"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:binary-swap:if ( ! LIST_LINE . test ( above ) && ! / ^ [ \\ t ] + \\ S / . test ( above ) ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M158",
+      "afterId": "ui/format-shortcuts.ts:M158"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:binary-swap:if ( ! lines . some ( ( line ) => line . trim ( ) ) || ! lines . every ( ( line ) => ! line . trim ( ) || LIST_LINE . test ( line ) ) ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M124",
+      "afterId": "ui/format-shortcuts.ts:M124"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:binary-swap:if ( ! lines . some ( ( line ) => line . trim ( ) ) || ! lines . every ( ( line ) => ! line . trim ( ) || LIST_LINE . test ( line ) ) ) return null ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M130",
+      "afterId": "ui/format-shortcuts.ts:M130"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:binary-swap:if ( from !== to ) return { from : start , to : end , insert , start , end : start + insert . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M182",
+      "afterId": "ui/format-shortcuts.ts:M182"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:binary-swap:if ( insert === lines . join ( '\\n' ) ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M177",
+      "afterId": "ui/format-shortcuts.ts:M177"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:drop-not:const indent = ! out && opening ?. [ 1 ] === level ? ' ' . repeat ( Math . max ( INDENT . length , opening [ 2 ] ! . length + 1 ) ) : INDENT ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M142",
+      "afterId": "ui/format-shortcuts.ts:M142"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:drop-not:const moved = lines . map ( ( line ) => ( ! line . trim ( ) ? line : out ? line . replace ( / ^ ( ? : { 1 , 4 } | \\ t ) / , '' ) : indent + line ) ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M149",
+      "afterId": "ui/format-shortcuts.ts:M149"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:drop-not:if ( ! LIST_LINE . test ( above ) && ! / ^ [ \\ t ] + \\ S / . test ( above ) ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M159",
+      "afterId": "ui/format-shortcuts.ts:M159"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:drop-not:if ( ! LIST_LINE . test ( above ) && ! / ^ [ \\ t ] + \\ S / . test ( above ) ) return null ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M161",
+      "afterId": "ui/format-shortcuts.ts:M161"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:drop-not:if ( ! continues ) moved [ first ] = moved [ first ] ! . replace ( / ^ ( [ \\ t ] * ) \\ d { 1 , 9 } ( [ . ) ] ) / , '$11$2' ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M172",
+      "afterId": "ui/format-shortcuts.ts:M172"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:drop-not:if ( ! lines . some ( ( line ) => line . trim ( ) ) || ! lines . every ( ( line ) => ! line . trim ( ) || LIST_LINE . test ( line ) ) ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M125",
+      "afterId": "ui/format-shortcuts.ts:M125"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:drop-not:if ( ! lines . some ( ( line ) => line . trim ( ) ) || ! lines . every ( ( line ) => ! line . trim ( ) || LIST_LINE . test ( line ) ) ) return null ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M128",
+      "afterId": "ui/format-shortcuts.ts:M128"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:drop-not:if ( ! lines . some ( ( line ) => line . trim ( ) ) || ! lines . every ( ( line ) => ! line . trim ( ) || LIST_LINE . test ( line ) ) ) return null ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M131",
+      "afterId": "ui/format-shortcuts.ts:M131"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:drop-not:if ( ! out ) { const depth = / ^ [ \\ t ] * / . exec ( moved [ first ] ! ) ! [ 0 ] ; if ( ! LIST_LINE . test ( above ) && ! / ^ [ \\ t ] + \\ S / . test ( above ) ) return null ; const continues = lines . slice ( 0 , first ) . length === 0 && above . startsWith ( depth ) && / ^ \\ d { 1 , 9 } [ . ) ] / . test ( above . slice ( depth . length ) ) ; if ( ! continues ) moved [ first ] = moved [ first ] ! . replace ( / ^ ( [ \\ t ] * ) \\ d { 1 , 9 } ( [ . ) ] ) / , '$11$2' ) ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M154",
+      "afterId": "ui/format-shortcuts.ts:M154"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:field-drop:return { from : start , to : end , insert , start , end : start + insert . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M184",
+      "afterId": "ui/format-shortcuts.ts:M184"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:field-drop:return { from : start , to : end , insert , start , end : start + insert . length } ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M185",
+      "afterId": "ui/format-shortcuts.ts:M185"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:field-drop:return { from : start , to : end , insert , start , end : start + insert . length } ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M186",
+      "afterId": "ui/format-shortcuts.ts:M186"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:field-drop:return { from : start , to : end , insert , start , end : start + insert . length } ;~4",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M187",
+      "afterId": "ui/format-shortcuts.ts:M187"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:field-drop:return { from : start , to : end , insert , start , end : start + insert . length } ;~5",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M188",
+      "afterId": "ui/format-shortcuts.ts:M188"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:field-drop:return { from : start , to : end , insert , start : caret , end : caret } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M191",
+      "afterId": "ui/format-shortcuts.ts:M191"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:field-drop:return { from : start , to : end , insert , start : caret , end : caret } ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M192",
+      "afterId": "ui/format-shortcuts.ts:M192"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:field-drop:return { from : start , to : end , insert , start : caret , end : caret } ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M193",
+      "afterId": "ui/format-shortcuts.ts:M193"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:field-drop:return { from : start , to : end , insert , start : caret , end : caret } ;~4",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M194",
+      "afterId": "ui/format-shortcuts.ts:M194"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:field-drop:return { from : start , to : end , insert , start : caret , end : caret } ;~5",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M195",
+      "afterId": "ui/format-shortcuts.ts:M195"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:if-false:if ( ! LIST_LINE . test ( above ) && ! / ^ [ \\ t ] + \\ S / . test ( above ) ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M157",
+      "afterId": "ui/format-shortcuts.ts:M157"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:if-false:if ( ! continues ) moved [ first ] = moved [ first ] ! . replace ( / ^ ( [ \\ t ] * ) \\ d { 1 , 9 } ( [ . ) ] ) / , '$11$2' ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M171",
+      "afterId": "ui/format-shortcuts.ts:M171"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:if-false:if ( ! lines . some ( ( line ) => line . trim ( ) ) || ! lines . every ( ( line ) => ! line . trim ( ) || LIST_LINE . test ( line ) ) ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M123",
+      "afterId": "ui/format-shortcuts.ts:M123"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:if-false:if ( ! out ) { const depth = / ^ [ \\ t ] * / . exec ( moved [ first ] ! ) ! [ 0 ] ; if ( ! LIST_LINE . test ( above ) && ! / ^ [ \\ t ] + \\ S / . test ( above ) ) return null ; const continues = lines . slice ( 0 , first ) . length === 0 && above . startsWith ( depth ) && / ^ \\ d { 1 , 9 } [ . ) ] / . test ( above . slice ( depth . length ) ) ; if ( ! continues ) moved [ first ] = moved [ first ] ! . replace ( / ^ ( [ \\ t ] * ) \\ d { 1 , 9 } ( [ . ) ] ) / , '$11$2' ) ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M153",
+      "afterId": "ui/format-shortcuts.ts:M153"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:if-false:if ( from !== to ) return { from : start , to : end , insert , start , end : start + insert . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M181",
+      "afterId": "ui/format-shortcuts.ts:M181"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:if-false:if ( insert === lines . join ( '\\n' ) ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M176",
+      "afterId": "ui/format-shortcuts.ts:M176"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:if-true:if ( ! LIST_LINE . test ( above ) && ! / ^ [ \\ t ] + \\ S / . test ( above ) ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M156",
+      "afterId": "ui/format-shortcuts.ts:M156"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:if-true:if ( ! continues ) moved [ first ] = moved [ first ] ! . replace ( / ^ ( [ \\ t ] * ) \\ d { 1 , 9 } ( [ . ) ] ) / , '$11$2' ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M170",
+      "afterId": "ui/format-shortcuts.ts:M170"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:if-true:if ( ! lines . some ( ( line ) => line . trim ( ) ) || ! lines . every ( ( line ) => ! line . trim ( ) || LIST_LINE . test ( line ) ) ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M122",
+      "afterId": "ui/format-shortcuts.ts:M122"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:if-true:if ( ! out ) { const depth = / ^ [ \\ t ] * / . exec ( moved [ first ] ! ) ! [ 0 ] ; if ( ! LIST_LINE . test ( above ) && ! / ^ [ \\ t ] + \\ S / . test ( above ) ) return null ; const continues = lines . slice ( 0 , first ) . length === 0 && above . startsWith ( depth ) && / ^ \\ d { 1 , 9 } [ . ) ] / . test ( above . slice ( depth . length ) ) ; if ( ! continues ) moved [ first ] = moved [ first ] ! . replace ( / ^ ( [ \\ t ] * ) \\ d { 1 , 9 } ( [ . ) ] ) / , '$11$2' ) ; }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M152",
+      "afterId": "ui/format-shortcuts.ts:M152"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:if-true:if ( from !== to ) return { from : start , to : end , insert , start , end : start + insert . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M180",
+      "afterId": "ui/format-shortcuts.ts:M180"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:if-true:if ( insert === lines . join ( '\\n' ) ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M175",
+      "afterId": "ui/format-shortcuts.ts:M175"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:optional-chain:const indent = ! out && opening ?. [ 1 ] === level ? ' ' . repeat ( Math . max ( INDENT . length , opening [ 2 ] ! . length + 1 ) ) : INDENT ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M144",
+      "afterId": "ui/format-shortcuts.ts:M144"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:return-undefined:return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M134",
+      "afterId": "ui/format-shortcuts.ts:M134"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:return-undefined:return null ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M163",
+      "afterId": "ui/format-shortcuts.ts:M163"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:return-undefined:return null ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M179",
+      "afterId": "ui/format-shortcuts.ts:M179"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:return-undefined:return { from : start , to : end , insert , start , end : start + insert . length } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M183",
+      "afterId": "ui/format-shortcuts.ts:M183"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:return-undefined:return { from : start , to : end , insert , start : caret , end : caret } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M190",
+      "afterId": "ui/format-shortcuts.ts:M190"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const above = text . slice ( 0 , start ) . trimEnd ( ) . split ( '\\n' ) . pop ( ) ?? '' ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M138",
+      "afterId": "ui/format-shortcuts.ts:M138"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const caret = Math . max ( start , from + moved [ 0 ] ! . length - lines [ 0 ] ! . length ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M189",
+      "afterId": "ui/format-shortcuts.ts:M189"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const continues = lines . slice ( 0 , first ) . length === 0 && above . startsWith ( depth ) && / ^ \\ d { 1 , 9 } [ . ) ] / . test ( above . slice ( depth . length ) ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M167",
+      "afterId": "ui/format-shortcuts.ts:M167"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const continues = lines . slice ( 0 , first ) . length === 0 && above . startsWith ( depth ) && / ^ \\ d { 1 , 9 } [ . ) ] / . test ( above . slice ( depth . length ) ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M168",
+      "afterId": "ui/format-shortcuts.ts:M168"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const continues = lines . slice ( 0 , first ) . length === 0 && above . startsWith ( depth ) && / ^ \\ d { 1 , 9 } [ . ) ] / . test ( above . slice ( depth . length ) ) ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M169",
+      "afterId": "ui/format-shortcuts.ts:M169"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const depth = / ^ [ \\ t ] * / . exec ( moved [ first ] ! ) ! [ 0 ] ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M155",
+      "afterId": "ui/format-shortcuts.ts:M155"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const first = lines . findIndex ( ( line ) => line . trim ( ) ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M135",
+      "afterId": "ui/format-shortcuts.ts:M135"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const first = lines . findIndex ( ( line ) => line . trim ( ) ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M136",
+      "afterId": "ui/format-shortcuts.ts:M136"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const indent = ! out && opening ?. [ 1 ] === level ? ' ' . repeat ( Math . max ( INDENT . length , opening [ 2 ] ! . length + 1 ) ) : INDENT ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M145",
+      "afterId": "ui/format-shortcuts.ts:M145"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const indent = ! out && opening ?. [ 1 ] === level ? ' ' . repeat ( Math . max ( INDENT . length , opening [ 2 ] ! . length + 1 ) ) : INDENT ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M146",
+      "afterId": "ui/format-shortcuts.ts:M146"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const insert = moved . join ( '\\n' ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M174",
+      "afterId": "ui/format-shortcuts.ts:M174"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const level = / ^ [ \\ t ] * / . exec ( lines [ first ] ! ) ! [ 0 ] ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M140",
+      "afterId": "ui/format-shortcuts.ts:M140"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const lines = text . slice ( start , end ) . split ( '\\n' ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M121",
+      "afterId": "ui/format-shortcuts.ts:M121"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const moved = lines . map ( ( line ) => ( ! line . trim ( ) ? line : out ? line . replace ( / ^ ( ? : { 1 , 4 } | \\ t ) / , '' ) : indent + line ) ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M148",
+      "afterId": "ui/format-shortcuts.ts:M148"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const moved = lines . map ( ( line ) => ( ! line . trim ( ) ? line : out ? line . replace ( / ^ ( ? : { 1 , 4 } | \\ t ) / , '' ) : indent + line ) ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M150",
+      "afterId": "ui/format-shortcuts.ts:M150"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const moved = lines . map ( ( line ) => ( ! line . trim ( ) ? line : out ? line . replace ( / ^ ( ? : { 1 , 4 } | \\ t ) / , '' ) : indent + line ) ) ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M151",
+      "afterId": "ui/format-shortcuts.ts:M151"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const opening = / ^ ( [ \\ t ] * ) ( \\ d { 1 , 9 } [ . ) ] ) ( ? : [ \\ t ] | $ ) / . exec ( above ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M139",
+      "afterId": "ui/format-shortcuts.ts:M139"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:const { start , end } = lineSpan ( text , from , to ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M120",
+      "afterId": "ui/format-shortcuts.ts:M120"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:if ( ! LIST_LINE . test ( above ) && ! / ^ [ \\ t ] + \\ S / . test ( above ) ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M160",
+      "afterId": "ui/format-shortcuts.ts:M160"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:if ( ! LIST_LINE . test ( above ) && ! / ^ [ \\ t ] + \\ S / . test ( above ) ) return null ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M162",
+      "afterId": "ui/format-shortcuts.ts:M162"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:if ( ! lines . some ( ( line ) => line . trim ( ) ) || ! lines . every ( ( line ) => ! line . trim ( ) || LIST_LINE . test ( line ) ) ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M126",
+      "afterId": "ui/format-shortcuts.ts:M126"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:if ( ! lines . some ( ( line ) => line . trim ( ) ) || ! lines . every ( ( line ) => ! line . trim ( ) || LIST_LINE . test ( line ) ) ) return null ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M127",
+      "afterId": "ui/format-shortcuts.ts:M127"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:if ( ! lines . some ( ( line ) => line . trim ( ) ) || ! lines . every ( ( line ) => ! line . trim ( ) || LIST_LINE . test ( line ) ) ) return null ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M129",
+      "afterId": "ui/format-shortcuts.ts:M129"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:if ( ! lines . some ( ( line ) => line . trim ( ) ) || ! lines . every ( ( line ) => ! line . trim ( ) || LIST_LINE . test ( line ) ) ) return null ;~4",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M132",
+      "afterId": "ui/format-shortcuts.ts:M132"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:if ( ! lines . some ( ( line ) => line . trim ( ) ) || ! lines . every ( ( line ) => ! line . trim ( ) || LIST_LINE . test ( line ) ) ) return null ;~5",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M133",
+      "afterId": "ui/format-shortcuts.ts:M133"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:if ( insert === lines . join ( '\\n' ) ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M178",
+      "afterId": "ui/format-shortcuts.ts:M178"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#indentEdit:value-undefined:moved [ first ] = moved [ first ] ! . replace ( / ^ ( [ \\ t ] * ) \\ d { 1 , 9 } ( [ . ) ] ) / , '$11$2' ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M173",
+      "afterId": "ui/format-shortcuts.ts:M173"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#isMac:value-undefined:const isMac = ( ) => / mac | iphone | ipad / i . test ( navigator . platform ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M295",
+      "afterId": "ui/format-shortcuts.ts:M297"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#isOn:binary-swap:const isOn = ( run : number , kind : 'bold' | 'italic' ) => ( kind === 'bold' ? run >= 2 : run % 2 === 1 ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M3",
+      "afterId": "ui/format-shortcuts.ts:M3"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#isOn:binary-swap:const isOn = ( run : number , kind : 'bold' | 'italic' ) => ( kind === 'bold' ? run >= 2 : run % 2 === 1 ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M4",
+      "afterId": "ui/format-shortcuts.ts:M4"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#isOn:binary-swap:const isOn = ( run : number , kind : 'bold' | 'italic' ) => ( kind === 'bold' ? run >= 2 : run % 2 === 1 ) ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M5",
+      "afterId": "ui/format-shortcuts.ts:M5"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#lineSpan:arithmetic-swap:const last = to > from && text [ to - 1 ] === '\\n' ? to - 1 : to ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M113",
+      "afterId": "ui/format-shortcuts.ts:M113"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#lineSpan:arithmetic-swap:const last = to > from && text [ to - 1 ] === '\\n' ? to - 1 : to ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M114",
+      "afterId": "ui/format-shortcuts.ts:M114"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#lineSpan:arithmetic-swap:const start = from === 0 ? 0 : text . lastIndexOf ( '\\n' , from - 1 ) + 1 ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M107",
+      "afterId": "ui/format-shortcuts.ts:M107"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#lineSpan:arithmetic-swap:const start = from === 0 ? 0 : text . lastIndexOf ( '\\n' , from - 1 ) + 1 ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M109",
+      "afterId": "ui/format-shortcuts.ts:M109"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#lineSpan:binary-swap:const last = to > from && text [ to - 1 ] === '\\n' ? to - 1 : to ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M110",
+      "afterId": "ui/format-shortcuts.ts:M110"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#lineSpan:binary-swap:const last = to > from && text [ to - 1 ] === '\\n' ? to - 1 : to ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M111",
+      "afterId": "ui/format-shortcuts.ts:M111"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#lineSpan:binary-swap:const last = to > from && text [ to - 1 ] === '\\n' ? to - 1 : to ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M112",
+      "afterId": "ui/format-shortcuts.ts:M112"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#lineSpan:binary-swap:const start = from === 0 ? 0 : text . lastIndexOf ( '\\n' , from - 1 ) + 1 ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M106",
+      "afterId": "ui/format-shortcuts.ts:M106"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#lineSpan:binary-swap:return { start , end : end < 0 ? text . length : end } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M119",
+      "afterId": "ui/format-shortcuts.ts:M119"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#lineSpan:field-drop:return { start , end : end < 0 ? text . length : end } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M117",
+      "afterId": "ui/format-shortcuts.ts:M117"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#lineSpan:field-drop:return { start , end : end < 0 ? text . length : end } ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M118",
+      "afterId": "ui/format-shortcuts.ts:M118"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#lineSpan:return-undefined:return { start , end : end < 0 ? text . length : end } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M116",
+      "afterId": "ui/format-shortcuts.ts:M116"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#lineSpan:value-undefined:const end = text . indexOf ( '\\n' , last ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M115",
+      "afterId": "ui/format-shortcuts.ts:M115"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#lineSpan:value-undefined:const start = from === 0 ? 0 : text . lastIndexOf ( '\\n' , from - 1 ) + 1 ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M108",
+      "afterId": "ui/format-shortcuts.ts:M108"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:arithmetic-swap:const at = picked ? from + insert . length - 1 : from + 1 ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M94",
+      "afterId": "ui/format-shortcuts.ts:M94"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:arithmetic-swap:const at = picked ? from + insert . length - 1 : from + 1 ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M95",
+      "afterId": "ui/format-shortcuts.ts:M95"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:arithmetic-swap:return { from , to , insert : `[](${ picked } ) `, start: from + 1, end: from + 1 };",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M91",
+      "afterId": "ui/format-shortcuts.ts:M91"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:arithmetic-swap:return { from , to , insert : `[](${ picked } ) `, start: from + 1, end: from + 1 };~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M93",
+      "afterId": "ui/format-shortcuts.ts:M93"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:field-drop:return { from , to , insert , start : at , end : at } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M97",
+      "afterId": "ui/format-shortcuts.ts:M97"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:field-drop:return { from , to , insert , start : at , end : at } ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M98",
+      "afterId": "ui/format-shortcuts.ts:M98"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:field-drop:return { from , to , insert , start : at , end : at } ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M99",
+      "afterId": "ui/format-shortcuts.ts:M99"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:field-drop:return { from , to , insert , start : at , end : at } ;~4",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M100",
+      "afterId": "ui/format-shortcuts.ts:M100"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:field-drop:return { from , to , insert , start : at , end : at } ;~5",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M101",
+      "afterId": "ui/format-shortcuts.ts:M101"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:field-drop:return { from , to , insert : `[](${ picked } ) `, start: from + 1, end: from + 1 };",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M87",
+      "afterId": "ui/format-shortcuts.ts:M87"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:field-drop:return { from , to , insert : `[](${ picked } ) `, start: from + 1, end: from + 1 };~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M88",
+      "afterId": "ui/format-shortcuts.ts:M88"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:field-drop:return { from , to , insert : `[](${ picked } ) `, start: from + 1, end: from + 1 };~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M89",
+      "afterId": "ui/format-shortcuts.ts:M89"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:field-drop:return { from , to , insert : `[](${ picked } ) `, start: from + 1, end: from + 1 };~4",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M90",
+      "afterId": "ui/format-shortcuts.ts:M90"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:field-drop:return { from , to , insert : `[](${ picked } ) `, start: from + 1, end: from + 1 };~5",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M92",
+      "afterId": "ui/format-shortcuts.ts:M92"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:if-false:if ( / ^ https ? : \\ / \\ / \\ S + $ / . test ( picked ) ) { return { from , to , insert : `[](${ picked } ) `, start: from + 1, end: from + 1 };\n  }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M84",
+      "afterId": "ui/format-shortcuts.ts:M84"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:if-true:if ( / ^ https ? : \\ / \\ / \\ S + $ / . test ( picked ) ) { return { from , to , insert : `[](${ picked } ) `, start: from + 1, end: from + 1 };\n  }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M83",
+      "afterId": "ui/format-shortcuts.ts:M83"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:return-undefined:return { from , to , insert , start : at , end : at } ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M96",
+      "afterId": "ui/format-shortcuts.ts:M96"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:return-undefined:return { from , to , insert : `[](${ picked } ) `, start: from + 1, end: from + 1 };",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M86",
+      "afterId": "ui/format-shortcuts.ts:M86"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:value-undefined:const picked = text . slice ( from , to ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M82",
+      "afterId": "ui/format-shortcuts.ts:M82"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#link:value-undefined:if ( / ^ https ? : \\ / \\ / \\ S + $ / . test ( picked ) ) { return { from , to , insert : `[](${ picked } ) `, start: from + 1, end: from + 1 };\n  }",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M85",
+      "afterId": "ui/format-shortcuts.ts:M85"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:binary-swap:const edit = kind ? formatEdit ( el . value , from , to , kind ) : structure === 'break' ? breakEdit ( el . value , from , to ) : structure ? indentEdit ( el . value , from , to , structure === 'outdent' ) : null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M316",
+      "afterId": "ui/format-shortcuts.ts:M318"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:binary-swap:const edit = kind ? formatEdit ( el . value , from , to , kind ) : structure === 'break' ? breakEdit ( el . value , from , to ) : structure ? indentEdit ( el . value , from , to , structure === 'outdent' ) : null ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M319",
+      "afterId": "ui/format-shortcuts.ts:M321"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:binary-swap:if ( el . readOnly || event . defaultPrevented || event . nativeEvent . isComposing ) return ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M310",
+      "afterId": "ui/format-shortcuts.ts:M312"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:binary-swap:if ( el . readOnly || event . defaultPrevented || event . nativeEvent . isComposing ) return ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M311",
+      "afterId": "ui/format-shortcuts.ts:M313"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:delete-call:applyEdit ( el , edit ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M324",
+      "afterId": "ui/format-shortcuts.ts:M326"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:delete-call:event . preventDefault ( ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M323",
+      "afterId": "ui/format-shortcuts.ts:M325"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:drop-not:if ( ! edit ) return ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M322",
+      "afterId": "ui/format-shortcuts.ts:M324"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:if-false:if ( ! edit ) return ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M321",
+      "afterId": "ui/format-shortcuts.ts:M323"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:if-false:if ( el . readOnly || event . defaultPrevented || event . nativeEvent . isComposing ) return ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M309",
+      "afterId": "ui/format-shortcuts.ts:M311"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:if-true:if ( ! edit ) return ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M320",
+      "afterId": "ui/format-shortcuts.ts:M322"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:if-true:if ( el . readOnly || event . defaultPrevented || event . nativeEvent . isComposing ) return ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M308",
+      "afterId": "ui/format-shortcuts.ts:M310"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:value-undefined:const edit = kind ? formatEdit ( el . value , from , to , kind ) : structure === 'break' ? breakEdit ( el . value , from , to ) : structure ? indentEdit ( el . value , from , to , structure === 'outdent' ) : null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M315",
+      "afterId": "ui/format-shortcuts.ts:M317"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:value-undefined:const edit = kind ? formatEdit ( el . value , from , to , kind ) : structure === 'break' ? breakEdit ( el . value , from , to ) : structure ? indentEdit ( el . value , from , to , structure === 'outdent' ) : null ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M317",
+      "afterId": "ui/format-shortcuts.ts:M319"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:value-undefined:const edit = kind ? formatEdit ( el . value , from , to , kind ) : structure === 'break' ? breakEdit ( el . value , from , to ) : structure ? indentEdit ( el . value , from , to , structure === 'outdent' ) : null ;~3",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M318",
+      "afterId": "ui/format-shortcuts.ts:M320"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:value-undefined:const kind = formatKey ( event , isMac ( ) ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M312",
+      "afterId": "ui/format-shortcuts.ts:M314"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:value-undefined:const kind = formatKey ( event , isMac ( ) ) ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M313",
+      "afterId": "ui/format-shortcuts.ts:M315"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#onFormatKey:value-undefined:const structure = kind ? null : structureKey ( event ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M314",
+      "afterId": "ui/format-shortcuts.ts:M316"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#stars:value-undefined:const stars = ( s : string ) => / ^ \\ ** / . exec ( s ) ! [ 0 ] . length ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M1",
+      "afterId": "ui/format-shortcuts.ts:M1"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#structureKey:binary-swap:if ( event . key === 'Tab' ) return event . shiftKey ? 'outdent' : 'indent' ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M303",
+      "afterId": "ui/format-shortcuts.ts:M305"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#structureKey:binary-swap:if ( event . metaKey || event . ctrlKey || event . altKey ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M298",
+      "afterId": "ui/format-shortcuts.ts:M300"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#structureKey:binary-swap:if ( event . metaKey || event . ctrlKey || event . altKey ) return null ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M299",
+      "afterId": "ui/format-shortcuts.ts:M301"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#structureKey:binary-swap:return event . key === 'Enter' && event . shiftKey ? 'break' : null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M306",
+      "afterId": "ui/format-shortcuts.ts:M308"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#structureKey:binary-swap:return event . key === 'Enter' && event . shiftKey ? 'break' : null ;~2",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M307",
+      "afterId": "ui/format-shortcuts.ts:M309"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#structureKey:if-false:if ( event . key === 'Tab' ) return event . shiftKey ? 'outdent' : 'indent' ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M302",
+      "afterId": "ui/format-shortcuts.ts:M304"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#structureKey:if-false:if ( event . metaKey || event . ctrlKey || event . altKey ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M297",
+      "afterId": "ui/format-shortcuts.ts:M299"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#structureKey:if-true:if ( event . key === 'Tab' ) return event . shiftKey ? 'outdent' : 'indent' ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M301",
+      "afterId": "ui/format-shortcuts.ts:M303"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#structureKey:if-true:if ( event . metaKey || event . ctrlKey || event . altKey ) return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M296",
+      "afterId": "ui/format-shortcuts.ts:M298"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#structureKey:return-undefined:return event . key === 'Enter' && event . shiftKey ? 'break' : null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M305",
+      "afterId": "ui/format-shortcuts.ts:M307"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#structureKey:return-undefined:return event . shiftKey ? 'outdent' : 'indent' ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M304",
+      "afterId": "ui/format-shortcuts.ts:M306"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#structureKey:return-undefined:return null ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M300",
+      "afterId": "ui/format-shortcuts.ts:M302"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#width:binary-swap:const width = ( kind : 'bold' | 'italic' ) => ( kind === 'bold' ? 2 : 1 ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M6",
+      "afterId": "ui/format-shortcuts.ts:M6"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#wrapLine:return-undefined:return lead + ( on ? mark + core + mark : core . slice ( w , core . length - w ) ) + tail ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M12",
+      "afterId": "ui/format-shortcuts.ts:M12"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#wrapLine:value-undefined:const core = line . trim ( ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M8",
+      "afterId": "ui/format-shortcuts.ts:M8"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#wrapLine:value-undefined:const lead = line . slice ( 0 , line . length - line . trimStart ( ) . length ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M9",
+      "afterId": "ui/format-shortcuts.ts:M9"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#wrapLine:value-undefined:const mark = '*' . repeat ( w ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M11",
+      "afterId": "ui/format-shortcuts.ts:M11"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#wrapLine:value-undefined:const tail = line . slice ( line . trimEnd ( ) . length ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M10",
+      "afterId": "ui/format-shortcuts.ts:M10"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#wrapLine:value-undefined:const w = width ( kind ) ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M7",
+      "afterId": "ui/format-shortcuts.ts:M7"
+    },
+    {
+      "key": "src/ui/format-shortcuts.ts#wrapLine:value-undefined:return lead + ( on ? mark + core + mark : core . slice ( w , core . length - w ) ) + tail ;",
+      "before": "killed",
+      "after": "killed",
+      "beforeId": "ui/format-shortcuts.ts:M13",
+      "afterId": "ui/format-shortcuts.ts:M13"
+    }
+  ]
+}

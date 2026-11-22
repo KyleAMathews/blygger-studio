@@ -1,0 +1,8 @@
+{
+  "id": "receiver-replacement-mention-mounted",
+  "source": "src/ui/authoring.tsx",
+  "find": "            {!replacing ? <HandlePicker input={input} text={held.box} change={held.change} /> : null}",
+  "replace": "            {true ? <HandlePicker input={input} text={held.box} change={held.change} /> : null}",
+  "intent": "An already-open actual mention picker must be unavailable during replacement.",
+  "author": "Codex; authored receiver challenges from BRACKET-001/FOCUS-001/REPLACE-001 audit"
+}

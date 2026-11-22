@@ -1,0 +1,405 @@
+{
+  "at": "2026-11-19T21:16:59.511120+00:00",
+  "scope": "Pure artifact/source verification; no tests, controls, compile, browser or campaign execution",
+  "manifest": "/private/tmp/blygger-prep-pr-20261119/final-original-loss-refresh/manifest.json",
+  "manifestSha256": "8d0e4e905da94e7a3c341955c30c23881711087b1b556eac669771e12d1f1a08",
+  "scannerResults": [
+    {
+      "sourceKey": "format-unit",
+      "formattingObservationCount": 91,
+      "allReportedInputHashesMatch": true,
+      "inputHashes": [
+        {
+          "path": "candidate/AGENTS.md",
+          "sha256": "aaa9fdbea2f6a8939f65949ba50ff0a2f28e733dde1b62dc1a5687508c24fd39",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/src/ui/format-shortcuts.ts",
+          "sha256": "01fbdcd4a2d7d0582cf91ccbb0374c6aefae5fdf5b14c529e8d21ea92fcd8b84",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/package.json",
+          "sha256": "2eb82c7e99c9d37f8d608d4421993a02aeba88cd030f07f144edffa3356ddadd",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/vitest.oracle.config.ts",
+          "sha256": "546d32074fb0a54fcd6261439626bf3ab831c13f6e61fbed88275a376936070b",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/vitest.oracles.config.ts",
+          "sha256": "213afe6040fa113132b60b07c7487f24be3ba3e2ea4160ef80d82a4872583fd2",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/vitest.ui.config.ts",
+          "sha256": "bc0f4a6d1eb873d54c4bc09cd5acd032b7de8ee1c6136d7e4668ba1269549745",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/vitest.browser-oracles.config.ts",
+          "sha256": "59b36a0324baac1ac1cbacdc255dee9d7d68faead63ef5ab8278c59a16a13722",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/scripts/formatting-oracles.ts",
+          "sha256": "b60ed165e3f1f632f7abf1d8b44d028149a2b59fc47c13d5cbdd3b66ef43e664",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-inline.oracle.test.ts",
+          "sha256": "c6994c41de8641db8d937794ac1d1e799404f6901ab68eafa3728b2307a5f13e",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-list.oracle.test.ts",
+          "sha256": "349ba9ddf59945f3f32793d5b3f5efd0076606ba55775d054078b36daf7255d9",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-keyboard.oracle.test.ts",
+          "sha256": "7f5208dd78eebfc466eb04d4755aa8fc820f3569f5aeb4abf74c56aaa467cefd",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-code-block.oracle.test.ts",
+          "sha256": "4af0756ef155d3e0aa2da387a01cc65f623a114bd9d84d9d886b1296ad6ec45a",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-line-break.oracle.test.ts",
+          "sha256": "bb0e9a77a7714da90a91182e045ae1a276528102a0d5323e6e81e15045844a8c",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/inline-model-oracle.ts",
+          "sha256": "c8e00da445fbc8419f2798f882bea35d0760172d67d074f4c5aeed4aecbab21c",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/list-model-oracle.ts",
+          "sha256": "59acc0dd484822262b114c578002eee579e5724368fb49c20d1c7a6f23968edc",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/keyboard-model-oracle.ts",
+          "sha256": "cba9fd1800a7e8a72a955a5544b1d1d5715f6f24fcc6bab687ce6c94210f16ca",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/block-model-oracle.ts",
+          "sha256": "500a572b079e7304d5cd8af497617e8298b8d1fa23da261dfe4bb6204b1a88bb",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/break-model-oracle.ts",
+          "sha256": "fe57377f1fb28f774873dc98ab69086e6b037244e526d6f526e82061fa11734f",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/document-oracle.ts",
+          "sha256": "c1c3f482b750530ceaa83e8afee6c0021b18c241dc722dce5fc723265db81466",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/browser-driver-oracle.ts",
+          "sha256": "d4ccc78bb85f5e7321562bbfb26830171df817d361d491684cbdf15b3ae5a151",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/browser-source-oracle.ts",
+          "sha256": "4056c22a4282a0f2e3ca5766d516ff9a5cfb7be3f3729932f916a92cebffff5b",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/property-registry-oracle.ts",
+          "sha256": "ad8aa60de918e0dd7a6854b3a1321f9a86f23645c783ea82927cfca590e99b79",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/configure-oracles.ts",
+          "sha256": "f48b86d2af552a440d02fb4272a1516bb6a89c9767f2b8b86136275703f9d858",
+          "matchesScanner": true
+        }
+      ],
+      "originalMatchesFrozenManifest": true
+    },
+    {
+      "sourceKey": "links-unit",
+      "formattingObservationCount": 21,
+      "allReportedInputHashesMatch": true,
+      "inputHashes": [
+        {
+          "path": "scanners/links-unit/latest-links.test.ts",
+          "sha256": "9e80ad513a6432b5969ccaf1b17e80596a2cd975b54754ae86ce3690b1ba93c0",
+          "matchesScanner": true
+        },
+        {
+          "path": "scanners/links-unit/authority-links.test.ts",
+          "sha256": "9e80ad513a6432b5969ccaf1b17e80596a2cd975b54754ae86ce3690b1ba93c0",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-links.oracle.test.ts",
+          "sha256": "f56d4a94bf28c7c92b81ff592aae512a0866973a9fe4c684b6d2d4e49fa9052c",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/link-model-oracle.ts",
+          "sha256": "9af8f1836b794e82d60b3b6bf9e5ff4323e22acf840ac1bbfc522a7a81faa284",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/src/ui/links.ts",
+          "sha256": "04671ef2fb05ac2363a1b0bd23236914bcbbe49d19b10b506cf6cbbcea14292c",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/browser-driver-oracle.ts",
+          "sha256": "d4ccc78bb85f5e7321562bbfb26830171df817d361d491684cbdf15b3ae5a151",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/browser-source-oracle.ts",
+          "sha256": "4056c22a4282a0f2e3ca5766d516ff9a5cfb7be3f3729932f916a92cebffff5b",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/document-oracle.ts",
+          "sha256": "c1c3f482b750530ceaa83e8afee6c0021b18c241dc722dce5fc723265db81466",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/property-registry-oracle.ts",
+          "sha256": "ad8aa60de918e0dd7a6854b3a1321f9a86f23645c783ea82927cfca590e99b79",
+          "matchesScanner": true
+        },
+        {
+          "path": "support/project-glossary.md",
+          "sha256": "ba7d8a950180a26bf3e84e069fa9bd2c9450772e337d5a481c538556c10e5179",
+          "matchesScanner": true
+        }
+      ],
+      "originalMatchesFrozenManifest": true
+    },
+    {
+      "sourceKey": "format-e2e",
+      "formattingObservationCount": 11,
+      "allReportedInputHashesMatch": true,
+      "inputHashes": [
+        {
+          "path": "scanners/format-e2e/latest-format-shortcuts.spec.ts",
+          "sha256": "002362f86b4a855feb93c8ed02014db9945a453b618c5fe4df001ba41cd3a89a",
+          "matchesScanner": true
+        },
+        {
+          "path": "scanners/format-e2e/authority-format-shortcuts.spec.ts",
+          "sha256": "fc12dd43513125d2d634bb3782d1ebf13f2a3fad1bfd4d495f5dff7d39c1df08",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/AGENTS.md",
+          "sha256": "aaa9fdbea2f6a8939f65949ba50ff0a2f28e733dde1b62dc1a5687508c24fd39",
+          "matchesScanner": true
+        },
+        {
+          "path": "support/field-lab-SKILL.md",
+          "sha256": "1b1992ff73a9a372a4b5b467a29d09642d89daff2b86d86d2c9c63dfb03b4088",
+          "matchesScanner": true
+        },
+        {
+          "path": "support/loss-audit.md",
+          "sha256": "46ad1ef011495c3724caecda7814b5b642f668883a6a6d9050db250def4c690b",
+          "matchesScanner": true
+        },
+        {
+          "path": "support/oracles/skills/oracles-review/SKILL.md",
+          "sha256": "9d48b6eb15fb9cfc9309f7b3fcccc97ca16b1aa867df1b212b86acb383252cf7",
+          "matchesScanner": true
+        },
+        {
+          "path": "support/oracles/docs/glossary.md",
+          "sha256": "dadec892f63c53457125c3e951c4c8c1b9df938d035aca02d286c7878b92243a",
+          "matchesScanner": true
+        },
+        {
+          "path": "support/oracles/docs/oracle-checklist.md",
+          "sha256": "cf46fd8f1d9a7e69d5251297fa793345ea184fb73c27f116a6d5caf8c8ecbea4",
+          "matchesScanner": true
+        },
+        {
+          "path": "support/project-glossary.md",
+          "sha256": "ba7d8a950180a26bf3e84e069fa9bd2c9450772e337d5a481c538556c10e5179",
+          "matchesScanner": true
+        },
+        {
+          "path": "support-glossary-addendum.json",
+          "sha256": "f9a968c18a9de451d569cd8de9fa78dd7bb72c369a2e64205a3d3e0a52db8182",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-session.oracle.test.ts",
+          "sha256": "05e19052c5d1bbaa63cf30439d55e971fd468e93d4c793e0ba1be7a746d01d90",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-navigation.oracle.test.ts",
+          "sha256": "1f84b4f36ef00f56f3b782736442fa04e0900905c03d6aeba9c190b99111ba43",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/session-model-oracle.ts",
+          "sha256": "d6bb8085476ca484670d2abd501bb7322374eb6186bf5561523412aec556d296",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/session-driver-oracle.ts",
+          "sha256": "8a2e6345e1d0ddbe9d6282943ccf10cc10cb2f76bf0fb7aef0500f65a2a0eb11",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/navigation-model-oracle.ts",
+          "sha256": "568b1ecd150459fc7aa384f50edfeb19489f2ee402130f9ef05bcfdc85d0d2c4",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/navigation-driver-oracle.ts",
+          "sha256": "b93e3dfabb7d28a8724181609af0ff248e17c4f05b9fb305a7afa8d58ddc717a",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/navigation-acquisition-oracle.ts",
+          "sha256": "df172c0593b4dad0080b39d06905472f85c1c3bd00c98ae1d16c03b9ebb280fd",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/application-driver-oracle.ts",
+          "sha256": "45748c2a5171b79ba669fd634a9beeef0a8995585ac8d0131c0fecafd5c23b2e",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/browser-driver-oracle.ts",
+          "sha256": "d4ccc78bb85f5e7321562bbfb26830171df817d361d491684cbdf15b3ae5a151",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/browser-engine-oracle.ts",
+          "sha256": "771d591d619af9933e2aac6bf2af8c357974ef3b7e22e079fd72da984f88ad72",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/native-host-oracle.ts",
+          "sha256": "4a74e121541a5067d5544319043d16c64fb0d5c0c612e85ae43541512a8170ee",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/property-registry-oracle.ts",
+          "sha256": "ad8aa60de918e0dd7a6854b3a1321f9a86f23645c783ea82927cfca590e99b79",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/document-oracle.ts",
+          "sha256": "c1c3f482b750530ceaa83e8afee6c0021b18c241dc722dce5fc723265db81466",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/inline-model-oracle.ts",
+          "sha256": "c8e00da445fbc8419f2798f882bea35d0760172d67d074f4c5aeed4aecbab21c",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/scripts/formatting-oracle-application.ts",
+          "sha256": "8de139484533e2adb15b011282fbf6c620c4eee9f4c76fb5141505087811971b",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/src/ui/authoring.tsx",
+          "sha256": "4f9f069d43264ebab1ad7329be1b918c8cd7ea89a3f956435970ee976a032025",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/src/ui/buttons.tsx",
+          "sha256": "2c286522b75ac08b91d37c63936e6a18af6d86e3b73e12deb4f9dbe590f488f9",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/src/ui/format-shortcuts.ts",
+          "sha256": "01fbdcd4a2d7d0582cf91ccbb0374c6aefae5fdf5b14c529e8d21ea92fcd8b84",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/vitest.oracle.config.ts",
+          "sha256": "546d32074fb0a54fcd6261439626bf3ab831c13f6e61fbed88275a376936070b",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/playwright.config.ts",
+          "sha256": "bc24ff24b7e3815e5cf4af1fb15d06d8a4f9a60343fb90abedc8d4971803446a",
+          "matchesScanner": true
+        }
+      ],
+      "originalMatchesFrozenManifest": true
+    },
+    {
+      "sourceKey": "structure-e2e",
+      "formattingObservationCount": 17,
+      "allReportedInputHashesMatch": true,
+      "inputHashes": [
+        {
+          "path": "scanners/structure-e2e/latest-markdown-structure.spec.ts",
+          "sha256": "04089a07d25329fa4abb9baf253faa5df21a38586cbe564c4c62af4a1055c50f",
+          "matchesScanner": true
+        },
+        {
+          "path": "scanners/structure-e2e/authority-markdown-structure.spec.ts",
+          "sha256": "04089a07d25329fa4abb9baf253faa5df21a38586cbe564c4c62af4a1055c50f",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/session-model-oracle.ts",
+          "sha256": "d6bb8085476ca484670d2abd501bb7322374eb6186bf5561523412aec556d296",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/session-driver-oracle.ts",
+          "sha256": "8a2e6345e1d0ddbe9d6282943ccf10cc10cb2f76bf0fb7aef0500f65a2a0eb11",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-session.oracle.test.ts",
+          "sha256": "05e19052c5d1bbaa63cf30439d55e971fd468e93d4c793e0ba1be7a746d01d90",
+          "matchesScanner": true
+        },
+        {
+          "path": "candidate/test-ui/editor-oracles/property-registry-oracle.ts",
+          "sha256": "ad8aa60de918e0dd7a6854b3a1321f9a86f23645c783ea82927cfca590e99b79",
+          "matchesScanner": true
+        },
+        {
+          "path": "support/project-glossary.md",
+          "sha256": "ba7d8a950180a26bf3e84e069fa9bd2c9450772e337d5a481c538556c10e5179",
+          "matchesScanner": true
+        },
+        {
+          "path": "support-glossary-addendum.json",
+          "sha256": "f9a968c18a9de451d569cd8de9fa78dd7bb72c369a2e64205a3d3e0a52db8182",
+          "matchesScanner": true
+        }
+      ],
+      "originalMatchesFrozenManifest": true
+    }
+  ],
+  "frozenCandidateInputs": 304,
+  "currentCandidateDrift": [],
+  "centralCompletionRead": {
+    "items": 60,
+    "events": 48,
+    "sha256": "80001b8934555100de74fa9e4ca862e08895344e26478ece501d58da0bd2dda9",
+    "previous53ItemsExactPrefix": true,
+    "previous42EventsExactPrefix": true
+  },
+  "noIntegrationOrCentralWrites": true
+}

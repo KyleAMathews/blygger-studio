@@ -1,0 +1,8 @@
+{
+  "id": "one-grapheme-endpoint",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "boundaries.has(edit.from) && boundaries.has(edit.to)",
+  "replace": "boundaries.has(edit.from) || boundaries.has(edit.to)",
+  "intent": "Both UTF16 endpoints must be safe for native editing, including deleting a base without its following combining mark.",
+  "author": "Independent browser gap review"
+}

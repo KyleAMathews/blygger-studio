@@ -1,0 +1,110 @@
+{
+  "schema": "blygger-formatting-file-pass-smoke-v1",
+  "date": "2026-11-19",
+  "reviewedBaseCommit": "049b5a7bf9661a22ff4cee31b156b7dd2cbee194",
+  "combinedPatchSha256": "213b03147e403f2cec2c721867ff82bce1447be2528eaf8209b096ae01b11b70",
+  "combinedSourceManifestSha256": "51d13071c09cf6fd9f0d3aaf4b107cd8bdfc9937d63066b151c8e05f548b6343",
+  "shippingManifestSha256": "149bf8f29365ca2ae8050cd4248787001e5853715676dd4e4ec9bd852edff211",
+  "shippedPublicSourceFiles": 616,
+  "shippedSourceArchiveSha256": "32741e92e8d2146aaa497c39d227244e092e90d84315362ce0ac9a187cae119a",
+  "installedOraclePin": "97a4e7a",
+  "derivedRunnerPatchSha256": "69f048cf3c049f2c9f0f90c230be7f8330805e1bdbe0d31a90685241150ad797",
+  "completeFormattingRegistry": {
+    "files": 16,
+    "properties": 39,
+    "preservedPropertyBodies": 39
+  },
+  "executedScope": {
+    "files": [
+      "test-ui/editor-bracket-receiver.oracle.test.ts",
+      "test-ui/editor-session.oracle.test.ts"
+    ],
+    "passes": [
+      "first",
+      "repeat"
+    ],
+    "registrationsPerPass": 156,
+    "passed": 312,
+    "failed": 0,
+    "skipped": 0,
+    "freshFilePassApplicationFixtures": 4,
+    "freshBrowserOwners": 4,
+    "mutationAudit": "not-run"
+  },
+  "registrationTitlesPerPass": {
+    "bracket": {
+      "fixed seed": 5,
+      "random seed": 5,
+      "calibration": 1,
+      "determinism": 7
+    },
+    "session": {
+      "fixed seed": 43,
+      "random seed": 43,
+      "calibration": 7,
+      "determinism": 45
+    }
+  },
+  "reportedRoutesPerPass": {
+    "bracket": {
+      "fixed seed": 10,
+      "calibration": 8
+    },
+    "session": {
+      "fixed seed": 86,
+      "calibration": 52
+    }
+  },
+  "routeMeaning": "The declared runner seed 20261118 normalizes generated campaigns, including random-named registrations, to fixed-seed routes; determinism registers calibration. This is not fresh uncontrolled-randomness evidence.",
+  "captureMeaning": "Full registration keysets and nonempty observation-stream SHA1 values agree between passes. capture.hash is an assertion-stream SHA1, not source identity. Separate snapshots and derivation bind source.",
+  "runtime": {
+    "node": "22.18.0",
+    "nodeBinarySha256": "ccacb2d6d87ba6d118b2bffc1ae33747a05cc5fc6b1f1ec4fc1d420b687e952d",
+    "browser": "Chromium 156.0.8078.80",
+    "containerImage": "mcr.microsoft.com/playwright:v1.64.1-noble",
+    "contexts": 2,
+    "maximumApplicationLeases": 2,
+    "dockerCPUQuota": 2,
+    "CPUSet": [
+      0,
+      1
+    ],
+    "memoryGiB": 8,
+    "init": true,
+    "autoRemove": true,
+    "elapsedSeconds": 481.6362558469991
+  },
+  "verification": {
+    "sourceUnchanged": true,
+    "packageUnchanged": true,
+    "installedAndDerivedPackageFiles": 78,
+    "allApplicationSetupAndCleanupFulfilled": true,
+    "exactContainerAbsenceVerified": 3,
+    "localAuditChecksPassed": 18,
+    "independentRuntimeGate": "PASS",
+    "persistedCredentialScan": "No sensitive JSON fields or JWT/Bearer-shaped values found; this does not identify arbitrary secrets by shape."
+  },
+  "artifacts": {
+    "resultsSha256": "d7b7c475f59f200e5a33c45364e097543739641578597f0cdd7e7196fbd7eff2",
+    "applicationTopologySha256": "b56ca86633e9521d5725dceadd6f9a19fb763306865905158e80ee3ab9b73e15",
+    "runtimePhasesSha256": "ac73909a272c3022b4917247e9fc3b78c87edef58cdb0f39701555efe2417b65",
+    "reconciliationSha256": "c7d6c63e999b468bc41632266d77e3026e8c72fccb45dd53bd7b9ee8fd5be19b",
+    "derivationSha256": "de60410da5bc6f501c5ab511ad690f5bb27e036c4323e70264ae3edfff470227",
+    "diagnosticConfigSha256": "209456772bce4e83b70bd1f4876358204c3622086d5ffb0b84c65fcc64311534",
+    "derivedIndexSha256": "cffb9dc7e3901e0e1e5b5ec56f726fd77cea5ea835896915b79aa0a0392970d4",
+    "secrecyAuditSha256": "dc4e642a1ce00a76c7b533d6f8c92508d6b7adb26138bf2a522eb5f6986f7796",
+    "localRuntimeAuditSha256": "1cc2a759136bbcfa61ae26fd0e28ccd8cacafa5c36644d18474966340b326ccc",
+    "independentRuntimeGateSha256": "eea9ba4de96a8bf59b4b1c47345f3f6115bd7e01828a4be82a38e037cc6075f0"
+  },
+  "unfavorableHistory": [
+    "First exact-lock install failed with ECONNRESET while fetching a public pinned tarball; no build or oracle ran. The original receipt remains unchanged.",
+    "Its absence classifier failed on lowercase Docker missing-object text. Later successful exact-CID-filtered listings verified absence. The corrected supervisor passes 12 controlled cases; these are retrospective controls, not product RED.",
+    "The initial local smoke audit wrongly equated title categories with route fields and called assertion-stream hashes source hashes. Its source and outputs remain preserved; corrected bookkeeping changes no oracle/runtime output."
+  ],
+  "limits": [
+    "Bounded two-file smoke only; complete 16-file/two-pass runtime remains pending.",
+    "Later owned-fixture cleanup patch f0414363 is not included in this smoke.",
+    "No mutation rejection, gap closure, migration deletion acceptance, CI budget acceptance or cross-browser guarantee.",
+    "Full mutation route still uses pristine singleton fixture; its shared-fixture risk remains open."
+  ]
+}
