@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { requireExecutedFormattingOracles, requireFormattingCheckPurpose } from './formatting-baseline-evidence.ts';
 
-export const baselineSources = ['src/ui/format-shortcuts.ts', 'src/ui/links.ts', 'src/ui/draft.ts'];
+export const baselineSources = ['src/ui/format-shortcuts.ts', 'src/ui/links.ts', 'src/ui/draft.ts', 'src/ui/authoring.tsx', 'src/ui/sheets.tsx'];
 type Input = { path: string; sha256: string; link?: string; resolved?: { path: string; sha256: string } };
 type Inventory = { file: string; sha256: string; properties: string[] }[];
 export interface BaselinePlan {
@@ -30,7 +30,7 @@ function checked(condition: unknown, message: string): asserts condition { asser
 function hostIdentity() {
   return { platform: process.platform, architecture: process.arch, kernel: release(), node: process.version,
     nodeSha256: digest(readFileSync(process.execPath)), imageOS: process.env.ImageOS ?? '', imageVersion: process.env.ImageVersion ?? '',
-    environment: Object.fromEntries(['CI', 'GITHUB_ACTIONS', 'TZ', 'LANG', 'LC_ALL'].map(name => [name, process.env[name] ?? null])) };
+    environment: Object.fromEntries(['CI', 'GITHUB_ACTIONS', 'TZ', 'LANG', 'LC_ALL', 'CLOUDFLARE_CF_FETCH_ENABLED'].map(name => [name, process.env[name] ?? null])) };
 }
 function unwrap(node: ts.Expression): ts.Expression {
   while (ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isParenthesizedExpression(node) || ts.isTypeAssertionExpression(node)) node = node.expression;

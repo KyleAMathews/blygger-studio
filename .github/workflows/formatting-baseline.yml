@@ -9,6 +9,8 @@ on:
         type: string
         default: '0'
 env:
+  # The optional geolocation lookup otherwise writes node_modules/.mf/cf.json.
+  CLOUDFLARE_CF_FETCH_ENABLED: 'false'
   PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/formatting-browsers
 permissions:
   contents: read

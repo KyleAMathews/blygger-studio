@@ -41,7 +41,8 @@ const receiver = !selected || selected === 'workflows' || selected === 'navigati
 // Default operator scope stays at the three editor helper modules. The authored
 // directory still supplies raw receiver challenges; explicit receiver selections
 // additionally request operator exploration throughout authoring.tsx.
-const sources = selected === 'links' ? 'src/ui/links.ts' : selected === 'workflows' ? 'src/ui/links.ts,src/ui/authoring.tsx' : selected === 'draft' ? 'src/ui/draft.ts' : selected === 'navigation' ? 'src/ui/draft.ts,src/ui/format-shortcuts.ts,src/ui/authoring.tsx' : selected === 'receivers' || selected === 'session' || selected === 'newline-history' || selected === 'held-newline' ? 'src/ui/format-shortcuts.ts,src/ui/authoring.tsx' : selected ? 'src/ui/format-shortcuts.ts' : 'src/ui/format-shortcuts.ts,src/ui/links.ts,src/ui/draft.ts';
+const baselineRequested = args.some(arg => arg.replace(/^--/, '').split('=')[0] === 'baseline-only');
+const sources = baselineRequested ? (await import('./formatting-baseline-plan.ts')).baselineSources.join(',') : selected === 'links' ? 'src/ui/links.ts' : selected === 'workflows' ? 'src/ui/links.ts,src/ui/authoring.tsx' : selected === 'draft' ? 'src/ui/draft.ts' : selected === 'navigation' ? 'src/ui/draft.ts,src/ui/format-shortcuts.ts,src/ui/authoring.tsx' : selected === 'receivers' || selected === 'session' || selected === 'newline-history' || selected === 'held-newline' ? 'src/ui/format-shortcuts.ts,src/ui/authoring.tsx' : selected ? 'src/ui/format-shortcuts.ts' : 'src/ui/format-shortcuts.ts,src/ui/links.ts,src/ui/draft.ts';
 // Parse the exact final invocation with the installed pin. Its parser accepts
 // inline and bare flag spellings too; a substring scan cannot enforce cold mode.
 const cliArgs = [
@@ -49,7 +50,6 @@ const cliArgs = [
   '--config', 'vitest.oracle.config.ts', '--mutants', 'test-ui/editor-oracle-mutants',
   '--contexts', !selected || selected === 'workflows' ? '1' : '2', '--test-timeout', '60000', '--first-limit', '60000', ...args,
 ];
-const baselineRequested = args.some(arg => arg.replace(/^--/, '').split('=')[0] === 'baseline-only');
 const runner = baselineRequested ? await prepareFormattingBaselineRunner() : resolve('node_modules/@tanstack/oracles');
 const { parseArgs } = await import(pathToFileURL(resolve(runner, 'oracle-gaps/args.mjs')).href);
 // Choose entropy in this parent, before oracle-gaps installs deterministic randomness.
