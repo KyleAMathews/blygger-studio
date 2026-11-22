@@ -62,9 +62,13 @@ const SYSTEM_PROMPT =
   "text: no preamble, no meta-commentary, no code fences, no explanation of what " +
   "you did. The output becomes the literal body of the author's document, so match " +
   "the voice, register, and formatting conventions of the surrounding context. " +
-  "Never write the document's bracket syntax — `[[…]]` or `![[…]]` — and never write an " +
-  "item id: refer to sources and other items in words. The one exception is when the " +
-  "instruction explicitly asks you to quote a source: then put `![[id]]` alone on its own line.";
+  "Links: write a link to a web page as a markdown link, `[text](url)`, using URLs from the " +
+  "instruction, the sources or the document. Write a link to an item of this blog as " +
+  "`[[id | text]]`, where id is a 26-character item id that appears in the instruction, the " +
+  "sources or the document, and text is the words the link should show; use only ids you were " +
+  "given, never invent one, and never link the item you are writing in. Never write `![[…]]` " +
+  "inside a sentence: that is a quotation, not a link. When the instruction explicitly asks you " +
+  "to quote a source, put `![[id]]` alone on its own line.";
 
 function buildUserContent(req: GenerateRequest): string {
   const parts: string[] = [`Instruction: ${req.instruction}`];

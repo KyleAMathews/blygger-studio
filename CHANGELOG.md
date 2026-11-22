@@ -47,6 +47,13 @@ changelog note, and an entry whose note calls a large change minor stays in view
 toggle beneath the instruction turns that keep-in-view default off, so the classifier's label
 alone decides.
 
+**[TK] generation can write links** (Venkat, session 78). The model is now told how: a
+web page as a markdown link, an item of the blyg as `[[id | text]]` with an id from your
+instruction, its sources or the draft. A link to an item you supplied that resolves stays a
+link, published and disclosed like any other; a link to an id the model invented is reduced
+to its words, as before. A quote mid-sentence (`![[…]]`) is still taken out: quotes go on a
+line of their own.
+
 **A quote of list items keeps its bullets** (decision #114, spec §16.15, ROADMAP row 136).
 A partial quote used to publish quoted list items as bare paragraphs, on every page that
 showed it. Now a quoted line that is a list item in the quoted post publishes as one, in a

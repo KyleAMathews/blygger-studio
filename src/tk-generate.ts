@@ -4,7 +4,7 @@ import { installWorkingCopy } from './item-revision.ts';
 // fetch, the same DI pattern importer/schedule.ts uses for runScheduledPoll.
 
 import { generate, markDocument, platformProviderFetch, ProviderError, AiBudgetError, type ProviderFetchLike } from "./ai/provider.ts";
-import { stripGeneratedGrammar } from "./grammar.ts";
+import { ID, LINK_INLINE, stripGeneratedGrammar } from "./grammar.ts";
 import { selectionText } from "./markdown.ts";
 import { getSettings, getTkProvenance } from "./model.ts";
 import { composeStubCite } from "./stub.ts";
@@ -90,8 +90,15 @@ export async function runGenerateScope(
     throw e;
   }
 
-  // Generated text is not grammar (row 67): strip any bracket form the model echoed.
-  result = { ...result, text: stripGeneratedGrammar(result.text) };
+  // Generated text keeps no bracket form the author did not supply (row 67):
+  // a link to an item named in the instruction, a source or the draft, that
+  // resolves, stays a link (Venkat, session 78); any other is stripped to its label.
+  const supplied = new Set([scope.instruction, context.text].flatMap((t) => [...t.matchAll(new RegExp(ID, "g"))].map((m) => m[0])).concat(scope.sourceIds));
+  const kept = new Set<string>();
+  for (const [, id] of result.text.matchAll(LINK_INLINE)) {
+    if (id && supplied.has(id) && !kept.has(id) && (await resolveTarget(env.DB, id)).ok) kept.add(id);
+  }
+  result = { ...result, text: stripGeneratedGrammar(result.text, (id) => kept.has(id)) };
   const updatedMd = setScopeOutput(item.content_md, scope, result.text);
   const provenance = getTkProvenance(item);
   while (provenance.length < scopes.length) provenance.push(null);
