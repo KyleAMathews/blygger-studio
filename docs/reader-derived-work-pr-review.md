@@ -225,3 +225,45 @@ a9c3f41ccf7509d4baec40ddcfdd25d98a976eac9bb8b88b8e9c54ff076b869b  test/polling-c
 83c1110db49805d3499cfff26a081445c999d751b1720fc392a35c6f73e385bf  test/reader-work.oracle.test.ts
 e515825a08cb5e6b93f01f0cc187dc29b1da7ece61d463d0a18c0152772b9c42  test/reading-owner-work.oracle.test.ts
 ```
+
+
+## Studio CI preparation coverage
+
+On parent commit `da06e0d9654c50c9aae8f2e89831b91778c7e270`,
+[CI run 45074478891](https://github.com/blygger/blygger-studio/actions/runs/45074478891)
+passed every Studio baseline but found automatic mutant
+`cursor-page.ts:M140`: replacing `source.prepare?.()` with `undefined`
+was not distinguished by the Studio owners. The Worker handoff driver already
+exercised preparation, but that receiving boundary was absent from this campaign.
+
+The native `cursor-projection-generation` driver now starts its derived table
+behind a separate source. Preparation copies source rows; relevant projection
+writes update only the source. Stable pages therefore require preparation,
+and a first-page retry requires fresh derivation. The model, law, grammar,
+checkpoints, seeds and run budget are unchanged. This strengthens the adopted
+stable projected cursor generation law. No production change was needed,
+so this is baseline GREEN plus mutant rejection, rather than a product RED/fix.
+The independent oracle review found no blocker in this driver delta.
+
+For example, initial value0 followed by one relevant projection write owes
+id1/value1 after retry. Omitting preparation returns stale data; preparing only
+once leaves value0. Stable, unrelated-write, continuation-expiry, repeated-expiry
+and snapshot histories remain in the same generated domain and constructed reach.
+No design-grammar trigger comes from this change: no model rule or law changes,
+and the CI failure contains one gap.
+
+The focused run `3eaf2e16ee1b` passes all190 codec tests and rejects M140 under
+`stable projected cursor generation`, on fixed seed20261118's stable history.
+The complete cursor selection plus counter owner, run `2480d30ee4eb`, passes
+556 tests in five files, rejects all203 automatic cursor mutations and five
+owned authored controls, and reports zero gaps and zero nondeterministic tests.
+The other19 authored controls are unowned warnings for modules outside this
+selection. The initial four-file selection also killed all203 automatic cursor
+mutations, but exposed three counter-validation controls without their counter
+owner; that incomplete selection is not recorded as a passing gate.
+
+Changed-file ESLint, oracle TypeScript and `git diff --check` pass.
+The only changed test source has SHA-256 `d684002fa3ea21752806adb0f2d7ed8b0d8e15ba9bdb9e1b72d0cf622cdd4618`:
+`test-oracles/cursor-codec.oracle.test.ts`. The product manifest above remains
+unchanged. These receipts add native SQLite preparation coverage; they do not
+extend the earlier deployment, replication or performance claims.
