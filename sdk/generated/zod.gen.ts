@@ -201,6 +201,11 @@ export const zSettings = z.object({
     ]),
     changelogSummaryPrompt: z.string(),
     agenticTitle: z.string(),
+    readerMarkRead: z.enum([
+        'seen',
+        'opened',
+        'never'
+    ]),
     readerOrder: z.enum(['newest', 'pace-layered']),
     backgroundRules: z.object({
         burst: z.boolean(),
@@ -1451,6 +1456,11 @@ export const zUpdateSettingsBody = z.object({
     ]).optional(),
     changelogSummaryPrompt: z.string().optional(),
     agenticTitle: z.string().optional(),
+    readerMarkRead: z.enum([
+        'seen',
+        'opened',
+        'never'
+    ]).optional(),
     readerOrder: z.enum(['newest', 'pace-layered']).optional(),
     backgroundRules: z.object({
         burst: z.boolean().optional(),

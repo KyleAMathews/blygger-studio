@@ -26,6 +26,14 @@ function dateOrderSql(column: string) {
  * (none can be, once ensureReaderOrder has run, but a row may land between)
  * sorts above every position.
  */
+/**
+ * An imported row whose subscription still exists. The projection and the
+ * pace-layered order both join subscriptions, so a row without one (left by an
+ * old unsubscribe) was selected and then dropped: under pace-layered, with no
+ * position, it sorted first, and venkateshrao's 431 such rows made the first
+ * eight Reading pages empty (session 79).
+ */
+const HELD = "EXISTS (SELECT 1 FROM subscriptions held WHERE held.id = ii.subscription_id)";
 const paceAtSql = (alias: string) => `CASE WHEN ${alias}.position IS NULL THEN '4' ELSE '3' || printf('%09d', 999999999 - ${alias}.position) END`;
 function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolean, rules: readonly BackgroundRule[], hopper?: string, mentioning?: string[], shelf = false, order: ReaderOrder = 'newest', raw = false) {
   if (shelf) return shelfIdentitySql(hopper);
@@ -43,7 +51,7 @@ function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolea
       ${hopper ? 'hi.added_at' : pace ? paceAtSql('ro') : `CASE WHEN ${updated} < ${observed} THEN ${updated} ELSE ${observed} END`}
     FROM imported_items ii ${hopper ? 'JOIN hopper_items hi ON hi.subscription_id = ii.subscription_id AND hi.remote_id = ii.remote_id AND hi.hopper_id = ?' : ''}
     ${pace ? "LEFT JOIN reading_order ro ON ro.source = 'imported' AND ro.sub = ii.subscription_id AND ro.id = ii.remote_id" : ''}
-    WHERE (${importedBackgroundSql()}) = ${background ? 1 : 0}${kind ? ' AND ii.kind = ?' : ''}${mentioning ? ` AND EXISTS (SELECT 1 FROM imported_mentions m
+    WHERE ${HELD} AND (${importedBackgroundSql()}) = ${background ? 1 : 0}${kind ? ' AND ii.kind = ?' : ''}${mentioning ? ` AND EXISTS (SELECT 1 FROM imported_mentions m
       WHERE m.subscription_id = ii.subscription_id AND m.remote_id = ii.remote_id AND m.target IN (SELECT value FROM json_each(?)))` : ''}`;
   return { sql, binds };
 }
@@ -54,7 +62,7 @@ function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolea
 function rawIdentitySql(kind: 'thread' | 'fragment' | undefined) {
   const updated = dateOrderSql('ii.updated'), observed = dateOrderSql('ii.observed_at');
   const sql = `SELECT 'imported' AS source, ii.remote_id AS id, ii.subscription_id AS sub, CASE WHEN ${updated} < ${observed} THEN ${updated} ELSE ${observed} END AS at
-    FROM imported_items ii WHERE 1${kind ? ' AND ii.kind = ?' : ''}`;
+    FROM imported_items ii WHERE ${HELD}${kind ? ' AND ii.kind = ?' : ''}`;
   return { sql, binds: kind ? [kind] : [] };
 }
 /**

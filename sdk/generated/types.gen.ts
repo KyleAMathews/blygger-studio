@@ -192,6 +192,10 @@ export type Settings = {
      */
     agenticTitle: string;
     /**
+     * When a reader entry counts as read: seen (on screen about a second while scrolling, the default), opened (its full view), or never (marked by hand only).
+     */
+    readerMarkRead: 'seen' | 'opened' | 'never';
+    /**
      * The Feed tab's order: pace-layered (the default), the home page's order run over everything you read (ROADMAP row 69), or newest first, shown as chronological. Hoppers and Saved keep their own order.
      */
     readerOrder: 'newest' | 'pace-layered';
@@ -3128,6 +3132,10 @@ export type UpdateSettingsData = {
          * The owner's name for the Agentic feed tab ("Daily digest", "My briefing"), at most 40 characters; also the heading of each edition's thread. Empty restores "Agentic feed".
          */
         agenticTitle?: string;
+        /**
+         * When a reader entry counts as read: seen (on screen about a second while scrolling, the default), opened (its full view), or never (marked by hand only).
+         */
+        readerMarkRead?: 'seen' | 'opened' | 'never';
         /**
          * The Feed tab's order: pace-layered (the default), the home page's order run over everything you read (ROADMAP row 69), or newest first, shown as chronological. Hoppers and Saved keep their own order.
          */

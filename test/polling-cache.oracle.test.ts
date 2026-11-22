@@ -391,14 +391,14 @@ type ReadAction = { event: 'mark'; version: number; readAt?: string } | { event:
 const readActions: ReadAction[] = [{ event: 'mark', version: 2 }, { event: 'mark', version: 1 }, { event: 'clear' }, { event: 'mark', version: 2, readAt: '2000-01-01T00:00:00Z' }];
 oracleProperty({
   id: 'polling-cache-reading-effects', owns: ['src/changes.ts'],
-  law: { statement: 'For every read-mark history, a newer applied read or clear changes the Reading response and its domain; older replay and pre-clear reads change neither.', authority: 'docs/d1-polling-cache-design.md P2/R1 and migration0026 read-state tombstone contract', limits: 'Original received two-version mark/replay/clear/old-timestamp sequence, not concurrent writers.' },
+  law: { statement: 'For every read-mark history, a newer applied read or clear changes the Reading response and advances the marks domain alone, never reading, so a read mark never expires a Reading cursor; older replay and pre-clear reads change neither.', authority: 'docs/d1-polling-cache-design.md P2/R1, migration0026 read-state tombstone contract, and the marks domain (migration 0057; law change approved by Venkat, session 79)', limits: 'Original received two-version mark/replay/clear/old-timestamp sequence, not concurrent writers.' },
   histories: [readActions],
   model: history => {
     let version = 0, cleared = false;
     return history.map(action => {
       const changed = action.event === 'clear' ? version > 0 : !(cleared && action.readAt) && action.version > version;
       if (changed) { version = action.event === 'clear' ? 0 : action.version; cleared = action.event === 'clear'; }
-      return { changed, domains: changed ? ['reading'] : [] };
+      return { changed, domains: changed ? ['marks'] : [] };
     });
   },
   driver: async (history, observe) => stored(observe, async () => {
@@ -428,7 +428,10 @@ oracleProperty({
     }
     return complete(trace) ? differs('history complete', law, rows.length, expected.length) ?? pass : pass;
   },
-  calibrations: [{ name: 'replayed older mark changes Reading', law: 'Reading receiving effect', history: { enumerated: 0 }, corrupt: trace => { let index = 0; return trace.map(entry => entry.checkpoint === 'Reading receiving effect' && ++index === 2 ? { ...entry, value: { ...(entry.value as object), changed: true } } : entry); } }],
+  calibrations: [
+    { name: 'replayed older mark changes Reading', law: 'Reading receiving effect', history: { enumerated: 0 }, corrupt: trace => { let index = 0; return trace.map(entry => entry.checkpoint === 'Reading receiving effect' && ++index === 2 ? { ...entry, value: { ...(entry.value as object), changed: true } } : entry); } },
+    { name: 'a read mark moves reading', law: 'Reading receiving effect', history: { enumerated: 0 }, corrupt: trace => { let index = 0; return trace.map(entry => entry.checkpoint === 'Reading receiving effect' && ++index === 1 ? { ...entry, value: { ...(entry.value as { delta: object }), delta: { ...(entry.value as { delta: object }).delta, domains: ['marks', 'reading'], advances: ['marks', 'reading'] } } } : entry); } },
+  ],
 });
 oracleProperty({
   id: 'polling-cache-imported-dependencies', owns: ['src/changes.ts'],

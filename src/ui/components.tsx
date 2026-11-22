@@ -10,7 +10,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { Button } from '@base-ui/react/button';
-import { Link, useLocation } from '@tanstack/react-router';
+import { Link, useLocation, useRouter } from '@tanstack/react-router';
 import { eq, useLiveQuery, type Collection } from '@tanstack/react-db';
 import { CancelledError, type QueryClient } from '@tanstack/query-core';
 import {
@@ -304,6 +304,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const showTabs = chrome.tabs ?? true;
   const framed = chrome.framed ?? true;
   const wide = chrome.wide ?? (path === '/reading' || path.startsWith('/edit/'));
+  const router = useRouter();
   const readProblem = useSyncExternalStore(subscribeReadProblems, readProblemSnapshot);
   const shownProblem = useSettledReadProblem(readProblem);
   const error = shownProblem?.cause ?? shownProblem;
@@ -410,7 +411,9 @@ export function Layout({ children }: { children: ReactNode }) {
             <Button
               className="btn btn-ghost btn-mini"
               onClick={() => {
-                void retryReadProblems(readSources);
+                // Pages draw before their lists load (session 79), so a list
+                // that failed there is reloaded by its route's loader too.
+                void retryReadProblems(readSources).then(() => router.invalidate());
               }}
             >
               retry reads

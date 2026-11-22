@@ -57,7 +57,9 @@ test('a failed initial Reading page recovers through the existing retry control'
   });
   await page.goto('/studio/reading?sub=all'); await expect(page.getByRole('alert')).toContainText('controlled initial read failure');
   const received = page.waitForResponse(response => new URL(response.url()).pathname === '/api/reading' && response.status() === 200);
-  await page.getByRole('button', { name: 'retry', exact: true }).click();
+  // The page draws before its feed loads (session 79), so a failed feed read
+  // shows in the studio's read banner, page and tabs intact, not as a route error.
+  await page.getByRole('button', { name: 'retry reads', exact: true }).click();
   await (await received).finished(); await page.clock.runFor(1_000);
   await expect(page.locator('.entry').first()).toBeVisible();
 });

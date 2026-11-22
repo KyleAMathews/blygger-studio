@@ -795,6 +795,7 @@ const SETTINGS_KEYS = [
   "changelog_display",
   "reader_changelog_display",
   "reader_order",
+  "reader_mark_read",
   "agentic_title",
   "changelog_summary_prompt",
   "picker_typing",
@@ -834,6 +835,7 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
   if (typeof patch.agentic_title === "string" && patch.agentic_title.trim().length > 40) return failure('invalid-input', { error: "agenticTitle is at most 40 characters" });
   if (typeof patch.bg_instruction === "string" && patch.bg_instruction.trim().length > INSTRUCTION_MAX_CHARS) return failure('invalid-input', { error: `bgInstruction is at most ${INSTRUCTION_MAX_CHARS} characters` });
   if (typeof patch.reader_order === "string" && !(READER_ORDERS as readonly string[]).includes(patch.reader_order)) return failure('invalid-input', { error: `readerOrder must be ${READER_ORDERS.join(" or ")}` });
+  if (typeof patch.reader_mark_read === "string" && !["seen", "opened", "never"].includes(patch.reader_mark_read)) return failure('invalid-input', { error: "readerMarkRead must be seen, opened or never" });
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return failure('invalid-input', { error: `unknown timezone: ${patch.timezone}` });
   if (patch.author_url && !(URL.canParse(patch.author_url) && ["http:", "https:"].includes(new URL(patch.author_url).protocol))) return failure('invalid-input', { error: "authorUrl must be an absolute http(s) URL" });
   if (patch.site_url && !(URL.canParse(patch.site_url) && ["http:", "https:"].includes(new URL(patch.site_url).protocol))) return failure('invalid-input', { error: "siteUrl must be an absolute http(s) URL" });
