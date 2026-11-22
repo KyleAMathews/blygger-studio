@@ -18,7 +18,7 @@ not have its own repo until session 26.
 
 ---
 
-## Unreleased (the 0.69.0 batch)
+## 0.69.0 — Helpers and Catch up; the Agentic feed's foundations; spellcheck, a dictionary and claims; full-text search; quoted lists keep their bullets
 
 **The Agentic feed's foundations** (blygger-spec `docs/agentic-feed-plan.md` §9, row 52):
 `GET /agentic`, `GET`/`PUT /agentic/{feed}` (`expectedRevision`, the closed field set),
@@ -83,8 +83,31 @@ shows its banner (and enters the error log) only if it lasts more than six secon
 views never polled again and kept the banner until *retry reads*; they now recover by
 themselves. Other read failures show at once, as before.
 
-**Migrations:** 0052 (`agentic_feeds`), 0053 (`helper_results`), 0054
-(`imported_change_queue`). 0050 stays reserved for #146. Contract and SDK: bumped at release.
+**Full-text search** (Kyle Mathews, #146): the picker, Reading and Compose search through a
+SQLite FTS5 index instead of scanning rows. A query needs one word of three or more
+letters; shorter words narrow it. Drafts and published copies are indexed apart, so an
+unpublished edit shows only in searches that include drafts.
+
+**Spellcheck, a dictionary and editor marks** (#155, #156, #159). A **dictionary** in the
+core (`GET /dictionary`, `PUT /dictionary/{source}`): the words this blyg's spellchecking
+accepts, the author's own and sets an extension installs, shared by every device and
+client (Settings → writing → dictionary). **Editor marks**: an editor bar may underline
+stretches of the text (`context.mark`), drawn in a layer over the text box. The shipped
+**spellcheck** extension, off by default: a dictionary check that underlines as you type,
+replacing the browser's own spellcheck while it is on screen (`spellcheck` joins the
+replaceable controls), and an AI proofread that offers corrections only (spec §5.7 rule
+10): accepted fixes go in as your own words, and the sheet offers a line for the change
+note.
+
+**Claims** (#165, miguelito4), a shipped extension, off by default: `claim` and `resolution`
+blocks written through an editor bar, a badge on posts with a claim, pin and resolve from
+the post, and a Claims page with your score. Browser-only.
+
+**Migrations:** **0050** (`search_index`, #146; backfills the index from existing rows),
+**0052** (`agentic_feeds`), **0053** (`helper_results`), **0054** (`imported_change_queue`),
+**0055** (`dictionary`). Apply them before deploying. Private contract **6.2.0**, SDK
+**0.24.0**. Fixed on the way: the lineage test no longer depends on the `superseded` rule's
+timing.
 
 ---
 
