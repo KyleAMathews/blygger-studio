@@ -18,6 +18,43 @@ not have its own repo until session 26.
 
 ---
 
+## 0.70.0 — [TK] reads the links you give it; Reading loads fast again; seen means read
+
+**[TK] reads the links its author placed** (blygger-spec decision #117, spec 0.4 §16.16).
+Before a scope is generated, every link in its instruction or anywhere in the draft is
+read: web pages are fetched under the importer's outbound rules (up to 8, about 30,000
+characters each), and `[[id]]` links, or URLs naming an item the node holds, come from the
+local copy (up to 8). What was read goes to the model, web pages framed as untrusted
+fetched text, and is disclosed: items as references, web pages as `{url, cited}` entries in
+`generated[].sources`, which send no mention. If any link can't be read, generation stops
+at a **checkpoint**: `POST /items/{id}/generate` answers `{ checkpoint: { read, total,
+failed } }` and saves nothing, and the editor asks "n of m links could not be read,
+generate anyway?" with the failures under Details; `proceed: true` generates without them.
+The TK panel lists what each generation read and which entries will tell another blyg.
+Code: `src/tk-hydrate.ts`, `runGenerateScope` in `src/tk-generate.ts`.
+
+**Reading loads fast again.** Measured on a live node, a Reading load could sit blank for
+4–8 s. (1) The pace-layered order (0.68.0) was rebuilt whenever the items, reading or
+subscriptions counters moved, which every poll, autosave and read mark does; it now
+rebuilds only when an input to the order changes (migration 0056). (2) The reading route
+no longer waits for every list before drawing. (3) Imported items whose subscription no
+longer exists (left by an old unsubscribe) sorted first under pace-layered and were then
+dropped, so the first pages came back empty; the feed, summary and Raw queries now skip
+them. Check for such rows with `SELECT count(*) FROM imported_items ii WHERE NOT EXISTS
+(SELECT 1 FROM subscriptions s WHERE s.id = ii.subscription_id)`; they are safe to delete.
+
+**Seen means read.** A new setting, **Count an entry as read** (Settings → reader order):
+*when I see it* (the default: about a second fully on screen, short entries included,
+marks sent in batches), *when I open it* (the old behaviour), or *only when I mark it*.
+Every card's **date opens the entry's full view**. Read marks now move their own change
+domain, `marks` (migration 0057), so marking while you scan no longer expires the
+feed's page cursors. "retry reads" also reloads the page's lists.
+
+**Migrations:** **0056** (`reading_order_state.inputs` and triggers that move it only on
+the order's inputs), **0057** (`change_state.marks`; the read-state triggers move it
+instead of `reading`). Apply them before deploying. Private contract **6.3.0**, SDK
+**0.25.0**.
+
 ## 0.69.0 — Helpers and Catch up; the Agentic feed's foundations; spellcheck, a dictionary and claims; full-text search; quoted lists keep their bullets
 
 **The Agentic feed's foundations** (blygger-spec `docs/agentic-feed-plan.md` §9, row 52):
