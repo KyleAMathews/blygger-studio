@@ -642,6 +642,21 @@ Deferred when the session wrapped, not blocked on anything.
 
 ### New features
 
+- [ ] **Quoted lists keep their structure** (session 78, decision #114, spec §16.15; ROADMAP
+  row 136; shape fixed in `blygger-spec/docs/opus-brief.md` § New from session 78, item a).
+  In the partial bake, a line that lies in a list item of the target bakes as `<li>` in a
+  list like the target's; the structure comes from the target snapshot, never from the
+  quoter's markers, and a mismatch is not an error. Test the invariant
+  `selectionText(bake) === selector.exact`. Admit an integer `start` on `ol` in the import
+  sanitizer. The cross-node exercise promotes §16.15.
+- [ ] **Corrections are not generation** (session 78, decision #115, spec §5.7 rule 10; item
+  b there). The spellcheck extension's accepted fixes go in bare; its AI proofread offers
+  corrections only, and a rephrase goes through `[TK]impyrt`. Offer a changelog-note line,
+  in words. Revise `docs/mods.md` "Model text is disclosed" to the same boundary. No
+  `edited` member in any spelling.
+- [ ] **Background 4b: let the owner turn off the disagreement default**, and put the owner's
+  instruction first in the model's state (session 78 review; item d there).
+
 - [ ] **A responses count on public pages** (session 73, decision #107; ROADMAP row 127;
   shape fixed in `blygger-spec/docs/opus-brief.md` § session 73). The count is the length
   of the public responses list the page already renders (verified, unhidden, list switched
