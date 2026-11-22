@@ -493,6 +493,7 @@ export interface Settings {
   bg_rules: Record<BackgroundRule, boolean>;
   /** The reader's order (src/feeds/reader-order.ts): pace-layered, the default, or newest first. */
   reader_order: ReaderOrder;
+  reader_mark_read: "seen" | "opened" | "never";
   /** The owner's name for the Agentic feed tab, also the heading of each edition's thread. */
   agentic_title: string;
   /**

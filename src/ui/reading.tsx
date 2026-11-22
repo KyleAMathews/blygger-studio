@@ -211,6 +211,8 @@ interface ReadUi {
   toggle: (key: string) => void;
   /** The owner opened this entry: expanded it or followed it to its origin. */
   opened: (entry: Reading) => void;
+  /** Seen-means-read: a card registers itself here while it is mounted. */
+  watch?: (card: HTMLElement) => () => void;
 }
 const ReadContext = createContext<ReadUi>({
   shown: false,
@@ -703,8 +705,13 @@ function disagreementLabel(entry: Reading): string | null {
   return d && typeof d.note === 'string' && typeof d.changed === 'number' ? `note says ${d.note} · ${d.changed}% changed` : null;
 }
 
-/** The byline: kind, legacy rss, source and date, plus the extensions' slot. */
-function Byline({ entry, a, children }: { entry: Reading; a: EntryActions; children?: ReactNode }) {
+/**
+ * The byline: kind, legacy rss, source and date, plus the extensions' slot.
+ * With `onOpen`, the date links to the entry's full view, short entries
+ * included (the web's permalink convention, decision #71); opening it marks
+ * the entry read like "more" does.
+ */
+function Byline({ entry, a, onOpen, children }: { entry: Reading; a: EntryActions; onOpen?: () => void; children?: ReactNode }) {
   const settings = useSettings();
   const date = formatDateIn(entry.displayAt, settings?.timezone || 'UTC');
   const inBackground = useContext(LensContext) === 'background';
@@ -717,7 +724,26 @@ function Byline({ entry, a, children }: { entry: Reading; a: EntryActions; child
       {entry.l0 ? <span className="badge badge-line">legacy rss</span> : null}
       {why ? <span className="badge badge-line badge-why" title={inBackground ? 'why this is in Background' : 'kept in view: the note claims a smaller change than was made'}>{why}</span> : null}
       <SourceName entry={entry} lens={lensSearch} />
-      <span>· {date}</span>
+      <span>
+        ·{' '}
+        {onOpen ? (
+          <Link
+            className="entry-date"
+            to="/reading/$sub/$id"
+            params={articleParams(entry)}
+            title="open this entry"
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+              event.preventDefault();
+              onOpen();
+            }}
+          >
+            {date}
+          </Link>
+        ) : (
+          date
+        )}
+      </span>
       <EntryBylineSlot extensions={a.extensions} context={a.extensionContext} />
     </p>
   );
@@ -874,6 +900,7 @@ function Entry({
         </div>
       ) : null}
       <article
+        ref={imported && readUi.watch ? readUi.watch : undefined}
         className={`entry reading-entry${status ? ` is-${status}` : ''}`}
         data-key={entry.key}
         data-read={status ?? undefined}
@@ -885,7 +912,7 @@ function Entry({
             if ((event.target as Element).closest('.entry-title a, a.entry-src')) opened();
           }}
         >
-          <Byline entry={entry} a={a}>
+          <Byline entry={entry} a={a} onOpen={openArticle}>
             {readUi.selecting && imported ? (
               <label className="entry-select">
                 <input
@@ -1227,10 +1254,11 @@ function Article({ entry, actions, origin }: { entry: Reading; actions: Actions;
   // Opening the full view is opening the entry: mark it read once, at the
   // version held here, as expanding a card did (0.39.0).
   const marked = useRef<string | null>(null);
+  const markRead = useSettings()?.readerMarkRead ?? 'seen';
   useEffect(() => {
     if (marked.current === entry.key) return;
     marked.current = entry.key;
-    if (!needsRead(readStatus(entry.imported))) return;
+    if (markRead === 'never' || !needsRead(readStatus(entry.imported))) return;
     // A row reading holds is marked through it (every view updates at once);
     // one fetched by its address has no row to change, so it is written direct.
     const write = reading.toArray.some((row) => row.key === entry.key)
@@ -1970,6 +1998,71 @@ function ReadingHead({
     </>
   );
 }
+/** How long an entry stays on screen before scanning it counts as reading it. */
+const SEEN_MS = 1000;
+/** Seen marks wait this long to go out together: one request for a screenful. */
+const SEEN_FLUSH_MS = 3000;
+/**
+ * "Seen means read" (session 79): an imported entry counts as read once its
+ * card, or as much of it as fits the screen, has been visible for SEEN_MS.
+ * Short entries are covered, which opening never could. Each card registers
+ * itself through `watch` as it mounts, so a remounted list is still seen.
+ * Marks are batched and flushed every SEEN_FLUSH_MS and when the page hides.
+ */
+function useSeenMarks(entries: Reading[], enabled: boolean): ((card: HTMLElement) => () => void) | undefined {
+  const byKey = useRef(new Map<string, Reading>());
+  byKey.current = new Map(entries.map((entry) => [entry.key, entry]));
+  const [tracker, setTracker] = useState<{ observer: IntersectionObserver } | null>(null);
+  useEffect(() => {
+    if (!enabled || typeof IntersectionObserver === 'undefined') return;
+    const timers = new Map<string, ReturnType<typeof setTimeout>>();
+    const pending = new Map<string, Reading>();
+    const done = new Set<string>();
+    const flush = () => {
+      if (!pending.size) return;
+      const batch = [...pending.values()].filter((entry) => needsRead(readStatus(entry.imported)));
+      pending.clear();
+      if (batch.length) void markEntries(batch, true).catch(() => undefined);
+    };
+    const interval = setInterval(flush, SEEN_FLUSH_MS);
+    const hidden = () => { if (document.visibilityState === 'hidden') flush(); };
+    document.addEventListener('visibilitychange', hidden);
+    window.addEventListener('pagehide', flush);
+    const observer = new IntersectionObserver((seen) => {
+      for (const sight of seen) {
+        const key = (sight.target as HTMLElement).dataset.key ?? '';
+        const box = sight.boundingClientRect;
+        // The whole card, or a tall card filling most of the screen.
+        const visible = sight.isIntersecting && (sight.intersectionRatio >= 0.99 || sight.intersectionRect.height >= Math.min(box.height, window.innerHeight) * 0.6);
+        if (visible && !timers.has(key) && !done.has(key)) {
+          timers.set(key, setTimeout(() => {
+            timers.delete(key);
+            done.add(key);
+            const entry = byKey.current.get(key);
+            if (entry?.imported && needsRead(readStatus(entry.imported))) pending.set(key, entry);
+          }, SEEN_MS));
+        } else if (!visible && timers.has(key)) {
+          clearTimeout(timers.get(key));
+          timers.delete(key);
+        }
+      }
+    }, { threshold: [0, 0.25, 0.5, 0.6, 0.75, 0.99, 1] });
+    setTracker({ observer });
+    return () => {
+      setTracker(null);
+      observer.disconnect();
+      for (const timer of timers.values()) clearTimeout(timer);
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', hidden);
+      window.removeEventListener('pagehide', flush);
+      flush();
+    };
+  }, [enabled]);
+  return useMemo(() => tracker ? (card: HTMLElement) => {
+    tracker.observer.observe(card);
+    return () => tracker.observer.unobserve(card);
+  } : undefined, [tracker]);
+}
 /**
  * Read state on a timeline: unread dots, mark-read-on-open, select mode with
  * mark read / mark unread for the ticked rows, and "mark all read" for the
@@ -1977,6 +2070,8 @@ function ReadingHead({
  * on screen, sent in batches of at most 500.
  */
 function useReadSelection(key: string, offset: number, entries: Reading[], actions: Actions, title: string, lens: Lens) {
+  const markRead = useSettings()?.readerMarkRead ?? 'seen';
+  const watch = useSeenMarks(entries, markRead === 'seen');
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   // A selection belongs to the rows on screen; a new page or view starts clean.
@@ -1997,10 +2092,11 @@ function useReadSelection(key: string, offset: number, entries: Reading[], actio
           return next;
         }),
       opened: (entry) => {
-        if (needsRead(readStatus(entry.imported))) void actions.run(() => markEntries([entry], true));
+        if (markRead !== 'never' && needsRead(readStatus(entry.imported))) void actions.run(() => markEntries([entry], true));
       },
+      watch,
     }),
-    [selecting, picked, key, actions],
+    [selecting, picked, key, actions, markRead, watch],
   );
   const importedRows = entries.filter((entry) => entry.imported);
   const apply = (read: boolean) => {

@@ -70,6 +70,7 @@ const fields = [
   "changelogDisplay",
   "readerChangelogDisplay",
   "readerOrder",
+  "readerMarkRead",
   "backgroundRules",
   "bgModelImported",
   "bgInstruction",
@@ -507,6 +508,23 @@ function SettingsForm({ initial }: { initial: Settings }) {
             </label>
           ))}
           <span className="hint">Hoppers and the Shelf keep their own order.</span>
+        </div>
+        <div className="field" role="radiogroup" aria-labelledby="reader-mark-read-label">
+          <span id="reader-mark-read-label">Count an entry as read</span>
+          {(
+            [
+              ['seen', 'When I see it', 'once it has been on screen for about a second as you scroll, short entries included'],
+              ['opened', 'When I open it', 'its full view: “more”, its date, or its title'],
+              ['never', 'Only when I mark it', 'select mode and “mark all read” in the feed’s menu'],
+            ] as const
+          ).map(([value, label, hint]) => (
+            <label className="check" key={value}>
+              <input type="radio" name="readerMarkRead" value={value} checked={(form.readerMarkRead ?? 'seen') === value} onChange={() => change('readerMarkRead', value)} />
+              <span>
+                {label} <span className="hint">{hint}</span>
+              </span>
+            </label>
+          ))}
         </div>
       </section>
       <section className="card" id="background">

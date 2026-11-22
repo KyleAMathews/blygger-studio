@@ -664,6 +664,15 @@
             "type": "string",
             "description": "The owner's name for the Agentic feed tab (\"Daily digest\", \"My briefing\"), at most 40 characters; also the heading of each edition's thread. Empty restores \"Agentic feed\"."
           },
+          "readerMarkRead": {
+            "type": "string",
+            "enum": [
+              "seen",
+              "opened",
+              "never"
+            ],
+            "description": "When a reader entry counts as read: seen (on screen about a second while scrolling, the default), opened (its full view), or never (marked by hand only)."
+          },
           "readerOrder": {
             "type": "string",
             "enum": [
@@ -897,6 +906,7 @@
           "readerChangelogDisplay",
           "changelogSummaryPrompt",
           "agenticTitle",
+          "readerMarkRead",
           "readerOrder",
           "backgroundRules",
           "acceptMentions",
@@ -8736,6 +8746,15 @@
                   "agenticTitle": {
                     "type": "string",
                     "description": "The owner's name for the Agentic feed tab (\"Daily digest\", \"My briefing\"), at most 40 characters; also the heading of each edition's thread. Empty restores \"Agentic feed\"."
+                  },
+                  "readerMarkRead": {
+                    "type": "string",
+                    "enum": [
+                      "seen",
+                      "opened",
+                      "never"
+                    ],
+                    "description": "When a reader entry counts as read: seen (on screen about a second while scrolling, the default), opened (its full view), or never (marked by hand only)."
                   },
                   "readerOrder": {
                     "type": "string",
