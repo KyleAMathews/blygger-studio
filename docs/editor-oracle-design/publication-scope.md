@@ -13,3 +13,5 @@ The CI candidate partitions complete files and requires both unmutated passes pl
 Research and design records describe their own historical snapshots. They do not expand this PR into the proposed smart-list, heading/quote, completed-placeholder, or native-host recovery features. The local feedback log and unfinished Compose continuation records stay uncommitted.
 
 The 2026-11-22 [scope decision](native-history-scope-20261122.md) removes the Chromium native-input workaround and browser-owned typing/newline Undo guarantees. Exact immediate receiving, protected-region preservation, Save and app-formatting Undo/Redo remain. This retires one writer-facing browser-fix claim, leaving the other 19 improvement rows unchanged. It does not adopt a custom history adapter. The explicit loss inventory and independent comparison accompany the change.
+
+The [native empty-paste model correction](native-paste-default-20261122.md) retains ordinary browser replacement for an empty clipboard. It changes no production code. The workflow oracle passed 184 checks twice and rejected both selected mutation controls; full current-head CI remains separate.

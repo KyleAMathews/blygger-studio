@@ -59,6 +59,21 @@ for (const kind of ['clipboard', 'denied', 'paste', 'nativePaste'] as const) {
   }
 }
 
+// Native paste replaces the selected range even when the clipboard is empty.
+// Keep selection/caret/full-range neighbors and continued editing on both hosts.
+for (const surface of ['composer', 'editor'] as const) for (const at of ['current', 'end', 'all'] as const) {
+  workflowCases[`empty-nativePaste-${surface}-${at}`] = { ...base, surface, operations: [
+    op({ kind: 'nativePaste', at, raw: { raw: '' } }), op({ at: 'current' }),
+  ] };
+}
+
+// Reduced form of CI seed 688508621: a cleaned autolink, an inspection that
+// changes only selection, then empty native paste over part of the link.
+workflowCases.emptyNativePasteAfterLink = { ...base, before: '', picked: '', after: '', operations: [
+  op(), op({ kind: 'inspect', at: 'range', a: 1, b: 4 }),
+  op({ kind: 'nativePaste', at: 'range', a: 1, b: 4, raw: { raw: '' } }),
+] };
+
 // Select UTF-16 offsets only at code point boundaries. No host-produced caret
 // enters the resolver. `current` consumes the previous modeled selection.
 export function workflowRange(text: string, current: number[], action: Operation) {
@@ -68,12 +83,12 @@ export function workflowRange(text: string, current: number[], action: Operation
     : action.at === 'caret' ? [a, a] : [Math.min(a, b), Math.max(a, b)];
 }
 export type WorkflowHostInput = { clipboard?: string; denied?: boolean; typed?: string };
-// Printable ASCII without edge whitespace is stable across the native clipboard
+// Printable ASCII, including empty text, without edge whitespace is stable across the native clipboard
 // and URL-input sanitization boundaries. Its arranged value is independently
 // owed, so a different provider/input value cannot redefine the expected link.
 // Other text retains the observed host premise (CR and UTF-16 may normalize).
 export function workflowHostPremises(action: Operation): WorkflowHostInput {
-  const stable = (text: string) => /^[\x20-\x7e]+$/.test(text) && text.trim() === text;
+  const stable = (text: string) => /^[\x20-\x7e]*$/.test(text) && text.trim() === text;
   const clipboardAction = ['clipboard', 'denied', 'cancel', 'invalidTyped'].includes(action.kind);
   const raw = action.kind === 'cancel' || action.kind === 'invalidTyped' ? 'not a URL' : rawText(action.raw);
   const result: WorkflowHostInput = {};
@@ -97,9 +112,9 @@ export function workflowStep(text: string, selection: number[], action: Operatio
   let value = text, range = selection, toast: string | undefined;
   if (result) { value = result.text; range = [result.caret, result.caret]; toast = toastModel(result); }
   else if (isClipboard && !canceled || intercepted) toast = 'That is not a URL.';
-  else if (kind === 'nativePaste' && raw) { const normalized = raw.replace(/\r\n?/g, '\n'); value = text.slice(0, from) + normalized + text.slice(to); range = [from + normalized.length, from + normalized.length]; }
+  else if (kind === 'nativePaste') { const normalized = raw.replace(/\r\n?/g, '\n'); value = text.slice(0, from) + normalized + text.slice(to); range = [from + normalized.length, from + normalized.length]; }
   return { value, selection: range, ...(toast ? { toast } : {}),
-    ...(kind === 'paste' || kind === 'files' ? { defaultAllowed: !intercepted } : {}),
+    ...(kind === 'paste' || kind === 'files' || kind === 'nativePaste' ? { defaultAllowed: !intercepted } : {}),
     sheet: sheet ? { reason: input.denied || kind === 'denied' ? 'denied' : 'notUrl' } : null,
     dialogs: 0, ...(isClipboard ? { clipboardControls: 1 } : {}), ...(toast ? { toastCount: 1 } : {}) };
 }
@@ -136,6 +151,7 @@ export function workflowStates(p: ReturnType<typeof workflowPlan>) {
     if (action.range[0] === action.range[1]) states.add('caret'); else states.add('selection');
     if (next.toast === 'That is not a URL.') states.add('rejectedTarget');
     if (next.defaultAllowed) states.add('nativeDefaultAllowed');
+    if (action.kind === 'nativePaste' && rawText(action.raw) === '') states.add(action.range[0] === action.range[1] ? 'emptyNativePaste-caret' : 'emptyNativePaste-selection');
     if (next.defaultAllowed === false) states.add('pasteIntercepted');
     const target = action.kind === 'denied' ? rawText(action.typed) : rawText(action.raw);
     const clean = cleaned(target);

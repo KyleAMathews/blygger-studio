@@ -1,0 +1,8 @@
+{
+  "id": "workflow-empty-native-paste-blocked",
+  "source": "src/ui/authoring.tsx",
+  "find": "  if (!isUrl(text)) return false;",
+  "replace": "  if (!text) { event.preventDefault(); return false; }\n  if (!isUrl(text)) return false;",
+  "intent": "Empty native clipboard text must retain the browser's replacement behavior over selected text.",
+  "author": "Codex; native-default law control after CI empty-clipboard replay"
+}

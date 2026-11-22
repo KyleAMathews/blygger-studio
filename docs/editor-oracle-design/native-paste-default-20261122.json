@@ -1,0 +1,223 @@
+{
+  "baseCommit": "e0ae47196f2c30d327d5df2e4b46b42fdc922963",
+  "law": "completed-link workflow receipt",
+  "authority": "Existing ordinary native paste law; Kyle Mathews (GitHub KyleAMathews) stock editing behavior direction and no Chromium repair decision.",
+  "productionChanged": false,
+  "sourceSha256": {
+    "test-ui/editor-oracles/workflow-driver-oracle.ts": "2307c3dd87297010423af0d8f0b1a633dc09521a8d3a5988daa68221b3648ee1",
+    "test-ui/editor-oracles/workflow-model-oracle.ts": "fa2a8e3f5af4ed19b66be84d37821c55ab6d07fe16c9d8687f8e8583753170c7",
+    "test-ui/editor-workflows.oracle.test.ts": "62a8f174112c1543f195dd88a415f88f1dcbde280203682b13f592f2f501eb11",
+    "test-ui/editor-oracle-mutants/workflow-empty-native-paste-blocked.json": "5cb61207b4cfeebc4ee6eeb318da01312fdeda4b07bb4df89b56d95511fbdf24"
+  },
+  "originalCIFailures": [
+    {
+      "key": "/home/runner/work/blygger-studio/blygger-studio/test-ui/editor-workflows.oracle.test.ts > editor-browser-workflows > random seed: generated",
+      "fullName": "editor-browser-workflows > random seed: generated",
+      "names": [
+        "editor-browser-workflows",
+        "random seed: generated"
+      ],
+      "state": "failed",
+      "message": "OracleViolation: editor-browser-workflows violated at checkpoint \"step2\" (law: completed-link workflow receipt).\nLaw: For every completed-link workflow, the real editor receives escaped source, tracker feedback and caret at each action; sheets preserve captured ranges, canceled/invalid insertions preserve source, and paste interception respects selected URLs versus native defaults and nonimage files.\nDifference: step2.value was \"<https://example98%80=zuxnfe3>\"; expected \"<https://example.com/qdUp8kJE?source=6tF%CE%B1%2B&utm_%F0%9F%98%80=zuxnfe3>\"; toast details [{\"text\":\"inserted link \u00b7 6 trackers removed\"}]\nHistory: {\"mobile\":false,\"surface\":\"composer\",\"before\":\"\",\"picked\":\"\",\"after\":\"\",\"operations\":[{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":0,\"b\":49,\"raw\":{\"protocol\":\"HTTPS\",\"path\":[\"q\",\"d\",\"U\",\"p\",\"8\",\"k\",\"J\",\"E\"],\"parameters\":[{\"key\":\"msclkid\",\"value\":\"OyD5BUM\"},{\"key\":\"utm__\",\"value\":\"&nc\"},{\"key\":\"mkt_tok\",\"value\":\"uH2pWuoZW#\"},{\"key\":\"ref\",\"value\":\"Kw3H\ud83d\ude00oR#\"},{\"key\":\"utm_0\",\"value\":\"Q1g1yK+\"},{\"key\":\"source\",\"value\":\"6tF\u03b1+\"},{\"key\":\"ref\",\"value\":\"vt4+fILgb4\"},{\"key\":\"utm_\ud83d\ude00\",\"value\":\"zuxnfe3\"}],\"fragment\":\"\",\"padding\":\" \"},\"typed\":{\"protocol\":\"https\",\"path\":[],\"parameters\":[{\"key\":\"gclid\",\"value\":\"&0\"},{\"key\":\"utm_0\",\"value\":\"Ikn\"},{\"key\":\"igshid\",\"value\":\"#Qn+AHgy\"},{\"key\":\"id\",\"value\":\"AXsqyF&e\"},{\"key\":\"id\",\"value\":\"gG=j\"}],\"fragment\":\"xos#\",\"padding\":\" \"},\"activation\":\"Space\"},{\"kind\":\"inspect\",\"at\":\"range\",\"a\":56,\"b\":78,\"raw\":{\"protocol\":\"HTTP\",\"path\":[\"P\",\"4\",\"i\"],\"parameters\":[{\"key\":\"igshid\",\"value\":\"K\ud83d\ude00edxeYzya\"},{\"key\":\"igshid\",\"value\":\"HOin\"},{\"key\":\"UTM_Campaign\",\"value\":\"8ix9 C\"},{\"key\":\"ref\",\"value\":\"r\"},{\"key\":\"utm_\",\"value\":\"X\ud83d\ude00l\u03b1\ud83d\ude00+H\"},{\"key\":\"id\",\"value\":\"BmSH\"},{\"key\":\"utm_\u212a\",\"value\":\"#5T\"},{\"key\":\"source\",\"value\":\"mIlGzFBq3\"}],\"fragment\":\"\u03b1fn\",\"padding\":\"  \"},\"typed\":{\"raw\":\"\u4718\u6d3d\u5df1\u900f\"},\"activation\":\"Space\"},{\"kind\":\"nativePaste\",\"at\":\"range\",\"a\":61,\"b\":16,\"raw\":{\"raw\":\"\"},\"typed\":{\"raw\":\"\u4030\ua0a3\"},\"activation\":\"Space\"}]}\nAuthority: e2e/compose-pwa.spec.ts clipboard/paste histories at28b0c8d642a87e5810ad6eabd95c2d1714c53396; Decision by Kyle Mathews (GitHub KyleAMathews),2026-11-18: all existing clipboard/sheet/paste and keyboard activation oracle work.\nKnown limits: Chromium OS clipboard and controlled denial; five actions; helper URL/label bounds. Nonimage file event only; does not establish image-upload/OS permission UI, paste undo or arbitrary rendered Markdown labels. Full transition owes source; selection after navigation is unconstrained.\nRerun: ORACLE_SEED=688508621 ORACLE_PATH=22:0:0:0:1:1 ORACLE_PROPERTY='editor-browser-workflows' ORACLE_UNIT='random seed: generated' vitest run -t '^editor-browser-workflows(?: | > )random seed: generated$'"
+    },
+    {
+      "key": "/home/runner/work/blygger-studio/blygger-studio/test-ui/editor-workflows.oracle.test.ts > editor-browser-workflows > random seed: generated",
+      "fullName": "editor-browser-workflows > random seed: generated",
+      "names": [
+        "editor-browser-workflows",
+        "random seed: generated"
+      ],
+      "state": "failed",
+      "message": "OracleViolation: editor-browser-workflows violated at checkpoint \"step2\" (law: completed-link workflow receipt).\nLaw: For every completed-link workflow, the real editor receives escaped source, tracker feedback and caret at each action; sheets preserve captured ranges, canceled/invalid insertions preserve source, and paste interception respects selected URLs versus native defaults and nonimage files.\nDifference: step2.value was \"<https://example98%80=zuxnfe3>\"; expected \"<https://example.com/qdUp8kJE?source=6tF%CE%B1%2B&utm_%F0%9F%98%80=zuxnfe3>\"; toast details [{\"text\":\"inserted link \u00b7 6 trackers removed\"}]\nHistory: {\"mobile\":false,\"surface\":\"composer\",\"before\":\"\",\"picked\":\"\",\"after\":\"\",\"operations\":[{\"kind\":\"clipboard\",\"at\":\"current\",\"a\":62,\"b\":49,\"raw\":{\"protocol\":\"HTTPS\",\"path\":[\"q\",\"d\",\"U\",\"p\",\"8\",\"k\",\"J\",\"E\"],\"parameters\":[{\"key\":\"msclkid\",\"value\":\"OyD5BUM\"},{\"key\":\"utm__\",\"value\":\"&nc\"},{\"key\":\"mkt_tok\",\"value\":\"uH2pWuoZW#\"},{\"key\":\"ref\",\"value\":\"Kw3H\ud83d\ude00oR#\"},{\"key\":\"utm_0\",\"value\":\"Q1g1yK+\"},{\"key\":\"source\",\"value\":\"6tF\u03b1+\"},{\"key\":\"ref\",\"value\":\"vt4+fILgb4\"},{\"key\":\"utm_\ud83d\ude00\",\"value\":\"zuxnfe3\"}],\"fragment\":\"\",\"padding\":\" \"},\"typed\":{\"protocol\":\"https\",\"path\":[],\"parameters\":[{\"key\":\"gclid\",\"value\":\"&0\"},{\"key\":\"utm_0\",\"value\":\"Ikn\"},{\"key\":\"igshid\",\"value\":\"#Qn+AHgy\"},{\"key\":\"id\",\"value\":\"AXsqyF&e\"},{\"key\":\"id\",\"value\":\"gG=j\"}],\"fragment\":\"xos#\",\"padding\":\" \"},\"activation\":\"Space\"},{\"kind\":\"inspect\",\"at\":\"range\",\"a\":56,\"b\":78,\"raw\":{\"protocol\":\"HTTP\",\"path\":[\"P\",\"4\",\"i\"],\"parameters\":[{\"key\":\"igshid\",\"value\":\"K\ud83d\ude00edxeYzya\"},{\"key\":\"igshid\",\"value\":\"HOin\"},{\"key\":\"UTM_Campaign\",\"value\":\"8ix9 C\"},{\"key\":\"ref\",\"value\":\"r\"},{\"key\":\"utm_\",\"value\":\"X\ud83d\ude00l\u03b1\ud83d\ude00+H\"},{\"key\":\"id\",\"value\":\"BmSH\"},{\"key\":\"utm_\u212a\",\"value\":\"#5T\"},{\"key\":\"source\",\"value\":\"mIlGzFBq3\"}],\"fragment\":\"\u03b1fn\",\"padding\":\"  \"},\"typed\":{\"raw\":\"\u4718\u6d3d\u5df1\u900f\"},\"activation\":\"Space\"},{\"kind\":\"nativePaste\",\"at\":\"range\",\"a\":61,\"b\":16,\"raw\":{\"raw\":\"\"},\"typed\":{\"raw\":\"\u4030\ua0a3\"},\"activation\":\"Space\"}]}\nAuthority: e2e/compose-pwa.spec.ts clipboard/paste histories at28b0c8d642a87e5810ad6eabd95c2d1714c53396; Decision by Kyle Mathews (GitHub KyleAMathews),2026-11-18: all existing clipboard/sheet/paste and keyboard activation oracle work.\nKnown limits: Chromium OS clipboard and controlled denial; five actions; helper URL/label bounds. Nonimage file event only; does not establish image-upload/OS permission UI, paste undo or arbitrary rendered Markdown labels. Full transition owes source; selection after navigation is unconstrained.\nRerun: ORACLE_SEED=688508621 ORACLE_PATH=22:0:0:0:1 ORACLE_PROPERTY='editor-browser-workflows' ORACLE_UNIT='random seed: generated' vitest run -t '^editor-browser-workflows(?: | > )random seed: generated$'"
+    }
+  ],
+  "bareTextareaProbe": [
+    {
+      "value": "aef",
+      "selection": [
+        1,
+        1
+      ],
+      "events": [
+        {
+          "type": "paste",
+          "text": "",
+          "trusted": true,
+          "prevented": false
+        },
+        {
+          "type": "beforeinput",
+          "inputType": "insertFromPaste",
+          "data": null,
+          "trusted": true,
+          "prevented": false
+        },
+        {
+          "type": "input",
+          "inputType": "insertFromPaste",
+          "data": null,
+          "trusted": true,
+          "prevented": false
+        }
+      ]
+    },
+    {
+      "value": "abcdef",
+      "selection": [
+        2,
+        2
+      ],
+      "events": [
+        {
+          "type": "paste",
+          "text": "",
+          "trusted": true,
+          "prevented": false
+        },
+        {
+          "type": "beforeinput",
+          "inputType": "insertFromPaste",
+          "data": null,
+          "trusted": true,
+          "prevented": false
+        },
+        {
+          "type": "input",
+          "inputType": "insertFromPaste",
+          "data": null,
+          "trusted": true,
+          "prevented": false
+        }
+      ]
+    },
+    {
+      "value": "",
+      "selection": [
+        0,
+        0
+      ],
+      "events": [
+        {
+          "type": "paste",
+          "text": "",
+          "trusted": true,
+          "prevented": false
+        },
+        {
+          "type": "beforeinput",
+          "inputType": "insertFromPaste",
+          "data": null,
+          "trusted": true,
+          "prevented": false
+        },
+        {
+          "type": "input",
+          "inputType": "insertFromPaste",
+          "data": null,
+          "trusted": true,
+          "prevented": false
+        }
+      ]
+    }
+  ],
+  "comparison": {
+    "histories": 2107,
+    "steps": 6020,
+    "originalConstructions": 50,
+    "originalConstructionsByteIdentical": true,
+    "addedConstructions": 7,
+    "changedSource": 14,
+    "addedDefaultObservation": 682,
+    "unexpected": []
+  },
+  "redReplay": {
+    "out": "/private/tmp/blygger-empty-paste-replay-red2-20261122",
+    "run": "7f4c6453a151",
+    "seed": 688508621,
+    "path": "22:0:0:0:1:1",
+    "unit": "random seed: generated",
+    "checkpoint": "step2",
+    "failure": "Expected empty native paste to preserve selection; browser replaced selection with empty text.",
+    "mutants": "blocked by failing unchanged oracle; not judged"
+  },
+  "final": {
+    "out": "/private/tmp/blygger-empty-paste-final-20261122",
+    "reportSha256": "959d5c3e6902f13c411c1b8b9ef1f144764f81b15f18e9202d4314cadcf77a9d",
+    "run": {
+      "id": "05af7a6e68fb",
+      "inputs": "2 source files, 1 oracle files, 0 ordinary test files, 90 authored mutants, seed 688508621, pool threads; a partial run (--only or --sample)"
+    },
+    "baseline": [
+      {
+        "file": "test-ui/editor-workflows.oracle.test.ts",
+        "ordinary": false,
+        "passed": 184,
+        "failed": 0,
+        "skipped": 0
+      }
+    ],
+    "passes": 2,
+    "baselineSeconds": [
+      202.3,
+      212.0
+    ],
+    "nondeterministic": [],
+    "mutants": [
+      {
+        "id": "authored:workflow-empty-native-paste-blocked",
+        "authored": true,
+        "authoredId": "workflow-empty-native-paste-blocked",
+        "source": "src/ui/authoring.tsx",
+        "key": "src/ui/authoring.tsx#authored:workflow-empty-native-paste-blocked",
+        "operator": "authored",
+        "function": "pourOver",
+        "intent": "Empty native clipboard text must retain the browser's replacement behavior over selected text.",
+        "author": "Codex; native-default law control after CI empty-clipboard replay",
+        "original": "  if (!isUrl(text)) return false;",
+        "replacement": "  if (!text) { event.preventDefault(); return false; }\n  if (!isUrl(text)) return false;",
+        "line": 237,
+        "outcome": "killed",
+        "by": [
+          "editor-browser-workflows > fixed seed 20261118: empty-nativePaste-composer-current"
+        ],
+        "laws": [
+          "completed-link workflow receipt"
+        ],
+        "randomAlso": false,
+        "seconds": 46.58391775000002
+      },
+      {
+        "id": "authored:workflow-native-default",
+        "authored": true,
+        "authoredId": "workflow-native-default",
+        "source": "src/ui/authoring.tsx",
+        "key": "src/ui/authoring.tsx#authored:workflow-native-default",
+        "operator": "authored",
+        "function": "pourOver",
+        "intent": "Selected URL paste must cancel native insertion.",
+        "author": "Codex; challenges from independent workflow receiving review",
+        "original": "  event.preventDefault();\n  linkInto(el, text,",
+        "replacement": "  /* Wrongly allow native insertion as well. */\n  linkInto(el, text,",
+        "line": 238,
+        "outcome": "killed",
+        "by": [
+          "editor-browser-workflows > fixed seed 20261118: originalPaste"
+        ],
+        "laws": [
+          "completed-link workflow receipt"
+        ],
+        "randomAlso": false,
+        "seconds": 61.14158458299999
+      }
+    ],
+    "scope": "One complete oracle file twice; two selected authored mutants only. No complete mutation portfolio acceptance."
+  },
+  "interruptedAttempt": {
+    "out": "/private/tmp/blygger-empty-paste-full-green-20261122",
+    "reason": "Stopped exact run.pid after review identified independent empty-host enforcement gap. No acceptance claimed."
+  },
+  "selectorError": {
+    "out": "/private/tmp/blygger-empty-paste-replay-red-20261122",
+    "reason": "Mistyped mutant selector ran zero tests; wrapper refused report. No RED or GREEN claimed."
+  }
+}

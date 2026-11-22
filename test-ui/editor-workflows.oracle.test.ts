@@ -8,6 +8,7 @@
  * clipboard.invalid(); sheet.cancel() // → original source and selection
  * paste(url, selectedWords) // → linked selection and prevented native paste
  * paste(proseOrCaret) // → ordinary browser paste; synthetic event stays allowed
+ * paste('', selectedWords) // → native replacement removes selected words
  * compose.fullEditor() // → the composer source survives the real transition
  *
  * Why must a sheet keep the selection from before it opened? Its URL field
@@ -17,6 +18,7 @@
  * For every fallback, invalid input leaves source intact with the existing
  * explanation, and cancellation makes no edit. For every paste, selected URL
  * text is intercepted unless files are present; other native text paste proceeds.
+ * Native paste replaces its selected range even for empty clipboard text.
  *
  * Authority: the two clipboard/paste cases in e2e/compose-pwa.spec.ts at28b0c8d,
  * and decision by Kyle Mathews (GitHub KyleAMathews),2026-11-18: strengthen
@@ -26,7 +28,7 @@
  * and Enter/Space activation. The original two multi-action histories remain
  * constructed. The driver uses the actual OS clipboard and native paste in
  * Chromium; only denial is injected. Synthetic paste also records cancellation.
- * Stable printable ASCII inputs must arrive exactly as arranged; observed host
+ * Stable printable ASCII inputs, including empty text, must arrive as arranged; observed host
  * normalization remains an input premise for other text. Clipboard actions also
  * retain the original all-matches control uniqueness observation, including hidden
  * duplicates, while activating the visible control. This is limited to that action.
@@ -64,6 +66,8 @@ oracleProperty({
     return differs('errors', law, traceValue(trace, 'errors'), []) ?? differs('errors', law, trace.map(o => o.checkpoint), [...expected.flatMap((_s, i) => ['host' + i, 'step' + i]), 'errors']) ?? pass;
   },
   calibrations: [
+    { name: 'empty native clipboard delivery changed', law, difference: 'stable arranged clipboard input must arrive unchanged at host0', history: { constructed: 'empty-nativePaste-composer-current' }, corrupt: trace => trace.map(o => o.checkpoint === 'host0' ? { ...o, value: { ...(o.value as object), clipboard: 'X' } } : o) },
+    { name: 'empty native paste incorrectly ignored', law, difference: 'step0.value', history: { constructed: 'empty-nativePaste-composer-current' }, corrupt: trace => trace.map(o => o.checkpoint === 'step0' ? { ...o, value: { ...(o.value as object), value: 'Read the essay today.' } } : o) },
     { name: 'stable ASCII clipboard delivery changed', law, difference: 'stable arranged clipboard input must arrive unchanged at host0', history: { constructed: 'originalClipboard' }, corrupt: trace => trace.map(o => o.checkpoint === 'host0' ? { ...o, value: { ...(o.value as object), clipboard: 'https://different.example/' } } : o) },
     { name: 'stable ASCII typed delivery changed', law, difference: 'stable arranged typed input must arrive unchanged at host1', history: { constructed: 'originalClipboard' }, corrupt: trace => trace.map(o => o.checkpoint === 'host1' ? { ...o, value: { ...(o.value as object), typed: 'https://different.example/' } } : o) },
     { name: 'hidden duplicate clipboard control', law, difference: 'step0.clipboardControls', history: { constructed: 'originalClipboard' }, corrupt: trace => trace.map(o => o.checkpoint === 'step0' ? { ...o, value: { ...(o.value as object), clipboardControls: 2 } } : o) },

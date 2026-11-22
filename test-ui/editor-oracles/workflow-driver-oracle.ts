@@ -78,23 +78,22 @@ export async function workflowDriver(p: ReturnType<typeof workflowPlan>, observe
         }, { raw, files: action.kind === 'files' });
       } else if (action.kind === 'nativePaste') {
         input.clipboard = await page.evaluate(async text => { await navigator.clipboard.writeText(text); return await navigator.clipboard.readText(); }, raw);
-        if (input.clipboard) {
-          await box.evaluate((el: HTMLTextAreaElement) => {
-            const receipt: any = { input: false };
-            (window as any).__oracleNativePaste = receipt;
-            el.addEventListener('input', () => { receipt.input = true; }, { capture: true, once: true });
-            el.addEventListener('paste', event => {
-              receipt.text = event.clipboardData?.getData('text/plain') ?? '';
-              // Native dispatch can run a microtask checkpoint between capture
-              // and React's bubble handler. Retain the event until its actual
-              // defaultPrevented flag changes, rather than copying it too early.
-              receipt.event = event;
-            }, { capture: true, once: true });
-          });
-          await page.keyboard.press('ControlOrMeta+v');
-          await page.waitForFunction(() => { const r = (window as any).__oracleNativePaste; return r.event && (r.event.defaultPrevented || r.input); });
-          input.clipboard = await page.evaluate(() => (window as any).__oracleNativePaste.text);
-        } else await page.keyboard.press('ControlOrMeta+v'); // empty clipboard is a native no-op
+        await box.evaluate((el: HTMLTextAreaElement) => {
+          const receipt: any = { input: false };
+          (window as any).__oracleNativePaste = receipt;
+          el.addEventListener('input', () => { receipt.input = true; }, { capture: true, once: true });
+          el.addEventListener('paste', event => {
+            receipt.text = event.clipboardData?.getData('text/plain') ?? '';
+            // Native dispatch can run a microtask checkpoint between capture
+            // and React's bubble handler. Retain the event until its actual
+            // defaultPrevented flag changes, rather than copying it too early.
+            receipt.event = event;
+          }, { capture: true, once: true });
+        });
+        await page.keyboard.press('ControlOrMeta+v');
+        await page.waitForFunction(() => { const r = (window as any).__oracleNativePaste; return r.event && (r.event.defaultPrevented || r.input); });
+        input.clipboard = await page.evaluate(() => (window as any).__oracleNativePaste.text);
+        defaultAllowed = await page.evaluate(() => !(window as any).__oracleNativePaste.event.defaultPrevented);
       } else if (action.transition) {
         await page.locator('#composer-full').click(); box = page.locator('#md-input');
         await box.waitFor({ state: 'visible' });
