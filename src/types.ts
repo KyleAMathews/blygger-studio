@@ -212,11 +212,21 @@ export interface StubCite {
  * every document published before remote sources stays valid. A remote source
  * carries its frozen human half, composed when the scope was generated.
  */
-export interface GenerationSource {
+export type GenerationSource = ItemGenerationSource | PageGenerationSource;
+export interface ItemGenerationSource {
   id: string;
   version: number;
   origin?: string;
   cited?: StubCite;
+}
+/**
+ * A web page the generator read (decision #117, spec 0.4 §16.16): §10.6's
+ * plain-web shape, never a §5.9 reference. It has no version, so `cited`
+ * carries when it was read, and it notifies nobody.
+ */
+export interface PageGenerationSource {
+  url: string;
+  cited: StubCite;
 }
 
 /** Per-scope TK generation provenance (tk-core-plan.md §3.1/§4). */

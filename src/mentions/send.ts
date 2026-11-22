@@ -158,7 +158,8 @@ export async function remoteReferences(
   // is one mention; the receiver decides the relation.
   for (const g of parseGenerated(row.generated_json)) {
     for (const src of g.sources ?? []) {
-      if (!src.origin || src.origin === ourOrigin) continue;
+      // A web page the generator read notifies nobody (decision #117): it has no endpoint to tell.
+      if (!("origin" in src) || !src.origin || src.origin === ourOrigin) continue;
       refs.push({ ...(await remoteTarget(db, src.origin, src.id, fetchFn, cache)), origin: src.origin, targetVersion: src.version });
     }
   }

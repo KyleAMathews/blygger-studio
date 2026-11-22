@@ -566,7 +566,7 @@ export function createDraftAction(id?: string, observedRevision?: number) {
         case 'delete-media': result = await unwrap(BlyggerApi.deleteMedia({ client, path: { id: command.mediaId }, body: condition })); break;
         case 'refresh': result = await unwrap(BlyggerApi.refreshItem({ client, path, body: { ...condition, note: command.note } })); break;
         case 'save': result = await unwrap(BlyggerApi.updateItem({ client, path, body: { ...condition, contentMd: command.text, kind: command.kind } })); break;
-        case 'generate': result = await unwrap(BlyggerApi.generateItem({ client, path, body: { ...condition, scope: command.scope } })); break;
+        case 'generate': result = await unwrap(BlyggerApi.generateItem({ client, path, body: { ...condition, scope: command.scope, ...(command.proceed ? { proceed: true } : {}) } })); break;
         case 'restore': {
           const restored = await unwrap(BlyggerApi.restoreItem({ client, path, body: { ...condition, version: command.version } }));
           revision = restored.revision;

@@ -109,6 +109,12 @@ export type GenerationSource = {
      */
     origin?: string;
     cited?: Citation;
+} | {
+    /**
+     * A web page the generator read (decision #117).
+     */
+    url: string;
+    cited: Citation;
 };
 
 export type Syndication = {
@@ -2331,6 +2337,10 @@ export type GenerateItemData = {
     body: {
         expectedRevision: number;
         scope: number;
+        /**
+         * Generate even if some links in the draft could not be read.
+         */
+        proceed?: boolean;
     };
     path: {
         id: string;
@@ -2401,6 +2411,27 @@ export type GenerateItemResponses = {
         model: string;
         contentMd: string;
         revision: number;
+    } | {
+        /**
+         * Nothing was generated: some links could not be read. Send `proceed: true` to generate without them (decision #117).
+         */
+        checkpoint: {
+            /**
+             * Links read.
+             */
+            read: number;
+            /**
+             * Links found in the instruction and the draft.
+             */
+            total: number;
+            /**
+             * Links that could not be read, and why.
+             */
+            failed: Array<{
+                link: string;
+                reason: string;
+            }>;
+        };
     };
 };
 

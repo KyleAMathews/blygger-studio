@@ -88,7 +88,7 @@ describe("resolution (R2): §10.2's order against the local snapshot", () => {
     expect(fed).toContain("The quoted words.\nMy reply.");
     expect(fed).not.toContain("![[zzzzzzzzzzzzzzzzzzzzzzzzzz]]");
     // Disclosure is direct only: the thread, never what it quoted.
-    expect(provenance[0]!.sources.map((s) => s.id)).toEqual([R1]);
+    expect(provenance[0]!.sources.map((s) => ("id" in s ? s.id : s.url))).toEqual([R1]);
   });
 
   it("an imported item with no markdown is fed from its HTML", async () => {

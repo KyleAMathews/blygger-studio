@@ -170,7 +170,9 @@ describe("generated text is not grammar (ROADMAP row 67)", () => {
     const elsewhere = await createAndPublish(cookie, "A post nobody named.");
     const item = await createDraft(env.DB, `See [[${named}]]. [TK]a sentence linking the post above and https://example.org/x[/TK]`);
     const { fetchImpl, calls } = fixture(`It builds on [[${named} | the named post]] and [this page](https://example.org/x), not [[${elsewhere} | another]], nor ![[${named}]] inline.`);
-    const result = await runGenerateScope({ ...env, AI_PROVIDER_KEY: "k" }, item, 0, fetchImpl);
+    // The page is read before writing (decision #117); a refusal would stop at the checkpoint.
+    const pageFetch = async (url: string) => ({ ok: true, status: 200, url, headers: new Headers({ "content-type": "text/html" }), text: async () => `<title>X</title><main><p>${"Page words. ".repeat(30)}</p></main>` });
+    const result = await runGenerateScope({ ...env, AI_PROVIDER_KEY: "k" }, item, 0, fetchImpl, undefined, { pageFetch });
     expect(result).toMatchObject({ ok: true });
     if (!result.ok) throw new Error("unreachable");
     expect(result.text).toContain(`[[${named} | the named post]]`);

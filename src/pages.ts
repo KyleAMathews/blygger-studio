@@ -639,8 +639,10 @@ export const GEN_INFO_SCRIPT = `
       for (var j = 0; g.sources && j < g.sources.length; j++) {
         var s = g.sources[j];
         if (!s) continue;
-        // A remote source (0.4) names its origin and carries a frozen cite.
-        if (s.origin) {
+        // A web page (decision #117) or a remote source (0.4) carries a frozen cite.
+        if (s.url) {
+          if (!seenRemote[s.url]) { seenRemote[s.url] = true; remote.push(s); }
+        } else if (s.origin) {
           var key = s.origin + " " + s.id;
           if (!seenRemote[key]) { seenRemote[key] = true; remote.push(s); }
         } else sources[s.id] = true;
@@ -660,7 +662,7 @@ export const GEN_INFO_SCRIPT = `
     if (n) add(dl, "dd", n + (n === 1 ? " item" : " items") + " from this blyg");
     for (var r = 0; r < remote.length; r++) {
       var cite = remote[r].cited || {}, dd = add(dl, "dd");
-      var name = cite.source || remote[r].origin;
+      var name = cite.source || remote[r].origin || remote[r].url;
       var href = typeof cite.url === "string" && /^https?:/i.test(cite.url) ? cite.url : null;
       if (href) {
         var a = add(dd, "a", name);

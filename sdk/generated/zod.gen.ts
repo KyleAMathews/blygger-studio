@@ -85,12 +85,18 @@ export const zVersionReference = z.object({
     cited: zCitation.optional()
 }).strict();
 
-export const zGenerationSource = z.object({
-    id: z.string(),
-    version: z.int().gt(0),
-    origin: z.string().optional(),
-    cited: zCitation.optional()
-});
+export const zGenerationSource = z.union([
+    z.object({
+        id: z.string(),
+        version: z.int().gt(0),
+        origin: z.string().optional(),
+        cited: zCitation.optional()
+    }),
+    z.object({
+        url: z.url(),
+        cited: zCitation
+    }).strict()
+]);
 
 export const zGenerationProvenance = z.object({
     sources: z.array(zGenerationSource),
@@ -1243,7 +1249,8 @@ export const zSummarizeChangelogResponse = z.object({
 
 export const zGenerateItemBody = z.object({
     expectedRevision: z.int().gt(0).lte(9007199254740991),
-    scope: z.int().gte(0)
+    scope: z.int().gte(0),
+    proceed: z.boolean().optional()
 }).strict();
 
 export const zGenerateItemPath = z.object({
@@ -1253,12 +1260,24 @@ export const zGenerateItemPath = z.object({
 /**
  * Success
  */
-export const zGenerateItemResponse = z.object({
-    text: z.string(),
-    model: z.string(),
-    contentMd: z.string(),
-    revision: z.int().gt(0).lte(9007199254740991)
-});
+export const zGenerateItemResponse = z.union([
+    z.object({
+        text: z.string(),
+        model: z.string(),
+        contentMd: z.string(),
+        revision: z.int().gt(0).lte(9007199254740991)
+    }),
+    z.object({
+        checkpoint: z.object({
+            read: z.int(),
+            total: z.int(),
+            failed: z.array(z.object({
+                link: z.string(),
+                reason: z.string()
+            }))
+        })
+    })
+]);
 
 export const zWithdrawItemBody = z.object({
     expectedRevision: z.int().gt(0).lte(9007199254740991),

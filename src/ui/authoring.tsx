@@ -20,7 +20,7 @@ import { parseComments, withoutComments } from '../comments.ts';
 import { extractDirectives } from '../directives.ts';
 import { previewFromHtml } from '../preview.ts';
 import { CHANGE_CATEGORIES, composeNote, noteIsGenerated, recategorize, type ChangeCategory } from '../change-category.ts';
-import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
+import type { GenerationSource, ListItemsResponses, Version } from '../../sdk/dist/browser.js';
 import { BlyggerApi, BlyggerApiError, unwrap } from '../../sdk/dist/browser.js';
 import type { DraftCounterContext, EditorBarContext } from './extension-api.ts';
 import type { Detail } from './data.ts';
@@ -2253,7 +2253,37 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
   };
   const generate = async (scope: number) => {
     const revision = draft.current!.revision;
-    const result = await write({ type: 'generate', scope });
+    let result = await write({ type: 'generate', scope });
+    // Links in the draft that could not be read (decision #117): the author
+    // decides whether to generate without them. Nothing was saved yet.
+    if ('checkpoint' in result) {
+      const { read, total, failed } = result.checkpoint;
+      const go = await confirm({
+        title: `${failed.length} of ${total} ${total === 1 ? 'link' : 'links'} in the draft could not be read. Generate anyway?`,
+        body: (
+          <>
+            <p className="hint">
+              {read ? `The ${read} that could be read will be drawn on and listed as sources. ` : ''}
+              The model sees only the address of the others, so it should not describe them.
+            </p>
+            <details className="tk-checkpoint-details">
+              <summary>Details</summary>
+              <ul>
+                {failed.map((f) => (
+                  <li key={f.link}>
+                    <code>{f.link}</code>: {f.reason}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </>
+        ),
+        ok: 'generate anyway',
+      });
+      if (!go) return;
+      result = await write({ type: 'generate', scope, proceed: true });
+      if ('checkpoint' in result) return;
+    }
     // `text` is the scope's output alone; the draft is the whole document with
     // it spliced in, which the server has already saved. Replacing the draft
     // with `text` threw away everything around the scope (0.10.0–0.27.1).
@@ -2795,6 +2825,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
                           )}
                         </ul>
                       ) : null}
+                      {scope.hasOutput ? <ReadForScope sources={item.provenance[scope.index]?.sources} instructionIds={scope.sources?.map((s) => s.id) ?? []} /> : null}
                     </>
                   )}
                 </li>
@@ -3474,4 +3505,32 @@ function VersionHistory({ item, select, pin, restore, pinBusy, restoreBusy }: {
             </ul>
     {history.hasNextPage ? <Button disabled={history.isFetchingNextPage} onClick={() => void history.fetchNextPage()}>load older versions</Button> : null}
   </>;
+}
+
+/**
+ * What the last generation of a scope read beyond its instruction's own
+ * sources (decision #117): the web pages and linked items it drew on, as the
+ * published version will disclose them. Shown so the author reviews the
+ * disclosure, and which of it will tell another blyg, before publishing.
+ */
+function ReadForScope({ sources, instructionIds }: { sources: GenerationSource[] | undefined; instructionIds: string[] }) {
+  const read = (sources ?? []).filter((s) => !('id' in s) || !instructionIds.includes(s.id));
+  if (!read.length) return null;
+  return (
+    <ul className="tk-sources tk-read">
+      {read.map((s) =>
+        'url' in s ? (
+          <li key={s.url}>
+            read <a href={s.url} target="_blank" rel="noopener noreferrer">{s.cited.source}</a>
+            {s.cited.excerpt ? <> · <q>{s.cited.excerpt}</q></> : null}
+          </li>
+        ) : (
+          <li key={s.id}>
+            read the linked item <code>[[{s.id}]]</code>
+            {s.origin ? <span className="hint"> · from {s.cited?.source ?? new URL(s.origin).host}; its author is told when you publish</span> : null}
+          </li>
+        ),
+      )}
+    </ul>
+  );
 }

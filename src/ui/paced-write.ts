@@ -13,7 +13,7 @@ export const draftWriteSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('upload'), file: z.instanceof(File), inline: z.boolean().optional() }),
   z.object({ type: z.literal('delete-media'), mediaId: z.string() }),
   z.object({ type: z.literal('refresh'), note: z.string() }),
-  z.object({ type: z.literal('generate'), scope: z.number().int().nonnegative() }),
+  z.object({ type: z.literal('generate'), scope: z.number().int().nonnegative(), proceed: z.boolean().optional() }),
   z.object({ type: z.literal('restore'), version: z.number().int().positive() }),
   // category: the change category the author confirmed (studio-private); omitted when the classifier did not run.
   // tangle: the author confirmed the new items a thread's `![[+ …]]` spans make (tangling-plan §2.2).

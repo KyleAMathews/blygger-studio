@@ -596,10 +596,12 @@ const refreshItemOperation = async (context: OperationContext, input: OperationI
 const generateItemOperation = async (context: OperationContext, input: OperationInput) => {
   const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
-  const body = (input.body as { scope: number });
+  const body = (input.body as { scope: number; proceed?: boolean });
 
   const origin = siteOrigin(await getSettings(context.env.DB), context.url, normalizeMount(context.env.MOUNT));
-  const result = await runGenerateScope(context.env, item, body.scope, undefined, origin);
+  const result = await runGenerateScope(context.env, item, body.scope, undefined, origin, { proceed: body.proceed === true });
+  // Links that could not be read are the author's call, not an error (decision #117): nothing was generated or saved.
+  if (!result.ok && result.checkpoint) return success({ checkpoint: result.checkpoint });
   if (!result.ok) return modelFailure(result.body, result.status as 400 | 404 | 502);
   return success({ text: result.text, model: result.model, contentMd: result.content_md, revision: result.revision });
 };
