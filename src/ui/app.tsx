@@ -140,6 +140,7 @@ function readingLocation(search: Record<string, unknown>): {
   offset?: number;
   lens?: Lens;
   view?: 'sources';
+  from?: 'feed';
 } {
   const offset = readingOffset(search);
   // Smart Feed was renamed Agentic feed (session 77); old links still land there.
@@ -152,7 +153,8 @@ function readingLocation(search: Record<string, unknown>): {
   if (search.view === 'sources') return { view: 'sources', ...withLens };
   if (typeof search.hopper === 'string' && search.hopper)
     return { hopper: search.hopper, offset, ...withLens };
-  if (typeof search.sub === 'string') return { sub: search.sub, offset, ...withLens };
+  // from=feed: one source's view reached from an entry's source name, whose back link returns to the feed.
+  if (typeof search.sub === 'string') return { sub: search.sub, offset, ...withLens, ...(search.from === 'feed' ? { from: 'feed' as const } : {}) };
   if ('page' in search || 'offset' in search) return { sub: 'all', offset, ...withLens };
   return withLens;
 }

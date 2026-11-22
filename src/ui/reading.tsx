@@ -59,6 +59,7 @@ import { Tab, Tabs } from './primitives.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { IconButton, Tooltip } from './primitives.tsx';
 import { shelfLabel, toggleShelf, useShelf } from './shelf.tsx';
+import { SourceName } from './source-name.tsx';
 import { AgenticFeed } from './agentic.tsx';
 import { hasQuotes, openCatchUp } from './catch-up.tsx';
 import { displayUrl, sourceTitleAndUrl } from '../importer/util.ts';
@@ -707,6 +708,7 @@ function Byline({ entry, a, children }: { entry: Reading; a: EntryActions; child
   const settings = useSettings();
   const date = formatDateIn(entry.displayAt, settings?.timezone || 'UTC');
   const inBackground = useContext(LensContext) === 'background';
+  const lensSearch = useLensSearch();
   const why = inBackground ? backgroundLabel(entry) : disagreementLabel(entry);
   return (
     <p className="byline">
@@ -714,7 +716,7 @@ function Byline({ entry, a, children }: { entry: Reading; a: EntryActions; child
       <span className="badge">{entry.kind}</span>
       {entry.l0 ? <span className="badge badge-line">legacy rss</span> : null}
       {why ? <span className="badge badge-line badge-why" title={inBackground ? 'why this is in Background' : 'kept in view: the note claims a smaller change than was made'}>{why}</span> : null}
-      <span className="src">{a.imported?.subscriptionTitle || 'you'}</span>
+      <SourceName entry={entry} lens={lensSearch} />
       <span>· {date}</span>
       <EntryBylineSlot extensions={a.extensions} context={a.extensionContext} />
     </p>
@@ -2069,7 +2071,7 @@ function useReadSelection(key: string, offset: number, entries: Reading[], actio
   ) : null;
   return { ui, button, bar };
 }
-function Timeline({ sub, offset }: { sub: string; offset: number }) {
+function Timeline({ sub, offset, from }: { sub: string; offset: number; from?: 'feed' }) {
   const lensSearch = useLensSearch();
   useChrome({ framed: false, wide: false });
   const actions = useReadingActions();
@@ -2093,8 +2095,22 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
   const readable = sub !== 'own' && !isPlaceholder(lens);
   useReturnPoint(!!entries.data?.length);
   const read = useReadSelection(key, offset, entries.data ?? [], actions, title, lens);
+  // One source's view leads back where it was opened from: the main feed when
+  // reached from an entry's source name (from=feed), else the Sources tab.
+  const single = sub === 'own' || !!selected;
   return (
     <ReadContext.Provider value={read.ui}>
+      {single ? (
+        from === 'feed' ? (
+          <Link className="back-link" to="/reading" search={lensSearch}>
+            ← main feed
+          </Link>
+        ) : (
+          <Link className="back-link" to="/reading" search={{ view: 'sources', ...lensSearch }}>
+            ← sources
+          </Link>
+        )
+      ) : null}
       <ReadingHead title={title} count={lens === 'mentions' ? undefined : metadata?.total}>
         {readable ? read.button : null}
         {selected ? (
@@ -2136,7 +2152,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
             go={(next) =>
               void actions.navigate({
                 to: '/reading',
-                search: { sub, offset: next, ...lensSearch },
+                search: { sub, offset: next, ...lensSearch, ...(from ? { from } : {}) },
               })
             }
           />
@@ -2277,6 +2293,7 @@ export function ReadingPage({
   lens = 'all',
   view,
   q,
+  from,
 }: {
   sub?: string;
   hopper?: string;
@@ -2284,6 +2301,7 @@ export function ReadingPage({
   lens?: Lens;
   view?: 'sources';
   q?: string;
+  from?: 'feed';
 }) {
   // A timeline or source list is where a walk through the thicket ends.
   useEndTrail();
@@ -2302,7 +2320,7 @@ export function ReadingPage({
       ) : hopper ? (
         <HopperTimeline id={hopper} offset={offset ?? 0} />
       ) : (
-        <Timeline sub={sub ?? 'all'} offset={offset ?? 0} />
+        <Timeline sub={sub ?? 'all'} offset={offset ?? 0} from={from} />
       )}
     </LensContext.Provider>
   );

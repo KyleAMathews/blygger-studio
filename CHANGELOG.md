@@ -45,6 +45,10 @@ an optional **instruction** written beneath the toggle, the classifier also read
 changelog note, and an entry whose note calls a large change minor stays in view with a chip
 ("note says minor · 35% changed"). With no instruction, notes are never sent.
 
+**An entry's source name opens that source's feed**, in every reader view (cards, the full
+view, the Agentic feed): the same single-source view the Sources tab opens, in the same
+lens. Reached that way, its back link reads *← main feed*; reached from Sources, *← sources*.
+
 **Waking a phone or iPad no longer flashes a read error.** On wake every view refetches at
 once, often before the network is back (Safari: "Load failed"), and a page walk that spanned
 the sleep finds its cursor expired. Such a failure now retries on its own, backing off, and

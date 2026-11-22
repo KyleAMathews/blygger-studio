@@ -5,6 +5,7 @@
  * as its own and marked as generated. The entries themselves are the reader's
  * own reading entries, linked to their full view.
  */
+import { SourceName } from './source-name.tsx';
 import { useEffect, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
@@ -73,7 +74,7 @@ function EntryCard({ placed, also }: { placed: Placed; also: Placed[] }) {
         {placed.headline ? <Said as="span">{placed.headline}</Said> : ownTitle || excerptOf(entry.contentHtml).slice(0, 90) || 'untitled'}
       </Link>
       <p className="edition-byline">
-        {imported ? imported.subscriptionTitle : 'you'} · {formatDateIn(entry.displayAt, settings?.timezone || 'UTC')}
+        <SourceName entry={entry} className="" /> · {formatDateIn(entry.displayAt, settings?.timezone || 'UTC')}
         {placed.version && imported && imported.version > placed.version ? ' · changed since the assistant read it' : ''}
       </p>
       {placed.summary ? <Said className="edition-summary">{placed.summary}</Said> : null}
@@ -91,7 +92,7 @@ function EntryCard({ placed, also }: { placed: Placed; also: Placed[] }) {
                 <Link to="/reading/$sub/$id" params={{ sub: oSub, id: oId }}>
                   {other.headline ?? (titleOf(o.contentHtml) || excerptOf(o.contentHtml).slice(0, 90))}
                 </Link>
-                <span className="edition-byline"> · {o.imported ? o.imported.subscriptionTitle : 'you'}</span>
+                <span className="edition-byline"> · <SourceName entry={o} className="" /></span>
               </li>
             );
           })}
