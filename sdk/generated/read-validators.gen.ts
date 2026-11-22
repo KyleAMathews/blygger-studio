@@ -1,10 +1,11 @@
 // Generated from OpenAPI. Do not edit.
-import { zGetCapabilitiesResponse, zListItemsResponse, zGetSettingsResponse, zListSubscriptionsResponse, zGetShelfResponse, zListHelpersResponse, zListAgenticFeedsResponse, zListContactsResponse, zListHoppersResponse, zGetItemSummaryResponse, zListSignalsResponse, zListInteractionsResponse, zListThumbsResponse, zGetSignalSummaryResponse, zGetAiModelsResponse, zListMentionsResponse, zListMentionGroupsResponse, zGetMentionSummaryResponse, zSearchResponse, zGetReadingSummaryResponse, zListReadingResponse, zListImportedReadingResponse, zPeekItemResponse, zListBrowseResponse, zGetUpdateStateResponse, zListStaleThreadsResponse, zGetForkOptionsResponse, zExtLineageGlyphGetLineageResponse, zExtLineageGlyphListSummariesResponse, zExtWordCountListCountsResponse, zGetItemResponse, zGetSyndicationResponse, zGetSubscriptionResponse, zGetAgenticResponse, zGetHopperResponse, zListItemVersionsResponse, zListHopperMembershipsResponse, zGetMentionSourceResponse, zGetItemFreshnessResponse, zGetVersionResponse, zGetImportedItemResponse, zGetImportedHistoryResponse, zGetImportedVersionResponse } from './zod.gen.js';
+import { zGetCapabilitiesResponse, zListItemsResponse, zGetSettingsResponse, zListSubscriptionsResponse, zGetDictionaryResponse, zGetShelfResponse, zListHelpersResponse, zListAgenticFeedsResponse, zListContactsResponse, zListHoppersResponse, zGetItemSummaryResponse, zListSignalsResponse, zListInteractionsResponse, zListThumbsResponse, zGetSignalSummaryResponse, zGetAiModelsResponse, zListMentionsResponse, zListMentionGroupsResponse, zGetMentionSummaryResponse, zSearchResponse, zGetReadingSummaryResponse, zListReadingResponse, zListImportedReadingResponse, zPeekItemResponse, zListBrowseResponse, zGetUpdateStateResponse, zListStaleThreadsResponse, zGetForkOptionsResponse, zExtLineageGlyphGetLineageResponse, zExtLineageGlyphListSummariesResponse, zExtSpellcheckGetWordsResponse, zExtSpellcheckProofreadResponse, zExtWordCountListCountsResponse, zGetItemResponse, zGetSyndicationResponse, zGetSubscriptionResponse, zGetAgenticResponse, zGetHopperResponse, zListItemVersionsResponse, zListHopperMembershipsResponse, zGetMentionSourceResponse, zGetItemFreshnessResponse, zGetVersionResponse, zGetImportedItemResponse, zGetImportedHistoryResponse, zGetImportedVersionResponse } from './zod.gen.js';
 export const readValidators = [
   { pattern: new RegExp("^/capabilities$"), schema: zGetCapabilitiesResponse },
   { pattern: new RegExp("^/items$"), schema: zListItemsResponse },
   { pattern: new RegExp("^/settings$"), schema: zGetSettingsResponse },
   { pattern: new RegExp("^/subscriptions$"), schema: zListSubscriptionsResponse },
+  { pattern: new RegExp("^/dictionary$"), schema: zGetDictionaryResponse },
   { pattern: new RegExp("^/shelf$"), schema: zGetShelfResponse },
   { pattern: new RegExp("^/helpers$"), schema: zListHelpersResponse },
   { pattern: new RegExp("^/agentic$"), schema: zListAgenticFeedsResponse },
@@ -30,6 +31,8 @@ export const readValidators = [
   { pattern: new RegExp("^/fork-options$"), schema: zGetForkOptionsResponse },
   { pattern: new RegExp("^/ext/lineage-glyph/lineage$"), schema: zExtLineageGlyphGetLineageResponse },
   { pattern: new RegExp("^/ext/lineage-glyph/summaries$"), schema: zExtLineageGlyphListSummariesResponse },
+  { pattern: new RegExp("^/ext/spellcheck/words$"), schema: zExtSpellcheckGetWordsResponse },
+  { pattern: new RegExp("^/ext/spellcheck/proofread$"), schema: zExtSpellcheckProofreadResponse },
   { pattern: new RegExp("^/ext/word-count/counts$"), schema: zExtWordCountListCountsResponse },
   { pattern: new RegExp("^/items/[^/]+$"), schema: zGetItemResponse },
   { pattern: new RegExp("^/items/[^/]+/syndication$"), schema: zGetSyndicationResponse },

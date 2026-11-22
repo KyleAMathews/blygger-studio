@@ -45,6 +45,8 @@ it("exercises every declared operation through its named SDK method, including a
     ["listAgenticFeeds", 200, async client => api.listAgenticFeeds({ client })],
     ["getAgentic", 200, async client => api.getAgentic({ client, path: { feed: "default" } })],
     ["putAgentic", 200, async client => api.putAgentic({ client, path: { feed: "default" }, body: { edition: { agent: { name: "sdk" }, scores: [{ sub: "~own", remoteId: id, score: 1 }] }, expectedRevision: (await api.getAgentic({ client, path: { feed: "default" } })).data?.revision ?? 0 } })],
+    ["getDictionary", 200, async client => api.getDictionary({ client })],
+    ["putDictionarySource", 200, async client => api.putDictionarySource({ client, path: { source: "owner" }, body: { words: ["blyg"], expectedRevision: (await api.getDictionary({ client })).data?.revision ?? 0 } })],
     ["getShelf", 200, async client => api.getShelf({ client })],
     ["putShelf", 200, async client => api.putShelf({ client, body: { entries: [{ sub: "~own", remoteId: id }], expectedRevision: (await api.getShelf({ client })).data?.revision ?? 0 } })],
     ["updateContact", 200, async client => api.updateContact({ client, path: { id: contact.id }, body: { name: "Matrix two" } })],
@@ -99,6 +101,8 @@ it("exercises every declared operation through its named SDK method, including a
     // Extension routes answer 404 while the extension is disabled, as it is here.
     ["extLineageGlyphGetLineage", 404, async client => api.extLineageGlyphGetLineage({ client, query: { id } })],
     ["extLineageGlyphListSummaries", 404, async client => api.extLineageGlyphListSummaries({ client, query: { keys: JSON.stringify([`own:${id}`]) } })],
+    ["extSpellcheckGetWords", 404, async client => api.extSpellcheckGetWords({ client })],
+    ["extSpellcheckProofread", 404, async client => api.extSpellcheckProofread({ client, query: { id } })],
     ["extWordCountListCounts", 404, async client => api.extWordCountListCounts({ client, query: { keys: JSON.stringify([`own:${id}`]) } })],
     ["listStaleThreads", 200, async client => api.listStaleThreads({ client })],
     ["getItemFreshness", 409, async client => api.getItemFreshness({ client, path: { id }, query: { probe: "false" } })],
