@@ -289,3 +289,31 @@ local release/installation/schema/typecheck/SDK smoke sequence.
 The historical-fixture test source has SHA-256 `c99fd839db3aa6446103c1420b65c0abed4c985e08e8fe4045cb4cbb6ed69871`.
 This is fixture compatibility evidence, not a product behavior change or
 an additional oracle law. The prior Studio preparation receipt remains valid.
+
+
+## Withdrawal fixture timing
+
+CI run 45081400006 on parent `e76f9f5311f74148de895440633bdaf686304921`
+passed all oracle campaigns, every other job, and both historical version-state
+tests. The ordinary Worker suite reported 1983 passes, five skips and one
+failure in `test/background-lens.test.ts`. That older withdrawal fixture
+published two own items and assumed the first remained in Foreground. When
+those publications cross a second boundary, the existing superseded rule
+correctly moves the first item to Background.
+
+Putting the first version five minutes earlier reproduces the exact membership
+failure deterministically. An additional temporary assertion confirms its
+stored reason is `superseded` before the membership assertion fails. That
+assertion and the original source remain in local CI scratch.
+
+The fixture now disables supersession for its withdrawal comparison, following
+`test/burst-fold.test.ts` and `test/background-measured.test.ts`, and restores
+default rules afterward. The distinct publish times remain in the fixture so
+fast setup cannot conceal the neighboring rule. Every existing withdrawal,
+tombstone, kind and count assertion is unchanged. The same fixture plus the
+measured-background, placement, burst-fold and historical version-state suites
+pass all 32 tests. Worker TypeScript, changed-file ESLint and whitespace checks
+pass. No production, model, law, oracle driver or assertion changed.
+
+Final fixture source SHA-256: `3bca5eace2270789e050d6bb3f58a7be1e7facd62213692d47eb047e5471116f`.
+This repairs fixture isolation, not the product's supersession behavior.
