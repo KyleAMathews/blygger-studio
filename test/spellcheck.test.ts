@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { apiJson, login } from "./helpers.ts";
 import { putSettings } from "../src/model.ts";
 import { misspellings, prose, speller, unpack } from "../extensions/spellcheck/ui/spell.ts";
-import { readIssues } from "../extensions/spellcheck/proofread.ts";
+import { isCorrection, readIssues } from "../extensions/spellcheck/proofread.ts";
 import { WORDS, WORDS_GZ } from "../extensions/spellcheck/words-en-us.ts";
 
 const ID = "0000000000000000000000000a";
@@ -73,6 +73,15 @@ describe("readIssues", () => {
       { find: "Their going", replace: "They're going", why: "wrong word" },
       { find: "the the store", replace: "the store", why: "doubled word" },
     ]);
+  });
+  it("offers corrections only, never a rewrite (spec §5.7 rule 10, #115)", () => {
+    expect(isCorrection("the the store", "the store")).toBe(true);
+    expect(isCorrection("they is happy", "they are happy")).toBe(true);
+    expect(isCorrection("Their going", "They're going")).toBe(true);
+    expect(isCorrection("recieve", "receive")).toBe(true);
+    expect(isCorrection("it was decided by the committee that we would go", "the committee decided we should go")).toBe(false);
+    const rewrite = '[{"find":"Their going to the the store.","replace":"They are heading off to the shop now.","why":"clarity"}]';
+    expect(readIssues(rewrite, text)).toEqual([]);
   });
   it("is empty for an answer that isn't a JSON array", () => {
     expect(readIssues("No issues found.", text)).toEqual([]);

@@ -85,3 +85,17 @@ test('it replaces the browser’s spellcheck: misspellings underlined as you typ
   await expect(box).not.toHaveAttribute('spellcheck', 'false');
   await expect(page.locator('.ed-marks')).toHaveCount(0);
 });
+
+test('an accepted proofread fix goes in bare, and the sheet offers a change-note line (#115)', async ({ page }) => {
+  const id = await page.evaluate(async () => (await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: 'We went to the the store.', kind: 'thread' }) })).json()).id as string);
+  await page.route('**/api/ext/spellcheck/proofread**', (route) =>
+    route.fulfill({ json: { issues: [{ find: 'the the store', replace: 'the store', why: 'doubled word' }], model: 'test-model', truncated: false } }));
+  await page.goto(`/studio/edit/${id}`);
+  await page.locator('[data-action=spellcheck]').click();
+  const sheet = page.locator('.spellcheck-sheet');
+  await sheet.locator('[data-action=spellcheck-proofread]').click();
+  await expect(sheet.locator('[data-spellcheck-note]')).toHaveCount(0);
+  await sheet.locator('li[data-issue="the the store"]').getByRole('button', { name: 'fix' }).click();
+  await expect(page.locator('textarea').first()).toHaveValue('We went to the store.');
+  await expect(sheet.locator('[data-spellcheck-note] q')).toHaveText('Proofread with test-model; 1 correction accepted.');
+});

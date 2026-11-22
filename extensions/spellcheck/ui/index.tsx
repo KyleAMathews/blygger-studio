@@ -153,6 +153,7 @@ function SpellSheet({ live, close, focus, onChange }: { live: RefObject<EditorBa
                     ))}
                   </ul>
                   <button type="button" className="link-btn" onClick={() => { for (const issue of proof.issues) if (!done.has(issue.find)) apply(issue); }}>fix all</button>
+                  {done.size ? <NoteLine model={proof.model} count={done.size} /> : null}
                 </>
               ) : (
                 <p data-spellcheck-proof-clean>Nothing to fix{proof.truncated ? ' in the part it read' : ''}.</p>
@@ -163,6 +164,28 @@ function SpellSheet({ live, close, focus, onChange }: { live: RefObject<EditorBa
         )}
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * Accepted corrections stay the author's words (spec §5.7 rule 10, decision #115):
+ * they carry no generated[] entry and no field records them. If the author wants
+ * readers to know, the changelog note says it, in words; this offers the line.
+ */
+function NoteLine({ model, count }: { model: string; count: number }) {
+  const line = `Proofread with ${model}; ${count} correction${count === 1 ? '' : 's'} accepted.`;
+  return (
+    <p className="spellcheck-note" data-spellcheck-note>
+      <span className="hint">For your change note, if you want readers to know: </span>
+      <q>{line}</q>{' '}
+      <button
+        type="button"
+        className="link-btn"
+        onClick={() => void navigator.clipboard.writeText(line).then(() => toast('Copied. Paste it into the change note when you publish.'), () => toast('Copying failed; select the line instead.'))}
+      >
+        copy
+      </button>
+    </p>
   );
 }
 
