@@ -24,6 +24,7 @@ import { readState } from '../versions.ts';
 import { displayUrl } from '../importer/util.ts';
 import { Sheet } from './sheets.tsx';
 import { errorLog, type ErrorSource } from './error-log.ts';
+import { useGeneratedHighlight } from './generated-highlight.ts';
 import { SetupBanner } from './setup.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 import type { StudioExtension } from './extension-api.ts';
@@ -295,6 +296,7 @@ function useSettledReadProblem(problem: Error | undefined): Error | undefined {
 
 export function Layout({ children }: { children: ReactNode }) {
   const settings = useSettings();
+  useGeneratedHighlight(settings?.highlightGeneratedDefault);
   const update = useUpdateState();
   const path = relativePath(useLocation({ select: (l) => l.pathname }));
   const active = tabFor(path);
@@ -307,7 +309,8 @@ export function Layout({ children }: { children: ReactNode }) {
   const error = shownProblem?.cause ?? shownProblem;
   // The studio wears the reading theme. Until settings load, the theme
   // applied at startup (the last one seen on this device) stays.
-  const theme = settings?.theme;
+  // The Studio may wear its own palette (studioTheme, session 78); empty wears the public one.
+  const theme = settings ? settings.studioTheme || settings.theme : undefined;
   // The palettes as strings, so the effect re-runs on a changed colour but not
   // on every new settings object with the same values.
   const customKey = settings?.customTheme

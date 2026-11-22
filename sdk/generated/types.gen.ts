@@ -133,6 +133,10 @@ export type SyndicationEntry = {
 export type Settings = {
     siteTitle: string;
     theme: string;
+    /**
+     * The Studio's own palette, reader included: empty (the default) wears the public pages' theme; otherwise auto, a theme name, or custom (the custom palette). Public pages always use theme.
+     */
+    studioTheme: string;
     customTheme: CustomTheme | null;
     customThemeDark: CustomTheme | null;
     customThemeName: string;
@@ -3000,6 +3004,10 @@ export type UpdateSettingsData = {
     body: {
         siteTitle?: string;
         theme?: string;
+        /**
+         * The Studio's own palette, reader included: empty (the default) wears the public pages' theme; otherwise auto, a theme name, or custom (the custom palette). Public pages always use theme.
+         */
+        studioTheme?: string;
         customTheme?: CustomTheme | null;
         customThemeDark?: CustomTheme | null;
         customThemeName?: string;

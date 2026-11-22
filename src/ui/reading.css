@@ -74,6 +74,11 @@
 .entry-body blockquote.blyg-partial { border-left-style: dashed; }
 .entry-body blockquote > :last-child { margin-bottom: 0; }
 .entry-body pre { overflow-x: auto; max-width: 100%; background: var(--sunk); border-radius: 8px; padding: 8px 10px; font-size: .85rem; }
+/* Parity with the public pages (session 78): a code block's own code is not an
+   inline chip, and inside a quote (itself --sunk) code and code blocks take the
+   card's colour so they still stand out. */
+.entry-body pre code { background: none; padding: 0; border-radius: 0; font-size: inherit; }
+.entry-body blockquote pre, .entry-body blockquote :not(pre) > code { background: var(--card); }
 /* A formula paints inside its own box (v0.4-plan 23.6): no raised, smashed or lapped
    text over another author's words. The margin keeps glyph ink that overhangs the box
    (italics, accents); 0.25em was the least that left ordinary formulas pixel-identical.

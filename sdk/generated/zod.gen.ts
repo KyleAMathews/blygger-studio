@@ -159,6 +159,7 @@ export const zCustomTheme = z.object({
 export const zSettings = z.object({
     siteTitle: z.string(),
     theme: z.string(),
+    studioTheme: z.string(),
     customTheme: zCustomTheme.nullable(),
     customThemeDark: zCustomTheme.nullable(),
     customThemeName: z.string(),
@@ -1378,6 +1379,7 @@ export const zGetSettingsResponse = zSettings;
 export const zUpdateSettingsBody = z.object({
     siteTitle: z.string().optional(),
     theme: z.string().optional(),
+    studioTheme: z.string().optional(),
     customTheme: zCustomTheme.nullish(),
     customThemeDark: zCustomTheme.nullish(),
     customThemeName: z.string().optional(),

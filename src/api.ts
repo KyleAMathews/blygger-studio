@@ -11,7 +11,7 @@ import { settingsInput } from './contract/settings.ts';
 import { deploymentUrls } from './deployment-urls.ts';
 import { mediaUrl } from './contract/resources.ts';
 import { settingsResource } from "./settings-resource.ts";
-import { CUSTOM_THEME_ID, pairError, themeNameError, validateCustomTheme, type CustomTheme } from "./themes.ts";
+import { CUSTOM_THEME_ID, pairError, themeNameError, THEMES, validateCustomTheme, type CustomTheme } from "./themes.ts";
 import { itemResource } from "./contract/resources.ts";
 import { itemUrl, storedSurface } from "./surface.ts";
 import { z } from "@hono/zod-openapi";
@@ -771,6 +771,7 @@ const deleteMediaOperation = async (context: OperationContext, input: OperationI
 const SETTINGS_KEYS = [
   "site_title",
   "theme",
+  "studio_theme",
   "font",
   "custom_theme_name",
   "author_name",
@@ -919,8 +920,16 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
     const light = palettes.custom_theme !== undefined ? palettes.custom_theme : current.custom_theme;
     const dark = palettes.custom_theme_dark !== undefined ? palettes.custom_theme_dark : current.custom_theme_dark;
     if (theme === CUSTOM_THEME_ID && !light) return failure('invalid-input', { error: "theme is custom but no customTheme is set" });
+    if (current.studio_theme === CUSTOM_THEME_ID && patch.studio_theme === undefined && !light) return failure('invalid-input', { error: "studioTheme is custom: keep a customTheme, or change studioTheme first" });
     const incoherent = pairError(light, dark);
     if (incoherent) return failure('invalid-input', { error: incoherent });
+  }
+  if (patch.studio_theme !== undefined && patch.studio_theme !== "") {
+    const name = patch.studio_theme;
+    const known = name === "auto" || name === CUSTOM_THEME_ID || Object.prototype.hasOwnProperty.call(THEMES, name);
+    if (!known) return failure('invalid-input', { error: `studioTheme must be empty, auto, custom or one of ${Object.keys(THEMES).join(", ")}` });
+    const light = palettes.custom_theme !== undefined ? palettes.custom_theme : (await getSettings(context.env.DB)).custom_theme;
+    if (name === CUSTOM_THEME_ID && !light) return failure('invalid-input', { error: "studioTheme is custom but no customTheme is set" });
   }
   await putSettings(context.env.DB, patch);
   return success(settingsResource(await getSettings(context.env.DB)));

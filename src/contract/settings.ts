@@ -10,6 +10,7 @@ export const BackgroundRulesPatchSchema = z.object(Object.fromEntries(BACKGROUND
 export const SettingsSchema = z.object({
   siteTitle: z.string(),
   theme: z.string(),
+  studioTheme: z.string().describe("The Studio's own palette, reader included: empty (the default) wears the public pages' theme; otherwise auto, a theme name, or custom (the custom palette). Public pages always use theme."),
   customTheme: z.union([CustomThemeSchema, z.null()]),
   customThemeDark: z.union([CustomThemeSchema, z.null()]),
   customThemeName: z.string(),
@@ -68,6 +69,7 @@ export const SettingsSchema = z.object({
 export const settingsStorageKeys = {
   "siteTitle": "site_title",
   "theme": "theme",
+  "studioTheme": "studio_theme",
   "customTheme": "custom_theme",
   "customThemeDark": "custom_theme_dark",
   "customThemeName": "custom_theme_name",

@@ -35,6 +35,7 @@ import { localPatches } from '../../build/patches.ts';
 const fields = [
   "siteTitle",
   'theme',
+  "studioTheme",
   "customTheme",
   "customThemeDark",
   "customThemeName",
@@ -584,9 +585,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
         <h3 className="card-h">theme</h3>
         <div className="field">
           <span>
-            Reading theme — your public pages and this studio
+            Public theme — your public pages, and this studio unless it has its own below
           </span>
-          <div className="theme-grid" role="radiogroup" aria-label="Reading theme">
+          <div className="theme-grid" role="radiogroup" aria-label="Public theme">
             {['auto', ...Object.keys(THEMES)].map((id) => {
               const theme = THEMES[id];
               const automatic = id === 'auto';
@@ -697,6 +698,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
             }}
           />
         ) : null}
+
+        <StudioThemeField form={form} change={change} />
         <div className="field">
           <span>
             Typeface — fonts already on the reader's device, so nothing is
@@ -729,7 +732,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
           <>
             Text written by <code>[TK]</code> generation shows on your public
             pages in a lightly tinted, outlined box, in every theme. A post can
-            override this in its editor's TK card.
+            override this in its editor's TK card. Your reader follows this
+            setting too, for every post it shows, yours and other blygs&rsquo;.
           </>,
         )}
       </section>
@@ -1691,6 +1695,46 @@ function ThreadSearch({
           <span className="hint">No published thread matches.</span>
         )
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * The Studio's own palette, reader included (Venkat, session 78): "Same as
+ * public" (empty, the default) wears the public theme; any preset or the
+ * custom palette may be chosen instead. Public pages are unaffected.
+ */
+function StudioThemeField({ form, change }: { form: Settings; change: <K extends keyof Settings>(key: K, value: Settings[K]) => void }) {
+  const ids = ['', 'auto', ...Object.keys(THEMES), ...(form.customTheme ? [CUSTOM_THEME_ID] : [])];
+  const label = (id: string) =>
+    id === '' ? 'Same as public' : id === 'auto' ? 'Auto' : id === CUSTOM_THEME_ID ? form.customThemeName || 'Custom' : THEMES[id]!.label;
+  const colours = (id: string) => {
+    const shown = id === '' ? form.theme : id;
+    if (shown === 'auto') return { page: 'linear-gradient(90deg,#fafbfb 50%,#14191a 50%)', paper: 'transparent', ink: 'linear-gradient(90deg,#1b2426 50%,#e3e7e7 50%)' };
+    if (shown === CUSTOM_THEME_ID && form.customTheme) return { page: form.customTheme.page, paper: form.customTheme.paper, ink: form.customTheme.ink };
+    const t = THEMES[shown] ?? THEMES.paper!;
+    return { page: t.page, paper: t.paper, ink: t.ink };
+  };
+  return (
+    <div className="field">
+      <span>Studio theme — this studio and its reader</span>
+      <div className="theme-grid" role="radiogroup" aria-label="Studio theme">
+        {ids.map((id) => {
+          const c = colours(id);
+          return (
+            <label className="theme-opt" key={id || 'same'}>
+              <input type="radio" name="studioTheme" value={id} checked={(form.studioTheme ?? '') === id} onChange={() => change('studioTheme', id)} />
+              <span className="theme-swatch" style={{ background: c.page }}>
+                <span className="sheet-mini" style={{ background: c.paper }}>
+                  <span className="line" style={{ background: c.ink }} />
+                  <span className="line short" style={{ background: c.ink, opacity: 0.55 }} />
+                </span>
+              </span>
+              <span className="theme-name">{label(id)}</span>
+            </label>
+          );
+        })}
+      </div>
     </div>
   );
 }

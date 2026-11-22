@@ -26,6 +26,8 @@ export const THEME_VARS = [
   'ok',
   'warn',
   'shadow',
+  'gen-bg',
+  'gen-rule',
 ] as const;
 export type ThemeVars = Record<(typeof THEME_VARS)[number], string>;
 
@@ -70,6 +72,9 @@ export function themeVars(
         : t.inkSoft,
     ...(t.dark ? STATE_DARK : STATE_LIGHT),
     shadow: t.dark ? SHADOW_DARK : SHADOW_LIGHT,
+    // Generated spans in the reader, drawn as on the public pages (src/generated-style.ts).
+    'gen-bg': t.genBg,
+    'gen-rule': t.genRule,
   };
 }
 

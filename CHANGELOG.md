@@ -45,6 +45,15 @@ an optional **instruction** written beneath the toggle, the classifier also read
 changelog note, and an entry whose note calls a large change minor stays in view with a chip
 ("note says minor · 35% changed"). With no instruction, notes are never sent.
 
+**The reader draws generated text as the public pages do** (session 78): the tinted box and
+the robot on every `[TK]` span the reader shows, your own items and other blygs' alike,
+quoted ones included, under the same setting (*Highlight generated portions by default*).
+Both surfaces now share one set of rules (`src/generated-style.ts`). Code inside a quote keeps
+its background in the reader, and a code block's own code is no longer an inline chip.
+
+**The studio may wear its own theme**: Settings → Appearance → *Studio theme*, "Same as public"
+by default, or any preset or your custom palette. Public pages always wear the public theme.
+
 **An entry's source name opens that source's feed**, in every reader view (cards, the full
 view, the Agentic feed): the same single-source view the Sources tab opens, in the same
 lens. Reached that way, its back link reads *← main feed*; reached from Sources, *← sources*.

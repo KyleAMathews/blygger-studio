@@ -542,6 +542,10 @@
           "theme": {
             "type": "string"
           },
+          "studioTheme": {
+            "type": "string",
+            "description": "The Studio's own palette, reader included: empty (the default) wears the public pages' theme; otherwise auto, a theme name, or custom (the custom palette). Public pages always use theme."
+          },
           "customTheme": {
             "anyOf": [
               {
@@ -864,6 +868,7 @@
         "required": [
           "siteTitle",
           "theme",
+          "studioTheme",
           "customTheme",
           "customThemeDark",
           "customThemeName",
@@ -8541,6 +8546,10 @@
                   },
                   "theme": {
                     "type": "string"
+                  },
+                  "studioTheme": {
+                    "type": "string",
+                    "description": "The Studio's own palette, reader included: empty (the default) wears the public pages' theme; otherwise auto, a theme name, or custom (the custom palette). Public pages always use theme."
                   },
                   "customTheme": {
                     "anyOf": [
