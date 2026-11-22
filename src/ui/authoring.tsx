@@ -42,6 +42,7 @@ import { Tooltip } from './primitives.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { DraftCounterSlot, editorRegions, enabledExtensions, useEditorBars, type HostContext } from './extensions.tsx';
 import { join, rebase, split, toFull, toShown, touches } from './editor-regions.ts';
+import { MarksLayer } from './editor-marks.tsx';
 import type { EditorRegion } from './editor-regions.ts';
 import { HandlePicker } from './contacts.tsx';
 import { editSyndication } from './syndication.tsx';
@@ -1147,7 +1148,13 @@ export function Compose({ q }: { q?: string } = {}) {
             value={text}
             {...textareaProps(upload, tools)}
             onChange={(e) => change(upload.command(e.target.value))}
+            spellCheck={bars.replaced('spellcheck') ? false : undefined}
+            onClick={(e) => {
+              const el = e.currentTarget;
+              if (el.selectionStart === el.selectionEnd) bars.activate(el.selectionStart);
+            }}
           />
+          <MarksLayer input={input} text={text} marks={bars.marks} />
           <BracketPicker
             input={input}
             text={text}
@@ -1742,6 +1749,13 @@ function useBars({ input, text, shown, change, item, regions, run }: {
       replace(start, end, insert);
     },
     replace,
+    select: (start, end) => {
+      const el = input.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(start, end);
+      revealCaret(el);
+    },
     regions,
   });
 }
@@ -2645,12 +2659,18 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
               ref={input}
               value={held.box}
               {...textareaProps(upload, tools)}
+              spellCheck={bars.replaced('spellcheck') && !focus.active ? false : undefined}
+              onClick={(e) => {
+                const el = e.currentTarget;
+                if (!focus.active && el.selectionStart === el.selectionEnd) bars.activate(el.selectionStart);
+              }}
               onChange={(event) => {
                 const typed = event.target.value;
                 const next = upload.command(typed);
                 held.change(next, next === typed ? event.target.selectionEnd : undefined);
               }}
             />
+            <MarksLayer input={input} text={held.box} marks={focus.active ? [] : bars.marks} />
             {!replacing ? (
               <BracketPicker
                 input={input}
