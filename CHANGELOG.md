@@ -103,6 +103,12 @@ note.
 blocks written through an editor bar, a badge on posts with a claim, pin and resolve from
 the post, and a Claims page with your score. Browser-only.
 
+**A false "update" badge is gone.** Since 0.67.0 every Studio with update checks on showed
+"update" and a dot on More, because the release check took the highest version-shaped
+number anywhere in the release feed, and 0.67.0's notes mention the API contract's 6.0.0.
+The check now reads versions only where the feed names a release (its tag links, entry ids
+and titles). A node that stored the false version clears it at its next daily check.
+
 **Migrations:** **0050** (`search_index`, #146; backfills the index from existing rows),
 **0052** (`agentic_feeds`), **0053** (`helper_results`), **0054** (`imported_change_queue`),
 **0055** (`dictionary`). Apply them before deploying. Private contract **6.2.0**, SDK

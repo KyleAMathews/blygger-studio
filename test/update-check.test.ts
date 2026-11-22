@@ -49,6 +49,15 @@ describe("latestInFeed", () => {
   it("is not confused by a double-digit minor", () => {
     expect(latestInFeed(feed(["0.9.0", "0.10.0"]))).toEqual([0, 10, 0]);
   });
+
+  it("reads releases, never the versions their notes mention (session 78: a false 6.0.0)", () => {
+    const github = `<feed><entry><id>tag:github.com,2008:Repository/1393352461/v0.68.0</id>
+<link rel="alternate" type="text/html" href="https://github.com/blygger/blygger-studio/releases/tag/v0.68.0"/>
+<title>v0.68.0</title><content type="html">Private contract 6.0.0, SDK 0.22.0. Hono 4.13.14 → 4.13.18.</content></entry>
+<entry><id>tag:github.com,2008:Repository/1393352461/v0.67.0</id><title>v0.67.0</title>
+<content type="html">&lt;p&gt;Node 24.21.0 and contract 6.0.0&lt;/p&gt;</content></entry></feed>`;
+    expect(latestInFeed(github)).toEqual([0, 68, 0]);
+  });
 });
 
 describe("isBehind", () => {
