@@ -8,6 +8,8 @@ import { loadFeedHistory } from '../src/feeds/history.ts';
 it('backfills only known version states and preserves ambiguous legacy behavior', async () => {
   // Recreate the actual pre-0034 version schema, then apply the parsed migration.
   await env.DB.prepare('DROP TRIGGER change_versions_update').run();
+  // The reader's later trigger also depends on the column absent before 0034.
+  await env.DB.prepare('DROP TRIGGER reader_order_versions_update').run();
   await env.DB.prepare('ALTER TABLE versions DROP COLUMN kind').run();
   const previous = env.TEST_MIGRATIONS.find(m => m.name.startsWith('0024'))!;
   await env.DB.prepare(previous.queries.find((q: string) => q.includes('CREATE TRIGGER change_versions_update'))!).run();

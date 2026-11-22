@@ -267,3 +267,25 @@ The only changed test source has SHA-256 `d684002fa3ea21752806adb0f2d7ed8b0d8e15
 `test-oracles/cursor-codec.oracle.test.ts`. The product manifest above remains
 unchanged. These receipts add native SQLite preparation coverage; they do not
 extend the earlier deployment, replication or performance claims.
+
+
+## Historical version-state fixture compatibility
+
+CI run45075884440 on parent `9ab5236ac1e6a40328ca5695668fff77465fe672`
+passed every oracle campaign and the other nine jobs. Its ordinary Worker suite
+reported1982 passed, five skipped and two failures in
+`test/version-state-upgrade.test.ts`. The pre0034 setup dropped `versions.kind`
+while retaining0058's `reader_order_versions_update`, which references that
+column. SQLite rejected the schema edit before0034 ran. The following test
+then inherited the missing change trigger and failed its counter assertion.
+
+Both failures reproduce locally before the repair. Reconstructing the historical
+schema now also drops the later reader update trigger; all assertions and
+production code are unchanged. The same two tests and eleven neighbouring
+reader-order tests pass afterward. Worker TypeScript, changed-file ESLint and
+whitespace validation pass. `npm run test:upgrade` also passes its synthetic
+local release/installation/schema/typecheck/SDK smoke sequence.
+
+The historical-fixture test source has SHA-256 `c99fd839db3aa6446103c1420b65c0abed4c985e08e8fe4045cb4cbb6ed69871`.
+This is fixture compatibility evidence, not a product behavior change or
+an additional oracle law. The prior Studio preparation receipt remains valid.
