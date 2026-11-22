@@ -16,7 +16,6 @@
  * reading collection's change generation moves, so pages are cut by the
  * ordinary cursor, which already expires when that generation moves.
  */
-import { readChanges } from "../changes.ts";
 import { clampedTime } from "../burst.ts";
 import { loadFeedHistory } from "./history.ts";
 import { paceLayeredOrder } from "./pace-layered.ts";
@@ -144,18 +143,22 @@ export function readerPositions(items: FeedHistoryItem[]): string[] {
 }
 
 /** The generation the stored positions answer to: what the reading collection pages against, plus own items. */
-async function currentGeneration(db: D1Database): Promise<string> {
-  const changes = await readChanges(db);
-  return JSON.stringify([changes.epoch, changes.domains.items, changes.domains.reading, changes.domains.subscriptions]);
-}
-
 /**
- * Make `reading_order` current: rebuilt only when the generation moved since
- * the last build. Two readers rebuilding at once write the same positions.
+ * Make `reading_order` current: rebuilt only when one of its inputs changed
+ * since the last build. `inputs` is moved by migration 0056's triggers on
+ * exactly what loadReaderHistory reads, so polls, autosaves and read marks
+ * leave the order alone; the change epoch still forces a rebuild after a
+ * restore. Two readers rebuilding at once write the same positions, and a
+ * change during a build leaves the stored generation behind, so the next read
+ * rebuilds again.
  */
 export async function ensureReaderOrder(db: D1Database): Promise<void> {
-  const generation = await currentGeneration(db);
-  const stored = await db.prepare("SELECT generation FROM reading_order_state WHERE id = 1").first<{ generation: string }>();
+  const [state, epoch] = await db.batch<{ generation: string; inputs: number } | { epoch: string }>([
+    db.prepare("SELECT generation, inputs FROM reading_order_state WHERE id = 1"),
+    db.prepare("SELECT epoch FROM change_state WHERE id = 1"),
+  ]);
+  const stored = state.results[0] as { generation: string; inputs: number } | undefined;
+  const generation = JSON.stringify([(epoch.results[0] as { epoch: string } | undefined)?.epoch ?? "", stored?.inputs ?? 0]);
   if (stored?.generation === generation) return;
   const { items, identities } = await loadReaderHistory(db);
   const rows = readerPositions(items).flatMap((key, position) => {

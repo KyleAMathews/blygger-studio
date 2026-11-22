@@ -68,11 +68,17 @@ function RouteErrorLogged({ error }: { error: unknown }) {
   useEffect(() => { errorLog.record(error, 'route'); }, [error]);
   return null;
 }
+/** Start loads a page shows its own pending state for; their errors surface in that page. */
+function background(loads: Promise<unknown>[]) {
+  for (const load of loads) void load.catch(() => undefined);
+}
 const rootRoute = createRootRoute({
-  loader: () => Promise.all([
-    preloadView(listViews.settings),
-    preloadView(listViews.updates),
-  ]),
+  // Settings shape the layout; the update check only feeds a badge, so it
+  // loads beside the page instead of holding it (session 79).
+  loader: () => {
+    void preloadView(listViews.updates).catch(() => undefined);
+    return preloadView(listViews.settings);
+  },
   pendingComponent: () => <p>Loading Studio…</p>,
   errorComponent: ({ error }) => (
     <div role="alert">
@@ -171,13 +177,15 @@ const reading = createRoute({
   }),
   loader: async ({ deps }) => {
     if (deps.hopper) {
-      await Promise.all([
-        preloadDetail(hopperInfo(deps.hopper), 'Hopper'),
-        preloadView(readingSummaryView(readingKey('hopper:' + deps.hopper, deps.lens))),
+      background([
         ...(deps.lens === 'agentic' ? [] : [preloadView(readingView(readingKey('hopper:' + deps.hopper, deps.lens), deps.offset))]),
         preloadView(listViews.subscriptions),
         preloadView(listViews.hoppers),
         preloadView(listViews.signals),
+      ]);
+      await Promise.all([
+        preloadDetail(hopperInfo(deps.hopper), 'Hopper'),
+        ...(deps.offset > 0 ? [preloadView(readingSummaryView(readingKey('hopper:' + deps.hopper, deps.lens)))] : []),
       ]);
       const summary = readingSummaryView(readingKey('hopper:' + deps.hopper, deps.lens)).toArray[0];
       if (deps.offset > 0 && summary && deps.offset >= summary.total) throw redirect({ to: '/reading', search: { hopper: deps.hopper, offset: 0, ...(deps.lens ? { lens: deps.lens } : {}) } });
@@ -189,8 +197,11 @@ const reading = createRoute({
     const offset = deps.view === 'sources' ? 0 : deps.offset;
     const key = readingKey(sub, deps.lens);
     const view = readingView(key, offset);
-    await Promise.all([
-      preloadView(readingSummaryView(key)),
+    // The page draws as soon as it can: the feed shows "Loading reading…"
+    // while its rows arrive, and the side lists fill in after (session 79; a
+    // deep offset walks the cursor pages, which held the page blank for
+    // seconds). Only the summary is awaited, and only when it decides a redirect.
+    background([
       ...(deps.view === 'sources' ? [] : [preloadView(view)]),
       preloadView(listViews.subscriptions),
       preloadView(listViews.hoppers),
@@ -199,7 +210,11 @@ const reading = createRoute({
         ? [preloadHopperInfos()]
         : []),
     ]);
-    if (deps.sub === undefined || deps.lens === 'agentic') return;
+    if (deps.sub === undefined || deps.lens === 'agentic') {
+      background([preloadView(readingSummaryView(key))]);
+      return;
+    }
+    await preloadView(readingSummaryView(key));
     const page = readingSummaryView(key).toArray[0];
     if (
       page &&
