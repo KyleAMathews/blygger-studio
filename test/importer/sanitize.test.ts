@@ -93,3 +93,11 @@ describe("a partial transclusion survives import intact", () => {
     expect(out).toContain("blyg-partial");
   });
 });
+
+describe("an ordered list's start (#114)", () => {
+  it("keeps an integer start on ol, and nothing else under that name", async () => {
+    expect(await sanitizeHtml('<ol start="3"><li>three</li></ol>')).toBe('<ol start="3"><li>three</li></ol>');
+    expect(await sanitizeHtml('<ol start="3; color:red"><li>x</li></ol>')).toBe("<ol><li>x</li></ol>");
+    expect(await sanitizeHtml('<ul start="3"><li>x</li></ul>')).toBe("<ul><li>x</li></ul>");
+  });
+});

@@ -207,6 +207,82 @@ export function selectionText(html: string): string {
   );
 }
 
+/** Where a line of `selectionText` sits in a list: one entry per enclosing list, outermost first. */
+export interface ListLevel {
+  /** Distinguishes two lists in one document. */
+  list: number;
+  tag: "ul" | "ol";
+  /** The item's number as the source shows it (an `ol`'s `start` counted in; 1-based for `ul`). */
+  ordinal: number;
+}
+export interface SelectionLine {
+  text: string;
+  /** The lists enclosing the line where its first character is; empty outside any list. */
+  lists: ListLevel[];
+}
+
+/**
+ * The lines of `selectionText`, each with the list structure it starts in
+ * (decision #114): the same boundaries, the same stripping and the same
+ * whitespace rule, so `lines.map(l => l.text).join("\n") === selectionText(html)`
+ * (tested). A tight nested list stays one line ("parent child"), as
+ * selectionText reads it; a loose one gives each paragraph its own line.
+ */
+export function selectionLines(html: string): SelectionLine[] {
+  const boundary = new RegExp(`^(?:${BLOCK_BOUNDARY.source})$`, "i");
+  type Open = { list: number; tag: "ul" | "ol"; next: number } | { item: number };
+  const stack: Open[] = [];
+  let lists = 0;
+  const chain = (): ListLevel[] => {
+    const out: ListLevel[] = [];
+    for (let i = 0; i < stack.length; i++) {
+      const open = stack[i]!;
+      if ("list" in open) {
+        const item = stack[i + 1];
+        if (item && "item" in item) out.push({ list: open.list, tag: open.tag, ordinal: item.item });
+      }
+    }
+    return out;
+  };
+  const lines: SelectionLine[] = [];
+  let raw = "";
+  let at: ListLevel[] | null = null;
+  const close = () => {
+    const text = decodeEntities(raw).replace(/\s+/g, " ").trim();
+    if (text) lines.push({ text, lists: at ?? [] });
+    raw = "";
+    at = null;
+  };
+  // Tags exactly as selectionText strips them (<[^>]+>); a lone "<" is text.
+  for (const [token] of withoutScripts(html).matchAll(/<[^>]+>|<|[^<]+/g)) {
+    if (token.length > 1 && token.startsWith("<")) {
+      const tag = /^<\s*(\/?)\s*([a-z0-9]+)/i.exec(token);
+      const name = tag?.[2]?.toLowerCase();
+      if (tag && !tag[1] && (name === "ul" || name === "ol")) {
+        const start = name === "ol" ? Number(/\bstart\s*=\s*["']?(-?\d+)/i.exec(token)?.[1] ?? 1) : 1;
+        stack.push({ list: lists++, tag: name, next: Number.isSafeInteger(start) ? start : 1 });
+      } else if (tag && !tag[1] && name === "li") {
+        const list = [...stack].reverse().find((o): o is Extract<Open, { list: number }> => "list" in o);
+        if (list) stack.push({ item: list.next++ });
+      } else if (tag && tag[1] && name === "li") {
+        const i = stack.map((o) => "item" in o).lastIndexOf(true);
+        if (i >= 0) stack.length = i;
+      } else if (tag && tag[1] && (name === "ul" || name === "ol")) {
+        const i = stack.map((o) => "list" in o).lastIndexOf(true);
+        if (i >= 0) stack.length = i;
+      }
+      // A line's place was fixed at its first character, so closing it after
+      // the tag has changed the stack is safe.
+      if (boundary.test(token)) close();
+      continue;
+    }
+    if (at === null && /\S/.test(decodeEntities(token))) at = chain();
+    raw += token;
+  }
+  close();
+  return lines;
+}
+
 /**
  * The same rule applied to text that is already text — a browser selection,
  * where `Selection.toString()` has already put a newline at each block

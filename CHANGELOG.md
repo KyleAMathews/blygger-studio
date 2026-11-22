@@ -47,6 +47,15 @@ changelog note, and an entry whose note calls a large change minor stays in view
 toggle beneath the instruction turns that keep-in-view default off, so the classifier's label
 alone decides.
 
+**A quote of list items keeps its bullets** (decision #114, spec §16.15, ROADMAP row 136).
+A partial quote used to publish quoted list items as bare paragraphs, on every page that
+showed it. Now a quoted line that is a list item in the quoted post publishes as one, in a
+list like the original's: an ordered run starts at the source's number, and nesting is
+kept where both lines are quoted. The structure comes from the quoted post, never from the
+markers you type, so a list quoted as plain lines is still a list. The text is unchanged,
+so the quote's check at publish is too. The importer keeps an `ol`'s `start`, and a fork
+flattens quoted lists as markdown lists with their numbers.
+
 **The reader draws generated text as the public pages do** (session 78): the tinted box and
 the robot on every `[TK]` span the reader shows, your own items and other blygs' alike,
 quoted ones included, under the same setting (*Highlight generated portions by default*).

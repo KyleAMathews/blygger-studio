@@ -112,6 +112,12 @@ editorBar: { label: 'Book', row: 'above', blocks: 2, replaces: ['regionToggle'],
   the bar obtained elsewhere (spec §5.7 rule 7, decision #37). Never insert it bare: `insert()` text
   publishes as the author's own, with no `generated[]` entry. The Studio cannot tell, so this is a
   review rule for extensions in this repository and a promise for mods (`mods.md`).
+  **A correction is not model text** (spec §5.7 rule 10, decision #115): a change that restores
+  what the author meant to write (spelling, grammar, punctuation, a name's consistent form) may go
+  in bare, whether a dictionary or a model proposed it, once the author accepts it. A model's
+  suggestion that rephrases, restructures or adds is composition and follows the rule above. A bar
+  that offers model corrections should offer corrections only, and may draft a line for the
+  changelog note ("Proofread with … ; 12 corrections accepted"), in words, never as a field.
 - **Focus view** leaves the bars out, like the Studio's tool row. Focus view is the text and nothing
   else; that is its point.
 - Off is invisible: with no bar enabled there is no bar row and no bars menu.

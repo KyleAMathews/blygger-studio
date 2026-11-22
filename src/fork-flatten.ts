@@ -158,8 +158,10 @@ async function block(n: Extract<Node, object>, ctx: FlattenContext): Promise<str
     case "ul": case "ol": {
       const items = n.children.filter((c): c is Extract<Node, object> => typeof c !== "string" && c.tag === "li");
       const lines: string[] = [];
+      // An ordered list keeps its first number (#114: a quote of items 3 and 4 reads "3. 4.").
+      const start = /^-?\d{1,9}$/.test(n.attrs.start ?? "") ? Number(n.attrs.start) : 1;
       for (const [i, li] of items.entries()) {
-        const marker = n.tag === "ol" ? `${i + 1}. ` : "- ";
+        const marker = n.tag === "ol" ? `${start + i}. ` : "- ";
         const body = (await blocks(li.children, ctx)).join("\n\n");
         lines.push(marker + body.split("\n").join("\n" + " ".repeat(marker.length)));
       }
