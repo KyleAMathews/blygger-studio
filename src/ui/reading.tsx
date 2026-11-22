@@ -732,6 +732,8 @@ function Byline({ entry, a, onOpen, children }: { entry: Reading; a: EntryAction
             to="/reading/$sub/$id"
             params={articleParams(entry)}
             title="open this entry"
+            // Not draggable, like SourceName: a mouse swipe starts from the byline (swipe.ts).
+            draggable={false}
             onClick={(event) => {
               if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
               event.preventDefault();
