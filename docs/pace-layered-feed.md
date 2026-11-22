@@ -78,3 +78,41 @@ Outside the studio: RFC-3 (blygger-spec `docs/rfcs/rfc-3-pace-layered-order.md`)
 model to other clients, ruled as decision #97; the §16 pin-mention question was ruled as #73.
 
 Only the home page follows the algorithm. RSS, Atom and the archive stay newest-first.
+
+## Reader positions and database work
+
+The Studio's pace-layered reader stores positions in `reading_order`. Migration
+0056 tracks ranking inputs with `reading_order_state.inputs`, independently
+of the broader Reading and subscription revisions used by cursors. Migration
+0058 repairs dependencies using that same counter. Read marks,
+placements, subscription names and poll diagnostics, imported HTML repairs,
+and own working-copy edits do not rebuild positions. Published history, pins,
+imported ranking facts and subscription identity/origin changes do. A database
+epoch change forces a rebuild after restore; a missing cache state rebuilds too.
+Publication checks the captured epoch and inputs inside the atomic position
+write, so a delayed older rebuild cannot replace a newer reader's prepared order.
+
+Cursor validation precedes derived-source preparation, which runs again if a
+first-page attempt retries. An already-expired continuation returns 409 without
+rebuilding. Pinning an own version advances Reading so an earlier continuation
+cannot silently cross the changed order.
+
+Read marks advance their own `marks` domain (0057), so marking or clearing
+while scanning preserves Reading continuations. Conditional reads still
+revalidate changed read state. Imported rows without a held subscription are
+excluded before page selection in normal and Raw reads. Migration 0058 also
+discards older position receipts and expires Reading continuations once, since
+the previous triggers could leave either proof valid across a ranking change.
+
+A genuine new import can still require a full history load and position rewrite.
+The 500-entry window bounds the replay, not loading or storing the whole order.
+Backfill imports still expire Reading-dependent cursors, including hopper
+membership cursors; this change does not introduce append-stable pagination.
+
+Imported writes advance `hoppers` only when an actual membership's returned
+item changes. Background/history bookkeeping and uncollected imports leave it
+unchanged. Membership additions/removals and relevant member-body changes
+continue to invalidate it, including resolution of a dangling membership.
+
+[Oracle evidence after the main integration](reader-derived-work-main-integration.md)
+records the current scope and checks, with a link to the original evidence.

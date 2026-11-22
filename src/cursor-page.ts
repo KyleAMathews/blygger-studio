@@ -18,6 +18,8 @@ export interface CursorSource<Row, Result = Row> {
   /** Apply cursor ranges together when evaluating the source costs more than seeking each range. */
   combineRanges?: boolean;
   order: readonly CursorOrder[];
+  /** Prepare derived source data only after validation, once per attempt. */
+  prepare?: () => Promise<void>;
   project?: (rows: Row[]) => Result[] | Promise<Result[]>;
 }
 export class CursorPageError extends Error {
@@ -93,6 +95,7 @@ export async function cursorPage<Row extends object, Result = Row>(
   const attempt = async (initial?: ChangeState) => {
     const before = generation(initial ?? await readChanges(db), source.domains);
     if (cursor && !same(cursor.generation, before)) throw expired();
+    await source.prepare?.();
     const ranges = cursor ? afterRanges(source.order, cursor.after) : null;
     const order = source.order.map(entry => `${column(entry.column)} ${entry.direction.toUpperCase()}`).join(', ');
     // Keep source bindings once, and let each disjoint range use its index.

@@ -93,6 +93,24 @@ with a term of at least three Unicode characters can also contain shorter
 terms, which filter the indexed hits. A query made up entirely of shorter
 terms returns no hits. A blank query still lists items in date order.
 
+### Applying migration 0050
+
+On nodes with a few thousand items, the FTS backfill has been followed by D1
+error **7429** (`D1 DB is overloaded ... too many resources consumed within a
+10 second window`) while applying the next migrations. If that happens, wait
+at least a minute, then rerun the same apply command with the same config and
+environment, for example:
+
+```sh
+npx wrangler d1 migrations apply DB --remote
+```
+
+Wrangler records successful migrations and applies only those still pending.
+Keep the old Worker running until all migrations finish. If the error persists,
+or Wrangler reports a different error, inspect that failure before deploying.
+
+### Backups and SQL exports
+
 The Studio backup omits `search_documents`, `search_fts`, and its shadow tables.
 Restore the source tables into a database with migrations applied: the triggers
 rebuild search whether items or their versions are loaded first. If a restore
@@ -105,9 +123,28 @@ SELECT * FROM search_source;
 INSERT INTO search_fts(search_fts) VALUES('rebuild');
 ```
 
-For a full database restore on D1, use Time Travel. Cloudflare's SQL dump
-format for databases with virtual tables targets the SQLite CLI. [D1 export
-support for virtual tables](https://developers.cloudflare.com/changelog/post/2026-11-12-d1-export-virtual-tables/)
+Once migration 0050 creates `search_fts`, plain `wrangler d1 export --remote`
+fails because the database contains a virtual table. For a dump you can open
+with the SQLite CLI, use **Wrangler 4.166.0 or newer** (4.156.0 does not have
+the compatibility flag):
+
+```sh
+npx wrangler@4.166.0 d1 export DB --remote --output backup.sql --compatibility sqlite3_cli_only
+```
+
+Add the same `--config` and `--env` options you use for your deployment.
+**This dump is for the SQLite CLI only. It cannot be imported into D1 with
+`wrangler d1 execute --file` or another D1 import.** The explicit Wrangler
+version lets this command work even when the source install uses 4.156.0.
+
+For a full database restore on D1, use [Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/).
+To save the Studio's source data and R2 media in its backup archive, use
+`npm run backup -- --base https://YOUR-BLYG/` (with your mount, config and
+environment as applicable), or More → download backup. The archive holds source
+tables as JSON lines and media files; restoring an archive into a fresh node is
+not built yet. If you load the source tables yourself, the index rebuild
+procedure is above.
+See Cloudflare's [D1 export support for virtual tables](https://developers.cloudflare.com/changelog/post/2026-11-12-d1-export-virtual-tables/).
 
 ## Tests
 

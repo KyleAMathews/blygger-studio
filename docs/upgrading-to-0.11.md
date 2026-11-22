@@ -42,7 +42,13 @@ feed, and lets you insert images anywhere while writing. See the
 2. **Back up your database.** Run
    `npx wrangler d1 export DB --remote --output backup.sql` from your
    deployment directory. The upgrade adds one index and changes no stored
-   values, but a backup is cheap.
+   values, but a backup is cheap. **For databases already migrated to 0.69.0
+   or newer**, the FTS virtual table prevents this plain export. See
+   [search backups and SQL exports](search.md#backups-and-sql-exports) for the
+   Wrangler 4.166.0 command with `--compatibility sqlite3_cli_only`; that dump
+   opens in the SQLite CLI but cannot be imported back into D1. Use D1 Time
+   Travel for a full database restore, and `npm run backup` to save source
+   data and media.
 3. **Node 22.18 or newer** is required for a source install (the build uses
    it). `node -v` to check. A Worker-archive install needs only `npx wrangler@4`.
 4. **Commit or stash local changes**, including your `wrangler.jsonc`.

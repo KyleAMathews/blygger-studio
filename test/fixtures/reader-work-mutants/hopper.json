@@ -1,0 +1,10 @@
+[
+  {
+    "id": "hopper-loses-counter",
+    "source": "src/changes.ts",
+    "find": "domains[domain] = value;",
+    "replace": "domains[domain] = domain === 'hoppers' ? 0 : value;",
+    "intent": "Lose the hopper revision at its reader while keeping a valid change-state shape.",
+    "author": "Codex self-generated #170 receiving control"
+  }
+]
