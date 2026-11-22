@@ -11,8 +11,8 @@ mutants**. This evidence covers the explicit macOS Playwright WebKit receiving
 host below. It does not establish ordinary Safari behavior, a green default
 WebKit install, complete mutation coverage, or lossless raw-navigation migration.
 
-The exact [frozen inputs](webkit-ui-transition-run-inputs.json),
-[machine-readable execution receipts](webkit-session-execution.json),
+The exact [frozen inputs](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/webkit-ui-transition-run-inputs.json),
+[machine-readable execution receipts](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/webkit-session-execution.json),
 [research](webkit-undo-research.md), and
 [independent review](webkit-native-host-review.md) identify the source and host.
 

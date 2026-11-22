@@ -1,8 +1,0 @@
-{
-  "scope": "Input-only controls. All127raw initial whitespace strings through6units; every space/tab gap through4units with visual advance1–4; marker widths1–10; prefix n4..40; independent CommonMark normalized sentinel checks. No production/browser observations.",
-  "combinations": 11532,
-  "candidateChecks": 426684,
-  "parserChecks": 76585,
-  "maxAllowedPrefix": 19,
-  "failures": []
-}

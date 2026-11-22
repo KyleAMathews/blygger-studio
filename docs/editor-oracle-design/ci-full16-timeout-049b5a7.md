@@ -2,7 +2,7 @@
 
 The historical 617-file snapshot’s complete 16-file, two-pass Chromium baseline **did not finish within its 25-minute measurement limit**. It recorded 5,251 of 5,605 expected first-pass registration keys; the second pass never started. Independent review accepted the source binding, partial-result accounting, resource limits and post-timeout containment. Complete baseline acceptance and routine CI runtime remain unproved.
 
-The [machine-readable receipt](ci-full16-timeout-049b5a7.json) binds the exact public source, package, expectation inventory, raw artifacts, prior failures and independent review by SHA256. The earlier [312-registration smoke](ci-file-pass-smoke-049b5a7.md) remains a separate accepted, narrower run on source before the owned-fixture cleanup patch.
+The [machine-readable receipt](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/ci-full16-timeout-049b5a7.json) binds the exact public source, package, expectation inventory, raw artifacts, prior failures and independent review by SHA256. The earlier [312-registration smoke](ci-file-pass-smoke-049b5a7.md) remains a separate accepted, narrower run on source before the owned-fixture cleanup patch.
 
 ## What executed
 

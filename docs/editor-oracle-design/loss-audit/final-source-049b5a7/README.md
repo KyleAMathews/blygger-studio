@@ -3,21 +3,21 @@
 This directory archives **14 result artifacts** from a source-only loss assay at
 `049b5a7bf9661a22ff4cee31b156b7dd2cbee194`. It is a result archive, not a portable
 copy of the frozen source tree or a runnable oracle environment. The two packaging
-files, `README.md` and `package-manifest.json`, were added afterwards for
+files, `README.md` and [`package-manifest.json`](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/loss-audit/final-source-049b5a7/package-manifest.json), were added afterwards for
 LOSS-PACK-001; they do not change the original 14 artifacts.
 
 Start with [the assay readout](final-source-loss-assay.md). It records source traces
 for 140 formatting observations: 91 formatting-unit, 21 links-helper, 11 formatting
 browser and 17 structural browser observations. The raw structural result also
 retains two separate setup observations. All raw scanner JSON is preserved within
-[the collation](collated-traces.json), as well as in the per-source artifacts.
+[the collation](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/loss-audit/final-source-049b5a7/collated-traces.json), as well as in the per-source artifacts.
 Source preservation does not establish runtime passing, whole-suite conformance,
 usefulness, permission to retire tests, or PR readiness.
 
 ## Archived and omitted inputs
 
-[The package manifest](package-manifest.json) lists the exact SHA-256 hashes of all
-14 original archived files. [The frozen source manifest](manifest.json) identifies
+[The package manifest](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/loss-audit/final-source-049b5a7/package-manifest.json) lists the exact SHA-256 hashes of all
+14 original archived files. [The frozen source manifest](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/loss-audit/final-source-049b5a7/manifest.json) identifies
 the original Git blobs, 304 candidate source/config inputs, package pin and support
 input hashes. It is preserved verbatim, including its temporary absolute paths.
 
@@ -50,7 +50,7 @@ checking their recorded hashes. This archive alone cannot reproduce execution.
 ## Recover the original tests
 
 Run from a repository checkout whose Git object database includes the revisions
-in `manifest.json`. This writes all eight copies into a new temporary directory
+in [`manifest.json`](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/loss-audit/final-source-049b5a7/manifest.json). This writes all eight copies into a new temporary directory
 outside the checkout and verifies each SHA-256 before writing it:
 
 ```sh
@@ -95,9 +95,9 @@ The original frozen root was
 | --- | --- |
 | `<frozen-root>/scanners/<source>/<report-or-trace>` | Use this directory's same `scanners/<source>/...` suffix when it is one of the 14 archived files. |
 | `<frozen-root>/scanners/<source>/<latest-or-authority>.ts` | Use the separately recovered original copy above, checking its recorded identity. |
-| `<frozen-root>/candidate/<repository-path>:<line>` or `candidate/<repository-path>:<line>` | Read `<repository-path>:<line>` only in a checkout matching that candidate input's SHA-256 from `manifest.json`. Line numbers describe the frozen bytes. |
+| `<frozen-root>/candidate/<repository-path>:<line>` or `candidate/<repository-path>:<line>` | Read `<repository-path>:<line>` only in a checkout matching that candidate input's SHA-256 from [`manifest.json`](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/loss-audit/final-source-049b5a7/manifest.json). Line numbers describe the frozen bytes. |
 | `<frozen-root>/support/...` | Omitted support snapshot; obtain and verify its exact recorded bytes separately. Package support may be recovered from the pinned package; external Field Lab support has no complete recovery recipe here. |
-| Other `/private/tmp/...` paths | External historical evidence reference. It is not packaged unless named in `package-manifest.json`. |
+| Other `/private/tmp/...` paths | External historical evidence reference. It is not packaged unless named in [`package-manifest.json`](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/loss-audit/final-source-049b5a7/package-manifest.json). |
 
 ## Preserve the audit boundaries
 

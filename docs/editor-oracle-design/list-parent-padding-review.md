@@ -29,7 +29,7 @@ delimiters and numbered/bullet children as neighboring controls. Render the
 browser-returned output with the same MarkdownIt boundary used by the
 existing renderer property, then inspect actual anchor list ancestry in the
 browser DOM. Preserve all returned edits, source, HTML, observations and
-source hashes in `list-parent-padding-probes.json` before disposition.
+source hashes in [`list-parent-padding-probes.json`](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/list-parent-padding-probes.json) before disposition.
 
 ## Experiment receipt and disposition
 
@@ -56,7 +56,7 @@ choose an exact indentation serialization.
 ### Matched-host evidence
 
 The primary JSON report is
-`docs/editor-oracle-design/list-parent-padding-probes.json`, timestamp
+[`docs/editor-oracle-design/list-parent-padding-probes.json`](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/list-parent-padding-probes.json), timestamp
 `2026-11-19T07:22:21.322Z`, against HEAD
 `28b0c8d642a87e5810ad6eabd95c2d1714c53396` plus the frozen working source.
 Its SHA-256 is

@@ -138,7 +138,7 @@ wrong. This verifies the retained source mapping through the actual current
 receiving registrations, rather than crediting a helper-only pass.
 
 The versioned artifact-inspection receipt
-[final-current-integrated-baselines.json](final-current-integrated-baselines.json)
+[final-current-integrated-baselines.json](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/loss-audit/final-current-integrated-baselines.json)
 contains the complete required route lists, per-file counts, all 28 raw
 capture SHA-256 values and the repeat comparison. Its SHA-256 is
 `8feb8f02d0903f76e620c687d8018d751e918ba0ff64232ac4258612f2fa20cd`.

@@ -6,7 +6,7 @@ The smallest change that retains automatic discovery is one complete CLI run wit
 
 ## Measured work and realistic cost bounds
 
-The immutable first and repeat capture sets are indexed in `loss-audit/final-current-integrated-baselines.json`. Each contains 4,367 passing registrations in 14 files, including 77 calibrations and 1,482 determinism registrations. Their registration key sets agree and the recorded observation/hash comparison has no delta. These are baseline receipts, not a completed mutation report.
+The immutable first and repeat capture sets are indexed in [`loss-audit/final-current-integrated-baselines.json`](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/loss-audit/final-current-integrated-baselines.json). Each contains 4,367 passing registrations in 14 files, including 77 calibrations and 1,482 determinism registrations. Their registration key sets agree and the recorded observation/hash comparison has no delta. These are baseline receipts, not a completed mutation report.
 
 Durations below sum `ms` only for actual pass/fail test rows, excluding skip rows and background/file receipts. Skipped rows can contain elapsed timestamps rather than execution costs. The selected-suffix batch is one capture, `preserved-live-captures/run-94017-29.jsonl`, containing 84 temporary owner-file copies; it must not be mistaken for 84 capture files.
 

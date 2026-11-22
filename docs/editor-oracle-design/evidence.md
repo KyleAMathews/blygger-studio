@@ -2,7 +2,7 @@
 
 This is the frozen pre-browser evidence. The current implementation and execution record are in [browser-execution.md](browser-execution.md).
 
-The source fingerprints are in [source-manifest.json](source-manifest.json). The old test remains at `test-ui/format-shortcuts.test.ts`, unchanged. Base commit: `28b0c8d642a87e5810ad6eabd95c2d1714c53396`. Installed oracle preview: `97a4e7a`.
+The source fingerprints are in [source-manifest.json](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/source-manifest.json). The old test remains at `test-ui/format-shortcuts.test.ts`, unchanged. Base commit: `28b0c8d642a87e5810ad6eabd95c2d1714c53396`. Installed oracle preview: `97a4e7a`.
 
 ## E1 — Source reconstruction
 

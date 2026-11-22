@@ -330,7 +330,7 @@ The final accepted entry SHA-256 is
 `1a9285cf55b7acd4eee384e856ca3724250d62112331c300d06fb56f2fc9f6aa`;
 the other six accepted hashes above are unchanged. The seven repository
 sources were independently hashed after application and all match the final
-review manifest and `../mixed-input-relation/apply-manifest.json`.
+review manifest and [`../mixed-input-relation/apply-manifest.json`](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/mixed-input-relation/apply-manifest.json).
 Production still hashes to
 `87b9635e519f922490df0a31c68935641a76e6c068d4e4e50dbb7e81f070eeac`.
 The bounded source loss acceptance applies to this final applied identity.

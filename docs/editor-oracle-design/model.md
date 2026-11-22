@@ -1,6 +1,6 @@
 # Editor oracle design grammar — model v1
 
-Extraction target: reorganize the current formatting oracles so existing behavior can be reconstructed, reviewed and extended without duplicating command semantics. This is a design for a refactor, not an implemented refactor or a proof of behavioral equivalence. The source is the Studio oracle suite in [source-manifest.json](source-manifest.json). The other editors in [the behavior audit](../editor-behavior-audit.md) supply extension proposals; they are not additional extraction sources.
+Extraction target: reorganize the current formatting oracles so existing behavior can be reconstructed, reviewed and extended without duplicating command semantics. This is a design for a refactor, not an implemented refactor or a proof of behavioral equivalence. The source is the Studio oracle suite in [source-manifest.json](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/source-manifest.json). The other editors in [the behavior audit](../editor-behavior-audit.md) supply extension proposals; they are not additional extraction sources.
 
 ## Preservation contract
 

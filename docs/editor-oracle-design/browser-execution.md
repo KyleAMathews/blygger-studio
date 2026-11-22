@@ -102,9 +102,9 @@ Decisive added challenges now reject at the intended checkpoints:
 | Always-direct fallback | browser editing history | composer-desktop, native undo |
 | Extra production keydown event | edit delivery | nativeInsert, complete delivery effects |
 
-The [programmatic mutation comparison](browser-mutation-comparison.json) matches keys rather than totals. Of354 shared keys,352 were previously killed and351 remain killed. The sole lost kill is M22's deterministic work bound, explained above. The other two shared warnings remain open. All27 new keys are killed. Seven old keys disappeared because the ASCII key table and native-edit expression changed: three old table-field anchors now have six explicit ASCII entries; one lowercase-call anchor became a literal key read; three native-command anchors gained exact-range and collapsed-empty safeguards. Their new-key mutations and original-defect authored challenges are killed. No old source/selection assertion was removed to account for these differences.
+The [programmatic mutation comparison](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/browser-mutation-comparison.json) matches keys rather than totals. Of354 shared keys,352 were previously killed and351 remain killed. The sole lost kill is M22's deterministic work bound, explained above. The other two shared warnings remain open. All27 new keys are killed. Seven old keys disappeared because the ASCII key table and native-edit expression changed: three old table-field anchors now have six explicit ASCII entries; one lowercase-call anchor became a literal key read; three native-command anchors gained exact-range and collapsed-empty safeguards. Their new-key mutations and original-defect authored challenges are killed. No old source/selection assertion was removed to account for these differences.
 
-After the independent loss receipts and complete browser run, exactly three unchanged legacy files were removed: the formatting unit file and the two fixed formatting Playwright files. Their base hashes are retained in [removed-formatting-tests.json](removed-formatting-tests.json), and their authoritative contents remain in base commit28b0c8d. The final campaign loaded zero ordinary test files; deleting those files changes no registered oracle input. Formatting coverage now consists solely of browser-backed oracles. Other subsystems retain their existing tests.
+After the independent loss receipts and complete browser run, exactly three unchanged legacy files were removed: the formatting unit file and the two fixed formatting Playwright files. Their base hashes are retained in [removed-formatting-tests.json](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/removed-formatting-tests.json), and their authoritative contents remain in base commit28b0c8d. The final campaign loaded zero ordinary test files; deleting those files changes no registered oracle input. Formatting coverage now consists solely of browser-backed oracles. Other subsystems retain their existing tests.
 
 Post-run metadata cleanup restores the literal em dash in the package description and uses the public registry URL for the same TypeScript5.9.3 alias tarball/integrity. No formatter, model, history, driver, check, budget, or seed changed after the completed campaign.
 
@@ -114,7 +114,7 @@ Post-run metadata cleanup restores the literal em dash in the package descriptio
 - `npm run typecheck`: passes after legacy-file removal.
 - `npm run test:ui -- --maxWorkers=2`: all247 tests in30 files pass with the repository's original timeout (11.66s complete run). Earlier elevated runs hit six five-second vendoring-fixture timeouts; an isolated30s diagnostic and a complete30s run also passed. No vendoring test, configured timeout or production code changed to obtain the final default-timeout pass.
 - `git diff --check`: passes.
-- Browser oracle source fingerprints are in [browser-source-manifest.json](browser-source-manifest.json); the final check found no source/model/history/driver changes after fingerprinting.
+- Browser oracle source fingerprints are in [browser-source-manifest.json](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/browser-source-manifest.json); the final check found no source/model/history/driver changes after fingerprinting.
 
 No commit, push, pull request or deployment was made. `oracles-feedback.md` and the append-only review scratch ledger remain local and uncommitted. This record does not establish Safari/WebKit behavior, OS clipboard integration, real IME composition or malformed-surrogate thread-preview correctness.
 
@@ -131,14 +131,14 @@ legacy test was changed in this refinement.
 The strengthened session oracle passes 138 checks in Chromium and Firefox and
 rejects the same three selected authored challenges in each. These are partial
 mutation runs, not a rerun of the complete 381-mutant campaign above. The
-[new source/execution receipt](session-review-execution.json) supersedes the old
+[new source/execution receipt](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/session-review-execution.json) supersedes the old
 session fingerprints for this refinement. Subsequent WebKit research found an
 acknowledged native event boundary that preserves exact Undo/Redo expectations;
 the initial native-history finding is no longer an unexplained host difference.
 The [research](webkit-undo-research.md) and [independent host review](webkit-native-host-review.md)
 record the mechanism, failed attempts, receiving evidence and separate
 hard-navigation persistence obligation. The frozen inputs for the current
-link-driven replay are in [webkit-ui-transition-run-inputs.json](webkit-ui-transition-run-inputs.json).
+link-driven replay are in [webkit-ui-transition-run-inputs.json](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/webkit-ui-transition-run-inputs.json).
 
 The same registered properties can now be selected by engine:
 

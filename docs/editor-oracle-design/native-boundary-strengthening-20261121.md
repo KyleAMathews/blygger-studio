@@ -1,6 +1,6 @@
 # Native receiving oracle strengthening — 2026-11-21
 
-Prepared evidence for base `480fc6afd49e844100a39170a62a1b58b9caebce`, pin `97a4e7a`, and the exact uncommitted hashes in the [companion JSON](native-boundary-strengthening-20261121.json). This is a bounded oracle change. It changes no production code, removes no further legacy tests, and does not establish whole-PR readiness.
+Prepared evidence for base `480fc6afd49e844100a39170a62a1b58b9caebce`, pin `97a4e7a`, and the exact uncommitted hashes in the [companion JSON](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/native-boundary-strengthening-20261121.json). This is a bounded oracle change. It changes no production code, removes no further legacy tests, and does not establish whole-PR readiness.
 
 The existing source/history, protected-source/refusal and immediate Save laws are unchanged. The native law/check and held law/check blocks are byte-preserved. The history grammar adds real quick close/reopen, completed native delete before controlled false/throw, ordinary text commits, and a separate ASCII key route. All 49 original native constructions remain; V4 reconstructs all 71 prior constructions and adds 3 key constructions. The held oracle retains its 12 originals and adds 12 controlled-signal neighbors. Both keep 25-run campaigns and seed 20261118.
 

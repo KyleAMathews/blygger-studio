@@ -65,7 +65,7 @@ The receiving run additionally kills the raw-prefix criterion through actual too
 
 ## Evidence and reproduction
 
-[list-review-execution.json](list-review-execution.json) retains source/config/result/raw-capture bindings, both completed baseline records, calibration outcomes, exact native pre-repair witnesses, the oracle-harness controls and intended mutation failures. [list-review-receiving-receipts.jsonl](list-review-receiving-receipts.jsonl) contains 256 compact actual receiving receipts: exact history fingerprints, profile, command input/output and native key receipts. Full trace and expected-relation fingerprints bind the larger scratch captures. Include these records with the final reviewed source commit.
+[list-review-execution.json](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/list-review-execution.json) retains source/config/result/raw-capture bindings, both completed baseline records, calibration outcomes, exact native pre-repair witnesses, the oracle-harness controls and intended mutation failures. [list-review-receiving-receipts.jsonl](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/list-review-receiving-receipts.jsonl) contains 256 compact actual receiving receipts: exact history fingerprints, profile, command input/output and native key receipts. Full trace and expected-relation fingerprints bind the larger scratch captures. Include these records with the final reviewed source commit.
 
 The core gate can be replayed against these source hashes with the normal registered runner:
 

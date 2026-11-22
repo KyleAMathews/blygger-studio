@@ -63,7 +63,7 @@ A separate **nine** wrapper-prefix parsing checks passed, evaluating no applicat
 
 ## Independent reading of the supplied Linux probes
 
-I read both probe programs and independently counted their hashed raw JSON, in addition to the versioned `ci-linux-clipboard-probe-receipt.json` summary.
+I read both probe programs and independently counted their hashed raw JSON, in addition to the versioned [`ci-linux-clipboard-probe-receipt.json`](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/ci-linux-clipboard-probe-receipt.json) summary.
 
 | Probe topology | Arranged read/paste pairs | Read mismatches | Native paste mismatches | Trusted `insertFromPaste` receipts |
 | --- | ---: | ---: | ---: | ---: |

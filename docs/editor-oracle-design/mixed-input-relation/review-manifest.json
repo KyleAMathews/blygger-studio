@@ -1,9 +1,0 @@
-{
-  "test-ui/editor-mixed.oracle.test.ts": "1a9285cf55b7acd4eee384e856ca3724250d62112331c300d06fb56f2fc9f6aa",
-  "test-ui/editor-oracles/mixed-model-oracle.ts": "caa57fc381a4dd9f98a483c473a952edb4d221659bfe24f41e58baa2da7565b9",
-  "test-ui/editor-oracles/mixed-check-oracle.ts": "f31c95d3877b4217ab8f57e84c541df97c7620469f6942f7bdc81537251b449e",
-  "test-ui/editor-oracles/mixed-driver-oracle.ts": "d181446f522bef051bf024df22574a566cf314014b16059da0d57c5ad8f1e653",
-  "test-ui/editor-oracles/mixed-code-model-oracle.ts": "83365b73baaa98d91278b5c5e44da892730b5c529951a4496ef5ed9325620e9e",
-  "test-ui/editor-oracles/mixed-code-driver-oracle.ts": "aa8097b36821cea48c0073b316a8a9987c5033aa203633b43e950be214265107",
-  "test-ui/editor-oracles/list-model-oracle.ts": "db594d3bd383b16e2a0f1463bdd9abb03d279972c4ab234ff499d552a840dc57"
-}

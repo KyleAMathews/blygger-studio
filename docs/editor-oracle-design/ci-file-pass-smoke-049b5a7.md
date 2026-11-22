@@ -2,7 +2,7 @@
 
 The reviewed source based on `049b5a7` passed **312/312 registrations** across the session and bracket-receiver browser oracles, including both complete passes. Each file/pass received a fresh migrated application and a private Chromium process. Independent runtime review accepted this bounded smoke. The later owned-fixture cleanup patch and the complete 16-file run remain separate gates.
 
-The [machine-readable receipt](ci-file-pass-smoke-049b5a7.json) binds the exact source, runner derivation, configuration, captures and independent review. The combined source preserves all 39 property bodies and registers 16 files/39 properties. That is source accounting; only the two named files executed here.
+The [machine-readable receipt](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/ci-file-pass-smoke-049b5a7.json) binds the exact source, runner derivation, configuration, captures and independent review. The combined source preserves all 39 property bodies and registers 16 files/39 properties. That is source accounting; only the two named files executed here.
 
 The run used Node 22.18.0, Chromium 156.0.8078.80, two contexts/application leases, two OS CPUs and 8 GiB. It completed in 481.636 seconds. All four application owners completed setup and cleanup; four browser acquisitions match those owners; all three install/build/measurement containers were verified absent using successful queries filtered to their exact full IDs. Source and the pristine installed package remained unchanged.
 

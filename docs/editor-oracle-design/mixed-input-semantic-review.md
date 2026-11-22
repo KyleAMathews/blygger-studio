@@ -92,11 +92,11 @@ columns. Existing tab phase shifts a prefixed column by at most three, so
 If ordinary four spaces are insufficient, a smaller prefix cannot reach the
 target: a tab-free level advances by fewer than four, while a tab-containing
 level advances by zero or four. The independent parser/phase control record
-is `mixed-input-relation/root-indent-controls.json`.
+is [`mixed-input-relation/root-indent-controls.json`](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/mixed-input-relation/root-indent-controls.json).
 
 ## Applied source binding
 
-The applied manifest is `mixed-input-relation/apply-manifest.json`.
+The applied manifest is [`mixed-input-relation/apply-manifest.json`](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/mixed-input-relation/apply-manifest.json).
 Independent inspection after application confirms all seven source hashes
 match the accepted draft. Production stayed unchanged at
 `87b9635e519f922490df0a31c68935641a76e6c068d4e4e50dbb7e81f070eeac`.

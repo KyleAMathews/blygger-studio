@@ -8,7 +8,7 @@ PR1: Loss-audit candidate frozen at `/private/tmp/blygger-loss-audit.uj1TVJ`. Th
 
 PR2: Restoration was a separate action under the requested complete test migration. Original source witnesses and omitted observations were restored. Old tests remain. E1 records the routes and receipts.
 
-PR3: The new extraction source is frozen in [source-manifest.json](source-manifest.json), with SHA-256 fingerprints and a local snapshot. The extraction target is the oracle suite, not a new editor implementation. P1–P10 normalize the user's already explicit preservation requirements and adopted laws. Proposed architecture and feature adoption remain distinct; no claim of exact F2 equivalence is made before implementation.
+PR3: The new extraction source is frozen in [source-manifest.json](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/source-manifest.json), with SHA-256 fingerprints and a local snapshot. The extraction target is the oracle suite, not a new editor implementation. P1–P10 normalize the user's already explicit preservation requirements and adopted laws. Proposed architecture and feature adoption remain distinct; no claim of exact F2 equivalence is made before implementation.
 
 ## Admission and ablation controls
 

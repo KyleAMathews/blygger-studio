@@ -73,7 +73,7 @@ The model comparison used all 34 existing constructed histories and 10,000
 histories sampled with seed `20261118`. It found zero changes to browser actions
 and zero expected-observation differences in either direction. This is a bounded
 comparison, not a claim of equivalence for every possible history. Fingerprints
-and counts are in [session-model-comparison.json](session-model-comparison.json).
+and counts are in [session-model-comparison.json](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/session-model-comparison.json).
 
 After that preservation check, two additional journey families strengthen the
 grammar without narrowing the original eight. `mixedInline` interleaves generated
@@ -170,7 +170,7 @@ calibrations pass, including stale redo after a new edit. Typechecking and
 | Chromium | 138 pass, repeated clean | 3/3 selected challenges rejected | `build/formatting-oracles/session-mixed-chromium/` |
 | Firefox | 138 pass, repeated clean | 3/3 selected challenges rejected | `build/formatting-oracles/session-mixed-firefox/` |
 
-The [versioned receipt](session-review-execution.json) includes the source
+The [versioned receipt](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/session-review-execution.json) includes the source
 fingerprints, exact mutation keys/verdicts and reach counts for each engine.
 After execution, only the receiving property's authority/limits prose was
 updated to reflect the approved cross-engine extension and its Firefox result.
@@ -198,8 +198,8 @@ code: after `fill('a a a')` and one native replacement, both keyboard undo and
 `document.execCommand('undo')` return `''` with two `historyUndo` events. Chromium
 and Firefox return `'a a a'` with one event. The production formatter follows
 the same behavior as the plain native replacement. Raw observations are in
-[browser-host-probes.json](browser-host-probes.json) and
-[browser-host-undo-probes.json](browser-host-undo-probes.json). These are
+[browser-host-probes.json](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/browser-host-probes.json) and
+[browser-host-undo-probes.json](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/browser-host-undo-probes.json). These are
 exploratory probes, not oracle campaigns.
 
 This initial probe demonstrates a host-history distinction, not a Studio defect.

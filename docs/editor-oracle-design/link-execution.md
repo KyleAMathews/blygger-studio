@@ -2,7 +2,7 @@
 
 2026-11-18, base `28b0c8d642a87e5810ad6eabd95c2d1714c53396`.
 Exact source fingerprints, mutation keys/laws and reports are preserved in
-[link-review-execution.json](link-review-execution.json).
+[link-review-execution.json](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/link-review-execution.json).
 
 Six registered properties exercise the actual instrumented `src/ui/links.ts`
 inside Chromium. The rendering property additionally inserts through the real

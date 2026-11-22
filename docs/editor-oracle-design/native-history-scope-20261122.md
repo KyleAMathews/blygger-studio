@@ -1,6 +1,6 @@
 # Browser-native history scope decision — 2026-11-22
 
-Source before the decision: `c0ea19c222b709c0cb9674b4ada1e552d46bc385` on PR #168. The accompanying commit applies this decision. The independent static comparison is preserved in `native-history-scope-review-20261122.json`.
+Source before the decision: `c0ea19c222b709c0cb9674b4ada1e552d46bc385` on PR #168. The accompanying commit applies this decision. The independent static comparison is preserved in [`native-history-scope-review-20261122.json`](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/native-history-scope-review-20261122.json).
 
 Kyle Mathews (GitHub KyleAMathews) directed: “ok let's not worry about fixing bugs in chromium”. This supersedes the approved bounded Undo-adapter prototype. No custom Undo adapter enters production.
 
@@ -37,7 +37,7 @@ The independent reviewer found no additional app-law loss in this bounded static
 
 ## Execution evidence
 
-The [execution receipt](native-history-scope-execution-20261122.json) binds production/model/driver source hashes and the three final reports. Session and native-input files passed 385 checks twice; the held-region file passed 73 checks twice. Both selected session controls and both held-region controls were rejected. The focused formatting-branch replay passed one registration twice, with 1,264 other registrations explicitly skipped, and rejected the app native-Undo challenge. Its `branchClearedRedoAttempted` reach count is one. All three reports recorded zero nondeterminism. Removing unused test-global initialization/type fields afterwards changed no production/model/check bytes; final static checks and CI cover that cleanup. Every report uses the gap wrapper. Selected mutation runs provide sensitivity only for their named keys, not complete portfolio acceptance. CI supplies the full current-source partitioned baseline. Physical IME/device behavior, matched Safari/iOS and full mutation acceptance remain outside these results.
+The [execution receipt](https://github.com/blygger/blygger-studio/blob/fb0b79dc0450e5f3d31a5a8f59c0b697b5cc5f6e/docs/editor-oracle-design/native-history-scope-execution-20261122.json) binds production/model/driver source hashes and the three final reports. Session and native-input files passed 385 checks twice; the held-region file passed 73 checks twice. Both selected session controls and both held-region controls were rejected. The focused formatting-branch replay passed one registration twice, with 1,264 other registrations explicitly skipped, and rejected the app native-Undo challenge. Its `branchClearedRedoAttempted` reach count is one. All three reports recorded zero nondeterminism. Removing unused test-global initialization/type fields afterwards changed no production/model/check bytes; final static checks and CI cover that cleanup. Every report uses the gap wrapper. Selected mutation runs provide sensitivity only for their named keys, not complete portfolio acceptance. CI supplies the full current-source partitioned baseline. Physical IME/device behavior, matched Safari/iOS and full mutation acceptance remain outside these results.
 
 ## Checklist v1 outcome for this delta
 
