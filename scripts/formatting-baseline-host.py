@@ -80,7 +80,7 @@ def main():
     plan_sha256 = hashlib.sha256(plan_bytes).hexdigest()
     plan = json.loads(plan_bytes)
     seed = plan.get('seed')
-    if (plan.get('schema') != 'blygger-formatting-baseline-plan-v2'
+    if (plan.get('schema') != 'blygger-formatting-baseline-plan-v3'
             or plan.get('seedSource') != 'fresh' or not isinstance(seed, str)
             or not re.fullmatch(r'-?(0|[1-9][0-9]*)', seed)
             or str(int(seed)) != seed or not -2147483648 <= int(seed) <= 2147483647):

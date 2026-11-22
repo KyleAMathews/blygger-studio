@@ -13,14 +13,17 @@ export const baselineSources = ['src/ui/format-shortcuts.ts', 'src/ui/links.ts',
 type Input = { path: string; sha256: string; link?: string; resolved?: { path: string; sha256: string } };
 type Inventory = { file: string; sha256: string; properties: string[] }[];
 export interface BaselinePlan {
-  schema: 'blygger-formatting-baseline-plan-v2';
+  schema: 'blygger-formatting-baseline-plan-v3';
   commit: string; runId: string; attempt: string; root: string; deadline: number;
-  host: ReturnType<typeof hostIdentity>;
+  hostPolicy: typeof baselineHostPolicy; host: HostIdentity; hostAfter: HostIdentity;
   sources: string[]; receiver: 1; contexts: 2; seed: string; seedSource: 'fresh'; testTimeout: 60000; firstLimit: 60000;
   inventory: Inventory; inputs: Input[]; inputsSha256: string;
   parts: { id: string; files: string[] }[];
 }
-export interface BaselineScope { plan: string; planSha256: string; part: string; files: string[]; seed: string }
+export interface BaselineScope { plan: string; planSha256: string; part: string; files: string[]; seed: string; host: HostIdentity }
+export const baselineHostPolicy = 'per-job-stable-host-v1';
+type HostIdentity = ReturnType<typeof hostIdentity>;
+const hostEnvironment = ['CI', 'GITHUB_ACTIONS', 'TZ', 'LANG', 'LC_ALL', 'CLOUDFLARE_CF_FETCH_ENABLED'];
 const encode = (value: unknown) => JSON.stringify(value, null, 2) + '\n';
 export const digest = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
 const json = (file: string) => JSON.parse(readFileSync(file, 'utf8'));
@@ -30,7 +33,25 @@ function checked(condition: unknown, message: string): asserts condition { asser
 function hostIdentity() {
   return { platform: process.platform, architecture: process.arch, kernel: release(), node: process.version,
     nodeSha256: digest(readFileSync(process.execPath)), imageOS: process.env.ImageOS ?? '', imageVersion: process.env.ImageVersion ?? '',
-    environment: Object.fromEntries(['CI', 'GITHUB_ACTIONS', 'TZ', 'LANG', 'LC_ALL', 'CLOUDFLARE_CF_FETCH_ENABLED'].map(name => [name, process.env[name] ?? null])) };
+    environment: Object.fromEntries(hostEnvironment.map(name => [name, process.env[name] ?? null])) };
+}
+function validateHost(host: HostIdentity) {
+  checked(host && typeof host === 'object' && !Array.isArray(host), 'Missing baseline host identity');
+  const keys = ['platform', 'architecture', 'kernel', 'node', 'nodeSha256', 'imageOS', 'imageVersion'];
+  same(Object.keys(host).sort(), [...keys, 'environment'].sort(), 'Incomplete or unknown baseline host fields');
+  for (const key of keys) checked(typeof host[key as keyof HostIdentity] === 'string', 'Invalid baseline host field: ' + key);
+  checked(host.platform && host.architecture && host.kernel && host.node && /^[a-f0-9]{64}$/.test(host.nodeSha256), 'Invalid baseline host runtime identity');
+  checked(host.environment && typeof host.environment === 'object' && !Array.isArray(host.environment), 'Missing baseline host environment');
+  same(Object.keys(host.environment).sort(), [...hostEnvironment].sort(), 'Incomplete or unknown baseline host environment');
+  for (const value of Object.values(host.environment)) checked(value === null || typeof value === 'string', 'Invalid baseline host environment value');
+}
+/** Only kernel/image version may differ between jobs. No host field may drift within a job. */
+export function requireBaselineJobHost(planHost: HostIdentity, initial: HostIdentity, current: HostIdentity) {
+  for (const host of [planHost, initial, current]) validateHost(host);
+  const common = (host: HostIdentity) => ({ platform: host.platform, architecture: host.architecture,
+    node: host.node, nodeSha256: host.nodeSha256, imageOS: host.imageOS, environment: host.environment });
+  same(common(initial), common(planHost), 'Baseline common runtime/Node/environment identity differs');
+  same(current, initial, 'Baseline host identity changed within this job');
 }
 function unwrap(node: ts.Expression): ts.Expression {
   while (ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isParenthesizedExpression(node) || ts.isTypeAssertionExpression(node)) node = node.expression;
@@ -78,7 +99,7 @@ export function baselineInventory(root: string): Inventory {
 }
 /** Conservative repository + complete installed dependency/browser trees, before execution.
  * New or changed bytes fail the final comparison, including unexpected cache writes.
- * System libraries are represented by the runner image/kernel identity, not a source claim.
+ * System libraries are represented by each job's recorded image/kernel, not a common-byte claim.
  */
 export function baselineInputs(root: string): Input[] {
   root = realpathSync(root);
@@ -110,7 +131,9 @@ export function baselineInputs(root: string): Input[] {
   });
 }
 export function validatePlan(plan: BaselinePlan, inventory: Inventory) {
-  checked(plan?.schema === 'blygger-formatting-baseline-plan-v2' && /^[a-f0-9]{40}$/.test(plan.commit) && /^\d+$/.test(plan.runId) && /^\d+$/.test(plan.attempt), 'Invalid baseline plan identity');
+  checked(plan?.schema === 'blygger-formatting-baseline-plan-v3' && /^[a-f0-9]{40}$/.test(plan.commit) && /^\d+$/.test(plan.runId) && /^\d+$/.test(plan.attempt), 'Invalid baseline plan identity');
+  checked(plan.hostPolicy === baselineHostPolicy, 'Unknown baseline host policy');
+  requireBaselineJobHost(plan.host, plan.host, plan.hostAfter);
   checked(typeof plan.root === 'string' && plan.root.startsWith('/') && Number.isSafeInteger(plan.deadline) && plan.deadline >= 0, 'Invalid baseline plan root/deadline');
   same(plan.sources, baselineSources, 'Changed source order');
   checked(typeof plan.seed === 'string' && /^-?(0|[1-9]\d*)$/.test(plan.seed) && String(Number(plan.seed)) === plan.seed && Number.isInteger(Number(plan.seed)) && Number(plan.seed) >= -2147483648 && Number(plan.seed) <= 2147483647 && plan.seedSource === 'fresh', 'Invalid baseline campaign seed');
@@ -139,7 +162,7 @@ function requirePlan(root: string, scope: BaselineScope, fullInputs = false): Ba
   const plan = JSON.parse(bytes.toString()) as BaselinePlan;
   validatePlan(plan, baselineInventory(root));
   same([plan.root, plan.commit, plan.runId, plan.attempt], [realpathSync(root), process.env.GITHUB_SHA, process.env.GITHUB_RUN_ID, process.env.GITHUB_RUN_ATTEMPT], 'Baseline plan belongs to another workspace/commit/run attempt');
-  same(plan.host, hostIdentity(), 'Baseline host image/Node identity differs');
+  requireBaselineJobHost(plan.host, scope.host, hostIdentity());
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
   checked(plan.commit === commit, 'Baseline checkout differs from the plan commit');
   const part = plan.parts.find(row => row.id === scope.part);
@@ -176,7 +199,7 @@ export function readBaselineScope(root: string, args?: string[]): BaselineScope 
   const plan = JSON.parse(bytes.toString()) as BaselinePlan;
   const assigned = plan.parts?.find(row => row.id === part);
   checked(assigned, 'Unknown baseline partition');
-  const scope: BaselineScope = { plan: resolve(path), planSha256: digest(bytes), part, files: assigned.files, seed: plan.seed };
+  const scope: BaselineScope = { plan: resolve(path), planSha256: digest(bytes), part, files: assigned.files, seed: plan.seed, host: hostIdentity() };
   requireBaselineResources(process.env.FORMATTING_BASELINE_UNIT ?? '');
   requirePlan(root, scope, true);
   return scope;
@@ -275,7 +298,9 @@ export function finishBaselinePartition(scope: BaselineScope, out: string, optio
   const resources = requireBaselineResources(process.env.FORMATTING_BASELINE_UNIT ?? '');
   const values = artifacts(out);
   validatePartitionArtifacts(plan, scope, values, options);
-  writeFileSync(resolve(out, 'partition.json'), encode({ schema: 'blygger-formatting-baseline-partition-v2', purpose: 'partial-baseline-partition', scope, commit: plan.commit, runId: plan.runId, attempt: plan.attempt, inputsSha256: plan.inputsSha256, resources, resultsSha256: values.resultsSha256 }), { flag: 'wx' });
+  const hostAfter = hostIdentity();
+  requireBaselineJobHost(plan.host, scope.host, hostAfter);
+  writeFileSync(resolve(out, 'partition.json'), encode({ schema: 'blygger-formatting-baseline-partition-v3', purpose: 'partial-baseline-partition', hostPolicy: baselineHostPolicy, scope, hostAfter, commit: plan.commit, runId: plan.runId, attempt: plan.attempt, inputsSha256: plan.inputsSha256, resources, resultsSha256: values.resultsSha256 }), { flag: 'wx' });
 }
 function outputManifest(directory: string, at = ''): Input[] {
   return readdirSync(resolve(directory, at)).sort().flatMap(name => {
@@ -287,30 +312,33 @@ function outputManifest(directory: string, at = ''): Input[] {
   });
 }
 export function makePlan(root: string, deadline = 0): BaselinePlan {
+  const host = hostIdentity();
   const inventory = baselineInventory(root), inputs = baselineInputs(root);
-  const plan: BaselinePlan = { schema: 'blygger-formatting-baseline-plan-v2', commit: process.env.GITHUB_SHA ?? '', runId: process.env.GITHUB_RUN_ID ?? '', attempt: process.env.GITHUB_RUN_ATTEMPT ?? '', root: realpathSync(root), deadline,
-    host: hostIdentity(), sources: [...baselineSources], receiver: 1, contexts: 2, seed: randomBytes(4).readInt32LE().toString(), seedSource: 'fresh', testTimeout: 60000, firstLimit: 60000, inventory, inputs, inputsSha256: digest(JSON.stringify(inputs)),
+  const plan: BaselinePlan = { schema: 'blygger-formatting-baseline-plan-v3', commit: process.env.GITHUB_SHA ?? '', runId: process.env.GITHUB_RUN_ID ?? '', attempt: process.env.GITHUB_RUN_ATTEMPT ?? '', root: realpathSync(root), deadline,
+    hostPolicy: baselineHostPolicy, host, hostAfter: hostIdentity(), sources: [...baselineSources], receiver: 1, contexts: 2, seed: randomBytes(4).readInt32LE().toString(), seedSource: 'fresh', testTimeout: 60000, firstLimit: 60000, inventory, inputs, inputsSha256: digest(JSON.stringify(inputs)),
     parts: inventory.map(row => ({ id: row.file.replace(/^test-ui\/editor-/, '').replace(/\.oracle\.test\.ts$/, ''), files: [row.file] })) };
   validatePlan(plan, inventory);
   requireDeadline(plan);
   return plan;
 }
 export function aggregateBaseline(planPath: string, directory: string, output: string) {
+  const aggregateHost = hostIdentity();
   const planBytes = readFileSync(planPath), planSha256 = digest(planBytes);
   const plan = JSON.parse(planBytes.toString()) as BaselinePlan;
   validatePlan(plan, baselineInventory(process.cwd()));
   requireDeadline(plan);
   const firstPart = plan.parts[0];
-  const firstScope: BaselineScope = { plan: resolve(planPath), planSha256, part: firstPart.id, files: firstPart.files, seed: plan.seed };
+  const firstScope: BaselineScope = { plan: resolve(planPath), planSha256, part: firstPart.id, files: firstPart.files, seed: plan.seed, host: aggregateHost };
   requirePlan(process.cwd(), firstScope, true);
   const prefix = `formatting-part-${plan.commit}-${plan.runId}-${plan.attempt}-`;
   same(readdirSync(directory).sort(), plan.parts.map(part => prefix + part.id).sort(), 'Missing/extra partition artifact');
   const allKeys = [new Set<string>(), new Set<string>()];
   const versions = new Set<string>();
   const parts = plan.parts.map(part => {
-    const scope: BaselineScope = { plan: resolve(planPath), planSha256, part: part.id, files: part.files, seed: plan.seed };
     const out = resolve(directory, prefix + part.id), receipt = json(resolve(out, 'partition.json')), host = json(resolve(out, 'host-completion.json'));
-    same([receipt.schema, receipt.purpose, receipt.scope, receipt.commit, receipt.runId, receipt.attempt, receipt.inputsSha256], ['blygger-formatting-baseline-partition-v2', 'partial-baseline-partition', scope, plan.commit, plan.runId, plan.attempt, plan.inputsSha256], 'Stale or foreign partition receipt');
+    const scope: BaselineScope = { plan: resolve(planPath), planSha256, part: part.id, files: part.files, seed: plan.seed, host: receipt.scope?.host };
+    same([receipt.schema, receipt.purpose, receipt.hostPolicy, receipt.scope, receipt.commit, receipt.runId, receipt.attempt, receipt.inputsSha256], ['blygger-formatting-baseline-partition-v3', 'partial-baseline-partition', baselineHostPolicy, scope, plan.commit, plan.runId, plan.attempt, plan.inputsSha256], 'Stale or foreign partition receipt');
+    requireBaselineJobHost(plan.host, scope.host, receipt.hostAfter);
     same([host.schema, host.commit, host.runId, host.attempt, host.part, host.exitCode, host.cleanup, host.group, host.unit], ['blygger-formatting-baseline-host-v2', plan.commit, plan.runId, plan.attempt, part.id, 0, 'empty-or-removed', receipt.resources.group, receipt.resources.unit], 'Partition host failed or did not release its cgroup');
     same([host.allowedCPUs, host.primary, host.remainingPids, host.deadline, host.seed, host.planSha256], [receipt.resources.cpus, null, [], plan.deadline, plan.seed, scope.planSha256], 'Host resource/cleanup receipt differs');
     checked(Number.isFinite(host.elapsedSeconds) && host.elapsedSeconds >= 0 && Number.isSafeInteger(host.startedAtUnixMs) && Number.isSafeInteger(host.finishedAtUnixMs) && host.finishedAtUnixMs >= host.startedAtUnixMs, 'Missing host completion timing');
@@ -324,14 +352,16 @@ export function aggregateBaseline(planPath: string, directory: string, output: s
       checked(!allKeys[passIndex].has(row.key), 'Duplicate global baseline registration');
       allKeys[passIndex].add(row.key);
     }
-    return { id: part.id, files: part.files, resultsSha256: values.resultsSha256, registrations: values.report.baselinePasses.map((pass: any) => pass.capture.length),
+    return { id: part.id, files: part.files, host: { before: scope.host, after: receipt.hostAfter }, resultsSha256: values.resultsSha256, registrations: values.report.baselinePasses.map((pass: any) => pass.capture.length),
       evidence: outputManifest(out) };
   });
   checked(versions.size === 1, 'Partition browser versions differ');
   same([...allKeys[0]].sort(), [...allKeys[1]].sort(), 'Complete baseline passes differ');
   requirePlan(process.cwd(), firstScope, true);
   requireDeadline(plan);
-  const receipt = { schema: 'blygger-formatting-baseline-complete-v2', purpose: 'complete-partitioned-baseline', status: 'completed', mutationAudit: 'not-run', planSha256, commit: plan.commit, runId: plan.runId, attempt: plan.attempt, inputsSha256: plan.inputsSha256, seed: plan.seed, seedSource: plan.seedSource, browserVersion: [...versions][0], registrationCounts: allKeys.map(keys => keys.size), parts,
+  const hostAfter = hostIdentity();
+  requireBaselineJobHost(plan.host, aggregateHost, hostAfter);
+  const receipt = { schema: 'blygger-formatting-baseline-complete-v3', purpose: 'complete-partitioned-baseline', status: 'completed', mutationAudit: 'not-run', hostPolicy: baselineHostPolicy, planHost: { before: plan.host, after: plan.hostAfter }, aggregateHost: { before: aggregateHost, after: hostAfter }, planSha256, commit: plan.commit, runId: plan.runId, attempt: plan.attempt, inputsSha256: plan.inputsSha256, seed: plan.seed, seedSource: plan.seedSource, browserVersion: [...versions][0], registrationCounts: allKeys.map(keys => keys.size), parts,
     schedule: 'Whole-file partitions, two passes inside each partition. No global all-first-before-repeat barrier. Raw partition artifacts remain required.' };
   mkdirSync(dirname(output), { recursive: true });
   writeFileSync(output, encode(receipt), { flag: 'wx' });
