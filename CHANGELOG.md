@@ -20,11 +20,6 @@ not have its own repo until session 26.
 
 ## Unreleased
 
-- Avoid rebuilding reader positions for presentation-only changes, validate
-  continuations before preparing the order, and scope imported hopper changes
-  to actual member resources. Delayed rebuilds cannot overwrite newer reader
-  positions. Own pins expire affected Reading cursors.
-  Migration `0058_reader_work.sql`; see `docs/reader-derived-work-main-integration.md`.
 - **Private items** (blygger-spec `docs/sealed-content-build-plan.md` §1, 0a and 0b;
   decision #94). An item that has never gone public can be **published privately**:
   `POST /items/{id}/publish` with `visibility: "private"` keeps a private version
@@ -50,6 +45,45 @@ not have its own repo until session 26.
   links that resolve are links, anything else stays as typed). Setting `defaultVisibility`;
   reading entries' `own.private`. New oracles `private-items-default-visibility` and
   `private-items-owner-reader`.
+
+## 0.71.0 — Quotes read lines as the spec defines them; Reading rebuilds less; editor formatting fixes; picker sources
+
+**Text content is defined** (blygger-spec decision #118, spec 0.4 §2, twenty-third revision).
+A quote's text is now read with a line break at the start **and** end tag of every block
+element in §2's list (paragraphs, headings, list items and lists, definition lists,
+blockquotes, `pre`, `div`, table parts including cells, figures, sectioning elements,
+`details`, `summary`) and at every `br` and `hr`. In a tight nested list a parent item's
+text and its first nested item are now two lines, as they always were in a loose one, so
+a partial quote of both keeps the nesting in its bake. `selectionText`, `selectionLines`
+and `plainTextFromHtml` share the one list. Live partial quotes were re-measured under the
+rule before it shipped.
+
+**Reading does less work** (Kyle Mathews, studio#172). Presentation-only changes no longer
+rebuild reader positions; an expired or malformed continuation is refused before the order
+is prepared; imported hopper changes are scoped to the members they touch; a delayed
+rebuild cannot overwrite newer positions; an own pin expires the Reading cursors it
+affects. See `docs/reader-derived-work-main-integration.md`. Fixes studio#169.
+
+**Editor formatting fixes** (Kyle Mathews, studio#168): code blocks around text that holds
+backticks, the hard-break button in and near code blocks and after paired backslashes,
+Tab under long or oddly spaced list markers and over selections with children, Bold and
+Italic over asterisk-only or whitespace-only lines, Formula on an existing display
+formula, links ending in `?` after `#`, empty edits, selections ending inside an emoji,
+read-only text. Status messages replace each other instead of stacking, and a failed save
+always says so. Browser formatting oracles (18 files, 41 properties) check sequences of
+writing actions.
+
+**Picker sources** (studio#173). A new extension slot, `pickerSource`: an extension adds a
+tab to the `[[` / `![[` picker and supplies only results; the Studio lists them, moves
+through them with the picker's keyboard and inserts the one picked. See
+`docs/extensions.md`.
+
+**Fixes** (djinna, studio#167). The test suite no longer picks up AI keys from an
+operator's `.dev.vars` (`vitest.config.ts` blanks all four), which made a self-updating
+node's pre-deploy test run fail; and a failed changelog summary can no longer overwrite
+one that became ready meanwhile.
+
+**Migrations:** `0058_reader_work.sql`.
 
 ## 0.70.0 — [TK] reads the links you give it; Reading loads fast again; seen means read
 

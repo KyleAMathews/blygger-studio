@@ -57,8 +57,9 @@ describe("partialBakeBody", () => {
 
   it("bakes quoted bullets as a list, and paragraphs around them as paragraphs", () => {
     const html = renderMarkdown(SOURCES.tight!);
-    expect(partialBakeBody(html, "Intro line.\nfirst bullet\nsecond bullet nested bullet")).toBe(
-      "<p>Intro line.</p>\n<ul>\n<li>first bullet</li>\n<li>second bullet nested bullet</li>\n</ul>",
+    // A tight nested item is its own line (§2, decision #118), so the nesting is kept.
+    expect(partialBakeBody(html, "Intro line.\nfirst bullet\nsecond bullet\nnested bullet")).toBe(
+      "<p>Intro line.</p>\n<ul>\n<li>first bullet</li>\n<li><p>second bullet</p>\n<ul>\n<li>nested bullet</li>\n</ul></li>\n</ul>",
     );
   });
 
@@ -84,7 +85,7 @@ describe("partialBakeBody", () => {
   it("takes the structure from the target, not the quoter's markers", () => {
     const html = renderMarkdown(SOURCES.tight!);
     // Quoted as plain lines over a list: still a list.
-    const plain = locateSelection(html, selectionFromQuote("first bullet\n\nsecond bullet nested bullet"))!;
+    const plain = locateSelection(html, selectionFromQuote("first bullet\n\nsecond bullet\n\nnested bullet"))!;
     expect(partialBakeBody(html, plain.exact)).toContain("<ul>");
     // Quoted with markers over prose: still paragraphs.
     const prose = renderMarkdown(SOURCES.mixed!);

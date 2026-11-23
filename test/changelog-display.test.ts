@@ -70,6 +70,19 @@ describe("the summary cache", () => {
     expect(bodies).toHaveLength(1);
   });
 
+  it("a failed call cannot overwrite a summary that became ready meanwhile (studio#167)", async () => {
+    const cookie = await login();
+    const id = await revised(cookie);
+    // The provider fails, but while it is being called a ready summary lands.
+    const fetch: ProviderFetchLike = async () => {
+      await env.DB.prepare("UPDATE changelog_summaries SET status = 'ready', summary = 'Written meanwhile.', model = 'test-model' WHERE subject = ? AND version = 3").bind(ownSubject(id)).run();
+      return { ok: false, status: 503, text: async () => "unavailable" };
+    };
+    expect(await summarizeChangelog(keyed, ownSubject(id), 3, await ownChangelog(env.DB, id), fetch)).toMatchObject({ ok: false });
+    const row = await env.DB.prepare("SELECT status, summary FROM changelog_summaries WHERE subject = ?").bind(ownSubject(id)).first();
+    expect(row).toEqual({ status: "ready", summary: "Written meanwhile." });
+  });
+
   it("a request that loses the claim gets 409, not a second model call", async () => {
     const cookie = await login();
     const id = await revised(cookie);
