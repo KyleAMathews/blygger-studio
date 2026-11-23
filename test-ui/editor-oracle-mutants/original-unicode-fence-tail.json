@@ -1,0 +1,8 @@
+{
+  "id": "original-unicode-fence-tail",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "return new MarkdownIt({ html: false }).parse(prefix + '\\n\\n', {})",
+  "replace": "return new MarkdownIt({ html: false }).parse(prefix.replace(/([`~]{3,})[^\\S\\r\\n]*(?=\\r\\n?|\\n|$)/g, '$1') + '\\n\\n', {})",
+  "intent": "Treat all JavaScript whitespace as an allowed fence-closing tail, including Unicode whitespace. Keep line boundaries, marker runs, container parsing, invalid backtick info, and all actual edited source unchanged.",
+  "author": "Codex, self-generated after review and oracle inspection; Codex source-only combined-fence rebase, self-generated after oracle/review inspection"
+}

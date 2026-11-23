@@ -1,0 +1,8 @@
+{
+  "id": "shown-native-insertion-receipt-ignored",
+  "source": "src/ui/authoring.tsx",
+  "find": "offered?.before === full && offered.next === next ? offered.hit : touches(now, full, next, caret)",
+  "replace": "touches(now, full, next, caret)",
+  "intent": "Discard the exact native input receipt and falsely reject LF at the exact protected start when equal newlines make diff infer an interior insertion.",
+  "author": "Codex (independent review finding; browser RED before repair)"
+}

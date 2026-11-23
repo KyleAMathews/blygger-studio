@@ -1,0 +1,8 @@
+{
+  "id": "receiver-escape-never-exits",
+  "source": "src/ui/authoring.tsx",
+  "find": "active && event.key === 'Escape' && !event.defaultPrevented",
+  "replace": "false && event.key === 'Escape' && !event.defaultPrevented",
+  "intent": "A delivered Escape with no picker must leave focus view, including the second key after picker dismissal.",
+  "author": "Codex; authored receiver challenges from BRACKET-001/FOCUS-001/REPLACE-001 audit"
+}

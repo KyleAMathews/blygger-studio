@@ -1,0 +1,8 @@
+{
+  "id": "links-full-result-feedback",
+  "source": "src/ui/links.ts",
+  "find": "export function linkToast(result: { removed: number; linked: boolean }) {",
+  "replace": "export function linkToast(result: { removed: number; linked: boolean }) { if ('text' in result) return 'invalid link result';",
+  "intent": "Feedback must accept the actual complete insertion result, including its source/caret fields.",
+  "author": "Codex; independent loss-audit challenge"
+}

@@ -1,0 +1,8 @@
+{
+  "id": "original-native-grapheme-range",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "const exactNativeRange = boundaries.has(edit.from) && boundaries.has(edit.to);",
+  "replace": "const exactNativeRange = true;",
+  "intent": "Native editing must not snap a valid UTF16 replacement inside a grapheme to a different source range.",
+  "author": "Independent browser review; RED reproduced by parent"
+}

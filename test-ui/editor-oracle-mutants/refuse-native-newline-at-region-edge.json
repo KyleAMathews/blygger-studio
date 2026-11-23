@@ -1,0 +1,8 @@
+{
+  "id": "refuse-native-newline-at-region-edge",
+  "source": "src/ui/authoring.tsx",
+  "find": "      const hit = touches(now, full, next, caret);",
+  "replace": "      const hit = now[0];",
+  "intent": "Refuse every shown-region edit including its permitted exact edge. The nearest allowed native-newline history must reject the blanket protection rule.",
+  "author": "Codex (self-generated after inspecting the oracle)"
+}

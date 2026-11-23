@@ -1,0 +1,8 @@
+{
+  "id": "receiver-escape-ignore-prevention",
+  "source": "src/ui/authoring.tsx",
+  "find": "active && event.key === 'Escape' && !event.defaultPrevented",
+  "replace": "active && event.key === 'Escape'",
+  "intent": "First actual picker Escape must dismiss only the picker and keep focus view active.",
+  "author": "Codex; authored receiver challenges from BRACKET-001/FOCUS-001/REPLACE-001 audit"
+}

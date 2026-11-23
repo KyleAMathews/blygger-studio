@@ -1,0 +1,8 @@
+{
+  "id": "workflow-ignored-typed",
+  "source": "src/ui/authoring.tsx",
+  "find": "        clip = typed;",
+  "replace": "        /* Wrongly retain the original clipboard target. */",
+  "intent": "Fallback insertion uses the typed URL.",
+  "author": "Codex; challenges from independent workflow receiving review"
+}

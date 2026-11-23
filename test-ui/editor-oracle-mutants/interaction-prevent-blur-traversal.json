@@ -1,0 +1,8 @@
+{
+  "id": "interaction-prevent-blur-traversal",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  if (!edit) return;",
+  "replace": "  if (!edit) { if (event.key === 'Tab') { event.preventDefault(); el.blur(); } return; }",
+  "intent": "A declined Tab must follow the same native focused recipient/direction without prevention; blur is insufficient.",
+  "author": "Codex; challenges from independent interaction oracle review INT-001 through INT-004"
+}

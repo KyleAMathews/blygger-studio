@@ -49,6 +49,7 @@ child.on('exit', (code, signal) => {
     const failed = report.baseline.filter(file => file.failed).length;
     if (report.provisional || failed || unstable.length || gaps.length) {
       console.error(`Oracle gate failed: ${failed} failing baseline files, ${unstable.length} unstable oracle tests, ${gaps.length} open gaps; report ${join(output, 'summary.md')}`);
+      for (const test of unstable) console.error('Unstable oracle test: ' + test);
       process.exitCode = 1;
     }
   } catch (error) { console.error('Oracle run produced no usable report', error); process.exitCode = 1; }

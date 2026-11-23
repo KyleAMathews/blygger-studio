@@ -18,6 +18,7 @@ Extensions are one of three places a mod can live; [`mods.md`](mods.md) says whi
 | `lineage-glyph` | The lineage glyph, hex view and action ring from #35. A glyph in each reading byline counts what a post draws on and what draws on it here. It opens a hex view of one hop of ancestors and descendants, where each corner previews what stub, quote a passage, fork, link post, history and open would make, and a second press runs that action. The actions are the Studio's own (or drafts and navigation through the extension context), so they write through the owner's session like the ⋯ sheet does. Its server routes are owner reads: `GET /api/ext/lineage-glyph/lineage` and `/summaries`. `scripts/lineage-demo.ts` runs a seeded local node with it enabled. |
 | `menu-example` | A page with an entry in the main menu, and nothing else. The template to copy for one. |
 | `menu-top-example` | A page that asks for the top of the main menu, and shows where it was placed. The template to copy for a page an owner starts from. |
+| `picker-example` | A “drafts” tab in the `[[` picker: your drafts, matched by every word of the query. The template to copy for a picker source. |
 | `reading-time` | An estimated reading time and word count at the end of each reading entry's byline. Browser only; shipped in `extensions.json`. |
 | `regions-example` | Holds paragraphs that start with `[held]: #` out of the full editor's text box. The template to copy for keeping generated lines out of the author's way. |
 | `spellcheck` | A “spelling” button in an editor bar (composer and full editor) that opens a sheet: a dictionary check against a US English word list (ESDB size 60, served by its owner read `GET /api/ext/spellcheck/words` and checked in the browser), skipping markup, links, ids, code, math and TK instructions, with suggestions, ignore, and add to the blyg's dictionary (`PUT /dictionary/owner`, whose every source it also accepts); and, in the full editor, an AI proofread of the saved draft through the blyg's TK model (`GET /api/ext/spellcheck/proofread`), each fix applied in place. `make-words.ts` regenerates the list. |
@@ -32,6 +33,7 @@ Extensions are one of three places a mod can live; [`mods.md`](mods.md) says whi
 | Draft counter | Something beside the character count, in the composer and the full editor | `draftCounter` (a component) |
 | Editor regions | Parts of the full editor's text kept out of its text box: hidden each time the editor opens, read-only when shown | `editorRegions(context)` (see "Editor regions" below) |
 | Editor bars | A bar of controls in a row of its own above or below the text box, in the composer and the full editor, that can edit the text. It asks for a row and room; the Studio decides | `editorBar` (see "Editor bars" below) |
+| Picker sources | A tab in the `[[` / `![[` picker beside the Studio's own search, listing what the extension offers to link to. The Studio lists, moves through and inserts the results | `pickerSource` (see "Picker sources" below) |
 | Sheets | A sheet of its own, opened from a reading byline or reading actions | `context.openSheet(render)` |
 | A page | A screen at `/studio/ext/<name>`, linked from More | `page` |
 | A main-menu entry | Asks for a link to that page in a menu zone: `top` (above the Studio's own tabs), `visible` (among them, where the Studio puts it: above compose) or `hidden` (More). The Studio decides; see "Menu zones" below | `page.mainMenu` (an icon and a `zone`); the label is `page.title` |
@@ -172,6 +174,37 @@ Every entry keeps the same contract:
 A future entry, for example the TK button, would add a row with its own contract. A TK replacement
 would have to generate through the Studio's generate endpoint, so the `generated[]` record stays honest.
 
+## Picker sources
+
+For things an author links to that the Studio's own search doesn't find, or doesn't find first: a book's
+references, a glossary, a project's drafts. Typing `[[` (or `![[`) opens the picker; with any source enabled
+it has a row of tabs, the Studio's own search (**items**) first, then one per source in compiled order.
+
+```ts
+pickerSource: {
+  label: 'references',
+  forms: ['link'],
+  search: async ({ client, query, form, signal }) => [{ id, label: 'Polanyi 1966', excerpt: 'Polanyi, Michael. The Tacit Dimension.', meta: 'book' }],
+}
+```
+
+- **The extension finds; the Studio does the rest.** `search` is called as the query changes, after a short
+  pause, with `query` (what follows the brackets, or the panel's search box), `form` and a `signal` that
+  aborts when the query changes or the picker closes. The Studio lists the results, moves through them with
+  the arrow keys, inserts the one picked (Enter or a click) in the form being typed, with the label as
+  `[[id | label]]`, and closes. So keyboard parity, the syntax and the caret are the Studio's, as for its own
+  results.
+- **Items only.** A result's `id` must be an item id: the picker names items. Anything else is dropped, as
+  are repeats; excerpts and labels are put on one line; a tab shows at most 50 results, so narrow by the
+  query.
+- **Forms.** `forms` (default `['link']`) says where the tab is offered: `link` (`[[…]]`), `transclude`
+  (`![[…]]` on a line of its own) or `source` (`![[…]]` inside a TK scope).
+- **The tab is remembered** on the device. A remembered tab whose source is off, or not offered for the form,
+  falls back to the Studio's.
+- **Failures** show in the picker's error line and go in the error log under the extension's name and
+  `pickerSource`; the other tabs carry on. An aborted search is not a failure.
+- **Off is invisible:** with no source enabled there is no tab row, and the picker is as it was.
+
 ## Menu zones
 
 Many extensions may want a place in the main menu, so an extension makes its case and the Studio decides.
@@ -195,7 +228,7 @@ page: { title: 'Dashboard', mainMenu: { icon: '⌂', zone: 'top' }, component: P
 - **Writes.** Extension routes are GETs under `/api/ext/<name>/`. The permission model classifies them as `owner:read`, and a route registered with any other method or prefix is refused when the Worker starts. An extension that wants to change something uses the existing contract through `client`, under the same scopes as any client.
 - **The wire.** An extension does not reach `blyg.json`, public pages, feeds, `content_html` or mentions. It is studio furniture for one owner. The one exception is order: a feed order may decide the sequence of the home page's cards, and nothing else (session 46; see "Feed orders").
 - **Changing the Studio's own controls.** No slot rewrites, hides or annotates a built-in button, row or label, except the controls listed under "Replaceable controls", which an extension may replace whole under that section's contract. #35 needed this (hover previews on `stub ↗`, tips on ⋯ rows), and it was left out because it would make the base UI's markup depend on extension code. That still holds for replaceable controls: the Studio decides by its own rule whether to render its control, and extension markup never goes inside a built-in one.
-- **Other screens.** The slots are on the reading view, beside the composer's and full editor's character count, in the editor bar rows above and below the composer's and full editor's text box, and in the full editor's text box (held-out regions), plus an extension's own page. New slots should be added when an extension needs them, not before.
+- **Other screens.** The slots are on the reading view, beside the composer's and full editor's character count, in the editor bar rows above and below the composer's and full editor's text box, in the full editor's text box (held-out regions) and as tabs in the `[[` picker, plus an extension's own page. New slots should be added when an extension needs them, not before.
 
 ## Writing one
 

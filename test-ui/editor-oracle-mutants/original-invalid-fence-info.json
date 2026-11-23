@@ -1,0 +1,8 @@
+{
+  "id": "original-invalid-fence-info",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "return new MarkdownIt({ html: false }).parse(prefix + '\\n\\n', {})",
+  "replace": "return new MarkdownIt({ html: false }).parse(prefix.replace(/(`{3,})([^\\r\\n]*)/g, (_match, fence: string, info: string) => fence + info.replace(/`/g, 'x')) + '\\n\\n', {})",
+  "intent": "Allow forbidden backticks in opening backtick-fence info by replacing later info ticks before classification. Keep marker runs, line boundaries, container parsing, closer rules, and all actual edited source unchanged.",
+  "author": "Codex; original defect after approved CommonMark law and registered browser RED; Codex source-only combined-fence rebase, self-generated after oracle/review inspection"
+}

@@ -1,0 +1,8 @@
+{
+  "id": "review-list-uniform-prepend",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  const write = () => rows.map((row, index) => row.marker ? indents[index] + marker(index) + row.gap + row.body : row.line).join('\\n');",
+  "replace": "  const write = () => {\n    let extra = INDENT.length;\n    if (!out) while (selected.some(row => column(row.indent, extra) < column(indents[row.index]!))) extra++;\n    return rows.map((row, index) => row.marker ? (out ? indents[index] : ' '.repeat(extra) + row.indent) + marker(index) + row.gap + row.body : row.line).join('\\n');\n  };",
+  "intent": "Use one uniformly prepended sufficient width for all selected rows; independently phased tabs can require different final whitespace.",
+  "author": "Codex; independent oracle-review hostile design after unchanged-production RED; Codex source-only r2 rebase, self-generated after oracle/review inspection"
+}

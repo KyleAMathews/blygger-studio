@@ -1,0 +1,8 @@
+{
+  "id": "original-stacked-toast-feedback",
+  "source": "src/ui/sheets.tsx",
+  "find": "    id: 'studio-feedback',\n",
+  "replace": "    // Regression: let Base UI assign a fresh toast identity.\n",
+  "intent": "Restore newly generated toast identities so consecutive link notices accumulate instead of replacing the current message.",
+  "author": "Codex; regression observed after integrating upstream Base UI toast migration"
+}

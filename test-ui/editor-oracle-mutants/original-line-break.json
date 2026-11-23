@@ -1,0 +1,8 @@
+{
+  "id": "original-any-backslash-is-break",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "slashes % 2 === 1",
+  "replace": "slashes > 0",
+  "intent": "Restore the original behavior that treats every trailing backslash run as an existing hard break.",
+  "author": "Codex (self-generated after inspecting the oracle)"
+}

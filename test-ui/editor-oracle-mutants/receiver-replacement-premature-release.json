@@ -1,0 +1,8 @@
+{
+  "id": "receiver-replacement-premature-release",
+  "source": "src/ui/authoring.tsx",
+  "find": "    setReplacing(true);\n    try {\n      const restored",
+  "replace": "    setReplacing(false);\n    try {\n      const restored",
+  "intent": "Replacement remains readonly until the held restore request and action settle.",
+  "author": "Codex; authored receiver challenges from BRACKET-001/FOCUS-001/REPLACE-001 audit"
+}

@@ -20,7 +20,8 @@ import type { ErrorInfo, ReactNode } from 'react';
 import { Component, useRef, useState } from 'react';
 import type { EditorRegion } from './editor-regions.ts';
 import { rebaseMarks } from './editor-marks.tsx';
-import type { BarPlace, BarRow, DraftCounterContext, EditorMark, ReplaceableControl, EditorBarContext, EditorRegionsContext, EntryAction, EntryContext, MenuZone, StudioContext, StudioExtension } from './extension-api.ts';
+import { ID } from '../grammar.ts';
+import type { BarPlace, BarRow, DraftCounterContext, EditorMark, ReplaceableControl, EditorBarContext, EditorRegionsContext, EntryAction, EntryContext, MenuZone, PickerForm, PickerResult, PickerSourceContext, StudioContext, StudioExtension } from './extension-api.ts';
 import { errorLog } from './error-log.ts';
 import { Sheet, type MenuRow } from './sheets.tsx';
 
@@ -392,4 +393,45 @@ export function useEditorBars(extensions: readonly StudioExtension[], host: BarH
     }
   };
   return { above, below, replaced, marks: owned.map(({ mark }) => mark), activate };
+}
+
+/** The enabled extensions offering a picker tab for this form, in compiled order. */
+export function pickerSources(extensions: readonly StudioExtension[], form: PickerForm) {
+  return extensions.filter((extension) => extension.pickerSource && (extension.pickerSource.forms ?? ['link']).includes(form));
+}
+
+/** At most this many results a tab; a source should narrow by the query rather than list everything. */
+export const MAX_PICKER_RESULTS = 50;
+const ITEM_ID = new RegExp(`^${ID}$`);
+
+/**
+ * A source's results as the picker can use them: item ids only (the picker names items), each
+ * once, with a one-line excerpt and label, at most MAX_PICKER_RESULTS. Anything else is dropped.
+ */
+export function pickerResults(results: unknown): PickerResult[] {
+  if (!Array.isArray(results)) return [];
+  const seen = new Set<string>();
+  const line = (value: unknown) => (typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '');
+  const out: PickerResult[] = [];
+  for (const result of results) {
+    const id = (result as PickerResult | null)?.id;
+    if (typeof id !== 'string' || !ITEM_ID.test(id) || seen.has(id)) continue;
+    seen.add(id);
+    const label = line((result as PickerResult).label);
+    const meta = line((result as PickerResult).meta);
+    out.push({ id, excerpt: line((result as PickerResult).excerpt) || label || id, ...(label ? { label } : {}), ...(meta ? { meta } : {}) });
+    if (out.length === MAX_PICKER_RESULTS) break;
+  }
+  return out;
+}
+
+/** Runs one source's search with its own context; a failure goes in the log under its name and is rethrown for the picker to show. */
+export async function searchPickerSource(extension: StudioExtension, host: HostContext<PickerSourceContext>): Promise<PickerResult[]> {
+  try {
+    return pickerResults(await extension.pickerSource!.search(extensionContext<PickerSourceContext>(extension, 'pickerSource', host)));
+  } catch (error) {
+    if (host.signal.aborted) return [];
+    report(extension.name, 'pickerSource', error);
+    throw asError(error);
+  }
 }

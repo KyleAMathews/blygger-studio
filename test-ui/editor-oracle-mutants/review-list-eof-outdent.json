@@ -1,0 +1,8 @@
+{
+  "id": "review-list-eof-outdent",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "const { start, end } = lineSpan(text, from, to);",
+  "replace": "if (out && to === text.length) return null; const { start, end } = lineSpan(text, from, to);",
+  "intent": "Outdent retains end-of-document selected-range behavior.",
+  "author": "Codex, self-generated after review and oracle inspection"
+}

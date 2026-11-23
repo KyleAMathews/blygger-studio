@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { listViews, preloadView } from './data.ts';
+import { useNavigate } from '@tanstack/react-router';
+import { compiledExtensions } from '../../build/extensions.ui.ts';
+import { client, listViews, preloadView } from './data.ts';
+import { createItem } from './server-mutations.ts';
+import { enabledExtensions, pickerSources, searchPickerSource } from './extensions.tsx';
+import type { PickerResult } from './extension-api.ts';
 import { Button, Failure, useSettings } from './components.tsx';
 import { Toggle, ToggleGroup } from './buttons.tsx';
 import { paletteTrigger, paletteInsert } from '../palette.ts';
 import { setTextAt } from './caret.ts';
 import './picker.css';
-import { ago, canSearchText, SEARCH_PROMPT, store, stored, useSearch, type Hit } from './search.tsx';
+import { ago, canSearchText, SEARCH_PROMPT, store, stored, useSearch } from './search.tsx';
 
 /**
  * The `[[` / `![[` picker (0.29). Typing either bracket form opens a panel at
@@ -21,10 +26,19 @@ import { ago, canSearchText, SEARCH_PROMPT, store, stored, useSearch, type Hit }
  * panel mode on a phone the picker takes the whole screen: there is nothing
  * to type in the editor meanwhile, and a half-height dock under the keyboard
  * was the awkward part. Both modes share every other part.
+ *
+ * Extensions may add tabs beside the Studio's own search (`pickerSource`,
+ * docs/extensions.md "Picker sources"): an extension finds results for the
+ * query, and the picker lists them, moves through them and inserts the one
+ * picked, in the form being typed, as it does its own. With no source enabled
+ * there is no tab row.
  */
 type Source = 'all' | 'mine' | 'imported';
 type Sort = 'newest' | 'oldest';
 type Focus = 'editor' | 'panel';
+/** The Studio's own search, the first tab. */
+const ITEMS = 'items';
+const TAB_KEY = 'blyg.picker.tab';
 // Touch without hover, the same test as the reading list's swipe hint (#36).
 const touch = () => matchMedia('(hover: none) and (pointer: coarse)').matches;
 const narrow = () => matchMedia('(max-width: 640px)').matches;
@@ -43,7 +57,15 @@ export function BracketPicker({
   const [selected, setSelected] = useState(0);
   const [source, setSource] = useState<Source>(() => stored('blyg.picker.source', ['all', 'mine', 'imported'] as const, 'all'));
   const [sort, setSort] = useState<Sort>(() => stored('blyg.picker.sort', ['newest', 'oldest'] as const, 'newest'));
-  const setting = useSettings()?.pickerTyping ?? 'auto';
+  const settings = useSettings();
+  const setting = settings?.pickerTyping ?? 'auto';
+  const [chosenTab, setChosenTab] = useState(() => {
+    try {
+      return localStorage.getItem(TAB_KEY) ?? ITEMS;
+    } catch {
+      return ITEMS;
+    }
+  });
   const focusMode: Focus = setting === 'auto' ? (touch() ? 'panel' : 'editor') : setting;
   const [sub, setSub] = useState('');
   const [subs, setSubs] = useState<{ id: string; title: string }[]>([]);
@@ -51,6 +73,7 @@ export function BracketPicker({
   const [dismissed, setDismissed] = useState<string>();
   const search = useRef<HTMLInputElement>(null);
   const [caret, setCaret] = useState(text.length);
+  const routerNavigate = useNavigate();
   useEffect(() => {
     const element = input.current;
     const update = () => setCaret(element?.selectionStart ?? text.length);
@@ -70,6 +93,50 @@ export function BracketPicker({
   const open = !!trigger && dismissed !== triggerKey;
   useEffect(() => setPanelQuery(trigger?.query ?? ''), [trigger?.query]);
   const query = !open ? undefined : focusMode === 'panel' ? panelQuery : trigger.query;
+  // The extensions' tabs for this form; the remembered tab if it is one of them, else the Studio's.
+  const sources = open ? pickerSources(enabledExtensions(compiledExtensions, settings?.extensions), trigger.form) : [];
+  const tabSource = sources.find((extension) => extension.name === chosenTab);
+  const tab = tabSource ? tabSource.name : ITEMS;
+  const chooseTab = (name: string) => {
+    setChosenTab(name);
+    try {
+      localStorage.setItem(TAB_KEY, name);
+    } catch { /* remembered until the page is left */ }
+  };
+  // Results are kept with the tab, form and query they answer, and listed only while those still
+  // hold: a switched tab or a newer query never shows, or lets Enter pick, an older answer.
+  const searchKey = tabSource && query !== undefined && trigger ? JSON.stringify([tabSource.name, trigger.form, query]) : undefined;
+  const [found, setFound] = useState<{ key: string; results: PickerResult[]; error?: Error }>();
+  const current = found && found.key === searchKey ? found : undefined;
+  const sourceResults = current?.results ?? [];
+  useEffect(() => {
+    if (!tabSource || query === undefined || !trigger || !searchKey) return;
+    const controller = new AbortController();
+    // A short pause, so a source isn't asked once per keystroke.
+    const timer = setTimeout(() => {
+      searchPickerSource(tabSource, {
+        client,
+        openDraft: async (body) => {
+          const created = await createItem(body);
+          await routerNavigate({ to: '/edit/$id', params: { id: created.id } });
+        },
+        navigate: (location) => routerNavigate(location as never),
+        run: async (action) => {
+          await action();
+        },
+        query,
+        form: trigger.form,
+        signal: controller.signal,
+      }).then(
+        (results) => !controller.signal.aborted && setFound({ key: searchKey, results }),
+        (error: Error) => !controller.signal.aborted && setFound({ key: searchKey, results: [], error }),
+      );
+    }, 150);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [tabSource?.name, query, trigger?.form]);
 
   // On a phone the panel docks over the bottom half: bring the text being
   // typed into the half that stays visible.
@@ -90,15 +157,17 @@ export function BracketPicker({
 
   const needsLongerTerm = !!query?.trim() && !canSearchText(query);
   const { hits, hasMore, loading, error, loadMore, cancel } = useSearch(
-    query === undefined || needsLongerTerm ? undefined : { q: query, source, sort, ...(source === 'imported' && sub ? { sub } : {}) },
+    query === undefined || needsLongerTerm || tab !== ITEMS ? undefined : { q: query, source, sort, ...(source === 'imported' && sub ? { sub } : {}) },
   );
-  useEffect(() => setSelected(0), [query, source, sort, sub]);
+  useEffect(() => setSelected(0), [query, source, sort, sub, tab]);
+  // What the open tab lists: the Studio's hits, or the source's results.
+  const listed: { id: string; label?: string }[] = tab === ITEMS ? hits : sourceResults;
   const backToEditor = (at: number) =>
     requestAnimationFrame(() => {
       input.current?.focus();
       input.current?.setSelectionRange(at, at);
     });
-  const pick = (hit: Hit) => {
+  const pick = (hit: { id: string; label?: string }) => {
     if (!trigger) return;
     const next = paletteInsert(text, caret, trigger, hit.id, hit.label);
     cancel();
@@ -121,18 +190,18 @@ export function BracketPicker({
       dismiss();
       return;
     }
-    if (!hits.length) return;
+    if (!listed.length) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setSelected((i) => Math.min(i + 1, hits.length - 1));
+      setSelected((i) => Math.min(i + 1, listed.length - 1));
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
       setSelected((i) => Math.max(i - 1, 0));
     }
-    if (event.key === 'Enter' && hits[selected]) {
+    if (event.key === 'Enter' && listed[selected]) {
       event.preventDefault();
-      pick(hits[selected]);
+      pick(listed[selected]);
     }
   };
   useEffect(() => {
@@ -185,86 +254,132 @@ export function BracketPicker({
           )}
         </p>
       )}
-      <div className="picker-filters">
-        <ToggleGroup aria-label="source" className="picker-seg" value={[source]}>
-          {(['all', 'mine', 'imported'] as const).map((value) => (
+      {sources.length ? (
+        <ToggleGroup aria-label="picker tab" className="picker-seg picker-tabs" value={[tab]}>
+          {[ITEMS, ...sources.map((extension) => extension.name)].map((name) => (
             <Toggle
-              key={value}
-              value={value}
+              key={name}
+              value={name}
+              data-picker-tab={name}
               onClick={() => {
-                  setSource(value);
-                  store('blyg.picker.source', value);
-                  afterControl();
+                chooseTab(name);
+                afterControl();
               }}
             >
-              {value === 'all' ? 'both' : value}
+              {name === ITEMS ? 'items' : sources.find((extension) => extension.name === name)!.pickerSource!.label}
             </Toggle>
           ))}
         </ToggleGroup>
-        <select
-          aria-label="sort"
-          value={sort}
-          onChange={(e) => {
-            setSort(e.target.value as Sort);
-            store('blyg.picker.sort', e.target.value);
-            afterControl();
-          }}
-        >
-          <option value="newest">newest first</option>
-          <option value="oldest">oldest first</option>
-        </select>
-        {source === 'imported' && subs.length ? (
-          <select
-            aria-label="subscription"
-            value={sub}
-            onChange={(e) => {
-              setSub(e.target.value);
-              afterControl();
-            }}
-          >
-            <option value="">every subscription</option>
-            {subs.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.title}
-              </option>
+      ) : null}
+      {tab !== ITEMS ? (
+        <>
+          <Failure error={current?.error} />
+          <div className="picker-count" aria-live="polite">
+            {!current ? 'searching…' : `${sourceResults.length.toLocaleString()} result${sourceResults.length === 1 ? '' : 's'}`}
+          </div>
+          <ul role="listbox" aria-label={tabSource!.pickerSource!.label} className="picker-list" data-picker-source={tab}>
+            {sourceResults.map((result, i) => (
+              <li
+                role="option"
+                aria-selected={i === selected}
+                className={i === selected ? 'sel' : ''}
+                key={result.id}
+                onMouseEnter={() => setSelected(i)}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  pick(result);
+                }}
+              >
+                <span className="picker-excerpt">{result.excerpt}</span>
+                {result.meta ? <span className="picker-meta">{result.meta}</span> : null}
+              </li>
             ))}
-          </select>
-        ) : null}
-      </div>
-      <Failure error={error} />
-      <div className="picker-count" aria-live="polite">
-        {needsLongerTerm ? SEARCH_PROMPT : loading && !hits.length ? 'searching…' : `${hits.length.toLocaleString()}${hasMore ? '+' : ''} item${hits.length === 1 && !hasMore ? '' : 's'}`}
-      </div>
-      <ul role="listbox" aria-label="items" className="picker-list">
-        {hits.map((hit, i) => (
-          <li
-            role="option"
-            aria-selected={i === selected}
-            className={i === selected ? 'sel' : ''}
-            key={JSON.stringify([hit.source, hit.subscriptionId, hit.id])}
-            onMouseEnter={() => setSelected(i)}
-            onMouseDown={(event) => {
-              event.preventDefault();
-              pick(hit);
-            }}
-          >
-            <span className="picker-excerpt">{hit.excerpt}</span>
-            <span className="picker-meta">
-              {hit.source === 'mine' ? <span className="picker-mine">mine</span> : <span>{hit.sourceTitle}</span>} · {hit.kind} · {ago(hit.updated)} · v{hit.version}
-            </span>
-          </li>
-        ))}
-      </ul>
-      {error ? (
-        <Button className="btn btn-ghost btn-mini" disabled={loading} onMouseDown={(event) => event.preventDefault()} onClick={loadMore}>
-          retry search
-        </Button>
-      ) : null}
-      {hasMore ? (
-        <Button className="btn btn-ghost btn-mini" disabled={loading} onMouseDown={(event) => event.preventDefault()} onClick={loadMore}>
-          load more
-        </Button>
-      ) : null}
+          </ul>
+        </>
+      ) : (
+        <>
+          <div className="picker-filters">
+            <ToggleGroup aria-label="source" className="picker-seg" value={[source]}>
+              {(['all', 'mine', 'imported'] as const).map((value) => (
+                <Toggle
+                  key={value}
+                  value={value}
+                  onClick={() => {
+                      setSource(value);
+                      store('blyg.picker.source', value);
+                      afterControl();
+                  }}
+                >
+                  {value === 'all' ? 'both' : value}
+                </Toggle>
+              ))}
+            </ToggleGroup>
+            <select
+              aria-label="sort"
+              value={sort}
+              onChange={(e) => {
+                setSort(e.target.value as Sort);
+                store('blyg.picker.sort', e.target.value);
+                afterControl();
+              }}
+            >
+              <option value="newest">newest first</option>
+              <option value="oldest">oldest first</option>
+            </select>
+            {source === 'imported' && subs.length ? (
+              <select
+                aria-label="subscription"
+                value={sub}
+                onChange={(e) => {
+                  setSub(e.target.value);
+                  afterControl();
+                }}
+              >
+                <option value="">every subscription</option>
+                {subs.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.title}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+          </div>
+          <Failure error={error} />
+          <div className="picker-count" aria-live="polite">
+            {needsLongerTerm ? SEARCH_PROMPT : loading && !hits.length ? 'searching…' : `${hits.length.toLocaleString()}${hasMore ? '+' : ''} item${hits.length === 1 && !hasMore ? '' : 's'}`}
+          </div>
+          <ul role="listbox" aria-label="items" className="picker-list">
+            {hits.map((hit, i) => (
+              <li
+                role="option"
+                aria-selected={i === selected}
+                className={i === selected ? 'sel' : ''}
+                key={JSON.stringify([hit.source, hit.subscriptionId, hit.id])}
+                onMouseEnter={() => setSelected(i)}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  pick(hit);
+                }}
+              >
+                <span className="picker-excerpt">{hit.excerpt}</span>
+                <span className="picker-meta">
+                  {hit.source === 'mine' ? <span className="picker-mine">mine</span> : <span>{hit.sourceTitle}</span>} · {hit.kind} · {ago(hit.updated)} · v{hit.version}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {error ? (
+            <Button className="btn btn-ghost btn-mini" disabled={loading} onMouseDown={(event) => event.preventDefault()} onClick={loadMore}>
+              retry search
+            </Button>
+          ) : null}
+          {hasMore ? (
+            <Button className="btn btn-ghost btn-mini" disabled={loading} onMouseDown={(event) => event.preventDefault()} onClick={loadMore}>
+              load more
+            </Button>
+          ) : null}
+        </>
+      )}
       <footer className="picker-foot">
         <span className="hint">↑↓ to move · Enter to insert · Esc to close</span>
       </footer>

@@ -1,0 +1,104 @@
+name: Formatting baseline partitions
+on:
+  workflow_call:
+    inputs:
+      timeout-minutes:
+        type: number
+        required: true
+      deadline:
+        type: string
+        default: '0'
+env:
+  # The optional geolocation lookup otherwise writes node_modules/.mf/cf.json.
+  CLOUDFLARE_CF_FETCH_ENABLED: 'false'
+  PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/formatting-browsers
+permissions:
+  contents: read
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx playwright install --with-deps chromium
+      - id: plan
+        env:
+          FORMATTING_DEADLINE: ${{ inputs.deadline }}
+        run: node --import tsx scripts/formatting-baseline-plan.ts plan build/formatting-baseline-plan.json "$FORMATTING_DEADLINE"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/formatting-baseline-plan.json
+          if-no-files-found: error
+  partitions:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    strategy:
+      fail-fast: false
+      # This is extra host capacity: up to eight aggregate CPUs. No run or
+      # balance claim is implied by the proposed cap.
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx playwright install --with-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build
+      - name: Both complete file passes in a two-CPU service
+        env:
+          FORMATTING_PART: ${{ matrix.id }}
+        run: python3 scripts/formatting-baseline-host.py build/formatting-baseline-plan.json "$FORMATTING_PART" "build/formatting-part-$FORMATTING_PART"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: formatting-part-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.id }}
+          path: build/formatting-part-${{ matrix.id }}/
+          if-no-files-found: error
+  aggregate:
+    if: always()
+    needs: [plan, partitions]
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    steps:
+      - name: Require every dependency to finish successfully
+        env:
+          PLAN_RESULT: ${{ needs.plan.result }}
+          PARTITION_RESULT: ${{ needs.partitions.result }}
+        run: test "$PLAN_RESULT" = success && test "$PARTITION_RESULT" = success
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx playwright install --with-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: formatting-part-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: build/formatting-parts
+          merge-multiple: false
+      - run: node --import tsx scripts/formatting-baseline-plan.ts aggregate build/formatting-baseline-plan.json build/formatting-parts build/formatting-complete.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formatting-baseline-complete-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/formatting-complete.json
+          if-no-files-found: error

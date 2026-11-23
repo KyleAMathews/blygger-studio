@@ -1,0 +1,8 @@
+{
+  "id": "review-list-valid-nul-context",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "const { start, end } = lineSpan(text, from, to);",
+  "replace": "if (text.includes('\\0')) throw new Error('valid source rejected'); const { start, end } = lineSpan(text, from, to);",
+  "intent": "Every valid UTF-16 source partition has a usable list edit or null.",
+  "author": "Codex, self-generated after review and oracle inspection"
+}

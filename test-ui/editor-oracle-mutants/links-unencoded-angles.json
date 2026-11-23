@@ -1,0 +1,8 @@
+{
+  "id": "links-unencoded-angles",
+  "source": "src/ui/links.ts",
+  "find": "url.replace(/[()<>\\s]/g,",
+  "replace": "url.replace(/[()\\s]/g,",
+  "intent": "Encoding parentheses and whitespace alone must not conceal missing angle-delimiter encoding.",
+  "author": "Codex; independent oracle-review challenge"
+}

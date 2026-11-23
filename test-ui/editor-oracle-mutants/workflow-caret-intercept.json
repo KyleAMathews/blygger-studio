@@ -1,0 +1,8 @@
+{
+  "id": "workflow-caret-intercept",
+  "source": "src/ui/authoring.tsx",
+  "find": "if (el.selectionStart === el.selectionEnd || event.clipboardData.files.length) return false;",
+  "replace": "if (event.clipboardData.files.length) return false;",
+  "intent": "Caret paste must remain native.",
+  "author": "Codex; challenges from independent workflow receiving review"
+}

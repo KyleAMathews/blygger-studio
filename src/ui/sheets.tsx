@@ -118,6 +118,7 @@ export function customSheet(render: (done: () => void) => ReactNode): Promise<vo
 /** A short, non-blocking message at the bottom of the screen (replaces alert). */
 export function toast(message: string, options: ToastOptions = {}) {
   toastManager.add({
+    id: 'studio-feedback',
     description: message,
     timeout: options.duration ?? 2400,
     type: options.tone,

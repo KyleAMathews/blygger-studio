@@ -1,0 +1,8 @@
+{
+  "id": "workflow-dom-only",
+  "source": "src/ui/authoring.tsx",
+  "find": "  setTextAt(el, change, result.text, result.caret);",
+  "replace": "  el.value = result.text; el.focus(); el.setSelectionRange(result.caret, result.caret);",
+  "intent": "React must receive the completed link before full-editor transition.",
+  "author": "Codex; challenges from independent workflow receiving review"
+}

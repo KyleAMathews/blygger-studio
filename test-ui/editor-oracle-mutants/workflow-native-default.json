@@ -1,0 +1,8 @@
+{
+  "id": "workflow-native-default",
+  "source": "src/ui/authoring.tsx",
+  "find": "  event.preventDefault();\n  linkInto(el, text,",
+  "replace": "  /* Wrongly allow native insertion as well. */\n  linkInto(el, text,",
+  "intent": "Selected URL paste must cancel native insertion.",
+  "author": "Codex; challenges from independent workflow receiving review"
+}

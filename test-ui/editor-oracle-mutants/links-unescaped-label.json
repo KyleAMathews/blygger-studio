@@ -1,0 +1,8 @@
+{
+  "id": "links-unescaped-label",
+  "source": "src/ui/links.ts",
+  "find": "function label(text: string) {",
+  "replace": "function label(text: string) { return text;",
+  "intent": "Literal brackets and backslashes require canonical label escaping.",
+  "author": "Codex; self-authored completed-link oracle challenge"
+}

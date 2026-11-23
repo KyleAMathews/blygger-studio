@@ -1,0 +1,8 @@
+{
+  "id": "interaction-focus-scroll",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  el.focus({ preventScroll: true });",
+  "replace": "  el.focus();",
+  "intent": "Focus must preserve actual page scroll at its synchronous boundary.",
+  "author": "Codex; challenges from independent interaction oracle review INT-001 through INT-004"
+}

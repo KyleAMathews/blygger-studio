@@ -1,0 +1,8 @@
+{
+  "id": "workflow-denial-reason",
+  "source": "src/ui/authoring.tsx",
+  "find": "        blocked = true;",
+  "replace": "        blocked = false;",
+  "intent": "Permission denial has its documented fallback explanation.",
+  "author": "Codex; challenges from independent workflow receiving review"
+}

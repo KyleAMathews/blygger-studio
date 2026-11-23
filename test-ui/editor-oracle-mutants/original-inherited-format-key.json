@@ -1,0 +1,8 @@
+{
+  "id": "original-inherited-format-key",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "return Object.hasOwn(KEYS, key) ? KEYS[key]! : null;",
+  "replace": "return KEYS[key] ?? null;",
+  "intent": "Unknown key strings, including inherited object names, return null.",
+  "author": "Codex, self-generated after review and oracle inspection"
+}

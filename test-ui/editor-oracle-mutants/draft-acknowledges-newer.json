@@ -1,0 +1,5 @@
+{
+  "id": "draft-acknowledges-newer", "source": "src/ui/draft.ts",
+  "find": "Math.max(this.persistedRevision, revision)", "replace": "this.currentRevision",
+  "intent": "Acknowledging an older submitted snapshot cannot acknowledge a later edit.", "author": "Navigation oracle review"
+}

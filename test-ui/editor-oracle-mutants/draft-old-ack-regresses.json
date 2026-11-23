@@ -1,0 +1,5 @@
+{
+  "id": "draft-old-ack-regresses", "source": "src/ui/draft.ts",
+  "find": "Math.max(this.persistedRevision, revision)", "replace": "revision",
+  "intent": "A late old acknowledgement must not mark an already saved newer copy dirty again.", "author": "Navigation oracle review"
+}

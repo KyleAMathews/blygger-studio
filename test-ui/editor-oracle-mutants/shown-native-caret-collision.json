@@ -1,0 +1,8 @@
+{
+  "id": "shown-native-caret-collision",
+  "source": "src/ui/authoring.tsx",
+  "find": "const hit = touchesRange(regionsOf(before), before.length, start, end);",
+  "replace": "const hit = start === end ? undefined : touchesRange(regionsOf(before), before.length, start, end);",
+  "intent": "Treat every collapsed insertion as allowed so repeated tail bytes can change protected source.",
+  "author": "Codex (independent review finding; browser RED before repair)"
+}

@@ -1,0 +1,8 @@
+{
+  "id": "review-unseen-context",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "const picked = text.slice(from, to);\n  // A block starts",
+  "replace": "const picked = text.slice(from, to);\n  if (text.slice(0, from).includes('\\0')) throw new Error('valid context rejected');\n  // A block starts",
+  "intent": "Reject code-block edits with a NUL in surrounding source; no-throw law claims every string but its grammar cannot generate this context.",
+  "author": "Independent reviewer"
+}
