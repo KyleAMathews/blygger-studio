@@ -60,6 +60,8 @@ export const workerOracleProperties = [
   "private-items-publish-block",
   "private-items-default-visibility",
   "private-items-owner-reader",
+  "private-items-private-history",
+  "private-items-private-conflict",
   "mention-delivery",
   "mention-order",
   "oauth-flow",
