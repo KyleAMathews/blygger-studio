@@ -58,7 +58,8 @@ export interface ItemRow {
   /** Private concurrency identity, independent of the public version. */
   revision: number;
   kind: "fragment" | "thread" | "withdrawn";
-  status: "draft" | "public" | "withdrawn";
+  /** `private`: published for the owner alone, never on the wire (docs: sealed-content-build-plan §1). */
+  status: "draft" | "public" | "private" | "withdrawn";
   created: string;
   updated: string;
   version: number;
