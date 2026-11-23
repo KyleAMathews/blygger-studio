@@ -58,6 +58,8 @@ export const workerOracleProperties = [
   "private-items-public-surface",
   "private-items-raise-to-public",
   "private-items-publish-block",
+  "private-items-default-visibility",
+  "private-items-owner-reader",
   "mention-delivery",
   "mention-order",
   "oauth-flow",

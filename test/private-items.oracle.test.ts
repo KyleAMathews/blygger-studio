@@ -9,6 +9,8 @@
  * GET /blyg/items/A.json, /blyg/f/A/, feed, index, archive, home, hopper // → 404 and unlisted while A is private
  * POST /blyg/api/items/A/publish {} // → v1 when A was private; changelog without private notes
  * POST /blyg/api/items/B/publish {} // → 400 while B's working copy names private A
+ * POST /blyg/api/items/A/publish {} // → private when defaultVisibility is "private" and A was never public
+ * GET /blyg/api/reading?sub=own // → A, marked private, showing its latest private version
  * ```
  *
  * Why does a privately published item, which has versions, a clean working copy
@@ -45,6 +47,17 @@
  * not move (private-items proposal §3.4 and §8 answer 2; Venkat Rao,
  * 2026-11-22). Once the named item is public, the same publication succeeds.
  *
+ * For every publish that names no visibility, an item that has never been
+ * public is published as the blyg's default visibility says; an item already
+ * public publishes publicly, and a named visibility is honoured exactly
+ * (decision by Venkat Rao (GitHub vgururao), 2026-11-22). In a private-default
+ * blyg a tool takes an item public only by saying `visibility: "public"`.
+ *
+ * For every history, the owner's reader lists an own item while it is public,
+ * withdrawn or private, never as a draft; a private one is marked private and
+ * shows its latest private version (Venkat Rao, 2026-11-22). The reader is the
+ * owner's own, so this is not a public route and the first law still holds.
+ *
  * The model reads only the plan. It counts public and private publications and
  * tracks status, pins and which texts were only kept privately. Every history
  * uses distinct markers: private notes and privately kept text contain
@@ -61,10 +74,13 @@
  */
 import { differs, oracleProperty, pass, type Observation } from '@tanstack/oracles';
 import { apiJson, getPublic, login } from './helpers.ts';
+import { withOracleStorage } from './oracle-storage.ts';
 
 type Op =
   | { op: 'edit'; text: string }
-  | { op: 'keep' | 'publish'; note: string }
+  | { op: 'keep'; note: string }
+  | { op: 'publish'; note: string; visibility?: 'public' | 'private' }
+  | { op: 'default'; value: 'public' | 'private' }
   | { op: 'pin' | 'withdraw' }
   | { op: 'refer'; form: 'link' | 'quote'; pending: boolean };
 type History = { name: string; kind: 'fragment' | 'thread'; actions: Op[] };
@@ -74,15 +90,28 @@ type Listing = (typeof LISTINGS)[number];
 // The model's state: status as the owner sees it, the public counter, the pins
 // and the private counter. `private` counts private publications; it never
 // reaches a public observation, which is what the second law needs to say.
-type State = { status: 'draft' | 'private' | 'public' | 'withdrawn'; public: number; private: number; pinned: Set<number>; changelog: { version: number; note: string | null }[]; referred: number };
-const initial = (): State => ({ status: 'draft', public: 0, private: 0, pinned: new Set(), changelog: [], referred: 0 });
+// `def` is the blyg's default visibility; `text` the working copy, `kept` and
+// `shown` the texts of the latest private and public versions, for the reader.
+type State = { status: 'draft' | 'private' | 'public' | 'withdrawn'; public: number; private: number; pinned: Set<number>; changelog: { version: number; note: string | null }[]; def: 'public' | 'private'; text: string; kept: string; shown: string };
+const initial = (): State => ({ status: 'draft', public: 0, private: 0, pinned: new Set(), changelog: [], def: 'public', text: 'draft words', kept: '', shown: '' });
 const served = (state: State) => state.status === 'public' || state.status === 'withdrawn';
 
+// A public item is never lowered: a private publish of one is refused and changes nothing.
+function keep(state: State) {
+  if (state.public) return 409;
+  state.status = 'private'; state.private++; state.kept = state.text; return 200;
+}
 function step(state: State, action: Op): unknown {
   switch (action.op) {
-    case 'edit': return 200;
-    case 'keep': state.status = 'private'; state.private++; return 200;
-    case 'publish': state.status = 'public'; state.public++; state.changelog.push({ version: state.public, note: action.note }); return 200;
+    case 'edit': state.text = action.text; return 200;
+    case 'default': state.def = action.value; return 200;
+    case 'keep': return keep(state);
+    case 'publish': {
+      // An omitted visibility follows the default only while the item was never public.
+      const visibility = action.visibility ?? (state.public ? 'public' : state.def);
+      if (visibility === 'private') return keep(state);
+      state.status = 'public'; state.public++; state.shown = state.text; state.changelog.push({ version: state.public, note: action.note }); return 200;
+    }
     case 'pin': state.pinned.add(state.public); return 200;
     case 'withdraw': state.status = 'withdrawn'; state.public++; state.changelog.push({ version: state.public, note: null }); return 200;
     case 'refer': {
@@ -110,6 +139,10 @@ function surface(state: State, history: History) {
     listed: Object.fromEntries(LISTINGS.map(name => [name, state.status === 'withdrawn' ? null : state.status === 'public'])) as Record<Listing, boolean | null>,
   };
 }
+const reader = (state: State) => state.status === 'draft' ? null : {
+  private: state.status === 'private', withdrawn: state.status === 'withdrawn',
+  text: state.status === 'withdrawn' ? '' : state.status === 'private' ? state.kept : state.shown,
+};
 const raise = (state: State) => ({
   owner: { status: state.status, version: state.public },
   ...(served(state) ? { version: state.public, changelog: state.changelog.map(entry => ({ ...entry })) } : {}),
@@ -119,7 +152,7 @@ const raise = (state: State) => ({
 function model(history: History): Observation[] {
   const state = initial(), expected: Observation[] = [];
   const snapshot = (at: string) => {
-    expected.push({ checkpoint: `surface ${at}`, value: surface(state, history) }, { checkpoint: `raise ${at}`, value: raise(state) });
+    expected.push({ checkpoint: `surface ${at}`, value: surface(state, history) }, { checkpoint: `raise ${at}`, value: raise(state) }, { checkpoint: `reader ${at}`, value: reader(state) });
   };
   snapshot('after create');
   history.actions.forEach((action, index) => {
@@ -131,7 +164,10 @@ function model(history: History): Observation[] {
 }
 
 const MARKER = 'kept-';
-async function driver(history: History, observe: (checkpoint: string, value: unknown) => void) {
+// Each history starts from the same storage, so one history's publications
+// cannot show up in another's listings.
+const driver = (history: History, observe: (checkpoint: string, value: unknown) => void) => withOracleStorage(() => drive(history, observe));
+async function drive(history: History, observe: (checkpoint: string, value: unknown) => void) {
   const cookie = await login();
   const api = (method: string, path: string, body?: unknown) => apiJson(cookie, method, '/blyg/api' + path, body);
   const created = await api('POST', '/items', { contentMd: 'draft words', kind: history.kind });
@@ -159,15 +195,22 @@ async function driver(history: History, observe: (checkpoint: string, value: unk
       ...(wire ? { version: wire.version, changelog: wire.changelog.map(entry => ({ version: entry.version, note: entry.note })) } : {}),
       leaked: bodies.some(entry => entry.status === 200 && entry.body.includes(MARKER)),
     });
+    // The owner's reader, both lenses, since a Background rule may hold any version.
+    type Entry = { key: string; withdrawn: boolean; contentHtml: string; own?: { private?: boolean } };
+    const lens = async (query: string) => ((await api('GET', `/reading?sub=own&limit=50${query}`)).json?.items ?? []) as Entry[];
+    const entry = [...await lens(''), ...await lens('&background=true')].find(candidate => candidate.key === `own:${id}`);
+    observe(`reader ${at}`, entry ? { private: entry.own?.private === true, withdrawn: entry.withdrawn, text: entry.contentHtml.replace(/<[^>]+>/g, '').trim() } : null);
   }
 
   await snapshot('after create');
-  for (const [index, action] of history.actions.entries()) {
+  try { await run(); } finally { await api('PATCH', '/settings', { defaultVisibility: 'public' }); }
+  async function run() { for (const [index, action] of history.actions.entries()) {
     let value: unknown;
     switch (action.op) {
       case 'edit': value = (await api('PATCH', `/items/${id}`, { contentMd: action.text })).status; break;
       case 'keep': value = (await api('POST', `/items/${id}/publish`, { visibility: 'private', note: action.note })).status; break;
-      case 'publish': { const response = await api('POST', `/items/${id}/publish`, { note: action.note }); value = response.status; if (response.status === 200) published = response.json.version; break; }
+      case 'default': value = (await api('PATCH', '/settings', { defaultVisibility: action.value })).status; break;
+      case 'publish': { const response = await api('POST', `/items/${id}/publish`, { note: action.note, ...(action.visibility ? { visibility: action.visibility } : {}) }); value = response.status; if (response.status === 200 && response.json.version > 0) published = response.json.version; break; }
       case 'pin': value = (await api('PUT', `/items/${id}/versions/${published}/pin`, {})).status; break;
       case 'withdraw': value = (await api('POST', `/items/${id}/withdraw`, {})).status; break;
       case 'refer': {
@@ -188,7 +231,7 @@ async function driver(history: History, observe: (checkpoint: string, value: unk
     }
     observe(action.op === 'refer' ? `block ${index}` : `action ${index}: ${action.op}`, value);
     await snapshot(`after ${index}`);
-  }
+  } }
 }
 
 // Each law judges its own checkpoints; the trace and the model share an order.
@@ -228,6 +271,17 @@ const raiseHistories: History[] = [
     { op: 'edit', text: 'public words' }, { op: 'publish', note: 'public note' }, { op: 'pin' },
   ] },
 ];
+const defaultHistories: History[] = [
+  { name: 'a private default keeps until a publish says public, then publishes publicly', kind: 'fragment', actions: [
+    { op: 'default', value: 'private' }, { op: 'edit', text: 'kept-words one' }, { op: 'publish', note: 'kept-note one' }, { op: 'edit', text: 'kept-words two' }, { op: 'publish', note: 'kept-note two' },
+    { op: 'edit', text: 'public words' }, { op: 'publish', note: 'public note', visibility: 'public' }, { op: 'edit', text: 'public words again' }, { op: 'publish', note: 'public note two' },
+    { op: 'keep', note: 'kept-note late' },
+  ] },
+  { name: 'a public default publishes as before', kind: 'thread', actions: [{ op: 'edit', text: 'public words' }, { op: 'publish', note: 'public note' }] },
+  { name: 'a private item publishes publicly once the default is public again', kind: 'thread', actions: [
+    { op: 'default', value: 'private' }, { op: 'edit', text: 'kept-words' }, { op: 'publish', note: 'kept-note' }, { op: 'default', value: 'public' }, { op: 'edit', text: 'public words' }, { op: 'publish', note: 'public note' },
+  ] },
+];
 const blockHistories: History[] = (['link', 'quote'] as const).flatMap(form => [false, true].map(pending => ({
   name: `a ${pending ? 'published thread\'s pending changes' : 'new thread'} naming it by ${form}: refused while private, accepted once raised`, kind: 'fragment' as const, actions: [
     { op: 'edit', text: 'kept-words' }, { op: 'keep', note: 'kept-note' }, { op: 'refer', form, pending },
@@ -236,15 +290,21 @@ const blockHistories: History[] = (['link', 'quote'] as const).flatMap(form => [
 })));
 
 // Reach is read from the plan, stepped as far as the trace got.
-const REACH = { surface: ['draft item', 'private item', 'private item edited', 'public item', 'withdrawn item'], raise: ['raised after private versions', 'pinned first public version', 'published after raise'], block: ['refused while private', 'pending changes refused', 'accepted once public'] };
+const REACH = { surface: ['draft item', 'private item', 'private item edited', 'public item', 'withdrawn item'], raise: ['raised after private versions', 'pinned first public version', 'published after raise'], block: ['refused while private', 'pending changes refused', 'accepted once public'], default: ['kept by default', 'public by request under a private default', 'public item under a private default', 'raised by a public default'], reader: ['private item in reader', 'raised item in reader', 'withdrawn item in reader', 'draft not in reader'] };
 const ALL = Object.values(REACH).flat();
 function reached(history: History, trace: readonly Observation[]) {
   const done = new Set(trace.map(entry => entry.checkpoint)), state = initial(), out = new Set<string>();
-  if (done.has('surface after create')) out.add('draft item');
+  if (done.has('surface after create')) { out.add('draft item'); out.add('draft not in reader'); }
   history.actions.forEach((action, index) => {
     if (!done.has(`surface after ${index}`)) return;
     const was = state.status, kept = state.private;
     step(state, action);
+    if (action.op === 'publish' && !action.visibility && state.def === 'private') out.add(was === 'public' ? 'public item under a private default' : 'kept by default');
+    if (action.op === 'publish' && action.visibility === 'public' && state.def === 'private') out.add('public by request under a private default');
+    if (action.op === 'publish' && !action.visibility && state.def === 'public' && was === 'private') out.add('raised by a public default');
+    if (state.status === 'private') out.add('private item in reader');
+    if (state.status === 'public' && kept) out.add('raised item in reader');
+    if (state.status === 'withdrawn') out.add('withdrawn item in reader');
     if (state.status === 'private') out.add(action.op === 'edit' ? 'private item edited' : 'private item');
     if (state.status === 'public') out.add('public item');
     if (state.status === 'withdrawn') out.add('withdrawn item');
@@ -280,4 +340,21 @@ oracleProperty({
   histories: { enumerated: blockHistories, ...reach('block') }, label, model, driver, reached,
   check: judge(['block '], 'publish block'),
   calibrations: [{ name: 'a link to a private item publishes', law: 'publish block', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'block 2' ? { ...entry, value: { named: 'private', publish: 200, version: 1 } } : entry) }],
+});
+oracleProperty({
+  id: 'private-items-default-visibility',
+  owns: ['src/api.ts#publishItemOperation', 'src/model.ts#publishPrivately', 'src/model.ts#getSettings'],
+  law: { statement: 'For every publish that names no visibility, an item that has never been public is published as the blyg\'s default visibility says; an item already public publishes publicly; a named visibility is honoured exactly, and a private publish of a public item is refused.', authority: 'Decision by Venkat Rao (GitHub vgururao), 2026-11-22: a default-private blyg is a private notebook that occasionally shares; a tool goes public only by saying so.', limits: 'Owner cookie over REST; one item per history. MCP reaches the same operation and is not driven here.' },
+  histories: { enumerated: defaultHistories, ...reach('default') }, label, model, driver, reached,
+  check: judge(['action ', 'raise '], 'default visibility'),
+  calibrations: [{ name: 'an omitted visibility publishes publicly under a private default', law: 'default visibility', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'raise after 2' ? { ...entry, value: { owner: { status: 'public', version: 1 }, version: 1, changelog: [{ version: 1, note: 'kept-note one' }], leaked: false } } : entry) }],
+});
+const readerHistories: History[] = [...keepThenRaise, surfaceHistories[2], surfaceHistories[3], defaultHistories[0]];
+oracleProperty({
+  id: 'private-items-owner-reader',
+  owns: ['src/reading-data.ts#readingEntries', 'src/reading-data.ts#identitySql', 'src/model.ts#publishPrivately'],
+  law: { statement: 'For every history, the owner\'s reader lists an own item while it is public, withdrawn or private and never as a draft; a private item is marked private and shows its latest private version, a public one its latest public version.', authority: 'Decision by Venkat Rao (GitHub vgururao), 2026-11-22: "my blyg" must show private items, or a private notebook cannot be browsed in reader view.', limits: 'The "my blyg" source (sub=own), foreground and Background lenses, plain-text versions. Ordering among own items and the cache work are the reader oracles\'.' },
+  histories: { enumerated: readerHistories, ...reach('reader') }, label, model, driver, reached,
+  check: judge(['reader '], 'owner reader'),
+  calibrations: [{ name: 'a private item missing from the reader', law: 'owner reader', history: { enumerated: 2 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'reader after 0' ? { ...entry, value: null } : entry) }],
 });
