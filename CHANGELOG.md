@@ -64,6 +64,13 @@ not have its own repo until session 26.
   Discover. Discover now says **who writes each blyg** and which client publishes it, from
   blygger.com's `blygs.json` (`author`, `generatorUrl`; listings without them show as
   before).
+- **What's new after an upgrade.** The setup walk-through doubles as the post-upgrade cue.
+  Setting `setupSeenVersion` is the newest release whose setup you finished or dismissed;
+  after an upgrade, a banner lists the new release's highlights once, and *review the new
+  settings* walks only the steps with settings added since, each marked new
+  (`/setup?new=1`). Nodes already past setup start at 0.71.0, so this release's additions
+  are offered on upgrade. For release authors: `HIGHLIGHTS` and `SINCE` in
+  `src/ui/whats-new.ts`. Migration `0060_setup_seen_version.sql`.
 
 ## 0.71.0 — Quotes read lines as the spec defines them; Reading rebuilds less; editor formatting fixes; picker sources
 
