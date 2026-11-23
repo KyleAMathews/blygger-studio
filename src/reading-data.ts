@@ -90,14 +90,15 @@ const PRIVATE_SQL = " WHERE source = 'own' AND id IN (SELECT id FROM items WHERE
 /** Counts are a named summary. Page construction never materializes the full identity set. */
 export async function readingSummary(db: D1Database, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES, shelf = false, raw = false) {
   const { sql, binds } = identitySql(kind, background, rules, hopper, mentioning, shelf, 'newest', raw);
-  const [counts, subs, kept] = await Promise.all([
-    db.prepare(`SELECT source, sub, COUNT(*) AS total FROM (${sql}) GROUP BY source, sub`).bind(...binds).all<{ source: string; sub: string; total: number }>(),
+  // One scan: own rows are grouped by whether their item is private, for the `private` source's count.
+  const [counts, subs] = await Promise.all([
+    db.prepare(`SELECT source, sub, (source = 'own' AND id IN (SELECT id FROM items WHERE status = 'private')) AS kept, COUNT(*) AS total FROM (${sql}) GROUP BY source, sub, kept`).bind(...binds).all<{ source: string; sub: string; kept: number; total: number }>(),
     db.prepare('SELECT id FROM subscriptions').all<{ id: string }>(),
-    db.prepare(`SELECT COUNT(*) AS total FROM (${sql})${PRIVATE_SQL}`).bind(...binds).first<{ total: number }>(),
   ]);
-  const result = { all: 0, own: 0, private: kept?.total ?? 0, subscriptions: Object.fromEntries(subs.results.map(row => [row.id, 0])) };
+  const result = { all: 0, own: 0, private: 0, subscriptions: Object.fromEntries(subs.results.map(row => [row.id, 0])) };
   for (const row of counts.results) {
     result.all += row.total;
+    if (row.kept) result.private += row.total;
     if (row.source === 'own') result.own += row.total;
     else result.subscriptions[row.sub] = row.total;
   }
