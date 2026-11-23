@@ -111,6 +111,7 @@ export const zItem = z.object({
     status: z.enum([
         'draft',
         'public',
+        'private',
         'withdrawn'
     ]),
     created: z.string(),
@@ -993,6 +994,7 @@ export const zListItemsQuery = z.object({
     status: z.enum([
         'draft',
         'public',
+        'private',
         'withdrawn'
     ]).optional(),
     dirty: z.enum(['true', 'false']).optional(),
@@ -1084,6 +1086,7 @@ export const zGetItemResponse = z.object({
     status: z.enum([
         'draft',
         'public',
+        'private',
         'withdrawn'
     ]),
     created: z.string(),
@@ -1156,6 +1159,7 @@ export const zUpdateItemResponse = zItem;
 export const zPublishItemBody = z.object({
     expectedRevision: z.int().gt(0).lte(9007199254740991),
     note: z.string().optional(),
+    visibility: z.enum(['public', 'private']).optional(),
     tangle: z.boolean().optional(),
     noteGenerated: z.boolean().optional(),
     changeCategory: z.enum([
@@ -1177,6 +1181,7 @@ export const zPublishItemResponse = z.object({
     ok: z.boolean(),
     revision: z.int().gt(0).lte(9007199254740991),
     version: z.number(),
+    privateVersion: z.int().gt(0).optional(),
     warning: z.string().optional(),
     unresolvedHandles: z.array(z.string()).optional(),
     parts: z.array(z.object({

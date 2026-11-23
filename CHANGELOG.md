@@ -25,6 +25,21 @@ not have its own repo until session 26.
   to actual member resources. Delayed rebuilds cannot overwrite newer reader
   positions. Own pins expire affected Reading cursors.
   Migration `0058_reader_work.sql`; see `docs/reader-derived-work-main-integration.md`.
+- **Private items** (blygger-spec `docs/sealed-content-build-plan.md` §1, 0a and 0b;
+  decision #94). An item that has never gone public can be **published privately**:
+  `POST /items/{id}/publish` with `visibility: "private"` keeps a private version
+  (`privateVersion` in the response) and sets the status to `private`. No public route
+  serves or lists it: every public route now asks one question, *served publicly*
+  (status public or withdrawn), instead of refusing drafts. An ordinary publish raises it
+  to public as **v1**; private notes and private versions never reach the changelog. A
+  public item can't be made private (409); withdrawal stays its only exit. Publishing
+  anything that names a private item by `[[id]]` or `![[id]]` is refused ("item is
+  private"). Media that only private versions showed stays private. In the editor:
+  *publish privately* in the ⋯ menu, a private item's button reads *publish publicly*.
+  Private contract **6.4.0** (`status` gains `private`). New oracles
+  `private-items-public-surface`, `private-items-raise-to-public`,
+  `private-items-publish-block`; the media-visibility law now says media becomes public
+  when it is published publicly. Migration `0059_private_versions.sql`.
 
 ## 0.70.0 — [TK] reads the links you give it; Reading loads fast again; seen means read
 

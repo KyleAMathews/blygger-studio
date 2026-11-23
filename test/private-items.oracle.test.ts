@@ -112,7 +112,7 @@ function surface(state: State, history: History) {
 }
 const raise = (state: State) => ({
   owner: { status: state.status, version: state.public },
-  ...(served(state) ? { version: state.public, changelog: state.changelog } : {}),
+  ...(served(state) ? { version: state.public, changelog: state.changelog.map(entry => ({ ...entry })) } : {}),
   leaked: false,
 });
 

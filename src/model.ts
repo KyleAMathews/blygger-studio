@@ -572,7 +572,28 @@ export async function withdraw(db: D1Database, item: ItemRow, note: string | nul
   return version;
 }
 
-/** Hard-delete a never-published draft. Published items are withdrawn, never deleted. */
+/**
+ * Publish privately (sealed-content-build-plan §1 0b, decision #94): a private
+ * version of the working copy in `private_versions`, which no public route
+ * reads, and status 'private'. Only an item that has never gone public can do
+ * this; a public item is never lowered, withdrawal is its only exit (#8). The
+ * public counter stays 0, so the first public publish is v1. Nothing is
+ * resolved or rendered, because nothing here reaches the wire.
+ */
+export async function publishPrivately(db: D1Database, item: ItemRow, note: string | null): Promise<number> {
+  const now = nowIso();
+  const version = (await db.prepare("SELECT COALESCE(MAX(version), 0) + 1 AS next FROM private_versions WHERE item_id = ?").bind(item.id).first<{ next: number }>())!.next;
+  const committed = await db.batch([
+    db.prepare("INSERT INTO private_versions (item_id, version, content_md, published_at, note) SELECT id, ?, content_md, ?, ? FROM items WHERE id = ? AND revision = ? AND version = 0")
+      .bind(version, now, note, item.id, item.revision),
+    db.prepare("UPDATE items SET status = 'private', dirty = 0, updated = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND version = 0")
+      .bind(now, item.id, item.revision),
+  ]);
+  if (!committed[1].meta.changes) throw new ItemRevisionConflict(item.id, item.revision);
+  return version;
+}
+
+/** Hard-delete a never-published draft or private item. Published items are withdrawn, never deleted. */
 export async function discardDraft(db: D1Database, item: ItemRow): Promise<boolean> {
   // Authorize at the atomic write boundary. A publication after the caller's
   // read must preserve both the public item and its media.
@@ -581,9 +602,10 @@ export async function discardDraft(db: D1Database, item: ItemRow): Promise<boole
   const results = await db.batch([
     db.prepare(`DELETE FROM media WHERE ${owner} AND NOT (${keep})`).bind(item.id, item.id, item.revision),
     db.prepare(`UPDATE media SET item_id = NULL WHERE ${owner} AND (${keep})`).bind(item.id, item.id, item.revision),
+    db.prepare(`DELETE FROM private_versions WHERE ${owner}`).bind(item.id, item.id, item.revision),
     db.prepare("DELETE FROM items WHERE id = ? AND version = 0 AND revision = ?").bind(item.id, item.revision),
   ]);
-  return results[2].meta.changes > 0;
+  return results[3].meta.changes > 0;
 }
 
 /** Thrown by restoreVersion() when the target version can't serve as a working copy. */

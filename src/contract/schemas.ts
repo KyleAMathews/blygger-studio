@@ -6,7 +6,7 @@ export const ItemRowSchema = z.object({
   id: z.string(),
   revision: ItemRevisionSchema,
   kind: z.enum(["fragment", "thread", "withdrawn"]),
-  status: z.enum(["draft", "public", "withdrawn"]),
+  status: z.enum(["draft", "public", "private", "withdrawn"]),
   created: z.string(),
   updated: z.string(),
   version: z.number(),

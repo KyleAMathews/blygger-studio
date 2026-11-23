@@ -62,7 +62,7 @@ export type Item = {
     id: string;
     revision: number;
     kind: 'fragment' | 'thread';
-    status: 'draft' | 'public' | 'withdrawn';
+    status: 'draft' | 'public' | 'private' | 'withdrawn';
     created: string;
     updated: string;
     version: number;
@@ -1545,7 +1545,7 @@ export type ListItemsData = {
          */
         cursor?: string;
         limit?: number;
-        status?: 'draft' | 'public' | 'withdrawn';
+        status?: 'draft' | 'public' | 'private' | 'withdrawn';
         dirty?: 'true' | 'false';
         version?: number | null;
         id?: string;
@@ -1867,7 +1867,7 @@ export type GetItemResponses = {
         id: string;
         revision: number;
         kind: 'fragment' | 'thread';
-        status: 'draft' | 'public' | 'withdrawn';
+        status: 'draft' | 'public' | 'private' | 'withdrawn';
         created: string;
         updated: string;
         version: number;
@@ -1987,6 +1987,10 @@ export type PublishItemData = {
         expectedRevision: number;
         note?: string;
         /**
+         * `private` keeps a private version that no public route serves; the item's status becomes `private`. Only an item that has never gone public can do this. Omitted or `public`: an ordinary publish, which raises a private item to public as v1.
+         */
+        visibility?: 'public' | 'private';
+        /**
          * Confirms publishing the new items a thread's `![[+ text]]` spans make. Without it, a working copy with spans gets 409 tangle-confirmation-required, listing them in details.parts and their number in details.count, and nothing is written.
          */
         tangle?: boolean;
@@ -2064,6 +2068,10 @@ export type PublishItemResponses = {
         ok: boolean;
         revision: number;
         version: number;
+        /**
+         * A private publish's private version number. `version` stays the public counter, 0 until the item first goes public.
+         */
+        privateVersion?: number;
         warning?: string;
         /**
          * @words that name no contact. They stay literal text.

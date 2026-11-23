@@ -30,6 +30,7 @@ import {
   createDraft,
   createFork,
   discardDraft,
+  publishPrivately,
   FragmentTooLongError,
   getItem,
   getMedia,
@@ -334,13 +335,20 @@ const publishItemOperation = async (context: OperationContext, input: OperationI
   // TK-stripped (published) length, not the raw working copy — see FragmentTooLongError.
   const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
-  const body = (input.body as { note?: string; noteGenerated?: boolean; changeCategory?: ChangeCategory | null; tangle?: boolean });
+  const body = (input.body as { note?: string; noteGenerated?: boolean; changeCategory?: ChangeCategory | null; tangle?: boolean; visibility?: "public" | "private" });
   // note_generated is the studio's own assertion that the note is the drafted
   // text, unedited (#40) — self-asserted, like every provenance member.
   // change_category is studio-private (migration 0030): settled after the
   // version exists, and never part of what publish() writes to the wire.
   const requested = "changeCategory" in body ? body.changeCategory ?? null : undefined;
   const note = body.note?.trim() || null;
+  // A private version reaches no wire (decision #94), so none of a public
+  // publish's checks, mentions or tangled parts apply to it.
+  if (body.visibility === "private") {
+    if (item.version > 0) return failure('conflict', { error: "a published item can't be made private; withdraw it instead" });
+    const privateVersion = await publishPrivately(context.env.DB, item, note);
+    return success({ ok: true, version: 0, privateVersion, revision: item.revision + 1 });
+  }
   const settle = (version: number) => settleChangeClass(context.env.DB, item.id, version, requested);
   const { spans, issues } = parseTangles(item.content_md);
   if (spans.length || issues.length) {

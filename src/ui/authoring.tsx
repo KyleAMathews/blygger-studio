@@ -1298,6 +1298,7 @@ export function Compose({ q }: { q?: string } = {}) {
 }
 function rowDot(item: Row) {
   if (item.status === 'withdrawn') return 'withdrawn';
+  if (item.status === 'private') return 'private';
   if (item.version === 0) return 'draft';
   return item.dirty ? 'dirty' : 'public';
 }
@@ -1591,7 +1592,7 @@ function ItemRow({
                 disabled={action.busy}
                 onClick={() => mutate(publishRow)}
               >
-                {item.status === 'withdrawn' ? 'republish' : 'publish'}
+                {item.status === 'withdrawn' ? 'republish' : item.status === 'private' ? 'publish publicly' : 'publish'}
               </Button>
             ) : null}
             {item.version === 0 ? (
@@ -2357,6 +2358,13 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
       setPublished({ id: item.id, kind: item.kind, md: draft.current!.text, version: done.result.version });
       return done.result;
     });
+  // A private version (decision #94): nothing public changes, so no note dialog.
+  const keepPrivately = () =>
+    operation(async () => {
+      const result = await write({ type: 'publish', note: '', generated: false, visibility: 'private' });
+      toast('Kept a private version. Nothing was published.', { tone: 'ok' });
+      return result;
+    });
   const focus = useFocusView(input, held.box, pane, setPane);
   const bars = useBars({
     input,
@@ -2431,7 +2439,14 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
   const more = () =>
     void menu({
       rows: [
-        item.status === 'draft' && {
+        item.version === 0 && {
+          icon: '◌',
+          label: 'publish privately',
+          description: 'keep a version only you can see; publishing makes it public as v1',
+          disabled: action.busy,
+          onSelect: () => void keepPrivately(),
+        },
+        item.version === 0 && {
           icon: '⇄',
           label: `make this a ${isThread ? 'fragment' : 'thread'}`,
           onSelect: () => operation(switchKind),
@@ -2655,7 +2670,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           disabled={replacing}
           className="ed-tools"
         >
-          {item.status === 'draft' ? (
+          {item.version === 0 ? (
             <Tooltip label={`make this a ${isThread ? 'fragment' : 'thread'}`}>
               <Button
                 className="act icon-only tool"
@@ -3061,7 +3076,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           disabled={action.busy}
           onClick={publish}
         >
-          {item.status === 'withdrawn' ? 'republish' : 'publish'}
+          {item.status === 'withdrawn' ? 'republish' : item.status === 'private' ? 'publish publicly' : 'publish'}
         </DesignButton>
       </ActionBar>
     </div>

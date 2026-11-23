@@ -184,12 +184,12 @@ export const items = createCollection(
           });
         }
         const { filters } = parseLoadSubsetOptions(context.meta?.loadSubsetOptions);
-        const query: { status?: 'draft' | 'public' | 'withdrawn'; dirty?: 'true' | 'false'; version?: number; id?: string; updated?: string } = {};
+        const query: { status?: 'draft' | 'public' | 'private' | 'withdrawn'; dirty?: 'true' | 'false'; version?: number; id?: string; updated?: string } = {};
         for (const filter of filters) {
           const field = filter.field.join('.');
           if (filter.operator !== 'eq') throw new Error('Unsupported item predicate');
           if (field === 'orderKey' && typeof filter.value === 'string') [query.updated, query.id] = sequenceParts(filter.value, ['desc', 'desc']);
-          else if (field === 'status' && ['draft', 'public', 'withdrawn'].includes(String(filter.value))) query.status = filter.value as typeof query.status;
+          else if (field === 'status' && ['draft', 'public', 'private', 'withdrawn'].includes(String(filter.value))) query.status = filter.value as typeof query.status;
           else if (field === 'dirty' && typeof filter.value === 'boolean') query.dirty = filter.value ? 'true' : 'false';
           else if (field === 'version' && typeof filter.value === 'number' && Number.isSafeInteger(filter.value) && filter.value >= 0) query.version = filter.value;
           else throw new Error('Unsupported item predicate');
@@ -574,7 +574,7 @@ export function createDraftAction(id?: string, observedRevision?: number) {
           if (result.revision !== revision) throw new BlyggerApiError(409, { message: 'item changed after restore; reload and try again', code: 'revision-conflict', details: { itemId, expectedRevision: revision } });
           break;
         }
-        case 'publish': result = await unwrap(BlyggerApi.publishItem({ client, path, body: { ...condition, note: command.note, noteGenerated: command.generated, ...(command.category !== undefined ? { changeCategory: command.category } : {}), ...(command.tangle ? { tangle: true } : {}) } })); break;
+        case 'publish': result = await unwrap(BlyggerApi.publishItem({ client, path, body: { ...condition, note: command.note, noteGenerated: command.generated, ...(command.category !== undefined ? { changeCategory: command.category } : {}), ...(command.tangle ? { tangle: true } : {}), ...(command.visibility ? { visibility: command.visibility } : {}) } })); break;
         case 'delete': result = await unwrap(BlyggerApi.deleteItem({ client, path, body: condition })); break;
         case 'withdraw': result = await unwrap(BlyggerApi.withdrawItem({ client, path, body: condition })); break;
         case 'pin': result = await unwrap(BlyggerApi.pinItem({ client, path: { ...path, version: command.version }, body: condition })); break;

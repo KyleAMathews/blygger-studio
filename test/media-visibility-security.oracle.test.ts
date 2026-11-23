@@ -67,7 +67,7 @@ const histories: History[] = [
     { op: 'create', item: 'a', text: 'Kept media' }, { op: 'upload', media: 'a', item: 'a', inline },
     ...(inline ? [{ op: 'edit', item: 'a', text: '', refs: ['a'] }] : []),
     { op: 'keep', item: 'a' }, { op: 'read', media: 'a', checkpoint: 'a private publication publishes no bytes' },
-    { op: 'upload', media: 'later', item: 'a' }, { op: 'read', media: 'later' }, { op: 'keep', item: 'a' }, { op: 'read', media: 'a' },
+    { op: 'upload', media: 'later', item: 'a', bytes: 'later kept fixture bytes' }, { op: 'read', media: 'later' }, { op: 'keep', item: 'a' }, { op: 'read', media: 'a' },
     { op: 'publish', item: 'a' }, { op: 'read', media: 'a' }, { op: 'read', media: 'later' },
   ] as Action[] })),
   { name: 'an inline image dropped before raising stays private', actions: [

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Blygger Studio API",
-    "version": "6.3.0",
+    "version": "6.4.0",
     "description": "Private authoring and reading API. Protocol files remain a separate public interface."
   },
   "servers": [
@@ -284,6 +284,7 @@
             "enum": [
               "draft",
               "public",
+              "private",
               "withdrawn"
             ]
           },
@@ -4966,6 +4967,7 @@
               "enum": [
                 "draft",
                 "public",
+                "private",
                 "withdrawn"
               ]
             },
@@ -5756,6 +5758,7 @@
                       "enum": [
                         "draft",
                         "public",
+                        "private",
                         "withdrawn"
                       ]
                     },
@@ -6097,6 +6100,14 @@
                   "note": {
                     "type": "string"
                   },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "public",
+                      "private"
+                    ],
+                    "description": "`private` keeps a private version that no public route serves; the item's status becomes `private`. Only an item that has never gone public can do this. Omitted or `public`: an ordinary publish, which raises a private item to public as v1."
+                  },
                   "tangle": {
                     "type": "boolean",
                     "description": "Confirms publishing the new items a thread's `![[+ text]]` spans make. Without it, a working copy with spans gets 409 tangle-confirmation-required, listing them in details.parts and their number in details.count, and nothing is written."
@@ -6145,6 +6156,11 @@
                     },
                     "version": {
                       "type": "number"
+                    },
+                    "privateVersion": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "description": "A private publish's private version number. `version` stays the public counter, 0 until the item first goes public."
                     },
                     "warning": {
                       "type": "string"
