@@ -219,6 +219,10 @@ export type Settings = {
     autoChangeNotes: boolean;
     pickerTyping: 'auto' | 'editor' | 'panel';
     /**
+     * What a publish that names no visibility does to an item that was never public. private: a private notebook that shares deliberately; going public then needs visibility: "public".
+     */
+    defaultVisibility: 'public' | 'private';
+    /**
      * The public home page order: an id from feedOrders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>.
      */
     feedOrder: string;
@@ -501,6 +505,10 @@ export type ReadingEntry = {
         withdrawn: boolean;
         updated: string;
         contentHtml: string;
+        /**
+         * Published privately: this is the latest private version, which no public route serves.
+         */
+        private?: true;
     };
     imported?: {
         subscriptionId: string;
@@ -3167,6 +3175,10 @@ export type UpdateSettingsData = {
         highlightGeneratedDefault?: boolean;
         autoChangeNotes?: boolean;
         pickerTyping?: 'auto' | 'editor' | 'panel';
+        /**
+         * What a publish that names no visibility does to an item that was never public. private: a private notebook that shares deliberately; going public then needs visibility: "public".
+         */
+        defaultVisibility?: 'public' | 'private';
         /**
          * The public home page order: an id from feedOrders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>.
          */

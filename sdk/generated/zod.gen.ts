@@ -228,6 +228,7 @@ export const zSettings = z.object({
         'editor',
         'panel'
     ]),
+    defaultVisibility: z.enum(['public', 'private']),
     feedOrder: z.string(),
     frontPage: z.string(),
     postsPath: z.string(),
@@ -366,7 +367,8 @@ export const zReadingEntry = z.object({
         kind: z.enum(['fragment', 'thread']),
         withdrawn: z.boolean(),
         updated: z.string(),
-        contentHtml: z.string()
+        contentHtml: z.string(),
+        private: z.literal(true).optional()
     }).optional(),
     imported: z.object({
         subscriptionId: z.string(),
@@ -1487,6 +1489,7 @@ export const zUpdateSettingsBody = z.object({
         'editor',
         'panel'
     ]).optional(),
+    defaultVisibility: z.enum(['public', 'private']).optional(),
     feedOrder: z.string().optional(),
     frontPage: z.string().optional(),
     postsPath: z.string().optional(),

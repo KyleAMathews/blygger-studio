@@ -29,7 +29,7 @@ import type { ChangelogDisplay, ForkedFrom, ItemRow, MediaRow, ScopeProvenance, 
 import { FRAGMENT_MAX_CHARS } from "./types.ts";
 import { parseEnabledExtensions } from "./extensions/names.ts";
 import { parseBackgroundRules } from "./background.ts";
-import { absolutizeHtml, authoredText, contentHash, isFollowableUrl, newId, nowIso, visibleMedia } from "./util.ts";
+import { absolutizeHtml, authoredText, contentHash, escapeHtml, isFollowableUrl, newId, nowIso, visibleMedia } from "./util.ts";
 
 export { MathPublishError, TkPublishError, TransclusionResolveError };
 
@@ -175,6 +175,8 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     highlight_generated_default: map.highlight_generated_default === "on",
     auto_change_notes: map.auto_change_notes === "on",
     picker_typing: map.picker_typing === "editor" || map.picker_typing === "panel" ? map.picker_typing : "auto",
+    // Public by default: an existing blyg's publishes must not change under it.
+    default_visibility: map.default_visibility === "private" ? "private" : "public",
     feed_order: map.feed_order || DEFAULT_FEED_ORDER,
     front_page: map.front_page ?? "",
     posts_path: map.posts_path || DEFAULT_POSTS_PATH,
@@ -580,12 +582,19 @@ export async function withdraw(db: D1Database, item: ItemRow, note: string | nul
  * public counter stays 0, so the first public publish is v1. Nothing is
  * resolved or rendered, because nothing here reaches the wire.
  */
-export async function publishPrivately(db: D1Database, item: ItemRow, note: string | null): Promise<number> {
+export async function publishPrivately(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string): Promise<number> {
   const now = nowIso();
+  // Rendered for the owner's reader only: comments and TK markers go as at a
+  // public publish, a `[[id]]` that resolves becomes an anchor and any other
+  // reference stays literal, since a private version refuses nothing.
+  const working = parseComments(authoredText(item.content_md)).text;
+  const text = stripToOutput(working, parseScopes(working).scopes).text;
+  const links = await resolveInternalLinks(db, text, normalizedOrigin(ourOrigin ?? (await getSettings(db)).site_url), (err) => escapeHtml(err.directive));
+  const html = await withMathFailures(async () => applyInternalLinks(renderMarkdown(links.text), links));
   const version = (await db.prepare("SELECT COALESCE(MAX(version), 0) + 1 AS next FROM private_versions WHERE item_id = ?").bind(item.id).first<{ next: number }>())!.next;
   const committed = await db.batch([
-    db.prepare("INSERT INTO private_versions (item_id, version, content_md, published_at, note) SELECT id, ?, content_md, ?, ? FROM items WHERE id = ? AND revision = ? AND version = 0")
-      .bind(version, now, note, item.id, item.revision),
+    db.prepare("INSERT INTO private_versions (item_id, version, content_md, content_html, published_at, note) SELECT id, ?, content_md, ?, ?, ? FROM items WHERE id = ? AND revision = ? AND version = 0")
+      .bind(version, html, now, note, item.id, item.revision),
     db.prepare("UPDATE items SET status = 'private', dirty = 0, updated = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND version = 0")
       .bind(now, item.id, item.revision),
   ]);

@@ -614,6 +614,14 @@ function PublishedBanner({
 }) {
   const sharing = useSharing();
   if (!published) return null;
+  // Version 0 is a private version: nothing went public, so nothing to link or share.
+  if (published.version === 0) return (
+    <div className="published" role="status" id="published-banner">
+      <span className="mark" aria-hidden="true">✓</span>
+      <span className="txt">added a private version; nothing was published</span>
+      <Button className="x" aria-label="dismiss" onClick={dismiss}>×</Button>
+    </div>
+  );
   return (
     <div className="published" role="status" id="published-banner">
       <span className="mark" aria-hidden="true">
@@ -795,7 +803,7 @@ type Classified = {
   probability: number | null;
   reason?: string;
 };
-type PublishCommand = { type: 'publish'; note: string; generated: boolean; category?: ChangeCategory | null };
+type PublishCommand = { type: 'publish'; note: string; generated: boolean; category?: ChangeCategory | null; visibility?: 'public' | 'private' };
 
 /**
  * Publish, and when the thread's `![[+ …]]` spans would make new items, say
@@ -1021,6 +1029,7 @@ type Filter = keyof typeof FILTERS;
 
 export function Compose({ q }: { q?: string } = {}) {
   useChrome({ framed: false });
+  const settings = useSettings();
   const navigate = useNavigate();
   // Search (docs/search.md): this blyg only by default, drafts included.
   const [scope, setScope] = useState<'mine' | 'all'>(() => stored('blyg.compose.searchScope', ['mine', 'all'] as const, 'mine'));
@@ -1215,7 +1224,7 @@ export function Compose({ q }: { q?: string } = {}) {
               disabled={action.busy}
               onClick={() => void action.run(publish)}
             >
-              publish
+              {settings?.defaultVisibility === 'private' ? 'add version' : 'publish'}
             </DesignButton>
           </div>
         </div>
@@ -1516,7 +1525,7 @@ function ItemRow({
                   disabled={action.busy}
                   onClick={() => mutate(publishRow)}
                 >
-                  publish
+                  {settings?.defaultVisibility === 'private' && item.version === 0 ? 'add version' : 'publish'}
                 </Button>
               </div>
               <Help className="hint" />
@@ -2342,11 +2351,11 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
       return;
     await write({ type: 'pin', version });
   };
-  const publish = () =>
+  const publish = (visibility?: 'public') =>
     operation(async () => {
       const choice = await confirmNote.request(item, note, drafted, historyNote);
       if (!choice) return;
-      const done = await publishTangle(write, { type: 'publish', note: choice.note, generated: choice.generated, category: choice.category }, () => item.id);
+      const done = await publishTangle(write, { type: 'publish', note: choice.note, generated: choice.generated, category: choice.category, ...(visibility ? { visibility } : {}) }, () => item.id);
       if (!done) return;
       if (done.source !== undefined) {
         draft.current!.accept(done.source);
@@ -2362,9 +2371,18 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
   const keepPrivately = () =>
     operation(async () => {
       const result = await write({ type: 'publish', note: '', generated: false, visibility: 'private' });
-      toast('Kept a private version. Nothing was published.', { tone: 'ok' });
+      toast('Added a private version. Nothing was published.', { tone: 'ok' });
       return result;
     });
+  // A private-default blyg (Venkat, 2026-11-22): one button, the radio says
+  // which kind of version. Going public asks first, since it can't be undone.
+  const notebook = settings?.defaultVisibility === 'private' && item.version === 0;
+  const [visibility, setVisibility] = useState<'public' | 'private'>('private');
+  const addVersion = async () => {
+    if (visibility === 'private') return keepPrivately();
+    const ok = await confirm({ title: 'Make this item public? Anyone can read it once published, and it can never be private again.', ok: 'make public' });
+    if (ok) publish('public');
+  };
   const focus = useFocusView(input, held.box, pane, setPane);
   const bars = useBars({
     input,
@@ -2439,7 +2457,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
   const more = () =>
     void menu({
       rows: [
-        item.version === 0 && {
+        item.version === 0 && settings?.defaultVisibility !== 'private' && {
           icon: '◌',
           label: 'publish privately',
           description: 'keep a version only you can see; publishing makes it public as v1',
@@ -3069,15 +3087,31 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
         >
           save draft
         </DesignButton>
-        <DesignButton
-          size="small"
-          id="publish-btn"
-          variant="primary"
-          disabled={action.busy}
-          onClick={publish}
-        >
-          {item.status === 'withdrawn' ? 'republish' : item.status === 'private' ? 'publish publicly' : 'publish'}
-        </DesignButton>
+        {notebook ? (
+          <>
+            <span className="visibility-choice" role="radiogroup" aria-label="kind of version">
+              {(['private', 'public'] as const).map((value) => (
+                <label className="check" key={value}>
+                  <input type="radio" name="visibility" value={value} checked={visibility === value} onChange={() => setVisibility(value)} />
+                  <span>{value}</span>
+                </label>
+              ))}
+            </span>
+            <DesignButton size="small" id="publish-btn" variant="primary" disabled={action.busy} onClick={() => void addVersion()}>
+              add version
+            </DesignButton>
+          </>
+        ) : (
+          <DesignButton
+            size="small"
+            id="publish-btn"
+            variant="primary"
+            disabled={action.busy}
+            onClick={() => publish()}
+          >
+            {item.status === 'withdrawn' ? 'republish' : item.status === 'private' ? 'publish publicly' : 'publish'}
+          </DesignButton>
+        )}
       </ActionBar>
     </div>
   );

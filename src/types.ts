@@ -558,6 +558,8 @@ export interface Settings {
   auto_change_notes: boolean;
   /** Where you type to search in the [[ / ![[ picker (0.29): auto = the editor with a mouse, the panel on touch. */
   picker_typing: "auto" | "editor" | "panel";
+  /** What a publish that names no visibility does to an item that was never public. */
+  default_visibility: "public" | "private";
   /** The home page order, an id from `src/feeds` (session 46). Absent = pace-layered; migration 0029 keeps published nodes newest-first. */
   feed_order: string;
   /** A published thread shown at the mount root instead of the latest items (session 47); empty = the latest items. */

@@ -47,7 +47,7 @@ function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolea
   const sql = `SELECT 'own' AS source, i.id, '' AS sub, ${pace ? paceAtSql('ro') : dateOrderSql('i.updated')} AS at
     FROM items i LEFT JOIN versions p ON i.kind = 'withdrawn' AND p.item_id = i.id AND p.version = i.version - 1
     ${pace ? "LEFT JOIN reading_order ro ON ro.source = 'own' AND ro.sub = '' AND ro.id = i.id" : ''}
-    WHERE i.status IN ('public','withdrawn') AND (${ownBackgroundSql()}) = ${background ? 1 : 0}${hopper || mentioning ? ' AND 0' : ''}${kind ? ` AND ${authoredItemKindSql('p')} = ?` : ''}
+    WHERE i.status IN ('public','withdrawn','private') AND (${ownBackgroundSql()}) = ${background ? 1 : 0}${hopper || mentioning ? ' AND 0' : ''}${kind ? ` AND ${authoredItemKindSql('p')} = ?` : ''}
     UNION ALL SELECT 'imported', ii.remote_id, ii.subscription_id,
       ${hopper ? 'hi.added_at' : pace ? paceAtSql('ro') : `CASE WHEN ${updated} < ${observed} THEN ${updated} ELSE ${observed} END`}
     FROM imported_items ii ${hopper ? 'JOIN hopper_items hi ON hi.subscription_id = ii.subscription_id AND hi.remote_id = ii.remote_id AND hi.hopper_id = ?' : ''}
@@ -122,10 +122,12 @@ export async function readingEntries(db: D1Database, selectedRows: Identity[], r
   const importedIds = selectedRows.filter((r) => r.source === "imported");
   // Public pages hold at most50 identities. JSON pairs also keep internal calls within D1 bind limits.
   const [ownBodies, importedBodies, placementRows] = await Promise.all([
-    ownIds.length ? db.prepare(`SELECT i.id, i.kind, i.updated, i.bg_reasons, i.bg_detail, v.content_html, previous.transclusions AS previous_transclusions, previous.kind AS previous_kind
+    // A private item has no public version; its latest private version stands in (Venkat, 2026-11-22).
+    ownIds.length ? db.prepare(`SELECT i.id, i.kind, i.status, i.updated, i.bg_reasons, i.bg_detail, COALESCE(v.content_html, kept.content_html) AS content_html, previous.transclusions AS previous_transclusions, previous.kind AS previous_kind
       FROM items i LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version
+      LEFT JOIN private_versions kept ON i.status = 'private' AND kept.item_id = i.id AND kept.version = (SELECT MAX(version) FROM private_versions WHERE item_id = i.id)
       LEFT JOIN versions previous ON previous.item_id = i.id AND previous.version = i.version - 1
-      WHERE i.id IN (${ownIds.map(() => "?").join(",")})`).bind(...ownIds).all<{ id: string; kind: string; updated: string; bg_reasons: string | null; bg_detail: string | null; content_html: string | null; previous_transclusions: string | null; previous_kind: 'fragment' | 'thread' | 'withdrawn' | null }>() : { results: [] },
+      WHERE i.id IN (${ownIds.map(() => "?").join(",")})`).bind(...ownIds).all<{ id: string; kind: string; status: string; updated: string; bg_reasons: string | null; bg_detail: string | null; content_html: string | null; previous_transclusions: string | null; previous_kind: 'fragment' | 'thread' | 'withdrawn' | null }>() : { results: [] },
     // read_state is the owner's own (migration 0026); null means unread.
     importedIds.length ? db.prepare(`SELECT i.*, rs.read_version, s.title AS subscription_title, s.origin, s.background AS sub_background FROM imported_items i JOIN subscriptions s ON s.id = i.subscription_id
       LEFT JOIN read_state rs ON rs.subscription_id = i.subscription_id AND rs.remote_id = i.remote_id
@@ -145,7 +147,7 @@ export async function readingEntries(db: D1Database, selectedRows: Identity[], r
       if (!item) return null;
       const withdrawn = item.kind === "withdrawn";
       const kind = withdrawn ? authoredVersionKind({ kind: item.previous_kind, transclusions: item.previous_transclusions }, Boolean(item.previous_transclusions)) : item.kind === 'thread' ? 'thread' : 'fragment';
-      const input: OwnEntryInput = { id: item.id, kind, withdrawn, updated: item.updated, contentHtml: withdrawn ? "" : await sanitizeHtml(item.content_html ?? "") };
+      const input: OwnEntryInput = { id: item.id, kind, withdrawn, updated: item.updated, contentHtml: withdrawn ? "" : await sanitizeHtml(item.content_html ?? ""), ...(item.status === 'private' ? { private: true as const } : {}) };
       const background = entryBackground({ withdrawn, reasons: item.bg_reasons, detail: item.bg_detail, placement: placementOf('own', '', item.id), blyg: false }, rules);
       return { ...buildReadingFeed([input], [])[0], key: `own:${item.id}`, background };
     }

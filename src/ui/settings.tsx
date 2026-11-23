@@ -48,6 +48,7 @@ const fields = [
   "siteUrl",
   'timezone',
   "pickerTyping",
+  "defaultVisibility",
   "feedOrder",
   "frontPage",
   "postsPath",
@@ -378,6 +379,32 @@ function SettingsForm({ initial }: { initial: Settings }) {
               </span>
             </label>
           ))}
+        </div>
+      </section>
+      <section className="card">
+        <h3 className="card-h">new items</h3>
+        <div className="field" role="radiogroup" aria-labelledby="default_visibility-label">
+          <span id="default_visibility-label">When you add a version of an item that has never been public, it is</span>
+          {(
+            [
+              ['public', 'Public', 'a public blog: publishing puts it on your pages and feed'],
+              ['private', 'Private', 'a private notebook: versions are yours until you choose to make one public'],
+            ] as const
+          ).map(([value, label, hint]) => (
+            <label className="check" key={value}>
+              <input
+                type="radio"
+                name="defaultVisibility"
+                value={value}
+                checked={form.defaultVisibility === value}
+                onChange={() => change("defaultVisibility", value)}
+              />
+              <span>
+                {label} <span className="hint">{hint}</span>
+              </span>
+            </label>
+          ))}
+          <p className="hint">Tools and agents follow this too: in a private notebook they make an item public only by asking for it.</p>
         </div>
       </section>
       <section className="card" id="dictionary-card">

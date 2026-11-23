@@ -40,6 +40,16 @@ not have its own repo until session 26.
   `private-items-public-surface`, `private-items-raise-to-public`,
   `private-items-publish-block`; the media-visibility law now says media becomes public
   when it is published publicly. Migration `0059_private_versions.sql`.
+- **A blyg can be a private notebook.** Settings → *new items*: public (the default,
+  unchanged) or private. In a private blyg, a publish that names no `visibility` adds a
+  private version to any item that has never been public, so a tool or agent makes an item
+  public only by sending `visibility: "public"`; an item already public still publishes
+  publicly. The editor shows one **add version** button with a private/public choice, and
+  asks before making an item public. **Reading → my blyg** now lists private items too,
+  marked private, at their latest private version (rendered for the owner only; `[[id]]`
+  links that resolve are links, anything else stays as typed). Setting `defaultVisibility`;
+  reading entries' `own.private`. New oracles `private-items-default-visibility` and
+  `private-items-owner-reader`.
 
 ## 0.70.0 — [TK] reads the links you give it; Reading loads fast again; seen means read
 

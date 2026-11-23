@@ -343,10 +343,14 @@ const publishItemOperation = async (context: OperationContext, input: OperationI
   const requested = "changeCategory" in body ? body.changeCategory ?? null : undefined;
   const note = body.note?.trim() || null;
   // A private version reaches no wire (decision #94), so none of a public
-  // publish's checks, mentions or tangled parts apply to it.
-  if (body.visibility === "private") {
+  // publish's checks, mentions or tangled parts apply to it. A publish that
+  // names no visibility follows the blyg's default while the item was never
+  // public; a public item has no other way to go (Venkat, 2026-11-22).
+  const settings = await getSettings(context.env.DB);
+  const visibility = body.visibility ?? (item.version === 0 ? settings.default_visibility : "public");
+  if (visibility === "private") {
     if (item.version > 0) return failure('conflict', { error: "a published item can't be made private; withdraw it instead" });
-    const privateVersion = await publishPrivately(context.env.DB, item, note);
+    const privateVersion = await publishPrivately(context.env.DB, item, note, siteOrigin(settings, context.url, normalizeMount(context.env.MOUNT)));
     return success({ ok: true, version: 0, privateVersion, revision: item.revision + 1 });
   }
   const settle = (version: number) => settleChangeClass(context.env.DB, item.id, version, requested);
@@ -807,6 +811,7 @@ const SETTINGS_KEYS = [
   "agentic_title",
   "changelog_summary_prompt",
   "picker_typing",
+  "default_visibility",
   "feed_order",
   "front_page",
   "posts_path",
@@ -837,6 +842,7 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
     if (patch[key]?.trim() && isDecisionModel(patch[key].trim())) return failure('invalid-input', { error: `${field} cannot be a decision model ("${patch[key]}"): decision models write no text` });
   }
   if (typeof patch.picker_typing === "string" && !["auto", "editor", "panel"].includes(patch.picker_typing)) return failure('invalid-input', { error: "pickerTyping must be auto, editor or panel" });
+  if (typeof patch.default_visibility === "string" && !["public", "private"].includes(patch.default_visibility)) return failure('invalid-input', { error: "defaultVisibility must be public or private" });
   for (const [field, key] of [["changelogDisplay", "changelog_display"], ["readerChangelogDisplay", "reader_changelog_display"]] as const) {
     if (typeof patch[key] === "string" && !(CHANGELOG_DISPLAYS as readonly string[]).includes(patch[key])) return failure('invalid-input', { error: `${field} must be latest, history or summary` });
   }

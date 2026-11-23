@@ -767,6 +767,14 @@
               "panel"
             ]
           },
+          "defaultVisibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "description": "What a publish that names no visibility does to an item that was never public. private: a private notebook that shares deliberately; going public then needs visibility: \"public\"."
+          },
           "feedOrder": {
             "type": "string",
             "description": "The public home page order: an id from feedOrders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>."
@@ -938,6 +946,7 @@
           "highlightGeneratedDefault",
           "autoChangeNotes",
           "pickerTyping",
+          "defaultVisibility",
           "feedOrder",
           "frontPage",
           "postsPath",
@@ -1544,6 +1553,13 @@
               },
               "contentHtml": {
                 "type": "string"
+              },
+              "private": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ],
+                "description": "Published privately: this is the latest private version, which no public route serves."
               }
             },
             "required": [
@@ -8909,6 +8925,14 @@
                       "editor",
                       "panel"
                     ]
+                  },
+                  "defaultVisibility": {
+                    "type": "string",
+                    "enum": [
+                      "public",
+                      "private"
+                    ],
+                    "description": "What a publish that names no visibility does to an item that was never public. private: a private notebook that shares deliberately; going public then needs visibility: \"public\"."
                   },
                   "feedOrder": {
                     "type": "string",
