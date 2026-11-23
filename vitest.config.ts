@@ -31,6 +31,12 @@ export default defineConfig({
             TEST_MIGRATIONS: migrations,
             OWNER_PASSWORD: "test-password",
             COOKIE_SECRET: "test-cookie-secret",
+            // An operator's .dev.vars must not reach the suite: a real or fake
+            // key starts background model calls the tests never asked for (studio#167).
+            AI_PROVIDER_KEY: "",
+            OPENAI_API_KEY: "",
+            GOOGLE_AI_KEY: "",
+            TYPESAFE_API_KEY: "",
             // Pin the default mount explicitly (matches wrangler.jsonc vars);
             // mount.test.ts exercises other mounts via makeApp() directly.
             MOUNT: "/blyg",

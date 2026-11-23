@@ -6,7 +6,9 @@
 import { expect, it } from "vitest";
 import { plainTextFromHtml, selectionText, selectionTouchesMath } from "../src/markdown.ts";
 // The old §2 normalizer, kept here only to prove the new one agrees with it.
-const BLOCK = /<\/(?:p|h[1-6]|li|blockquote|pre|div|tr|section|article)>|<br\s*\/?>/gi;
+// Spec §2 "Text content" (decision #118), spelled out from the spec's list, not the studio's constant.
+const ELEMENTS = ["p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "ul", "ol", "dl", "dt", "dd", "blockquote", "pre", "div", "table", "thead", "tbody", "tfoot", "tr", "td", "th", "figure", "figcaption", "section", "article", "aside", "header", "footer", "details", "summary"];
+const BLOCK = new RegExp(`<\\/?(?:${ELEMENTS.join("|")})\\b[^>]*>|<(?:br|hr)\\b[^>]*>`, "gi");
 const decode = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/g, " ").replace(/&hellip;/g, "…").replace(/&mdash;/g, "—").replace(/&ndash;/g, "–").replace(/&ldquo;|&rdquo;/g, '"').replace(/&lsquo;|&rsquo;/g, "'").replace(/&amp;/g, "&");
 const oldSelection = (html: string) => decode(html.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ").replace(BLOCK, "\u0000").replace(/<[^>]+>/g, "")).split("\u0000").map((s) => s.replace(/\s+/g, " ").trim()).filter(Boolean).join("\n");
 it("agrees with the regex normalizer on a fuzzed corpus", () => {
