@@ -818,6 +818,7 @@ const SETTINGS_KEYS = [
   "links_position",
   "setup",
   "discover_seen_at",
+  "setup_seen_version",
 ] as const;
 
 const updateSettingsOperation = async (context: OperationContext, input: OperationInput) => {
@@ -866,6 +867,7 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
     patch.extensions = JSON.stringify([...new Set(names as string[])].sort());
   }
   if (patch.discover_seen_at && Number.isNaN(Date.parse(patch.discover_seen_at))) return failure('invalid-input', { error: "discoverSeenAt must be an ISO date, or empty" });
+  if (patch.setup_seen_version && !/^\d{1,4}\.\d{1,4}\.\d{1,4}$/.test(patch.setup_seen_version)) return failure('invalid-input', { error: "setupSeenVersion must be a version like 0.72.0, or empty" });
   if (body.bg_rules !== undefined) {
     // Merged into what is stored, so turning one rule off leaves the others.
     const rules = body.bg_rules as Record<string, unknown>;

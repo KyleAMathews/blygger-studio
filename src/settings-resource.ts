@@ -6,7 +6,7 @@ import { settingDefaults } from "./model.ts";
 import type { Settings } from "./types.ts";
 
 export function settingsResource(settings: Settings) {
-  const { setup: _setup, update_notice_ack: _ack, discover_seen_at: _seen, extensions: _extensions, ...defaults } = settingDefaults(settings.site_url);
+  const { setup: _setup, update_notice_ack: _ack, discover_seen_at: _seen, setup_seen_version: _version, extensions: _extensions, ...defaults } = settingDefaults(settings.site_url);
   return SettingsSchema.parse({
     ...settingsFields(settings as unknown as Record<string, unknown>),
     feedOrders: feedOrderChoices(settings.extensions),

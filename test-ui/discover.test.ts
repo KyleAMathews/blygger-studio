@@ -20,9 +20,23 @@ test('parseDirectory keeps usable rows in order and drops the rest', () => {
   expect(blygs.map((b) => b.origin)).toEqual(['https://a.example/', 'https://c.example/blyg/']);
   expect(blygs[1]).toEqual({
     origin: 'https://c.example/blyg/', title: 'c.example', home: 'https://c.example/blyg/', feed: null,
-    listedAt: '2026-11-01T00:00:00.000Z', activity: { level: null, events: 0, lastPost: null },
+    listedAt: '2026-11-01T00:00:00.000Z', activity: { level: null, events: 0, lastPost: null }, author: null, generator: null,
   });
   expect(() => parseDirectory({ nope: true })).toThrow(/not its directory/);
+});
+
+test('parseDirectory reads who writes a blyg and its client, and drops unsafe links', () => {
+  const [full, unsafe, bare] = parseDirectory({ blygs: [
+    row('https://a.example/', '2026-10-01T00:00:00.000Z', { author: { name: ' Ada ', url: 'https://ada.example/' }, generator: 'blygger-studio/0.71.0', generatorUrl: 'https://github.com/blygger/blygger-studio' }),
+    row('https://b.example/', '2026-10-01T00:00:00.000Z', { author: { name: 'Bo', url: 'javascript:alert(1)' }, generator: 'x/1', generatorUrl: 'data:text/html,x' }),
+    row('https://c.example/', '2026-10-01T00:00:00.000Z', { author: { name: '  ' }, generator: 7 }),
+  ] }) as DirectoryBlyg[];
+  expect(full.author).toEqual({ name: 'Ada', url: 'https://ada.example/' });
+  expect(full.generator).toEqual({ name: 'blygger-studio/0.71.0', url: 'https://github.com/blygger/blygger-studio' });
+  expect(unsafe.author).toEqual({ name: 'Bo', url: null });
+  expect(unsafe.generator).toEqual({ name: 'x/1', url: null });
+  expect(bare.author).toBeNull();
+  expect(bare.generator).toBeNull();
 });
 
 test('new means listed after the newest listing already shown', () => {

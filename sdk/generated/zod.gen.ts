@@ -263,6 +263,7 @@ export const zSettings = z.object({
     })).optional(),
     updateFeedUrl: z.string(),
     updateNoticeAck: z.boolean(),
+    setupSeenVersion: z.string(),
     discoverSeenAt: z.string(),
     extensions: z.array(z.string())
 });
@@ -562,6 +563,15 @@ export const zVersion = z.object({
     noteGenerated: z.boolean(),
     generated: z.array(zGenerationProvenance),
     changeClass: zChangeClass.nullish()
+});
+
+export const zPrivateVersion = z.object({
+    itemId: z.string(),
+    version: z.number(),
+    contentMd: z.string(),
+    contentHtml: z.string(),
+    publishedAt: z.string(),
+    note: z.string().nullable()
 });
 
 export const zImportedItem = z.object({
@@ -1518,6 +1528,7 @@ export const zUpdateSettingsBody = z.object({
     ]).optional(),
     updateFeedUrl: z.string().optional(),
     updateNoticeAck: z.boolean().optional(),
+    setupSeenVersion: z.string().optional(),
     discoverSeenAt: z.string().optional(),
     extensions: z.array(z.string()).optional()
 }).strict();
@@ -2068,6 +2079,30 @@ export const zListItemVersionsQuery = z.object({
  */
 export const zListItemVersionsResponse = z.object({
     items: z.array(zVersion),
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
+    })
+});
+
+export const zListPrivateVersionsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+export const zListPrivateVersionsPath = z.object({
+    id: z.string().min(1)
+});
+
+export const zListPrivateVersionsQuery = z.object({
+    cursor: z.string().min(1).max(8192).optional(),
+    limit: z.int().gte(1).lte(100).optional()
+});
+
+/**
+ * Success
+ */
+export const zListPrivateVersionsResponse = z.object({
+    items: z.array(zPrivateVersion),
     page: z.object({
         limit: z.int().gt(0),
         nextCursor: z.string().nullable()

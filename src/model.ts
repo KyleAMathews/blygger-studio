@@ -206,6 +206,10 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     // notice on a node that had published before the wizard existed
     // (migration 0029), done once either is finished or dismissed.
     setup: map.setup === "done" || map.setup === "notice" ? map.setup : "pending",
+    // What's new (session 82): the newest release whose walk-through the owner
+    // has finished or dismissed; settings and highlights after it are offered
+    // once after an upgrade. Empty until setup first finishes.
+    setup_seen_version: map.setup_seen_version ?? "",
   };
 }
 

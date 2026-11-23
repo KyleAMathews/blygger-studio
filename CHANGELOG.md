@@ -35,8 +35,9 @@ not have its own repo until session 26.
   `private-items-public-surface`, `private-items-raise-to-public`,
   `private-items-publish-block`; the media-visibility law now says media becomes public
   when it is published publicly. Migration `0059_private_versions.sql`.
-- **A blyg can be a private notebook.** Settings → *new items*: public (the default,
-  unchanged) or private. In a private blyg, a publish that names no `visibility` adds a
+- **A blyg can be a private notebook: Publish mode and Notebook mode.** Settings → *mode*:
+  **Publish mode** (public by default, unchanged) or **Notebook mode** (private by default).
+  In Notebook mode, a publish that names no `visibility` adds a
   private version to any item that has never been public, so a tool or agent makes an item
   public only by sending `visibility: "public"`; an item already public still publishes
   publicly. The editor shows one **add version** button with a private/public choice, and
@@ -45,6 +46,24 @@ not have its own repo until session 26.
   links that resolve are links, anything else stays as typed). Setting `defaultVisibility`;
   reading entries' `own.private`. New oracles `private-items-default-visibility` and
   `private-items-owner-reader`.
+- **Private history.** An item's history panel lists its private versions as **p1, p2, …**
+  with their notes, each viewable, apart from the public v1, v2, …; they stay listed after
+  the item goes public, as studio history. `GET /items/{id}/private-versions` (owner read,
+  newest first). Discarding an item that was never public removes its private versions with
+  it. A private publish that races an edit or a public publish is refused (409) and adds
+  nothing. Publishing a working copy that names a draft or withdrawn item is refused like
+  one naming a private item (unchanged behaviour, now an oracle). New oracles
+  `private-items-private-history` and `private-items-private-conflict`.
+- **Setup covers the newer settings, and ends with blygs to read.** The walk-through gains a
+  **Mode** step (Publish or Notebook mode) and a **Reading** step (reader order, when an
+  entry counts as read, the reader's changelog display, the Agentic feed's name); *Look*
+  gains the studio theme and the item pages' changelog display, *Writing and AI* the
+  text-helpers model and the change classifier, *Others* collection feeds. A text-helpers
+  model chosen in setup was not saved before; it is now. The links menu, front page and
+  Background rules stay in Settings. After *Review* saves, a last step, **Read**, opens
+  Discover. Discover now says **who writes each blyg** and which client publishes it, from
+  blygger.com's `blygs.json` (`author`, `generatorUrl`; listings without them show as
+  before).
 
 ## 0.71.0 — Quotes read lines as the spec defines them; Reading rebuilds less; editor formatting fixes; picker sources
 

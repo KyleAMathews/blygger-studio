@@ -290,6 +290,8 @@ const settings = createRoute({
 const setup = createRoute({
   getParentRoute: () => rootRoute,
   path: '/setup',
+  // new=1: the what's-new walk, only the steps with settings added since the owner last saw setup.
+  validateSearch: (search: Record<string, unknown>): { new?: true } => (search.new === true || search.new === 1 || search.new === '1' || search.new === 'true' ? { new: true } : {}),
   component: SetupPage,
 });
 // Feeds are managed from reading now (each source's inspector sheet).

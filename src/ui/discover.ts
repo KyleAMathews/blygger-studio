@@ -26,6 +26,9 @@ export interface DirectoryBlyg {
   feed: string | null;
   listedAt: string;
   activity: { level: ActivityLevel | null; events: number; lastPost: string | null };
+  /** Who writes it and what publishes it: the directory's about line, the site's own say-so (blygger.com, session 82). */
+  author: { name: string; url: string | null } | null;
+  generator: { name: string; url: string | null } | null;
 }
 
 const httpUrl = (value: unknown): value is string => {
@@ -54,6 +57,8 @@ export function parseDirectory(json: unknown): DirectoryBlyg[] {
     if (!httpUrl(r.origin) || !isoDate(r.listedAt)) continue;
     const a = (r.activity && typeof r.activity === 'object' ? r.activity : {}) as Record<string, unknown>;
     const level = a.level === 'high' || a.level === 'medium' || a.level === 'low' ? a.level : null;
+    const author = (r.author && typeof r.author === 'object' ? r.author : {}) as Record<string, unknown>;
+    const named = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim().slice(0, 120) : null;
     out.push({
       origin: r.origin,
       title: typeof r.title === 'string' && r.title.trim() ? r.title.trim() : new URL(r.origin).host,
@@ -65,6 +70,9 @@ export function parseDirectory(json: unknown): DirectoryBlyg[] {
         events: typeof a.events === 'number' ? a.events : 0,
         lastPost: isoDate(a.lastPost) ? a.lastPost : null,
       },
+      // A directory older than these fields, or a blyg that names no author, gives null.
+      author: named(author.name) ? { name: named(author.name)!, url: httpUrl(author.url) ? author.url : null } : null,
+      generator: named(r.generator) ? { name: named(r.generator)!, url: httpUrl(r.generatorUrl) ? r.generatorUrl : null } : null,
     });
   }
   return out;

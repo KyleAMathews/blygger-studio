@@ -302,6 +302,10 @@ export type Settings = {
     updateFeedUrl: string;
     updateNoticeAck: boolean;
     /**
+     * What's new: the newest studio release whose walk-through the owner has finished or dismissed, as 0.72.0; empty until setup first finishes. Settings and highlights from later releases are offered once after an upgrade.
+     */
+    setupSeenVersion: string;
+    /**
      * Discover: the listing date of the newest blygger.com listing the owner has been shown, ISO; empty until Discover is first opened. Listings after it are new.
      */
     discoverSeenAt: string;
@@ -755,6 +759,21 @@ export type ChangeClass = {
     probability: number | null;
     classifiedAt: string;
     overridden: boolean;
+};
+
+export type PrivateVersion = {
+    itemId: string;
+    /**
+     * The private counter: shown as p1, p2, …; never a public version number.
+     */
+    version: number;
+    contentMd: string;
+    /**
+     * Rendered for the owner's reader: `[[id]]` links that resolve are anchors, anything else stays as typed.
+     */
+    contentHtml: string;
+    publishedAt: string;
+    note: string | null;
 };
 
 export type ImportedItem = {
@@ -3244,6 +3263,10 @@ export type UpdateSettingsData = {
         setup?: 'pending' | 'notice' | 'done';
         updateFeedUrl?: string;
         updateNoticeAck?: boolean;
+        /**
+         * What's new: the newest studio release whose walk-through the owner has finished or dismissed, as 0.72.0; empty until setup first finishes. Settings and highlights from later releases are offered once after an upgrade.
+         */
+        setupSeenVersion?: string;
         /**
          * Discover: the listing date of the newest blygger.com listing the owner has been shown, ISO; empty until Discover is first opened. Listings after it are new.
          */
@@ -6301,6 +6324,95 @@ export type ListItemVersionsResponses = {
 };
 
 export type ListItemVersionsResponse = ListItemVersionsResponses[keyof ListItemVersionsResponses];
+
+export type ListPrivateVersionsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path: {
+        id: string;
+    };
+    query?: {
+        /**
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
+         */
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/items/{id}/private-versions';
+};
+
+export type ListPrivateVersionsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListPrivateVersionsError = ListPrivateVersionsErrors[keyof ListPrivateVersionsErrors];
+
+export type ListPrivateVersionsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        items: Array<PrivateVersion>;
+        page: {
+            limit: number;
+            nextCursor: string | null;
+        };
+    };
+};
+
+export type ListPrivateVersionsResponse = ListPrivateVersionsResponses[keyof ListPrivateVersionsResponses];
 
 export type ListHopperMembershipsData = {
     body?: never;

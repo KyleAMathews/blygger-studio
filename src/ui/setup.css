@@ -5,6 +5,9 @@
 .setup .linkish, .setup-banner .linkish { font: inherit; background: none; border: 0; padding: 0; color: var(--pencil); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .setup .linkish:disabled { opacity: .5; cursor: default; }
 .setup-row { margin-bottom: 16px; }
+.setup-new { margin-left: 6px; font-size: .6rem; vertical-align: middle; }
+.setup-highlights { margin: 4px 0 8px; padding-left: 1.2em; }
+.setup-highlights li { margin: 2px 0; }
 .setup-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 4px 0 0; font-size: .8rem; color: var(--ink-soft); }
 .setup-choices { display: grid; gap: 8px; }
 .setup-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }

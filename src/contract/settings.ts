@@ -64,6 +64,7 @@ export const SettingsSchema = z.object({
   feedOrders: z.array(z.object({ id: z.string(), title: z.string(), description: z.string() })).optional().describe("Read-only: the home page orders this node can use now (core, plus enabled extensions')."),
   updateFeedUrl: z.string(),
   updateNoticeAck: z.boolean(),
+  setupSeenVersion: z.string().describe("What's new: the newest studio release whose walk-through the owner has finished or dismissed, as 0.72.0; empty until setup first finishes. Settings and highlights from later releases are offered once after an upgrade."),
   discoverSeenAt: z.string().describe("Discover: the listing date of the newest blygger.com listing the owner has been shown, ISO; empty until Discover is first opened. Listings after it are new."),
   extensions: z.array(z.string()).describe("Studio extensions enabled on this node (docs/extensions.md). Only names compiled into this build are accepted; every extension starts disabled."),
 }).openapi("Settings");
@@ -125,6 +126,7 @@ export const settingsStorageKeys = {
   "updateFeedUrl": "update_feed_url",
   "updateNoticeAck": "update_notice_ack",
   "discoverSeenAt": "discover_seen_at",
+  "setupSeenVersion": "setup_seen_version",
   "extensions": "extensions"
 } as const;
 

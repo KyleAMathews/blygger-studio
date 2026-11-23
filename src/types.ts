@@ -237,6 +237,16 @@ export interface ScopeProvenance {
   at?: string;
 }
 
+/** A private version (migration 0059): studio history, never on a public route. */
+export interface PrivateVersionRow {
+  item_id: string;
+  version: number;
+  content_md: string;
+  content_html: string;
+  published_at: string;
+  note: string | null;
+}
+
 export interface VersionRow {
   /** NULL only for legacy versions whose intent was not established (0034). */
   kind: 'fragment' | 'thread' | 'withdrawn' | null;
@@ -607,6 +617,7 @@ export interface Settings {
   update_notice_ack: boolean;
   /** The newest blygger.com listing the owner has seen in Discover (ISO), or "" for never. */
   discover_seen_at: string;
+  setup_seen_version: string;
   /** Studio extensions enabled on this node (docs/extensions.md). Every extension starts disabled. */
   extensions: string[];
 }

@@ -897,6 +897,10 @@
           "updateNoticeAck": {
             "type": "boolean"
           },
+          "setupSeenVersion": {
+            "type": "string",
+            "description": "What's new: the newest studio release whose walk-through the owner has finished or dismissed, as 0.72.0; empty until setup first finishes. Settings and highlights from later releases are offered once after an upgrade."
+          },
           "discoverSeenAt": {
             "type": "string",
             "description": "Discover: the listing date of the newest blygger.com listing the owner has been shown, ISO; empty until Discover is first opened. Listings after it are new."
@@ -964,6 +968,7 @@
           "setup",
           "updateFeedUrl",
           "updateNoticeAck",
+          "setupSeenVersion",
           "discoverSeenAt",
           "extensions"
         ]
@@ -2274,6 +2279,42 @@
           "probability",
           "classifiedAt",
           "overridden"
+        ]
+      },
+      "PrivateVersion": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "number",
+            "description": "The private counter: shown as p1, p2, …; never a public version number."
+          },
+          "contentMd": {
+            "type": "string"
+          },
+          "contentHtml": {
+            "type": "string",
+            "description": "Rendered for the owner's reader: `[[id]]` links that resolve are anchors, anything else stays as typed."
+          },
+          "publishedAt": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "itemId",
+          "version",
+          "contentMd",
+          "contentHtml",
+          "publishedAt",
+          "note"
         ]
       },
       "ImportedItem": {
@@ -9027,6 +9068,10 @@
                   },
                   "updateNoticeAck": {
                     "type": "boolean"
+                  },
+                  "setupSeenVersion": {
+                    "type": "string",
+                    "description": "What's new: the newest studio release whose walk-through the owner has finished or dismissed, as 0.72.0; empty until setup first finishes. Settings and highlights from later releases are offered once after an upgrade."
                   },
                   "discoverSeenAt": {
                     "type": "string",
@@ -16552,6 +16597,248 @@
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/Version"
+                      }
+                    },
+                    "page": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "limit",
+                        "nextCursor"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "page"
+                  ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified. No body; reuse the representation paired with the supplied ETag.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/items/{id}/private-versions": {
+      "get": {
+        "operationId": "listPrivateVersions",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192,
+              "description": "The opaque nextCursor from the preceding page of this collection, filters, and order."
+            },
+            "required": false,
+            "description": "The opaque nextCursor from the preceding page of this collection, filters, and order.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Previously accepted ETag for this exact resource and request context."
+            },
+            "required": false,
+            "description": "Previously accepted ETag for this exact resource and request context.",
+            "name": "if-none-match",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Validator for this representation."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PrivateVersion"
                       }
                     },
                     "page": {
