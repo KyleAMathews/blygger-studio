@@ -127,7 +127,12 @@ export function excerpt(contentMd: string, n = 60): string {
   return text.length <= n ? text : graphemePrefix(text, n).trimEnd() + "…";
 }
 
-const BLOCK_BOUNDARY = /<\/(?:p|h[1-6]|li|blockquote|pre|div|tr|section|article)>|<br\s*\/?>/gi;
+/**
+ * Spec §2 "Text content" (decision #118): a boundary at the start tag and the
+ * end tag of each listed block element, and at every `br` and `hr`. A block is
+ * a box, so text on either side of its edge is on different lines.
+ */
+const BLOCK_BOUNDARY = /<\/?(?:p|h[1-6]|li|ul|ol|dl|dt|dd|blockquote|pre|div|table|thead|tbody|tfoot|tr|td|th|figure|figcaption|section|article|aside|header|footer|details|summary)\b[^>]*>|<(?:br|hr)\b[^>]*>/gi;
 
 /** Decode the entities our renderer and feed pipeline actually emit. */
 export function decodeEntities(s: string): string {
@@ -225,8 +230,8 @@ export interface SelectionLine {
  * The lines of `selectionText`, each with the list structure it starts in
  * (decision #114): the same boundaries, the same stripping and the same
  * whitespace rule, so `lines.map(l => l.text).join("\n") === selectionText(html)`
- * (tested). A tight nested list stays one line ("parent child"), as
- * selectionText reads it; a loose one gives each paragraph its own line.
+ * (tested). A tight nested list's parent item and its first nested item are
+ * two lines, as §2 reads every list item (decision #118).
  */
 export function selectionLines(html: string): SelectionLine[] {
   const boundary = new RegExp(`^(?:${BLOCK_BOUNDARY.source})$`, "i");
