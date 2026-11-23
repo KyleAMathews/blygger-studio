@@ -148,7 +148,8 @@ export async function summarizeChangelog(
   const settings = await getSettings(env.DB);
   const user = [`Changelog, oldest first:\n${changelogLines(entries)}`, ...ownerInstructions(settings.changelog_summary_prompt)].join("\n\n");
   const fail = async (status: 429 | 502, error: string): Promise<SummaryResult> => {
-    await env.DB.prepare("UPDATE changelog_summaries SET status = 'failed', at = ? WHERE subject = ? AND version = ?")
+    // Only our own pending claim fails: a summary that became ready meanwhile stays (studio#167).
+    await env.DB.prepare("UPDATE changelog_summaries SET status = 'failed', at = ? WHERE subject = ? AND version = ? AND status = 'pending'")
       .bind(now.toISOString(), subject, version)
       .run();
     return { ok: false, status, error };
