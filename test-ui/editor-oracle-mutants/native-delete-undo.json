@@ -1,0 +1,8 @@
+{
+  "id": "native-delete-undo",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "document.execCommand('delete')",
+  "replace": "undefined",
+  "intent": "Removing an empty emphasis pair must use native deletion so undo restores that pair.",
+  "author": "Independent browser gap review"
+}

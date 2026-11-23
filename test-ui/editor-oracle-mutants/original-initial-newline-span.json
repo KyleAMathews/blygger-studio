@@ -1,0 +1,8 @@
+{
+  "id": "original-initial-newline-span",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "const start = from === 0 ? 0 : text.lastIndexOf('\\n', from - 1) + 1;",
+  "replace": "const start = text.lastIndexOf('\\n', from - 1) + 1;",
+  "intent": "Selecting from offset zero must preserve an initial blank line.",
+  "author": "Codex, self-generated after review and oracle inspection"
+}

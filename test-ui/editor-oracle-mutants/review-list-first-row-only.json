@@ -1,0 +1,8 @@
+{
+  "id": "review-list-first-row-only",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  const write = () => rows.map((row, index) => row.marker ? indents[index] + marker(index) + row.gap + row.body : row.line).join('\\n');",
+  "replace": "  const write = () => {\n    let extra = INDENT.length;\n    if (!out) while (column(rows[first]!.indent, extra) < column(indents[first]!)) extra++;\n    return rows.map((row, index) => row.marker ? (out ? indents[index] : ' '.repeat(extra) + row.indent) + marker(index) + row.gap + row.body : row.line).join('\\n');\n  };",
+  "intent": "Compute sufficient indentation from only the first selected row, losing later peers whose original indentation phase differs.",
+  "author": "Codex; independent oracle-review hostile design after unchanged-production RED; Codex source-only r2 rebase, self-generated after oracle/review inspection"
+}

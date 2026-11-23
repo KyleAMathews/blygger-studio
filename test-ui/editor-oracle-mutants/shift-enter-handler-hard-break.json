@@ -1,0 +1,8 @@
+{
+  "id": "shift-enter-handler-hard-break",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  if (el.readOnly || event.defaultPrevented || event.nativeEvent.isComposing) return;",
+  "replace": "  if (el.readOnly || event.defaultPrevented || event.nativeEvent.isComposing) return;\n  if (event.key === 'Enter' && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {\n    event.preventDefault();\n    applyEdit(el, breakEdit(el.value, el.selectionStart, el.selectionEnd));\n    return;\n  }",
+  "intent": "Restore actual unmodified Shift+Enter hard-break interception in onFormatKey after readonly/prevented/composing suppression; editor-browser-session native Shift+Enter must reject the source/key receipt at newline. Command-modified Enter remains unchanged.",
+  "author": "Codex (self-generated after inspecting the oracle)"
+}

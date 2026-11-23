@@ -1,0 +1,8 @@
+{
+  "id": "original-existing-display-formula",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "const displayed = inner.length >= 4 && inner.startsWith('$$') && inner.endsWith('$$');",
+  "replace": "const displayed = false;",
+  "intent": "An existing display formula stays unchanged, including multiline bodies.",
+  "author": "Codex, self-generated after review and oracle inspection"
+}

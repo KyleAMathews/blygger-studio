@@ -1,0 +1,8 @@
+{
+  "id": "original-marker-only-multiline",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "return core.length > run * 2 && isOn(run, kind);",
+  "replace": "return isOn(run, kind);",
+  "intent": "A line consisting only of stars is literal content, never an empty removable style.",
+  "author": "Codex, self-generated after review and oracle inspection"
+}

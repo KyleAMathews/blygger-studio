@@ -1,0 +1,8 @@
+{
+  "id": "review-list-original-raw-prefix",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  const write = () => rows.map((row, index) => row.marker ? indents[index] + marker(index) + row.gap + row.body : row.line).join('\\n');",
+  "replace": "  const write = () => rows.map((row, index) => row.marker ? (!out && opening && selected.some(candidate => candidate.indent !== opening[1]) ? INDENT + row.indent : indents[index]) + marker(index) + row.gap + row.body : row.line).join('\\n');",
+  "intent": "Restore raw-prefix equality as the criterion for sufficient nesting; semantic siblings with differing space/tab source must still nest.",
+  "author": "Codex; independent oracle-review hostile design after unchanged-production RED; Codex source-only r2 rebase, self-generated after oracle/review inspection"
+}

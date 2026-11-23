@@ -1,0 +1,8 @@
+{
+  "id": "receiver-replacement-controls",
+  "source": "src/ui/authoring.tsx",
+  "find": "                data-action={`md-${kind}`}\n                disabled={replacing}",
+  "replace": "                data-action={`md-${kind}`}\n                disabled={false}",
+  "intent": "Every supported structural/formula control is disabled and cannot edit during a held restore.",
+  "author": "Codex; authored receiver challenges from BRACKET-001/FOCUS-001/REPLACE-001 audit"
+}

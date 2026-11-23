@@ -1,0 +1,313 @@
+diff --git a/oracle-gaps/args.mjs b/oracle-gaps/args.mjs
+--- a/oracle-gaps/args.mjs
++++ b/oracle-gaps/args.mjs
+@@ -9,7 +9,7 @@
+ import { posix, realPathOf } from './paths.mjs'
+ import { Refusal } from './ending.mjs'
+ 
+-const flags = new Set([`daemon`, `stop-daemon`, `ordinary`, `help`])
++const flags = new Set([`daemon`, `stop-daemon`, `ordinary`, `help`, `baseline-only`])
+ // The options that take a positive whole number.
+ const counts = [
+   `contexts`,
+@@ -39,6 +39,7 @@
+   [--env-prefix <name>] [--daemon] [--ordinary] [--seed <n>] [--mutants <dir>]
+   [--out <dir>] [--only <id,id>] [--diff-base <rev>] [--test-timeout <ms>]
+   [--sample <n>] [--contexts <n>] [--pool threads|forks] [--config <file>]
++  [--baseline-only]  (two full oracle baselines; no mutation audit)
+   [--first-limit <ms>] [--hang-limit <ms>] [--mutant-limit <ms>]
+   oracle-gaps --stop-daemon --package <dir>
+   oracle-gaps --help
+@@ -109,6 +110,12 @@
+  */
+ function optionsOf(args, cwd) {
+   if (args.help) return { help: true }
++  if (args[`baseline-only`] &&
++      [`only`, `sample`, `diff-base`, `owner-order`].some((key) => args[key] !== undefined))
++    throw new Refusal(
++      `--baseline-only cannot select mutants, a diff, or an owner order`,
++      `Remove --only, --sample, --diff-base, and --owner-order; baseline mode runs every discovered oracle file twice.`,
++    )
+   if (!args.package)
+     throw new Refusal(
+       `--package is required`,
+@@ -200,6 +207,7 @@
+     pkg,
+     envPrefix,
+     daemon: args.daemon === true,
++    baselineOnly: args[`baseline-only`] === true,
+     // Ordinary (non-oracle) test files run only when asked: they never close
+     // a gap, and only report whether they would have caught a survivor.
+     ordinary: args.ordinary === true,
+diff --git a/oracle-gaps/check.mjs b/oracle-gaps/check.mjs
+--- a/oracle-gaps/check.mjs
++++ b/oracle-gaps/check.mjs
+@@ -47,6 +47,8 @@
+ import { applyAuthored, loadAuthored } from './authored.mjs'
+ import {
+   authoredKey,
++  baselinePassReceipt,
++  renderBaselineOnly,
+   gapsOf,
+   keyAndSelect,
+   renderReport,
+@@ -801,6 +803,8 @@
+         `Run the gap report on a package whose Vitest config has no test.projects.`,
+       )
+     }
++    // A stable runner context index is independent of PID and pool IDs.
++    context.getRootProject().provide(`oracleGapsContext`, { index })
+     lastServed.delete(index)
+     return context
+   }
+@@ -1531,6 +1535,23 @@
+       if (gone()) throw new Error(`the check's caller has gone`)
+     }
+     stopIfGone()
++    if (options.baselineOnly &&
++        (options.only !== undefined || options.sample !== undefined || options.diffBase !== undefined || options.ownerOrder !== undefined))
++      throw new Refusal(
++        `baseline-only checks cannot select mutants, a diff, or an owner order`,
++        `Run both full baselines without those selectors.`,
++      )
++    if (options.baselineOnly) {
++      const narrowing = [`PATH`, `PROPERTY`, `UNIT`, `CALIBRATION`, `RUNS_MULTIPLIER`, `REPLAY_WITNESS`, `REPLAY_WITNESS_MODE`]
++        .map((name) => `${options.envPrefix}_${name}`)
++        .concat(`ORACLE_MANIFEST`)
++        .filter((name) => process.env[name] !== undefined)
++      if (narrowing.length)
++        throw new Refusal(
++          `baseline-only checks cannot inherit replay or budget controls: ${narrowing.join(`, `)}`,
++          `Unset those variables; baseline mode runs every declared campaign at its declared budget.`,
++        )
++    }
+     const authored = options.mutants ? loadAuthored(options.mutants) : []
+     seedVariable = `${options.envPrefix}_SEED`
+     if (options.hangLimit > options.mutantLimit)
+@@ -2050,15 +2071,62 @@
+       for (const end of ends) if (end.status === `rejected`) throw end.reason
+       return ends.map((end) => end.value)
+     }
++    // The formatting wrapper optionally owns real per-file application hosts.
++    // Loopback requests traverse the existing CLI supervisor without changing
++    // its IPC protocol. This is fixture setup, never a product-law observation.
++    const applicationBroker = process.env.FORMATTING_ORACLE_APPLICATION_BROKER
++    const applicationToken = process.env.FORMATTING_ORACLE_APPLICATION_TOKEN
++    const applicationRequest = async (request) => {
++      const response = await fetch(applicationBroker, {
++        method: `POST`, headers: { 'Content-Type': `application/json`, Authorization: `Bearer ${applicationToken}` },
++        body: JSON.stringify(request),
++      })
++      const packet = await response.json()
++      if (!response.ok || packet?.ok !== true)
++        throw new Error(`Formatting application fixture ${request.action} failed: ${packet?.error?.name ?? response.status}: ${packet?.error?.message ?? response.statusText}`)
++      return packet.result
++    }
++    const applicationUnit = async (context, index, file, pass) => {
++      if (!applicationBroker) return unit(context, file, `unmutated:${pass}`, true)
++      const request = { index, file, pass }
++      const application = await applicationRequest({ ...request, action: `acquire` })
++      let result, primary, failed = false
++      try {
++        context.getRootProject().provide(`oracleGapsApplication`, application)
++        result = await unit(context, file, `unmutated:${pass}`, true)
++        // Preserve every completed registration/message/trace before releasing
++        // its real host. A cleanup failure cannot erase the original unit.
++        const directory = join(options.out, `application-units`)
++        mkdirSync(directory, { recursive: true })
++        writeFileSync(join(directory, `${pass}-${index}-${application.lease}.json`), JSON.stringify(result))
++      } catch (error) { primary = error; failed = true }
++      let cleanup, cleanupFailed = false
++      try { await applicationRequest({ ...request, action: `release`, lease: application.lease }) }
++      catch (error) { cleanup = error; cleanupFailed = true }
++      finally { context.getRootProject().provide(`oracleGapsApplication`, null) }
++      if (cleanupFailed) throw new AggregateError([...(failed ? [primary] : []), cleanup], `Formatting baseline fixture cleanup failed; completed unit retained under application-units`, { cause: primary })
++      if (failed) throw primary
++      return result
++    }
+     // `after(index)` is more work for context `index` once its files ran.
+     const runAcross = async (files, pass, after = async () => {}) => {
+       const parts = contexts.map(() => [])
+       files.forEach((file, index) => parts[index % contexts.length].push(file))
++      // Baseline-only work is claimed synchronously before awaiting a unit.
++      // Every slot joins below before the next pass; passOf restores path order.
++      let nextBaselineFile = 0
+       const { units, rows, failed } = passOf(
+         await eachSlot(async (context, index) => {
+           const done = []
+-          for (const file of parts[index])
+-            done.push(await unit(context, file, `unmutated:${pass}`, true))
++          if (options.baselineOnly) {
++            while (nextBaselineFile < files.length) {
++              const file = files[nextBaselineFile++]
++              done.push(await applicationUnit(context, index, file, pass))
++            }
++          } else {
++            for (const file of parts[index])
++              done.push(await unit(context, file, `unmutated:${pass}`, true))
++          }
+           await after(index)
+           return done
+         }),
+@@ -2152,7 +2220,7 @@
+       )
+     for (const file of firstFiles)
+       if (
+-        first.failed.has(file) ||
++        (!options.baselineOnly && first.failed.has(file)) ||
+         (!options.ordinary && !oracleFiles.has(file))
+       ) {
+         fileSpecs.delete(file)
+@@ -2201,7 +2269,7 @@
+     const selectionChecks = new Map()
+     const planned = new Map()
+     const reach = baselineOf(first.rows, first.rows)
+-    for (const mutant of queue) {
++    for (const mutant of options.baselineOnly ? [] : queue) {
+       const owners = ownersOf(mutant)
+       if (owners.size === 0) continue
+       const { oracleKeys, oracleTargets } = targetsOf(
+@@ -2254,6 +2322,38 @@
+     })
+     const baseline = baselineOf(first.rows, second.rows)
+     const { nondeterministic } = baseline
++    if (options.baselineOnly) {
++      const baselinePasses = [
++        baselinePassReceipt(`first`, firstFiles, oracleFiles, first, relative),
++        baselinePassReceipt(`repeat`, files, oracleFiles, second, relative),
++      ]
++      const report = {
++        schemaVersion: 1,
++        purpose: `baseline-only`,
++        status: `baseline-completed`,
++        run: runIdentity,
++        options: { ...options, only: options.only && [...options.only] },
++        oracleFiles: [...oracleFiles].map(relative).sort(),
++        provisional: baselinePasses.some((pass) => pass.baseline.some((row) => !row.ordinary && (row.failure || row.failed > 0))),
++        baseline: baselinePasses[0].baseline,
++        baselinePasses,
++        excluded: excluded.map(relative),
++        nondeterministic: [...nondeterministic],
++        evidence,
++        mutationAudit: { status: `not-run` },
++        results: null,
++      }
++      await store.flush?.()
++      const paths = {
++        report: escapeControls(posix(join(options.out, `summary.md`))),
++        results: join(options.out, `results.json`),
++      }
++      const summary = renderBaselineOnly(report, paths)
++      writeFileSync(paths.results, JSON.stringify(report, null, 1))
++      writeFileSync(join(options.out, `summary.md`), `# Oracle baseline check\n\n${summary}\n`)
++      span(`check`, checkStarted, { purpose: `baseline-only`, evidence })
++      return summary
++    }
+     // A nondeterministic test judges nothing, so its verdict must not stop
+     // a run at its first kill: a later test of the file may decide.
+     const ignoredIn = (file) =>
+@@ -2634,6 +2734,9 @@
+       join(options.out, `results.json`),
+       JSON.stringify(
+         {
++          schemaVersion: 1,
++          purpose: `mutation-audit`,
++          status: `completed`,
+           run: runIdentity,
+           options: { ...options, only: options.only && [...options.only] },
+           // A report with a failing oracle file is provisional: the mutants
+diff --git a/oracle-gaps/index.mjs b/oracle-gaps/index.mjs
+--- a/oracle-gaps/index.mjs
++++ b/oracle-gaps/index.mjs
+@@ -100,6 +100,7 @@
+ //     [--pool threads|forks]  (Vitest's pool; default threads, or forks when
+ //                              a native addon is anywhere in the package's
+ //                              dependency tree)
++//     [--baseline-only]       (two full oracle baselines; mutations not run)
+ //     [--config <file>]       (the Vitest config, relative to <dir>; default
+ //                              the one Vitest discovers; the baseline names
+ //                              the config it loaded, or says it found none)
+diff --git a/oracle-gaps/report.mjs b/oracle-gaps/report.mjs
+--- a/oracle-gaps/report.mjs
++++ b/oracle-gaps/report.mjs
+@@ -31,6 +31,7 @@
+   verdictLine,
+ } from './stream.mjs'
+ import { posix, relativeWithin } from './paths.mjs'
++import { createHash } from 'node:crypto'
+ 
+ /** Outcomes that are gaps. Only a law verdict on a reproducible route kills. */
+ export const gapOutcomes = new Set([
+@@ -482,3 +483,48 @@
+   )
+   return lines.join(`\n`)
+ }
++
++
++/** Actual unmutated unit counts and normalized capture records, never estimates. */
++export function baselinePassReceipt(name, files, oracleFiles, pass, relative) {
++  const baseline = files.map((file) => {
++    const unit = pass.units.find((unit) => unit.file === file)
++    const tests = unit?.tests ?? []
++    return {
++      file: relative(file),
++      ordinary: !oracleFiles.has(file),
++      ...(pass.failed.has(file) ? { failure: pass.failed.get(file) } : {}),
++      passed: tests.filter((test) => test.state === `passed`).length,
++      failed: tests.filter((test) => test.state === `failed`).length,
++      skipped: tests.filter((test) => test.state === `skipped`).length,
++    }
++  })
++  const capture = [...pass.rows].filter(([, row]) => !row.background).map(([key, row]) => {
++    const at = key.indexOf(` > `)
++    return {
++      ...row,
++      key: at < 0 ? relative(key) : relative(key.slice(0, at)) + key.slice(at),
++    }
++  })
++  return { name, baseline, capture,
++    captureSha256: createHash(`sha256`).update(JSON.stringify(capture)).digest(`hex`) }
++}
++
++/** A baseline completion must never claim that zero mutation gaps were found. */
++export function renderBaselineOnly(report, paths) {
++  const lines = [
++    streamLine(`summary`, `${report.run.id}: baseline-only check; ${report.oracleFiles.length} oracle files, two unmutated passes; mutation audit not run.`),
++  ]
++  for (const pass of report.baselinePasses) {
++    for (const row of pass.baseline)
++      lines.push(streamLine(`baseline`, `${pass.name} ${row.failure || row.failed ? `fail` : `pass`} ${row.file}: ${row.passed} passed, ${row.failed} failed, ${row.skipped} skipped${row.failure ? `; ${escapeControls(row.failure)}` : ``}`))
++  }
++  if (report.nondeterministic.length)
++    lines.push(streamLine(`note`, `nondeterministic: ${report.nondeterministic.map(escapeControls).join(`, `)}`))
++  lines.push(
++    streamLine(`note`, `No mutation was judged. This report cannot establish gap closure; run the full check without --baseline-only for a mutation audit.`),
++    streamLine(`note`, `results ${escapeControls(posix(paths.results))}`),
++    streamLine(`done`, `baseline-completed${report.provisional ? ` (provisional)` : ``}, report ${paths.report}`),
++  )
++  return lines.join(`\n`)
++}
+diff --git a/skills/oracles-setup/SKILL.md b/skills/oracles-setup/SKILL.md
+--- a/skills/oracles-setup/SKILL.md
++++ b/skills/oracles-setup/SKILL.md
+@@ -532,6 +532,20 @@
+ Now fill in the two placeholders in the `AGENTS.md` block: the oracle file
+ glob and the gap check command you ran.
+ 
++### Semantic checks in CI
++
++An explicit `--baseline-only` check uses this same entrypoint and executes both
++complete unmutated oracle passes, including every fixed/random campaign,
++construction, reach check, calibration and determinism check. It records the
++same captures and seed controls, then ends before selected-suffix validation and
++mutation execution. It refuses mutant/diff/owner selectors.
++
++This mode is for a maintainer-chosen per-change semantic CI gate. Its report says
++`purpose: "baseline-only"`, marks the mutation audit `not-run`, and ends with
++`done baseline-completed`; it never reports zero gaps. It cannot replace the full
++gap check when adopting/changing oracles, evaluating missing sensitivity, removing
++old coverage, or claiming gap closure. Keep a separate full check for those gates.
++
+ ## 8. Report
+ 
+ Tell the developer:

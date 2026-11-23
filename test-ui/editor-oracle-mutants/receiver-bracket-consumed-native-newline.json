@@ -1,0 +1,8 @@
+{
+  "id": "receiver-bracket-consumed-native-newline",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  if (el.readOnly || event.defaultPrevented || event.nativeEvent.isComposing) return;",
+  "replace": "  if (el.readOnly || event.nativeEvent.isComposing) return;\n  if (event.defaultPrevented) {\n    if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey && !event.altKey) {\n      const from = el.selectionStart, to = el.selectionEnd;\n      applyEdit(el, { from, to, insert: '\\n', start: from + 1, end: from + 1 });\n    }\n    return;\n  }",
+  "intent": "After the actual bracket picker consumes native Enter or Shift+Enter, incorrectly replay an ordinary LF over the formatter-entry range. The existing actual bracket formatter receipt law must reject delivered.value; readonly, composing and command-modified Enter remain suppressed. This complements the retained shared-guard removal challenge, whose current formatter-recognized witness is mention Tab.",
+  "author": "Codex, self-generated after inspecting current oracle and approved native-newline law; 2026-11-21"
+}

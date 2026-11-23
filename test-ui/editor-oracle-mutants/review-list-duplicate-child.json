@@ -1,0 +1,8 @@
+{
+  "id": "review-list-duplicate-child",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  if (insert === lines.join('\\n')) return null;",
+  "replace": "  insert += '\\n' + insert;\n  if (insert === lines.join('\\n')) return null;",
+  "intent": "List rendering and source observations must retain item multiplicity.",
+  "author": "Codex, self-generated after review and oracle inspection; Codex source-only r2 rebase, self-generated after oracle/review inspection"
+}

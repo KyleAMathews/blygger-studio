@@ -1,0 +1,8 @@
+{
+  "id": "word-segmentation-range",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "new Intl.Segmenter().segment(el.value)",
+  "replace": "new Intl.Segmenter(undefined, { granularity: 'word' }).segment(el.value)",
+  "intent": "Character boundaries within a word must retain native undo; grapheme ranges must still be exact.",
+  "author": "Browser gap refactor seam challenge"
+}

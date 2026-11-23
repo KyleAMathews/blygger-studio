@@ -1,0 +1,8 @@
+{
+  "id": "receiver-replacement-bracket-mounted",
+  "source": "src/ui/authoring.tsx",
+  "find": "            {!replacing ? (\n              <BracketPicker",
+  "replace": "            {true ? (\n              <BracketPicker",
+  "intent": "An already-open actual bracket picker must be unavailable during replacement.",
+  "author": "Codex; authored receiver challenges from BRACKET-001/FOCUS-001/REPLACE-001 audit"
+}

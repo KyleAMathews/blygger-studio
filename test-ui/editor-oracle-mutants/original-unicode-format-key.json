@@ -1,0 +1,8 @@
+{
+  "id": "original-unicode-format-key",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "const key = event.key;",
+  "replace": "const key = event.key.toLowerCase();",
+  "intent": "Only the ASCII shortcut names are recognized; Unicode Kelvin sign is an unknown key.",
+  "author": "Independent browser review; parent recorded browser oracle RED"
+}

@@ -1,0 +1,8 @@
+{
+  "id": "links-fragment-question",
+  "source": "src/ui/links.ts",
+  "find": "return { url: url.toString(), removed };",
+  "replace": "return { url: url.toString().replace(/\\?(?=#|$)/, ''), removed };",
+  "intent": "The original tracker-cleanup defect removes question marks inside fragments; query cleanup must preserve the entire fragment.",
+  "author": "Codex; original-defect mutation after reviewed browser-oracle RED"
+}

@@ -1,0 +1,8 @@
+{
+  "id": "workflow-missing-caret",
+  "source": "src/ui/authoring.tsx",
+  "find": "  setTextAt(el, change, result.text, result.caret);",
+  "replace": "  setTextAt(el, change, result.text, 0);",
+  "intent": "Completed-link caret must be at insertion end.",
+  "author": "Codex; challenges from independent workflow receiving review"
+}

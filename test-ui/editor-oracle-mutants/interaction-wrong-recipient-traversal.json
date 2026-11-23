@@ -1,0 +1,8 @@
+{
+  "id": "interaction-wrong-recipient-traversal",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  if (!edit) return;",
+  "replace": "  if (!edit) { if (event.key === 'Tab') { event.preventDefault(); document.querySelector<HTMLButtonElement>('button')?.focus(); } return; }",
+  "intent": "A declined Tab may not replace native traversal with an arbitrary application target.",
+  "author": "Codex; challenges from independent interaction oracle review INT-001 through INT-004"
+}

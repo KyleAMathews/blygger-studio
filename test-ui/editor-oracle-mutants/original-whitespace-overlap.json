@@ -1,0 +1,8 @@
+{
+  "id": "original-whitespace-overlap",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "const b = Math.max(a, to - tail);",
+  "replace": "const b = to - tail;",
+  "intent": "Whitespace-only selections must keep their whitespace before the empty emphasis pair.",
+  "author": "Codex, self-generated after review and oracle inspection"
+}

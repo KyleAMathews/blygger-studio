@@ -1,0 +1,8 @@
+{
+  "id": "workflow-cancel-inserts",
+  "source": "src/ui/authoring.tsx",
+  "find": "        if (typed === null) return;",
+  "replace": "        if (typed === null) { linkInto(el, 'https://cancel.example/', at, change); return; }",
+  "intent": "Cancel must preserve original source.",
+  "author": "Codex; challenges from independent workflow receiving review"
+}

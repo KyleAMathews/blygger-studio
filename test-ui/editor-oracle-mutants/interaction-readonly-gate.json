@@ -1,0 +1,8 @@
+{
+  "id": "interaction-readonly-gate",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  if (el.readOnly || event.defaultPrevented || event.nativeEvent.isComposing) return;",
+  "replace": "  if (event.defaultPrevented || event.nativeEvent.isComposing) return;",
+  "intent": "Readonly keys must leave source/range untouched and remain unprevented.",
+  "author": "Codex; challenges from independent interaction oracle review INT-001 through INT-004"
+}

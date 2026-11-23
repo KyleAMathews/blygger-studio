@@ -1,0 +1,8 @@
+{
+  "id": "original-three-backtick-wrapper",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "const fence = '`'.repeat((body.match(/`+/g) ?? []).reduce((size, run) => Math.max(size, run.length + 1), 3));",
+  "replace": "const fence = '```';",
+  "intent": "Restore the original fixed fence, allowing selected backtick fences to end the code block early.",
+  "author": "Codex (self-generated after inspecting the oracle)"
+}

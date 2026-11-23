@@ -1,0 +1,8 @@
+{
+  "id": "browser-extra-keydown",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "el.dispatchEvent(new Event('selectionchange'));",
+  "replace": "el.dispatchEvent(new Event('selectionchange')); el.dispatchEvent(new KeyboardEvent('keydown', { key: 'x' }));",
+  "intent": "Production event observations must not discard extra keydown dispatches as if they were driver setup.",
+  "author": "Browser review seam challenge"
+}

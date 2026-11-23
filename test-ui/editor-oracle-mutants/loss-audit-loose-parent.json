@@ -1,0 +1,8 @@
+{
+  "id": "loss-audit-loose-parent",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "export function indentEdit(text: string, from: number, to: number, out: boolean): FormatEdit | null {",
+  "replace": "export function indentEdit(text: string, from: number, to: number, out: boolean): FormatEdit | null { if (!out && text.startsWith('10. a\\n') && text.split('\\n').length === 2) { const at = text.indexOf('\\n') + 1; const insert = '\\n    ---\\n\\n    ' + text.slice(at).replace(/^\\d+[.)]/, '1.'); return {from: at, to: text.length, insert, start: at + insert.length, end: at + insert.length}; }",
+  "intent": "A loose parent paragraph and thematic break must not pass as the original immediately nested list tree.",
+  "author": "Independent final loss audit; parent strengthened full token observation"
+}

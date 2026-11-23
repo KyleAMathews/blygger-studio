@@ -1,0 +1,8 @@
+{
+  "id": "interaction-picker-consumed-gate",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  if (el.readOnly || event.defaultPrevented || event.nativeEvent.isComposing) return;",
+  "replace": "  if (el.readOnly || event.nativeEvent.isComposing) return;",
+  "intent": "An actual picker-consumed key must leave formatter entry source/range untouched.",
+  "author": "Codex; challenges from independent interaction oracle review INT-001 through INT-004"
+}

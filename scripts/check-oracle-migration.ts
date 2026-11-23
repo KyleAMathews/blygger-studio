@@ -121,8 +121,8 @@ function registrations(file: string): string[] {
 function oracleFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? oracleFiles(join(directory, entry.name)) : entry.name.endsWith('.oracle.test.ts') ? [join(directory, entry.name)] : []);
 }
-function registry(name: string): string[] {
-  const file = tree('test/oracle-property-registry.ts');
+function registry(name: string, path = 'test/oracle-property-registry.ts'): string[] {
+  const file = tree(path);
   for (const statement of file.statements) if (ts.isVariableStatement(statement)) {
     for (const declaration of statement.declarationList.declarations) if (ts.isIdentifier(declaration.name) && declaration.name.text === name && declaration.initializer) return literalIds(declaration.initializer).sort();
   }
@@ -145,10 +145,22 @@ export function audit(): void {
     assert.ok(ids, 'Original suite has no current oracle implementation: ' + suite.file);
     assert.deepEqual([...suite.properties].sort(), ids, 'Stale manifest properties: ' + suite.file);
   }
-  for (const [directory, name] of [['test/', 'workerOracleProperties'], ['test-ui/', 'studioOracleProperties']] as const) {
-    const ids = [...actual].filter(([file]) => file.startsWith(directory) || (directory === 'test-ui/' && file.startsWith('test-oracles/'))).flatMap(([, values]) => values).sort();
-    assert.equal(new Set(ids).size, ids.length, 'Duplicate runtime property ID: ' + name);
-    assert.deepEqual(registry(name), ids, 'Runtime registry differs from actual property registrations: ' + name);
+  // Formatting keeps its own browser transport and established ORACLE replay.
+  // Only an exact, separately validated file group leaves the Studio runtime.
+  const formattingRegistry = 'test-ui/editor-oracles/property-registry-oracle.ts';
+  const formattingFiles = registry('formattingOracleFiles', formattingRegistry);
+  assert.equal(new Set(formattingFiles).size, formattingFiles.length, 'Duplicate formatting oracle file');
+  assert.deepEqual(formattingFiles, [...actual.keys()].filter(file => /^test-ui\/editor-.*\.oracle\.test\.ts$/.test(file)).sort(), 'Formatting runtime file group differs from discovered editor oracles');
+  const formatting = new Set(formattingFiles);
+  const runtimes = [
+    { name: 'workerOracleProperties', registry: 'test/oracle-property-registry.ts', files: [...actual.keys()].filter(file => file.startsWith('test/')) },
+    { name: 'studioOracleProperties', registry: 'test/oracle-property-registry.ts', files: [...actual.keys()].filter(file => !formatting.has(file) && (file.startsWith('test-ui/') || file.startsWith('test-oracles/'))) },
+    { name: 'formattingOracleProperties', registry: formattingRegistry, files: formattingFiles },
+  ];
+  for (const runtime of runtimes) {
+    const ids = runtime.files.flatMap(file => actual.get(file) ?? []).sort();
+    assert.equal(new Set(ids).size, ids.length, 'Duplicate runtime property ID: ' + runtime.name);
+    assert.deepEqual(registry(runtime.name, runtime.registry), ids, 'Runtime registry differs from actual property registrations: ' + runtime.name);
   }
   for (const [file, ids] of actual) if (file.startsWith('test-browser/')) {
     let configured: string[] | undefined;

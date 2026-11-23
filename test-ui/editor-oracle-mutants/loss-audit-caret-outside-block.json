@@ -1,0 +1,8 @@
+{
+  "id": "loss-audit-caret-outside-block",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "const inside = from + lead.length + fence.length + 1;",
+  "replace": "const inside = lead.length ? from + 1 : from + lead.length + fence.length + 1;",
+  "intent": "A caret between blank lines before the block is not a caret inside its empty body.",
+  "author": "Codex, self-generated after review and oracle inspection"
+}

@@ -1,0 +1,8 @@
+{
+  "id": "links-recognition-refusal",
+  "source": "src/ui/links.ts",
+  "find": "export function isUrl(text: string): boolean {",
+  "replace": "export function isUrl(text: string): boolean { return false;",
+  "intent": "Rejecting all URLs violates lone-token recognition.",
+  "author": "Codex; self-authored completed-link oracle challenge"
+}

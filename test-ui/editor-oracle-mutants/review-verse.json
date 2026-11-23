@@ -1,0 +1,8 @@
+{
+  "id": "review-verse-invalid-end",
+  "source": "src/ui/format-shortcuts.ts",
+  "find": "  return { from, to, insert, start: from + insert.length, end: from + insert.length };\n}",
+  "replace": "  return { from, to, insert, start: from + insert.length, end: from + insert.length + Number(before.includes(String.fromCharCode(92, 10))) };\n}",
+  "intent": "On a later verse edit, return an invalid selection end. Source/output stay unchanged because the verse driver slices beyond the end.",
+  "author": "Independent reviewer"
+}

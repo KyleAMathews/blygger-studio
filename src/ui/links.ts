@@ -36,7 +36,7 @@ export function cleanUrl(raw: string): { url: string; removed: number } | null {
     removed += url.searchParams.getAll(key).length;
     url.searchParams.delete(key);
   }
-  return { url: url.toString().replace(/\?(?=#|$)/, ''), removed };
+  return { url: url.toString(), removed };
 }
 
 /** A URL made safe as a markdown link destination. */

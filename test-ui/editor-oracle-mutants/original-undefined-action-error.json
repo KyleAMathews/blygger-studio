@@ -1,0 +1,8 @@
+{
+  "id": "original-undefined-action-error",
+  "source": "src/ui/authoring.tsx",
+  "find": "      } catch (error) {\n        setError(() => error || new Error('The editor action failed. Please try again.', { cause: error }));\n      } finally {",
+  "replace": "      } catch (error) {\n        setError(error);\n      } finally {",
+  "intent": "Restore the original missing failure banner when a navigation save is secondarily rolled back without a rejection reason.",
+  "author": "Registered navigation overlap oracle and independent action-boundary review"
+}

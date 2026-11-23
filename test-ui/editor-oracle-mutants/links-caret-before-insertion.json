@@ -1,0 +1,8 @@
+{
+  "id": "links-caret-before-insertion",
+  "source": "src/ui/links.ts",
+  "find": "caret: before.length + link.length,",
+  "replace": "caret: before.length,",
+  "intent": "Insertion must place the caret after the complete link.",
+  "author": "Codex; self-authored completed-link oracle challenge"
+}

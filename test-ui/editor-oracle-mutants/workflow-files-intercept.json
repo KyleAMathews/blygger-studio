@@ -1,0 +1,8 @@
+{
+  "id": "workflow-files-intercept",
+  "source": "src/ui/authoring.tsx",
+  "find": "if (el.selectionStart === el.selectionEnd || event.clipboardData.files.length) return false;",
+  "replace": "if (el.selectionStart === el.selectionEnd) return false;",
+  "intent": "File paste must remain outside pour-over link handling.",
+  "author": "Codex; challenges from independent workflow receiving review"
+}

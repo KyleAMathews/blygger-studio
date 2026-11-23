@@ -1,0 +1,8 @@
+{
+  "id": "navigation-rejected-save-leaves",
+  "source": "src/ui/authoring.tsx",
+  "find": "      if (leaving.current) return false;\n      if (replacementPending.current) return true;\n      if (!draft.current!.dirty) return false;\n      try {\n        return !(await save());\n      } catch (error) {\n        await action.run(async () => {\n          throw error;\n        });\n        return true;\n      }",
+  "replace": "      if (leaving.current) return false;\n      if (replacementPending.current) return true;\n      if (!draft.current!.dirty) return false;\n      try {\n        return !(await save());\n      } catch (error) {\n        await action.run(async () => {\n          throw error;\n        });\n        return false;\n      }",
+  "intent": "A rejected departure save must report failure and retain latest source/editor; a catch that reports then permits departure violates that boundary.",
+  "author": "Independent navigation receiver review"
+}
