@@ -1,0 +1,8 @@
+{
+  "id": "shown-native-raw-ranges",
+  "source": "src/ui/authoring.tsx",
+  "find": "const hit = touchesRange(regionsOf(before), before.length, start, end);",
+  "replace": "const hit = regionsOf(before).find(region => end > start ? start < region.end && end > region.start : start > region.start && start < region.end);",
+  "intent": "Use raw extension ranges: empty/reversed annotations wrongly reject editable source, and overlapping labels lose their merged feedback.",
+  "author": "Codex (independent review finding; browser RED before repair)"
+}

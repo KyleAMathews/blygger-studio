@@ -41,7 +41,7 @@ import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { Tooltip } from './primitives.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { DraftCounterSlot, editorRegions, enabledExtensions, useEditorBars, type HostContext } from './extensions.tsx';
-import { join, rebase, split, toFull, toShown, touches } from './editor-regions.ts';
+import { join, rebase, split, toFull, toShown, touches, touchesRange } from './editor-regions.ts';
 import type { EditorRegion } from './editor-regions.ts';
 import { HandlePicker } from './contacts.tsx';
 import { editSyndication } from './syndication.tsx';
@@ -1818,6 +1818,9 @@ function useHeldOut(
   const [showing, setShowing] = useState(false);
   const [failed, setFailed] = useState(false);
   const [, refuse] = useState(0);
+  type NativeInsertion = { before: string; next: string; input: InputEvent; hit: EditorRegion | undefined };
+  const pendingInsertion = useRef<NativeInsertion | undefined>(undefined);
+  const nativeInsertions = useRef(new WeakMap<Event, NativeInsertion>());
   const found = (full: string): EditorRegion[] =>
     editorRegions(enabledExtensions(compiledExtensions, settings?.extensions), {
       text: full,
@@ -1830,12 +1833,14 @@ function useHeldOut(
   const parts = split(text, regions);
   const hiding = regions.length > 0 && !showing;
   /** `caret` is the text box's caret after a typed edit; tools that set the text leave it out. */
-  const change = (next: string, caret?: number) => {
+  const change = (next: string, caret?: number, nativeEvent?: Event) => {
     const full = current();
+    const offered = nativeEvent ? nativeInsertions.current.get(nativeEvent) : undefined;
+    if (nativeEvent) nativeInsertions.current.delete(nativeEvent);
     const now = regionsOf(full);
     if (!now.length) return edit(next);
     if (!hiding) {
-      const hit = touches(now, full, next, caret);
+      const hit = offered?.before === full && offered.next === next ? offered.hit : touches(now, full, next, caret);
       if (!hit) return edit(next);
       toast(`The ${hit.label} is read-only here.`);
       // The text box is controlled; a render puts back what it showed.
@@ -1850,6 +1855,41 @@ function useHeldOut(
     }
     edit(joined);
   };
+  // Matching bytes can hide a protected selection, or make an allowed edge
+  // insertion look interior. Keep the offered insertion until its actual input
+  // event, then bind that exact event to its source judgment. Deletions and tools
+  // still use the post-change guard; browser history remains native.
+  useEffect(() => {
+    const el = input.current;
+    if (!el || hiding) return;
+    const protectSelection = (event: InputEvent) => {
+      pendingInsertion.current = undefined;
+      if (event.defaultPrevented || !event.inputType.startsWith('insert')) return;
+      const before = current(), start = el.selectionStart, end = el.selectionEnd;
+      const hit = touchesRange(regionsOf(before), before.length, start, end);
+      if (hit && event.cancelable) {
+        event.preventDefault();
+        toast(`The ${hit.label} is read-only here.`);
+        return;
+      }
+      const inserted = event.inputType === 'insertLineBreak' || event.inputType === 'insertParagraph' ? '\n' : event.data;
+      if (inserted !== null) pendingInsertion.current = { before, next: before.slice(0, start) + inserted + before.slice(end), input: event, hit };
+    };
+    const receiveInsertion = (event: Event) => {
+      const { inputType, data } = event as InputEvent;
+      const offered = pendingInsertion.current;
+      pendingInsertion.current = undefined;
+      if (offered && !offered.input.defaultPrevented && inputType === offered.input.inputType && data === offered.input.data
+        && current() === offered.before && el.value === offered.next) nativeInsertions.current.set(event, offered);
+    };
+    el.addEventListener('beforeinput', protectSelection);
+    el.addEventListener('input', receiveInsertion, true);
+    return () => {
+      pendingInsertion.current = undefined;
+      el.removeEventListener('beforeinput', protectSelection);
+      el.removeEventListener('input', receiveInsertion, true);
+    };
+  }, [input, hiding, regionsOf, current]);
   const toggle = () => {
     const el = input.current;
     const caret = el ? (hiding ? toFull(el.selectionStart, parts.held) : toShown(el.selectionStart, text, regions)) : 0;
@@ -2650,7 +2690,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
               onChange={(event) => {
                 const typed = event.target.value;
                 const next = upload.command(typed);
-                held.change(next, next === typed ? event.target.selectionEnd : undefined);
+                held.change(next, next === typed ? event.target.selectionEnd : undefined, event.nativeEvent);
               }}
             />
             {!replacing ? (

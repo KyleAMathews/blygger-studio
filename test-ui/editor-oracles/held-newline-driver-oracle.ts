@@ -1,6 +1,5 @@
 /** Native input into the real regions-example receiver, followed by immediate Save. */
 import { applicationDriver, deferred, hostEvent } from './application-driver-oracle.ts';
-import { mixedInputAction, type MixedInput } from './mixed-model-oracle.ts';
 import type { HeldNewlinePlan } from './held-newline-model-oracle.ts';
 import type { Observe } from './document-oracle.ts';
 import { appendFileSync, mkdtempSync, writeFileSync } from 'node:fs';
@@ -29,6 +28,9 @@ export async function heldNewlineDriver(p: HeldNewlinePlan, observe: Observe) {
       const created = await context.request.post('/api/items', { data: { contentMd: p.full, kind: 'fragment' } });
       if (!created.ok()) throw new Error('Held newline item setup failed: ' + created.status());
       const id = (await created.json()).id;
+      await page.addInitScript(layout => {
+        (window as typeof window & { __heldOracleLayout?: string }).__heldOracleLayout = layout;
+      }, p.layout);
       await page.goto('/studio/edit/' + id);
       const box = page.locator('#md-input'), notice = page.locator('[data-held-out]');
       await box.waitFor({ state: 'visible' });
@@ -46,24 +48,29 @@ export async function heldNewlineDriver(p: HeldNewlinePlan, observe: Observe) {
       await box.focus();
       await box.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(0, el.value.length));
       const before = await box.evaluate((el: HTMLTextAreaElement) => ({ value: el.value, selection: [el.selectionStart, el.selectionEnd] }));
-      const action = mixedInputAction(p.mixed, 0, before, []);
+      const action = { requested: p.requested, range: p.range };
       const delivered = await box.evaluate((el: HTMLTextAreaElement, range) => {
         el.setSelectionRange(range[0]!, range[1]!);
         return { value: el.value, selection: [el.selectionStart, el.selectionEnd] };
       }, action.range);
-      const input: MixedInput = { ...before, action, delivered };
+      const input = { ...before, action, delivered };
       observe('input0', input);
-      const requested = 'text' in p.h ? p.h.text : p.h.key;
+      const requested = p.requested;
       const keyBefore = await box.evaluate((el: HTMLTextAreaElement, requested) => {
-        const host = window as typeof window & { __heldKey?: KeyboardEvent; __heldInputs?: object[] };
-        host.__heldKey = undefined; host.__heldInputs = [];
+        const host = window as typeof window & { __heldKey?: KeyboardEvent; __heldInputs?: object[]; __heldBeforeInputs?: object[] };
+        host.__heldKey = undefined; host.__heldInputs = []; host.__heldBeforeInputs = [];
         const key = (event: KeyboardEvent) => {
-          if (event.key !== (requested === 'Enter' || requested === 'Shift+Enter' ? 'Enter' : requested[0])) return;
+          if (event.key !== (requested === 'Shift+Enter' ? 'Enter' : requested === 'ControlOrMeta+x' ? 'x' : requested)) return;
           el.removeEventListener('keydown', key); host.__heldKey = event;
         };
         el.addEventListener('keydown', key);
         // Bubble runs after the compatibility helper's input capture and
         // before React's root listener restores a read-only region.
+        el.addEventListener('beforeinput', event => {
+          const input = event as InputEvent;
+          host.__heldBeforeInputs!.push({ trusted: input.isTrusted, target: input.target === el, inputType: input.inputType, data: input.data,
+            composing: input.isComposing, cancelable: input.cancelable, prevented: input.defaultPrevented, value: el.value, selection: [el.selectionStart, el.selectionEnd] });
+        });
         el.addEventListener('input', event => {
           const input = event as InputEvent;
           host.__heldInputs!.push({ trusted: input.isTrusted, target: input.target === el, inputType: input.inputType, data: input.data, composing: input.isComposing,
@@ -74,14 +81,15 @@ export async function heldNewlineDriver(p: HeldNewlinePlan, observe: Observe) {
       if ('text' in p.h) await page.keyboard.type(p.h.text);
       else await page.keyboard.press(p.h.key);
       const receipt = await box.evaluate((el: HTMLTextAreaElement) => {
-        const host = window as typeof window & { __heldKey?: KeyboardEvent; __heldInputs?: object[] };
+        const host = window as typeof window & { __heldKey?: KeyboardEvent; __heldInputs?: object[]; __heldBeforeInputs?: object[] };
         const event = host.__heldKey;
         return { event: event && { key: event.key, shiftKey: event.shiftKey, altKey: event.altKey,
           ctrlKey: event.ctrlKey, metaKey: event.metaKey, trusted: event.isTrusted,
-          target: event.target === el, defaultPrevented: event.defaultPrevented }, inputs: host.__heldInputs };
+          target: event.target === el, defaultPrevented: event.defaultPrevented }, inputs: host.__heldInputs, beforeInputs: host.__heldBeforeInputs };
       });
       observe('key0', { requested, before: keyBefore, event: receipt.event });
       observe('nativeInputs', receipt.inputs);
+      observe('nativeBeforeInputs', receipt.beforeInputs);
       const step = await box.evaluate((el: HTMLTextAreaElement) => ({ value: el.value,
         selection: [el.selectionStart, el.selectionEnd], focused: document.activeElement === el }));
       appendFileSync(file, JSON.stringify({ event: 'native-step-before-premise', value: step }) + '\n');

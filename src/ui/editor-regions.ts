@@ -102,7 +102,12 @@ export function rebase(held: readonly Held[], before: string, after: string, car
 /** Whether turning the full text `before` into `after` touches a region's text. Typing right at its edge does not. */
 export function touches(regions: readonly EditorRegion[], before: string, after: string, caret?: number): EditorRegion | undefined {
   const { start, end } = change(before, after, caret);
-  return normalize(regions, before.length).find((region) =>
+  return touchesRange(regions, before.length, start, end);
+}
+
+/** A native offered range retains intent when matching bytes hide it from a diff. */
+export function touchesRange(regions: readonly EditorRegion[], length: number, start: number, end: number): EditorRegion | undefined {
+  return normalize(regions, length).find((region) =>
     end > start ? start < region.end && end > region.start : start > region.start && start < region.end,
   );
 }
