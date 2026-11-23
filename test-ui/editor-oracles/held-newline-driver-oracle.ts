@@ -57,19 +57,20 @@ export async function heldNewlineDriver(p: HeldNewlinePlan, observe: Observe) {
       observe('input0', input);
       const requested = p.requested;
       const keyBefore = await box.evaluate((el: HTMLTextAreaElement, requested) => {
-        const host = window as typeof window & { __heldKey?: KeyboardEvent; __heldInputs?: object[]; __heldBeforeInputs?: object[] };
+        const host = window as typeof window & { __heldKey?: KeyboardEvent; __heldInputs?: object[]; __heldBeforeInputs?: { event: InputEvent; value: object }[] };
         host.__heldKey = undefined; host.__heldInputs = []; host.__heldBeforeInputs = [];
         const key = (event: KeyboardEvent) => {
           if (event.key !== (requested === 'Shift+Enter' ? 'Enter' : requested === 'ControlOrMeta+x' ? 'x' : requested)) return;
           el.removeEventListener('keydown', key); host.__heldKey = event;
         };
         el.addEventListener('keydown', key);
-        // Bubble runs after the compatibility helper's input capture and
-        // before React's root listener restores a read-only region.
+        // Preserve the dispatch-time source and selection. Input bubble runs
+        // before React's root listener restores a read-only region; final
+        // beforeinput cancellation is read after key dispatch below.
         el.addEventListener('beforeinput', event => {
           const input = event as InputEvent;
-          host.__heldBeforeInputs!.push({ trusted: input.isTrusted, target: input.target === el, inputType: input.inputType, data: input.data,
-            composing: input.isComposing, cancelable: input.cancelable, prevented: input.defaultPrevented, value: el.value, selection: [el.selectionStart, el.selectionEnd] });
+          host.__heldBeforeInputs!.push({ event: input, value: { trusted: input.isTrusted, target: input.target === el, inputType: input.inputType, data: input.data,
+            composing: input.isComposing, cancelable: input.cancelable, prevented: input.defaultPrevented, value: el.value, selection: [el.selectionStart, el.selectionEnd] } });
         });
         el.addEventListener('input', event => {
           const input = event as InputEvent;
@@ -81,12 +82,17 @@ export async function heldNewlineDriver(p: HeldNewlinePlan, observe: Observe) {
       if ('text' in p.h) await page.keyboard.type(p.h.text);
       else await page.keyboard.press(p.h.key);
       const receipt = await box.evaluate((el: HTMLTextAreaElement) => {
-        const host = window as typeof window & { __heldKey?: KeyboardEvent; __heldInputs?: object[]; __heldBeforeInputs?: object[] };
+        const host = window as typeof window & { __heldKey?: KeyboardEvent; __heldInputs?: object[]; __heldBeforeInputs?: { event: InputEvent; value: object }[] };
         const event = host.__heldKey;
         return { event: event && { key: event.key, shiftKey: event.shiftKey, altKey: event.altKey,
           ctrlKey: event.ctrlKey, metaKey: event.metaKey, trusted: event.isTrusted,
-          target: event.target === el, defaultPrevented: event.defaultPrevented }, inputs: host.__heldInputs, beforeInputs: host.__heldBeforeInputs };
+          target: event.target === el, defaultPrevented: event.defaultPrevented }, inputs: host.__heldInputs,
+          // React may reattach its guard after our bubble listener. Judge the
+          // cancellation after dispatch, not their incidental listener order.
+          beforeInputs: host.__heldBeforeInputs?.map(({ event, value }) => ({ ...value, prevented: event.defaultPrevented })),
+          beforeInputsDuringDispatch: host.__heldBeforeInputs?.map(({ value }) => value) };
       });
+      appendFileSync(file, JSON.stringify({ event: 'beforeinput-during-dispatch', value: receipt.beforeInputsDuringDispatch }) + '\n');
       observe('key0', { requested, before: keyBefore, event: receipt.event });
       observe('nativeInputs', receipt.inputs);
       observe('nativeBeforeInputs', receipt.beforeInputs);
