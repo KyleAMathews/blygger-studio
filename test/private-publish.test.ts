@@ -46,4 +46,21 @@ describe("publishing privately", () => {
     expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).status).toBe(404);
     expect(await rows(id)).toEqual([]);
   });
+
+  it("the private reading source lists only private items, and counts them", async () => {
+    const cookie = await login();
+    const make = async (text: string) => (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: text })).json.id as string;
+    const kept = await make("Kept for the private source"), shown = await make("Shown on the public surface"), draft = await make("A plain draft");
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${kept}/publish`, { visibility: "private" })).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${shown}/publish`, {})).status).toBe(200);
+    const ids = (await apiJson(cookie, "GET", "/blyg/api/reading?sub=private&limit=50")).json.items.map((entry: { own?: { id: string } }) => entry.own?.id);
+    expect(ids).toContain(kept);
+    expect(ids).not.toContain(shown);
+    expect(ids).not.toContain(draft);
+    const summary = (await apiJson(cookie, "GET", "/blyg/api/reading/summary?sub=private")).json;
+    expect(summary.selected).toBe("private");
+    expect(summary.counts.private).toBeGreaterThanOrEqual(1);
+    expect(summary.counts.private).toBeLessThanOrEqual(summary.counts.own);
+  });
 });
+

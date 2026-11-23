@@ -339,8 +339,9 @@ function canQuote(entry: Reading) {
 function entryParts(entry: Reading) {
   const imported = entry.imported;
   const id = entry.own?.id || imported!.remoteId;
+  // A private item has no public page (decision #94), so no link to one.
   const url = entry.own
-    ? !entry.withdrawn
+    ? !entry.withdrawn && !entry.own.private
       ? `${location.origin}${mount}/${entry.kind === 'thread' ? 't' : 'f'}/${id}/`
       : undefined
     : imported?.sourceUrl || undefined;
@@ -721,6 +722,7 @@ function Byline({ entry, a, onOpen, children }: { entry: Reading; a: EntryAction
     <p className="byline">
       {children}
       <span className="badge">{entry.kind}</span>
+      {entry.own?.private ? <span className="badge badge-line" title="only you can see this">private</span> : null}
       {entry.l0 ? <span className="badge badge-line">legacy rss</span> : null}
       {why ? <span className="badge badge-line badge-why" title={inBackground ? 'why this is in Background' : 'kept in view: the note claims a smaller change than was made'}>{why}</span> : null}
       <SourceName entry={entry} lens={lensSearch} />
@@ -818,7 +820,7 @@ function EntryBar({ entry, a }: { entry: Reading; a: EntryActions }) {
       ) : null}
       {imported || entry.own ? (
         <>
-          <Button
+          {entry.own?.private ? null : <Button
             className="act"
             data-action="stub"
             data-sub={imported?.subscriptionId ?? OWN_SUB}
@@ -826,7 +828,7 @@ function EntryBar({ entry, a }: { entry: Reading; a: EntryActions }) {
             onClick={() => void a.stub()}
           >
             stub ↗
-          </Button>
+          </Button>}
           <Button
             className="act"
             aria-label="add to hopper"
@@ -904,6 +906,7 @@ function Entry({
       <article
         ref={imported && readUi.watch ? readUi.watch : undefined}
         className={`entry reading-entry${status ? ` is-${status}` : ''}`}
+        data-private={entry.own?.private ? '' : undefined}
         data-key={entry.key}
         data-read={status ?? undefined}
       >
@@ -1104,7 +1107,10 @@ function ChangeLead({ entry, opened = false }: { entry: Reading; opened?: boolea
 async function ownEntry(id: string, signal?: AbortSignal): Promise<Reading> {
   const item = await unwrap(BlyggerApi.getItem({ client, path: { id }, signal }));
   const withdrawn = item.status === 'withdrawn';
-  const contentHtml = withdrawn ? '' : (item.published?.contentHtml ?? '');
+  // A private item has no public version; its latest private version stands in, as in the list.
+  const isPrivate = item.status === 'private';
+  const kept = isPrivate ? (await unwrap(BlyggerApi.listPrivateVersions({ client, path: { id }, query: { limit: 1 }, signal }))).items[0] : undefined;
+  const contentHtml = withdrawn ? '' : isPrivate ? (kept?.contentHtml ?? '') : (item.published?.contentHtml ?? '');
   const kind = item.kind;
   return {
     key: `own:${id}`,
@@ -1113,9 +1119,9 @@ async function ownEntry(id: string, signal?: AbortSignal): Promise<Reading> {
     withdrawn,
     l0: false,
     contentHtml,
-    displayAt: item.published?.publishedAt ?? item.updated,
+    displayAt: item.published?.publishedAt ?? kept?.publishedAt ?? item.updated,
     rank: 0,
-    own: { id, kind, withdrawn, updated: item.updated, contentHtml },
+    own: { id, kind, withdrawn, updated: item.updated, contentHtml, ...(isPrivate ? { private: true } : {}) },
     // Opened by address, outside a list: what is known without the reader's query.
     background: { reasons: withdrawn ? ['withdrawn'] : [], placement: null, blyg: false },
   };
@@ -1791,7 +1797,7 @@ function SmartSource({
   title,
   count,
 }: {
-  sub: 'all' | 'own';
+  sub: 'all' | 'own' | 'private';
   icon: string;
   title: string;
   count: number | undefined;
@@ -1818,6 +1824,8 @@ function SmartSource({
 }
 function Sources() {
   useChrome({ framed: false, wide: false });
+  // Notebook mode lists the private source, as it adds private above compose.
+  const notebook = useSettings()?.defaultVisibility === 'private';
   const actions = useReadingActions();
   const { toggle } = useSubscriptionActions(actions);
   const [inspect, setInspect] = useState<string>();
@@ -1855,6 +1863,7 @@ function Sources() {
       <ul className="feeds" aria-label="sources">
         <SmartSource sub="all" icon="◫" title="all" count={shown(counts?.all)} />
         <SmartSource sub="own" icon="❝" title="my blyg" count={shown(counts?.own)} />
+        {notebook ? <SmartSource sub="private" icon="◇" title="private" count={shown(counts?.private)} /> : null}
       </ul>
       <div className="list-h">
         <span>hoppers · {buckets.length}</span>
@@ -2187,15 +2196,18 @@ function Timeline({ sub, offset, from }: { sub: string; offset: number; from?: '
       ? 'all'
       : sub === 'own'
         ? 'my blyg'
-        : selected
+        : sub === 'private'
+          ? 'private'
+          : selected
           ? sourceName(selected)
           : 'all';
-  const readable = sub !== 'own' && !isPlaceholder(lens);
+  // Your own items have no read state, private ones included.
+  const readable = sub !== 'own' && sub !== 'private' && !isPlaceholder(lens);
   useReturnPoint(!!entries.data?.length);
   const read = useReadSelection(key, offset, entries.data ?? [], actions, title, lens);
   // One source's view leads back where it was opened from: the main feed when
   // reached from an entry's source name (from=feed), else the Sources tab.
-  const single = sub === 'own' || !!selected;
+  const single = sub === 'own' || sub === 'private' || !!selected;
   return (
     <ReadContext.Provider value={read.ui}>
       {single ? (

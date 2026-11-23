@@ -54,6 +54,12 @@ not have its own repo until session 26.
   nothing. Publishing a working copy that names a draft or withdrawn item is refused like
   one naming a private item (unchanged behaviour, now an oracle). New oracles
   `private-items-private-history` and `private-items-private-conflict`.
+- **Notebook mode gets its own place to read.** In Notebook mode a **private** tab sits just
+  above *compose*: the reader on the new `private` source, your private items only
+  (`GET /reading?sub=private`; the summary's `counts.private`). A private item's editor links to
+  its **reader view** where a public item links to its public page. Reader cards for private
+  items are marked *private* and offer no public link or stub, which they wrongly did in the
+  owner's reader before.
 - **Setup covers the newer settings, and ends with blygs to read.** The walk-through gains a
   **Mode** step (Publish or Notebook mode) and a **Reading** step (reader order, when an
   entry counts as read, the reader's changelog display, the Agentic feed's name); *Look*

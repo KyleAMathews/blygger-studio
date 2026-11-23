@@ -44,4 +44,39 @@ test.describe("private history", () => {
     await expect(page.locator('[data-private-history] .h-row')).toHaveCount(2);
     expect(errors).toEqual([]);
   });
+
+  test("in Notebook mode, private sits above compose and lists private items; the editor links a private item to its reader view", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    const api = apiFor(page);
+    const id = (await api("POST", "/items", { contentMd: `Notebook reader text ${Date.now()}` })).id;
+    await api("POST", `/items/${id}/publish`, { visibility: "private", note: "kept" });
+    try {
+      // Publish mode: no private tab.
+      await api("PATCH", "/settings", { defaultVisibility: "public" });
+      await page.goto("/studio/");
+      await expect(page.locator('nav[aria-label="studio"] [data-tab="private"]')).toHaveCount(0);
+      await api("PATCH", "/settings", { defaultVisibility: "private" });
+      await page.reload();
+      await expect(page.locator('[data-tab="private"]')).toBeVisible();
+      const tabs = page.locator('nav[aria-label="studio"] > a');
+      const labels = await tabs.locator('.tl').allInnerTexts();
+      expect(labels.indexOf('private')).toBe(labels.indexOf('compose') - 1);
+      await page.locator('[data-tab="private"]').click();
+      await expect(page.locator('[data-tab="private"]')).toHaveAttribute('aria-current', 'page');
+      await expect(page.locator('.views')).toContainText("Notebook reader text");
+      // No public page to link or stub: a private card offers neither.
+      await expect(page.locator(`.views [data-action="stub"][data-remote="${id}"]`)).toHaveCount(0);
+      await expect(page.locator('.views')).not.toContainText(`/f/${id.slice(0, 8)}`);
+
+      await page.goto(`/studio/edit/${id}`);
+      await page.locator('[data-action="reader-view"]').click();
+      await expect(page).toHaveURL(new RegExp(`/reading/~own/${id}`));
+      await expect(page.locator('.views')).toContainText("Notebook reader text");
+    } finally {
+      await api("PATCH", "/settings", { defaultVisibility: "public" });
+    }
+    expect(errors).toEqual([]);
+  });
 });
+

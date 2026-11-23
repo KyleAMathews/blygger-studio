@@ -94,10 +94,12 @@ test('/subs redirects to reading, where the subscribe sheet lives', async ({ pag
 
 test('every reading card shows its source URL, opening in a new tab, as the ⋯ sheet names it', async ({ page }) => {
   await login(page); await page.goto('/studio/reading?sub=all');
-  const cards = page.locator('.reading-entry');
+  // Private items have no public page, so no source URL (0.72.0).
+  const cards = page.locator('.reading-entry:not([data-private])');
   await expect(cards.first()).toBeVisible();
   const count = await cards.count();
-  await expect(page.locator('.reading-entry a.entry-src')).toHaveCount(count);
+  await expect(page.locator('.reading-entry:not([data-private]) a.entry-src')).toHaveCount(count);
+  await expect(page.locator('.reading-entry[data-private] a.entry-src')).toHaveCount(0);
   for (const link of await page.locator('a.entry-src, .entry-syndication a').all()) await expect(link).toHaveAttribute('target', '_blank');
   await page.goto('/studio/reading?sub=parity-native');
   const link = nativeEntry(page).locator('.entry-src');

@@ -85,20 +85,23 @@ function shelfIdentitySql(hopper?: string) {
     WHERE (ii.state = 'current' OR ii.pinned_version_retained IS NOT NULL)`;
   return { sql, binds: hopper ? [hopper] : [] };
 }
+/** The `private` pseudo-source (Venkat, 2026-11-23): the owner's private items only, the reader view of a notebook. */
+const PRIVATE_SQL = " WHERE source = 'own' AND id IN (SELECT id FROM items WHERE status = 'private')";
 /** Counts are a named summary. Page construction never materializes the full identity set. */
 export async function readingSummary(db: D1Database, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES, shelf = false, raw = false) {
   const { sql, binds } = identitySql(kind, background, rules, hopper, mentioning, shelf, 'newest', raw);
-  const [counts, subs] = await Promise.all([
+  const [counts, subs, kept] = await Promise.all([
     db.prepare(`SELECT source, sub, COUNT(*) AS total FROM (${sql}) GROUP BY source, sub`).bind(...binds).all<{ source: string; sub: string; total: number }>(),
     db.prepare('SELECT id FROM subscriptions').all<{ id: string }>(),
+    db.prepare(`SELECT COUNT(*) AS total FROM (${sql})${PRIVATE_SQL}`).bind(...binds).first<{ total: number }>(),
   ]);
-  const result = { all: 0, own: 0, subscriptions: Object.fromEntries(subs.results.map(row => [row.id, 0])) };
+  const result = { all: 0, own: 0, private: kept?.total ?? 0, subscriptions: Object.fromEntries(subs.results.map(row => [row.id, 0])) };
   for (const row of counts.results) {
     result.all += row.total;
     if (row.source === 'own') result.own += row.total;
     else result.subscriptions[row.sub] = row.total;
   }
-  const selected = source === 'own' || subs.results.some(row => row.id === source) ? source! : 'all';
+  const selected = source === 'own' || source === 'private' || subs.results.some(row => row.id === source) ? source! : 'all';
   return { counts: result, selected };
 }
 /** Select one bounded keyset of identities before loading or sanitizing bodies. */
@@ -108,8 +111,8 @@ export async function readingData(db: D1Database, query: CursorQuery, source: st
   const identities = identitySql(kind, background, rules, hopper, mentioning, shelf, order, raw);
   return cursorPage(db, { ...query, limit: query.limit ?? 25 }, {
     name: 'reading', filters: [selected, kind ?? null, background, hopper ?? null, mentioning?.join(' ') ?? null, rules.join(' '), shelf, order, raw], domains: ['reading', 'subscriptions', ...(hopper ? ['hoppers' as const] : []), ...(shelf ? ['shelf' as const] : [])],
-    sql: `SELECT * FROM (${identities.sql})${selected === 'all' ? '' : selected === 'own' ? " WHERE source = 'own'" : ' WHERE sub = ? OR NOT EXISTS (SELECT 1 FROM subscriptions WHERE id = ?)'}`,
-    binds: [...identities.binds, ...(selected !== 'all' && selected !== 'own' ? [selected, selected] : [])],
+    sql: `SELECT * FROM (${identities.sql})${selected === 'all' ? '' : selected === 'own' ? " WHERE source = 'own'" : selected === 'private' ? PRIVATE_SQL : ' WHERE sub = ? OR NOT EXISTS (SELECT 1 FROM subscriptions WHERE id = ?)'}`,
+    binds: [...identities.binds, ...(selected !== 'all' && selected !== 'own' && selected !== 'private' ? [selected, selected] : [])],
     order: [{ column: 'at', direction: 'desc' }, { column: 'source', direction: 'asc' }, { column: 'sub', direction: 'asc' }, { column: 'id', direction: 'asc' }],
     prepare: order === 'pace-layered' && !hopper && !shelf ? () => ensureReaderOrder(db) : undefined,
     // Raw shows no fold: with no rules, no thread lists its parts.

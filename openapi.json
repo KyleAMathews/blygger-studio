@@ -20077,9 +20077,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "all, own (your blyg), private (your private items only), or a subscription id."
             },
             "required": false,
+            "description": "all, own (your blyg), private (your private items only), or a subscription id.",
             "name": "sub",
             "in": "query"
           },
@@ -20191,6 +20193,10 @@
                         "own": {
                           "type": "number"
                         },
+                        "private": {
+                          "type": "number",
+                          "description": "Own items that are private, the `private` source."
+                        },
                         "subscriptions": {
                           "type": "object",
                           "additionalProperties": {
@@ -20201,6 +20207,7 @@
                       "required": [
                         "all",
                         "own",
+                        "private",
                         "subscriptions"
                       ]
                     },
@@ -20390,9 +20397,11 @@
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "all, own (your blyg), private (your private items only), or a subscription id."
             },
             "required": false,
+            "description": "all, own (your blyg), private (your private items only), or a subscription id.",
             "name": "sub",
             "in": "query"
           },

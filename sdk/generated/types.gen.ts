@@ -7531,6 +7531,9 @@ export type GetReadingSummaryData = {
     };
     path?: never;
     query?: {
+        /**
+         * all, own (your blyg), private (your private items only), or a subscription id.
+         */
         sub?: string;
         /**
          * Imported Reading entries held in this hopper, ordered by membership time.
@@ -7615,6 +7618,10 @@ export type GetReadingSummaryResponses = {
         counts: {
             all: number;
             own: number;
+            /**
+             * Own items that are private, the `private` source.
+             */
+            private: number;
             subscriptions: {
                 [key: string]: number;
             };
@@ -7640,6 +7647,9 @@ export type ListReadingData = {
          */
         cursor?: string;
         limit?: number;
+        /**
+         * all, own (your blyg), private (your private items only), or a subscription id.
+         */
         sub?: string;
         /**
          * Imported Reading entries held in this hopper, ordered by membership time.

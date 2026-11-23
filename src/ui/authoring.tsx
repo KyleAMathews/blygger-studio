@@ -12,6 +12,7 @@ import type { ReactNode, RefObject } from 'react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery, useLiveInfiniteQuery, and, eq } from '@tanstack/react-db';
 import { Link, useNavigate, useBlocker } from '@tanstack/react-router';
+import { OWN } from './reader-links.tsx';
 import { formatDateIn } from '../dates.ts';
 import { renderMarkdown } from '../markdown.ts';
 import { linkInline } from '../grammar.ts';
@@ -2798,6 +2799,11 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
               <a href={publicPath(shareable)} target="_blank" rel="noreferrer">
                 public permalink ↗
               </a>
+            ) : item.status === 'private' ? (
+              // A private item has no public page; the owner's reader shows its latest private version.
+              <Link to="/reading/$sub/$id" params={{ sub: OWN, id: item.id }} data-action="reader-view">
+                reader view
+              </Link>
             ) : null}
           </div>
           <SyntaxHelp>

@@ -691,7 +691,7 @@ export const readingSummaries = createCollection(queryCollectionOptions({
     if (!views) throw new Error('Reading summary requires a view predicate');
     return Promise.all(views.map(async view => {
       const summary = await unwrap(BlyggerApi.getReadingSummary({ client, query: readingQuery(view), signal }));
-      const total = summary.selected === 'all' ? summary.counts.all : summary.selected === 'own' ? summary.counts.own : summary.counts.subscriptions[summary.selected] ?? 0;
+      const total = summary.selected === 'all' ? summary.counts.all : summary.selected === 'own' ? summary.counts.own : summary.selected === 'private' ? summary.counts.private : summary.counts.subscriptions[summary.selected] ?? 0;
       return { ...summary, view, total };
     }));
   }),

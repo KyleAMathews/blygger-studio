@@ -2415,6 +2415,7 @@ export const zGetReadingSummaryResponse = z.object({
     counts: z.object({
         all: z.number(),
         own: z.number(),
+        private: z.number(),
         subscriptions: z.record(z.string(), z.number())
     }),
     selected: z.string()
