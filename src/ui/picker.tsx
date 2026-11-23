@@ -59,7 +59,13 @@ export function BracketPicker({
   const [sort, setSort] = useState<Sort>(() => stored('blyg.picker.sort', ['newest', 'oldest'] as const, 'newest'));
   const settings = useSettings();
   const setting = settings?.pickerTyping ?? 'auto';
-  const [chosenTab, setChosenTab] = useState(() => localStorage.getItem(TAB_KEY) ?? ITEMS);
+  const [chosenTab, setChosenTab] = useState(() => {
+    try {
+      return localStorage.getItem(TAB_KEY) ?? ITEMS;
+    } catch {
+      return ITEMS;
+    }
+  });
   const focusMode: Focus = setting === 'auto' ? (touch() ? 'panel' : 'editor') : setting;
   const [sub, setSub] = useState('');
   const [subs, setSubs] = useState<{ id: string; title: string }[]>([]);
@@ -97,11 +103,15 @@ export function BracketPicker({
       localStorage.setItem(TAB_KEY, name);
     } catch { /* remembered until the page is left */ }
   };
-  const [found, setFound] = useState<{ results: PickerResult[]; loading: boolean; error?: Error }>({ results: [], loading: false });
+  // Results are kept with the tab, form and query they answer, and listed only while those still
+  // hold: a switched tab or a newer query never shows, or lets Enter pick, an older answer.
+  const searchKey = tabSource && query !== undefined && trigger ? JSON.stringify([tabSource.name, trigger.form, query]) : undefined;
+  const [found, setFound] = useState<{ key: string; results: PickerResult[]; error?: Error }>();
+  const current = found && found.key === searchKey ? found : undefined;
+  const sourceResults = current?.results ?? [];
   useEffect(() => {
-    if (!tabSource || query === undefined || !trigger) return;
+    if (!tabSource || query === undefined || !trigger || !searchKey) return;
     const controller = new AbortController();
-    setFound((f) => ({ ...f, loading: true, error: undefined }));
     // A short pause, so a source isn't asked once per keystroke.
     const timer = setTimeout(() => {
       searchPickerSource(tabSource, {
@@ -118,8 +128,8 @@ export function BracketPicker({
         form: trigger.form,
         signal: controller.signal,
       }).then(
-        (results) => !controller.signal.aborted && setFound({ results, loading: false }),
-        (error: Error) => !controller.signal.aborted && setFound({ results: [], loading: false, error }),
+        (results) => !controller.signal.aborted && setFound({ key: searchKey, results }),
+        (error: Error) => !controller.signal.aborted && setFound({ key: searchKey, results: [], error }),
       );
     }, 150);
     return () => {
@@ -151,7 +161,7 @@ export function BracketPicker({
   );
   useEffect(() => setSelected(0), [query, source, sort, sub, tab]);
   // What the open tab lists: the Studio's hits, or the source's results.
-  const listed: { id: string; label?: string }[] = tab === ITEMS ? hits : found.results;
+  const listed: { id: string; label?: string }[] = tab === ITEMS ? hits : sourceResults;
   const backToEditor = (at: number) =>
     requestAnimationFrame(() => {
       input.current?.focus();
@@ -263,12 +273,12 @@ export function BracketPicker({
       ) : null}
       {tab !== ITEMS ? (
         <>
-          <Failure error={found.error} />
+          <Failure error={current?.error} />
           <div className="picker-count" aria-live="polite">
-            {found.loading && !found.results.length ? 'searching…' : `${found.results.length.toLocaleString()} result${found.results.length === 1 ? '' : 's'}`}
+            {!current ? 'searching…' : `${sourceResults.length.toLocaleString()} result${sourceResults.length === 1 ? '' : 's'}`}
           </div>
           <ul role="listbox" aria-label={tabSource!.pickerSource!.label} className="picker-list" data-picker-source={tab}>
-            {found.results.map((result, i) => (
+            {sourceResults.map((result, i) => (
               <li
                 role="option"
                 aria-selected={i === selected}

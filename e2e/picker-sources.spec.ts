@@ -66,4 +66,10 @@ test("a source's tab lists its results; the picker's keyboard picks one and inse
   await editor.fill(`again [[${run}`);
   await expect(panel.locator('[data-picker-tab=picker-example]')).toHaveAttribute('aria-pressed', 'true');
   await expect(results).toHaveCount(1);
+  // A newer query never lists, or lets Enter pick, the older query's results.
+  await editor.press('End');
+  await editor.pressSequentially('zz');
+  await editor.press('Enter');
+  await expect(editor).not.toHaveValue(new RegExp(draft));
+  await expect(editor).toHaveValue(new RegExp(`${run}zz`));
 });
