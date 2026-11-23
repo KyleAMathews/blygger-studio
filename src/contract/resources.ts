@@ -11,7 +11,10 @@ import type { ItemRow, VersionRow, MediaRow, SubscriptionRow, HopperRow, Importe
 export const CitationSchema = z.object({ source: z.string(), author: z.string().optional(), excerpt: z.string().optional(), url: z.string(), retrieved: z.string() }).openapi("Citation");
 export const VersionReferenceSchema = z.object({ origin: z.string().url(), id: z.string().min(1), version: z.number().int().positive(), cited: CitationSchema.optional() }).strict().openapi("VersionReference");
 export const StubSchema = z.union([VersionReferenceSchema, z.object({ url: z.string().url(), cited: CitationSchema.optional() }).strict()]).openapi("CitationTarget");
-export const GenerationSourceSchema = z.object({ id: z.string(), version: z.number().int().positive(), origin: z.string().optional().describe("Present for a remote source (0.4, §5.7); omitted for this blyg's own."), cited: CitationSchema.optional() }).openapi("GenerationSource");
+export const GenerationSourceSchema = z.union([
+  z.object({ id: z.string(), version: z.number().int().positive(), origin: z.string().optional().describe("Present for a remote source (0.4, §5.7); omitted for this blyg's own."), cited: CitationSchema.optional() }),
+  z.object({ url: z.string().url().describe("A web page the generator read (decision #117)."), cited: CitationSchema }).strict(),
+]).openapi("GenerationSource");
 export const ProvenanceSchema = z.object({ sources: z.array(GenerationSourceSchema), model: z.string().optional(), at: z.string().optional() }).passthrough().openapi("GenerationProvenance");
 export const TransclusionSchema = z.object({ id: z.string(), version: z.number().int().positive(), origin: z.string().optional(), cited: CitationSchema.optional(), selector: z.object({ exact: z.string(), prefix: z.string().optional(), suffix: z.string().optional() }).optional() }).openapi("Transclusion");
 /** Remote protocol data remains remote data, including members this client does not know. */
@@ -111,6 +114,16 @@ export const ShelfEntrySchema = z.object({
   sub: z.string().min(1).max(128).describe(`The subscription the item is held under, or "${OWN_SUBSCRIPTION}" (OWN_SUBSCRIPTION) for one of the owner's own items.`),
   remoteId: z.string().min(1).max(256).describe(`The item's id: the own item's id under "${OWN_SUBSCRIPTION}", else the imported item's remote id.`),
 }).strict().openapi("ShelfEntry");
+
+export const DictionarySourceSchema = z.object({
+  source: z.string().describe('"owner" for the words the author adds; any other name for a set an extension or client installed.'),
+  words: z.array(z.string()).describe("The source's words, sorted without regard to case."),
+}).openapi("DictionarySource");
+
+export const DictionarySchema = z.object({
+  sources: z.array(DictionarySourceSchema).describe('Every source that holds a word: "owner" first, then the rest by name.'),
+  revision: z.number().int().nonnegative().describe("The dictionary's revision. Send it back as expectedRevision for a conditional replace; every successful PUT bumps it."),
+}).openapi("Dictionary");
 
 export const ShelfSchema = z.object({
   entries: z.array(ShelfEntrySchema).describe(`The shelved items, in the owner's order, each named as hopper membership names an item. Own drafts may be shelved; a withdrawn own item, or an imported tombstone with no retained pin, is omitted. A discarded draft, an imported item no longer held, and every entry of a deleted subscription leave the shelf. Studio-private for good: never in an item document, feed, manifest or public page, and the shelf never gains a public mode.`),

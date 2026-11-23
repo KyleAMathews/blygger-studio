@@ -27,6 +27,7 @@ import { FONTS } from '../fonts.ts';
 import { DEFAULT_FEED_ORDER, FEED_ALGORITHMS } from '../feeds/index.ts';
 import { CLIENT } from '../client.ts';
 import { AddressBook } from './contacts.tsx';
+import { DictionaryCard } from './dictionary.tsx';
 import { ERROR_LOG_MAX, describeEntry, diagnostics, errorLog, exportLog, thisDevice } from './error-log.ts';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { Tab, Tabs } from './primitives.tsx';
@@ -35,6 +36,7 @@ import { localPatches } from '../../build/patches.ts';
 const fields = [
   "siteTitle",
   'theme',
+  "studioTheme",
   "customTheme",
   "customThemeDark",
   "customThemeName",
@@ -60,13 +62,19 @@ const fields = [
   "aiModelTk",
   "aiModelChangelog",
   "aiModelFeed",
+  "aiModelHelpers",
   "aiModelClassify",
   "feedPrompt",
+  "agenticTitle",
   "aiStylePrompt",
   "changelogDisplay",
   "readerChangelogDisplay",
   "readerOrder",
+  "readerMarkRead",
   "backgroundRules",
+  "bgModelImported",
+  "bgInstruction",
+  "bgFlagDisagreement",
   "changelogSummaryPrompt",
   "acceptMentions",
   "updateCheck",
@@ -151,7 +159,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
       | "siteUrl"
       | "aiStylePrompt"
       | "feedPrompt"
+      | "agenticTitle"
       | "changelogSummaryPrompt"
+      | "bgInstruction"
       | "updateFeedUrl",
     label: string,
     multiline = false,
@@ -370,6 +380,10 @@ function SettingsForm({ initial }: { initial: Settings }) {
           ))}
         </div>
       </section>
+      <section className="card" id="dictionary-card">
+        <h3 className="card-h">dictionary</h3>
+        <DictionaryCard />
+      </section>
       <section className="card">
         <h3 className="card-h">updates</h3>
         {toggle(
@@ -495,6 +509,23 @@ function SettingsForm({ initial }: { initial: Settings }) {
           ))}
           <span className="hint">Hoppers and the Shelf keep their own order.</span>
         </div>
+        <div className="field" role="radiogroup" aria-labelledby="reader-mark-read-label">
+          <span id="reader-mark-read-label">Count an entry as read</span>
+          {(
+            [
+              ['seen', 'When I see it', 'once it has been on screen for about a second as you scroll, short entries included'],
+              ['opened', 'When I open it', 'its full view: “more”, its date, or its title'],
+              ['never', 'Only when I mark it', 'select mode and “mark all read” in the feed’s menu'],
+            ] as const
+          ).map(([value, label, hint]) => (
+            <label className="check" key={value}>
+              <input type="radio" name="readerMarkRead" value={value} checked={(form.readerMarkRead ?? 'seen') === value} onChange={() => change('readerMarkRead', value)} />
+              <span>
+                {label} <span className="hint">{hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
       </section>
       <section className="card" id="background">
         <h3 className="card-h">Background</h3>
@@ -539,13 +570,52 @@ function SettingsForm({ initial }: { initial: Settings }) {
             onChange={(event) => change('backgroundRules', { ...form.backgroundRules, minor: event.target.checked })}
           />
           <span>
-            Your own minor changes
+            Minor changes
             <span className="hint">
               a version the change classifier calls a typo, minor or refresh
               (Settings → AI → change classifier)
             </span>
           </span>
         </label>
+        <label className="check sub-check">
+          <input
+            type="checkbox"
+            disabled={!form.aiModelClassify?.trim()}
+            checked={!!form.bgModelImported}
+            onChange={(event) => change('bgModelImported', event.target.checked)}
+          />
+          <span>
+            Judge other blygs&rsquo; changes too
+            <span className="hint">
+              {form.aiModelClassify?.trim()
+                ? 'one classifier call per new version the rules above leave open, ten every quarter hour, under your daily AI budget; over it, the rules above decide. Only the two texts are sent, unless you write an instruction below.'
+                : 'choose a change classifier model in Settings → AI first'}
+            </span>
+          </span>
+        </label>
+        {form.bgModelImported && form.aiModelClassify?.trim()
+          ? field(
+              "bgInstruction",
+              'Your instruction (optional). While written, each version’s note is read too, and a note calling a big change minor keeps the entry in view, marked.',
+              true,
+              'e.g. Treat a note that says it fixes typos as a typo, unless whole sentences changed.',
+            )
+          : null}
+        {form.bgModelImported && form.aiModelClassify?.trim() && form.bgInstruction?.trim() ? (
+          <label className="check sub-check">
+            <input
+              type="checkbox"
+              checked={form.bgFlagDisagreement ?? true}
+              onChange={(event) => change('bgFlagDisagreement', event.target.checked)}
+            />
+            <span>
+              Keep an entry in view when its note understates the change
+              <span className="hint">
+                a note that says “typo” or “minor” while much of the text changed; off, the classifier&rsquo;s label decides
+              </span>
+            </span>
+          </label>
+        ) : null}
       </section>
       </section>
       <section className="settings-section" id="appearance" aria-labelledby="appearance-h">
@@ -554,9 +624,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
         <h3 className="card-h">theme</h3>
         <div className="field">
           <span>
-            Reading theme — your public pages and this studio
+            Public theme — your public pages, and this studio unless it has its own below
           </span>
-          <div className="theme-grid" role="radiogroup" aria-label="Reading theme">
+          <div className="theme-grid" role="radiogroup" aria-label="Public theme">
             {['auto', ...Object.keys(THEMES)].map((id) => {
               const theme = THEMES[id];
               const automatic = id === 'auto';
@@ -667,6 +737,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
             }}
           />
         ) : null}
+
+        <StudioThemeField form={form} change={change} />
         <div className="field">
           <span>
             Typeface — fonts already on the reader's device, so nothing is
@@ -699,7 +771,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
           <>
             Text written by <code>[TK]</code> generation shows on your public
             pages in a lightly tinted, outlined box, in every theme. A post can
-            override this in its editor's TK card.
+            override this in its editor's TK card. Your reader follows this
+            setting too, for every post it shows, yours and other blygs&rsquo;.
           </>,
         )}
       </section>
@@ -854,9 +927,19 @@ function SettingsForm({ initial }: { initial: Settings }) {
             )
           : null}
       </section>
+      <section className="card" id="ai-helpers">
+        <h3 className="card-h">text helpers</h3>
+        <p className="hint">
+          Small writing jobs you and your agents ask for, such as the summary
+          in <em>Catch up</em>. Each is written once for the versions it reads
+          and kept. Blank uses the change-notes model.
+        </p>
+        <ModelField fkey="aiModelHelpers" label="Model" name="text helpers" manifest={aiModels} form={form} change={change} />
+      </section>
       <section className="card" id="ai-feed">
         <h3 className="card-h">agentic feed</h3>
         <ModelField fkey="aiModelFeed" label="Model" name="agentic feed" hint="not used yet" manifest={aiModels} form={form} change={change} />
+        {field("agenticTitle", 'Tab name: what you call it in Reading, and the heading of each edition', false, 'Agentic feed')}
         {field(
           "feedPrompt",
           'Agentic feed prompt: how your assistant should organize what you read',
@@ -1146,6 +1229,7 @@ const FUNCTIONS = [
   { key: "aiModelTk", label: 'TK generation' },
   { key: "aiModelChangelog", label: 'changelog notes' },
   { key: "aiModelFeed", label: 'agentic feed', hint: 'for the Agentic feed; not used yet' },
+  { key: "aiModelHelpers", label: 'text helpers', hint: 'Catch up summaries; blank uses the change-notes model' },
 ] as const;
 const OTHER = '__other__';
 
@@ -1650,6 +1734,46 @@ function ThreadSearch({
           <span className="hint">No published thread matches.</span>
         )
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * The Studio's own palette, reader included (Venkat, session 78): "Same as
+ * public" (empty, the default) wears the public theme; any preset or the
+ * custom palette may be chosen instead. Public pages are unaffected.
+ */
+function StudioThemeField({ form, change }: { form: Settings; change: <K extends keyof Settings>(key: K, value: Settings[K]) => void }) {
+  const ids = ['', 'auto', ...Object.keys(THEMES), ...(form.customTheme ? [CUSTOM_THEME_ID] : [])];
+  const label = (id: string) =>
+    id === '' ? 'Same as public' : id === 'auto' ? 'Auto' : id === CUSTOM_THEME_ID ? form.customThemeName || 'Custom' : THEMES[id]!.label;
+  const colours = (id: string) => {
+    const shown = id === '' ? form.theme : id;
+    if (shown === 'auto') return { page: 'linear-gradient(90deg,#fafbfb 50%,#14191a 50%)', paper: 'transparent', ink: 'linear-gradient(90deg,#1b2426 50%,#e3e7e7 50%)' };
+    if (shown === CUSTOM_THEME_ID && form.customTheme) return { page: form.customTheme.page, paper: form.customTheme.paper, ink: form.customTheme.ink };
+    const t = THEMES[shown] ?? THEMES.paper!;
+    return { page: t.page, paper: t.paper, ink: t.ink };
+  };
+  return (
+    <div className="field">
+      <span>Studio theme — this studio and its reader</span>
+      <div className="theme-grid" role="radiogroup" aria-label="Studio theme">
+        {ids.map((id) => {
+          const c = colours(id);
+          return (
+            <label className="theme-opt" key={id || 'same'}>
+              <input type="radio" name="studioTheme" value={id} checked={(form.studioTheme ?? '') === id} onChange={() => change('studioTheme', id)} />
+              <span className="theme-swatch" style={{ background: c.page }}>
+                <span className="sheet-mini" style={{ background: c.paper }}>
+                  <span className="line" style={{ background: c.ink }} />
+                  <span className="line short" style={{ background: c.ink, opacity: 0.55 }} />
+                </span>
+              </span>
+              <span className="theme-name">{label(id)}</span>
+            </label>
+          );
+        })}
+      </div>
     </div>
   );
 }

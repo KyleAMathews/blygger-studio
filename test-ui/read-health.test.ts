@@ -108,3 +108,14 @@ test('retry restarts a ready query whose continuation failed, keeping its reques
     subscription.unsubscribe(); await view.cleanup(); await source.cleanup(); client.clear();
   }
 });
+
+test('only network failures and expired cursors wait before the banner', async () => {
+  const { BlyggerApiError } = await import('../sdk/dist/browser.js');
+  const wrapped = (cause: Error) => Object.assign(new Error('read failed'), { cause });
+  expect(health.transientReadProblem(new TypeError('Load failed'))).toBe(true);
+  expect(health.transientReadProblem(wrapped(new TypeError('Failed to fetch')))).toBe(true);
+  expect(health.transientReadProblem(wrapped(new BlyggerApiError(409, { code: 'cursor-expired', message: 'Collection changed' })))).toBe(true);
+  expect(health.transientReadProblem(wrapped(new BlyggerApiError(409, { code: 'revision-conflict' })))).toBe(false);
+  expect(health.transientReadProblem(wrapped(new BlyggerApiError(503, { code: 'internal' })))).toBe(false);
+  expect(health.transientReadProblem(new Error('temporarily unavailable'))).toBe(false);
+});

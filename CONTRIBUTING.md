@@ -11,7 +11,7 @@ Before you write code, decide where your change belongs. Answer these in order a
 7. Does it only make sense on your node? → **a local patch**, kept as a `local:` commit.
 8. Does it change what the Studio is? → **another client**, a fork with its own name.
 
-The full page, with the test for each rung, a first hour on a local node and the rules for local patches, is **[where does my change belong?](docs/where-does-it-go.md)**.
+The full page, with the test for each rung, a first hour on a local node and the rules for local patches, is **[where does my change belong? (TN-8)](https://blygger.org/notes/tn-8/)**.
 
 ## Pull requests
 

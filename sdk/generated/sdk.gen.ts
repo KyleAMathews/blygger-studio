@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client/index.js';
-import type { AddHopperItemData, AddHopperItemErrors, AddHopperItemResponses, BatchReadData, BatchReadErrors, BatchReadResponses, ClassifyChangeData, ClassifyChangeErrors, ClassifyChangeResponses, ClassifyLinksData, ClassifyLinksErrors, ClassifyLinksResponses, ClearBrowseData, ClearBrowseErrors, ClearBrowseResponses, CreateAuthorizationData, CreateAuthorizationErrors, CreateAuthorizationResponses, CreateContactData, CreateContactErrors, CreateContactResponses, CreateHopperData, CreateHopperErrors, CreateHopperResponses, CreateItemData, CreateItemErrors, CreateItemResponses, CreateSubscriptionData, CreateSubscriptionErrors, CreateSubscriptionResponses, DeleteContactData, DeleteContactErrors, DeleteContactResponses, DeleteHopperData, DeleteHopperErrors, DeleteHopperResponses, DeleteItemData, DeleteItemErrors, DeleteItemResponses, DeleteMediaData, DeleteMediaErrors, DeleteMediaResponses, DeleteSignalData, DeleteSignalErrors, DeleteSignalResponses, DeleteSubscriptionData, DeleteSubscriptionErrors, DeleteSubscriptionResponses, DraftNoteData, DraftNoteErrors, DraftNoteResponses, ExtLineageGlyphGetLineageData, ExtLineageGlyphGetLineageErrors, ExtLineageGlyphGetLineageResponses, ExtLineageGlyphListSummariesData, ExtLineageGlyphListSummariesErrors, ExtLineageGlyphListSummariesResponses, ExtWordCountListCountsData, ExtWordCountListCountsErrors, ExtWordCountListCountsResponses, GenerateItemData, GenerateItemErrors, GenerateItemResponses, GetAiModelsData, GetAiModelsErrors, GetAiModelsResponses, GetCapabilitiesData, GetCapabilitiesErrors, GetCapabilitiesResponses, GetForkOptionsData, GetForkOptionsErrors, GetForkOptionsResponses, GetHopperData, GetHopperErrors, GetHopperResponses, GetImportedHistoryData, GetImportedHistoryErrors, GetImportedHistoryResponses, GetImportedItemData, GetImportedItemErrors, GetImportedItemResponses, GetImportedVersionData, GetImportedVersionErrors, GetImportedVersionResponses, GetItemData, GetItemErrors, GetItemFreshnessData, GetItemFreshnessErrors, GetItemFreshnessResponses, GetItemResponses, GetItemSummaryData, GetItemSummaryErrors, GetItemSummaryResponses, GetMentionSourceData, GetMentionSourceErrors, GetMentionSourceResponses, GetMentionSummaryData, GetMentionSummaryErrors, GetMentionSummaryResponses, GetReadingSummaryData, GetReadingSummaryErrors, GetReadingSummaryResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetShelfData, GetShelfErrors, GetShelfResponses, GetSignalSummaryData, GetSignalSummaryErrors, GetSignalSummaryResponses, GetSubscriptionData, GetSubscriptionErrors, GetSubscriptionResponses, GetSyndicationData, GetSyndicationErrors, GetSyndicationResponses, GetUpdateStateData, GetUpdateStateErrors, GetUpdateStateResponses, GetVersionData, GetVersionErrors, GetVersionResponses, ListAuthorizationsData, ListAuthorizationsErrors, ListAuthorizationsResponses, ListBrowseData, ListBrowseErrors, ListBrowseResponses, ListContactsData, ListContactsErrors, ListContactsResponses, ListHopperMembershipsData, ListHopperMembershipsErrors, ListHopperMembershipsResponses, ListHoppersData, ListHoppersErrors, ListHoppersResponses, ListImportedReadingData, ListImportedReadingErrors, ListImportedReadingResponses, ListInteractionsData, ListInteractionsErrors, ListInteractionsResponses, ListItemsData, ListItemsErrors, ListItemsResponses, ListItemVersionsData, ListItemVersionsErrors, ListItemVersionsResponses, ListMentionGroupsData, ListMentionGroupsErrors, ListMentionGroupsResponses, ListMentionsData, ListMentionsErrors, ListMentionsResponses, ListReadingData, ListReadingErrors, ListReadingResponses, ListSignalsData, ListSignalsErrors, ListSignalsResponses, ListStaleThreadsData, ListStaleThreadsErrors, ListStaleThreadsResponses, ListSubscriptionsData, ListSubscriptionsErrors, ListSubscriptionsResponses, ListThumbsData, ListThumbsErrors, ListThumbsResponses, LogBrowseData, LogBrowseErrors, LogBrowseResponses, MarkReadBatchData, MarkReadBatchErrors, MarkReadBatchResponses, MarkReadData, MarkReadErrors, MarkReadResponses, MarkUnreadBatchData, MarkUnreadBatchErrors, MarkUnreadBatchResponses, MarkUnreadData, MarkUnreadErrors, MarkUnreadResponses, PeekItemData, PeekItemErrors, PeekItemResponses, PinItemData, PinItemErrors, PinItemResponses, PollAllSubscriptionsData, PollAllSubscriptionsErrors, PollAllSubscriptionsResponses, PreviewData, PreviewErrors, PreviewResponses, PublishItemData, PublishItemErrors, PublishItemResponses, PutShelfData, PutShelfErrors, PutShelfResponses, PutSyndicationData, PutSyndicationErrors, PutSyndicationResponses, RefreshItemData, RefreshItemErrors, RefreshItemResponses, RemoveHopperItemData, RemoveHopperItemErrors, RemoveHopperItemResponses, ResolveContactData, ResolveContactErrors, ResolveContactResponses, RestoreItemData, RestoreItemErrors, RestoreItemResponses, ResyncSubscriptionData, ResyncSubscriptionErrors, ResyncSubscriptionResponses, RevokeAllAuthorizationsData, RevokeAllAuthorizationsErrors, RevokeAllAuthorizationsResponses, RevokeAuthorizationData, RevokeAuthorizationErrors, RevokeAuthorizationResponses, SearchData, SearchErrors, SearchResponses, SetReadingPlacementData, SetReadingPlacementErrors, SetReadingPlacementResponses, SetSignalData, SetSignalErrors, SetSignalResponses, SummarizeChangelogData, SummarizeChangelogErrors, SummarizeChangelogResponses, UpdateContactData, UpdateContactErrors, UpdateContactResponses, UpdateHopperData, UpdateHopperErrors, UpdateHopperResponses, UpdateItemData, UpdateItemErrors, UpdateItemResponses, UpdateMentionData, UpdateMentionErrors, UpdateMentionResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UpdateSubscriptionData, UpdateSubscriptionErrors, UpdateSubscriptionResponses, UploadMediaData, UploadMediaErrors, UploadMediaResponses, WithdrawItemData, WithdrawItemErrors, WithdrawItemResponses } from './types.gen.js';
+import type { AddHopperItemData, AddHopperItemErrors, AddHopperItemResponses, BatchReadData, BatchReadErrors, BatchReadResponses, CatchUpData, CatchUpErrors, CatchUpResponses, ClassifyChangeData, ClassifyChangeErrors, ClassifyChangeResponses, ClassifyLinksData, ClassifyLinksErrors, ClassifyLinksResponses, ClearBrowseData, ClearBrowseErrors, ClearBrowseResponses, CreateAuthorizationData, CreateAuthorizationErrors, CreateAuthorizationResponses, CreateContactData, CreateContactErrors, CreateContactResponses, CreateHopperData, CreateHopperErrors, CreateHopperResponses, CreateItemData, CreateItemErrors, CreateItemResponses, CreateSubscriptionData, CreateSubscriptionErrors, CreateSubscriptionResponses, DeleteContactData, DeleteContactErrors, DeleteContactResponses, DeleteHopperData, DeleteHopperErrors, DeleteHopperResponses, DeleteItemData, DeleteItemErrors, DeleteItemResponses, DeleteMediaData, DeleteMediaErrors, DeleteMediaResponses, DeleteSignalData, DeleteSignalErrors, DeleteSignalResponses, DeleteSubscriptionData, DeleteSubscriptionErrors, DeleteSubscriptionResponses, DraftNoteData, DraftNoteErrors, DraftNoteResponses, ExtLineageGlyphGetLineageData, ExtLineageGlyphGetLineageErrors, ExtLineageGlyphGetLineageResponses, ExtLineageGlyphListSummariesData, ExtLineageGlyphListSummariesErrors, ExtLineageGlyphListSummariesResponses, ExtSpellcheckGetWordsData, ExtSpellcheckGetWordsErrors, ExtSpellcheckGetWordsResponses, ExtSpellcheckProofreadData, ExtSpellcheckProofreadErrors, ExtSpellcheckProofreadResponses, ExtWordCountListCountsData, ExtWordCountListCountsErrors, ExtWordCountListCountsResponses, GenerateItemData, GenerateItemErrors, GenerateItemResponses, GetAgenticData, GetAgenticErrors, GetAgenticResponses, GetAiModelsData, GetAiModelsErrors, GetAiModelsResponses, GetCapabilitiesData, GetCapabilitiesErrors, GetCapabilitiesResponses, GetDictionaryData, GetDictionaryErrors, GetDictionaryResponses, GetForkOptionsData, GetForkOptionsErrors, GetForkOptionsResponses, GetHopperData, GetHopperErrors, GetHopperResponses, GetImportedHistoryData, GetImportedHistoryErrors, GetImportedHistoryResponses, GetImportedItemData, GetImportedItemErrors, GetImportedItemResponses, GetImportedVersionData, GetImportedVersionErrors, GetImportedVersionResponses, GetItemData, GetItemErrors, GetItemFreshnessData, GetItemFreshnessErrors, GetItemFreshnessResponses, GetItemResponses, GetItemSummaryData, GetItemSummaryErrors, GetItemSummaryResponses, GetMentionSourceData, GetMentionSourceErrors, GetMentionSourceResponses, GetMentionSummaryData, GetMentionSummaryErrors, GetMentionSummaryResponses, GetReadingSummaryData, GetReadingSummaryErrors, GetReadingSummaryResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetShelfData, GetShelfErrors, GetShelfResponses, GetSignalSummaryData, GetSignalSummaryErrors, GetSignalSummaryResponses, GetSubscriptionData, GetSubscriptionErrors, GetSubscriptionResponses, GetSyndicationData, GetSyndicationErrors, GetSyndicationResponses, GetUpdateStateData, GetUpdateStateErrors, GetUpdateStateResponses, GetVersionData, GetVersionErrors, GetVersionResponses, ListAgenticFeedsData, ListAgenticFeedsErrors, ListAgenticFeedsResponses, ListAuthorizationsData, ListAuthorizationsErrors, ListAuthorizationsResponses, ListBrowseData, ListBrowseErrors, ListBrowseResponses, ListContactsData, ListContactsErrors, ListContactsResponses, ListHelpersData, ListHelpersErrors, ListHelpersResponses, ListHopperMembershipsData, ListHopperMembershipsErrors, ListHopperMembershipsResponses, ListHoppersData, ListHoppersErrors, ListHoppersResponses, ListImportedReadingData, ListImportedReadingErrors, ListImportedReadingResponses, ListInteractionsData, ListInteractionsErrors, ListInteractionsResponses, ListItemsData, ListItemsErrors, ListItemsResponses, ListItemVersionsData, ListItemVersionsErrors, ListItemVersionsResponses, ListMentionGroupsData, ListMentionGroupsErrors, ListMentionGroupsResponses, ListMentionsData, ListMentionsErrors, ListMentionsResponses, ListReadingData, ListReadingErrors, ListReadingResponses, ListSignalsData, ListSignalsErrors, ListSignalsResponses, ListStaleThreadsData, ListStaleThreadsErrors, ListStaleThreadsResponses, ListSubscriptionsData, ListSubscriptionsErrors, ListSubscriptionsResponses, ListThumbsData, ListThumbsErrors, ListThumbsResponses, LogBrowseData, LogBrowseErrors, LogBrowseResponses, MarkReadBatchData, MarkReadBatchErrors, MarkReadBatchResponses, MarkReadData, MarkReadErrors, MarkReadResponses, MarkUnreadBatchData, MarkUnreadBatchErrors, MarkUnreadBatchResponses, MarkUnreadData, MarkUnreadErrors, MarkUnreadResponses, PeekItemData, PeekItemErrors, PeekItemResponses, PinItemData, PinItemErrors, PinItemResponses, PollAllSubscriptionsData, PollAllSubscriptionsErrors, PollAllSubscriptionsResponses, PreviewData, PreviewErrors, PreviewResponses, PublishItemData, PublishItemErrors, PublishItemResponses, PutAgenticData, PutAgenticErrors, PutAgenticResponses, PutDictionarySourceData, PutDictionarySourceErrors, PutDictionarySourceResponses, PutShelfData, PutShelfErrors, PutShelfResponses, PutSyndicationData, PutSyndicationErrors, PutSyndicationResponses, RefreshItemData, RefreshItemErrors, RefreshItemResponses, RemoveHopperItemData, RemoveHopperItemErrors, RemoveHopperItemResponses, ResolveContactData, ResolveContactErrors, ResolveContactResponses, RestoreItemData, RestoreItemErrors, RestoreItemResponses, ResyncSubscriptionData, ResyncSubscriptionErrors, ResyncSubscriptionResponses, RevokeAllAuthorizationsData, RevokeAllAuthorizationsErrors, RevokeAllAuthorizationsResponses, RevokeAuthorizationData, RevokeAuthorizationErrors, RevokeAuthorizationResponses, SearchData, SearchErrors, SearchResponses, SetReadingPlacementData, SetReadingPlacementErrors, SetReadingPlacementResponses, SetSignalData, SetSignalErrors, SetSignalResponses, SummarizeCatchUpData, SummarizeCatchUpErrors, SummarizeCatchUpResponses, SummarizeChangelogData, SummarizeChangelogErrors, SummarizeChangelogResponses, UpdateContactData, UpdateContactErrors, UpdateContactResponses, UpdateHopperData, UpdateHopperErrors, UpdateHopperResponses, UpdateItemData, UpdateItemErrors, UpdateItemResponses, UpdateMentionData, UpdateMentionErrors, UpdateMentionResponses, UpdateSettingsData, UpdateSettingsErrors, UpdateSettingsResponses, UpdateSubscriptionData, UpdateSubscriptionErrors, UpdateSubscriptionResponses, UploadMediaData, UploadMediaErrors, UploadMediaResponses, WithdrawItemData, WithdrawItemErrors, WithdrawItemResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -424,6 +424,30 @@ export const resyncSubscription = <ThrowOnError extends boolean = false>(options
     ...options
 });
 
+export const getDictionary = <ThrowOnError extends boolean = false>(options?: Options<GetDictionaryData, ThrowOnError>): RequestResult<GetDictionaryResponses, GetDictionaryErrors, ThrowOnError> => (options?.client ?? client).get<GetDictionaryResponses, GetDictionaryErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/dictionary',
+    ...options
+});
+
+export const putDictionarySource = <ThrowOnError extends boolean = false>(options: Options<PutDictionarySourceData, ThrowOnError>): RequestResult<PutDictionarySourceResponses, PutDictionarySourceErrors, ThrowOnError> => (options.client ?? client).put<PutDictionarySourceResponses, PutDictionarySourceErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/dictionary/{source}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
 export const getShelf = <ThrowOnError extends boolean = false>(options?: Options<GetShelfData, ThrowOnError>): RequestResult<GetShelfResponses, GetShelfErrors, ThrowOnError> => (options?.client ?? client).get<GetShelfResponses, GetShelfErrors, ThrowOnError>({
     security: [{
             in: 'cookie',
@@ -441,6 +465,78 @@ export const putShelf = <ThrowOnError extends boolean = false>(options: Options<
             type: 'apiKey'
         }, { scheme: 'bearer', type: 'http' }],
     url: '/shelf',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const listHelpers = <ThrowOnError extends boolean = false>(options?: Options<ListHelpersData, ThrowOnError>): RequestResult<ListHelpersResponses, ListHelpersErrors, ThrowOnError> => (options?.client ?? client).get<ListHelpersResponses, ListHelpersErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/helpers',
+    ...options
+});
+
+export const catchUp = <ThrowOnError extends boolean = false>(options: Options<CatchUpData, ThrowOnError>): RequestResult<CatchUpResponses, CatchUpErrors, ThrowOnError> => (options.client ?? client).post<CatchUpResponses, CatchUpErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/helpers/catch-up',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const summarizeCatchUp = <ThrowOnError extends boolean = false>(options: Options<SummarizeCatchUpData, ThrowOnError>): RequestResult<SummarizeCatchUpResponses, SummarizeCatchUpErrors, ThrowOnError> => (options.client ?? client).post<SummarizeCatchUpResponses, SummarizeCatchUpErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/helpers/catch-up-summary',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const listAgenticFeeds = <ThrowOnError extends boolean = false>(options?: Options<ListAgenticFeedsData, ThrowOnError>): RequestResult<ListAgenticFeedsResponses, ListAgenticFeedsErrors, ThrowOnError> => (options?.client ?? client).get<ListAgenticFeedsResponses, ListAgenticFeedsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/agentic',
+    ...options
+});
+
+export const getAgentic = <ThrowOnError extends boolean = false>(options: Options<GetAgenticData, ThrowOnError>): RequestResult<GetAgenticResponses, GetAgenticErrors, ThrowOnError> => (options.client ?? client).get<GetAgenticResponses, GetAgenticErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/agentic/{feed}',
+    ...options
+});
+
+export const putAgentic = <ThrowOnError extends boolean = false>(options: Options<PutAgenticData, ThrowOnError>): RequestResult<PutAgenticResponses, PutAgenticErrors, ThrowOnError> => (options.client ?? client).put<PutAgenticResponses, PutAgenticErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/agentic/{feed}',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -1037,6 +1133,32 @@ export const extLineageGlyphListSummaries = <ThrowOnError extends boolean = fals
             type: 'apiKey'
         }, { scheme: 'bearer', type: 'http' }],
     url: '/ext/lineage-glyph/summaries',
+    ...options
+});
+
+/**
+ * Extension "spellcheck". Answers only on a node that compiles the extension in and has enabled it in Settings; otherwise 404.
+ */
+export const extSpellcheckGetWords = <ThrowOnError extends boolean = false>(options?: Options<ExtSpellcheckGetWordsData, ThrowOnError>): RequestResult<ExtSpellcheckGetWordsResponses, ExtSpellcheckGetWordsErrors, ThrowOnError> => (options?.client ?? client).get<ExtSpellcheckGetWordsResponses, ExtSpellcheckGetWordsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/ext/spellcheck/words',
+    ...options
+});
+
+/**
+ * Extension "spellcheck". Answers only on a node that compiles the extension in and has enabled it in Settings; otherwise 404.
+ */
+export const extSpellcheckProofread = <ThrowOnError extends boolean = false>(options: Options<ExtSpellcheckProofreadData, ThrowOnError>): RequestResult<ExtSpellcheckProofreadResponses, ExtSpellcheckProofreadErrors, ThrowOnError> => (options.client ?? client).get<ExtSpellcheckProofreadResponses, ExtSpellcheckProofreadErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'blyg_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/ext/spellcheck/proofread',
     ...options
 });
 

@@ -161,6 +161,25 @@ describe("generated text is not grammar (ROADMAP row 67)", () => {
     const result = await runGenerateScope({ ...env, AI_PROVIDER_KEY: "k" }, item, 0, fetchImpl);
     expect(result).toMatchObject({ ok: true, text: "A fine summary, see" });
     expect((await getItem(env.DB, item.id))!.content_md).toBe(`[TK]summarize ![[${f1}]][=]A fine summary, see[/TK]`);
-    expect(JSON.stringify(calls[0])).toContain("Never write the document's bracket syntax");
+    expect(JSON.stringify(calls[0])).toContain("never invent one");
+  });
+
+  it("keeps a link to an item the author supplied that resolves, and strips an invented one (session 78)", async () => {
+    const cookie = await login();
+    const named = await createAndPublish(cookie, "# The named post\n\nIts body.");
+    const elsewhere = await createAndPublish(cookie, "A post nobody named.");
+    const item = await createDraft(env.DB, `See [[${named}]]. [TK]a sentence linking the post above and https://example.org/x[/TK]`);
+    const { fetchImpl, calls } = fixture(`It builds on [[${named} | the named post]] and [this page](https://example.org/x), not [[${elsewhere} | another]], nor ![[${named}]] inline.`);
+    // The page is read before writing (decision #117); a refusal would stop at the checkpoint.
+    const pageFetch = async (url: string) => ({ ok: true, status: 200, url, headers: new Headers({ "content-type": "text/html" }), text: async () => `<title>X</title><main><p>${"Page words. ".repeat(30)}</p></main>` });
+    const result = await runGenerateScope({ ...env, AI_PROVIDER_KEY: "k" }, item, 0, fetchImpl, undefined, { pageFetch });
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.text).toContain(`[[${named} | the named post]]`);
+    expect(result.text).toContain("[this page](https://example.org/x)");
+    expect(result.text).not.toContain(elsewhere);
+    expect(result.text).toContain("not another");
+    expect(result.text).not.toContain("![[");
+    expect(JSON.stringify(calls[0])).toContain("[[id | text]]");
   });
 });

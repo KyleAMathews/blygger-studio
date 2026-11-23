@@ -159,6 +159,63 @@ test('a failed write rolls the rows back and says so', async ({ page }) => {
   }
 });
 
+test('seen means read: scanning the feed marks what stayed on screen, in one batch', async ({ page }) => {
+  await login(page);
+  await clearAll(page);
+  try {
+    expect((await api(page, 'PATCH', '/settings', { readerMarkRead: 'seen' })).status).toBe(200);
+    // Tall enough that both cards are wholly on screen: after about a second
+    // each, one batched request carries both.
+    await page.setViewportSize({ width: 1280, height: 2000 });
+    const batch = page.waitForRequest((r) => r.method() === 'POST' && r.url().endsWith('/api/reading/read'));
+    await page.goto('/studio/reading?sub=parity-native');
+    await expect(page.locator('.reading-entry')).toHaveCount(2);
+    expect((await batch).postDataJSON().items).toHaveLength(2);
+    await expect(native(page)).not.toHaveAttribute('data-read', 'unread');
+    await expect(retained(page)).not.toHaveAttribute('data-read', 'unread');
+    expect(Object.values(await serverRead(page)).every((v) => v !== null)).toBe(true);
+  } finally {
+    await api(page, 'PATCH', '/settings', { readerMarkRead: 'opened' });
+    await clearAll(page);
+  }
+});
+
+test('seen means read: a card below the fold stays unread until it is scrolled into view', async ({ page }) => {
+  await login(page);
+  await clearAll(page);
+  try {
+    expect((await api(page, 'PATCH', '/settings', { readerMarkRead: 'seen' })).status).toBe(200);
+    // A short window: the second card starts below the fold.
+    await page.setViewportSize({ width: 1280, height: 420 });
+    await page.goto('/studio/reading?sub=parity-native');
+    await expect(page.locator('.reading-entry')).toHaveCount(2);
+    const second = retained(page);
+    expect(await second.evaluate((el) => el.getBoundingClientRect().top >= window.innerHeight * 0.9)).toBe(true);
+    await page.waitForTimeout(4500);
+    await expect(second).toHaveAttribute('data-read', 'unread');
+    await second.scrollIntoViewIfNeeded();
+    await expect(second).not.toHaveAttribute('data-read', 'unread', { timeout: 8000 });
+  } finally {
+    await api(page, 'PATCH', '/settings', { readerMarkRead: 'opened' });
+    await clearAll(page);
+  }
+});
+
+test('the date opens a short entry\u2019s full view and marks it read', async ({ page }) => {
+  await login(page);
+  await clearAll(page);
+  try {
+    await page.goto('/studio/reading?sub=parity-native');
+    const short = retained(page);
+    await expect(short).toHaveAttribute('data-read', 'unread');
+    await short.locator('a.entry-date').click();
+    await expect(page).toHaveURL(new RegExp(`/studio/reading/parity-native/${RETAINED}$`));
+    await expect.poll(async () => (await serverRead(page))[RETAINED]).not.toBeNull();
+  } finally {
+    await clearAll(page);
+  }
+});
+
 test('own items carry no read state and "my blyg" offers no read controls', async ({ page }) => {
   await login(page);
   await page.goto('/studio/reading?sub=own');

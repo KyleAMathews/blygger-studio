@@ -59,6 +59,9 @@ import { Tab, Tabs } from './primitives.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { IconButton, Tooltip } from './primitives.tsx';
 import { shelfLabel, toggleShelf, useShelf } from './shelf.tsx';
+import { SourceName } from './source-name.tsx';
+import { AgenticFeed } from './agentic.tsx';
+import { hasQuotes, openCatchUp } from './catch-up.tsx';
 import { displayUrl, sourceTitleAndUrl } from '../importer/util.ts';
 import { ReaderBody, TrailBar, ownOrigin, useEndTrail, useSubscriptionRows } from './reader-links.tsx';
 import { currentTrail, visit } from './browse.ts';
@@ -208,6 +211,8 @@ interface ReadUi {
   toggle: (key: string) => void;
   /** The owner opened this entry: expanded it or followed it to its origin. */
   opened: (entry: Reading) => void;
+  /** Seen-means-read: a card registers itself here while it is mounted. */
+  watch?: (card: HTMLElement) => () => void;
 }
 const ReadContext = createContext<ReadUi>({
   shown: false,
@@ -585,6 +590,13 @@ function useEntryActions({
           description: url,
           onSelect: openPage,
         },
+        hasQuotes(entry.contentHtml) && (imported || entry.own) && {
+          key: 'catch-up',
+          icon: '⇣',
+          label: 'catch up',
+          description: 'the conversation it carries, oldest first',
+          onSelect: () => void openCatchUp(imported ? imported.subscriptionId : '~own', imported ? imported.remoteId : entry.own!.id),
+        },
         !!imported &&
           !entry.l0 && {
             key: 'history',
@@ -672,24 +684,68 @@ function backgroundLabel(entry: Reading): string | null {
   if (reasons[0] === 'quotes-refreshed') return 'quotes refreshed';
   if (reasons[0] === 'quotes-material') return 'quotes refreshed (rewritten)';
   if (reasons[0] === 'near-same') return 'small edit';
-  if (reasons[0] === 'minor') return typeof detail?.category === 'string' ? `minor change (${detail.category})` : 'minor change';
+  if (reasons[0] === 'minor') {
+    // Own items carry the category at the top (4a); imported ones under `classify` (4b).
+    const classify = detail?.classify as { category?: unknown; instructed?: unknown } | undefined;
+    const category = detail?.category ?? classify?.category;
+    const by = classify?.instructed ? ', by your instruction' : '';
+    return typeof category === 'string' ? `minor change (${category}${by})` : 'minor change';
+  }
   if (reasons[0] === 'superseded') return 'followed within 15 min';
   return null;
 }
 
-/** The byline: kind, legacy rss, source and date, plus the extensions' slot. */
-function Byline({ entry, a, children }: { entry: Reading; a: EntryActions; children?: ReactNode }) {
+/**
+ * A note that claims a small change against a large measured one (Background
+ * 4b under the owner's routing instruction, #96): shown in every lens, since
+ * the entry stays in view because of it.
+ */
+function disagreementLabel(entry: Reading): string | null {
+  const d = (entry.background.detail?.classify as { disagree?: { note?: unknown; changed?: unknown } } | undefined)?.disagree;
+  return d && typeof d.note === 'string' && typeof d.changed === 'number' ? `note says ${d.note} · ${d.changed}% changed` : null;
+}
+
+/**
+ * The byline: kind, legacy rss, source and date, plus the extensions' slot.
+ * With `onOpen`, the date links to the entry's full view, short entries
+ * included (the web's permalink convention, decision #71); opening it marks
+ * the entry read like "more" does.
+ */
+function Byline({ entry, a, onOpen, children }: { entry: Reading; a: EntryActions; onOpen?: () => void; children?: ReactNode }) {
   const settings = useSettings();
   const date = formatDateIn(entry.displayAt, settings?.timezone || 'UTC');
-  const why = useContext(LensContext) === 'background' ? backgroundLabel(entry) : null;
+  const inBackground = useContext(LensContext) === 'background';
+  const lensSearch = useLensSearch();
+  const why = inBackground ? backgroundLabel(entry) : disagreementLabel(entry);
   return (
     <p className="byline">
       {children}
       <span className="badge">{entry.kind}</span>
       {entry.l0 ? <span className="badge badge-line">legacy rss</span> : null}
-      {why ? <span className="badge badge-line badge-why" title="why this is in Background">{why}</span> : null}
-      <span className="src">{a.imported?.subscriptionTitle || 'you'}</span>
-      <span>· {date}</span>
+      {why ? <span className="badge badge-line badge-why" title={inBackground ? 'why this is in Background' : 'kept in view: the note claims a smaller change than was made'}>{why}</span> : null}
+      <SourceName entry={entry} lens={lensSearch} />
+      <span>
+        ·{' '}
+        {onOpen ? (
+          <Link
+            className="entry-date"
+            to="/reading/$sub/$id"
+            params={articleParams(entry)}
+            title="open this entry"
+            // Not draggable, like SourceName: a mouse swipe starts from the byline (swipe.ts).
+            draggable={false}
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+              event.preventDefault();
+              onOpen();
+            }}
+          >
+            {date}
+          </Link>
+        ) : (
+          date
+        )}
+      </span>
       <EntryBylineSlot extensions={a.extensions} context={a.extensionContext} />
     </p>
   );
@@ -846,6 +902,7 @@ function Entry({
         </div>
       ) : null}
       <article
+        ref={imported && readUi.watch ? readUi.watch : undefined}
         className={`entry reading-entry${status ? ` is-${status}` : ''}`}
         data-key={entry.key}
         data-read={status ?? undefined}
@@ -857,7 +914,7 @@ function Entry({
             if ((event.target as Element).closest('.entry-title a, a.entry-src')) opened();
           }}
         >
-          <Byline entry={entry} a={a}>
+          <Byline entry={entry} a={a} onOpen={openArticle}>
             {readUi.selecting && imported ? (
               <label className="entry-select">
                 <input
@@ -1199,10 +1256,11 @@ function Article({ entry, actions, origin }: { entry: Reading; actions: Actions;
   // Opening the full view is opening the entry: mark it read once, at the
   // version held here, as expanding a card did (0.39.0).
   const marked = useRef<string | null>(null);
+  const markRead = useSettings()?.readerMarkRead ?? 'seen';
   useEffect(() => {
     if (marked.current === entry.key) return;
     marked.current = entry.key;
-    if (!needsRead(readStatus(entry.imported))) return;
+    if (markRead === 'never' || !needsRead(readStatus(entry.imported))) return;
     // A row reading holds is marked through it (every view updates at once);
     // one fetched by its address has no row to change, so it is written direct.
     const write = reading.toArray.some((row) => row.key === entry.key)
@@ -1540,6 +1598,8 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
   const navigate = useNavigate();
   const bar = useRef<HTMLDivElement>(null);
   const tab = isFeed(lens) ? 'all' : lens;
+  // The owner names the Agentic feed tab (session 77): "Daily digest", "My briefing".
+  const agenticTitle = useSettings()?.agenticTitle || LENS_LABELS.agentic;
   // On a phone the bar scrolls sideways; keep the chosen tab in view.
   useEffect(() => {
     const el = bar.current?.querySelector<HTMLElement>('[aria-checked=true]');
@@ -1569,7 +1629,7 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
             value={value}
             onClick={() => go(value)}
           >
-            {LENS_LABELS[value]}
+            {value === 'agentic' ? agenticTitle : LENS_LABELS[value]}
           </Toggle>
         ))}
       </ToggleGroup>
@@ -1940,6 +2000,71 @@ function ReadingHead({
     </>
   );
 }
+/** How long an entry stays on screen before scanning it counts as reading it. */
+const SEEN_MS = 1000;
+/** Seen marks wait this long to go out together: one request for a screenful. */
+const SEEN_FLUSH_MS = 3000;
+/**
+ * "Seen means read" (session 79): an imported entry counts as read once its
+ * card, or as much of it as fits the screen, has been visible for SEEN_MS.
+ * Short entries are covered, which opening never could. Each card registers
+ * itself through `watch` as it mounts, so a remounted list is still seen.
+ * Marks are batched and flushed every SEEN_FLUSH_MS and when the page hides.
+ */
+function useSeenMarks(entries: Reading[], enabled: boolean): ((card: HTMLElement) => () => void) | undefined {
+  const byKey = useRef(new Map<string, Reading>());
+  byKey.current = new Map(entries.map((entry) => [entry.key, entry]));
+  const [tracker, setTracker] = useState<{ observer: IntersectionObserver } | null>(null);
+  useEffect(() => {
+    if (!enabled || typeof IntersectionObserver === 'undefined') return;
+    const timers = new Map<string, ReturnType<typeof setTimeout>>();
+    const pending = new Map<string, Reading>();
+    const done = new Set<string>();
+    const flush = () => {
+      if (!pending.size) return;
+      const batch = [...pending.values()].filter((entry) => needsRead(readStatus(entry.imported)));
+      pending.clear();
+      if (batch.length) void markEntries(batch, true).catch(() => undefined);
+    };
+    const interval = setInterval(flush, SEEN_FLUSH_MS);
+    const hidden = () => { if (document.visibilityState === 'hidden') flush(); };
+    document.addEventListener('visibilitychange', hidden);
+    window.addEventListener('pagehide', flush);
+    const observer = new IntersectionObserver((seen) => {
+      for (const sight of seen) {
+        const key = (sight.target as HTMLElement).dataset.key ?? '';
+        const box = sight.boundingClientRect;
+        // The whole card, or a tall card filling most of the screen.
+        const visible = sight.isIntersecting && (sight.intersectionRatio >= 0.99 || sight.intersectionRect.height >= Math.min(box.height, window.innerHeight) * 0.6);
+        if (visible && !timers.has(key) && !done.has(key)) {
+          timers.set(key, setTimeout(() => {
+            timers.delete(key);
+            done.add(key);
+            const entry = byKey.current.get(key);
+            if (entry?.imported && needsRead(readStatus(entry.imported))) pending.set(key, entry);
+          }, SEEN_MS));
+        } else if (!visible && timers.has(key)) {
+          clearTimeout(timers.get(key));
+          timers.delete(key);
+        }
+      }
+    }, { threshold: [0, 0.25, 0.5, 0.6, 0.75, 0.99, 1] });
+    setTracker({ observer });
+    return () => {
+      setTracker(null);
+      observer.disconnect();
+      for (const timer of timers.values()) clearTimeout(timer);
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', hidden);
+      window.removeEventListener('pagehide', flush);
+      flush();
+    };
+  }, [enabled]);
+  return useMemo(() => tracker ? (card: HTMLElement) => {
+    tracker.observer.observe(card);
+    return () => tracker.observer.unobserve(card);
+  } : undefined, [tracker]);
+}
 /**
  * Read state on a timeline: unread dots, mark-read-on-open, select mode with
  * mark read / mark unread for the ticked rows, and "mark all read" for the
@@ -1947,6 +2072,8 @@ function ReadingHead({
  * on screen, sent in batches of at most 500.
  */
 function useReadSelection(key: string, offset: number, entries: Reading[], actions: Actions, title: string, lens: Lens) {
+  const markRead = useSettings()?.readerMarkRead ?? 'seen';
+  const watch = useSeenMarks(entries, markRead === 'seen');
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   // A selection belongs to the rows on screen; a new page or view starts clean.
@@ -1967,10 +2094,11 @@ function useReadSelection(key: string, offset: number, entries: Reading[], actio
           return next;
         }),
       opened: (entry) => {
-        if (needsRead(readStatus(entry.imported))) void actions.run(() => markEntries([entry], true));
+        if (markRead !== 'never' && needsRead(readStatus(entry.imported))) void actions.run(() => markEntries([entry], true));
       },
+      watch,
     }),
-    [selecting, picked, key, actions],
+    [selecting, picked, key, actions, markRead, watch],
   );
   const importedRows = entries.filter((entry) => entry.imported);
   const apply = (read: boolean) => {
@@ -2041,7 +2169,7 @@ function useReadSelection(key: string, offset: number, entries: Reading[], actio
   ) : null;
   return { ui, button, bar };
 }
-function Timeline({ sub, offset }: { sub: string; offset: number }) {
+function Timeline({ sub, offset, from }: { sub: string; offset: number; from?: 'feed' }) {
   const lensSearch = useLensSearch();
   useChrome({ framed: false, wide: false });
   const actions = useReadingActions();
@@ -2065,8 +2193,22 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
   const readable = sub !== 'own' && !isPlaceholder(lens);
   useReturnPoint(!!entries.data?.length);
   const read = useReadSelection(key, offset, entries.data ?? [], actions, title, lens);
+  // One source's view leads back where it was opened from: the main feed when
+  // reached from an entry's source name (from=feed), else the Sources tab.
+  const single = sub === 'own' || !!selected;
   return (
     <ReadContext.Provider value={read.ui}>
+      {single ? (
+        from === 'feed' ? (
+          <Link className="back-link" to="/reading" search={lensSearch}>
+            ← main feed
+          </Link>
+        ) : (
+          <Link className="back-link" to="/reading" search={{ view: 'sources', ...lensSearch }}>
+            ← sources
+          </Link>
+        )
+      ) : null}
       <ReadingHead title={title} count={lens === 'mentions' ? undefined : metadata?.total}>
         {readable ? read.button : null}
         {selected ? (
@@ -2086,7 +2228,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
         </div>
       ) : null}
       {isPlaceholder(lens) ? (
-        <LensPlaceholder />
+        <AgenticFeed />
       ) : (
         <>
           {lens === 'background' ? <p className="view-sub">{BACKGROUND_NOTE}</p> : null}
@@ -2108,7 +2250,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
             go={(next) =>
               void actions.navigate({
                 to: '/reading',
-                search: { sub, offset: next, ...lensSearch },
+                search: { sub, offset: next, ...lensSearch, ...(from ? { from } : {}) },
               })
             }
           />
@@ -2249,6 +2391,7 @@ export function ReadingPage({
   lens = 'all',
   view,
   q,
+  from,
 }: {
   sub?: string;
   hopper?: string;
@@ -2256,6 +2399,7 @@ export function ReadingPage({
   lens?: Lens;
   view?: 'sources';
   q?: string;
+  from?: 'feed';
 }) {
   // A timeline or source list is where a walk through the thicket ends.
   useEndTrail();
@@ -2274,7 +2418,7 @@ export function ReadingPage({
       ) : hopper ? (
         <HopperTimeline id={hopper} offset={offset ?? 0} />
       ) : (
-        <Timeline sub={sub ?? 'all'} offset={offset ?? 0} />
+        <Timeline sub={sub ?? 'all'} offset={offset ?? 0} from={from} />
       )}
     </LensContext.Provider>
   );

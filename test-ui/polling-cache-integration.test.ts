@@ -49,7 +49,7 @@ async function resourceQuery<T>(context: Context, domains: keyof OracleToken['do
   const body = await response.json() as { fixture: T };
   return { data: body.fixture, validator: response.headers.get('etag') };
 }
-const token = (revision = 0, epoch = 'e'): OracleToken => ({ epoch, domains: { items: revision, reading: revision, subscriptions: revision, hoppers: revision, signals: revision, settings: revision, feed: revision, mentions: revision, responses: revision, interactions: revision, browse: revision, shelf: revision } });
+const token = (revision = 0, epoch = 'e'): OracleToken => ({ epoch, domains: { items: revision, reading: revision, subscriptions: revision, hoppers: revision, signals: revision, settings: revision, feed: revision, mentions: revision, responses: revision, interactions: revision, browse: revision, shelf: revision, marks: revision } });
 const makeClient = () => new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
 function rowsCollection(client: QueryClient, read: QueryFunction<OracleToken>, load: QueryFunction<{ id: string; revision: number }[]>) {

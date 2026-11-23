@@ -15,19 +15,25 @@ export function compareVersions(a: SemVer, b: SemVer): number {
 }
 
 /**
- * The highest version named anywhere in a release feed.
+ * The highest release version a release feed names.
  *
  * Deliberately not "the first entry". Feed order is the publisher's choice, and
  * a re-published or back-dated release would put an old version on top; taking
- * the maximum cannot be fooled that way. Scans the whole document rather than
- * parsing Atom structurally, because every shape GitHub uses — entry titles,
- * `<id>` URNs, tag hrefs — carries the version, and the one thing we need is
- * the one thing all of them agree on.
+ * the maximum cannot be fooled that way.
+ *
+ * Only where the feed names a release: a tag link (`/releases/tag/v0.68.0`), an
+ * entry id ending in the tag (GitHub's `tag:github.com,2008:Repository/…/v0.68.0`),
+ * or an entry title that begins with the version. Never the release notes: they
+ * name other versions (the API contract's 6.0.0, a dependency's 4.13.18), and
+ * scanning them made every Studio from 0.67.0 on think "6.0.0" was out
+ * (session 78).
  */
 export function latestInFeed(feedXml: string): SemVer | null {
   let best: SemVer | null = null;
-  for (const m of feedXml.matchAll(/\bv?(\d+\.\d+\.\d+)\b/g)) {
-    const v = parseVersion(m[1]);
+  const named = /\/releases\/tag\/v?(\d+\.\d+\.\d+)\b|<id>[^<]*\/v?(\d+\.\d+\.\d+)\s*<\/id>|<title>\s*v?(\d+\.\d+\.\d+)\b/g;
+  for (const match of feedXml.matchAll(named)) {
+    const raw = match[1] ?? match[2] ?? match[3];
+    const v = raw ? parseVersion(raw) : null;
     if (v && (!best || compareVersions(v, best) > 0)) best = v;
   }
   return best;

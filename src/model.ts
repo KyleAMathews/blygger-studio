@@ -143,6 +143,7 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     ai_model_tk: map.ai_model_tk ?? map.ai_model ?? "",
     ai_model_changelog: map.ai_model_changelog ?? map.ai_model ?? "",
     ai_model_feed: map.ai_model_feed ?? "",
+    ai_model_helpers: map.ai_model_helpers ?? "",
     // Off by default: an empty model is no classifier (session 49).
     ai_model_classify: map.ai_model_classify ?? "",
     change_category_in_note: map.change_category_in_note !== "off",
@@ -156,6 +157,10 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     bg_rules: parseBackgroundRules(map.bg_rules),
     // Pace-layered unless the owner switched the Feed tab to chronological (Venkat, session 77).
     reader_order: map.reader_order === "newest" ? "newest" : "pace-layered",
+    // Seen counts as read unless the owner chose otherwise (session 79).
+    reader_mark_read: map.reader_mark_read === "opened" || map.reader_mark_read === "never" ? map.reader_mark_read : "seen",
+    // The owner may call the tab anything: "Daily digest", "My briefing" (Venkat, session 77).
+    agentic_title: map.agentic_title?.trim() || "Agentic feed",
     // Default on: an existing deployment's behaviour must not change under it.
     accept_mentions: map.accept_mentions !== "off",
     // On by default (Venkat, session 28). The argument for off was that a
@@ -183,6 +188,10 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     links_blygger_com: map.links_blygger_com !== "off",
     // Off by default (spec 0.4 §13.5, decision #86): publishing hopper feeds is opt-in.
     hopper_feeds: map.hopper_feeds === "on",
+    bg_model_imported: map.bg_model_imported === "on",
+    bg_instruction: map.bg_instruction ?? "",
+    bg_flag_disagreement: map.bg_flag_disagreement !== "off",
+    studio_theme: map.studio_theme ?? "",
     update_check: map.update_check !== "off",
     update_feed_url: map.update_feed_url ?? "",
     /** Cleared until the operator has seen the "alerts are on" notice once. */

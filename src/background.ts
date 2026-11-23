@@ -288,7 +288,7 @@ export async function settleOwnBackground(db: D1Database, itemId: string, versio
 const MAINTENANCE_REASONS: ReadonlySet<string> = new Set(["maintenance", "quotes-refreshed", "quotes-material", "near-same"]);
 
 /** What the importer held of an item before a new version replaced it. */
-export interface HeldVersion extends Measured { links?: string | null }
+export interface HeldVersion extends Measured { links?: string | null; version?: number | null }
 
 /**
  * An imported version's reasons (plan §2, at import): its own measured reasons,

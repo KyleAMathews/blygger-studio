@@ -9,10 +9,10 @@
 // Raw is the imported entries as they came, with nothing moved or folded.
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
-import { putSettings } from "../src/model.ts";
+import { createDraft, putSettings, saveWorkingCopy } from "../src/model.ts";
 import { applyEffect, createSubscription } from "../src/importer/store.ts";
 import { transition, type LocalState } from "../src/importer/transition.ts";
-import { importedVersions, readerPositions, READER_ORDER_WINDOW } from "../src/feeds/reader-order.ts";
+import { ensureReaderOrder, importedVersions, readerPositions, READER_ORDER_WINDOW } from "../src/feeds/reader-order.ts";
 import type { FeedHistoryItem } from "../src/feeds/types.ts";
 import { newId } from "../src/util.ts";
 import { itemDocBody } from "./importer/fixtures.ts";
@@ -147,6 +147,72 @@ describe("the reading API", () => {
     expect(second.items[0]!.key).not.toBe(first.items[0]!.key);
     await arrive(b, { id: newId(), created: at(1) }, "https://other-paced.example/");
     expect((await apiJson(cookie, "GET", `/blyg/api/reading?limit=1&sub=all&cursor=${second.page.nextCursor}`)).status).toBe(409);
+  });
+
+  it("is rebuilt when an input changes, not on a poll, an autosave or a read mark (session 79)", async () => {
+    const cookie = await login();
+    const sub = await subscription("https://inputs.example/");
+    const first = newId();
+    await arrive(sub, { id: first, created: at(50) }, "https://inputs.example/");
+    await ensureReaderOrder(db());
+    const built = async () => (await db().prepare("SELECT generation FROM reading_order_state WHERE id = 1").first<{ generation: string }>())!.generation;
+    const stamp = await built();
+    // A sentinel row a rebuild would delete: it survives exactly when nothing was rebuilt.
+    const sentinel = () => db().prepare("SELECT 1 AS ok FROM reading_order WHERE id = 'sentinel'").first();
+    await db().prepare("INSERT INTO reading_order (source, sub, id, position) VALUES ('own', '', 'sentinel', 999999)").run();
+
+    // A poll that found nothing, a draft autosave and a read mark.
+    await db().prepare("UPDATE subscriptions SET last_poll_at = ?, etag = 'W/\"x\"', fail_count = 0 WHERE id = ?").bind(new Date().toISOString(), sub).run();
+    const draft = await createDraft(db(), "typing");
+    await saveWorkingCopy(db(), draft.id, "typing more");
+    expect((await apiJson(cookie, "PUT", `/blyg/api/reading/${sub}/${first}/read`, { version: 1 })).status).toBeLessThan(300);
+    await ensureReaderOrder(db());
+    expect(await built()).toBe(stamp);
+    expect(await sentinel()).toBeTruthy();
+
+    // A new import is an input.
+    await arrive(sub, { id: newId(), created: at(1) }, "https://inputs.example/");
+    await ensureReaderOrder(db());
+    expect(await built()).not.toBe(stamp);
+    expect(await sentinel()).toBeNull();
+  });
+
+  it("leaves out imports whose subscription is gone: no empty pages, no count (session 79)", async () => {
+    const cookie = await login();
+    const sub = await subscription("https://held.example/");
+    const kept = newId();
+    await arrive(sub, { id: kept, created: at(30) }, "https://held.example/");
+    // Rows an old unsubscribe left behind: no subscription, so no position and no projection.
+    const orphans = Array.from({ length: 3 }, () => newId());
+    for (const id of orphans) await db().prepare("INSERT INTO imported_items (subscription_id, remote_id, kind, state, version, observed_at, content_md, content_html, l0) VALUES ('gone-sub', ?, 'fragment', 'current', 1, ?, 'x', '<p>x</p>', 0)").bind(id, at(1)).run();
+    for (const order of ["pace-layered", "newest"]) {
+      const first = await page(cookie, `limit=1&sub=all&order=${order}`);
+      expect(first.items).toHaveLength(1);
+      expect(first.items[0]!.key).not.toContain("gone-sub");
+    }
+    const summary = (await apiJson(cookie, "GET", "/blyg/api/reading/summary?sub=all")).json as { counts: { subscriptions: Record<string, number> } };
+    expect(summary.counts.subscriptions["gone-sub"]).toBeUndefined();
+    const raw = await page(cookie, "limit=50&sub=all&raw=true");
+    expect(raw.items.some((e) => e.key.includes("gone-sub"))).toBe(false);
+    await db().prepare("DELETE FROM imported_items WHERE subscription_id = 'gone-sub'").run();
+  });
+
+  it("a read mark between two pages leaves the cursor valid (session 79)", async () => {
+    const cookie = await login();
+    await putSettings(db(), { bg_rules: JSON.stringify({ superseded: false, "near-same": false }) });
+    const sub = await subscription("https://marks.example/");
+    const [a, b] = [newId(), newId()];
+    await arrive(sub, { id: a, created: at(20) }, "https://marks.example/");
+    await arrive(sub, { id: b, created: at(10) }, "https://marks.example/");
+    for (const order of ["newest", "pace-layered"]) {
+      const first = await page(cookie, `limit=1&sub=${sub}&order=${order}`);
+      expect(first.page.nextCursor).toBeTruthy();
+      // Scanning marks what was seen while the next page is still to come.
+      expect((await apiJson(cookie, "PUT", `/blyg/api/reading/${sub}/${order === "newest" ? b : a}/read`, { version: 1 })).status).toBeLessThan(300);
+      const res = await apiJson(cookie, "GET", `/blyg/api/reading?limit=1&sub=${sub}&order=${order}&cursor=${first.page.nextCursor}`);
+      expect(res.status).toBe(200);
+      await apiJson(cookie, "DELETE", `/blyg/api/reading/${sub}/${order === "newest" ? b : a}/read`);
+    }
   });
 
   it("Raw lists what came in, newest first, with nothing moved to Background or folded", async () => {

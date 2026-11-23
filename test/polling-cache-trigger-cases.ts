@@ -1,5 +1,6 @@
 /** Handwritten receiving witnesses for the SQLite prototype's nine-table event
- * envelope, plus read_state (migration 0026: Reading carries readVersion) and
+ * envelope, plus read_state (migration 0026: Reading carries readVersion; since
+ * 0057 its own `marks` domain, so a read mark never expires a Reading cursor) and
  * mentions_in/mentions_out (0032: the mentions and responses domains).
  * These expected domains come from response dependencies, not the production
  * trigger generator. Working-copy edits deliberately exclude Reading.
@@ -14,7 +15,7 @@ export const triggerFamilies = [
   { table: 'hoppers', insert: "INSERT INTO hoppers(id,name,created) VALUES('matrix-hopper','name','t')", update: "UPDATE hoppers SET description='description' WHERE id='matrix-hopper'", remove: "DELETE FROM hoppers WHERE id='matrix-hopper'", domains: ['hoppers'] },
   { table: 'hopper_items', insert: "INSERT INTO hopper_items(hopper_id,subscription_id,remote_id,added_at) VALUES('matrix-hopper','matrix-sub','matrix-remote','t')", update: "UPDATE hopper_items SET added_at='later' WHERE hopper_id='matrix-hopper'", remove: "DELETE FROM hopper_items WHERE hopper_id='matrix-hopper'", domains: ['hoppers'] },
   { table: 'signals', insert: "INSERT INTO signals(subscription_id,remote_id,thumb,at) VALUES('matrix-sub','matrix-remote',1,'t')", update: "UPDATE signals SET thumb=-1 WHERE subscription_id='matrix-sub'", remove: "DELETE FROM signals WHERE subscription_id='matrix-sub'", domains: ['signals'] },
-  { table: 'read_state', insert: "INSERT INTO read_state(subscription_id,remote_id,read_version,updated) VALUES('matrix-sub','matrix-remote',1,'t')", update: "UPDATE read_state SET read_version=2,updated='later' WHERE subscription_id='matrix-sub'", remove: "DELETE FROM read_state WHERE subscription_id='matrix-sub'", domains: ['reading'] },
+  { table: 'read_state', insert: "INSERT INTO read_state(subscription_id,remote_id,read_version,updated) VALUES('matrix-sub','matrix-remote',1,'t')", update: "UPDATE read_state SET read_version=2,updated='later' WHERE subscription_id='matrix-sub'", remove: "DELETE FROM read_state WHERE subscription_id='matrix-sub'", domains: ['marks'] },
   // 0032: a verified, unhidden inbound row is on both the Studio list and the
   // public responses list; an outbound row is on the Studio list only. The
   // status-dependent branches have their own receiving witness in the oracle.
@@ -37,7 +38,7 @@ export const triggerFields = [
   ...['created','updated','forked_from','fork_cite','id','kind','version'].map(field => ({ family: 0, field, value: field === 'kind' ? 'thread' : field === 'version' ? 2 : field === 'id' ? 'renamed' : 'changed', domains: ['items','reading','feed'] })),
   ...['id','origin','title'].map(field => ({ family: 4, field, value: 'changed', domains: ['subscriptions','reading','hoppers','feed'] })),
   // A clear's tombstone alone (0026) is a Reading change: it decides whether a later read applies.
-  { family: 9, field: 'unread_at', value: 'later', domains: ['reading'] },
+  { family: 9, field: 'unread_at', value: 'later', domains: ['marks'] },
   ...['subscription_id','remote_id','kind','page'].map(field => ({ family: 5, field, value: field === 'kind' ? 'thread' : 'changed', domains: ['reading','hoppers','feed'] })),
   // Every column of a listed, public inbound row is on both lists' side of the guard.
   ...['source','target','target_item_id','relation','source_origin','source_id','source_kind','source_page','source_author_json','first_seen','last_seen','verified_at','error','id'].map(field => ({ family: 10, field, value: 'changed', domains: ['mentions','responses'] })),

@@ -85,12 +85,18 @@ export const zVersionReference = z.object({
     cited: zCitation.optional()
 }).strict();
 
-export const zGenerationSource = z.object({
-    id: z.string(),
-    version: z.int().gt(0),
-    origin: z.string().optional(),
-    cited: zCitation.optional()
-});
+export const zGenerationSource = z.union([
+    z.object({
+        id: z.string(),
+        version: z.int().gt(0),
+        origin: z.string().optional(),
+        cited: zCitation.optional()
+    }),
+    z.object({
+        url: z.url(),
+        cited: zCitation
+    }).strict()
+]);
 
 export const zGenerationProvenance = z.object({
     sources: z.array(zGenerationSource),
@@ -159,6 +165,7 @@ export const zCustomTheme = z.object({
 export const zSettings = z.object({
     siteTitle: z.string(),
     theme: z.string(),
+    studioTheme: z.string(),
     customTheme: zCustomTheme.nullable(),
     customThemeDark: zCustomTheme.nullable(),
     customThemeName: z.string(),
@@ -177,6 +184,7 @@ export const zSettings = z.object({
     aiModelTk: z.string(),
     aiModelChangelog: z.string(),
     aiModelFeed: z.string(),
+    aiModelHelpers: z.string(),
     aiModelClassify: z.string(),
     changeCategoryInNote: z.boolean(),
     feedPrompt: z.string(),
@@ -192,6 +200,12 @@ export const zSettings = z.object({
         'summary'
     ]),
     changelogSummaryPrompt: z.string(),
+    agenticTitle: z.string(),
+    readerMarkRead: z.enum([
+        'seen',
+        'opened',
+        'never'
+    ]),
     readerOrder: z.enum(['newest', 'pace-layered']),
     backgroundRules: z.object({
         burst: z.boolean(),
@@ -230,6 +244,9 @@ export const zSettings = z.object({
     linksOpml: z.boolean(),
     linksBlyggerOrg: z.boolean(),
     linksBlyggerCom: z.boolean(),
+    bgFlagDisagreement: z.boolean(),
+    bgInstruction: z.string(),
+    bgModelImported: z.boolean(),
     hopperFeeds: z.boolean(),
     setup: z.enum([
         'pending',
@@ -274,6 +291,16 @@ export const zSubscription = z.object({
     hopperFeedUrl: z.string().nullable()
 });
 
+export const zDictionarySource = z.object({
+    source: z.string(),
+    words: z.array(z.string())
+});
+
+export const zDictionary = z.object({
+    sources: z.array(zDictionarySource),
+    revision: z.int().gte(0)
+});
+
 export const zShelfEntry = z.object({
     sub: z.string().min(1).max(128),
     remoteId: z.string().min(1).max(256)
@@ -283,6 +310,165 @@ export const zShelf = z.object({
     entries: z.array(zShelfEntry),
     revision: z.int().gte(0)
 });
+
+export const zCatchUp = z.object({
+    ordered: z.enum(['time', 'depth']),
+    cards: z.array(z.object({
+        id: z.string(),
+        origin: z.string(),
+        sub: z.string().nullable(),
+        version: z.int().nullable(),
+        source: z.string(),
+        at: z.string().nullable(),
+        depth: z.int().gte(0),
+        partial: z.boolean(),
+        label: z.string().nullable(),
+        html: z.string()
+    }))
+});
+
+export const zCatchUpSummary = z.object({
+    summary: z.string(),
+    model: z.string(),
+    at: z.string(),
+    sources: z.array(z.object({
+        id: z.string(),
+        version: z.int().nullable(),
+        origin: z.string().optional()
+    })),
+    cached: z.boolean()
+});
+
+/**
+ * Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read.
+ */
+export const zEntryBackground = z.object({
+    reasons: z.array(z.string()),
+    placement: z.enum(['background', 'foreground']).nullable(),
+    blyg: z.boolean(),
+    detail: z.record(z.string(), z.unknown()).optional()
+});
+
+/**
+ * The reading entry the reference resolves to, as GET /reading returns it.
+ */
+export const zReadingEntry = z.object({
+    key: z.string(),
+    source: z.enum(['own', 'imported']),
+    kind: z.enum(['fragment', 'thread']),
+    withdrawn: z.boolean(),
+    l0: z.boolean(),
+    contentHtml: z.string(),
+    displayAt: z.string(),
+    own: z.object({
+        id: z.string(),
+        kind: z.enum(['fragment', 'thread']),
+        withdrawn: z.boolean(),
+        updated: z.string(),
+        contentHtml: z.string()
+    }).optional(),
+    imported: z.object({
+        subscriptionId: z.string(),
+        subscriptionTitle: z.string(),
+        remoteId: z.string(),
+        kind: z.enum(['fragment', 'thread']),
+        withdrawn: z.boolean(),
+        l0: z.boolean(),
+        updated: z.string().nullable(),
+        observedAt: z.string(),
+        contentHtml: z.string(),
+        pinnedVersionRetained: z.number().nullable(),
+        sourceUrl: z.string().nullable(),
+        version: z.int(),
+        readVersion: z.int().nullable(),
+        syndication: z.array(zSyndicationEntry).optional()
+    }).optional(),
+    background: zEntryBackground,
+    parts: z.array(z.object({
+        sub: z.string(),
+        id: z.string(),
+        label: z.string()
+    })).optional()
+});
+
+export const zAgenticEntry = z.object({
+    sub: z.string().min(1).max(128),
+    remoteId: z.string().min(1).max(256),
+    version: z.int().gt(0).optional(),
+    headline: z.string().min(1).max(200).optional(),
+    summary: z.string().min(1).max(2000).optional(),
+    reason: z.string().min(1).max(500).optional(),
+    present: z.enum([
+        'full',
+        'excerpt',
+        'title',
+        'folded'
+    ]).optional(),
+    group: z.string().min(1).max(60).optional()
+}).strict();
+
+export const zAgenticResolvedEntry = zAgenticEntry.and(z.object({
+    entry: zReadingEntry
+}).strict());
+
+export const zAgenticEdition = z.object({
+    revision: z.int().gte(0),
+    updatedAt: z.string().nullable(),
+    mode: z.enum(['sections', 'scores']).nullable(),
+    edition: z.unknown().optional(),
+    layout: z.object({
+        title: z.string().nullable(),
+        lede: z.string().nullable(),
+        agent: z.object({
+            name: z.string(),
+            model: z.string().optional()
+        }),
+        generatedAt: z.string().nullable(),
+        sections: z.array(z.object({
+            title: z.string(),
+            kind: z.enum([
+                'lead',
+                'section',
+                'briefs'
+            ]),
+            note: z.string().nullable(),
+            entries: z.array(zAgenticResolvedEntry)
+        }))
+    }).nullable(),
+    draft: z.object({
+        id: z.string()
+    }).nullable()
+});
+
+export const zAgenticSection = z.object({
+    title: z.string().min(1).max(200),
+    kind: z.enum([
+        'lead',
+        'section',
+        'briefs'
+    ]).optional(),
+    note: z.string().min(1).max(4000).optional(),
+    entries: z.array(zAgenticEntry).max(50)
+}).strict();
+
+export const zAgenticScore = z.object({
+    sub: z.string().min(1).max(128),
+    remoteId: z.string().min(1).max(256),
+    score: z.number(),
+    reason: z.string().min(1).max(500).optional()
+}).strict();
+
+export const zAgenticEditionInput = z.object({
+    title: z.string().min(1).max(200).optional(),
+    lede: z.string().min(1).max(4000).optional(),
+    agent: z.object({
+        name: z.string().min(1).max(80),
+        model: z.string().min(1).max(120).optional()
+    }).strict(),
+    generatedAt: z.iso.datetime().optional(),
+    sections: z.array(zAgenticSection).min(1).max(20).optional(),
+    scores: z.array(zAgenticScore).min(1).max(500).optional()
+}).strict();
 
 export const zContact = z.object({
     id: z.string(),
@@ -532,55 +718,6 @@ export const zMentionGroup = z.object({
     firstId: z.string()
 });
 
-/**
- * Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read.
- */
-export const zEntryBackground = z.object({
-    reasons: z.array(z.string()),
-    placement: z.enum(['background', 'foreground']).nullable(),
-    blyg: z.boolean(),
-    detail: z.record(z.string(), z.unknown()).optional()
-});
-
-export const zReadingEntry = z.object({
-    key: z.string(),
-    source: z.enum(['own', 'imported']),
-    kind: z.enum(['fragment', 'thread']),
-    withdrawn: z.boolean(),
-    l0: z.boolean(),
-    contentHtml: z.string(),
-    displayAt: z.string(),
-    own: z.object({
-        id: z.string(),
-        kind: z.enum(['fragment', 'thread']),
-        withdrawn: z.boolean(),
-        updated: z.string(),
-        contentHtml: z.string()
-    }).optional(),
-    imported: z.object({
-        subscriptionId: z.string(),
-        subscriptionTitle: z.string(),
-        remoteId: z.string(),
-        kind: z.enum(['fragment', 'thread']),
-        withdrawn: z.boolean(),
-        l0: z.boolean(),
-        updated: z.string().nullable(),
-        observedAt: z.string(),
-        contentHtml: z.string(),
-        pinnedVersionRetained: z.number().nullable(),
-        sourceUrl: z.string().nullable(),
-        version: z.int(),
-        readVersion: z.int().nullable(),
-        syndication: z.array(zSyndicationEntry).optional()
-    }).optional(),
-    background: zEntryBackground,
-    parts: z.array(z.object({
-        sub: z.string(),
-        id: z.string(),
-        label: z.string()
-    })).optional()
-});
-
 export const zImportedReadingEntry = z.object({
     subscriptionId: z.string(),
     subscriptionTitle: z.string(),
@@ -726,6 +863,12 @@ export const zLineageGlyphSummary = z.object({
         transclusion: z.int().gte(0),
         fork: z.int().gte(0)
     })
+});
+
+export const zSpellcheckIssue = z.object({
+    find: z.string(),
+    replace: z.string(),
+    why: z.string()
 });
 
 export const zWordCount = z.object({
@@ -1111,7 +1254,8 @@ export const zSummarizeChangelogResponse = z.object({
 
 export const zGenerateItemBody = z.object({
     expectedRevision: z.int().gt(0).lte(9007199254740991),
-    scope: z.int().gte(0)
+    scope: z.int().gte(0),
+    proceed: z.boolean().optional()
 }).strict();
 
 export const zGenerateItemPath = z.object({
@@ -1121,12 +1265,24 @@ export const zGenerateItemPath = z.object({
 /**
  * Success
  */
-export const zGenerateItemResponse = z.object({
-    text: z.string(),
-    model: z.string(),
-    contentMd: z.string(),
-    revision: z.int().gt(0).lte(9007199254740991)
-});
+export const zGenerateItemResponse = z.union([
+    z.object({
+        text: z.string(),
+        model: z.string(),
+        contentMd: z.string(),
+        revision: z.int().gt(0).lte(9007199254740991)
+    }),
+    z.object({
+        checkpoint: z.object({
+            read: z.int(),
+            total: z.int(),
+            failed: z.array(z.object({
+                link: z.string(),
+                reason: z.string()
+            }))
+        })
+    })
+]);
 
 export const zWithdrawItemBody = z.object({
     expectedRevision: z.int().gt(0).lte(9007199254740991),
@@ -1264,6 +1420,7 @@ export const zGetSettingsResponse = zSettings;
 export const zUpdateSettingsBody = z.object({
     siteTitle: z.string().optional(),
     theme: z.string().optional(),
+    studioTheme: z.string().optional(),
     customTheme: zCustomTheme.nullish(),
     customThemeDark: zCustomTheme.nullish(),
     customThemeName: z.string().optional(),
@@ -1282,6 +1439,7 @@ export const zUpdateSettingsBody = z.object({
     aiModelTk: z.string().optional(),
     aiModelChangelog: z.string().optional(),
     aiModelFeed: z.string().optional(),
+    aiModelHelpers: z.string().optional(),
     aiModelClassify: z.string().optional(),
     changeCategoryInNote: z.boolean().optional(),
     feedPrompt: z.string().optional(),
@@ -1297,6 +1455,12 @@ export const zUpdateSettingsBody = z.object({
         'summary'
     ]).optional(),
     changelogSummaryPrompt: z.string().optional(),
+    agenticTitle: z.string().optional(),
+    readerMarkRead: z.enum([
+        'seen',
+        'opened',
+        'never'
+    ]).optional(),
     readerOrder: z.enum(['newest', 'pace-layered']).optional(),
     backgroundRules: z.object({
         burst: z.boolean().optional(),
@@ -1335,6 +1499,9 @@ export const zUpdateSettingsBody = z.object({
     linksOpml: z.boolean().optional(),
     linksBlyggerOrg: z.boolean().optional(),
     linksBlyggerCom: z.boolean().optional(),
+    bgFlagDisagreement: z.boolean().optional(),
+    bgInstruction: z.string().optional(),
+    bgModelImported: z.boolean().optional(),
     hopperFeeds: z.boolean().optional(),
     setup: z.enum([
         'pending',
@@ -1464,6 +1631,29 @@ export const zResyncSubscriptionResponse = z.object({
     changed: z.number()
 });
 
+export const zGetDictionaryHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+/**
+ * Success
+ */
+export const zGetDictionaryResponse = zDictionary;
+
+export const zPutDictionarySourceBody = z.object({
+    words: z.array(z.string()).max(20000),
+    expectedRevision: z.int().gte(0)
+}).strict();
+
+export const zPutDictionarySourcePath = z.object({
+    source: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zPutDictionarySourceResponse = zDictionary;
+
 export const zGetShelfHeaders = z.object({
     'if-none-match': z.string().optional()
 });
@@ -1482,6 +1672,90 @@ export const zPutShelfBody = z.object({
  * Success
  */
 export const zPutShelfResponse = zShelf;
+
+export const zListHelpersHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+/**
+ * Helpers: simple agents that people and agents share through the same operations (blygger-spec docs/helpers-plan.md). The Studio's reference design, not a protocol construct.
+ */
+export const zListHelpersResponse = z.object({
+    helpers: z.array(z.object({
+        name: z.string(),
+        kind: z.enum([
+            'mechanical',
+            'decision',
+            'text'
+        ]),
+        operation: z.string(),
+        description: z.string(),
+        ui: z.string().nullable()
+    }))
+});
+
+export const zCatchUpBody = z.object({
+    sub: z.string().min(1).max(128),
+    remoteId: z.string().min(1).max(256)
+}).strict();
+
+/**
+ * Success
+ */
+export const zCatchUpResponse = zCatchUp;
+
+export const zSummarizeCatchUpBody = z.object({
+    sub: z.string().min(1).max(128),
+    remoteId: z.string().min(1).max(256)
+}).strict();
+
+/**
+ * Success
+ */
+export const zSummarizeCatchUpResponse = zCatchUpSummary;
+
+export const zListAgenticFeedsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+/**
+ * The agentic feeds in the owner's order. One, `default`, until the Studio offers more (blygger-spec docs/agentic-feed-plan.md §3.3).
+ */
+export const zListAgenticFeedsResponse = z.object({
+    feeds: z.array(z.object({
+        id: z.string(),
+        title: z.string(),
+        revision: z.int().gte(0),
+        updatedAt: z.string().nullable()
+    }))
+});
+
+export const zGetAgenticHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+export const zGetAgenticPath = z.object({
+    feed: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zGetAgenticResponse = zAgenticEdition;
+
+export const zPutAgenticBody = z.object({
+    edition: zAgenticEditionInput,
+    expectedRevision: z.int().gte(0)
+}).strict();
+
+export const zPutAgenticPath = z.object({
+    feed: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zPutAgenticResponse = zAgenticEdition;
 
 export const zListContactsHeaders = z.object({
     'if-none-match': z.string().optional()
@@ -2444,6 +2718,37 @@ export const zExtLineageGlyphListSummariesQuery = z.object({
  */
 export const zExtLineageGlyphListSummariesResponse = z.object({
     summaries: z.record(z.string(), zLineageGlyphSummary)
+});
+
+export const zExtSpellcheckGetWordsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+/**
+ * Success
+ */
+export const zExtSpellcheckGetWordsResponse = z.object({
+    lang: z.enum(['en-US']),
+    words: z.int().gt(0),
+    gz: z.string(),
+    notice: z.string()
+});
+
+export const zExtSpellcheckProofreadHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+export const zExtSpellcheckProofreadQuery = z.object({
+    id: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zExtSpellcheckProofreadResponse = z.object({
+    issues: z.array(zSpellcheckIssue),
+    model: z.string(),
+    truncated: z.boolean()
 });
 
 export const zExtWordCountListCountsHeaders = z.object({

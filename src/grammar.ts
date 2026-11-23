@@ -73,14 +73,21 @@ export function labelText(text: string): string {
  * brackets. Each inline form becomes its label, or nothing. A directive alone
  * on its own line stays: decision #60 makes that a real quote, which publish
  * warns about when the instruction did not ask for it.
+ *
+ * `keepLink` (session 78, Venkat): a link `[[id]]` the caller vouches for stays a
+ * link. TK generation keeps links to items the author supplied that resolve, so
+ * a model asked to link what it was given can; publish already resolves links in
+ * generated output and discloses them in links[]. An inline `![[id]]` is never
+ * kept: a quote is a line of its own.
  */
-export function stripGeneratedGrammar(text: string): string {
+export function stripGeneratedGrammar(text: string, keepLink: (id: string) => boolean = () => false): string {
   const inline = new RegExp(`!?\\[\\[${BODY}`, "g");
   return text
     .split("\n")
     .map((line) => {
       if (DIRECTIVE_LINE.test(line)) return line;
-      const stripped = line.replace(inline, (_whole, _id: string, raw?: string) => label(raw) ?? "");
+      const stripped = line.replace(inline, (whole: string, id: string, raw?: string) =>
+        !whole.startsWith("!") && keepLink(id) ? whole : label(raw) ?? "");
       if (stripped === line) return line;
       return stripped.replace(/[ \t]{2,}/g, " ").replace(/ +([.,;:!?)])/g, "$1").replace(/\( +/g, "(").trimEnd();
     })

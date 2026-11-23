@@ -128,6 +128,10 @@ async function sanitizeMarkup(html: string, math: { marker: string; token: strin
           if (!safeUrl(value, true)) el.removeAttribute(name);
         } else if (key === 'value' && el.tagName === 'data') {
           // A mention's alternate identifiers (tn-6 section 5.3): inert text, never fetched.
+        } else if (key === 'start' && el.tagName === 'ol') {
+          // An ordered list's first number (#114, spec §16.15): a quote of items 3 and 4
+          // reads "3, 4", as the source does. An integer, nothing else.
+          if (!/^-?\d{1,9}$/.test(value.trim())) el.removeAttribute(name);
         } else if (!ATTRIBUTES.has(key) && !key.startsWith('data-blyg-')) {
           // Exclude handlers, style, namespace URLs, animation, srcdoc and named
           // DOM properties rather than growing a list of known attack spellings.

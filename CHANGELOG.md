@@ -18,6 +18,142 @@ not have its own repo until session 26.
 
 ---
 
+## 0.70.0 — [TK] reads the links you give it; Reading loads fast again; seen means read
+
+**[TK] reads the links its author placed** (blygger-spec decision #117, spec 0.4 §16.16).
+Before a scope is generated, every link in its instruction or anywhere in the draft is
+read: web pages are fetched under the importer's outbound rules (up to 8, about 30,000
+characters each), and `[[id]]` links, or URLs naming an item the node holds, come from the
+local copy (up to 8). What was read goes to the model, web pages framed as untrusted
+fetched text, and is disclosed: items as references, web pages as `{url, cited}` entries in
+`generated[].sources`, which send no mention. If any link can't be read, generation stops
+at a **checkpoint**: `POST /items/{id}/generate` answers `{ checkpoint: { read, total,
+failed } }` and saves nothing, and the editor asks "n of m links could not be read,
+generate anyway?" with the failures under Details; `proceed: true` generates without them.
+The TK panel lists what each generation read and which entries will tell another blyg.
+Code: `src/tk-hydrate.ts`, `runGenerateScope` in `src/tk-generate.ts`.
+
+**Reading loads fast again.** Measured on a live node, a Reading load could sit blank for
+4–8 s. (1) The pace-layered order (0.68.0) was rebuilt whenever the items, reading or
+subscriptions counters moved, which every poll, autosave and read mark does; it now
+rebuilds only when an input to the order changes (migration 0056). (2) The reading route
+no longer waits for every list before drawing. (3) Imported items whose subscription no
+longer exists (left by an old unsubscribe) sorted first under pace-layered and were then
+dropped, so the first pages came back empty; the feed, summary and Raw queries now skip
+them. Check for such rows with `SELECT count(*) FROM imported_items ii WHERE NOT EXISTS
+(SELECT 1 FROM subscriptions s WHERE s.id = ii.subscription_id)`; they are safe to delete.
+
+**Seen means read.** A new setting, **Count an entry as read** (Settings → reader order):
+*when I see it* (the default: about a second fully on screen, short entries included,
+marks sent in batches), *when I open it* (the old behaviour), or *only when I mark it*.
+Every card's **date opens the entry's full view**. Read marks now move their own change
+domain, `marks` (migration 0057), so marking while you scan no longer expires the
+feed's page cursors. "retry reads" also reloads the page's lists.
+
+**Migrations:** **0056** (`reading_order_state.inputs` and triggers that move it only on
+the order's inputs), **0057** (`change_state.marks`; the read-state triggers move it
+instead of `reading`). Apply them before deploying. Private contract **6.3.0**, SDK
+**0.25.0**.
+
+## 0.69.0 — Helpers and Catch up; the Agentic feed's foundations; spellcheck, a dictionary and claims; full-text search; quoted lists keep their bullets
+
+**The Agentic feed's foundations** (blygger-spec `docs/agentic-feed-plan.md` §9, row 52):
+`GET /agentic`, `GET`/`PUT /agentic/{feed}` (`expectedRevision`, the closed field set),
+the digest tab, and each edition composed into a private draft thread. Scopes are
+`owner:read`/`owner:manage` until the narrow ones are reviewed.
+
+**Helpers** (blygger-spec `docs/helpers-plan.md`, row 143): `GET /helpers`, the catalogue.
+**`catch-up`** (`POST /helpers/catch-up`, mechanical; after Burrow 0.23.0's Catch up):
+an entry's ⋯ → *catch up* opens a sheet laying the conversation it carries out oldest
+first, each card that post's own words. **`catch-up-summary`**
+(`POST /helpers/catch-up-summary`, text): *summarize* in that sheet, a few sentences by the
+new **text helpers** model (Settings → AI; blank uses the change-notes model), written once
+per set of versions and kept, with its sources in the §5.9 reference shape. Custom sheets
+may now use router links (the sheet host has the router's context).
+
+**Background: other blygs' changes judged by the classifier** (blygger-spec
+`docs/background-plan.md` §7.2, phase 4b's first half). Opt-in, under Settings → Background
+→ *judge other blygs' changes too*, and only with a change classifier chosen in Settings →
+AI. A new version the measured rules leave open is judged on the quarter-hour poll, ten at a
+time, under the daily AI budget; *typo* or *minor* sends it to Background as a minor change,
+*major* leaves it. Only the two texts are sent. Over the budget the
+measured rules decide. The `minor` rule now covers your own and other blygs' minor changes. With
+an optional **instruction** written beneath the toggle, the classifier also reads each version's
+changelog note, and an entry whose note calls a large change minor stays in view with a chip
+("note says minor · 35% changed"). With no instruction, notes are never sent. A second
+toggle beneath the instruction turns that keep-in-view default off, so the classifier's label
+alone decides.
+
+**[TK] generation can write links** (Venkat, session 78). The model is now told how: a
+web page as a markdown link, an item of the blyg as `[[id | text]]` with an id from your
+instruction, its sources or the draft. A link to an item you supplied that resolves stays a
+link, published and disclosed like any other; a link to an id the model invented is reduced
+to its words, as before. A quote mid-sentence (`![[…]]`) is still taken out: quotes go on a
+line of their own.
+
+**A quote of list items keeps its bullets** (decision #114, spec §16.15, ROADMAP row 136).
+A partial quote used to publish quoted list items as bare paragraphs, on every page that
+showed it. Now a quoted line that is a list item in the quoted post publishes as one, in a
+list like the original's: an ordered run starts at the source's number, and nesting is
+kept where both lines are quoted. The structure comes from the quoted post, never from the
+markers you type, so a list quoted as plain lines is still a list. The text is unchanged,
+so the quote's check at publish is too. The importer keeps an `ol`'s `start`, and a fork
+flattens quoted lists as markdown lists with their numbers.
+
+**The reader draws generated text as the public pages do** (session 78): the tinted box and
+the robot on every `[TK]` span the reader shows, your own items and other blygs' alike,
+quoted ones included, under the same setting (*Highlight generated portions by default*).
+Both surfaces now share one set of rules (`src/generated-style.ts`). Code inside a quote keeps
+its background in the reader, and a code block's own code is no longer an inline chip.
+
+**The studio may wear its own theme**: Settings → Appearance → *Studio theme*, "Same as public"
+by default, or any preset or your custom palette. Public pages always wear the public theme.
+
+**An entry's source name opens that source's feed**, in every reader view (cards, the full
+view, the Agentic feed): the same single-source view the Sources tab opens, in the same
+lens. Reached that way, its back link reads *← main feed*; reached from Sources, *← sources*.
+
+**Waking a phone or iPad no longer flashes a read error.** On wake every view refetches at
+once, often before the network is back (Safari: "Load failed"), and a page walk that spanned
+the sleep finds its cursor expired. Such a failure now retries on its own, backing off, and
+shows its banner (and enters the error log) only if it lasts more than six seconds. Some
+views never polled again and kept the banner until *retry reads*; they now recover by
+themselves. Other read failures show at once, as before.
+
+**Full-text search** (Kyle Mathews, #146): the picker, Reading and Compose search through a
+SQLite FTS5 index instead of scanning rows. A query needs one word of three or more
+letters; shorter words narrow it. Drafts and published copies are indexed apart, so an
+unpublished edit shows only in searches that include drafts.
+
+**Spellcheck, a dictionary and editor marks** (#155, #156, #159). A **dictionary** in the
+core (`GET /dictionary`, `PUT /dictionary/{source}`): the words this blyg's spellchecking
+accepts, the author's own and sets an extension installs, shared by every device and
+client (Settings → writing → dictionary). **Editor marks**: an editor bar may underline
+stretches of the text (`context.mark`), drawn in a layer over the text box. The shipped
+**spellcheck** extension, off by default: a dictionary check that underlines as you type,
+replacing the browser's own spellcheck while it is on screen (`spellcheck` joins the
+replaceable controls), and an AI proofread that offers corrections only (spec §5.7 rule
+10): accepted fixes go in as your own words, and the sheet offers a line for the change
+note.
+
+**Claims** (#165, miguelito4), a shipped extension, off by default: `claim` and `resolution`
+blocks written through an editor bar, a badge on posts with a claim, pin and resolve from
+the post, and a Claims page with your score. Browser-only.
+
+**A false "update" badge is gone.** Since 0.67.0 every Studio with update checks on showed
+"update" and a dot on More, because the release check took the highest version-shaped
+number anywhere in the release feed, and 0.67.0's notes mention the API contract's 6.0.0.
+The check now reads versions only where the feed names a release (its tag links, entry ids
+and titles). A node that stored the false version clears it at its next daily check.
+
+**Migrations:** **0050** (`search_index`, #146; backfills the index from existing rows),
+**0052** (`agentic_feeds`), **0053** (`helper_results`), **0054** (`imported_change_queue`),
+**0055** (`dictionary`). Apply them before deploying. Private contract **6.2.0**, SDK
+**0.24.0**. Fixed on the way: the lineage test no longer depends on the `superseded` rule's
+timing.
+
+---
+
 ## 0.68.0 — Reading reorganised: Feed (pace-layered), Mentions, Agentic feed, Saved, Background, Raw; Background's measured rules
 
 **Reading has six tabs** (Venkat, session 77): **Feed**, **Mentions**, **Agentic feed**,

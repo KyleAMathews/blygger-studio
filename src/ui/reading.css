@@ -62,6 +62,8 @@
 .entry .byline .badge { font-size: .6rem; padding: 1px 6px; }
 .entry .byline .src { font-weight: 600; color: var(--ink); }
 .entry .byline a.src { text-decoration: none; }
+.entry .byline a.entry-date { color: inherit; text-decoration: none; }
+.entry .byline a.entry-date:hover, .entry .byline a.entry-date:focus-visible { text-decoration: underline; }
 .entry-title { font-family: var(--sans); font-weight: 600; font-size: 1.08rem; margin: 2px 0 6px; line-height: 1.3; }
 .entry-title a { color: inherit; text-decoration: none; }
 .entry-title a:hover { text-decoration: underline; }
@@ -74,6 +76,11 @@
 .entry-body blockquote.blyg-partial { border-left-style: dashed; }
 .entry-body blockquote > :last-child { margin-bottom: 0; }
 .entry-body pre { overflow-x: auto; max-width: 100%; background: var(--sunk); border-radius: 8px; padding: 8px 10px; font-size: .85rem; }
+/* Parity with the public pages (session 78): a code block's own code is not an
+   inline chip, and inside a quote (itself --sunk) code and code blocks take the
+   card's colour so they still stand out. */
+.entry-body pre code { background: none; padding: 0; border-radius: 0; font-size: inherit; }
+.entry-body blockquote pre, .entry-body blockquote :not(pre) > code { background: var(--card); }
 /* A formula paints inside its own box (v0.4-plan 23.6): no raised, smashed or lapped
    text over another author's words. The margin keeps glyph ink that overhangs the box
    (italics, accents); 0.25em was the least that left ordinary formulas pixel-identical.
@@ -367,3 +374,42 @@
 .change-summary .badge { font-size: .72rem; vertical-align: 1px; }
 /* A mention of the owner, in anything they read: the words that name them. */
 .mention-you { background: var(--pencil-bg); box-shadow: 0 0 0 2px var(--pencil-bg); border-radius: 3px; font-weight: 600; }
+
+/* The Agentic feed's edition (src/ui/agentic.tsx): a digest in sections, like a
+   daily paper. Words the assistant wrote carry a faint pencil wash, so they
+   never pass for the authors' own. */
+.edition { display: flex; flex-direction: column; gap: 20px; margin-top: 12px; }
+.edition-masthead { border-bottom: 3px double var(--rule-strong); padding-bottom: 12px; }
+.edition-title { font-size: 1.6rem; margin: 0; letter-spacing: .01em; }
+.edition-meta { color: var(--ink-soft); font-size: .85rem; margin: 4px 0 0; }
+.edition-badge { white-space: nowrap; }
+.edition-lede { font-size: 1.05rem; margin: 10px 0 0; }
+.edition-section { border-top: 1px solid var(--rule-strong); padding-top: 10px; }
+.edition-masthead + .edition-section { border-top: 0; padding-top: 0; }
+.edition-section-h { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-soft); margin: 0 0 6px; }
+.edition-note { margin: 0 0 10px; color: var(--ink-soft); }
+.edition-entries { display: grid; gap: 14px; }
+.edition-entry { border-bottom: 1px solid var(--rule); padding-bottom: 12px; }
+.edition-entry:last-child { border-bottom: 0; }
+.edition-headline { display: block; font-weight: 650; font-size: 1.1rem; color: var(--ink); text-decoration: none; }
+.edition-headline:hover { color: var(--pencil); }
+.edition-byline { color: var(--ink-soft); font-size: .8rem; margin: 2px 0 6px; }
+.edition-summary, .edition-excerpt { margin: 4px 0; }
+.edition-reason { font-size: .85rem; color: var(--ink-soft); margin: 4px 0 0; }
+.edition-also { list-style: none; padding: 0; margin: 8px 0 0; font-size: .9rem; }
+.edition-also li { margin: 2px 0; }
+.assistant-said { background: var(--pencil-bg); border-radius: 3px; padding: 0 3px; }
+.edition-section-h.assistant-said, .edition-title.assistant-said { background: none; padding: 0; }
+.kind-lead .edition-headline { font-size: 1.5rem; line-height: 1.25; }
+.kind-briefs .edition-entries { gap: 6px; }
+.kind-briefs .edition-entry { padding-bottom: 6px; }
+.kind-briefs .edition-headline { font-size: .95rem; font-weight: 600; }
+@media (min-width: 62rem) { .kind-briefs .edition-entries { grid-template-columns: 1fr 1fr; column-gap: 24px; } }
+
+/* Catch up (src/ui/catch-up.tsx): the conversation oldest first, one card per post. */
+.catch-up { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 12px; }
+.catch-up-card { border-left: 3px solid var(--rule-strong); padding-left: 10px; }
+.catch-up-meta { color: var(--ink-soft); font-size: .8rem; margin: 0 0 4px; }
+.catch-up-body > :first-child { margin-top: 0; }
+.catch-up-summary { margin: 8px 0 0; }
+.catch-up-summary .assistant-said { padding: 4px 6px; margin: 0 0 4px; }

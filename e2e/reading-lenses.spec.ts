@@ -70,13 +70,16 @@ test('the tabs, the Feed narrowed by kind across screens, withdrawn posts in Bac
   await expect(page.locator('.view-sub').first()).toContainText('as it arrived');
   await expect(page.locator(`.reading-entry[data-key="own:${frag}"]`)).toHaveCount(0);
   await bar.getByRole('button', { name: 'Agentic feed' }).click();
-  await expect(page.locator('.lens-placeholder')).toContainText('An assistant who organizes your reading for');
+  // An empty state until some spec or assistant has written an edition.
+  await expect(page.locator('.lens-placeholder, .edition-masthead').first()).toBeVisible();
   // The placeholder keeps the screen's head: tabs, title and count, ＋.
   await expect(page.getByRole('tablist', { name: 'reading view' })).toBeVisible();
   await expect(page.getByRole('heading', { name: /^my blyg/ })).toContainText(/\d+ items/);
   await expect(page.getByRole('button', { name: 'subscribe', exact: true })).toBeVisible();
-  await page.locator('.lens-placeholder').getByRole('link', { name: 'Settings' }).click();
-  await expect(page).toHaveURL(/\/studio\/settings#ai-feed$/);
+  if (await page.locator('.lens-placeholder').count()) {
+    await page.locator('.lens-placeholder').getByRole('link', { name: 'Settings' }).click();
+    await expect(page).toHaveURL(/\/studio\/settings#ai-feed$/);
+  }
   } finally {
     await api(page, 'PATCH', '/settings', { backgroundRules: { burst: true } });
   }

@@ -7,13 +7,15 @@ import { ItemRevisionSchema } from "./schemas.ts";
 import { BackgroundRulesPatchSchema, SettingsSchema } from './settings.ts';
 import { SyndicationEntrySchema } from './resources.ts';
 import { SYNDICATION_MAX } from '../syndication.ts';
-import { ShelfEntrySchema, ShelfSchema, ContactSchema, HopperMembershipSchema, SignalSchema, OutboundMentionSchema, InteractionSchema, ThumbSchema, BrowseStepSchema } from './resources.ts';
+import { AgenticEditionInputSchema, CatchUpSchema, CatchUpSummarySchema, agenticEditionSchema } from './agentic.ts';
+import { DictionarySchema, ShelfEntrySchema, ShelfSchema, ContactSchema, HopperMembershipSchema, SignalSchema, OutboundMentionSchema, InteractionSchema, ThumbSchema, BrowseStepSchema } from './resources.ts';
 import { CHANGE_CATEGORIES } from "../change-category.ts";
 import { READ_BATCH_MAX, READ_ID_MAX, READ_VERSION_MAX } from '../importer/read-state.ts';
 import { BROWSE_VIA } from "../browse-log.ts";
 import { CLASSIFY_MAX } from "../peek.ts";
 import { CURSOR_MAX } from '../cursor-page.ts';
 import { SHELF_MAX } from '../shelf.ts';
+import { SOURCE_WORDS_MAX, SOURCES_MAX, TOTAL_WORDS_MAX, WORD_MAX } from '../dictionary.ts';
 import { READ_BATCH_MAX as COLLECTION_READ_BATCH_MAX, READ_BATCH_OPERATIONS, READ_BATCH_PATHS } from '../read-batch-policy.ts';
 
 const json = (schema: z.ZodType) => ({ "application/json": { schema } });
@@ -70,6 +72,8 @@ export const EntryBackgroundSchema = z.object({
   detail: z.record(z.string(), z.unknown()).optional().describe("What a reason's label says, such as the change category behind minor."),
 }).openapi("EntryBackground");
 export const ReadingEntrySchema = z.object({ key: z.string(), source: z.enum(["own", "imported"]), kind: z.enum(["fragment", "thread"]), withdrawn: z.boolean(), l0: z.boolean(), contentHtml: z.string(), displayAt: z.string(), own: ownEntry.optional(), imported: importedEntry.optional(), background: EntryBackgroundSchema.describe("Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read."), parts: z.array(z.object({ sub: z.string().describe('The subscription the part is held under, or "~own".'), id: z.string(), label: z.string() })).optional().describe("A thread's burst (spec §13.7's fold): the items of its blyg it was first to name, published with it, now in Background as `burst`. Present only on a thread that has them, while the burst rule is on.") }).openapi("ReadingEntry");
+/** The Agentic feed edition and its layout, each reference resolved to a ReadingEntry. */
+export const AgenticEditionSchema = agenticEditionSchema(ReadingEntrySchema);
 const subscribed = SubscriptionSchema;
 const confirmation = z.object({ needsConfirm: z.literal(true), kind: z.enum(["blyg", "rss", "hopper"]), origin: z.string().optional(), feedUrl: z.string().optional(), title: z.string(), siteMismatch: z.object({ asserted: z.string(), actual: z.string() }).optional(), hopper: z.object({ title: z.string(), page: z.string(), feedUrl: z.string() }).optional().describe("kind hopper: the public hopper the URL matched in the blyg's manifest (spec 0.4 §16.12 rule 4, §12.1 step 7), page and feedUrl resolved to absolute URLs."), blygTitle: z.string().optional().describe("kind hopper: the whole blyg's title, for the subscribe-to-the-whole-blyg-instead choice.") });
 const quoteFreshness = z.object({ id: z.string(), origin: z.string().optional(), baked: z.number().int(), held: z.number().int().nullable(), live: z.number().int().nullable(), partial: z.boolean(), status: z.enum(["current", "refreshable", "behind", "passage-missing", "unresolvable", "retained"]), reason: z.string().optional() }).openapi("QuoteFreshness");
@@ -117,7 +121,14 @@ export const routes = {
   classifyChange: route("classifyChange", draftOperation({"writes":["changeClass"],"destructive":true,"network":true}), "post", "/items/{id}/classify", z.object({ revision: ItemRevisionSchema, version: z.number().int().describe("The version the working copy would publish as."), category: changeCategory.nullable().describe("Null when no category could be had; see reason."), model: z.string().nullable().describe("The decision model that answered; null for refresh, decided locally from content_hash."), probability: z.number().nullable(), reason: z.string().optional().describe("Why there is no category: a provider error, an exhausted AI budget, or an unusable answer. Never fatal: publish as usual.") }), condition),
   draftNote: route("draftNote", draftOperation({"writes":[],"network":true}), "post", "/items/{id}/note-draft", z.object({ note: z.string(), model: z.string(), pinnedPrior: z.boolean(), revision: ItemRevisionSchema }), condition.extend({ history: z.boolean().optional().describe("Summarize the item's whole revision history to date, ending with this change, from the earlier notes and the two texts; longer than a plain note (at most 400 characters). Off by default.") })),
   summarizeChangelog: route("summarizeChangelog", draftOperation({"writes":[],"network":true}), "post", "/changelog-summary", z.object({ summary: z.string(), model: z.string(), version: z.number().int().positive(), cached: z.boolean() }), z.union([z.object({ itemId: z.string() }).strict(), z.object({ subscriptionId: z.string(), remoteId: z.string() }).strict()]).describe("An own item by itemId, or an imported blyg item by its subscription and remote id. The summary reads the changelog's notes only, is written once per version with the change-notes model and kept, and is studio-private."), 200),
-  generateItem: route("generateItem", draftOperation({"writes":["items"],"destructive":true,"network":true}), "post", "/items/{id}/generate", z.object({ text: z.string(), model: z.string(), contentMd: z.string(), revision: ItemRevisionSchema }), condition.extend({ scope: z.number().int().min(0) })),
+  generateItem: route("generateItem", draftOperation({"writes":["items"],"destructive":true,"network":true}), "post", "/items/{id}/generate", z.union([
+    z.object({ text: z.string(), model: z.string(), contentMd: z.string(), revision: ItemRevisionSchema }),
+    z.object({ checkpoint: z.object({
+      read: z.number().int().describe("Links read."),
+      total: z.number().int().describe("Links found in the instruction and the draft."),
+      failed: z.array(z.object({ link: z.string(), reason: z.string() })).describe("Links that could not be read, and why."),
+    }).describe("Nothing was generated: some links could not be read. Send `proceed: true` to generate without them (decision #117).") }),
+  ]), condition.extend({ scope: z.number().int().min(0), proceed: z.boolean().optional().describe("Generate even if some links in the draft could not be read.") })),
   withdrawItem: route("withdrawItem", publishOperation({"writes":["items","publication","mentions"],"destructive":true,"network":true,"background":true}), "post", "/items/{id}/withdraw", ok.extend({ revision: ItemRevisionSchema, version: z.number() }), note, 200),
   pinItem: route("pinItem", publishOperation({"writes":["publication"]}), "put", "/items/{id}/versions/{version}/pin", ok.extend({ revision: ItemRevisionSchema, version: z.number(), already: z.boolean() }), condition),
   getSyndication: route("getSyndication", readOperation(), "get", "/items/{id}/syndication", SyndicationSchema),
@@ -135,11 +146,34 @@ export const routes = {
   pollAllSubscriptions: route("pollAllSubscriptions", manageOperation({"writes":["subscriptions","imports"],"network":true,"background":true}), "post", "/subscriptions/poll", z.object({ polling: z.number().int().nonnegative() })),
   resyncSubscription: route("resyncSubscription", manageOperation({"writes":["subscriptions","imports"],"network":true}), "post", "/subscriptions/{id}/resync", ok.extend({ changed: z.number() })),
   deleteSubscription: route("deleteSubscription", manageOperation({"writes":["subscriptions","imports","hoppers","signals","readingState"],"destructive":true}), "delete", "/subscriptions/{id}", ok),
+  getDictionary: route("getDictionary", readOperation(), "get", "/dictionary", DictionarySchema),
+  putDictionarySource: route("putDictionarySource", manageOperation({"writes":["dictionary"],"destructive":true}), "put", "/dictionary/{source}", DictionarySchema, z.object({
+    words: z.array(z.string()).max(SOURCE_WORDS_MAX).describe(`The source's whole word list (at most ${SOURCE_WORDS_MAX}); replaces what it held. An empty list removes the source. A word is 1 to ${WORD_MAX} characters with no whitespace and at least one letter, kept as written (names keep their capitals); one that isn't is refused with 400, naming it. Repeats are kept once.`),
+    expectedRevision: z.number().int().nonnegative().describe("Required. Replace only if the dictionary is still at this revision (read it with GET /dictionary; a never-written dictionary is at 0); otherwise 409 revision-conflict with the current dictionary in details.current."),
+  }).describe(`Replace one source's words in the blyg's dictionary, the words its spellchecking accepts. The source is "owner" for the author's own words, or a name of the installer's choosing for a set (a technical domain, say). At most ${SOURCES_MAX} sources and ${TOTAL_WORDS_MAX} words in all. Studio-private.`)),
   getShelf: route("getShelf", readOperation(), "get", "/shelf", ShelfSchema),
   putShelf: route("putShelf", manageOperation({"writes":["shelf"],"destructive":true}), "put", "/shelf", ShelfSchema, z.object({
     entries: z.array(ShelfEntrySchema).max(SHELF_MAX).describe(`The whole list, in order (at most ${SHELF_MAX}). Replaces the stored list. An entry that does not resolve (an unknown subscription, an item not held under it, a withdrawn own item, an imported tombstone with no retained pin) is dropped quietly, never refused, and a repeated entry keeps its first position; the response is what was stored.`),
     expectedRevision: z.number().int().nonnegative().describe("Required. Replace only if the shelf is still at this revision (read it with GET /shelf; a never-written shelf is at 0); otherwise 409 revision-conflict with the current { entries, revision } in details.current. There is no unconditional replace: several clients share the shelf, and one must not silently undo another's reorder."),
   }).describe("Replace the shelf, the owner's ordered list of own and imported items. Studio-private for good: the shelf never gains a public mode. A featured list on public pages, if ever wanted, would be a separate presentation setting that may default from the shelf, not a flag on this resource.")),
+  listHelpers: route("listHelpers", readOperation(), "get", "/helpers", z.object({ helpers: z.array(z.object({
+    name: z.string(), kind: z.enum(["mechanical", "decision", "text"]).describe("mechanical: a function over what the node holds, free and instant; decision: a decision model with a fixed label set; text: a small model whose words are disclosed as generated."),
+    operation: z.string().describe("The operation (and MCP tool) that runs it."), description: z.string(), ui: z.string().nullable().describe("Where people find it in the Studio, or null for an agent-only helper."),
+  })) }).describe("Helpers: simple agents that people and agents share through the same operations (blygger-spec docs/helpers-plan.md). The Studio's reference design, not a protocol construct.")),
+  catchUp: route("catchUp", readOperation(), "post", "/helpers/catch-up", CatchUpSchema, z.object({
+    sub: z.string().min(1).max(128).describe('The subscription the entry is held under, or "~own" for one of your own published items.'),
+    remoteId: z.string().min(1).max(256),
+  }).strict().describe("The catch-up helper: an entry's nested quotes laid out oldest first, each card holding only that post's own words. Mechanical: no model, no network. After Burrow 0.23.0's Catch up.")),
+  summarizeCatchUp: route("summarizeCatchUp", draftOperation({"writes":[],"network":true}), "post", "/helpers/catch-up-summary", CatchUpSummarySchema, z.object({
+    sub: z.string().min(1).max(128).describe('The subscription the entry is held under, or "~own" for one of your own published items.'),
+    remoteId: z.string().min(1).max(256),
+  }).strict().describe("The catch-up-summary helper: a few sentences over catch-up's cards, written by the owner's text-helpers model (blank: the change-notes model) under the AI budget. Kept per entry and keyed by every card's version, so asking again about the same versions costs nothing. 409 when the entry quotes nothing or another request is writing it. Studio-private.")),
+  listAgenticFeeds: route("listAgenticFeeds", readOperation(), "get", "/agentic", z.object({ feeds: z.array(z.object({ id: z.string(), title: z.string().describe("The feed's name: the tab's label and the heading of its editions."), revision: z.number().int().nonnegative(), updatedAt: z.string().nullable() })) }).describe("The agentic feeds in the owner's order. One, `default`, until the Studio offers more (blygger-spec docs/agentic-feed-plan.md §3.3).")),
+  getAgentic: route("getAgentic", readOperation(), "get", "/agentic/{feed}", AgenticEditionSchema),
+  putAgentic: route("putAgentic", manageOperation({"writes":["presentation"],"destructive":true}), "put", "/agentic/{feed}", AgenticEditionSchema, z.object({
+    edition: AgenticEditionInputSchema,
+    expectedRevision: z.number().int().nonnegative().describe("Required. Replace only if the edition is still at this revision (read it with GET /agentic/{feed}; a never-written edition is at 0); otherwise 409 revision-conflict with the current edition in details.current. One assistant drives the edition at a time; this keeps a slow run from overwriting a newer one."),
+  }).describe("Replace the Agentic feed's edition (blygger-spec docs/agentic-feed-plan.md): sections an assistant laid out, or scores the Studio lays out. Studio-private: never in an item document, feed, manifest or public page. Entries are references to what the reader holds; one that does not resolve is left out of the layout, never refused.")),
   listContacts: route("listContacts", readOperation(), "get", "/contacts", z.object({ contacts: z.array(ContactSchema) })),
   createContact: route("createContact", manageOperation({"writes":["settings"]}), "post", "/contacts", ContactSchema, z.object({ handle: z.string(), name: z.string().trim().min(1).max(200), url: z.string(), ids: z.array(z.string().min(1).max(500)).max(50).optional() }), 201),
   updateContact: route("updateContact", manageOperation({"writes":["settings"]}), "patch", "/contacts/{id}", ContactSchema, z.object({ handle: z.string().optional(), name: z.string().trim().min(1).max(200).optional(), url: z.string().optional(), ids: z.array(z.string().min(1).max(500)).max(50).optional() })),

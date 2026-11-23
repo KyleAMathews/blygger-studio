@@ -170,7 +170,7 @@ test('generation and text saves share one queue without replacing later local te
   const generated = draft.write({ type: 'generate', scope: 0 });
   draft.edit('typed during generation'); const saved = draft.save();
   gate.resolve(); const result = await generated;
-  if (draft.revision === revision) draft.edit(result.contentMd);
+  if (draft.revision === revision && 'contentMd' in result) draft.edit(result.contentMd);
   expect(await saved).toBe(true);
   expect(writes).toEqual(['before generation', 'generated', 'typed during generation']);
   expect(draft.text).toBe('typed during generation'); expect(draft.dirty).toBe(false);

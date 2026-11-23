@@ -1,6 +1,6 @@
 # Modding the Studio
 
-> **New here?** [Where does my change belong?](where-does-it-go.md) puts a mod among the other places a change can go, from a spec question to a local patch, and says how to pick.
+> **New here?** [Where does my change belong? (TN-8)](https://blygger.org/notes/tn-8/) puts a mod among the other places a change can go, from a spec question to a local patch, and says how to pick.
 
 A **mod** is anything that makes a Studio node behave differently from the reference Studio without becoming a different client: a tool that sets up a blyg as a book, an extension that adds a lineage view, a home page order. This page says where a mod can live, what the Studio will add for one, and what it will not. It is the program's position (decision #89 in [blygger-spec](https://github.com/blygger/blygger-spec/blob/main/CLAUDE.md), reasoning in `docs/v0.4-plan.md` §17.1).
 
@@ -55,7 +55,7 @@ When a mod needs a surface the Studio lacks, propose it as a pull request to thi
 
 **The generator string stays `blygger-studio/x.y.z`.** A mod does not rename the client. The ecosystem census counts clients by that string, and update notices depend on it. If a mod needs an identity, it goes in its extension metadata.
 
-**Model text is disclosed.** Text a mod puts into a draft from a model goes through the Studio's generate endpoint, or in as `[TK]impyrt <model>=…[/TK]` for text generated elsewhere (spec §5.7 rule 7), so it publishes with a `generated[]` record. The Studio cannot tell model text from typing, so this is the mod's promise, of the same standing as the generator string ([`extensions.md`](extensions.md#editor-bars), session 76).
+**Model text is disclosed.** Text a mod puts into a draft from a model goes through the Studio's generate endpoint, or in as `[TK]impyrt <model>=…[/TK]` for text generated elsewhere (spec §5.7 rule 7), so it publishes with a `generated[]` record. The Studio cannot tell model text from typing, so this is the mod's promise, of the same standing as the generator string ([`extensions.md`](extensions.md#editor-bars), session 76). The promise covers words a model **composed**. A correction the author accepts (a fixed typo, a repaired agreement, a consistent spelling of a name) is not model text and goes in bare, whoever proposed it (spec §5.7 rule 10, decision #115); a proofread that rephrases is composition. There is no field recording editing passes, in any spelling: say it in the changelog note.
 
 **Not forking is the mod's own promise.** The Studio keeps its extension points as stable as it can and announces breaking changes in [`CHANGELOG.md`](../CHANGELOG.md). It makes no version promise about them yet. A mod that outgrows these surfaces and forks has become another client. That is fine, and the [fork section of the README](../README.md#if-you-fork-this) says what we ask of one.
 

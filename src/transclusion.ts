@@ -6,7 +6,7 @@ import { codeRanges, inRanges, lineOffsets } from "./code-ranges.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { itemUrl, parseSurface, type Surface } from "./surface.ts";
-import { renderMarkdown, selectionTouchesMath, selectionText } from "./markdown.ts";
+import { renderMarkdown, selectionLines, selectionTouchesMath, selectionText } from "./markdown.ts";
 import type { ImportedItemRow, ItemRow, TextQuoteSelector, Transclusion, VersionRow } from "./types.ts";
 import { absolutizeHtml, escapeHtml } from "./util.ts";
 import { DIRECTIVE_LINE, label, LINK_INLINE, RESERVED_LINE } from "./grammar.ts";
@@ -75,6 +75,67 @@ export function locateSelection(targetHtml: string, selection: string): TextQuot
     ...(prefix ? { prefix } : {}),
     ...(suffix ? { suffix } : {}),
   };
+}
+
+/**
+ * A partial bake's body (§10.2, decision #114, ruled shape §16.15): each line
+ * of `exact` as plain escaped text, in an `<li>` of a list like the target's
+ * when the target has that line in a list item, else in a `<p>`. The list
+ * structure comes from the target snapshot only. Lines map onto the target's
+ * lines at the first match, as `locateSelection` takes its context there.
+ *
+ * Nesting is kept where the lines it joins are both quoted; an outer item
+ * none of whose own text is quoted is not invented, so its list starts at
+ * the deeper level. An `ol` that does not begin at its first item carries
+ * `start`. Two lines of one item (a loose list's paragraphs) are `<p>`s in it.
+ * The invariant, tested: `selectionText(body) === exact`.
+ */
+export function partialBakeBody(targetHtml: string, exact: string): string {
+  const paragraphs = () => exact.split("\n").map((line) => `<p>${escapeHtml(line)}</p>`).join("\n");
+  const lines = selectionLines(targetHtml);
+  const hay = lines.map((l) => l.text).join("\n");
+  const at = hay.indexOf(exact);
+  if (at < 0) return paragraphs();
+  let first = 0;
+  for (let offset = 0; first < lines.length && offset + lines[first]!.text.length < at; first++) offset += lines[first]!.text.length + 1;
+  const quoted = exact.split("\n");
+
+  type Item = { ordinal: number; content: Node[] };
+  type List = { list: number; tag: "ul" | "ol"; start: number; items: Item[] };
+  type Node = string | List;
+  const root: Node[] = [];
+  quoted.forEach((text, i) => {
+    const levels = lines[first + i]?.lists ?? [];
+    let container = root;
+    levels.forEach((level, depth) => {
+      const last = container.at(-1);
+      let list = typeof last === "object" && last.list === level.list ? last : undefined;
+      const item = list?.items.at(-1);
+      if (item && item.ordinal === level.ordinal) {
+        container = item.content;
+        return;
+      }
+      // An outer item with no quoted text of its own is not invented.
+      if (depth < levels.length - 1) return;
+      if (!list) {
+        list = { list: level.list, tag: level.tag, start: level.ordinal, items: [] };
+        container.push(list);
+      }
+      const added: Item = { ordinal: level.ordinal, content: [] };
+      list.items.push(added);
+      container = added.content;
+    });
+    container.push(text);
+  });
+  const render = (nodes: Node[], inItem: boolean): string =>
+    nodes
+      .map((node) => {
+        if (typeof node === "string") return inItem && nodes.length === 1 ? escapeHtml(node) : `<p>${escapeHtml(node)}</p>`;
+        const start = node.tag === "ol" && node.start !== 1 ? ` start="${node.start}"` : "";
+        return `<${node.tag}${start}>\n${node.items.map((item) => `<li>${render(item.content, true)}</li>`).join("\n")}\n</${node.tag}>`;
+      })
+      .join("\n");
+  return render(root, false);
 }
 
 /**
@@ -384,10 +445,9 @@ async function walk(
       // HTML range faithfully — reopening the tags a cut crosses — is a second
       // project with its own failure modes. The class pair is what discloses
       // that this is a part rather than the whole.
-      const body = selector.exact
-        .split("\n")
-        .map((para) => `<p>${escapeHtml(para)}</p>`)
-        .join("\n");
+      // #114 (spec §16.15): lines that are list items in the target bake as
+      // list items, the structure read from the target, never the quoter.
+      const body = partialBakeBody(target.contentHtml, selector.exact);
       quoteParts.add(htmlParts.length);
       htmlParts.push(
         `<blockquote class="blyg-transclusion blyg-partial" data-blyg-id="${target.id}" data-blyg-version="${target.version}"${originAttr}${labelAttr}>\n${body}\n</blockquote>`,

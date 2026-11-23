@@ -109,6 +109,12 @@ export type GenerationSource = {
      */
     origin?: string;
     cited?: Citation;
+} | {
+    /**
+     * A web page the generator read (decision #117).
+     */
+    url: string;
+    cited: Citation;
 };
 
 export type Syndication = {
@@ -133,6 +139,10 @@ export type SyndicationEntry = {
 export type Settings = {
     siteTitle: string;
     theme: string;
+    /**
+     * The Studio's own palette, reader included: empty (the default) wears the public pages' theme; otherwise auto, a theme name, or custom (the custom palette). Public pages always use theme.
+     */
+    studioTheme: string;
     customTheme: CustomTheme | null;
     customThemeDark: CustomTheme | null;
     customThemeName: string;
@@ -151,6 +161,10 @@ export type Settings = {
     aiModelTk: string;
     aiModelChangelog: string;
     aiModelFeed: string;
+    /**
+     * The model for text helpers (catch-up-summary); empty, the default, uses the change-notes model.
+     */
+    aiModelHelpers: string;
     /**
      * The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms.
      */
@@ -173,6 +187,14 @@ export type Settings = {
      * Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with "summarize full history to date".
      */
     changelogSummaryPrompt: string;
+    /**
+     * The owner's name for the Agentic feed tab ("Daily digest", "My briefing"), at most 40 characters; also the heading of each edition's thread. Empty restores "Agentic feed".
+     */
+    agenticTitle: string;
+    /**
+     * When a reader entry counts as read: seen (on screen about a second while scrolling, the default), opened (its full view), or never (marked by hand only).
+     */
+    readerMarkRead: 'seen' | 'opened' | 'never';
     /**
      * The Feed tab's order: pace-layered (the default), the home page's order run over everything you read (ROADMAP row 69), or newest first, shown as chronological. Hoppers and Saved keep their own order.
      */
@@ -239,6 +261,18 @@ export type Settings = {
      * Link blygger.com, the directory of blygs, in the links section.
      */
     linksBlyggerCom: boolean;
+    /**
+     * On by default; matters only while bgInstruction is written. On: an entry whose changelog note claims a typo or minor change while much of its text changed stays in view, marked. Off: the classifier's label decides.
+     */
+    bgFlagDisagreement: boolean;
+    /**
+     * Empty by default. The owner's routing instruction for judging other blygs' changes (decision #96): while set, the classifier also reads each version's changelog note with it, and an entry whose note claims a small change against a large measured one stays in view with a chip saying so. With it empty, notes are never sent.
+     */
+    bgInstruction: string;
+    /**
+     * Off by default: other blygs' new versions are judged by the change classifier (aiModelClassify), one decision-model call each under the AI budget, and a typo or minor label sends the entry to Background with the minor rule. Versions the measured rules settle are not sent; the changelog note never is. Studio-private and reader-only.
+     */
+    bgModelImported: boolean;
     /**
      * Off by default: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json (spec 0.4 §13.5, decision #86). Publish side only: subscribing to another blyg's hopper works with this off.
      */
@@ -313,6 +347,28 @@ export type Subscription = {
     hopperFeedUrl: string | null;
 };
 
+export type Dictionary = {
+    /**
+     * Every source that holds a word: "owner" first, then the rest by name.
+     */
+    sources: Array<DictionarySource>;
+    /**
+     * The dictionary's revision. Send it back as expectedRevision for a conditional replace; every successful PUT bumps it.
+     */
+    revision: number;
+};
+
+export type DictionarySource = {
+    /**
+     * "owner" for the words the author adds; any other name for a set an extension or client installed.
+     */
+    source: string;
+    /**
+     * The source's words, sorted without regard to case.
+     */
+    words: Array<string>;
+};
+
 export type Shelf = {
     /**
      * The shelved items, in the owner's order, each named as hopper membership names an item. Own drafts may be shelved; a withdrawn own item, or an imported tombstone with no retained pin, is omitted. A discarded draft, an imported item no longer held, and every entry of a deleted subscription leave the shelf. Studio-private for good: never in an item document, feed, manifest or public page, and the shelf never gains a public mode.
@@ -333,6 +389,283 @@ export type ShelfEntry = {
      * The item's id: the own item's id under "~own", else the imported item's remote id.
      */
     remoteId: string;
+};
+
+export type CatchUp = {
+    /**
+     * time when every card's time is known; otherwise deeper first (a quote is always of something older), then by time.
+     */
+    ordered: 'time' | 'depth';
+    cards: Array<{
+        id: string;
+        origin: string;
+        /**
+         * Where it is held: a subscription id, "~own", or null when this reader does not hold it.
+         */
+        sub: string | null;
+        version: number | null;
+        /**
+         * Whose it is: the subscription name, "you", or the host.
+         */
+        source: string;
+        at: string | null;
+        depth: number;
+        partial: boolean;
+        label: string | null;
+        /**
+         * The post's own words: its layer with every quote inside it taken out, sanitized.
+         */
+        html: string;
+    }>;
+};
+
+export type CatchUpSummary = {
+    /**
+     * A few plain sentences, oldest first: who said what and where the conversation stands. Generated: place it in a thread only as an impyrt span.
+     */
+    summary: string;
+    model: string;
+    /**
+     * When it was written.
+     */
+    at: string;
+    /**
+     * Every post it read, oldest first, in the §5.9 reference shape (no origin for your own items).
+     */
+    sources: Array<{
+        id: string;
+        version: number | null;
+        origin?: string;
+    }>;
+    /**
+     * True when the same versions were summarized before and nothing was spent.
+     */
+    cached: boolean;
+};
+
+export type AgenticEdition = {
+    /**
+     * Send it back as expectedRevision for a conditional replace; every successful PUT bumps it. A never-written edition is at 0.
+     */
+    revision: number;
+    updatedAt: string | null;
+    mode: 'sections' | 'scores' | null;
+    /**
+     * The edition as the assistant wrote it (AgenticEditionInput); null before the first PUT.
+     */
+    edition?: unknown;
+    /**
+     * What the tab draws: sections with each reference resolved to its reading entry. A reference that no longer resolves (unsubscribed, discarded, withdrawn) is left out, and a section left empty is dropped.
+     */
+    layout: {
+        title: string | null;
+        lede: string | null;
+        agent: {
+            name: string;
+            model?: string;
+        };
+        generatedAt: string | null;
+        sections: Array<{
+            title: string;
+            kind: 'lead' | 'section' | 'briefs';
+            note: string | null;
+            entries: Array<AgenticResolvedEntry>;
+        }>;
+    } | null;
+    /**
+     * The edition as a conformant blyg thread: a draft (private, owner-only) composed from headings, quotes, links and impyrt spans for the assistant's words, which the owner may edit and publish like any thread. A new draft starts when the owner has edited or published the previous one.
+     */
+    draft: {
+        id: string;
+    } | null;
+};
+
+export type AgenticResolvedEntry = AgenticEntry & {
+    entry: ReadingEntry;
+};
+
+/**
+ * The reading entry the reference resolves to, as GET /reading returns it.
+ */
+export type ReadingEntry = {
+    key: string;
+    source: 'own' | 'imported';
+    kind: 'fragment' | 'thread';
+    withdrawn: boolean;
+    l0: boolean;
+    contentHtml: string;
+    displayAt: string;
+    own?: {
+        id: string;
+        kind: 'fragment' | 'thread';
+        withdrawn: boolean;
+        updated: string;
+        contentHtml: string;
+    };
+    imported?: {
+        subscriptionId: string;
+        subscriptionTitle: string;
+        remoteId: string;
+        kind: 'fragment' | 'thread';
+        withdrawn: boolean;
+        l0: boolean;
+        updated: string | null;
+        observedAt: string;
+        contentHtml: string;
+        pinnedVersionRetained: number | null;
+        sourceUrl: string | null;
+        /**
+         * The version of the item held here. A readVersion below it means a newer version arrived after the owner read it.
+         */
+        version: number;
+        /**
+         * The highest version the owner has marked read; null when unread or cleared.
+         */
+        readVersion: number | null;
+        /**
+         * The origin's `syndication` member (spec 0.4 §16.14) as last fetched, https: entries only: copies the publisher says they made on other networks. The publisher's claim; absent when none.
+         */
+        syndication?: Array<SyndicationEntry>;
+    };
+    background: EntryBackground;
+    /**
+     * A thread's burst (spec §13.7's fold): the items of its blyg it was first to name, published with it, now in Background as `burst`. Present only on a thread that has them, while the burst rule is on.
+     */
+    parts?: Array<{
+        /**
+         * The subscription the part is held under, or "~own".
+         */
+        sub: string;
+        id: string;
+        label: string;
+    }>;
+};
+
+/**
+ * Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read.
+ */
+export type EntryBackground = {
+    /**
+     * The automatic reasons that count under Settings (withdrawn always), in order: withdrawn, then each enabled rule that applies.
+     */
+    reasons: Array<string>;
+    /**
+     * The owner's choice on this entry, which beats every rule; null when the rules decide.
+     */
+    placement: 'background' | 'foreground' | null;
+    /**
+     * The owner moved this entry's whole blyg to Background.
+     */
+    blyg: boolean;
+    /**
+     * What a reason's label says, such as the change category behind minor.
+     */
+    detail?: {
+        [key: string]: unknown;
+    };
+};
+
+export type AgenticEntry = {
+    /**
+     * The subscription the entry is held under, or "~own" for one of the owner's own items (as Saved names entries).
+     */
+    sub: string;
+    /**
+     * The item's id: the own item's id, else the imported item's remote id.
+     */
+    remoteId: string;
+    /**
+     * The version the assistant judged. Shown so a reader can tell when the item has moved on since.
+     */
+    version?: number;
+    /**
+     * A headline for the entry in this edition. Written by the assistant and shown as its own, disclosed as generated.
+     */
+    headline?: string;
+    /**
+     * A short summary or dek. Written by the assistant and shown as its own, disclosed as generated.
+     */
+    summary?: string;
+    /**
+     * Why the reader is seeing it. Written by the assistant and shown as its own, disclosed as generated.
+     */
+    reason?: string;
+    /**
+     * How much of the entry to show: the full text, an excerpt (the default), only its title, or folded under its group's first entry.
+     */
+    present?: 'full' | 'excerpt' | 'title' | 'folded';
+    /**
+     * Entries in a section with the same group are shown together under the first of them.
+     */
+    group?: string;
+};
+
+export type AgenticEditionInput = {
+    /**
+     * The edition's name, a masthead line. Written by the assistant and shown as its own, disclosed as generated.
+     */
+    title?: string;
+    /**
+     * An opening paragraph for the whole edition. Written by the assistant and shown as its own, disclosed as generated.
+     */
+    lede?: string;
+    agent: {
+        /**
+         * Who wrote the edition: "resident" for the Studio's own assistant, else the outside assistant's name.
+         */
+        name: string;
+        /**
+         * The model it used, when it says.
+         */
+        model?: string;
+    };
+    /**
+     * When the assistant made the edition (ISO 8601 UTC).
+     */
+    generatedAt?: string;
+    /**
+     * Edition mode: the assistant lays out the sections itself. Send sections or scores, never both.
+     */
+    sections?: Array<AgenticSection>;
+    /**
+     * Scores mode: per-entry scores; the Studio lays out one section, highest first. Send sections or scores, never both.
+     */
+    scores?: Array<AgenticScore>;
+};
+
+export type AgenticSection = {
+    /**
+     * The section's heading. Written by the assistant.
+     */
+    title: string;
+    /**
+     * A layout hint: the lead story, an ordinary section (the default), or a column of briefs.
+     */
+    kind?: 'lead' | 'section' | 'briefs';
+    /**
+     * An introduction to the section. Written by the assistant and shown as its own, disclosed as generated.
+     */
+    note?: string;
+    entries: Array<AgenticEntry>;
+};
+
+export type AgenticScore = {
+    /**
+     * The subscription the entry is held under, or "~own" for one of the owner's own items (as Saved names entries).
+     */
+    sub: string;
+    /**
+     * The item's id: the own item's id, else the imported item's remote id.
+     */
+    remoteId: string;
+    /**
+     * Higher is shown first. Any finite number; only the order matters.
+     */
+    score: number;
+    /**
+     * Why the reader is seeing it. Written by the assistant and shown as its own, disclosed as generated.
+     */
+    reason?: string;
 };
 
 export type Contact = {
@@ -580,84 +913,6 @@ export type MentionGroup = {
     firstId: string;
 };
 
-export type ReadingEntry = {
-    key: string;
-    source: 'own' | 'imported';
-    kind: 'fragment' | 'thread';
-    withdrawn: boolean;
-    l0: boolean;
-    contentHtml: string;
-    displayAt: string;
-    own?: {
-        id: string;
-        kind: 'fragment' | 'thread';
-        withdrawn: boolean;
-        updated: string;
-        contentHtml: string;
-    };
-    imported?: {
-        subscriptionId: string;
-        subscriptionTitle: string;
-        remoteId: string;
-        kind: 'fragment' | 'thread';
-        withdrawn: boolean;
-        l0: boolean;
-        updated: string | null;
-        observedAt: string;
-        contentHtml: string;
-        pinnedVersionRetained: number | null;
-        sourceUrl: string | null;
-        /**
-         * The version of the item held here. A readVersion below it means a newer version arrived after the owner read it.
-         */
-        version: number;
-        /**
-         * The highest version the owner has marked read; null when unread or cleared.
-         */
-        readVersion: number | null;
-        /**
-         * The origin's `syndication` member (spec 0.4 §16.14) as last fetched, https: entries only: copies the publisher says they made on other networks. The publisher's claim; absent when none.
-         */
-        syndication?: Array<SyndicationEntry>;
-    };
-    background: EntryBackground;
-    /**
-     * A thread's burst (spec §13.7's fold): the items of its blyg it was first to name, published with it, now in Background as `burst`. Present only on a thread that has them, while the burst rule is on.
-     */
-    parts?: Array<{
-        /**
-         * The subscription the part is held under, or "~own".
-         */
-        sub: string;
-        id: string;
-        label: string;
-    }>;
-};
-
-/**
- * Why the entry is in Background or not (blygger-spec docs/background-plan.md). Reader-only: never published, never marks anything read.
- */
-export type EntryBackground = {
-    /**
-     * The automatic reasons that count under Settings (withdrawn always), in order: withdrawn, then each enabled rule that applies.
-     */
-    reasons: Array<string>;
-    /**
-     * The owner's choice on this entry, which beats every rule; null when the rules decide.
-     */
-    placement: 'background' | 'foreground' | null;
-    /**
-     * The owner moved this entry's whole blyg to Background.
-     */
-    blyg: boolean;
-    /**
-     * What a reason's label says, such as the change category behind minor.
-     */
-    detail?: {
-        [key: string]: unknown;
-    };
-};
-
 export type ImportedReadingEntry = {
     subscriptionId: string;
     subscriptionTitle: string;
@@ -822,6 +1077,21 @@ export type LineageGlyphSummary = {
         transclusion: number;
         fork: number;
     };
+};
+
+export type SpellcheckIssue = {
+    /**
+     * Text from the draft, exactly, holding the error and a little context.
+     */
+    find: string;
+    /**
+     * The same text, corrected.
+     */
+    replace: string;
+    /**
+     * A few words on what is wrong.
+     */
+    why: string;
 };
 
 export type WordCount = {
@@ -2071,6 +2341,10 @@ export type GenerateItemData = {
     body: {
         expectedRevision: number;
         scope: number;
+        /**
+         * Generate even if some links in the draft could not be read.
+         */
+        proceed?: boolean;
     };
     path: {
         id: string;
@@ -2141,6 +2415,27 @@ export type GenerateItemResponses = {
         model: string;
         contentMd: string;
         revision: number;
+    } | {
+        /**
+         * Nothing was generated: some links could not be read. Send `proceed: true` to generate without them (decision #117).
+         */
+        checkpoint: {
+            /**
+             * Links read.
+             */
+            read: number;
+            /**
+             * Links found in the instruction and the draft.
+             */
+            total: number;
+            /**
+             * Links that could not be read, and why.
+             */
+            failed: Array<{
+                link: string;
+                reason: string;
+            }>;
+        };
     };
 };
 
@@ -2785,6 +3080,10 @@ export type UpdateSettingsData = {
     body: {
         siteTitle?: string;
         theme?: string;
+        /**
+         * The Studio's own palette, reader included: empty (the default) wears the public pages' theme; otherwise auto, a theme name, or custom (the custom palette). Public pages always use theme.
+         */
+        studioTheme?: string;
         customTheme?: CustomTheme | null;
         customThemeDark?: CustomTheme | null;
         customThemeName?: string;
@@ -2803,6 +3102,10 @@ export type UpdateSettingsData = {
         aiModelTk?: string;
         aiModelChangelog?: string;
         aiModelFeed?: string;
+        /**
+         * The model for text helpers (catch-up-summary); empty, the default, uses the change-notes model.
+         */
+        aiModelHelpers?: string;
         /**
          * The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms.
          */
@@ -2825,6 +3128,14 @@ export type UpdateSettingsData = {
          * Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with "summarize full history to date".
          */
         changelogSummaryPrompt?: string;
+        /**
+         * The owner's name for the Agentic feed tab ("Daily digest", "My briefing"), at most 40 characters; also the heading of each edition's thread. Empty restores "Agentic feed".
+         */
+        agenticTitle?: string;
+        /**
+         * When a reader entry counts as read: seen (on screen about a second while scrolling, the default), opened (its full view), or never (marked by hand only).
+         */
+        readerMarkRead?: 'seen' | 'opened' | 'never';
         /**
          * The Feed tab's order: pace-layered (the default), the home page's order run over everything you read (ROADMAP row 69), or newest first, shown as chronological. Hoppers and Saved keep their own order.
          */
@@ -2891,6 +3202,18 @@ export type UpdateSettingsData = {
          * Link blygger.com, the directory of blygs, in the links section.
          */
         linksBlyggerCom?: boolean;
+        /**
+         * On by default; matters only while bgInstruction is written. On: an entry whose changelog note claims a typo or minor change while much of its text changed stays in view, marked. Off: the classifier's label decides.
+         */
+        bgFlagDisagreement?: boolean;
+        /**
+         * Empty by default. The owner's routing instruction for judging other blygs' changes (decision #96): while set, the classifier also reads each version's changelog note with it, and an entry whose note claims a small change against a large measured one stays in view with a chip saying so. With it empty, notes are never sent.
+         */
+        bgInstruction?: string;
+        /**
+         * Off by default: other blygs' new versions are judged by the change classifier (aiModelClassify), one decision-model call each under the AI budget, and a typo or minor label sends the entry to Background with the minor rule. Versions the measured rules settle are not sent; the changelog note never is. Studio-private and reader-only.
+         */
+        bgModelImported?: boolean;
         /**
          * Off by default: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json (spec 0.4 §13.5, decision #86). Publish side only: subscribing to another blyg's hopper works with this off.
          */
@@ -3548,6 +3871,161 @@ export type ResyncSubscriptionResponses = {
 
 export type ResyncSubscriptionResponse = ResyncSubscriptionResponses[keyof ResyncSubscriptionResponses];
 
+export type GetDictionaryData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/dictionary';
+};
+
+export type GetDictionaryErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetDictionaryError = GetDictionaryErrors[keyof GetDictionaryErrors];
+
+export type GetDictionaryResponses = {
+    /**
+     * Success
+     */
+    200: Dictionary;
+};
+
+export type GetDictionaryResponse = GetDictionaryResponses[keyof GetDictionaryResponses];
+
+export type PutDictionarySourceData = {
+    body: {
+        /**
+         * The source's whole word list (at most 20000); replaces what it held. An empty list removes the source. A word is 1 to 64 characters with no whitespace and at least one letter, kept as written (names keep their capitals); one that isn't is refused with 400, naming it. Repeats are kept once.
+         */
+        words: Array<string>;
+        /**
+         * Required. Replace only if the dictionary is still at this revision (read it with GET /dictionary; a never-written dictionary is at 0); otherwise 409 revision-conflict with the current dictionary in details.current.
+         */
+        expectedRevision: number;
+    };
+    path: {
+        source: string;
+    };
+    query?: never;
+    url: '/dictionary/{source}';
+};
+
+export type PutDictionarySourceErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type PutDictionarySourceError = PutDictionarySourceErrors[keyof PutDictionarySourceErrors];
+
+export type PutDictionarySourceResponses = {
+    /**
+     * Success
+     */
+    200: Dictionary;
+};
+
+export type PutDictionarySourceResponse = PutDictionarySourceResponses[keyof PutDictionarySourceResponses];
+
 export type GetShelfData = {
     body?: never;
     headers?: {
@@ -3700,6 +4178,487 @@ export type PutShelfResponses = {
 };
 
 export type PutShelfResponse = PutShelfResponses[keyof PutShelfResponses];
+
+export type ListHelpersData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/helpers';
+};
+
+export type ListHelpersErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListHelpersError = ListHelpersErrors[keyof ListHelpersErrors];
+
+export type ListHelpersResponses = {
+    /**
+     * Helpers: simple agents that people and agents share through the same operations (blygger-spec docs/helpers-plan.md). The Studio's reference design, not a protocol construct.
+     */
+    200: {
+        helpers: Array<{
+            name: string;
+            /**
+             * mechanical: a function over what the node holds, free and instant; decision: a decision model with a fixed label set; text: a small model whose words are disclosed as generated.
+             */
+            kind: 'mechanical' | 'decision' | 'text';
+            /**
+             * The operation (and MCP tool) that runs it.
+             */
+            operation: string;
+            description: string;
+            /**
+             * Where people find it in the Studio, or null for an agent-only helper.
+             */
+            ui: string | null;
+        }>;
+    };
+};
+
+export type ListHelpersResponse = ListHelpersResponses[keyof ListHelpersResponses];
+
+export type CatchUpData = {
+    body: {
+        /**
+         * The subscription the entry is held under, or "~own" for one of your own published items.
+         */
+        sub: string;
+        remoteId: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/helpers/catch-up';
+};
+
+export type CatchUpErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type CatchUpError = CatchUpErrors[keyof CatchUpErrors];
+
+export type CatchUpResponses = {
+    /**
+     * Success
+     */
+    200: CatchUp;
+};
+
+export type CatchUpResponse = CatchUpResponses[keyof CatchUpResponses];
+
+export type SummarizeCatchUpData = {
+    body: {
+        /**
+         * The subscription the entry is held under, or "~own" for one of your own published items.
+         */
+        sub: string;
+        remoteId: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/helpers/catch-up-summary';
+};
+
+export type SummarizeCatchUpErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type SummarizeCatchUpError = SummarizeCatchUpErrors[keyof SummarizeCatchUpErrors];
+
+export type SummarizeCatchUpResponses = {
+    /**
+     * Success
+     */
+    200: CatchUpSummary;
+};
+
+export type SummarizeCatchUpResponse = SummarizeCatchUpResponses[keyof SummarizeCatchUpResponses];
+
+export type ListAgenticFeedsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/agentic';
+};
+
+export type ListAgenticFeedsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListAgenticFeedsError = ListAgenticFeedsErrors[keyof ListAgenticFeedsErrors];
+
+export type ListAgenticFeedsResponses = {
+    /**
+     * The agentic feeds in the owner's order. One, `default`, until the Studio offers more (blygger-spec docs/agentic-feed-plan.md §3.3).
+     */
+    200: {
+        feeds: Array<{
+            id: string;
+            /**
+             * The feed's name: the tab's label and the heading of its editions.
+             */
+            title: string;
+            revision: number;
+            updatedAt: string | null;
+        }>;
+    };
+};
+
+export type ListAgenticFeedsResponse = ListAgenticFeedsResponses[keyof ListAgenticFeedsResponses];
+
+export type GetAgenticData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path: {
+        feed: string;
+    };
+    query?: never;
+    url: '/agentic/{feed}';
+};
+
+export type GetAgenticErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetAgenticError = GetAgenticErrors[keyof GetAgenticErrors];
+
+export type GetAgenticResponses = {
+    /**
+     * Success
+     */
+    200: AgenticEdition;
+};
+
+export type GetAgenticResponse = GetAgenticResponses[keyof GetAgenticResponses];
+
+export type PutAgenticData = {
+    body: {
+        edition: AgenticEditionInput;
+        /**
+         * Required. Replace only if the edition is still at this revision (read it with GET /agentic/{feed}; a never-written edition is at 0); otherwise 409 revision-conflict with the current edition in details.current. One assistant drives the edition at a time; this keeps a slow run from overwriting a newer one.
+         */
+        expectedRevision: number;
+    };
+    path: {
+        feed: string;
+    };
+    query?: never;
+    url: '/agentic/{feed}';
+};
+
+export type PutAgenticErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type PutAgenticError = PutAgenticErrors[keyof PutAgenticErrors];
+
+export type PutAgenticResponses = {
+    /**
+     * Success
+     */
+    200: AgenticEdition;
+};
+
+export type PutAgenticResponse = PutAgenticResponses[keyof PutAgenticResponses];
 
 export type ListContactsData = {
     body?: never;
@@ -8123,6 +9082,176 @@ export type ExtLineageGlyphListSummariesResponses = {
 };
 
 export type ExtLineageGlyphListSummariesResponse = ExtLineageGlyphListSummariesResponses[keyof ExtLineageGlyphListSummariesResponses];
+
+export type ExtSpellcheckGetWordsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/ext/spellcheck/words';
+};
+
+export type ExtSpellcheckGetWordsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ExtSpellcheckGetWordsError = ExtSpellcheckGetWordsErrors[keyof ExtSpellcheckGetWordsErrors];
+
+export type ExtSpellcheckGetWordsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        lang: 'en-US';
+        words: number;
+        /**
+         * The words, one per line, gzipped and base64-encoded.
+         */
+        gz: string;
+        /**
+         * The word list's copyright notice and terms.
+         */
+        notice: string;
+    };
+};
+
+export type ExtSpellcheckGetWordsResponse = ExtSpellcheckGetWordsResponses[keyof ExtSpellcheckGetWordsResponses];
+
+export type ExtSpellcheckProofreadData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path?: never;
+    query: {
+        id: string;
+    };
+    url: '/ext/spellcheck/proofread';
+};
+
+export type ExtSpellcheckProofreadErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ExtSpellcheckProofreadError = ExtSpellcheckProofreadErrors[keyof ExtSpellcheckProofreadErrors];
+
+export type ExtSpellcheckProofreadResponses = {
+    /**
+     * Success
+     */
+    200: {
+        issues: Array<SpellcheckIssue>;
+        model: string;
+        /**
+         * The draft was longer than one call reads; only its start was proofread.
+         */
+        truncated: boolean;
+    };
+};
+
+export type ExtSpellcheckProofreadResponse = ExtSpellcheckProofreadResponses[keyof ExtSpellcheckProofreadResponses];
 
 export type ExtWordCountListCountsData = {
     body?: never;

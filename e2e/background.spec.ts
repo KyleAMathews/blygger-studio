@@ -62,7 +62,7 @@ test('Settings has a Background card whose rule toggles', async ({ page }) => {
   const card = page.locator('#background');
   await expect(card.getByRole('heading', { name: 'Background' })).toBeVisible();
   await expect(card.getByRole('checkbox', { name: /Withdrawn items/ })).toBeDisabled();
-  await expect(card.getByRole('checkbox', { name: /Your own minor changes/ })).toBeChecked();
+  await expect(card.getByRole('checkbox', { name: /Minor changes/ })).toBeChecked();
 });
 
 // Session 72: a thread published with its parts (§13.7's fold). The parts wait

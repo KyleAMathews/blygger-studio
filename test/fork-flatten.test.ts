@@ -116,3 +116,15 @@ describe("a fork through the API (#57)", () => {
     expect(lfork.json.contentMd).toMatch(new RegExp(`^Pointing at \\[“quoted words”\\]\\(https://[^)]*${quoted}/?\\)\\.$`));
   });
 });
+
+describe("a partial quote of list items flattens as a list (#114)", () => {
+  it("keeps bullets, and an ordered run's first number", async () => {
+    const html =
+      `<p>Mine.</p><blockquote class="blyg-transclusion blyg-partial" data-blyg-id="A" data-blyg-version="1">\n` +
+      `<ol start="3">\n<li>three</li>\n<li>four</li>\n</ol>\n</blockquote>` +
+      `<blockquote class="blyg-transclusion blyg-partial" data-blyg-id="B" data-blyg-version="1">\n<ul>\n<li>a bullet</li>\n</ul>\n</blockquote>`;
+    const out = await htmlToMarkdown(html, ctx);
+    expect(out).toContain("> 3. three\n> 4. four");
+    expect(out).toContain("> - a bullet");
+  });
+});

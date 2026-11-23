@@ -16,6 +16,8 @@ import { injectNestedProvenance, injectProvenance, transclusionProvenance } from
 import { applyInternalLinks, previewInternalLinks, previewTransclusions, resolveBlockLinks } from "./transclusion.ts";
 import { parseTangles } from "./tangle.ts";
 import { siteOrigin } from "./protocol.ts";
+import { HELPERS } from "./helpers/catalogue.ts";
+import { catchUp } from "./helpers/catch-up.ts";
 import { MODELS, bindingName, configuredProviders, isDecisionModel } from "./ai/models.ts";
 import type { ChangeClassRow } from "./change-class.ts";
 import { withLabels, type InteractionRow } from "./interactions.ts";
@@ -541,7 +543,18 @@ async function forkablePins(
   }
 }
 
+// Helpers (blygger-spec docs/helpers-plan.md): the catalogue, and catch-up.
+const listHelpersOperation = async () => success({ helpers: HELPERS.map((h) => ({ ...h })) });
+const catchUpOperation = async (context: OperationContext, input: OperationInput) => {
+  const settings = await getSettings(context.env.DB);
+  const body = input.body as { sub: string; remoteId: string };
+  const result = await catchUp(context.env.DB, body, siteOrigin(settings, context.url, normalizeMount(context.env.MOUNT)));
+  return result ? success(result) : failure('not-found', { error: "not a published or current entry this reader holds" });
+};
+
 export const readOperations = {
+  listHelpers: listHelpersOperation,
+  catchUp: catchUpOperation,
   getCapabilities: getCapabilitiesOperation,
   listItems: listItemsOperation,
   getItemSummary: getItemSummaryOperation,

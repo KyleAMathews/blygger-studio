@@ -222,7 +222,7 @@ test('reading copy actions sit in the ⋯ sheet beside copy url, never beside st
   await expect(entry.locator('.entry-bar')).not.toContainText('copy [[id]]');
   await expect(entry.locator('.entry-bar')).not.toContainText(/respond|reply|answer/);
   const menu = await entryMenu(page, entry);
-  await expect(menu.getByRole('button')).toHaveText([/link post ↗$/, /fork$/, /copy \[\[id\]\]$/, /copy url$/, /share…$/, /source\.example.*↗/, /history$/, /add author to address book$/, /move to Background$/, /move this blyg to Background$/]);
+  await expect(menu.getByRole('button')).toHaveText([/link post ↗$/, /fork$/, /copy \[\[id\]\]$/, /copy url$/, /share…$/, /source\.example.*↗/, /catch up/, /history$/, /add author to address book$/, /move to Background$/, /move this blyg to Background$/]);
   await expect(menu).not.toContainText(/stub|quote|respond|reply|answer/);
   const created = page.waitForResponse(response => response.url().endsWith('/api/items') && response.request().method() === 'POST');
   await menu.getByRole('button', { name: 'link post ↗', exact: true }).click();
@@ -239,7 +239,7 @@ test('settings keep timezone, receive policy, themes and update preferences', as
   await page.locator('#timezone').selectOption('America/Denver');
   await page.locator('#acceptMentions').uncheck();
   await page.locator('#updateCheck').uncheck();
-  await page.locator('.theme-opt').filter({ hasText: 'Paper' }).click();
+  await page.getByRole('radiogroup', { name: 'Public theme' }).locator('.theme-opt').filter({ hasText: 'Paper' }).click();
   await page.getByRole('button', { name: 'save settings', exact: true }).click();
   await expect(page.getByRole('status')).toHaveText('saved');
   await page.reload();
