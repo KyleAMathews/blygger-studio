@@ -24,7 +24,7 @@ import type { GenerationSource, ListItemsResponses, Version } from '../../sdk/di
 import { BlyggerApi, BlyggerApiError, unwrap } from '../../sdk/dist/browser.js';
 import type { DraftCounterContext, EditorBarContext } from './extension-api.ts';
 import type { Detail } from './data.ts';
-import { client, items, itemVersions, itemSummary, itemDetail, createDraftAction, settings as settingsCollection, listViews, preloadView } from './data.ts';
+import { client, items, itemVersions, itemPrivateVersions, itemSummary, itemDetail, createDraftAction, settings as settingsCollection, listViews, preloadView } from './data.ts';
 import {
   ActionBar,
   Button,
@@ -2157,7 +2157,8 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
   const confirmNote = useNoteConfirm(write);
   const [preview, setPreview] =
     useState<Awaited<ReturnType<typeof getPreview>>>();
-  const [version, setVersion] = useState<Version>();
+  // The version in the viewer: a public one (v3) or a private one (p2).
+  const [version, setVersion] = useState<{ label: string; contentHtml: string }>();
   const [saved, setSaved] = useState(false);
   const [replacing, setReplacingState] = useState(false);
   const replacementPending = useRef(false);
@@ -3049,10 +3050,13 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           setOpen={setHistoryOpen}
           summary="history"
           hint={
-            item.version ? `${item.version} version${item.version === 1 ? '' : 's'}` : ''
+            item.version ? `${item.version} version${item.version === 1 ? '' : 's'}` : item.status === 'private' ? 'private' : ''
           }
         >
-          {!item.version ? <p className="hint">Not yet published.</p> : historyOpen ? <VersionHistory item={item} select={setVersion} pinBusy={action.busy} restoreBusy={action.busy || upload.action.busy} pin={version => action.run(() => pin(version))} restore={version => action.run(() => restore(version))} /> : null}
+          {!item.version && item.status !== 'private' ? <p className="hint">Not yet published.</p> : historyOpen ? <>
+            {item.version ? <VersionHistory item={item} select={v => setVersion({ label: `v${v.version}`, contentHtml: v.contentHtml })} pinBusy={action.busy} restoreBusy={action.busy || upload.action.busy} pin={version => action.run(() => pin(version))} restore={version => action.run(() => restore(version))} /> : null}
+            <PrivateHistory item={item} select={v => setVersion({ label: `p${v.version}`, contentHtml: v.contentHtml })} />
+          </> : null}
         </Card>
       </div>
       {confirmNote.element}
@@ -3061,7 +3065,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
       <Modal
         open={!!version}
         close={() => setVersion(undefined)}
-        title={`version ${version?.version}`}
+        title={`version ${version?.label}`}
       >
         <Html id="h-viewer-body" html={version?.contentHtml ?? ''} />
       </Modal>
@@ -3514,6 +3518,30 @@ const getPreview = (
       signal,
     }),
   );
+
+// Private versions (decision #94), numbered p1, p2, … apart from the public
+// counter. They stay listed after the item goes public: studio history.
+function PrivateHistory({ item, select }: { item: Detail; select: (version: { version: number; contentHtml: string }) => void }) {
+  const history = useLiveInfiniteQuery(q => q.from({ version: itemPrivateVersions })
+    .where(({ version }) => eq(version.itemId, item.id)).orderBy(({ version }) => version.version, { direction: 'desc', stringSort: 'lexical' }), { pageSize: 25 });
+  if (history.status === 'error') return <Failure error={new Error('Could not load private history.')} />;
+  if (!history.data.length) return history.isLoading ? <p className="hint">Loading private history…</p> : null;
+  return <section data-private-history>
+    <p className="hint">private versions: studio history, never published</p>
+    <ul className="h-list">
+      {history.data.map((v) => (
+        <li className="h-row" key={v.version}>
+          <strong className="vnum">p{v.version}</strong>{' '}
+          <span className="h-note">{v.note}</span>{' '}
+          <span className="h-actions">
+            <Button data-action="view-private-version" className="btn btn-ghost btn-mini" onClick={() => select(v)}>view</Button>
+          </span>
+        </li>
+      ))}
+    </ul>
+    {history.hasNextPage ? <Button disabled={history.isFetchingNextPage} onClick={() => void history.fetchNextPage()}>load older private versions</Button> : null}
+  </section>;
+}
 
 function VersionHistory({ item, select, pin, restore, pinBusy, restoreBusy }: {
   item: Detail; select: (version: Version) => void; pin: (version: number) => Promise<unknown>;

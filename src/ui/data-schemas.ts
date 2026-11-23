@@ -5,6 +5,7 @@ import {
   zGetItemResponse,
   zGetItemSummaryResponse,
   zVersion,
+  zPrivateVersion,
   zThumb,
   zInteraction,
   zBrowseStep,
@@ -34,6 +35,7 @@ export const sourceSchemas = {
   items: zListItemsResponse.shape.items.element.transform(row => ({ ...row, orderKey: sequenceOrder([[row.updated, 'desc'], [row.id, 'desc']]) })),
   itemSummary: zGetItemSummaryResponse.extend({ key: z.literal('items') }),
   itemVersions: zVersion,
+  itemPrivateVersions: zPrivateVersion,
   itemHistory: zGetItemResponse.pick({
     id: true,
     media: true,

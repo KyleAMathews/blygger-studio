@@ -1,5 +1,5 @@
 import { readOperation, draftOperation, publishOperation, manageOperation, readingStateOperation, authenticatedOperation, presentationScopes, avatarScopes } from '../operation-policy.ts';
-import { ItemSchema, VersionSchema, MediaSchema, SubscriptionSchema, HopperSchema, ImportedItemSchema, MentionSchema, MentionGroupSchema, VersionReferenceSchema, StubSchema, TransclusionSchema, ProvenanceSchema } from "./resources.ts";
+import { ItemSchema, VersionSchema, PrivateVersionSchema, MediaSchema, SubscriptionSchema, HopperSchema, ImportedItemSchema, MentionSchema, MentionGroupSchema, VersionReferenceSchema, StubSchema, TransclusionSchema, ProvenanceSchema } from "./resources.ts";
 import { createRoute, z } from "@hono/zod-openapi";
 import { ErrorSchema, route } from "./route.ts";
 import { extensionRoutes } from "../../extensions/catalog.ts";
@@ -196,6 +196,7 @@ export const routes = {
   getItemSummary: route('getItemSummary', readOperation(), 'get', '/items/summary', z.object({ all: z.number().int().nonnegative(), drafts: z.number().int().nonnegative(), changes: z.number().int().nonnegative(), public: z.number().int().nonnegative(), withdrawn: z.number().int().nonnegative() })),
   getItem: route('getItem', readOperation(), 'get', READ_BATCH_PATHS.getItem, z.object({ ...ItemSchema.shape, pins, media: z.array(MediaSchema).describe("The working copy's attachments."), publishedMedia: z.array(MediaSchema).describe('The live version attachments, including retained detached media.'), published: z.union([VersionSchema, z.null()]) })),
   listItemVersions: route('listItemVersions', readOperation(), 'get', '/items/{id}/versions', collection(VersionSchema), undefined, 200, page.extend({ version: z.coerce.number().int().positive().optional() })),
+  listPrivateVersions: route('listPrivateVersions', readOperation(), 'get', '/items/{id}/private-versions', collection(PrivateVersionSchema), undefined, 200, page),
   getSettings: route("getSettings", readOperation(), "get", "/settings", SettingsSchema),
   listSubscriptions: route("listSubscriptions", readOperation(), "get", "/subscriptions", collection(SubscriptionSchema), undefined, 200, page),
   getSubscription: route("getSubscription", readOperation(), "get", "/subscriptions/{id}", SubscriptionSchema),

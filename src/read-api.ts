@@ -22,7 +22,7 @@ import { MODELS, bindingName, configuredProviders, isDecisionModel } from "./ai/
 import type { ChangeClassRow } from "./change-class.ts";
 import { withLabels, type InteractionRow } from "./interactions.ts";
 import { escapeHtml, normalizeMount } from "./util.ts";
-import type { SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, HopperItemRow, VersionRow, MentionInRow, MentionOutRow } from "./types.ts";
+import type { SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, HopperItemRow, VersionRow, PrivateVersionRow, MentionInRow, MentionOutRow } from "./types.ts";
 import { itemDetail } from "./item-data.ts";
 import { readingData, readingSummary } from "./reading-data.ts";
 import { enabledRules } from "./background.ts";
@@ -101,6 +101,17 @@ const listItemVersionsOperation = async (context: OperationContext, input: Opera
     name: 'item-versions', filters: [input.path.id, input.query.version ?? null], domains: ['items'],
     sql: `SELECT * FROM versions WHERE item_id = ?${input.query.version ? ' AND version = ?' : ''}`, binds: [input.path.id, ...(input.query.version ? [Number(input.query.version)] : [])],
     order: [{ column: 'version', direction: 'desc' }], project: rows => presentVersions(context.env.DB, rows),
+  }));
+};
+// Private versions (decision #94) are listed apart from public ones, newest
+// first; they stay after the item goes public, as studio history.
+const listPrivateVersionsOperation = async (context: OperationContext, input: OperationInput) => {
+  if (!await getItem(context.env.DB, input.path.id)) return failure('not-found', { error: 'not found' });
+  return success(await cursorPage<PrivateVersionRow, { itemId: string; version: number; contentMd: string; contentHtml: string; publishedAt: string; note: string | null }>(context.env.DB, input.query, {
+    name: 'private-versions', filters: [input.path.id], domains: ['items'],
+    sql: 'SELECT * FROM private_versions WHERE item_id = ?', binds: [input.path.id],
+    order: [{ column: 'version', direction: 'desc' }],
+    project: rows => rows.map(row => ({ itemId: row.item_id, version: row.version, contentMd: row.content_md, contentHtml: row.content_html, publishedAt: row.published_at, note: row.note })),
   }));
 };
 const getSettingsOperation = async (context: OperationContext, input: OperationInput) => success(settingsResource(await getSettings(context.env.DB)));
@@ -560,6 +571,7 @@ export const readOperations = {
   getItemSummary: getItemSummaryOperation,
   getItem: getItemOperation,
   listItemVersions: listItemVersionsOperation,
+  listPrivateVersions: listPrivateVersionsOperation,
   getSettings: getSettingsOperation,
   listSubscriptions: listSubscriptionsOperation,
   getSubscription: getSubscriptionOperation,

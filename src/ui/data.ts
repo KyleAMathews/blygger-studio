@@ -34,7 +34,7 @@ import { scoped } from './scoped.ts';
 import { createPacedDraftAction } from './paced-write.ts';
 import { createRowMutation } from './mutation.ts';
 import { sourceSchemas } from './data-schemas.ts';
-import { zGetItemResponse, zGetHopperResponse, zListItemsResponse, zListSubscriptionsResponse, zListHoppersResponse, zListSignalsResponse, zListReadingResponse, zListItemVersionsResponse, zListHopperMembershipsResponse, zListMentionsResponse, zListMentionGroupsResponse, zListThumbsResponse, zListInteractionsResponse, zListBrowseResponse } from '../../sdk/dist/schemas.js';
+import { zGetItemResponse, zGetHopperResponse, zListItemsResponse, zListSubscriptionsResponse, zListHoppersResponse, zListSignalsResponse, zListReadingResponse, zListItemVersionsResponse, zListPrivateVersionsResponse, zListHopperMembershipsResponse, zListMentionsResponse, zListMentionGroupsResponse, zListThumbsResponse, zListInteractionsResponse, zListBrowseResponse } from '../../sdk/dist/schemas.js';
 import { sequenceParts } from './sequence-order.ts';
 import { readCursorWindow, type ApiPage } from './cursor-query.ts';
 import { planReadWrites, type ReadWrite, type UnreadWrite } from './read-state.ts';
@@ -119,7 +119,7 @@ const readHopper = (id: string, signal: AbortSignal) =>
 
 const cursorPageSchemas: Record<string, { parse(value: unknown): unknown }> = {
   items: zListItemsResponse, subscriptions: zListSubscriptionsResponse, hoppers: zListHoppersResponse,
-  signals: zListSignalsResponse, reading: zListReadingResponse, 'item-versions': zListItemVersionsResponse,
+  signals: zListSignalsResponse, reading: zListReadingResponse, 'item-versions': zListItemVersionsResponse, 'private-versions': zListPrivateVersionsResponse,
   'hopper-memberships': zListHopperMembershipsResponse, 'mentions-in': zListMentionsResponse,
   'mentions-out': zListMentionsResponse, thumbs: zListThumbsResponse, interactions: zListInteractionsResponse, browse: zListBrowseResponse,
   'mention-groups': zListMentionGroupsResponse,
@@ -251,6 +251,16 @@ export const itemVersions = createCollection(queryCollectionOptions({
       version = filter.value;
     }
     return (await existing(ids, id => cursorRows(context, 'item-versions', [id, version ?? null], (cursor, signal) => unwrap(BlyggerApi.listItemVersions({ client, path: { id }, query: { cursor, version, limit: 25 }, signal })), pageWindow(context, [['version', 'desc']])))).flat();
+  }), select: response => response.data,
+}));
+// Private versions (decision #94), p1, p2, …: the owner's studio history.
+export const itemPrivateVersions = createCollection(queryCollectionOptions({
+  ...collectionPollingOptions, schema: sourceSchemas.itemPrivateVersions, id: 'private-versions', syncMode: 'on-demand',
+  queryKey: ['private-versions', 'rows'], queryClient, getKey: row => JSON.stringify([row.itemId, row.version]),
+  queryFn: context => cachedQuery(context, sourceSchemas.itemPrivateVersions.array(), async (_context) => {
+    const ids = subsetIds(context, 'itemId');
+    if (!ids) throw new Error('Private history requires an itemId predicate');
+    return (await existing(ids, id => cursorRows(context, 'private-versions', [id], (cursor, signal) => unwrap(BlyggerApi.listPrivateVersions({ client, path: { id }, query: { cursor, limit: 25 }, signal })), pageWindow(context, [['version', 'desc']])))).flat();
   }), select: response => response.data,
 }));
 export const settings = createCollection(
@@ -858,7 +868,7 @@ export async function changed(...keys: string[]) {
     switch (key) {
       case 'item':
       case 'items':
-        return ['items', 'item-history', 'item-versions', 'item-summary', 'stale-threads'];
+        return ['items', 'item-history', 'item-versions', 'private-versions', 'item-summary', 'stale-threads'];
       case 'hopper':
       case 'hopper-preview':
       case 'hoppers':

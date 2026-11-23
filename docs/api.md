@@ -178,7 +178,7 @@ Consult `openapi.json` for every field and response.
 | Resource | Read | Write |
 | --- | --- | --- |
 | Items | `GET /items`, `GET /items/{id}` | `POST /items`, `PATCH /items/{id}`, `DELETE /items/{id}` |
-| Versions | `GET /items/{id}/versions`, `GET /items/{id}/versions/{v}` | `PUT /items/{id}/versions/{version}/pin` |
+| Versions | `GET /items/{id}/versions`, `GET /items/{id}/versions/{v}`, `GET /items/{id}/private-versions` (private versions, p1, p2, …, newest first) | `PUT /items/{id}/versions/{version}/pin` |
 | Subscriptions | `GET /subscriptions`, `GET /subscriptions/{id}` | `POST /subscriptions`, `PATCH /subscriptions/{id}`, `DELETE /subscriptions/{id}` |
 | Hoppers | `GET /hoppers`, `GET /hoppers/{id}` | `POST /hoppers`, `PATCH /hoppers/{id}`, `DELETE /hoppers/{id}` |
 | Hopper membership | `GET /hoppers/{id}/memberships` | `PUT` or `DELETE /hoppers/{id}/items/{sub}/{remoteId}` |
@@ -553,6 +553,7 @@ first page retries once before returning cursor-expired.
 | --- | --- |
 | Items | updated DESC, id DESC |
 | Item versions | version DESC within the item |
+| Private versions | version DESC within the item |
 | Subscriptions and hoppers | created ASC, id ASC |
 | Hopper memberships | addedAt DESC, subscriptionId ASC, remoteId ASC |
 | Signals and thumbs | at DESC, subscriptionId ASC, remoteId ASC |

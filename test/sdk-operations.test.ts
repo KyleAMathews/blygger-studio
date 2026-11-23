@@ -66,6 +66,7 @@ it("exercises every declared operation through its named SDK method, including a
     ["updateMention", 200, async client => api.updateMention({ client, path: { id: "matrix-mention" }, body: { hidden: true } })],
     ["getItemSummary", 200, async client => api.getItemSummary({ client })],
     ["listItemVersions", 200, async client => api.listItemVersions({ client, path: { id } })],
+    ["listPrivateVersions", 200, async client => api.listPrivateVersions({ client, path: { id } })],
     ["listHopperMemberships", 200, async client => api.listHopperMemberships({ client, path: { id: hopper.id } })],
     ["getReadingSummary", 200, async client => api.getReadingSummary({ client })],
     ["getSignalSummary", 200, async client => api.getSignalSummary({ client })],
