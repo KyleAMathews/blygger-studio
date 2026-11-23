@@ -56,6 +56,12 @@ function die(msg: string): never {
   process.exit(1);
 }
 
+const migrationRetryHint =
+  "If Wrangler reported D1 overload (code 7429), including after 0050's search backfill, " +
+  "wait at least a minute, then rerun the same migration apply command with the same config and environment. " +
+  "Successful migrations stay recorded; only pending migrations run. " +
+  "If it persists or the error differs, investigate before deploying. See docs/search.md.";
+
 // --- Load manifest + wrangler config, and make them agree ---
 
 /**
@@ -123,7 +129,7 @@ for (const t of targets) {
     CLOUDFLARE_ACCOUNT_ID: t.account_id,
   });
   const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
-  if (res.status !== 0) die(`could not list migrations for ${t.env}:\n${out}`);
+  if (res.status !== 0) die(`could not list migrations for ${t.env}:\n${out}\n${migrationRetryHint}`);
   const hasPending = hasPendingMigrations(out);
   console.log(`  ${t.env.padEnd(18)} ${hasPending ? "PENDING migrations" : "up to date"}`);
   if (hasPending) pending.set(t.env, out.trim());
@@ -156,6 +162,7 @@ for (const t of targets) {
       { CLOUDFLARE_ACCOUNT_ID: t.account_id },
     );
     if (res.status !== 0) {
+      console.error(migrationRetryHint);
       results.push({ env: t.env, ok: false, detail: "migration failed — worker NOT deployed" });
       continue;
     }

@@ -1,0 +1,138 @@
+[
+  {
+    "id": "reader-always-rebuild",
+    "source": "src/feeds/reader-order-cache.ts",
+    "find": "if (state.generation === generation) return;",
+    "replace": "if (false && state.generation === generation) return;",
+    "intent": "Rebuild unchanged rankings on every read.",
+    "author": "Codex self-generated #170 control"
+  },
+  {
+    "id": "reader-stale-rank",
+    "source": "src/feeds/reader-order-cache.ts",
+    "find": "if (state.generation === generation) return;",
+    "replace": "if (state.generation !== '') return;",
+    "intent": "Reuse cached positions after ranking input changes.",
+    "author": "Codex self-generated #170 control"
+  },
+  {
+    "id": "reader-broad-revision",
+    "source": "src/feeds/reader-order-cache.ts",
+    "find": "const generation = JSON.stringify([state.epoch, state.inputs]);",
+    "replace": "const changes = await db.prepare('SELECT items,reading,subscriptions FROM change_state WHERE id=1').first();\n  const generation = JSON.stringify([state.epoch, state.inputs, changes]);",
+    "intent": "Tie the ranking cache to all Reading and subscription metadata again.",
+    "author": "Codex self-generated #170 control"
+  },
+  {
+    "id": "reader-hidden-first-write",
+    "source": "src/feeds/reader-order-cache.ts",
+    "find": "if (state.generation === generation) return;",
+    "replace": "if (state.generation === generation) { await db.prepare('UPDATE reading_order SET position=position').first(); return; }",
+    "intent": "Hide a full-table redundant write behind first() while returning identical values.",
+    "author": "Codex self-generated #170 control"
+  },
+  {
+    "id": "reader-hidden-raw-write",
+    "source": "src/feeds/reader-order-cache.ts",
+    "find": "if (state.generation === generation) return;",
+    "replace": "if (state.generation === generation) { await db.prepare('UPDATE reading_order SET position=position RETURNING position').raw(); return; }",
+    "intent": "Hide redundant writes behind raw() while retaining its return semantics.",
+    "author": "Codex self-generated #170 control"
+  },
+  {
+    "id": "reader-loses-revision",
+    "source": "src/feeds/reader-order-cache.ts",
+    "find": "DO UPDATE SET generation = excluded.generation",
+    "replace": "DO UPDATE SET generation = excluded.generation, inputs = 0",
+    "intent": "Reset the source revision while storing the cache receipt.",
+    "author": "Codex self-generated #170 control"
+  },
+  {
+    "id": "reader-eager-preparation",
+    "source": "src/reading-data.ts",
+    "find": "  const identities = identitySql(kind, background, rules, hopper, mentioning, shelf, order, raw);",
+    "replace": "  if (order === 'pace-layered' && !hopper && !shelf) await ensureReaderOrder(db);\n  const identities = identitySql(kind, background, rules, hopper, mentioning, shelf, order, raw);",
+    "intent": "Rebuild before rejecting an expired or malformed continuation.",
+    "author": "Codex self-generated #170 control"
+  },
+  {
+    "id": "cursor-skips-preparation",
+    "source": "src/cursor-page.ts",
+    "find": "    await source.prepare?.();",
+    "replace": "    // Derived preparation omitted.",
+    "intent": "Read the derived source before it has been prepared.",
+    "author": "Codex self-generated #170 control"
+  },
+  {
+    "id": "cursor-prepares-once",
+    "source": "src/cursor-page.ts",
+    "find": "  const attempt = async (initial?: ChangeState) => {",
+    "replace": "  const prepare = source.prepare;\n  let prepared = false;\n  source = { ...source, prepare: async () => { if (!prepared) { prepared = true; await prepare?.(); } } };\n  const attempt = async (initial?: ChangeState) => {",
+    "intent": "Prepare only the first attempt and reuse stale derived data on retry.",
+    "author": "Codex self-generated #170 control"
+  },
+  {
+    "id": "reader-hidden-exec-write",
+    "source": "src/feeds/reader-order-cache.ts",
+    "find": "if (state.generation === generation) return;",
+    "replace": "if (state.generation === generation) { await db.exec('UPDATE reading_order SET position=position'); return; }",
+    "intent": "Hide full redundant writes through exec, which omits native D1 row metadata.",
+    "author": "Codex self-generated control following independent review"
+  },
+  {
+    "id": "reader-orphans-in-pages",
+    "source": "src/reading-data.ts",
+    "find": "WHERE ${HELD} AND",
+    "replace": "WHERE 1 AND",
+    "intent": "Select imports whose subscriptions are gone before page cutting, then lose them in projection.",
+    "author": "Codex #171 receiving control"
+  },
+  {
+    "id": "reader-orphans-in-raw",
+    "source": "src/reading-data.ts",
+    "find": "FROM imported_items ii WHERE ${HELD}${kind",
+    "replace": "FROM imported_items ii WHERE 1${kind",
+    "intent": "Return empty Raw pages by selecting imports without their subscription.",
+    "author": "Codex #171 receiving control"
+  },
+  {
+    "id": "reader-marks-expire-cursors",
+    "source": "src/reading-data.ts",
+    "find": "domains: ['reading', 'subscriptions',",
+    "replace": "domains: ['marks', 'reading', 'subscriptions',",
+    "intent": "Expire a Reading continuation when a read mark changes between pages.",
+    "author": "Codex #171 receiving control"
+  },
+  {
+    "id": "reader-stale-publication",
+    "source": "src/feeds/reader-order-cache.ts",
+    "find": "  // Every mutation shares this guard inside the atomic batch. An older\n  // builder must not overwrite newer positions after another reader prepares.\n  const current = `EXISTS (SELECT 1 FROM change_state c\n    LEFT JOIN reading_order_state r ON r.id = c.id\n    WHERE c.id = 1 AND c.epoch = ? AND COALESCE(r.inputs, 0) = ?)`;\n  const publish = (sql: string, ...values: unknown[]) =>\n    db.prepare(sql).bind(...values, state.epoch, state.inputs);\n  const insert = (chunk: unknown[][]) =>\n    publish(`INSERT INTO reading_order (source, sub, id, position)\n      SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]'), json_extract(value, '$[2]'), json_extract(value, '$[3]') FROM json_each(?)\n      WHERE ${current}`, JSON.stringify(chunk));\n  const chunks = Array.from({ length: Math.ceil(rows.length / 500) }, (_, index) => rows.slice(index * 500, (index + 1) * 500));\n  await db.batch([\n    publish(`DELETE FROM reading_order WHERE ${current}`),\n    ...chunks.map(insert),\n    publish(`INSERT INTO reading_order_state (id, generation) SELECT 1, ? WHERE ${current}\n      ON CONFLICT (id) DO UPDATE SET generation = excluded.generation`, generation),\n  ]);",
+    "replace": "  const insert = (chunk: unknown[][]) =>\n    db.prepare(`INSERT INTO reading_order (source, sub, id, position)\n      SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]'), json_extract(value, '$[2]'), json_extract(value, '$[3]') FROM json_each(?)`).bind(JSON.stringify(chunk));\n  const chunks = Array.from({ length: Math.ceil(rows.length / 500) }, (_, index) => rows.slice(index * 500, (index + 1) * 500));\n  await db.batch([\n    db.prepare(\"DELETE FROM reading_order\"),\n    ...chunks.map(insert),\n    db.prepare(\"INSERT INTO reading_order_state (id, generation) VALUES (1, ?) ON CONFLICT (id) DO UPDATE SET generation = excluded.generation\").bind(generation),\n  ]);",
+    "intent": "Let a delayed older builder overwrite current positions after a current reader prepares.",
+    "author": "Codex control from independent prep-pr review CR-H1/COM1/V1"
+  },
+  {
+    "id": "reader-current-fallback-note-missing",
+    "source": "src/feeds/reader-order.ts",
+    "find": "...(row.version > 1 ? [{ version: row.version, at: at(row.updated), note: null, pinned: false, quotes }] : []),",
+    "replace": "...(row.version > 1 ? [{ version: row.version, at: at(row.updated), pinned: false, quotes }] : []),",
+    "intent": "Reproduce historical M70 by omitting the required null note from a fallback current version.",
+    "author": "Codex control reproducing the exact historical importedVersions field-drop gap"
+  },
+  {
+    "id": "reader-history-first-note",
+    "source": "src/feeds/reader-order.ts",
+    "find": "  return versions\n    .map((v) => (maintenance.has(v.version) ? { ...v, maintenance: true } : v))",
+    "replace": "  return versions.map(version => ({ ...version, note: versions[0]?.note ?? null }))\n    .map((v) => (maintenance.has(v.version) ? { ...v, maintenance: true } : v))",
+    "intent": "Use the first logged note for every returned version, losing heterogeneous notes.",
+    "author": "Codex control from fresh prep-pr review E3"
+  },
+  {
+    "id": "reader-history-last-note",
+    "source": "src/feeds/reader-order.ts",
+    "find": "  return versions\n    .map((v) => (maintenance.has(v.version) ? { ...v, maintenance: true } : v))",
+    "replace": "  return versions.map(version => ({ ...version, note: versions.at(-1)?.note ?? null }))\n    .map((v) => (maintenance.has(v.version) ? { ...v, maintenance: true } : v))",
+    "intent": "Use the last logged note for every returned version, losing heterogeneous notes.",
+    "author": "Codex control from fresh prep-pr review E3"
+  }
+]

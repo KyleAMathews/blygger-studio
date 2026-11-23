@@ -8,7 +8,8 @@
  *
  * Every finite schedule runs against real D1 with a controlled projection gate:
  * no write, one/two related writes, unrelated-domain write, epoch rotation, and
- * projection failure. Writes occur after selection but before its post-snapshot.
+ * projection failure. Writes occur after selection but before its post-snapshot;
+ * each attempt prepares the derived source from those independently stored facts.
  * This is an operation/cursor receiving seam; the companion batch oracle drives
  * the actual mentions handlers. Arbitrary denied input and deployed D1 replicas
  * remain outside this property. No new model state or product policy is added.
@@ -57,6 +58,8 @@ oracleProperty({
     await withOracleCleanup(async () => {
       await env.DB.prepare('CREATE TABLE IF NOT EXISTS handoff_fixture(id INTEGER PRIMARY KEY,value TEXT)').run();
       await env.DB.prepare("INSERT INTO handoff_fixture VALUES(1,'old')").run();
+      await env.DB.prepare('CREATE TABLE IF NOT EXISTS handoff_source(id INTEGER PRIMARY KEY,value TEXT)').run();
+      await env.DB.prepare("INSERT INTO handoff_source VALUES(1,'old')").run();
       // A distinct identity per history prevents cross-history isolate stamps.
       const db = new Proxy(env.DB, { get(target, key) { const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value; } });
       const context: OperationContext = { env: { ...env, DB: db }, url: 'https://example.com/blyg/api/handoff', access: null, extensions: [], defer() {} };
@@ -67,11 +70,14 @@ oracleProperty({
           receipt = ctx.conditionalSnapshot;
           return success(await cursorPage<{ id: number; value: string }>(ctx.env.DB, {}, {
             name: 'handoff', domains: ['mentions'], sql: 'SELECT * FROM handoff_fixture', order: [{ column: 'id', direction: 'asc' }],
+            // Preparation is part of each attempt: a retry must materialize
+            // the new source before projecting it, not reuse the first build.
+            prepare: async () => { await env.DB.prepare('UPDATE handoff_fixture SET value=(SELECT value FROM handoff_source WHERE id=1) WHERE id=1').run(); },
             project: async rows => {
               projections++;
               if (active && schedule === 'projection-failure') throw new Error('Controlled projection failure');
               if (active && (projections === 1 && schedule !== 'none' || projections === 2 && schedule === 'related-twice')) {
-                await env.DB.prepare('UPDATE handoff_fixture SET value=? WHERE id=1').bind(`current-${projections}`).run();
+                await env.DB.prepare('UPDATE handoff_source SET value=? WHERE id=1').bind(`current-${projections}`).run();
                 await env.DB.prepare(schedule === 'unrelated' ? 'UPDATE change_state SET settings=settings+1 WHERE id=1'
                   : schedule === 'epoch' ? "UPDATE change_state SET epoch=epoch||'-handoff' WHERE id=1"
                   : 'UPDATE change_state SET mentions=mentions+1 WHERE id=1').run();
@@ -104,6 +110,7 @@ oracleProperty({
       observe('reach', schedule);
     }, [
       () => env.DB.prepare('DELETE FROM handoff_fixture').run(),
+      () => env.DB.prepare('DELETE FROM handoff_source').run(),
       () => env.DB.prepare('UPDATE change_state SET epoch=? WHERE id=1').bind(original.epoch).run(),
     ]);
   },

@@ -25,6 +25,8 @@
  * neither production codec nor SQL keyset builder is imported by a model.
  * Actual SQLite executes all production SQL. Incoming fixture transformations
  * vary one malformed premise at a time; issued tokens are received unchanged.
+ * Preparation copies a separate source into the queried derived table;
+ * projection writes change that source, so retries owe freshly derived rows.
  * Projection writes distinguish retry from expiry. A supplied snapshot needs
  * a completion proof when stable; after a full-state crossing it may omit that
  * proof so the conditional operation reads afresh. Any supplied proof must name
@@ -285,8 +287,13 @@ oracleProperty({
   driver: async (plan, observe) => {
     const peer = fixture(plan.value);
     await withOracleCleanup(async () => {
+      peer.execute('CREATE TABLE cursor_codec_source AS SELECT * FROM cursor_codec_fixture');
+      // Start behind the source so even a stable first page needs preparation.
+      // Only the source changes during projection; a retry must derive again.
+      peer.execute('UPDATE cursor_codec_fixture SET value=value-1');
       let cursor: string | undefined, projections = 0;
-      const descriptor = { ...source, order: [{ column: 'id', direction: 'asc' as const }] };
+      const descriptor = { ...source, order: [{ column: 'id', direction: 'asc' as const }],
+        prepare: async () => { peer.execute('UPDATE cursor_codec_fixture SET value=(SELECT value FROM cursor_codec_source WHERE cursor_codec_source.id=cursor_codec_fixture.id)'); } };
       if (plan.continuation) {
         const prime = await invoke(peer.db, { limit: 1 }, descriptor); observe('prime', summarize(prime));
         if (!prime.ok || !prime.value?.page || typeof prime.value.page.nextCursor !== 'string') return;
@@ -298,7 +305,7 @@ oracleProperty({
         projections++;
         if (projections <= plan.crossings) {
           peer.change(plan.related ? 'items' : 'settings');
-          if (plan.related) peer.execute('UPDATE cursor_codec_fixture SET value=value+1');
+          if (plan.related) peer.execute('UPDATE cursor_codec_source SET value=value+1');
         }
         return rows.map(row => ({ ...row, projected: true }));
       } }, snapshot) }; }

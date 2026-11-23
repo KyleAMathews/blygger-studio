@@ -1,17 +1,25 @@
 // Withdrawn posts are background (0.49.0): every lens but Background leaves
 // them out of the feed and its counts, and Background shows only them.
 import { env } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { putSettings } from "../src/model.ts";
 import { applyEffect, createSubscription } from "../src/importer/store.ts";
 import { transition } from "../src/importer/transition.ts";
 import { newId } from "../src/util.ts";
 import { itemDocBody } from "./importer/fixtures.ts";
 import { apiJson, createAndPublish, login } from "./helpers.ts";
 
+afterEach(() => putSettings(env.DB, { bg_rules: "{}" }));
+
 describe("reading: withdrawn posts are background", () => {
   it("keeps own endcaps and imported tombstones out of every other lens, and only them in Background", async () => {
+    // This lens test isolates withdrawal from automatic supersession.
+    await putSettings(env.DB, { bg_rules: JSON.stringify({ superseded: false }) });
     const cookie = await login();
     const live = await createAndPublish(cookie, "Background lens live post");
+    // Exercise distinct publish seconds even when fixture setup runs quickly.
+    await env.DB.prepare("UPDATE versions SET published_at = ? WHERE item_id = ?")
+      .bind(new Date(Date.now() - 5 * 60_000).toISOString().replace(/\.\d+Z$/, "Z"), live).run();
     const gone = await createAndPublish(cookie, "Background lens withdrawn post");
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${gone}/withdraw`, {})).status).toBe(200);
 
