@@ -177,6 +177,32 @@ export interface EditorBarContext extends StudioContext {
   bar: { asked: BarRow; place: BarPlace; blocks: number; owns: ReplaceableControl[] };
 }
 
+/**
+ * What the `[[` picker is inserting: a `link` (`[[…]]`), a `transclude` (`![[…]]` on a line of
+ * its own) or a `source` (`![[…]]` inside a TK scope).
+ */
+export type PickerForm = 'link' | 'transclude' | 'source';
+
+/** One result a picker source offers. The Studio inserts it in the form being typed. */
+export interface PickerResult {
+  /** An item id (26 characters). Anything else is dropped: the picker only names items. */
+  id: string;
+  /** The link text, as in `[[id | label]]`. Without one, the Studio inserts the bare form. */
+  label?: string;
+  /** The result's line in the list. */
+  excerpt: string;
+  /** A short second line, such as a kind or a date. */
+  meta?: string;
+}
+
+/** What a picker source's search is handed: the query typed so far, and the form. */
+export interface PickerSourceContext extends StudioContext {
+  query: string;
+  form: PickerForm;
+  /** Aborted when the query changes or the picker closes. */
+  signal: AbortSignal;
+}
+
 /** A row an extension adds to an entry's ⋯ sheet, below the Studio's own. */
 export interface EntryAction {
   icon?: ReactNode;
@@ -227,6 +253,19 @@ export interface StudioExtension {
      */
     replaces?: ReplaceableControl[];
     component: ComponentType<{ context: EditorBarContext }>;
+  };
+  /**
+   * A tab in the `[[` / `![[` picker, beside the Studio's own search, listing what this
+   * extension offers to link to (docs/extensions.md, "Picker sources"). The Studio keeps the
+   * list, the keyboard, the insert and the syntax; `search` only finds results. Called as
+   * the query changes, after a short pause.
+   */
+  pickerSource?: {
+    /** The tab's name. */
+    label: string;
+    /** The forms the tab is offered for (default `['link']`). */
+    forms?: PickerForm[];
+    search: (context: PickerSourceContext) => Promise<PickerResult[]>;
   };
   /** A page of its own at /studio/ext/<name>, linked from More. */
   page?: {

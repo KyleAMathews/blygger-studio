@@ -11,11 +11,12 @@ import { join } from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
 import { createElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { BAR_CAPACITY, DraftCounterSlot, EntryBylineSlot, EntrySheetSlot, ExtensionBoundary, barBlocks, barPlacement, barReplaces, entryActionRows, enabledExtensions, extensionContext, menuPlacement, useEditorBars, type BarHostContext, type HostContext } from '../src/ui/extensions.tsx';
+import { BAR_CAPACITY, DraftCounterSlot, EntryBylineSlot, EntrySheetSlot, ExtensionBoundary, barBlocks, barPlacement, barReplaces, entryActionRows, enabledExtensions, extensionContext, menuPlacement, MAX_PICKER_RESULTS, pickerResults, pickerSources, searchPickerSource, useEditorBars, type BarHostContext, type HostContext } from '../src/ui/extensions.tsx';
 import { errorLog } from '../src/ui/error-log.ts';
-import type { BarRow, DraftCounterContext, EntryContext, MenuZone, StudioExtension } from '../src/ui/extension-api.ts';
+import type { BarRow, DraftCounterContext, EntryContext, MenuZone, PickerSourceContext, StudioExtension } from '../src/ui/extension-api.ts';
 import { extension as barsExample } from '../extensions/bars-example/ui/index.tsx';
 import { extension as example } from '../extensions/example/ui/index.tsx';
+import { extension as pickerExample } from '../extensions/picker-example/ui/index.tsx';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -294,4 +295,63 @@ test('a slot boundary reports the extension that failed, so a control it replace
   const boundary = new ExtensionBoundary({ name: 'broken-bar', slot: 'editorBar', onFail: (name) => failed.push(name), children: 'content' });
   boundary.componentDidCatch(new Error('bar exploded'), { componentStack: '' });
   expect(failed).toEqual(['broken-bar']);
+});
+
+const ids = ['0aaaaaaaaaaaaaaaaaaaaaaaaa', '1bbbbbbbbbbbbbbbbbbbbbbbbb', '2ccccccccccccccccccccccccc'];
+const source = (name: string, forms?: PickerSourceContext['form'][], search: StudioExtension['pickerSource'] extends infer S ? S extends { search: infer F } ? F : never : never = async () => []): StudioExtension =>
+  ({ name, label: name, description: '', pickerSource: { label: name, ...(forms ? { forms } : {}), search } });
+const pickerHost = (signal = new AbortController().signal): HostContext<PickerSourceContext> => ({
+  client: {} as PickerSourceContext['client'],
+  openDraft: async () => {},
+  navigate: async () => {},
+  run: async (action) => { await action(); },
+  query: 'tacit',
+  form: 'link',
+  signal,
+});
+
+test('picker sources: none enabled means no tab; a source is offered for links unless it names its forms', () => {
+  expect(pickerSources([], 'link')).toEqual([]);
+  expect(pickerSources([example, barsExample], 'link')).toEqual([]);
+  const links = source('refs');
+  const quotes = source('quotes', ['transclude', 'source']);
+  expect(pickerSources([links, quotes], 'link')).toEqual([links]);
+  expect(pickerSources([links, quotes], 'transclude')).toEqual([quotes]);
+  expect(pickerSources([quotes, links, pickerExample], 'link').map((e) => e.name)).toEqual(['refs', 'picker-example']);
+});
+
+test('picker sources: only item ids, each once, on one line, at most MAX_PICKER_RESULTS', () => {
+  expect(pickerResults(undefined)).toEqual([]);
+  expect(pickerResults([
+    { id: ids[0], label: 'Polanyi\n1966', excerpt: '  The Tacit\nDimension ', meta: 'book' },
+    { id: 'https://example.com/', excerpt: 'not an item' },
+    { id: ids[0], excerpt: 'again' },
+    { id: ids[1], label: '', excerpt: '' },
+    null,
+    { id: ids[2].toUpperCase(), excerpt: 'upper case is not an id' },
+  ])).toEqual([
+    { id: ids[0], label: 'Polanyi 1966', excerpt: 'The Tacit Dimension', meta: 'book' },
+    { id: ids[1], excerpt: ids[1] },
+  ]);
+  const many = Array.from({ length: 80 }, (_, i) => ({ id: i.toString(36).padStart(26, 'a'), excerpt: String(i) }));
+  expect(pickerResults(many)).toHaveLength(MAX_PICKER_RESULTS);
+});
+
+test('picker sources: the search gets its own context; a failure is logged under its name, an aborted one is not', async () => {
+  let seen: PickerSourceContext | undefined;
+  const good = source('refs', undefined, async (context) => { seen = context; return [{ id: ids[0], excerpt: context.query }]; });
+  expect(await searchPickerSource(good, pickerHost())).toEqual([{ id: ids[0], excerpt: 'tacit' }]);
+  expect(seen?.form).toBe('link');
+  expect(typeof seen?.showError).toBe('function');
+
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  const bad = source('broken', undefined, async () => { throw new Error('lookup fell over'); });
+  await expect(searchPickerSource(bad, pickerHost())).rejects.toThrow('lookup fell over');
+  expect(errorLog.entries()[0]).toMatchObject({ source: 'extension', extension: 'broken', slot: 'pickerSource', message: 'lookup fell over' });
+
+  errorLog.clear();
+  const controller = new AbortController();
+  controller.abort();
+  expect(await searchPickerSource(bad, pickerHost(controller.signal))).toEqual([]);
+  expect(errorLog.entries()).toEqual([]);
 });
