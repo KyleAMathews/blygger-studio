@@ -1,7 +1,8 @@
 import { readSyndication } from "./syndication.ts";
 import { authoredItemKindSql, authoredVersionKind } from './version-state.ts';
 import { cursorPage, type CursorQuery } from "./cursor-page.ts";
-import { ensureReaderOrder, type ReaderOrder } from "./feeds/reader-order.ts";
+import type { ReaderOrder } from "./feeds/reader-order.ts";
+import { ensureReaderOrder } from "./feeds/reader-order-cache.ts";
 import { buildReadingFeed, type OwnEntryInput, type ImportedEntryInput } from "./importer/reading.ts";
 import { sourceTitleAndUrl } from "./importer/util.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
@@ -104,13 +105,13 @@ export async function readingSummary(db: D1Database, source: string | undefined,
 export async function readingData(db: D1Database, query: CursorQuery, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES, shelf = false, order: ReaderOrder = 'newest', raw = false) {
   const selected = source ?? 'all';
   if (raw) order = 'newest';
-  if (order === 'pace-layered' && !hopper && !shelf) await ensureReaderOrder(db);
   const identities = identitySql(kind, background, rules, hopper, mentioning, shelf, order, raw);
   return cursorPage(db, { ...query, limit: query.limit ?? 25 }, {
     name: 'reading', filters: [selected, kind ?? null, background, hopper ?? null, mentioning?.join(' ') ?? null, rules.join(' '), shelf, order, raw], domains: ['reading', 'subscriptions', ...(hopper ? ['hoppers' as const] : []), ...(shelf ? ['shelf' as const] : [])],
     sql: `SELECT * FROM (${identities.sql})${selected === 'all' ? '' : selected === 'own' ? " WHERE source = 'own'" : ' WHERE sub = ? OR NOT EXISTS (SELECT 1 FROM subscriptions WHERE id = ?)'}`,
     binds: [...identities.binds, ...(selected !== 'all' && selected !== 'own' ? [selected, selected] : [])],
     order: [{ column: 'at', direction: 'desc' }, { column: 'source', direction: 'asc' }, { column: 'sub', direction: 'asc' }, { column: 'id', direction: 'asc' }],
+    prepare: order === 'pace-layered' && !hopper && !shelf ? () => ensureReaderOrder(db) : undefined,
     // Raw shows no fold: with no rules, no thread lists its parts.
     project: (selectedRows: Identity[]) => readingEntries(db, selectedRows, raw ? [] : rules),
   });

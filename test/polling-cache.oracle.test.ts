@@ -5,6 +5,8 @@
  * source SQL. Provider gates delay completed reads/conditional puts, never
  * manufacture expected XML or source revisions. Comparisons observe parsed
  * RSS, saved bytes/generation, HTTP validators and counted statement work.
+ * Native feed-state reads return the committed epoch/revision pair; malformed
+ * blob epochs are unavailable and the removed private /changes route stays 404.
  * History grammar: repeated metadata/body values, INSERT/UPDATE/DELETE, failed
  * and competing builds, cold cache, stable versus interrupted render, epochs.
  * Calibration: wrong source/domain/value answers are rejected at named public
@@ -312,8 +314,8 @@ function sourceDomains(action: SourceAction): string[] {
     case 'draft-change': case 'autosave': return ['items'];
     case 'subscribe': case 'rename-source': return ['subscriptions', 'reading', 'hoppers', 'feed'].sort();
     case 'poll-diagnostics': case 'etag-set': case 'etag-clear': return ['subscriptions'];
-    case 'import-old': case 'retype-import': case 'delete-import': return ['reading', 'hoppers', 'feed'].sort();
-    case 'repair-import-html': return ['reading', 'hoppers'].sort();
+    case 'import-old': case 'retype-import': case 'delete-import': return ['reading', 'feed'].sort();
+    case 'repair-import-html': return ['reading'];
     case 'update-checked': return ['settings'];
     case 'setting-rename-away': case 'setting-rename-back': return ['settings', 'feed'].sort();
     case 'withdraw': return ['items', 'reading', 'feed'].sort();
@@ -550,19 +552,48 @@ oracleProperty({
   },
   calibrations: [{ name: 'deadline read does not advance settings', law: 'timed update-state effect', history: { enumerated: 0 }, corrupt: trace => { let index = 0; return trace.map(entry => entry.checkpoint === 'timed update-state effect' && ++index === 2 ? { ...entry, value: { ...(entry.value as object), settingsAdvanced: false } } : entry); } }],
 });
+// Native readers owe the current source identity as well as rejecting malformed
+// state. Cross epochs with zero, ordinary and largest safe revisions so a reader
+// that always rejects, drops a field or substitutes a constant cannot agree.
+// These are finite native-D1 inputs; they do not claim a generated string domain.
+type StateReaderPlan =
+  | { receiver: 'private' | 'http' }
+  | { receiver: 'feed'; state?: { epoch: string; revision: number } };
+const stateReaderPlans: StateReaderPlan[] = [
+  { receiver: 'private' }, { receiver: 'feed' }, { receiver: 'http' },
+  ...['current-source', 'restored-source'].flatMap(epoch =>
+    [0, 1, 7, Number.MAX_SAFE_INTEGER].map(revision => ({ receiver: 'feed' as const, state: { epoch, revision } }))),
+];
 oracleProperty({
   id: 'polling-cache-state-readers', owns: ['src/changes.ts'],
-  law: { statement: 'For every change-state reader, a native SQLite blob epoch is rejected as unavailable; the removed private /changes endpoint has no authenticated compatibility alias.', authority: 'docs/d1-polling-cache-design.md R1/P8 and original native-blob receiving witnesses; Kyle Mathews, 2026-11-18: delete /changes with no compatibility alias', limits: 'Native D1 blob epoch and real authenticated removed-endpoint request only.' },
-  histories: [{ receiver: 'private' }, { receiver: 'feed' }, { receiver: 'http' }],
-  model: plan => plan.receiver === 'http' ? { status: 404 } : { message: plan.receiver === 'private' ? 'change state unavailable' : 'feed revision unavailable' },
+  law: { statement: 'For every valid native feed-state read, the returned epoch and revision equal the committed source; change-state readers reject a native SQLite blob epoch as unavailable, and the removed private /changes endpoint has no authenticated compatibility alias.', authority: 'docs/d1-polling-cache-design.md M1/R1/R4/P8 and original native-blob receiving witnesses; Kyle Mathews, 2026-11-18: delete /changes with no compatibility alias', limits: 'Native D1 blob epochs, feed reads crossing two nonempty epochs with revisions 0, 1, 7 and MAX_SAFE_INTEGER, and a real authenticated removed-endpoint request.' },
+  histories: { enumerated: stateReaderPlans, states: ['private blob reader', 'feed blob reader', 'removed endpoint', 'valid feed source', 'zero feed revision', 'maximum safe feed revision'] },
+  // Expected valid tokens come only from the controlled source inputs, never a
+  // second production read. Error and removed-route promises stay independent.
+  model: plan => plan.receiver === 'feed' && plan.state ? { value: { ...plan.state } } : plan.receiver === 'http' ? { status: 404 } : { message: plan.receiver === 'private' ? 'change state unavailable' : 'feed revision unavailable' },
   driver: async (plan, observe) => stored(observe, async () => {
     if (plan.receiver === 'http') {
       const cookie = await login(), ctx = createExecutionContext(), response = await app.fetch(new Request(`${BASE}/blyg/api/changes`, { headers: { cookie } }), env, ctx); observe('change reader result', { status: response.status }); await waitOnExecutionContext(ctx);
+      observe('reach', 'removed endpoint');
+    } else if (plan.receiver === 'feed' && plan.state) {
+      await env.DB.prepare('UPDATE change_state SET epoch=?,feed=? WHERE id=1').bind(plan.state.epoch, plan.state.revision).run();
+      observe('reach', 'valid feed source');
+      if (plan.state.revision === 0) observe('reach', 'zero feed revision');
+      if (plan.state.revision === Number.MAX_SAFE_INTEGER) observe('reach', 'maximum safe feed revision');
+      // Capture only the reader call. A deleted query must fail the value law;
+      // fixture seeding, observation and cleanup failures stay runner errors.
+      let result: unknown;
+      try { result = { value: await readFeedRevision(env.DB) }; }
+      catch (error) { result = { error: error instanceof Error ? { name: error.name, message: error.message } : String(error) }; }
+      observe('change reader result', result);
     } else {
       await env.DB.prepare('UPDATE change_state SET epoch=? WHERE id=1').bind(new Uint8Array([1, 2])).run();
       observe('change reader result', await thrown(() => plan.receiver === 'private' ? readChanges(env.DB) : readFeedRevision(env.DB)));
+      observe('reach', plan.receiver === 'private' ? 'private blob reader' : 'feed blob reader');
     }
   }),
+  // Compare the complete returned pair for valid state, and retain the original
+  // error-message/status checks for the three malformed/removed receivers.
   check: (_plan, trace, expected) => {
     const law = 'change reader result', rows = values(trace, law);
     for (const row of rows) {
@@ -571,7 +602,17 @@ oracleProperty({
     }
     return complete(trace) ? differs('history complete', law, rows.length, 1) ?? pass : pass;
   },
-  calibrations: [{ name: 'blob epoch accepted', law: 'change reader result', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'change reader result' ? { ...entry, value: undefined } : entry) }],
+  calibrations: [
+    { name: 'blob epoch accepted', law: 'change reader result', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'change reader result' ? { ...entry, value: undefined } : entry) },
+    ...(['epoch', 'revision'] as const).map(field => ({
+      name: `valid feed ${field} changed`, law: 'change reader result', history: { enumerated: 3 },
+      corrupt: (trace: readonly Observation[]) => trace.map(entry => {
+        if (entry.checkpoint !== 'change reader result') return entry;
+        const value = (entry.value as { value: { epoch: string; revision: number } }).value;
+        return { ...entry, value: { value: { ...value, [field]: field === 'epoch' ? `${value.epoch}-changed` : value.revision + 1 } } };
+      }),
+    })),
+  ],
 });
 
 // The publication model keeps source, saved artifact and pending attempt

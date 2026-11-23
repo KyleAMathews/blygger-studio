@@ -18,6 +18,14 @@ not have its own repo until session 26.
 
 ---
 
+## Unreleased
+
+- Avoid rebuilding reader positions for presentation-only changes, validate
+  continuations before preparing the order, and scope imported hopper changes
+  to actual member resources. Delayed rebuilds cannot overwrite newer reader
+  positions. Own pins expire affected Reading cursors.
+  Migration `0058_reader_work.sql`; see `docs/reader-derived-work-main-integration.md`.
+
 ## 0.70.0 — [TK] reads the links you give it; Reading loads fast again; seen means read
 
 **[TK] reads the links its author placed** (blygger-spec decision #117, spec 0.4 §16.16).
@@ -151,6 +159,15 @@ and titles). A node that stored the false version clears it at its next daily ch
 **0055** (`dictionary`). Apply them before deploying. Private contract **6.2.0**, SDK
 **0.24.0**. Fixed on the way: the lineage test no longer depends on the `superseded` rule's
 timing.
+
+**Upgrade notes:** on nodes with a few thousand items, D1 may report **7429**
+(overloaded) on a migration after 0050's search backfill. Wait at least a minute
+and rerun the same migration apply command; successful migrations stay recorded
+and only pending ones run. Deploy after all migrations finish. Once FTS exists,
+plain `wrangler d1 export --remote` fails: the export needs Wrangler 4.166.0 or
+newer and `--compatibility sqlite3_cli_only`, and the dump cannot be imported
+back into D1. See [migration retries, backups and SQL exports](docs/search.md#applying-migration-0050)
+for commands, the Studio backup archive and D1 Time Travel.
 
 ---
 

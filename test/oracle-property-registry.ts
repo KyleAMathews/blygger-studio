@@ -2,6 +2,13 @@
  * literal property registration, so an unknown replay cannot silently skip all
  * real properties. Keep this data module free of test registrations. */
 export const workerOracleProperties = [
+  "reader-history-note-shape",
+  "reader-derived-work",
+  "reading-owner-derived-work",
+  "reader-cache-validity",
+  "reader-cache-publication",
+  "reader-pin-cursor",
+  "hopper-import-dependencies",
   "search-index-source-history",
   "search-index-bounded-work",
   "search-index-backup-restore",

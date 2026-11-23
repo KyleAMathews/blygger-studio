@@ -13,8 +13,8 @@
  * until its next version; it counts as its first and latest versions.
  *
  * The order is stored as positions (`reading_order`) and rebuilt when the
- * reading collection's change generation moves, so pages are cut by the
- * ordinary cursor, which already expires when that generation moves.
+ * ranking inputs change (reader-order-cache.ts). Pages still use the broader
+ * Reading generation to expire on presentation changes too.
  */
 import { clampedTime } from "../burst.ts";
 import { loadFeedHistory } from "./history.ts";
@@ -140,39 +140,4 @@ export function readerPositions(items: FeedHistoryItem[]): string[] {
   const rest = live.slice(READER_ORDER_WINDOW).map((i) => i.id);
   const withdrawn = items.filter((i) => i.withdrawn).sort((a, b) => lastAt(b).localeCompare(lastAt(a))).map((i) => i.id);
   return [...ranked, ...rest, ...withdrawn];
-}
-
-/** The generation the stored positions answer to: what the reading collection pages against, plus own items. */
-/**
- * Make `reading_order` current: rebuilt only when one of its inputs changed
- * since the last build. `inputs` is moved by migration 0056's triggers on
- * exactly what loadReaderHistory reads, so polls, autosaves and read marks
- * leave the order alone; the change epoch still forces a rebuild after a
- * restore. Two readers rebuilding at once write the same positions, and a
- * change during a build leaves the stored generation behind, so the next read
- * rebuilds again.
- */
-export async function ensureReaderOrder(db: D1Database): Promise<void> {
-  const [state, epoch] = await db.batch<{ generation: string; inputs: number } | { epoch: string }>([
-    db.prepare("SELECT generation, inputs FROM reading_order_state WHERE id = 1"),
-    db.prepare("SELECT epoch FROM change_state WHERE id = 1"),
-  ]);
-  const stored = state.results[0] as { generation: string; inputs: number } | undefined;
-  const generation = JSON.stringify([(epoch.results[0] as { epoch: string } | undefined)?.epoch ?? "", stored?.inputs ?? 0]);
-  if (stored?.generation === generation) return;
-  const { items, identities } = await loadReaderHistory(db);
-  const rows = readerPositions(items).flatMap((key, position) => {
-    const identity = identities.get(key);
-    return identity ? [[identity.source, identity.sub, identity.id, position]] : [];
-  });
-  const insert = (chunk: unknown[][]) =>
-    db.prepare(`INSERT INTO reading_order (source, sub, id, position)
-      SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]'), json_extract(value, '$[2]'), json_extract(value, '$[3]') FROM json_each(?)`).bind(JSON.stringify(chunk));
-  const chunks: unknown[][][] = [];
-  for (let i = 0; i < rows.length; i += 500) chunks.push(rows.slice(i, i + 500));
-  await db.batch([
-    db.prepare("DELETE FROM reading_order"),
-    ...chunks.map(insert),
-    db.prepare("INSERT INTO reading_order_state (id, generation) VALUES (1, ?) ON CONFLICT (id) DO UPDATE SET generation = excluded.generation").bind(generation),
-  ]);
 }
