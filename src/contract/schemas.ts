@@ -13,6 +13,8 @@ export const ItemRowSchema = z.object({
   content_md: z.string(),
   dirty: z.number(),
   tk_provenance_json: z.string().nullable(),
+  /** Server-written private taint (migration 0062): 1 while the working copy holds text drawn from a private snapshot. */
+  private_taint: z.number(),
   show_responses: z.number(),
   responses_override: z.number().nullable(),
   highlight_override: z.number().nullable(),

@@ -240,15 +240,17 @@ async function runConfidentialOauth(plan: McpPlan) {
 
     const d = await createDriver(), credential = await d.manual(all), client = await d.connect(credential.accessToken);
     await withOracleCleanup(async () => {
-      const provenance = plan.publication!.provenance;
-      const created = content(await client.callTool({ name: 'createItem', arguments: { body: { contentMd: plan.publication!.contentMd, provenance } } }));
+      // Generation provenance is the server's (contract 7.0.0, studio#178 Q1): MCP refuses a client's offer as REST does.
+      const offered = await client.callTool({ name: 'createItem', arguments: { body: { contentMd: plan.publication!.contentMd, provenance: plan.publication!.provenance } } });
+      record("MCP client provenance refused", offered.isError === true);
+      const created = content(await client.callTool({ name: 'createItem', arguments: { body: { contentMd: plan.publication!.contentMd } } }));
       const rest = await (await d.owner(d.mount + '/api/items/' + created.id)).json();
       const mcp = content(await client.callTool({ name: 'getItem', arguments: { path: { id: created.id } } }));
       record("MCP REST item equivalence", sameProjection(mcp, rest));
-      record("MCP generation provenance retained", mcp.provenance);
+      record("MCP generation provenance retained", Array.isArray(mcp.provenance) ? mcp.provenance.filter(Boolean).length : 0);
       content(await client.callTool({ name: 'publishItem', arguments: { path: { id: created.id }, body: { expectedRevision: created.revision } } }));
       const publicItem = await (await d.fetch(d.base + '/blyg/items/' + created.id + '.json')).json() as { generated: unknown; content_md: string };
-       record("MCP public generated provenance", publicItem.generated); record("MCP public generated words", publicItem.content_md); record("MCP public TK syntax", publicItem.content_md); ;
+       record("MCP public generated provenance", Array.isArray(publicItem.generated) ? publicItem.generated.length : 0); record("MCP public generated words", publicItem.content_md); record("MCP public TK syntax", publicItem.content_md); ;
       record("MCP grant revocation", (await d.owner(d.mount + '/api/authorizations/' + credential.authorization.id, 'DELETE')).status);
       await record("MCP revoked tool outcome", await toolOutcome(() => client.callTool({ name: 'getSettings', arguments: {} })));
     }, [() => client.close()]);

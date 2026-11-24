@@ -4745,19 +4745,6 @@
                   {
                     "type": "object",
                     "properties": {
-                      "provenance": {
-                        "type": "array",
-                        "items": {
-                          "anyOf": [
-                            {
-                              "$ref": "#/components/schemas/GenerationProvenance"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        }
-                      },
                       "contentMd": {
                         "type": "string"
                       },
@@ -5353,19 +5340,6 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "provenance": {
-                    "type": "array",
-                    "items": {
-                      "anyOf": [
-                        {
-                          "$ref": "#/components/schemas/GenerationProvenance"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    }
-                  },
                   "contentMd": {
                     "type": "string"
                   },

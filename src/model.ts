@@ -13,6 +13,7 @@ import { mathErrors, renderMarkdown } from "./markdown.ts";
 import { MathPublishError } from "./math.ts";
 import { mathFailures, withMathFailures } from "./math-render.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, stripToOutput, TkPublishError, unresolvedScopes } from "./tk.ts";
+import { PRIVATE_TAINT_REASON } from "./private-access.ts";
 import { CommentPublishError, parseComments, sameOutsideComments, type CommentRange } from "./comments.ts";
 import { recordPublishInteractions } from "./interactions.ts";
 import { applyVersionAgreement, composeStubCite, composeTransclusionCite, parseStoredStub } from "./stub.ts";
@@ -383,11 +384,12 @@ function publishedProvenance(item: ItemRow, working: string, ranges: CommentRang
  * pre-flight (tangling-plan §2.1) raises here whatever the real publish would,
  * before any new item is minted. Everything up to the final batch only reads.
  */
-export function publish(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string, noteGenerated = false, opts: { dryRun?: boolean } = {}): Promise<number> {
-  return withMathFailures(() => publishScoped(db, item, note, ourOrigin, noteGenerated, opts.dryRun === true));
+/** `restricted`: the caller may not see private things, so a hidden item it names resolves as unknown (private-access.ts). */
+export function publish(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string, noteGenerated = false, opts: { dryRun?: boolean; restricted?: boolean } = {}): Promise<number> {
+  return withMathFailures(() => publishScoped(db, item, note, ourOrigin, noteGenerated, opts.dryRun === true, opts.restricted === true));
 }
 
-async function publishScoped(db: D1Database, item: ItemRow, note: string | null, ourOrigin: string | undefined, noteGenerated: boolean, dryRun: boolean): Promise<number> {
+async function publishScoped(db: D1Database, item: ItemRow, note: string | null, ourOrigin: string | undefined, noteGenerated: boolean, dryRun: boolean, restricted: boolean): Promise<number> {
   const now = nowIso();
   const version = item.version + 1;
   const kind = await authoredKind(db, item);
@@ -452,10 +454,10 @@ async function publishScoped(db: D1Database, item: ItemRow, note: string | null,
   // where a label has already been through markdown and escaping once.
   // Token sequence is global, so the maps merge.
   const linkErrors: TransclusionRefError[] = [];
-  const links = withMentionCards(await resolveInternalLinks(db, annotated.text, normalizedOrigin(origin)), handles.cards);
+  const links = withMentionCards(await resolveInternalLinks(db, annotated.text, normalizedOrigin(origin), undefined, restricted), handles.cards);
   linkErrors.push(...links.errors);
   const { docs: blockLinks, errors: blockErrors } = await resolveBlockLinks(annotated, async (md) =>
-    withMentionCards(await resolveInternalLinks(db, md, normalizedOrigin(origin)), handles.cards),
+    withMentionCards(await resolveInternalLinks(db, md, normalizedOrigin(origin), undefined, restricted), handles.cards),
   );
   linkErrors.push(...blockErrors);
   if (linkErrors.length) throw new TransclusionResolveError(linkErrors);
@@ -465,7 +467,7 @@ async function publishScoped(db: D1Database, item: ItemRow, note: string | null,
   let contentHtml: string;
   let transclusionsJson: string | null = null;
   if (kind === "thread") {
-    const resolved = await resolveTransclusions(db, links.text, item.id, annotated);
+    const resolved = await resolveTransclusions(db, links.text, item.id, annotated, restricted);
     if (resolved.errors.length) throw new TransclusionResolveError(resolved.errors);
     contentHtml = spliceLinks(applyGeneratedWrappers(resolved.html, annotated));
     // §5.9 / decision #30: every **remote** entry carries its frozen human
@@ -507,19 +509,10 @@ async function publishScoped(db: D1Database, item: ItemRow, note: string | null,
   if (origin) contentHtml = absolutizeHtml(contentHtml, normalizedOrigin(origin));
 
   const generated: ScopeProvenance[] = scopes.map((_, i) => provenanceCache[i]).filter((p): p is ScopeProvenance => p != null);
-  // A public version may not disclose, or carry words drawn from, a private item
-  // (sealed-content-build-plan §1 0c): a scope that drew on one publishes only privately.
-  const ownSourceIds = [...new Set(generated.flatMap((p) => p.sources.flatMap((source) => ("id" in source && !source.origin ? [source.id] : []))))];
-  if (ownSourceIds.length) {
-    const privateIds = new Set((await db.prepare(`SELECT id FROM items WHERE status = 'private' AND id IN (SELECT value FROM json_each(?))`).bind(JSON.stringify(ownSourceIds)).all<{ id: string }>()).results.map((row) => row.id));
-    const issues = scopes.flatMap((scope, i) => (provenanceCache[i]?.private !== true && provenanceCache[i]?.sources.some((source) => "id" in source && !source.origin && privateIds.has(source.id))
-      ? [{ at: scope.start, reason: "this scope drew on a private item; publish privately, or generate it again without that source" }] : []));
-    if (issues.length) throw new TkPublishError(issues);
-  }
-  // The mark decides, not the sources' status today: raising or discarding a source does not unseal what was drawn from it.
-  const marked = scopes.flatMap((scope, i) => (provenanceCache[i]?.private === true
-    ? [{ at: scope.start, reason: "this scope drew on a private item; publish privately, or remove its output" }] : []));
-  if (marked.length) throw new TkPublishError(marked);
+  // A public version may not carry words drawn from a private item (sealed-content-build-plan
+  // §1 0f, laws 4 and 5): the server-written mark decides, with one answer whatever became of
+  // the source. Raising or discarding the source, or editing the markers away, does not clear it.
+  if (item.private_taint === 1) throw new TkPublishError([{ at: 0, reason: PRIVATE_TAINT_REASON }]);
   const generatedJson = generated.length ? JSON.stringify(generated) : null;
 
   // §2.2 version agreement: a stub's citation takes the version actually
@@ -679,7 +672,7 @@ export async function restoreVersion(db: D1Database, item: ItemRow, version: num
     // A prior detach retains the media row and bytes for its published versions.
     db.prepare(`UPDATE media SET item_id = ? WHERE id IN (SELECT media_id FROM version_media WHERE item_id = ? AND version = ?) AND EXISTS (SELECT 1 FROM items WHERE ${guard})`)
       .bind(item.id, item.id, version, ...expected),
-    db.prepare(`UPDATE items SET content_md = ?, tk_provenance_json = NULL, stub_of = CASE WHEN ? THEN ? ELSE stub_of END, dirty = ?, revision = revision + 1 WHERE ${guard}`)
+    db.prepare(`UPDATE items SET content_md = ?, tk_provenance_json = NULL, private_taint = 0, stub_of = CASE WHEN ? THEN ? ELSE stub_of END, dirty = ?, revision = revision + 1 WHERE ${guard}`)
       .bind(row.content_md, discard ? 1 : 0, row.stub_of, discard && !row.generated_json ? 0 : 1, ...expected),
   ]);
   if (!results[2].meta.changes) throw new ItemRevisionConflict(item.id, item.revision);

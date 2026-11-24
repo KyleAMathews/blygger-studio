@@ -499,10 +499,9 @@ const item = await unwrap(BlyggerApi.updateItem({
 Item edits accept `contentMd`, `kind`, `stubOf`, and `responses`.
 The response policy is `default`, `show`, or `hide`.
 Kind becomes fixed after the first publication.
-Fork lineage cannot change through PATCH. Client-recorded generation provenance
-can change when it matches the resulting TK scopes. A provenance-only patch
-guards the stored text used by that validation. A competing text change returns
-409 rather than applying provenance to different scopes.
+Fork lineage cannot change through PATCH. Generation provenance is written only
+by the studio when it generates, so neither create nor PATCH accepts it; text
+generated elsewhere is marked `[TK]impyrt=…[/TK]`.
 
 All requested changes must pass schema and domain validation before a write.
 Item and hopper writes guard the state that their domain rules used.

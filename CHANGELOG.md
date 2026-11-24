@@ -22,7 +22,7 @@ not have its own repo until session 26.
 
 **Private items, the rest of Phase 0** (blygger-spec `docs/sealed-content-build-plan.md` §1,
 0c–0e) **and the hopper fix** (studio#175). Private contract **7.0.0** (breaking for tokens:
-private access moves to a new scope). **Migrations:** `0061_search_private.sql`.
+private access moves to a new scope; client-written provenance removed). **Migrations:** `0061_search_private.sql`, `0062_private_taint.sql`.
 
 - **`owner:private`, a new scope.** Private items and their private versions need it;
   `owner:read` does not imply it. **A token minted before this change loses private access
@@ -42,10 +42,18 @@ private access moves to a new scope). **Migrations:** `0061_search_private.sql`.
   ones included and marked. `getItem` returns `hoppers: [{id, name, public}]`. Raising a
   private item to public confirms in both modes and names the public hoppers it will join.
   Public hopper pages and feeds still show public members only.
-- **Private taint.** [TK] output drawn from a private item marks its scope's provenance
-  `private: true`. A working copy carrying the mark reads like a private item (hidden from
-  tokens without `owner:private`) and publishes only privately, even after the source is
-  raised or discarded, and regenerating from tainted input keeps the mark.
+- **Private taint.** [TK] output drawn from a private item sets a mark on the item that only
+  the server writes (`items.private_taint`, migration 0062, which carries existing marks
+  over). Hand-editing the [TK] markers away, raising or discarding the source, or
+  regenerating from tainted input does not clear it; discarding the changes does. While it
+  is set a public publish is refused with one answer, whatever became of the source. To a
+  token without `owner:private`, a tainted draft is hidden like a private item, and a public
+  item with tainted pending changes stays visible as its latest public version, with the
+  working copy hidden (Venkat, 2026-11-24).
+- **Provenance is the server's (breaking).** `provenance` is no longer accepted by item
+  create or edit, over REST or MCP: a client could clear the private mark with it, or use a
+  source list to probe whether an id was private. Mark text generated elsewhere with
+  `[TK]impyrt=…[/TK]`.
 - **Hidden is not gone.** `GET /capabilities` lists the access's granted `scopes`, and
   `docs/client-access.md` says a client must not take an item's absence for deletion
   unless its token holds `owner:private` (Aneesh, Burrow).
@@ -59,6 +67,13 @@ private access moves to a new scope). **Migrations:** `0061_search_private.sql`.
   `owner:private` before a publish the default makes private. The [TK] preview shows
   private sources to a caller that may see them, and the provider reads a private source
   as the reader shows it, without comments to self.
+- **After the independent review (session 85).** The laws are now "For every" statements
+  (blygger-spec plan §1 0f) with their own oracle, `test/private-scope.oracle.test.ts`,
+  written before these fixes. A hidden item now answers exactly as an unknown id on every
+  item operation (signals and read marks too), because the runner runs the handler on an
+  id no item has rather than writing its own 404. Preview and publish say "unknown item"
+  for a hidden item in the HTML as well as the diagnostics. A restricted hopper cursor
+  expires only when a member's visibility changes, not on unrelated edits.
 
 ## 0.72.0 — Private items and Notebook mode; setup covers the newer settings; what's new after an upgrade
 

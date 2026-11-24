@@ -63,8 +63,10 @@ export function mcpReference(plan: McpPlan) {
   "MCP REST mention projection": { kind: "exact", value: true },
   "MCP mention scope denial": { kind: "exact", value: 403 },
   "MCP REST item equivalence": { kind: "exact", value: true },
-  "MCP generation provenance retained": { kind: "exact", value: plan.publication?.provenance },
-  "MCP public generated provenance": { kind: "exact", value: plan.publication?.provenance },
+  // Only the server writes provenance: a client's offer is refused and hand-written output publishes with no claims.
+  "MCP client provenance refused": { kind: "exact", value: true },
+  "MCP generation provenance retained": { kind: "exact", value: 0 },
+  "MCP public generated provenance": { kind: "exact", value: 0 },
   "MCP public generated words": { kind: "contains", value: plan.publication?.generatedText },
   "MCP public TK syntax": { kind: "not-contains", value: '[TK]' },
   "MCP grant revocation": { kind: "exact", value: 200 },
@@ -140,7 +142,7 @@ export function mcpReference(plan: McpPlan) {
  case "item-publication":
   add(["owner login","manual MCP issuance"]);
   add(["MCP tool error flag"], 3);
-  add(["MCP REST item equivalence","MCP generation provenance retained","MCP public generated provenance","MCP public generated words","MCP public TK syntax","MCP grant revocation","MCP revoked tool outcome"]);
+  add(["MCP client provenance refused","MCP REST item equivalence","MCP generation provenance retained","MCP public generated provenance","MCP public generated words","MCP public TK syntax","MCP grant revocation","MCP revoked tool outcome"]);
   break;
  case "scope-challenges":
   add(["owner login"]);

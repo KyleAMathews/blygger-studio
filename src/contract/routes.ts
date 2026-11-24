@@ -1,5 +1,5 @@
 import { readOperation, draftOperation, publishOperation, manageOperation, readingStateOperation, authenticatedOperation, presentationScopes, avatarScopes, privateReadOperation, privateVisibilityScopes } from '../operation-policy.ts';
-import { ItemSchema, VersionSchema, PrivateVersionSchema, MediaSchema, SubscriptionSchema, HopperSchema, ImportedItemSchema, MentionSchema, MentionGroupSchema, VersionReferenceSchema, StubSchema, TransclusionSchema, ProvenanceSchema } from "./resources.ts";
+import { ItemSchema, VersionSchema, PrivateVersionSchema, MediaSchema, SubscriptionSchema, HopperSchema, ImportedItemSchema, MentionSchema, MentionGroupSchema, VersionReferenceSchema, StubSchema, TransclusionSchema } from "./resources.ts";
 import { createRoute, z } from "@hono/zod-openapi";
 import { ErrorSchema, route } from "./route.ts";
 import { extensionRoutes } from "../../extensions/catalog.ts";
@@ -24,7 +24,9 @@ const ok = z.object({ ok: z.boolean() });
 const created = ItemSchema;
 const ref = VersionReferenceSchema;
 const stub = StubSchema;
-export const ItemEditSchema = z.object({ provenance: z.array(z.union([ProvenanceSchema, z.null()])).optional(), contentMd: z.string().optional(), kind: z.enum(["fragment", "thread"]).optional(), stubOf: z.union([stub, z.null()]).optional(), responses: z.enum(["default", "show", "hide"]).optional(), highlight: z.enum(["default", "show", "hide"]).optional() }).strict();
+// Generation provenance is written only by the server (private taint, law 4; Venkat, 2026-11-24 Q1).
+// Text generated elsewhere is marked in the text itself: [TK]impyrt=…[/TK] (decision #37).
+export const ItemEditSchema = z.object({ contentMd: z.string().optional(), kind: z.enum(["fragment", "thread"]).optional(), stubOf: z.union([stub, z.null()]).optional(), responses: z.enum(["default", "show", "hide"]).optional(), highlight: z.enum(["default", "show", "hide"]).optional() }).strict();
 export const ItemCreateSchema = z.union([
   ItemEditSchema.omit({ responses: true, highlight: true }).extend({ mode: z.literal("blank").optional() }).strict(),
   z.object({ mode: z.literal("fork"), source: ref }).strict(),
@@ -195,7 +197,7 @@ export const routes = {
   updateMention: route("updateMention", manageOperation({"writes":["mentions","presentation"],"destructive":true}), "patch", "/mentions/{id}", ok.extend({ hidden: z.boolean() }), z.object({ hidden: z.boolean() })),
   listItems: route('listItems', readOperation(), 'get', '/items', collection(ItemSchema.extend({ pins })), undefined, 200, page.extend({ status: z.enum(['draft', 'public', 'private', 'withdrawn']).optional(), dirty: z.enum(['true', 'false']).optional(), version: z.coerce.number().int().nonnegative().optional(), id: z.string().optional(), updated: z.string().optional() })),
   getItemSummary: route('getItemSummary', readOperation(), 'get', '/items/summary', z.object({ all: z.number().int().nonnegative(), drafts: z.number().int().nonnegative(), changes: z.number().int().nonnegative(), public: z.number().int().nonnegative(), withdrawn: z.number().int().nonnegative() })),
-  getItem: route('getItem', readOperation(), 'get', READ_BATCH_PATHS.getItem, z.object({ ...ItemSchema.shape, pins, media: z.array(MediaSchema).describe("The working copy's attachments."), publishedMedia: z.array(MediaSchema).describe('The live version attachments, including retained detached media.'), published: z.union([VersionSchema, z.null()]), hoppers: z.array(z.object({ id: z.string(), name: z.string(), public: z.boolean() })).describe('The hoppers this item is a member of. A public one shows the item on its page and feed once the item is public.') })),
+  getItem: route('getItem', { ...readOperation(), itemVisibility: 'in-statement' }, 'get', READ_BATCH_PATHS.getItem, z.object({ ...ItemSchema.shape, pins, media: z.array(MediaSchema).describe("The working copy's attachments."), publishedMedia: z.array(MediaSchema).describe('The live version attachments, including retained detached media.'), published: z.union([VersionSchema, z.null()]), hoppers: z.array(z.object({ id: z.string(), name: z.string(), public: z.boolean() })).describe('The hoppers this item is a member of. A public one shows the item on its page and feed once the item is public.') })),
   listItemVersions: route('listItemVersions', readOperation(), 'get', '/items/{id}/versions', collection(VersionSchema), undefined, 200, page.extend({ version: z.coerce.number().int().positive().optional() })),
   listPrivateVersions: route('listPrivateVersions', privateReadOperation(), 'get', '/items/{id}/private-versions', collection(PrivateVersionSchema), undefined, 200, page),
   getSettings: route("getSettings", readOperation(), "get", "/settings", SettingsSchema),

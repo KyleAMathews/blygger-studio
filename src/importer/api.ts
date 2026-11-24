@@ -1,4 +1,3 @@
-import { privateItemHidden } from "../private-access.ts";
 import { deploymentPaths, nowIso } from '../util.ts';
 import { success, created, failure, type OperationContext, type OperationInput } from '../operation-types.ts';
 import { feedUrl as surfaceFeedUrl, surfaceFromManifest } from "../surface.ts";
@@ -231,8 +230,8 @@ const addHopperItemOperation = async (context: OperationContext, input: Operatio
   if (!hopper) return failure('not-found', { error: "hopper not found" });
   // One of the owner's own items: any that exists; the public page shows only published ones.
   if (input.path.sub === OWN_SUBSCRIPTION) {
-    // A private item answers exactly as an unknown one, after the same hopper check (studio#178 R12).
-    if (!(await getItem(context.env.DB, input.path.remoteId)) || await privateItemHidden(context.env.DB, context.access, input.path.remoteId)) return failure('not-found', { error: "item not found" });
+    // A hidden item reaches here as an id no item has (operation-runner.ts), so it answers as an unknown one.
+    if (!(await getItem(context.env.DB, input.path.remoteId))) return failure('not-found', { error: "item not found" });
     await addHopperItem(context.env.DB, hopper.id, OWN_SUBSCRIPTION, input.path.remoteId);
     return success({ ok: true });
   }
@@ -245,8 +244,6 @@ const addHopperItemOperation = async (context: OperationContext, input: Operatio
 const removeHopperItemOperation = async (context: OperationContext, input: OperationInput) => {
   const hopper = await getHopper(context.env.DB, input.path.id);
   if (!hopper) return failure('not-found', { error: "hopper not found" });
-  // A private member an access cannot see is not removed by it, and the answer is a non-member's.
-  if (input.path.sub === OWN_SUBSCRIPTION && await privateItemHidden(context.env.DB, context.access, input.path.remoteId)) return success({ ok: true });
   await removeHopperItem(context.env.DB, hopper.id, input.path.sub, input.path.remoteId);
   return success({ ok: true });
 };

@@ -12,11 +12,15 @@ export function assertItemRevision(item: Pick<ItemRow, 'id' | 'revision'>, expec
   if (item.revision !== expectedRevision) throw new ItemRevisionConflict(item.id, expectedRevision);
 }
 
-/** Install text and its positional provenance as one conditional transition. */
-export async function installWorkingCopy(db: D1Database, item: ItemRow, text: string, provenance: string | null) {
+/**
+ * Install text and its positional provenance as one conditional transition.
+ * `tainted` sets the private-taint mark (migration 0062); nothing here clears it.
+ */
+export async function installWorkingCopy(db: D1Database, item: ItemRow, text: string, provenance: string | null, tainted = false) {
   const result = await db.prepare(`UPDATE items SET content_md = ?, tk_provenance_json = ?, dirty = ?,
+    private_taint = CASE WHEN ? THEN 1 ELSE private_taint END,
     updated = CASE WHEN version = 0 THEN ? ELSE updated END, revision = revision + 1
-    WHERE id = ? AND revision = ?`).bind(text, provenance, item.dirty === 0 && sameOutsideComments(item.content_md, text) ? 0 : 1, nowIso(), item.id, item.revision).run();
+    WHERE id = ? AND revision = ?`).bind(text, provenance, item.dirty === 0 && sameOutsideComments(item.content_md, text) ? 0 : 1, tainted ? 1 : 0, nowIso(), item.id, item.revision).run();
   if (!result.meta.changes) throw new ItemRevisionConflict(item.id, item.revision);
   return item.revision + 1;
 }

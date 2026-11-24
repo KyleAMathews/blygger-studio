@@ -1,22 +1,29 @@
-/** Client provenance stays positional and a rejected patch changes no item field.
+/** Generation provenance is the server's: a client body that offers it is refused
+ * whole, and a refused request changes no item field and creates no item.
  * The REST receiving boundary owns create/update/publish and the public document.
  *
- * POST /blyg/api/items({contentMd: twoTkSpans, provenance: [claim, null]}) // → draft
- * PATCH /blyg/api/items/id({provenance: [claim]}) // → 400, unchanged draft
- * POST /blyg/api/items/id/publish // → aligned claims and generated words
+ * POST /blyg/api/items({contentMd: twoTkSpans, provenance: [claim, null]}) // → 400, no item
+ * PATCH /blyg/api/items/id({contentMd: more, provenance: [claim]}) // → 400, unchanged draft
+ * POST /blyg/api/items/id/publish // → generated words, no claims the client wrote
  *
- * A patch can contain both valid text and an invalid claim count. Decision #52
- * and §5.9 require the entire patch to refuse rather than persist half of it.
- * For every modeled span/claim history, accepted claims have one position per TK
- * span and a mismatched patch preserves every item field. Publication retains the
- * accepted claims and generated words, while removing the private TK delimiters.
+ * Until contract 7.0.0 a client could record provenance positionally. The
+ * private-taint ruling (Venkat Rao, 2026-11-24, studio#178 Q1) made the server
+ * its only writer: a client-written `private` mark could be cleared, and a
+ * client-written source list could name an id that does not exist or probe
+ * whether one is private. Text generated elsewhere is marked in the text
+ * instead, `[TK]impyrt=…[/TK]` (decision #37). Decision #52 and §5.9 still
+ * require a refused patch to persist nothing, so the atomic half is kept.
+ * For every modeled history, a create or patch that offers provenance is
+ * refused, no item field changes and no item is created; publication of
+ * hand-written TK output carries no claims and keeps the words without the
+ * private TK delimiters.
  *
- * The model counts the plan's spans, never production parsing. Histories carry
- * prompts, generated words and claims; no history supplies expected answers.
- * The driver records HTTP statuses, the before/after equality relation and the
- * public document's claims/text. Equality is observed without logging random IDs
- * or timestamps. Comparisons happen at each completed receiving response.
- * Limits: the original two-span REST witness; MCP parity has its own oracle.
+ * The model counts the plan's patches, never production parsing. Histories
+ * carry prompts, generated words and claims; no history supplies expected
+ * answers. The driver records HTTP statuses, the before/after equality relation,
+ * the item count and the public document's claims/text. Equality is observed
+ * without logging random IDs or timestamps.
+ * Limits: one two-span REST history; MCP parity has its own oracle.
  */
 import { differs, oracleProperty, pass } from '@tanstack/oracles';
 import { equals, iterableEquality } from '@vitest/expect';
@@ -27,21 +34,14 @@ import { withOracleStorage } from './oracle-storage.ts';
 type Claim = { sources: never[]; model: string; at: string };
 type History = { name: string; spans: { prompt: string; text: string }[]; claim: Claim; initial: (0 | null)[]; patches: { append?: string; claims: (0 | null)[] }[] };
 const histories: History[] = [{
-  name: 'keeps client claims aligned to generated spans and rejects a partial patch atomically',
+  name: 'refuses client provenance whole: on create, and on a patch with or without text, aligned or not',
   spans: [{ prompt: 'first', text: 'First generated sentence.' }, { prompt: 'second', text: 'Second generated sentence.' }],
   claim: { sources: [], model: 'oracle-agent', at: '2026-10-04T00:00:00Z' },
   initial: [0, null], patches: [{ append: '\nMust not persist.', claims: [0] }, { claims: [0, 0] }],
 }];
-// Positional alignment is a count law. A refused patch leaves both text and
-// claims at their previous values; the accepted patch replaces only its claims.
+// Every offer of provenance is refused whole; a refused patch leaves every field as it was.
 function model(history: History) {
-  let claims = history.initial.map(value => value === null ? null : history.claim);
-  const patches = history.patches.map(patch => {
-    const aligned = patch.claims.length === history.spans.length;
-    if (aligned) { claims = patch.claims.map(value => value === null ? null : history.claim); }
-    return { status: aligned ? 200 : 400, unchanged: !aligned };
-  });
-  return { creation: history.initial.length === history.spans.length ? 201 : 400, patches, claims };
+  return { creation: 400, patches: history.patches.map(() => ({ status: 400, unchanged: true })), claims: 0 };
 }
 async function driver(history: History, observe: (checkpoint: string, value: unknown) => void) {
   await withOracleStorage(async () => {
@@ -57,20 +57,22 @@ async function driver(history: History, observe: (checkpoint: string, value: unk
     };
     const text = history.spans.map(span => `[TK]${span.prompt}[=]${span.text}[/TK]`).join('\n\n');
     const claims = (positions: (0 | null)[]) => positions.map(value => value === null ? null : history.claim);
+    const count = async () => ((await (await request('/blyg/api/items/summary')).json()) as { all: number }).all;
+    const itemsBefore = await count();
     const creation = await request('/blyg/api/items', 'POST', { contentMd: text, provenance: claims(history.initial) });
-    observe('client provenance creation', creation.status);
-    const draft = await creation.json() as { id: string };
+    observe('client provenance creation', { status: creation.status, created: (await count()) !== itemsBefore });
+    const draft = await (await request('/blyg/api/items', 'POST', { contentMd: text })).json() as { id: string };
     for (let index = 0; index < history.patches.length; index++) {
       const patch = history.patches[index];
       const before = await (await request('/blyg/api/items/' + draft.id)).json();
       const response = await request('/blyg/api/items/' + draft.id, 'PATCH', { ...(patch.append === undefined ? {} : { contentMd: text + patch.append }), provenance: claims(patch.claims) });
-      observe(index === 0 ? 'client provenance alignment rejection' : 'client provenance aligned patch', response.status);
+      observe('client provenance refusal', response.status);
       const after = await (await request('/blyg/api/items/' + draft.id)).json();
-      if (patch.append !== undefined) observe('client provenance atomic rejection', equals(after, before, [iterableEquality]));
+      observe('client provenance atomic rejection', equals(after, before, [iterableEquality]));
     }
     observe('client provenance publication', (await request('/blyg/api/items/' + draft.id + '/publish', 'POST', {})).status);
     const document = await (await SELF.fetch(BASE + '/blyg/items/' + draft.id + '.json')).json() as { generated: unknown; content_md: string };
-    observe('client provenance public claims', document.generated);
+    observe('client provenance public claims', Array.isArray(document.generated) ? document.generated.length : 0);
     observe('client provenance public words', { words: history.spans.map(span => document.content_md.includes(span.text)), tkDelimiters: document.content_md.includes('[TK]') });
   });
   observe('client provenance completed', true);
@@ -78,15 +80,15 @@ async function driver(history: History, observe: (checkpoint: string, value: unk
 oracleProperty({
   id: 'client-provenance',
   owns: ['src/api.ts#updateItemOperation', 'src/api.ts#createItemOperation'],
-  law: { statement: 'For every modeled generated-span history, claim counts align positionally, a refused patch preserves every item field, and publication exposes the accepted claims and generated words without TK delimiters.', authority: 'Decision #52; AGENTS.md §5.9; docs/auth-oracles.md client-recorded generation provenance; original client-provenance receiving witness.', limits: 'The complete original two-span REST history; this checks alignment, not whether client attribution is truthful, and does not infer MCP parity.' },
+  law: { statement: 'For every modeled history, a create or patch that offers generation provenance is refused, no item field changes and no item is created, and publication of hand-written TK output carries no claims and keeps its words without TK delimiters.', authority: 'Decision by Venkat Rao (GitHub vgururao), 2026-11-24, studio#178 Q1: only the server writes provenance; blygger-spec docs/sealed-content-build-plan.md §1 0f law 4. Decision #52 and AGENTS.md §5.9 for whole-request refusal. Decision #37 for impyrt.', limits: 'One two-span REST history; MCP parity has its own oracle. Server-written provenance is the private-scope and TK oracles\' concern.' },
   histories, label: history => history.name, model, driver,
   check: (history, trace, expected) => {
-    const checks: [string, unknown][] = [['owner fixture login', 302], ['client provenance creation', expected.creation]];
-    history.patches.forEach((patch, index) => { checks.push([index === 0 ? 'client provenance alignment rejection' : 'client provenance aligned patch', expected.patches[index].status]); if (patch.append !== undefined) checks.push(['client provenance atomic rejection', expected.patches[index].unchanged]); });
+    const checks: [string, unknown][] = [['owner fixture login', 302], ['client provenance creation', { status: expected.creation, created: false }]];
+    history.patches.forEach((_patch, index) => { checks.push(['client provenance refusal', expected.patches[index].status], ['client provenance atomic rejection', expected.patches[index].unchanged]); });
     checks.push(['client provenance publication', 200], ['client provenance public claims', expected.claims], ['client provenance public words', { words: history.spans.map(() => true), tkDelimiters: false }]);
     const actual = trace.filter(entry => entry.checkpoint !== 'client provenance completed');
-    for (let index = 0; index < actual.length; index++) { const [checkpoint, expectedValue] = checks[index] ?? ['unexpected observation', undefined]; const mismatch = differs(checkpoint, 'client provenance alignment', actual[index], { checkpoint, value: expectedValue }); if (mismatch) return mismatch; }
-    return trace.some(entry => entry.checkpoint === 'client provenance completed') ? differs('client provenance completion', 'client provenance alignment', actual.length, checks.length) ?? pass : pass;
+    for (let index = 0; index < actual.length; index++) { const [checkpoint, expectedValue] = checks[index] ?? ['unexpected observation', undefined]; const mismatch = differs(checkpoint, 'server provenance', actual[index], { checkpoint, value: expectedValue }); if (mismatch) return mismatch; }
+    return trace.some(entry => entry.checkpoint === 'client provenance completed') ? differs('client provenance completion', 'server provenance', actual.length, checks.length) ?? pass : pass;
   },
-  calibrations: [{ name: 'invalid patch persists text', law: 'client provenance alignment', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'client provenance atomic rejection' ? { ...entry, value: false } : entry) }],
+  calibrations: [{ name: 'invalid patch persists text', law: 'server provenance', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'client provenance atomic rejection' ? { ...entry, value: false } : entry) }],
 });

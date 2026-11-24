@@ -42,7 +42,7 @@ export async function scopeSummariesWithSources(db: D1Database, scopes: TkScope[
           sources.push({ id, ok: true, from: "you", excerpt: excerptFromHtml(kept.contentHtml, 60) });
           continue;
         }
-        const resolved = await resolveTarget(db, id);
+        const resolved = await resolveTarget(db, id, undefined, !privateSources);
         if (!resolved.ok) {
           sources.push({ id, ok: false, reason: resolved.reason });
           continue;

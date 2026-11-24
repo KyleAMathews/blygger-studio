@@ -1664,7 +1664,6 @@ export type ListItemsResponse = ListItemsResponses[keyof ListItemsResponses];
 
 export type CreateItemData = {
     body?: {
-        provenance?: Array<GenerationProvenance | null>;
         contentMd?: string;
         kind?: 'fragment' | 'thread';
         stubOf?: VersionReference | {
@@ -1945,7 +1944,6 @@ export type GetItemResponse = GetItemResponses[keyof GetItemResponses];
 
 export type UpdateItemData = {
     body: {
-        provenance?: Array<GenerationProvenance | null>;
         contentMd?: string;
         kind?: 'fragment' | 'thread';
         stubOf?: VersionReference | {

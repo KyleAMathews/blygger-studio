@@ -20,6 +20,12 @@ export interface OperationPolicy {
   conditionalScopes?: ScopeCondition;
   scopeNotes?: string;
   extension?: string;
+  /**
+   * 'in-statement': the handler reads the item through visibleItemsSql in the statement
+   * that decides its answer (private-access.ts), so the runner does not look the id up
+   * first. Keeps a delegated getItem batch within its read budget (studio#178 R01).
+   */
+  itemVisibility?: 'in-statement';
 }
 
 function scoped(scope: OwnerScope, effects: OperationEffects, budget: WorkBudget, conditionalScopes?: ScopeCondition): OperationPolicy {

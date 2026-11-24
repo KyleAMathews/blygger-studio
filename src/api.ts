@@ -58,7 +58,7 @@ import { flattenFork } from "./fork-flatten.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { siteOrigin } from "./protocol.ts";
 import { parseForkedFrom, parseStoredFork, parseStoredStub, parseStubOf } from "./stub.ts";
-import { parseScopes, unrequestedOutputDirectives } from './tk.ts';
+import { unrequestedOutputDirectives } from './tk.ts';
 import { parseTangles, partBody, rewriteTangles, tangleLabel, type TangleSpan } from './tangle.ts';
 import { directiveOwnLine, linkInline } from './grammar.ts';
 import { CommentPublishError, withoutComments } from './comments.ts';
@@ -116,11 +116,7 @@ const createItemOperation = async (context: OperationContext, input: OperationIn
     if (!parsed.ok) return failure('invalid-input', { error: parsed.reason });
     stub = parsed.stub;
   }
-  if (body.provenance !== undefined) {
-    const parsed = parseScopes(body.contentMd ?? '');
-    if (parsed.errors.length || parsed.scopes.length !== body.provenance.length) return failure('invalid-input', { error: 'provenance must have one entry per TK scope' });
-  }
-  const item = await createDraft(context.env.DB, body.contentMd ?? "", kind, stub, body.provenance);
+  const item = await createDraft(context.env.DB, body.contentMd ?? "", kind, stub);
   return created(itemResource(item, await authoredKind(context.env.DB, item)), `${deploymentPaths(context.env.MOUNT).api}/items/${item.id}`);
 };
 
@@ -182,25 +178,18 @@ const updateItemOperation = async (context: OperationContext, input: OperationIn
       stubJson = JSON.stringify(parsed.stub);
     }
   }
-  if (body.provenance !== undefined) {
-    const parsed = parseScopes(body.contentMd ?? item.content_md);
-    if (parsed.errors.length || parsed.scopes.length !== body.provenance.length) return failure('invalid-input', { error: 'provenance must have one entry per TK scope' });
-  }
-  const changesDraft = body.provenance !== undefined || body.contentMd !== undefined || body.kind !== undefined || "stubOf" in body;
+  const changesDraft = body.contentMd !== undefined || body.kind !== undefined || "stubOf" in body;
   const assignments: string[] = [], values: (string | number | null)[] = [];
-  if (body.provenance !== undefined) { assignments.push("tk_provenance_json = ?"); values.push(JSON.stringify(body.provenance)); }
   if (body.contentMd !== undefined) { assignments.push("content_md = ?"); values.push(body.contentMd); }
   if (body.kind !== undefined) { assignments.push("kind = ?"); values.push(body.kind); }
   if ("stubOf" in body) { assignments.push("stub_of = ?"); values.push(stubJson); }
   if (body.responses !== undefined) { assignments.push("responses_override = ?"); values.push(body.responses === "default" ? null : Number(body.responses === "show")); }
   if (body.highlight !== undefined) { assignments.push("highlight_override = ?"); values.push(body.highlight === "default" ? null : Number(body.highlight === "show")); }
-  const onlyComments = body.contentMd !== undefined && body.provenance === undefined && body.kind === undefined && !("stubOf" in body) && await keepsPublishedWords(context.env.DB, item, body.contentMd);
+  const onlyComments = body.contentMd !== undefined && body.kind === undefined && !("stubOf" in body) && await keepsPublishedWords(context.env.DB, item, body.contentMd);
   if (changesDraft) { assignments.push(onlyComments ? "dirty = 0" : "dirty = 1", "updated = CASE WHEN version = 0 THEN ? ELSE updated END"); values.push(nowIso()); }
   if (!assignments.length) return success(itemResource(item, await authoredKind(context.env.DB, item)));
   // Write only requested fields. Guard the state used for validation, so a
   // concurrent publication or citation edit cannot invalidate that check.
-  // A provenance-only patch also validated the stored text. When text is
-  // supplied, the provenance check used that replacement instead.
   assignments.push("revision = revision + 1");
   const fresh = await context.env.DB.prepare(`UPDATE items SET ${assignments.join(", ")} WHERE id = ? AND revision = ? RETURNING *`)
     .bind(...values, item.id, item.revision).first<ItemRow>();
@@ -293,7 +282,7 @@ async function publishAndNotify(context: OperationContext, item: ItemRow, note: 
   // Literal prose on the wire, never an error; every client hears (tn-6 section 5.2).
   const { unresolved: unresolvedHandles } = await consumeHandles(context.env.DB, withoutComments(item.content_md));
   try {
-    const version = await publish(context.env.DB, item, note, origin, noteGenerated);
+    const version = await publish(context.env.DB, item, note, origin, noteGenerated, { restricted: !seesPrivate(context.access) });
     // Studio-private bookkeeping must never fail a publish that has happened.
     if (settle) await settle(version).catch((e) => console.error("change class not settled", e));
     // After the category settles: an own version's Background reasons (4a).
@@ -427,7 +416,7 @@ async function publishTangled(
   // links that replace them name items published first, which always resolve.
   for (const [i, span] of spans.entries()) {
     try {
-      await publish(db, draftPart(item, partBody(span, item.id)), null, origin, false, { dryRun: true });
+      await publish(db, draftPart(item, partBody(span, item.id)), null, origin, false, { dryRun: true, restricted: !seesPrivate(context.access) });
     } catch (e) {
       return publishFailure(e, `new item ${i + 1} (${tangleLabel(span)}): `);
     }
@@ -441,7 +430,7 @@ async function publishTangled(
   }
   withoutSpans += item.content_md.slice(last);
   try {
-    await publish(db, { ...item, content_md: withoutSpans }, note, origin, noteGenerated, { dryRun: true });
+    await publish(db, { ...item, content_md: withoutSpans }, note, origin, noteGenerated, { dryRun: true, restricted: !seesPrivate(context.access) });
   } catch (e) {
     return publishFailure(e);
   }

@@ -1,5 +1,5 @@
 import { OWNER_SCOPES } from "./auth-scopes.ts";
-import { notebookSql, privateFilterSql, seesPrivate } from "./private-access.ts";
+import { hiddenItemSql, hiddenWorkingCopyFilterSql, hiddenWorkingCopySql, seesPrivate, visibleItemsSql } from "./private-access.ts";
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { itemResource, versionResource, mediaResource, subscriptionResource, hopperResource, importedResource, mentionResource, membershipResource, signalResource, outboundMentionResource, interactionResource, thumbResource, browseResource } from "./contract/resources.ts";
 import { settingsResource } from "./settings-resource.ts";
@@ -63,12 +63,12 @@ const listItemsOperation = async (context: OperationContext, input: OperationInp
   if (input.query.id) { where.push('i.id = ?'); binds.push(input.query.id); }
   if (input.query.updated) { where.push('i.updated = ?'); binds.push(input.query.updated); }
   if (input.query.version) { where.push('i.version = ?'); binds.push(Number(input.query.version)); }
-  const hidden = privateFilterSql(context.access);
-  if (hidden) where.push(hidden);
-  filters.push(hidden);
+  // Hidden items are absent and hidden working copies read as their public version (private-access.ts).
+  const items = visibleItemsSql(context.access);
+  filters.push(items === 'items' ? null : 'restricted');
   return success(await cursorPage<ItemRow & { authored_kind: 'fragment' | 'thread' }, ReturnType<typeof itemResource> & { pins: { version: number; kind: 'fragment' | 'thread' }[] }>(context.env.DB, input.query, {
     name: 'items', filters, domains: ['items'], binds,
-    sql: `SELECT i.*, ${authoredItemKindSql('p')} AS authored_kind FROM items i LEFT JOIN versions p ON p.item_id=i.id AND p.version=i.version-1${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`,
+    sql: `SELECT i.*, ${authoredItemKindSql('p')} AS authored_kind FROM ${items} i LEFT JOIN versions p ON p.item_id=i.id AND p.version=i.version-1${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`,
     order: [{ column: 'updated', direction: 'desc' }, { column: 'id', direction: 'desc' }],
     project: async rows => {
       // Frozen links, without history bodies. The projection is inside the generation guard.
@@ -89,9 +89,9 @@ async function presentVersions(db: D1Database, rows: VersionRow[]) {
     return { ...await presentVersion(row), changeClass: cls ? { category: cls.category, model: cls.model, probability: cls.probability, classifiedAt: cls.classified_at, overridden: cls.overridden === 1 } : null };
   }));
 }
-const getItemSummaryOperation = async (context: OperationContext) => success(await context.env.DB.prepare(`SELECT COUNT(*) AS 'all', COALESCE(SUM(version=0),0) AS drafts, COALESCE(SUM(dirty=1 AND status='public'),0) AS changes, COALESCE(SUM(status='public'),0) AS public, COALESCE(SUM(status='withdrawn'),0) AS withdrawn FROM items i${seesPrivate(context.access) ? '' : ` WHERE ${privateFilterSql(context.access)}`}`).first());
+const getItemSummaryOperation = async (context: OperationContext) => success(await context.env.DB.prepare(`SELECT COUNT(*) AS 'all', COALESCE(SUM(version=0),0) AS drafts, COALESCE(SUM(dirty=1 AND status='public'),0) AS changes, COALESCE(SUM(status='public'),0) AS public, COALESCE(SUM(status='withdrawn'),0) AS withdrawn FROM ${visibleItemsSql(context.access)} i`).first());
 const getItemOperation = async (context: OperationContext, input: OperationInput) => {
-  const detail = await itemDetail(context.env.DB, input.path.id, !seesPrivate(context.access));
+  const detail = await itemDetail(context.env.DB, input.path.id, visibleItemsSql(context.access));
   if (!detail) return failure('not-found', { error: 'not found' });
   const publicBase = deploymentUrls(context.url, context.env).publicBase;
   // Pins and hopper memberships in one statement: a read batch of 50 items stays within its binding-call cap.
@@ -141,7 +141,7 @@ const listHoppersOperation = async (context: OperationContext, input: OperationI
   order: [{ column: 'created', direction: 'asc' }, { column: 'id', direction: 'asc' }], project: rows => rows.map(hopperResource),
 }));
 /** A hopper's own private or tainted members, left out for an access without owner:private. */
-const HIDE_OWN_PRIVATE = ` AND NOT (subscription_id = '~own' AND remote_id IN (SELECT id FROM items i WHERE ${notebookSql("i")}))`;
+const HIDE_OWN_PRIVATE = ` AND NOT (subscription_id = '~own' AND remote_id IN (SELECT id FROM items i WHERE ${hiddenItemSql("i")}))`;
 const getHopperOperation = async (context: OperationContext, input: OperationInput) => {
   const hopper = await getHopper(context.env.DB, input.path.id);
   if (!hopper) return failure('not-found', { error: 'not found' });
@@ -151,9 +151,9 @@ const getHopperOperation = async (context: OperationContext, input: OperationInp
 const listHopperMembershipsOperation = async (context: OperationContext, input: OperationInput) => {
   if (!await getHopper(context.env.DB, input.path.id)) return failure('not-found', { error: 'not found' });
   return success(await cursorPage<HopperItemRow, ReturnType<typeof membershipResource> & { item: ReturnType<typeof importedResource> | null }>(context.env.DB, input.query, {
-    // Left out by item status, a restricted list also depends on items (studio#178 R11): a member
-    // turning private between pages expires it. Own edits already move reading, so little else does.
-    name: 'hopper-memberships', filters: [input.path.id, seesPrivate(context.access)], domains: seesPrivate(context.access) ? ['hoppers', 'reading', 'subscriptions'] : ['hoppers', 'reading', 'subscriptions', 'items'],
+    // A restricted list leaves hidden members out, so it depends on their visibility: a member's
+    // status or taint change moves `hoppers` (migration 0062), and an unrelated edit expires nothing (law 7).
+    name: 'hopper-memberships', filters: [input.path.id, seesPrivate(context.access)], domains: ['hoppers', 'reading', 'subscriptions'],
     sql: `SELECT * FROM hopper_items WHERE hopper_id = ?${seesPrivate(context.access) ? '' : HIDE_OWN_PRIVATE}`, binds: [input.path.id],
     order: [{ column: 'added_at', direction: 'desc' }, { column: 'subscription_id', direction: 'asc' }, { column: 'remote_id', direction: 'asc' }],
     project: async rows => {
@@ -345,9 +345,9 @@ const previewOperation = async (context: OperationContext, input: OperationInput
   // `[[id]]` resolves in the preview too, so an unresolvable link is visible
   // before publish rejects it — same contract as an unresolvable directive.
   const origin = siteOrigin(await getSettings(context.env.DB), context.url, mount);
-  const links = withMentionCards(await previewInternalLinks(context.env.DB, tk.text, origin), handles.cards);
+  const links = withMentionCards(await previewInternalLinks(context.env.DB, tk.text, origin, !seesPrivate(context.access)), handles.cards);
   // Links inside generated blocks resolve here too, as at publish (studio#14).
-  const blocks = await resolveBlockLinks(tk, async (md) => withMentionCards(await previewInternalLinks(context.env.DB, md, origin), handles.cards));
+  const blocks = await resolveBlockLinks(tk, async (md) => withMentionCards(await previewInternalLinks(context.env.DB, md, origin, !seesPrivate(context.access)), handles.cards));
   const html = [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(renderMarkdown(links.text)));
   return success({ html, scopes: await scopeSummariesWithSources(context.env.DB, parseScopes(body.contentMd ?? "").scopes, seesPrivate(context.access)), linkErrors: [...links.errors, ...blocks.errors], ...(handles.unresolved.length ? { unresolvedHandles: handles.unresolved } : {}) });
 };
@@ -423,7 +423,15 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
         NULL AS subscription_id, NULL AS source_title, NULL AS origin,
         CASE WHEN i.dirty = 1 OR i.version = 0 THEN i.content_md END AS draft_md, i.status = 'private' AS is_private
       FROM ${from} LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version
-      WHERE i.status IN ('public', 'draft'${withPrivate ? ", 'private'" : ''}) AND i.kind IN ('fragment', 'thread')${withPrivate ? '' : ` AND ${privateFilterSql(context.access)}`}${where}` });
+      WHERE i.status IN ('public', 'draft'${withPrivate ? ", 'private'" : ''}) AND i.kind IN ('fragment', 'thread')${withPrivate ? '' : ` AND ${hiddenWorkingCopyFilterSql(context.access)}`}${where}` });
+    if (!withPrivate) {
+      // A hidden working copy is matched by its latest public version instead (Q2, session 85).
+      const published = searchSource('published', 'items i', 'i.id = d.item_id');
+      parts.push({ binds: published.binds, sql: `SELECT 'mine' AS source, i.id AS id, v.content_html AS html, i.version AS version, i.updated AS updated, i.kind AS kind,
+          NULL AS subscription_id, NULL AS source_title, NULL AS origin, NULL AS draft_md, 0 AS is_private
+        FROM ${published.from} CROSS JOIN versions v ON v.item_id = i.id AND v.version = i.version
+        WHERE i.status = 'public' AND ${hiddenWorkingCopySql('i')} AND i.kind IN ('fragment', 'thread')${published.where}` });
+    }
   } else if (searchable && source !== "imported" && !sub) {
     const { from, where, binds } = searchSource('published', 'items i', 'i.id = d.item_id');
     parts.push({ binds, sql: `SELECT 'mine' AS source, i.id AS id, v.content_html AS html, i.version AS version, i.updated AS updated, i.kind AS kind,
@@ -487,7 +495,7 @@ const TANGLE_TOKEN = /\uE010tangle(\d+)\uE010/g;
  * each rendered on its own, as the new item it will be, in a quote marked
  * "new item". The rest of the thread renders with a token in each span's place.
  */
-async function previewTangles(db: D1Database, md: string, origin: string) {
+async function previewTangles(db: D1Database, md: string, origin: string, restricted: boolean) {
   const { spans } = parseTangles(md);
   if (!spans.length) return { md, finish: (html: string) => html, errors: [] as unknown[] };
   let text = "";
@@ -501,8 +509,8 @@ async function previewTangles(db: D1Database, md: string, origin: string) {
   const errors: unknown[] = [];
   const rendered = await Promise.all(spans.map(async (span) => {
     if (span.kind === "link") return "";
-    const links = await previewInternalLinks(db, span.text, origin);
-    const resolved = await previewTransclusions(db, links.text);
+    const links = await previewInternalLinks(db, span.text, origin, restricted);
+    const resolved = await previewTransclusions(db, links.text, undefined, undefined, restricted);
     errors.push(...links.errors, ...resolved.errors);
     return applyInternalLinks(resolved.html, links);
   }));
@@ -515,16 +523,17 @@ async function previewTangles(db: D1Database, md: string, origin: string) {
 
 async function threadPreview(context: OperationContext, input: OperationInput) {
   const body = (input.body as { contentMd?: string; itemId?: string });
-  const tangles = await previewTangles(context.env.DB, body.contentMd ?? "", siteOrigin(await getSettings(context.env.DB), context.url, normalizeMount(context.env.MOUNT)));
+  const restricted = !seesPrivate(context.access);
+  const tangles = await previewTangles(context.env.DB, body.contentMd ?? "", siteOrigin(await getSettings(context.env.DB), context.url, normalizeMount(context.env.MOUNT)), restricted);
   const handles = await consumeHandles(context.env.DB, previewComments(tangles.md));
   const tk = annotateTkPreview(handles.text);
   // item_id is the thread being edited — the DAG check needs it, so the
   // preview rejects a circular quote at exactly the point publish would.
   const mount = normalizeMount(context.env.MOUNT);
   const origin = siteOrigin(await getSettings(context.env.DB), context.url, mount);
-  const links = withMentionCards(await previewInternalLinks(context.env.DB, tk.text, origin), handles.cards);
-  const blocks = await resolveBlockLinks(tk, async (md) => withMentionCards(await previewInternalLinks(context.env.DB, md, origin), handles.cards));
-  const resolved = await previewTransclusions(context.env.DB, links.text, body.itemId, tk);
+  const links = withMentionCards(await previewInternalLinks(context.env.DB, tk.text, origin, !seesPrivate(context.access)), handles.cards);
+  const blocks = await resolveBlockLinks(tk, async (md) => withMentionCards(await previewInternalLinks(context.env.DB, md, origin, !seesPrivate(context.access)), handles.cards));
+  const resolved = await previewTransclusions(context.env.DB, links.text, body.itemId, tk, restricted);
   const html = [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(resolved.html));
   return success({
     // The lines the public page puts under its quotes. Placeholders for quotes

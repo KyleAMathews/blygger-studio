@@ -85,7 +85,8 @@ export async function runGenerateScope(
   const sources: (GenerationSource & { text: string })[] = [];
   // Private taint: the output is private-derived when it reads a private snapshot, or when
   // the input it is fed (this scope's text, the rest of the working copy) is already marked.
-  let tainted = getTkProvenance(item).some((p) => p?.private === true);
+  // The mark is the item's server-written column (migration 0062), never the provenance JSON.
+  let tainted = item.private_taint === 1;
   const addItem = async (id: string, target: ResolvedTarget) => {
     const ref: ItemGenerationSource = { id, version: target.version };
     // A remote source carries its origin and its frozen human half, composed
@@ -104,7 +105,7 @@ export async function runGenerateScope(
     // output publicly is refused while the provenance names it (model.ts).
     const kept = opts.privateSources ? await privateSource(env.DB, id) : null;
     if (kept) { tainted = true; await addItem(id, kept); continue; }
-    const resolved = await resolveTarget(env.DB, id);
+    const resolved = await resolveTarget(env.DB, id, undefined, !opts.privateSources);
     if (!resolved.ok) return { ok: false, status: 400, body: { error: `unresolvable source: ${resolved.reason}`, id, reason: resolved.reason } };
     await addItem(id, resolved.target);
   }
@@ -115,6 +116,7 @@ export async function runGenerateScope(
   // could not be read stops here until the author says to go on without it.
   const hydration = await hydrate(env, [scope.instruction, context.text], {
     exclude: new Set([item.id, ...scope.sourceIds]),
+    restricted: !opts.privateSources,
     ourOrigin: ourOrigin ?? "",
     at,
     fetchImpl: opts.pageFetch,
@@ -150,7 +152,7 @@ export async function runGenerateScope(
   const supplied = new Set([scope.instruction, context.text].flatMap((t) => [...t.matchAll(new RegExp(ID, "g"))].map((m) => m[0])).concat(sources.flatMap((s) => ("id" in s ? [s.id] : []))));
   const kept = new Set<string>();
   for (const [, id] of result.text.matchAll(LINK_INLINE)) {
-    if (id && supplied.has(id) && !kept.has(id) && (await resolveTarget(env.DB, id)).ok) kept.add(id);
+    if (id && supplied.has(id) && !kept.has(id) && (await resolveTarget(env.DB, id, undefined, !opts.privateSources)).ok) kept.add(id);
   }
   result = { ...result, text: stripGeneratedGrammar(result.text, (id) => kept.has(id)) };
   const updatedMd = setScopeOutput(item.content_md, scope, result.text);
@@ -158,6 +160,6 @@ export async function runGenerateScope(
   while (provenance.length < scopes.length) provenance.push(null);
   provenance.length = scopes.length;
   provenance[scopeIndex] = { sources: sources.map(({ text: _text, ...ref }) => ref), model: result.model, at, ...(tainted ? { private: true as const } : {}) };
-  const revision = await installWorkingCopy(env.DB, item, updatedMd, JSON.stringify(provenance));
+  const revision = await installWorkingCopy(env.DB, item, updatedMd, JSON.stringify(provenance), tainted);
   return { ok: true, text: result.text, model: result.model, content_md: updatedMd, revision };
 }

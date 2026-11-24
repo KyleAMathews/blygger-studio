@@ -1036,7 +1036,6 @@ export const zListItemsResponse = z.object({
 
 export const zCreateItemBody = z.union([
     z.object({
-        provenance: z.array(z.union([zGenerationProvenance, z.null()])).optional(),
         contentMd: z.string().optional(),
         kind: z.enum(['fragment', 'thread']).optional(),
         stubOf: z.union([
@@ -1144,7 +1143,6 @@ export const zGetItemResponse = z.object({
 });
 
 export const zUpdateItemBody = z.object({
-    provenance: z.array(z.union([zGenerationProvenance, z.null()])).optional(),
     contentMd: z.string().optional(),
     kind: z.enum(['fragment', 'thread']).optional(),
     stubOf: z.union([

@@ -1,4 +1,5 @@
 import { readSyndication } from "./syndication.ts";
+import { hiddenItemSql } from "./private-access.ts";
 import { authoredItemKindSql, authoredVersionKind } from './version-state.ts';
 import { cursorPage, type CursorQuery } from "./cursor-page.ts";
 import type { ReaderOrder } from "./feeds/reader-order.ts";
@@ -87,9 +88,9 @@ function shelfIdentitySql(hopper?: string) {
     WHERE (ii.state = 'current' OR ii.pinned_version_retained IS NOT NULL)`;
   return { sql, binds: hopper ? [hopper] : [] };
 }
-/** Own private items leave every reading list for an access without owner:private (private-access.ts). */
+/** Hidden own items leave every reading list for an access without owner:private (private-access.ts). */
 function withoutPrivate<T extends { sql: string }>(identities: T, hide: boolean): T {
-  return hide ? { ...identities, sql: `SELECT * FROM (${identities.sql}) WHERE NOT (source = 'own' AND id IN (SELECT id FROM items WHERE status = 'private'))` } : identities;
+  return hide ? { ...identities, sql: `SELECT * FROM (${identities.sql}) WHERE NOT (source = 'own' AND id IN (SELECT id FROM items i WHERE ${hiddenItemSql("i")}))` } : identities;
 }
 /** The `private` pseudo-source (Venkat, 2026-11-23): the owner's private items only, the reader view of a notebook. */
 const PRIVATE_SQL = " WHERE source = 'own' AND id IN (SELECT id FROM items WHERE status = 'private')";

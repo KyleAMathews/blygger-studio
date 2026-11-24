@@ -6,8 +6,7 @@ import type { OperationDefinition } from './operations.ts';
 import { requiredScopes } from './operation-policy.ts';
 import { isExtensionEnabled } from './extensions/server.ts';
 import { admitApi, withWorkPrincipal } from './security-budgets.ts';
-import { privateItemHidden, seesPrivate } from './private-access.ts';
-import { PRIVATE_REASON, UNKNOWN_REASON } from './transclusion.ts';
+import { hiddenOwnIds, seesPrivate } from './private-access.ts';
 import { OWN_SUBSCRIPTION } from './own-subscription.ts';
 import { failure, OperationError, type OperationContext, type OperationInput, type OperationResult } from './operation-types.ts';
 
@@ -46,34 +45,36 @@ async function executeOperation(definition: OperationDefinition, input: Operatio
     }
     throw error;
   }
-  // A private item is invisible, not forbidden, to an access without owner:private:
-  // every operation that names one answers as for an unknown id, so the 404 says nothing.
-  // getItem decides visibility in the statement that reads the item (R01, R07).
-  if (route.path.startsWith('/items/{id}') && route.operationId !== 'getItem' && input.path.id && await privateItemHidden(context.env.DB, context.access, input.path.id)) {
-    return failure('not-found', { error: 'not found' });
-  }
-  // Adding answers as for an unknown item; removing is idempotent, so its handler answers as for a non-member.
-  // addHopperItem decides in its handler, after the hopper check, so both answers match an unknown id's (R12).
-  if (route.method !== 'delete' && route.operationId !== 'addHopperItem' && input.path.sub === OWN_SUBSCRIPTION && input.path.remoteId && await privateItemHidden(context.env.DB, context.access, input.path.remoteId)) {
-    return failure('not-found', { error: 'item not found' });
-  }
+  if (seesPrivate(context.access)) return handler(context, input);
+  // A hidden item is an id that does not exist, to an access that may not see it (law 1,
+  // sealed-content-build-plan §1 0f). The handler runs on an id no item can have, and the
+  // answer names the caller's id again: every answer is an unknown id's by construction,
+  // and no write can reach the item. No handler decides this for itself.
+  const keys = ownItemKeys(route.path, input.path);
+  const hidden = keys.length && route.policy.itemVisibility !== 'in-statement'
+    ? await hiddenOwnIds(context.env.DB, context.access, keys.map(key => input.path[key])) : new Set<string>();
+  const unseen = keys.filter(key => hidden.has(input.path[key]));
+  const named = new Map(unseen.map(key => [UNSEEN, input.path[key]]));
+  if (unseen.length) input = { ...input, path: { ...input.path, ...Object.fromEntries(unseen.map(key => [key, UNSEEN])) } };
   const result = await handler(context, input);
-  return seesPrivate(context.access) ? result : { ...result, value: concealPrivate(result.value) } as OperationResult;
+  return named.size ? { ...result, value: rename(result.value, named) } as OperationResult : result;
 }
 
-/**
- * A private item is an unknown one to an access without owner:private, in diagnostics too
- * (studio#178 R13): a `reason`, `error` or `message` that says "item is private", alone or
- * ending the message, says "unknown item", so a preview, generation or publish error cannot
- * tell the two apart. Only those diagnostic fields: content is never rewritten.
- */
-const DIAGNOSTIC_KEYS = new Set(['reason', 'error', 'message']);
-function concealPrivate(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(concealPrivate);
+/** An item id no item can have: newId draws 128 random bits, and this is the all-zero draw. */
+const UNSEEN = '00000000000000000000000000';
+/** The path parameters that name one of the owner's own items. */
+function ownItemKeys(path: string, params: Record<string, string>): string[] {
+  if (path.startsWith('/items/{id}')) return ['id'];
+  if (params.sub !== OWN_SUBSCRIPTION) return [];
+  if (path.includes('{sub}/{remoteId}')) return ['remoteId'];
+  if (path.startsWith('/imports/{sub}/{id}')) return ['id'];
+  return [];
+}
+function rename(value: unknown, names: Map<string, string>): unknown {
+  if (typeof value === 'string') return [...names].reduce((out, [from, to]) => out.replaceAll(from, to), value);
+  if (Array.isArray(value)) return value.map(entry => rename(entry, names));
   if (!value || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return value;
-  return Object.fromEntries(Object.entries(value).map(([key, v]) => [key, DIAGNOSTIC_KEYS.has(key) && typeof v === 'string'
-    ? v === PRIVATE_REASON ? UNKNOWN_REASON : v.endsWith(`: ${PRIVATE_REASON}`) ? `${v.slice(0, -PRIVATE_REASON.length)}${UNKNOWN_REASON}` : v
-    : concealPrivate(v)]));
+  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, rename(entry, names)]));
 }
 
 export async function runOperation(definition: OperationDefinition, input: OperationInput, context: OperationContext): Promise<OperationResult> {
