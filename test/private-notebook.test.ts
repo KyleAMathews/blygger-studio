@@ -447,6 +447,34 @@ describe("a private item as a generation source", () => {
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${draft.id}/publish`, { visibility: "public" })).status).toBe(400);
   });
 
+  // R13: the preview resolves sources as generation does; a restricted caller's diagnostics
+  // name a private source exactly as an unknown one; the provider reads what the reader shows.
+  it("previews a private source for a caller that may see it, and as unknown for one that may not (R13)", async () => {
+    const cookie = await login();
+    const source = await privateItem(cookie, `preview source ${MARK}`);
+    const unknown = "zzzzzzzzzzzzzzzzzzzzzzzzzz";
+    const preview = (api: ReturnType<typeof tokenApi>, id: string) => api("POST", "/preview", { contentMd: `[TK]summarize ![[${id}]][/TK]` });
+    const mine = (await apiJson(cookie, "POST", "/blyg/api/preview", { contentMd: `[TK]summarize ![[${source}]][/TK]` })).json;
+    expect(mine.scopes[0].sources[0]).toMatchObject({ id: source, ok: true, from: "you" });
+    expect((await preview(tokenApi(WITH), source)).json.scopes[0].sources[0]).toMatchObject({ ok: true });
+    const hidden = (await preview(tokenApi(WITHOUT), source)).json, absent = (await preview(tokenApi(WITHOUT), unknown)).json;
+    expect(JSON.stringify(hidden).replaceAll(source, unknown)).toBe(JSON.stringify(absent));
+    // Content that happens to say so is content, and stays as written.
+    const said = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "Status: item is private", kind: "fragment" })).json.id as string;
+    expect((await tokenApi(WITHOUT)("GET", `/items/${said}`)).json.contentMd).toBe("Status: item is private");
+  });
+
+  it("feeds a private source as its reader shows it, without comments to self (R13)", async () => {
+    const cookie = await login();
+    const source = await privateItem(cookie, `kept words /* note to self ${MARK} */ more kept words`);
+    const draft = await createDraft(env.DB, `[TK]summarize ![[${source}]][/TK]`);
+    const { fetchImpl, calls } = fixture("ok");
+    expect(await runGenerateScope({ ...env, AI_PROVIDER_KEY: "k" }, draft, 0, fetchImpl, undefined, { privateSources: true })).toMatchObject({ ok: true });
+    const sent = JSON.stringify(calls[0]);
+    expect(sent).toContain("more kept words");
+    expect(sent).not.toContain("note to self");
+  });
+
   it("still publishes publicly when the sources are public", async () => {
     const cookie = await login();
     const source = await createAndPublish(cookie, "a public source");

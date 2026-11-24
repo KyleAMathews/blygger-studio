@@ -349,7 +349,7 @@ const previewOperation = async (context: OperationContext, input: OperationInput
   // Links inside generated blocks resolve here too, as at publish (studio#14).
   const blocks = await resolveBlockLinks(tk, async (md) => withMentionCards(await previewInternalLinks(context.env.DB, md, origin), handles.cards));
   const html = [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(renderMarkdown(links.text)));
-  return success({ html, scopes: await scopeSummariesWithSources(context.env.DB, parseScopes(body.contentMd ?? "").scopes), linkErrors: [...links.errors, ...blocks.errors], ...(handles.unresolved.length ? { unresolvedHandles: handles.unresolved } : {}) });
+  return success({ html, scopes: await scopeSummariesWithSources(context.env.DB, parseScopes(body.contentMd ?? "").scopes, seesPrivate(context.access)), linkErrors: [...links.errors, ...blocks.errors], ...(handles.unresolved.length ? { unresolvedHandles: handles.unresolved } : {}) });
 };
 
 /**
@@ -537,7 +537,7 @@ async function threadPreview(context: OperationContext, input: OperationInput) {
     transclusions: resolved.transclusions,
     // Every scope in the working copy, comments included: generate addresses
     // them by that order, and a scope in a note can be generated like any other.
-    scopes: await scopeSummariesWithSources(context.env.DB, parseScopes(body.contentMd ?? "").scopes),
+    scopes: await scopeSummariesWithSources(context.env.DB, parseScopes(body.contentMd ?? "").scopes, seesPrivate(context.access)),
     ...(handles.unresolved.length ? { unresolvedHandles: handles.unresolved } : {}),
   });
 }

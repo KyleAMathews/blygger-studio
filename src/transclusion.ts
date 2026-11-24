@@ -244,6 +244,10 @@ async function localClosure(db: D1Database, startId: string): Promise<Set<string
  * transclude itself, or a local thread whose transitive local closure contains
  * it. Remote closures are not walked.
  */
+/** The reason a private item gives; an access without owner:private hears UNKNOWN_REASON instead (operation-runner.ts). */
+export const PRIVATE_REASON = "item is private";
+export const UNKNOWN_REASON = "unknown item";
+
 export async function resolveTarget(
   db: D1Database,
   id: string,
@@ -251,7 +255,7 @@ export async function resolveTarget(
 ): Promise<{ ok: true; target: ResolvedTarget } | { ok: false; reason: string }> {
   const item = await db.prepare("SELECT * FROM items WHERE id = ?").bind(id).first<ItemRow>();
   if (item) {
-    if (!servedPublicly(item)) return { ok: false, reason: item.status === "draft" ? "item is a draft, not published" : "item is private" };
+    if (!servedPublicly(item)) return { ok: false, reason: item.status === "draft" ? "item is a draft, not published" : PRIVATE_REASON };
     if (item.kind === "withdrawn") return { ok: false, reason: "item is withdrawn" };
     const version = await db
       .prepare("SELECT * FROM versions WHERE item_id = ? AND version = ?")

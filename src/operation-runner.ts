@@ -6,7 +6,8 @@ import type { OperationDefinition } from './operations.ts';
 import { requiredScopes } from './operation-policy.ts';
 import { isExtensionEnabled } from './extensions/server.ts';
 import { admitApi, withWorkPrincipal } from './security-budgets.ts';
-import { privateItemHidden } from './private-access.ts';
+import { privateItemHidden, seesPrivate } from './private-access.ts';
+import { PRIVATE_REASON, UNKNOWN_REASON } from './transclusion.ts';
 import { OWN_SUBSCRIPTION } from './own-subscription.ts';
 import { failure, OperationError, type OperationContext, type OperationInput, type OperationResult } from './operation-types.ts';
 
@@ -56,7 +57,23 @@ async function executeOperation(definition: OperationDefinition, input: Operatio
   if (route.method !== 'delete' && route.operationId !== 'addHopperItem' && input.path.sub === OWN_SUBSCRIPTION && input.path.remoteId && await privateItemHidden(context.env.DB, context.access, input.path.remoteId)) {
     return failure('not-found', { error: 'item not found' });
   }
-  return handler(context, input);
+  const result = await handler(context, input);
+  return seesPrivate(context.access) ? result : { ...result, value: concealPrivate(result.value) } as OperationResult;
+}
+
+/**
+ * A private item is an unknown one to an access without owner:private, in diagnostics too
+ * (studio#178 R13): a `reason`, `error` or `message` that says "item is private", alone or
+ * ending the message, says "unknown item", so a preview, generation or publish error cannot
+ * tell the two apart. Only those diagnostic fields: content is never rewritten.
+ */
+const DIAGNOSTIC_KEYS = new Set(['reason', 'error', 'message']);
+function concealPrivate(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(concealPrivate);
+  if (!value || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return value;
+  return Object.fromEntries(Object.entries(value).map(([key, v]) => [key, DIAGNOSTIC_KEYS.has(key) && typeof v === 'string'
+    ? v === PRIVATE_REASON ? UNKNOWN_REASON : v.endsWith(`: ${PRIVATE_REASON}`) ? `${v.slice(0, -PRIVATE_REASON.length)}${UNKNOWN_REASON}` : v
+    : concealPrivate(v)]));
 }
 
 export async function runOperation(definition: OperationDefinition, input: OperationInput, context: OperationContext): Promise<OperationResult> {

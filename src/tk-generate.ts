@@ -41,12 +41,15 @@ export type GenerateScopeResult =
   /** With `checkpoint`, nothing was generated: links could not be read and the author has not said to proceed. */
   | { ok: false; status: number; body: Record<string, unknown>; checkpoint?: HydrationCheckpoint };
 
-/** An own private item's latest private version as a generation source, or null when the id names none. */
-async function privateSource(db: D1Database, id: string): Promise<ResolvedTarget | null> {
+/**
+ * An own private item's latest private version as a generation source, or null when the id names none.
+ * It is fed as the owner's reader shows it, the rendered version, so comments to self stay out (studio#178 R13).
+ */
+export async function privateSource(db: D1Database, id: string): Promise<ResolvedTarget | null> {
   const row = await db.prepare(`SELECT i.kind, p.version, p.content_md, p.content_html FROM items i
     JOIN private_versions p ON p.item_id = i.id AND p.version = (SELECT MAX(version) FROM private_versions WHERE item_id = i.id)
     WHERE i.id = ? AND i.status = 'private' AND i.kind IN ('fragment', 'thread')`).bind(id).first<{ kind: string; version: number; content_md: string; content_html: string }>();
-  return row ? { id, version: row.version, contentMd: row.content_md, contentHtml: row.content_html, kind: row.kind } : null;
+  return row ? { id, version: row.version, contentMd: "", contentHtml: row.content_html, kind: row.kind } : null;
 }
 
 export async function runGenerateScope(
