@@ -131,7 +131,7 @@ export function mcpReference(plan: McpPlan) {
   break;
  case "scope-inventory":
   add(["owner login"]);
-  add(["manual MCP issuance","MCP scope capabilities"], 31);
+  add(["manual MCP issuance","MCP scope capabilities"], (1 << all.length) - 1);
   break;
  case "mention-projections":
   add(["owner login"]);

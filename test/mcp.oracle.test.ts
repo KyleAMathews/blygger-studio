@@ -211,7 +211,7 @@ async function runConfidentialOauth(plan: McpPlan) {
   async function runScopeInventory(plan: McpPlan) {
 
     const d = await createDriver();
-    for (let mask = 1; mask < 32; mask++) {
+    for (let mask = 1; mask < 1 << all.length; mask++) {
       const scope = all.filter((_, index) => mask & 1 << index), credential = await d.manual(scope), client = await d.connect(credential.accessToken);
       await withOracleCleanup(async () => { const observed = (await client.listTools()).tools.map(tool => tool.name).sort(); record("MCP scope capabilities", { scope, tools: observed }); }, [() => client.close()]);
     }

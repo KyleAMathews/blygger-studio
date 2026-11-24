@@ -275,6 +275,30 @@ describe("hidden answers equal unknown ones, and MCP challenges a default-privat
     expect(await without("PUT", `/hoppers/${hopper}/items/~own/${hidden}`)).toEqual(await without("PUT", `/hoppers/${hopper}/items/~own/${unknownItem}`));
   });
 
+  it("answers MCP getItem and listItems for a private item as REST does: unknown without the scope, present with it (R14)", async () => {
+    const cookie = await login();
+    const hidden = await privateItem(cookie);
+    const token = async (scope: string[]) => (await apiJson(cookie, "POST", "/blyg/api/authorizations", { name: "notebook mcp read", scope, resource: "mcp" })).json.accessToken as string;
+    const tool = async (bearer: string, name: string, args: Record<string, unknown>) => {
+      const response = await SELF.fetch(`${BASE}/blyg/studio/mcp`, { method: "POST", headers: {
+        Authorization: `Bearer ${bearer}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream",
+        "mcp-protocol-version": "2026-07-28", "mcp-method": "tools/call", "mcp-name": name,
+      }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args,
+        _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {} } } }) });
+      const text = await response.text();
+      return JSON.parse(text.includes("data:") ? text.slice(text.indexOf("{")) : text).result as { isError?: boolean; content: { text: string }[] };
+    };
+    const without = await token(["owner:read"]), withScope = await token(["owner:read", "owner:private"]);
+    const unknown = "zzzzzzzzzzzzzzzzzzzzzzzzzz";
+    const asHidden = await tool(without, "getItem", { path: { id: hidden } }), asUnknown = await tool(without, "getItem", { path: { id: unknown } });
+    expect(asHidden.isError).toBe(true);
+    expect(JSON.stringify(asHidden).replaceAll(hidden, unknown)).toBe(JSON.stringify(asUnknown));
+    expect((await tool(withScope, "getItem", { path: { id: hidden } })).isError).toBeFalsy();
+    const listed = async (bearer: string) => (JSON.parse((await tool(bearer, "listItems", { query: { limit: 100 } })).content[0].text).items as { id: string }[]).map((i) => i.id);
+    expect(await listed(without)).not.toContain(hidden);
+    expect(await listed(withScope)).toContain(hidden);
+  });
+
   it("challenges for owner:private before an MCP publish that the default makes private", async () => {
     const cookie = await login();
     const minted = await apiJson(cookie, "POST", "/blyg/api/authorizations", { name: "notebook mcp", scope: ["owner:read", "owner:draft", "owner:publish"], resource: "mcp" });
