@@ -101,7 +101,8 @@ export const zGenerationSource = z.union([
 export const zGenerationProvenance = z.object({
     sources: z.array(zGenerationSource),
     model: z.string().optional(),
-    at: z.string().optional()
+    at: z.string().optional(),
+    private: z.literal(true).optional()
 }).catchall(z.unknown());
 
 export const zItem = z.object({

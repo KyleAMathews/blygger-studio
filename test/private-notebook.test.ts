@@ -223,6 +223,51 @@ describe("a private item as a generation source", () => {
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${draft.id}/publish`, { visibility: "private" })).status).toBe(200);
   });
 
+  // Private taint (Venkat, session 84; studio#178 R06, R08): a working copy whose TK output drew
+  // on a private snapshot reads like a private item and publishes only privately, whatever
+  // later happens to the source, and regenerating from it keeps the mark.
+  it("hides a tainted working copy from a token without owner:private, in reads, lists and search (R08)", async () => {
+    const cookie = await login();
+    const source = await privateItem(cookie, `taint source ${MARK}`);
+    const draft = await createDraft(env.DB, `taintdraft [TK]summarize ![[${source}]][/TK]`);
+    expect(await runGenerateScope({ ...env, AI_PROVIDER_KEY: "k" }, draft, 0, fixture("derived words").fetchImpl, undefined, { privateSources: true })).toMatchObject({ ok: true });
+    const without = tokenApi(WITHOUT), withScope = tokenApi(WITH);
+    expect((await without("GET", `/items/${draft.id}`)).status).toBe(404);
+    expect((await withScope("GET", `/items/${draft.id}`)).json.contentMd).toContain("derived words");
+    const listed = (await without("GET", "/items?status=draft&limit=100")).json.items.map((i: any) => i.id);
+    expect(listed).not.toContain(draft.id);
+    const found = (await without("GET", "/search?q=taintdraft&include=drafts")).json;
+    expect(JSON.stringify(found)).not.toContain(draft.id);
+    expect(JSON.stringify((await withScope("GET", "/search?q=taintdraft&include=drafts")).json)).toContain(draft.id);
+  });
+
+  for (const fate of ["raised", "discarded"] as const) {
+    it(`keeps the output private after its source is ${fate} (R06)`, async () => {
+      const cookie = await login();
+      const source = await privateItem(cookie, `fated source ${MARK}`);
+      const draft = await createDraft(env.DB, `[TK]summarize ![[${source}]][/TK]`);
+      expect(await runGenerateScope({ ...env, AI_PROVIDER_KEY: "k" }, draft, 0, fixture("from p1").fetchImpl, undefined, { privateSources: true })).toMatchObject({ ok: true });
+      if (fate === "raised") expect((await apiJson(cookie, "POST", `/blyg/api/items/${source}/publish`, { visibility: "public" })).status).toBe(200);
+      else expect((await apiJson(cookie, "DELETE", `/blyg/api/items/${source}`)).status).toBeLessThan(300);
+      expect((await apiJson(cookie, "POST", `/blyg/api/items/${draft.id}/publish`, { visibility: "public" })).status).toBe(400);
+      expect((await tokenApi(WITHOUT)("GET", `/items/${draft.id}`)).status).toBe(404);
+    });
+  }
+
+  it("keeps the mark when a tainted scope is regenerated from public sources only (R06)", async () => {
+    const cookie = await login();
+    const secret = await privateItem(cookie, `regen secret ${MARK}`);
+    const open = await createAndPublish(cookie, "an open source");
+    const draft = await createDraft(env.DB, `[TK]summarize ![[${secret}]][/TK]`);
+    expect(await runGenerateScope({ ...env, AI_PROVIDER_KEY: "k" }, draft, 0, fixture("first pass").fetchImpl, undefined, { privateSources: true })).toMatchObject({ ok: true });
+    // The author swaps the source; the old output is still fed back as the scope's current text.
+    const tainted = (await getItem(env.DB, draft.id))!;
+    const swapped = (await apiJson(cookie, "PATCH", `/blyg/api/items/${draft.id}`, { contentMd: tainted.content_md.replace(secret, open) }));
+    expect(swapped.status).toBe(200);
+    expect(await runGenerateScope({ ...env, AI_PROVIDER_KEY: "k" }, (await getItem(env.DB, draft.id))!, 0, fixture("second pass").fetchImpl, undefined, { privateSources: true })).toMatchObject({ ok: true });
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${draft.id}/publish`, { visibility: "public" })).status).toBe(400);
+  });
+
   it("still publishes publicly when the sources are public", async () => {
     const cookie = await login();
     const source = await createAndPublish(cookie, "a public source");

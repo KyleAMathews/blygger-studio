@@ -98,6 +98,10 @@ export type GenerationProvenance = {
     sources: Array<GenerationSource>;
     model?: string;
     at?: string;
+    /**
+     * The output drew on a private item: the working copy reads like a private item and publishes only privately.
+     */
+    private?: true;
     [key: string]: unknown;
 };
 

@@ -1,3 +1,4 @@
+import { notebookSql } from "./private-access.ts";
 import { authoredVersionKind } from './version-state.ts';
 import { ItemRowSchema, MediaRowSchema, VersionRowSchema } from "./contract/schemas.ts";
 
@@ -6,7 +7,7 @@ import { ItemRowSchema, MediaRowSchema, VersionRowSchema } from "./contract/sche
 const columns = [...new Set([ItemRowSchema, MediaRowSchema, VersionRowSchema].flatMap((schema) => Object.keys(schema.shape)))];
 const projection = (schema: { shape: Record<string, unknown> }, alias: string) =>
   columns.map((name) => `${name in schema.shape ? `${alias}.${name}` : "NULL"} AS ${name}`).join(", ");
-const detailSql = (hidePrivate: boolean) => `WITH selected AS (SELECT * FROM items WHERE id = ?${hidePrivate ? " AND status <> 'private'" : ""})
+const detailSql = (hidePrivate: boolean) => `WITH selected AS (SELECT * FROM items i WHERE id = ?${hidePrivate ? ` AND NOT ${notebookSql("i")}` : ""})
   SELECT 'item' AS type, ${projection(ItemRowSchema, "i")}, 0 AS section, 0 AS version_order, '' AS created_order FROM selected i
   UNION ALL SELECT 'media', ${projection(MediaRowSchema, "m")}, 1, 0, m.created FROM media m WHERE m.item_id IN (SELECT id FROM selected)
   UNION ALL SELECT 'version', ${projection(VersionRowSchema, "v")}, 2, v.version, '' FROM versions v JOIN selected i ON v.item_id = i.id AND v.version IN (i.version, i.version - 1)

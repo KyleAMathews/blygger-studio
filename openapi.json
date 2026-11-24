@@ -463,6 +463,13 @@
           },
           "at": {
             "type": "string"
+          },
+          "private": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "description": "The output drew on a private item: the working copy reads like a private item and publishes only privately."
           }
         },
         "required": [

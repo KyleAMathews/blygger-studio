@@ -512,10 +512,14 @@ async function publishScoped(db: D1Database, item: ItemRow, note: string | null,
   const ownSourceIds = [...new Set(generated.flatMap((p) => p.sources.flatMap((source) => ("id" in source && !source.origin ? [source.id] : []))))];
   if (ownSourceIds.length) {
     const privateIds = new Set((await db.prepare(`SELECT id FROM items WHERE status = 'private' AND id IN (SELECT value FROM json_each(?))`).bind(JSON.stringify(ownSourceIds)).all<{ id: string }>()).results.map((row) => row.id));
-    const issues = scopes.flatMap((scope, i) => (provenanceCache[i]?.sources.some((source) => "id" in source && !source.origin && privateIds.has(source.id))
+    const issues = scopes.flatMap((scope, i) => (provenanceCache[i]?.private !== true && provenanceCache[i]?.sources.some((source) => "id" in source && !source.origin && privateIds.has(source.id))
       ? [{ at: scope.start, reason: "this scope drew on a private item; publish privately, or generate it again without that source" }] : []));
     if (issues.length) throw new TkPublishError(issues);
   }
+  // The mark decides, not the sources' status today: raising or discarding a source does not unseal what was drawn from it.
+  const marked = scopes.flatMap((scope, i) => (provenanceCache[i]?.private === true
+    ? [{ at: scope.start, reason: "this scope drew on a private item; publish privately, or remove its output" }] : []));
+  if (marked.length) throw new TkPublishError(marked);
   const generatedJson = generated.length ? JSON.stringify(generated) : null;
 
   // §2.2 version agreement: a stub's citation takes the version actually

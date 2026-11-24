@@ -86,7 +86,7 @@ async function presentVersions(db: D1Database, rows: VersionRow[]) {
     return { ...await presentVersion(row), changeClass: cls ? { category: cls.category, model: cls.model, probability: cls.probability, classifiedAt: cls.classified_at, overridden: cls.overridden === 1 } : null };
   }));
 }
-const getItemSummaryOperation = async (context: OperationContext) => success(await context.env.DB.prepare(`SELECT COUNT(*) AS 'all', COALESCE(SUM(version=0),0) AS drafts, COALESCE(SUM(dirty=1 AND status='public'),0) AS changes, COALESCE(SUM(status='public'),0) AS public, COALESCE(SUM(status='withdrawn'),0) AS withdrawn FROM items${seesPrivate(context.access) ? '' : " WHERE status <> 'private'"}`).first());
+const getItemSummaryOperation = async (context: OperationContext) => success(await context.env.DB.prepare(`SELECT COUNT(*) AS 'all', COALESCE(SUM(version=0),0) AS drafts, COALESCE(SUM(dirty=1 AND status='public'),0) AS changes, COALESCE(SUM(status='public'),0) AS public, COALESCE(SUM(status='withdrawn'),0) AS withdrawn FROM items i${seesPrivate(context.access) ? '' : ` WHERE ${privateFilterSql(context.access)}`}`).first());
 const getItemOperation = async (context: OperationContext, input: OperationInput) => {
   const detail = await itemDetail(context.env.DB, input.path.id, !seesPrivate(context.access));
   if (!detail) return failure('not-found', { error: 'not found' });
@@ -418,7 +418,7 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
         NULL AS subscription_id, NULL AS source_title, NULL AS origin,
         CASE WHEN i.dirty = 1 OR i.version = 0 THEN i.content_md END AS draft_md, i.status = 'private' AS is_private
       FROM ${from} LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version
-      WHERE i.status IN ('public', 'draft'${withPrivate ? ", 'private'" : ''}) AND i.kind IN ('fragment', 'thread')${where}` });
+      WHERE i.status IN ('public', 'draft'${withPrivate ? ", 'private'" : ''}) AND i.kind IN ('fragment', 'thread')${withPrivate ? '' : ` AND ${privateFilterSql(context.access)}`}${where}` });
   } else if (searchable && source !== "imported" && !sub) {
     const { from, where, binds } = searchSource('published', 'items i', 'i.id = d.item_id');
     parts.push({ binds, sql: `SELECT 'mine' AS source, i.id AS id, v.content_html AS html, i.version AS version, i.updated AS updated, i.kind AS kind,

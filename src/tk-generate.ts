@@ -80,6 +80,9 @@ export async function runGenerateScope(
   const settings = await getSettings(env.DB);
   const at = nowIso();
   const sources: (GenerationSource & { text: string })[] = [];
+  // Private taint: the output is private-derived when it reads a private snapshot, or when
+  // the input it is fed (this scope's text, the rest of the working copy) is already marked.
+  let tainted = getTkProvenance(item).some((p) => p?.private === true);
   const addItem = async (id: string, target: ResolvedTarget) => {
     const ref: ItemGenerationSource = { id, version: target.version };
     // A remote source carries its origin and its frozen human half, composed
@@ -97,7 +100,7 @@ export async function runGenerateScope(
     // its latest private version, as the owner's reader shows it. Publishing the
     // output publicly is refused while the provenance names it (model.ts).
     const kept = opts.privateSources ? await privateSource(env.DB, id) : null;
-    if (kept) { await addItem(id, kept); continue; }
+    if (kept) { tainted = true; await addItem(id, kept); continue; }
     const resolved = await resolveTarget(env.DB, id);
     if (!resolved.ok) return { ok: false, status: 400, body: { error: `unresolvable source: ${resolved.reason}`, id, reason: resolved.reason } };
     await addItem(id, resolved.target);
@@ -151,7 +154,7 @@ export async function runGenerateScope(
   const provenance = getTkProvenance(item);
   while (provenance.length < scopes.length) provenance.push(null);
   provenance.length = scopes.length;
-  provenance[scopeIndex] = { sources: sources.map(({ text: _text, ...ref }) => ref), model: result.model, at };
+  provenance[scopeIndex] = { sources: sources.map(({ text: _text, ...ref }) => ref), model: result.model, at, ...(tainted ? { private: true as const } : {}) };
   const revision = await installWorkingCopy(env.DB, item, updatedMd, JSON.stringify(provenance));
   return { ok: true, text: result.text, model: result.model, content_md: updatedMd, revision };
 }

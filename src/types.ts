@@ -235,6 +235,12 @@ export interface ScopeProvenance {
   sources: GenerationSource[];
   model?: string;
   at?: string;
+  /**
+   * The output drew on the notebook: a private snapshot among the sources, or
+   * input already marked (private taint, Venkat, session 84). The working copy
+   * then reads like a private item and publishes only privately.
+   */
+  private?: true;
 }
 
 /** A private version (migration 0059): studio history, never on a public route. */
