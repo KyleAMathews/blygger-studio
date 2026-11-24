@@ -114,6 +114,24 @@ test.describe("private history", () => {
     });
   }
 
+  // Publishing a draft names the public hoppers it is in first (plan §1 0f law 7; Aneesh on
+  // studio#175, studio#178 V9); a draft in no public hopper publishes as before.
+  test("the editor asks before publishing a draft that is in a public hopper, and cancel leaves it a draft (V9)", async ({ page }) => {
+    const api = apiFor(page);
+    const id = (await api("POST", "/items", { contentMd: `Draft in a hopper ${Date.now()}` })).id as string;
+    const name = `Draft's hopper ${Date.now()}`;
+    await api("PUT", `/hoppers/${await publicHopper(api, name)}/items/~own/${id}`);
+    await page.goto(`/studio/edit/${id}`);
+    await page.locator("#publish-btn").click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText(`It will also appear in the public hopper ${name}.`);
+    await dialog.getByRole("button", { name: "cancel" }).click();
+    expect(await api("GET", `/items/${id}`)).toMatchObject({ status: "draft", version: 0 });
+    await page.locator("#publish-btn").click();
+    await page.getByRole("dialog").getByRole("button", { name: "publish", exact: true }).click();
+    await expect.poll(async () => (await api("GET", `/items/${id}`)).status).toBe("public");
+  });
+
   test("the editor's dialog names a public hopper joined after the page loaded, and a default changed mid-dialog does not make it private (R03, R04)", async ({ page }) => {
     const api = apiFor(page);
     const id = await privateItem(api, "Raise from editor");

@@ -74,6 +74,10 @@ private access moves to a new scope; client-written provenance removed). **Migra
   id no item has rather than writing its own 404. Preview and publish say "unknown item"
   for a hidden item in the HTML as well as the diagnostics. A restricted hopper cursor
   expires only when a member's visibility changes, not on unrelated edits.
+- **Drafts in hoppers (Aneesh on studio#175, V9).** The reader's hopper lens lists the
+  hopper's draft members too, marked *draft*, showing the working copy, with no public link
+  (Venkat: the hopper lens is a hopper view; the reader's other lenses stay draft-free).
+  Publishing a draft that is in a public hopper asks first and names the hopper.
 
 ## 0.72.0 — Private items and Notebook mode; setup covers the newer settings; what's new after an upgrade
 

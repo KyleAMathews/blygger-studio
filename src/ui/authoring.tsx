@@ -818,10 +818,22 @@ async function confirmRaise(id: string): Promise<boolean> {
   const { hoppers } = await unwrap(BlyggerApi.getItem({ client, path: { id } }));
   const names = hoppers.filter((h) => h.public).map((h) => h.name);
   return confirm({
-    title: `Make this item public? Anyone can read it once published, and it can never be private again.${names.length ? ` It will also appear in the public ${names.length === 1 ? 'hopper' : 'hoppers'} ${names.join(', ')}.` : ''}`,
+    title: `Make this item public? Anyone can read it once published, and it can never be private again.${names.length ? ` ${joinsHoppers(names)}` : ''}`,
     ok: 'make public',
   });
 }
+
+/**
+ * Publishing a draft that sits in a public hopper names those hoppers first
+ * (sealed-content-build-plan §1 0f law 7; Aneesh on studio#175, studio#178 V9).
+ * A draft in no public hopper publishes as before, without a dialog.
+ */
+async function confirmDraftHoppers(id: string): Promise<boolean> {
+  const { hoppers } = await unwrap(BlyggerApi.getItem({ client, path: { id } }));
+  const names = hoppers.filter((h) => h.public).map((h) => h.name);
+  return names.length ? confirm({ title: `Publish this item? ${joinsHoppers(names)}`, ok: 'publish' }) : true;
+}
+const joinsHoppers = (names: string[]) => `It will also appear in the public ${names.length === 1 ? 'hopper' : 'hoppers'} ${names.join(', ')}.`;
 
 /**
  * Publish, and when the thread's `![[+ …]]` spans would make new items, say
@@ -1390,6 +1402,7 @@ function ItemRow({
   // `raise` is a private item going public; any other publish of a private item adds a private version.
   const publishRow = async (raise = item.status === 'private') => {
     if (raise && !(await confirmRaise(item.id))) return;
+    if (item.status === 'draft' && !(await confirmDraftHoppers(item.id))) return;
     const choice = await confirmNote.request(item, '');
     if (!choice) return;
     const visibility = item.status === 'private' ? { visibility: raise ? 'public' as const : 'private' as const } : {};
@@ -3136,7 +3149,8 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             id="publish-btn"
             variant="primary"
             disabled={action.busy}
-            onClick={() => void (item.status === 'private' ? confirmRaise(item.id).then((ok) => { if (ok) publish('public'); }) : publish())}
+            onClick={() => void (item.status === 'private' ? confirmRaise(item.id).then((ok) => { if (ok) publish('public'); })
+              : item.status === 'draft' ? confirmDraftHoppers(item.id).then((ok) => { if (ok) publish(); }) : publish())}
           >
             {item.status === 'withdrawn' ? 'republish' : item.status === 'private' ? 'publish publicly' : 'publish'}
           </DesignButton>

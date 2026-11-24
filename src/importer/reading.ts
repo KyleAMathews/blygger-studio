@@ -23,6 +23,8 @@ export interface OwnEntryInput {
   contentHtml: string;
   /** A privately published item: the owner's reader shows its latest private version. */
   private?: true;
+  /** A draft, listed only by the hopper lens: its working copy (studio#178 V9). */
+  draft?: true;
 }
 
 export interface ImportedEntryInput {

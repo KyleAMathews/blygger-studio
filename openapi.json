@@ -1581,6 +1581,13 @@
                   true
                 ],
                 "description": "Published privately: this is the latest private version, which no public route serves."
+              },
+              "draft": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ],
+                "description": "A draft in a hopper, listed only under the hopper lens: this is its working copy."
               }
             },
             "required": [
