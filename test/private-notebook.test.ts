@@ -328,19 +328,40 @@ describe("hoppers: the owner sees private members; the public never does", () =>
       { id: quiet, name: "Quiet shelf", public: false },
     ]));
 
+    // The public page and an enabled feed answer, list a public neighbour, and leave the private
+    // member out until it is raised (R15: with feeds off a 404 passed the old check).
     const slug = (await apiJson(cookie, "GET", `/blyg/api/hoppers/${publicHopper}`)).json.hopper.slug as string;
-    for (const path of [`/blyg/h/${slug}`, `/blyg/h/${slug}/feed.xml`]) {
-      const res = await getPublic(path);
-      expect(await res.text()).not.toContain(id);
+    const neighbour = await createAndPublish(cookie, "a public neighbour in the hopper");
+    expect((await apiJson(cookie, "PUT", `/blyg/api/hoppers/${publicHopper}/items/~own/${neighbour}`)).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { hopperFeeds: true })).status).toBe(200);
+    try {
+      for (const path of [`/blyg/h/${slug}`, `/blyg/h/${slug}/feed.xml`]) {
+        const res = await getPublic(path);
+        expect(res.status, path).toBe(200);
+        const body = await res.text();
+        expect(body, path).toContain(neighbour);
+        expect(body, path).not.toContain(id);
+      }
+    } finally {
+      await apiJson(cookie, "PATCH", "/blyg/api/settings", { hopperFeeds: false });
     }
 
     const without = tokenApi(WITHOUT);
     expect((await without("GET", `/hoppers/${publicHopper}/memberships`)).json.items.map((m: { remoteId: string }) => m.remoteId)).not.toContain(id);
-    expect((await without("GET", `/hoppers/${publicHopper}`)).json.total).toBe(0);
+    expect((await without("GET", `/hoppers/${publicHopper}`)).json.total).toBe(1); // the public neighbour only
     expect((await without("PUT", `/hoppers/${publicHopper}/items/~own/${id}`)).status).toBe(404);
     // Removing is idempotent: the answer is a non-member's, and the membership stays.
     expect((await without("DELETE", `/hoppers/${publicHopper}/items/~own/${id}`)).status).toBe(200);
     expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.hoppers.map((h: { id: string }) => h.id)).toContain(publicHopper);
+
+    // Raised, it joins the page and the feed.
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, { visibility: "public" })).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { hopperFeeds: true })).status).toBe(200);
+    try {
+      for (const path of [`/blyg/h/${slug}`, `/blyg/h/${slug}/feed.xml`]) expect(await (await getPublic(path)).text(), path).toContain(id);
+    } finally {
+      await apiJson(cookie, "PATCH", "/blyg/api/settings", { hopperFeeds: false });
+    }
   });
 });
 
