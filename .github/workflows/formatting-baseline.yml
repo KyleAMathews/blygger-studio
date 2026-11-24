@@ -8,6 +8,9 @@ on:
       deadline:
         type: string
         default: '0'
+      compact:
+        type: boolean
+        default: false
 env:
   # The optional geolocation lookup otherwise writes node_modules/.mf/cf.json.
   CLOUDFLARE_CF_FETCH_ENABLED: 'false'
@@ -32,6 +35,7 @@ jobs:
       - id: plan
         env:
           FORMATTING_DEADLINE: ${{ inputs.deadline }}
+          FORMATTING_COMPACT: ${{ inputs.compact }}
         run: node --import tsx scripts/formatting-baseline-plan.ts plan build/formatting-baseline-plan.json "$FORMATTING_DEADLINE"
       - uses: actions/upload-artifact@v4
         with:

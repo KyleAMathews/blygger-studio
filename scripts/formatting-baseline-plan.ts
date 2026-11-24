@@ -15,34 +15,41 @@ type Inventory = { file: string; sha256: string; properties: string[] }[];
 type Partition = { id: string; files: string[]; tests?: string[] };
 // Rounded wall times per partition from Check runs 45328428655 and 45431603660.
 // Shard counts only affect assignment. Each registration keeps its name and seed.
-const timings: Record<string, { seconds: number; shards?: number }> = {
-  mixed: { seconds: 540, shards: 11 },
-  receivers: { seconds: 480, shards: 3 },
-  interactions: { seconds: 395, shards: 2 },
-  session: { seconds: 310, shards: 3 },
-  workflows: { seconds: 490, shards: 2 },
-  'held-newline': { seconds: 400, shards: 3 },
-  'newline-history': { seconds: 490, shards: 2 },
-  navigation: { seconds: 335, shards: 2 },
-  'bracket-receiver': { seconds: 235 },
-  'code-block': { seconds: 185 },
-  draft: { seconds: 35 },
-  'escape-layers': { seconds: 255 },
-  inline: { seconds: 135 },
-  keyboard: { seconds: 260 },
-  'line-break': { seconds: 105 },
-  links: { seconds: 135 },
-  list: { seconds: 215 },
-  'valid-input': { seconds: 60 },
+// Compact Check packing uses the normalized mean of runs 45431603660,
+// 45443078812 and 45453300660 for each individual partition.
+const timings: Record<string, { seconds: number; shards?: number; observed: readonly number[] }> = {
+  mixed: { seconds: 540, shards: 11, observed: [467.5, 470.9, 510.5, 509.4, 484.5, 485.7, 400.7, 407.2, 478.8, 477.4, 528.2] },
+  receivers: { seconds: 480, shards: 3, observed: [433.1, 395.5, 388.4] },
+  interactions: { seconds: 395, shards: 2, observed: [471.7, 383.1] },
+  session: { seconds: 310, shards: 3, observed: [272.5, 280.4, 256.6] },
+  workflows: { seconds: 490, shards: 2, observed: [385.2, 431.9] },
+  'held-newline': { seconds: 400, shards: 3, observed: [333.9, 351.5, 350.1] },
+  'newline-history': { seconds: 490, shards: 2, observed: [417.7, 377.5] },
+  navigation: { seconds: 335, shards: 2, observed: [263.8, 304] },
+  'bracket-receiver': { seconds: 235, observed: [186.7] },
+  'code-block': { seconds: 185, observed: [142.1] },
+  draft: { seconds: 35, observed: [29.8] },
+  'escape-layers': { seconds: 255, observed: [224.6] },
+  inline: { seconds: 135, observed: [121.3] },
+  keyboard: { seconds: 260, observed: [213.5] },
+  'line-break': { seconds: 105, observed: [83.9] },
+  links: { seconds: 135, observed: [96.1] },
+  list: { seconds: 215, observed: [162.4] },
+  'valid-input': { seconds: 60, observed: [61.4] },
 };
 const fileId = (file: string) => file.replace(/^test-ui\/editor-/, '').replace(/\.oracle\.test\.ts$/, '');
 const shardCount = (file: string) => timings[fileId(file)]?.shards ?? 1;
-const partitionSeconds = (part: Partition) => timings[fileId(part.files[0]!)]?.seconds ?? 300;
 
-export function groupBaselinePartitions(parts: readonly Partition[]) {
-  // Give roughly three quarters of the partitions a dedicated two-CPU lane.
+export function groupBaselinePartitions(parts: readonly Partition[], compact = false) {
+  const partitionSeconds = (part: Partition) => {
+    const file = fileId(part.files[0]!);
+    const timing = timings[file];
+    const index = part.id === file ? 0 : Number(part.id.slice(file.length + 1)) - 1;
+    return (compact ? timing?.observed[index] : undefined) ?? timing?.seconds ?? 300;
+  };
+  // Check gives more lanes a follow-up to free runners for independent checks.
   // A lane can take one follow-up while its companion is still running.
-  const runners = Math.max(1, Math.round(parts.length * 3 / 8));
+  const runners = Math.max(1, Math.round(parts.length * (compact ? 2 / 7 : 3 / 8)));
   const lanes = Array.from({ length: runners * 2 }, () => ({ parts: [] as string[], seconds: 0 }));
   for (const part of [...parts].sort((left, right) => partitionSeconds(right) - partitionSeconds(left))) {
     const lane = lanes.filter(current => current.parts.length < 2)
@@ -61,7 +68,7 @@ export function groupBaselinePartitions(parts: readonly Partition[]) {
   // together took about two minutes longer than their mixed-11 companion.
   const mixed = groups.find(group => group.id === 'mixed-11' && group.companion === 'interactions-1');
   const newline = groups.find(group => group.id === 'newline-history-2' && group.companion === 'workflows-1');
-  if (mixed?.companionFollowup === 'inline' && newline?.followup === '') {
+  if (!compact && mixed?.companionFollowup === 'inline' && newline?.followup === '') {
     newline.followup = mixed.companionFollowup;
     mixed.companionFollowup = '';
   }
@@ -488,7 +495,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     mkdirSync(dirname(resolve(args[0])), { recursive: true });
     writeFileSync(args[0], encode(plan), { flag: 'wx' });
     checked(process.env.GITHUB_OUTPUT, 'Plan command requires GitHub output ownership');
-    const include = groupBaselinePartitions(plan.parts);
+    const include = groupBaselinePartitions(plan.parts, process.env.FORMATTING_COMPACT === 'true');
     writeFileSync(process.env.GITHUB_OUTPUT, 'matrix=' + JSON.stringify({ include }) + '\n', { flag: 'a' });
   } else if (mode === 'aggregate' && args.length === 3) aggregateBaseline(resolve(args[0]), resolve(args[1]), resolve(args[2]));
   else throw new Error('Use formatting-baseline-plan.ts plan <out> <deadline-ms-or-0>, or aggregate <plan> <artifact-directory> <out>');

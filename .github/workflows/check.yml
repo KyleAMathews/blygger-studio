@@ -45,6 +45,7 @@ jobs:
     outputs:
       e2e: ${{ steps.scope.outputs.e2e }}
       mutations: ${{ steps.scope.outputs.mutations }}
+      worker-auth: ${{ steps.scope.outputs.worker-auth }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -162,6 +163,7 @@ jobs:
     with:
       # Preserve the existing Check ceiling pending complete measurement.
       timeout-minutes: 360
+      compact: true
   formatting-oracles:
     if: always()
     needs: formatting-baseline
@@ -239,9 +241,41 @@ jobs:
         with:
           name: e2e-webkit-failure-evidence
           path: test-results/
-  mutations:
+  worker-auth:
     needs: scope
-    if: needs.scope.outputs.mutations != '[]'
+    if: needs.scope.outputs.worker-auth == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        pair: [1, 2]
+    name: mutations (auth-security-worker-${{ matrix.pair }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - name: Run the two Worker control shards
+        env:
+          WORKER_PAIR: ${{ matrix.pair }}
+        run: python3 scripts/check-linux-shards.py worker-auth "$WORKER_PAIR" 2
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: mutation-evidence-auth-security-worker-${{ matrix.pair }}
+          path: |
+            test-results/
+            build/mutation-*.log
+            build/polling-mutation-*.log
+            build/security-mutant-*.log
+            build/oracle-control-evidence/
+
+  mutations:
+    needs: [scope, release-package]
+    if: ${{ !cancelled() && needs.scope.result == 'success' && needs.scope.outputs.mutations != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -265,7 +299,6 @@ jobs:
           case "$MUTATION_SUITE" in
             oracle) npm run test:mutations ;;
             polling-cache) npm run test:polling-cache:mutations ;;
-            auth-security-worker-*) python3 scripts/check-linux-shards.py worker-auth "${MUTATION_SUITE#auth-security-worker-}" 2 ;;
             auth-security-browser) npm run test:auth:security:mutations -- --browser ;;
             *) echo "unknown suite $MUTATION_SUITE" >&2; exit 1 ;;
           esac

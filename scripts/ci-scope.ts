@@ -11,7 +11,7 @@
 // to main and manual runs get every job, and Release requires that green run.
 //
 // Usage: node scripts/ci-scope.ts <event> [base-ref]
-// Writes `e2e=true|false` and `mutations=<json list>` to $GITHUB_OUTPUT (or stdout).
+// Writes e2e, Worker auth and the other mutation suites to $GITHUB_OUTPUT (or stdout).
 import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 
@@ -57,11 +57,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     ? execFileSync("git", ["diff", "--name-only", `origin/${base}...HEAD`], { encoding: "utf8" }).split("\n").filter(Boolean)
     : "all";
   const result = scope(changed);
-  const workerPairs = 2;
-  const mutations = result.mutations.flatMap(suite => suite === "auth-security-worker"
-    ? Array.from({ length: workerPairs }, (_, index) => `${suite}-${index + 1}`)
-    : [suite]);
-  const out = `e2e=${result.e2e}\nmutations=${JSON.stringify(mutations)}\n`;
+  const workerAuth = result.mutations.includes("auth-security-worker");
+  const mutations = result.mutations.filter(suite => suite !== "auth-security-worker");
+  const out = `e2e=${result.e2e}\nworker-auth=${workerAuth}\nmutations=${JSON.stringify(mutations)}\n`;
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, out);
   process.stdout.write((changed === "all" ? "all jobs (not a pull request)\n" : `${changed.length} changed file(s)\n`) + out);
 }
