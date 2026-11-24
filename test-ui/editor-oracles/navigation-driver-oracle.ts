@@ -16,11 +16,14 @@ export async function navigationDriver(p: ReturnType<typeof navigationPlan>, obs
     let holding = p.acknowledgeAfter === null;
     let abortHeld = false;
     const rejectedDeparture = p.h.departure === 'spa-reject';
+    const observesStay = p.h.departure === 'stay';
     const inApp = p.h.departure === 'spa' || rejectedDeparture;
     let rejectWrites = rejectedDeparture;
     const rejectedRequests: { method: string; body: unknown; status: number }[] = [];
-    type SaveReceipt = { id: number; attempt: string | null; phase: string; resultType?: string; reasonType?: string; reason?: string };
+    type SaveReceipt = { id: number; attempt: string | null; phase: string; resultType?: string; reasonType?: string; reason?: string; current?: boolean };
     const saveReceipts: SaveReceipt[] = [], departureSettled = deferred<SaveReceipt>();
+    const staySaved = deferred<void>();
+    let waitingForStaySave = false;
     await page.route('**' + endpoint, route => {
       const task = (async () => {
         if (holding && route.request().method() === 'PATCH') {
@@ -59,14 +62,16 @@ export async function navigationDriver(p: ReturnType<typeof navigationPlan>, obs
       await page.goto('/studio/edit/' + id);
       const box = page.locator('#md-input'); await box.waitFor({ state: 'visible' });
       if (p.h.mobile) await page.getByRole('group', { name: 'pane', exact: true }).getByRole('button', { name: 'draft', exact: true }).click();
-      if (rejectedDeparture) {
+      if (rejectedDeparture || observesStay) {
         await page.exposeFunction('oracleNavigationSaveReceipt', (receipt: SaveReceipt) => {
-          saveReceipts.push(receipt);
-          if (receipt.attempt === 'departure' && receipt.phase !== 'started') departureSettled.resolve(receipt);
+          if (rejectedDeparture) {
+            saveReceipts.push(receipt);
+            if (receipt.attempt === 'departure' && receipt.phase !== 'started') departureSettled.resolve(receipt);
+          }
+          if (waitingForStaySave && receipt.current === true) staySaved.resolve();
         });
-        // Observe the actual Draft used by the loaded React editor. Its exact
-        // promise/result and rejection reason still flow to the original caller.
-        await page.evaluate(() => {
+        // Observe the actual Draft save without replacing its promise or result.
+        await page.evaluate(observesStay => {
           const host = globalThis as any;
           const state = host.__oracleNavigationSave = { sequence: 0, nextAttempt: null as string | null };
           const prototype = host.__oracleDrafts.Draft.prototype, original = prototype.save;
@@ -87,12 +92,13 @@ export async function navigationDriver(p: ReturnType<typeof navigationPlan>, obs
             // Promise.resolve is only a side observer: return result itself,
             // never its observer or a replacement/recovered promise.
             void Promise.resolve(result).then(
-              value => report({ id, attempt, phase: 'fulfilled', resultType: typeof value }),
+              value => report({ id, attempt, phase: 'fulfilled', resultType: typeof value,
+                ...(observesStay && { current: value === true }) }),
               reason => report({ id, attempt, phase: 'rejected', reasonType: typeof reason }),
             );
             return result;
           };
-        });
+        }, observesStay);
       }
       await box.focus(); await box.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(0, el.value.length));
       for (const [index, command] of p.commands.entries()) {
@@ -231,10 +237,18 @@ export async function navigationDriver(p: ReturnType<typeof navigationPlan>, obs
       observe('departure', { dialogs, ...departure, stored: departureStored, departedBeforeRelease,
         ...(rejectedDeparture ? { departedBeforeRetry } : {}) });
       if (departure.inEditor) {
-        // In the original schedule there may be no outgoing PATCH until the
-        // debounce fires. Release before waiting for that actual response.
-        const saved = page.waitForResponse(response => response.url().endsWith(endpoint) && response.request().method() === 'PATCH'); release.resolve();
-        await (await saved).finished(); observe('saved', { value: await stored() });
+        if (observesStay) {
+          // An earlier autosave may still be in flight after the final edit.
+          // Use the current save as the boundary, then judge the server's text.
+          waitingForStaySave = true;
+          release.resolve();
+          await hostEvent(staySaved.promise, 'current draft autosave settled');
+        } else {
+          const saved = page.waitForResponse(response => response.url().endsWith(endpoint) && response.request().method() === 'PATCH');
+          release.resolve();
+          await (await saved).finished();
+        }
+        observe('saved', { value: await stored() });
         await captureBrowserCalls(page);
       } else {
         const card = await openNavigationCard({ page, context, drain, id, history: p.h });
