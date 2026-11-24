@@ -26,7 +26,7 @@ const suites = {
 const everything = [
   /^test\/(?:oracle-storage|oracle-property-registry|configure-oracles|oracle-cleanup)\.ts$/,
   /^scripts\/(?:oracles-cloudflare|oracle-mutation-control|oracle-replay-receipt|run-oracle-gaps)\.ts$/, /^test-browser\//,
-  /^package(-lock)?\.json$/, /^\.github\/workflows\//, /^scripts\/ci-scope\.ts$/,
+  /^package(-lock)?\.json$/, /^\.github\/(?:workflows|actions)\//, /^scripts\/ci-scope\.ts$/,
   /^vitest(?:\.[\w-]+)?\.config\.ts$/, /^tsconfig.*\.json$/, /^wrangler\.jsonc$/, /^migrations\//,
 ];
 const docsOnly = [/\.md$/, /^docs\//, /^LICENSE$/, /^\.github\/ISSUE_TEMPLATE\//];

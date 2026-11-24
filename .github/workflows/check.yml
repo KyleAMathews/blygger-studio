@@ -112,7 +112,7 @@ jobs:
           node-version: 24.19.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npm run test:oracles:studio
+      - run: npm run test:oracles:studio -- --contexts 4
   worker-oracles:
     runs-on: ubuntu-latest
     timeout-minutes: 45
