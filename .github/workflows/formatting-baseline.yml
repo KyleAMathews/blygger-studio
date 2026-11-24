@@ -27,7 +27,8 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npx playwright install --with-deps chromium
+      # Planning hashes the browser files and collects test names.
+      - run: npx playwright install chromium
       - id: plan
         env:
           FORMATTING_DEADLINE: ${{ inputs.deadline }}
@@ -43,9 +44,7 @@ jobs:
     timeout-minutes: ${{ inputs.timeout-minutes }}
     strategy:
       fail-fast: false
-      # This is extra host capacity: up to eight aggregate CPUs. No run or
-      # balance claim is implied by the proposed cap.
-      max-parallel: 4
+      max-parallel: 20
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
@@ -59,7 +58,7 @@ jobs:
         with:
           name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: build
-      - name: Both complete file passes in a two-CPU service
+      - name: Both partition passes in a two-CPU service
         env:
           FORMATTING_PART: ${{ matrix.id }}
         run: python3 scripts/formatting-baseline-host.py build/formatting-baseline-plan.json "$FORMATTING_PART" "build/formatting-part-$FORMATTING_PART"
@@ -86,7 +85,8 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npx playwright install --with-deps chromium
+      # Aggregation hashes the browser files without starting Chromium.
+      - run: npx playwright install chromium
       - uses: actions/download-artifact@v4
         with:
           name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}

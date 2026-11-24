@@ -15,8 +15,7 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 
-// Matrix entries in check.yml. auth-security is split along the script's own
-// --browser / --exclude-browser selectors so its two halves run side by side.
+// Worker auth-security controls are sharded when Check expands the matrix.
 const suites = {
   oracle: "scripts/verify-oracle-mutations.ts",
   "polling-cache": "scripts/verify-polling-cache-mutations.ts",
@@ -58,7 +57,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     ? execFileSync("git", ["diff", "--name-only", `origin/${base}...HEAD`], { encoding: "utf8" }).split("\n").filter(Boolean)
     : "all";
   const result = scope(changed);
-  const out = `e2e=${result.e2e}\nmutations=${JSON.stringify(result.mutations)}\n`;
+  const workerShards = 3;
+  const mutations = result.mutations.flatMap(suite => suite === "auth-security-worker"
+    ? Array.from({ length: workerShards }, (_, index) => `${suite}-${index + 1}-${workerShards}`)
+    : [suite]);
+  const out = `e2e=${result.e2e}\nmutations=${JSON.stringify(mutations)}\n`;
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, out);
   process.stdout.write((changed === "all" ? "all jobs (not a pull request)\n" : `${changed.length} changed file(s)\n`) + out);
 }

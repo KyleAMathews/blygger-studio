@@ -1,4 +1,4 @@
-/** Complete-file baseline plans and fail-closed aggregation; never a mutation verdict. */
+/** Two-pass baseline plans and fail-closed aggregation. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
@@ -12,15 +12,46 @@ import { requireExecutedFormattingOracles, requireFormattingCheckPurpose } from 
 export const baselineSources = ['src/ui/format-shortcuts.ts', 'src/ui/links.ts', 'src/ui/draft.ts', 'src/ui/authoring.tsx', 'src/ui/sheets.tsx'];
 type Input = { path: string; sha256: string; link?: string; resolved?: { path: string; sha256: string } };
 type Inventory = { file: string; sha256: string; properties: string[] }[];
+type Partition = { id: string; files: string[]; tests?: string[] };
+// The longest files in Check run 45145892794. Shard registrations while keeping
+// each original test name, definition, and campaign seed.
+const timings: Record<string, { minutes: number; shards: number }> = {
+  mixed: { minutes: 86, shards: 11 },
+  receivers: { minutes: 23, shards: 2 },
+  interactions: { minutes: 17, shards: 2 },
+  session: { minutes: 15, shards: 2 },
+  workflows: { minutes: 15, shards: 2 },
+  'held-newline': { minutes: 14, shards: 1 },
+  'newline-history': { minutes: 14, shards: 2 },
+  navigation: { minutes: 9, shards: 1 },
+};
+const fileId = (file: string) => file.replace(/^test-ui\/editor-/, '').replace(/\.oracle\.test\.ts$/, '');
+const shardCount = (file: string) => timings[fileId(file)]?.shards ?? 1;
+const minutesPerShard = (file: string) => (timings[fileId(file)]?.minutes ?? 5) / shardCount(file);
+function shardTasks(tests: string[], count: number): string[][] {
+  // A generated unit runs a campaign. A determinism unit runs a history twice.
+  const weighted = tests.map(name => ({
+    name,
+    weight: name.endsWith(': generated') ? 25 : name.includes(' > determinism: ') ? 2 : 1,
+  })).sort((left, right) => right.weight - left.weight);
+  const shards = Array.from({ length: count }, () => ({ tests: [] as string[], weight: 0 }));
+  for (const task of weighted) {
+    const shard = shards.reduce((least, current) => current.weight < least.weight ? current : least);
+    shard.tests.push(task.name);
+    shard.weight += task.weight;
+  }
+  return shards.map(shard => shard.tests);
+}
 export interface BaselinePlan {
-  schema: 'blygger-formatting-baseline-plan-v3';
+  schema: 'blygger-formatting-baseline-plan-v4';
   commit: string; runId: string; attempt: string; root: string; deadline: number;
   hostPolicy: typeof baselineHostPolicy; host: HostIdentity; hostAfter: HostIdentity;
   sources: string[]; receiver: 1; contexts: 2; seed: string; seedSource: 'fresh'; testTimeout: 60000; firstLimit: 60000;
   inventory: Inventory; inputs: Input[]; inputsSha256: string;
-  parts: { id: string; files: string[] }[];
+  parts: Partition[];
+  rosters: Record<string, string[]>;
 }
-export interface BaselineScope { plan: string; planSha256: string; part: string; files: string[]; seed: string; host: HostIdentity }
+export interface BaselineScope { plan: string; planSha256: string; part: string; files: string[]; tests?: string[]; seed: string; host: HostIdentity }
 export const baselineHostPolicy = 'per-job-stable-host-v1';
 type HostIdentity = ReturnType<typeof hostIdentity>;
 const hostEnvironment = ['CI', 'GITHUB_ACTIONS', 'TZ', 'LANG', 'LC_ALL', 'CLOUDFLARE_CF_FETCH_ENABLED'];
@@ -131,7 +162,7 @@ export function baselineInputs(root: string): Input[] {
   });
 }
 export function validatePlan(plan: BaselinePlan, inventory: Inventory) {
-  checked(plan?.schema === 'blygger-formatting-baseline-plan-v3' && /^[a-f0-9]{40}$/.test(plan.commit) && /^\d+$/.test(plan.runId) && /^\d+$/.test(plan.attempt), 'Invalid baseline plan identity');
+  checked(plan?.schema === 'blygger-formatting-baseline-plan-v4' && /^[a-f0-9]{40}$/.test(plan.commit) && /^\d+$/.test(plan.runId) && /^\d+$/.test(plan.attempt), 'Invalid baseline plan identity');
   checked(plan.hostPolicy === baselineHostPolicy, 'Unknown baseline host policy');
   requireBaselineJobHost(plan.host, plan.host, plan.hostAfter);
   checked(typeof plan.root === 'string' && plan.root.startsWith('/') && Number.isSafeInteger(plan.deadline) && plan.deadline >= 0, 'Invalid baseline plan root/deadline');
@@ -148,10 +179,23 @@ export function validatePlan(plan: BaselinePlan, inventory: Inventory) {
   }
   checked(Array.isArray(plan.parts) && plan.parts.length > 0, 'Empty baseline plan');
   unique(plan.parts.map(part => part.id), 'Duplicate baseline partition');
-  for (const part of plan.parts) checked(/^[a-z][a-z0-9-]*$/.test(part.id) && Array.isArray(part.files) && part.files.length > 0, 'Invalid baseline partition');
-  const files = plan.parts.flatMap(part => part.files);
-  unique(files, 'A complete file is assigned more than once');
-  same([...files].sort(), inventory.map(row => row.file).sort(), 'Baseline plan is not an exact complete-file cover');
+  for (const part of plan.parts) checked(/^[a-z][a-z0-9-]*$/.test(part.id) && Array.isArray(part.files) && part.files.length === 1, 'Invalid baseline partition');
+  const files = inventory.map(row => row.file);
+  same([...new Set(plan.parts.flatMap(part => part.files))].sort(), [...files].sort(), 'Baseline plan omits or adds an oracle file');
+  same(Object.keys(plan.rosters).sort(), files.filter(file => shardCount(file) > 1).sort(), 'Unexpected sharded files');
+  for (const file of files) {
+    const parts = plan.parts.filter(part => part.files[0] === file);
+    const roster = plan.rosters[file];
+    if (!roster) {
+      checked(parts.length === 1 && parts[0]!.tests === undefined, 'A complete file must have one unfiltered partition');
+      continue;
+    }
+    checked(Array.isArray(roster) && roster.every(test => typeof test === 'string' && test.length > 0), 'Invalid test roster for ' + file);
+    checked(parts.length === shardCount(file) && parts.every(part => Array.isArray(part.tests) && part.tests.length > 0), 'Missing test shards for ' + file);
+    const tests = parts.flatMap(part => part.tests!);
+    unique(tests, 'A test is assigned to more than one shard in ' + file);
+    same([...tests].sort(), [...roster].sort(), 'Test shards do not cover ' + file);
+  }
 }
 export function requireDeadline(plan: BaselinePlan) {
   checked(plan.deadline === 0 || Date.now() < plan.deadline, 'Formatting baseline deadline expired');
@@ -168,6 +212,7 @@ function requirePlan(root: string, scope: BaselineScope, fullInputs = false): Ba
   const part = plan.parts.find(row => row.id === scope.part);
   checked(part, 'Unknown baseline partition');
   same(scope.files, part.files, 'Changed partition file list');
+  same(scope.tests, part.tests, 'Changed partition test list');
   same(scope.seed, plan.seed, 'Changed partition seed');
   requireDeadline(plan);
   if (fullInputs) same(baselineInputs(root), plan.inputs, 'Baseline repository/dependency/browser bytes changed');
@@ -199,7 +244,7 @@ export function readBaselineScope(root: string, args?: string[]): BaselineScope 
   const plan = JSON.parse(bytes.toString()) as BaselinePlan;
   const assigned = plan.parts?.find(row => row.id === part);
   checked(assigned, 'Unknown baseline partition');
-  const scope: BaselineScope = { plan: resolve(path), planSha256: digest(bytes), part, files: assigned.files, seed: plan.seed, host: hostIdentity() };
+  const scope: BaselineScope = { plan: resolve(path), planSha256: digest(bytes), part, files: assigned.files, ...(assigned.tests && { tests: assigned.tests }), seed: plan.seed, host: hostIdentity() };
   requireBaselineResources(process.env.FORMATTING_BASELINE_UNIT ?? '');
   requirePlan(root, scope, true);
   return scope;
@@ -225,7 +270,7 @@ export function requireBaselineResources(unit: string) {
 /** Compare the independent raw Vitest task roster retained before fixture cleanup.
  * Counts/hashes edited together in results.json must not hide a dropped registration.
  */
-export function requireRawUnits(report: any, units: any[], owners: any[]) {
+export function requireRawUnits(report: any, units: any[], owners: any[], shardTests: string[] | undefined, rosters: BaselinePlan['rosters']) {
   checked(units.length === report.oracleFiles.length * 2 && owners.length === units.length, 'Missing/extra application unit receipt');
   for (const [index, pass] of report.baselinePasses.entries()) for (const file of report.oracleFiles) {
     const matching = units.filter(unit => unit.file.endsWith('/' + file) && unit.pass === index + 1);
@@ -236,14 +281,23 @@ export function requireRawUnits(report: any, units: any[], owners: any[]) {
     checked(Array.isArray(tests) && tests.length > 0, 'Missing raw task roster');
     unique(tests.map((test: any) => test.key), 'Duplicate raw task key');
     const normalize = (key: string) => key.slice(key.indexOf('/' + file + ' > ') + 1);
-    for (const test of tests) checked(typeof test.key === 'string' && test.key.includes('/' + file + ' > ') && test.state === 'passed' && test.message === '', 'Raw task is skipped, failed or foreign');
+    const selected = shardTests && new Set(shardTests.map(name => file + ' > ' + name));
+    for (const test of tests) {
+      checked(typeof test.key === 'string' && test.key.includes('/' + file + ' > '), 'Foreign raw task');
+      const run = !selected || selected.has(normalize(test.key));
+      checked(test.state === (run ? 'passed' : 'skipped') && test.message === '', 'Raw task verdict differs from its shard assignment');
+    }
+    if (selected) same(tests.map((test: any) => normalize(test.key)).sort(), rosters[file]!.map(name => file + ' > ' + name).sort(), 'Raw test roster differs from the independently collected roster');
+    const passed = tests.filter((test: any) => test.state === 'passed');
+    const baseline = pass.baseline.find((row: any) => row.file === file);
+    checked(baseline?.passed === passed.length && baseline.skipped === tests.length - passed.length, 'Raw task counts differ from the baseline report');
     const captured = pass.capture.filter((row: any) => row.key.startsWith(file + ' > '));
-    same(tests.map((test: any) => normalize(test.key)).sort(), captured.map((row: any) => row.key).sort(), 'Capture lost a raw registration');
+    same(passed.map((test: any) => normalize(test.key)).sort(), captured.map((row: any) => row.key).sort(), 'Capture lost a raw registration');
     const rows = unit.rows.filter((entry: any) => !entry[1].background).map(([key, row]: any) => ({ ...row, key: normalize(key) }));
     same(rows, captured, 'Captured instrumentation differs from retained raw unit');
   }
 }
-function artifacts(out: string) {
+function artifacts(out: string, scope: BaselineScope, rosters: BaselinePlan['rosters']) {
   const topology = json(resolve(out, 'browser-topology.json'));
   const applications = json(resolve(out, 'application-topology.json'));
   const results = readFileSync(resolve(out, 'results.json'));
@@ -272,7 +326,7 @@ function artifacts(out: string) {
   same(readdirSync(directory).sort(), expected, 'Missing/extra raw file-pass result');
   const units = applications.owners.map((owner: any) => ({ file: owner.file, pass: owner.pass, result: json(join(directory, `${owner.pass}-${owner.index}-${owner.lease}.json`)) }));
   for (const unit of units) checked(unit.result.file === unit.file, 'Raw result owner differs');
-  requireRawUnits(report, units, applications.owners);
+  requireRawUnits(report, units, applications.owners, scope.tests, rosters);
   const launches = readdirSync(resolve(out, 'browser-topology-launches')).sort().map(name => json(resolve(out, 'browser-topology-launches', name)));
   checked(launches.length > 0 && launches.every(row => row.schema === topology.schema && row.invocation === topology.invocation && row.engine === 'chromium' && row.isolation === 'process' && typeof row.browserVersion === 'string' && row.browserVersion && typeof row.owner === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(row.owner)), 'Missing/foreign browser acquisition');
   unique(launches.map(row => row.owner), 'Duplicate browser owner');
@@ -282,7 +336,7 @@ function artifacts(out: string) {
   return { report, topology, applications, launches, resultsSha256: digest(results) };
 }
 export function validatePartitionArtifacts(plan: BaselinePlan, scope: BaselineScope, values: ReturnType<typeof artifacts>, options?: any) {
-  requireFormattingCheckPurpose(values.report, true, scope.files, undefined, options ?? values.report.options);
+  requireFormattingCheckPurpose(values.report, true, scope.files, undefined, options ?? values.report.options, scope.tests);
   requireExecutedFormattingOracles(values.report);
   const reported = values.report.options;
   same(values.topology.runner.seedSelection, { value: plan.seed, source: 'plan' }, 'Partition topology seed differs');
@@ -296,7 +350,7 @@ export function validatePartitionArtifacts(plan: BaselinePlan, scope: BaselineSc
 export function finishBaselinePartition(scope: BaselineScope, out: string, options: unknown) {
   const plan = requirePlan(process.cwd(), scope, true);
   const resources = requireBaselineResources(process.env.FORMATTING_BASELINE_UNIT ?? '');
-  const values = artifacts(out);
+  const values = artifacts(out, scope, plan.rosters);
   validatePartitionArtifacts(plan, scope, values, options);
   const hostAfter = hostIdentity();
   requireBaselineJobHost(plan.host, scope.host, hostAfter);
@@ -314,10 +368,29 @@ function outputManifest(directory: string, at = ''): Input[] {
 export function makePlan(root: string, deadline = 0): BaselinePlan {
   const host = hostIdentity();
   const inventory = baselineInventory(root), inputs = baselineInputs(root);
-  const plan: BaselinePlan = { schema: 'blygger-formatting-baseline-plan-v3', commit: process.env.GITHUB_SHA ?? '', runId: process.env.GITHUB_RUN_ID ?? '', attempt: process.env.GITHUB_RUN_ATTEMPT ?? '', root: realpathSync(root), deadline,
+  const sharded = inventory.map(row => row.file).filter(file => shardCount(file) > 1);
+  const collected = JSON.parse(execFileSync(process.execPath, [
+    'node_modules/vitest/vitest.mjs', 'list', '--config', 'vitest.oracle.config.ts', '--maxWorkers=2',
+    '--no-cache', ...sharded, '--json',
+  ], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 })) as { file: string; name: string }[];
+  const rosters = Object.fromEntries(sharded.map(file => [file, collected.filter(test => relative(root, test.file) === file).map(test => test.name)]));
+  const parts = inventory.flatMap(({ file }): Partition[] => {
+    const id = fileId(file);
+    const tests = rosters[file];
+    if (!tests) return [{ id, files: [file] }];
+    return shardTasks(tests, shardCount(file)).map((assigned, shard) => ({
+      id: `${id}-${shard + 1}`,
+      files: [file],
+      tests: assigned,
+    }));
+  });
+  // Start the longest jobs first so they can finish while short jobs use spare runners.
+  parts.sort((left, right) => minutesPerShard(right.files[0]!) - minutesPerShard(left.files[0]!));
+  const plan: BaselinePlan = { schema: 'blygger-formatting-baseline-plan-v4', commit: process.env.GITHUB_SHA ?? '', runId: process.env.GITHUB_RUN_ID ?? '', attempt: process.env.GITHUB_RUN_ATTEMPT ?? '', root: realpathSync(root), deadline,
     hostPolicy: baselineHostPolicy, host, hostAfter: hostIdentity(), sources: [...baselineSources], receiver: 1, contexts: 2, seed: randomBytes(4).readInt32LE().toString(), seedSource: 'fresh', testTimeout: 60000, firstLimit: 60000, inventory, inputs, inputsSha256: digest(JSON.stringify(inputs)),
-    parts: inventory.map(row => ({ id: row.file.replace(/^test-ui\/editor-/, '').replace(/\.oracle\.test\.ts$/, ''), files: [row.file] })) };
+    parts, rosters };
   validatePlan(plan, inventory);
+  same(baselineInputs(root), inputs, 'Test collection changed the baseline input tree');
   requireDeadline(plan);
   return plan;
 }
@@ -328,7 +401,7 @@ export function aggregateBaseline(planPath: string, directory: string, output: s
   validatePlan(plan, baselineInventory(process.cwd()));
   requireDeadline(plan);
   const firstPart = plan.parts[0];
-  const firstScope: BaselineScope = { plan: resolve(planPath), planSha256, part: firstPart.id, files: firstPart.files, seed: plan.seed, host: aggregateHost };
+  const firstScope: BaselineScope = { plan: resolve(planPath), planSha256, part: firstPart.id, files: firstPart.files, ...(firstPart.tests && { tests: firstPart.tests }), seed: plan.seed, host: aggregateHost };
   requirePlan(process.cwd(), firstScope, true);
   const prefix = `formatting-part-${plan.commit}-${plan.runId}-${plan.attempt}-`;
   same(readdirSync(directory).sort(), plan.parts.map(part => prefix + part.id).sort(), 'Missing/extra partition artifact');
@@ -336,7 +409,7 @@ export function aggregateBaseline(planPath: string, directory: string, output: s
   const versions = new Set<string>();
   const parts = plan.parts.map(part => {
     const out = resolve(directory, prefix + part.id), receipt = json(resolve(out, 'partition.json')), host = json(resolve(out, 'host-completion.json'));
-    const scope: BaselineScope = { plan: resolve(planPath), planSha256, part: part.id, files: part.files, seed: plan.seed, host: receipt.scope?.host };
+    const scope: BaselineScope = { plan: resolve(planPath), planSha256, part: part.id, files: part.files, ...(part.tests && { tests: part.tests }), seed: plan.seed, host: receipt.scope?.host };
     same([receipt.schema, receipt.purpose, receipt.hostPolicy, receipt.scope, receipt.commit, receipt.runId, receipt.attempt, receipt.inputsSha256], ['blygger-formatting-baseline-partition-v3', 'partial-baseline-partition', baselineHostPolicy, scope, plan.commit, plan.runId, plan.attempt, plan.inputsSha256], 'Stale or foreign partition receipt');
     requireBaselineJobHost(plan.host, scope.host, receipt.hostAfter);
     same([host.schema, host.commit, host.runId, host.attempt, host.part, host.exitCode, host.cleanup, host.group, host.unit], ['blygger-formatting-baseline-host-v2', plan.commit, plan.runId, plan.attempt, part.id, 0, 'empty-or-removed', receipt.resources.group, receipt.resources.unit], 'Partition host failed or did not release its cgroup');
@@ -344,7 +417,7 @@ export function aggregateBaseline(planPath: string, directory: string, output: s
     checked(Number.isFinite(host.elapsedSeconds) && host.elapsedSeconds >= 0 && Number.isSafeInteger(host.startedAtUnixMs) && Number.isSafeInteger(host.finishedAtUnixMs) && host.finishedAtUnixMs >= host.startedAtUnixMs, 'Missing host completion timing');
     checked(receipt.resources.cpus.length === 2 && new Set(receipt.resources.cpus).size === 2 && receipt.resources.cpus.every((cpu: unknown) => typeof cpu === 'number' && Number.isSafeInteger(cpu) && cpu >= 0), 'Invalid resource receipt');
     same([receipt.resources.unit, receipt.resources.group, parseCpus(receipt.resources.effective)], [`formatting-baseline-${plan.runId}-${plan.attempt}-${part.id}`, `/system.slice/formatting-baseline-${plan.runId}-${plan.attempt}-${part.id}.service`, receipt.resources.cpus], 'Foreign resource group');
-    const values = artifacts(out);
+    const values = artifacts(out, scope, plan.rosters);
     validatePartitionArtifacts(plan, scope, values);
     checked(receipt.resultsSha256 === values.resultsSha256, 'Partition result bytes changed');
     values.launches.forEach(row => versions.add(row.browserVersion));
@@ -362,7 +435,7 @@ export function aggregateBaseline(planPath: string, directory: string, output: s
   const hostAfter = hostIdentity();
   requireBaselineJobHost(plan.host, aggregateHost, hostAfter);
   const receipt = { schema: 'blygger-formatting-baseline-complete-v3', purpose: 'complete-partitioned-baseline', status: 'completed', mutationAudit: 'not-run', hostPolicy: baselineHostPolicy, planHost: { before: plan.host, after: plan.hostAfter }, aggregateHost: { before: aggregateHost, after: hostAfter }, planSha256, commit: plan.commit, runId: plan.runId, attempt: plan.attempt, inputsSha256: plan.inputsSha256, seed: plan.seed, seedSource: plan.seedSource, browserVersion: [...versions][0], registrationCounts: allKeys.map(keys => keys.size), parts,
-    schedule: 'Whole-file partitions, two passes inside each partition. No global all-first-before-repeat barrier. Raw partition artifacts remain required.' };
+    schedule: 'Each test registration runs once per pass in its assigned partition. Both passes retain their raw partition artifacts.' };
   mkdirSync(dirname(output), { recursive: true });
   writeFileSync(output, encode(receipt), { flag: 'wx' });
   return receipt;

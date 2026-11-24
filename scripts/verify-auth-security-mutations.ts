@@ -83,7 +83,15 @@ const controls = [
 // Browser controls share Playwright's server port; worker/race controls can run
 // while a separate browser verification owns it. The default still runs all controls.
 const selector = process.argv[2];
-const selected = selector === '--existing-worker' ? controls.filter(control => control.kind !== 'browser' && !control.name.startsWith('admission ')) : selector === '--browser' ? controls.filter(control => control.kind === 'browser') : selector === '--exclude-browser' ? controls.filter(control => control.kind !== 'browser') : selector ? controls.filter(control => control.name.includes(selector)) : controls;
+const workerControls = controls.filter(control => control.kind !== 'browser');
+const shard = selector?.match(/^--worker-shard=(\d+)-(\d+)$/);
+const position = Number(shard?.[1]), total = Number(shard?.[2]);
+if (shard) assert.ok(position >= 1 && position <= total && total <= workerControls.length, 'Invalid Worker mutation shard');
+const selected = shard ? workerControls.filter((_, index) => index % total === position - 1)
+  : selector === '--existing-worker' ? workerControls.filter(control => !control.name.startsWith('admission '))
+  : selector === '--browser' ? controls.filter(control => control.kind === 'browser')
+  : selector === '--exclude-browser' ? workerControls
+  : selector ? controls.filter(control => control.name.includes(selector)) : controls;
 // Resume a long local verification after fixing a verifier diagnostic. CI leaves
 // this unset and always exercises the complete selected control set.
 const startAt = process.env.SECURITY_MUTATION_START_AT;

@@ -130,7 +130,7 @@ try {
     reportSource = await readFile(resolve(out, 'results.json'), 'utf8');
     const report = JSON.parse(reportSource);
     if (report.options?.seed !== seedSelection.value) throw new Error('Formatting report seed differs from its invocation');
-    requireFormattingCheckPurpose(report, options.baselineOnly === true, expectedFiles, selected ?? process.env.FORMATTING_ORACLE_FILE, options);
+    requireFormattingCheckPurpose(report, options.baselineOnly === true, expectedFiles, selected ?? process.env.FORMATTING_ORACLE_FILE, options, baselineScope?.tests);
     requireExecutedFormattingOracles(report, selected ?? process.env.FORMATTING_ORACLE_FILE, options);
     applications?.requireComplete();
     if (report.provisional || report.baseline.some((row: { failed: number }) => row.failed > 0) || report.nondeterministic.length) process.exitCode = 1;

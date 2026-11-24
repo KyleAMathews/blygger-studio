@@ -11,9 +11,12 @@ const files = baseline?.files ?? (selected === 'receivers'
   : selected === 'session' ? ['test-ui/editor-session.oracle.test.ts', 'test-ui/editor-newline-history.oracle.test.ts']
   : selected ? [`test-ui/editor-${selected}.oracle.test.ts`] : [...formattingOracleFiles]);
 for (const file of files) if (!(formattingOracleFiles as readonly string[]).includes(file)) throw new Error('Unknown formatting oracle file: ' + file);
+// Vitest's reporter separates suites with " > ". The name filter uses spaces.
+const testNamePattern = baseline?.tests && new RegExp('^(?:' + baseline.tests.map(name =>
+  name.replaceAll(' > ', ' ').replace(/[.*+?^$${}()|[\]\\]/g, '\\$&')).join('|') + ')$');
 
 export default defineConfig({
-  ...(baseline ? { cacheDir: 'build/formatting-oracle-cache' } : {}),
+  cacheDir: 'build/formatting-oracle-cache',
   plugins: [formattingBrowserSource()],
-  test: { include: files, setupFiles: ['./test-ui/editor-oracles/configure-oracles.ts'], environment: 'node' },
+  test: { include: files, testNamePattern, setupFiles: ['./test-ui/editor-oracles/configure-oracles.ts'], environment: 'node' },
 });
