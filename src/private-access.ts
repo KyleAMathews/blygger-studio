@@ -28,6 +28,13 @@ export function privateFilterSql(access: OwnerAccess | null, alias = "i"): strin
   return seesPrivate(access) ? null : `NOT ${notebookSql(alias)}`;
 }
 
+/** Of these own item ids, the ones this access may not know exist (private or tainted). Empty for an access that sees the notebook. */
+export async function hiddenOwnIds(db: D1Database, access: OwnerAccess | null, ids: readonly string[]): Promise<Set<string>> {
+  if (seesPrivate(access) || !ids.length) return new Set();
+  const { results } = await db.prepare(`SELECT id FROM items i WHERE id IN (SELECT value FROM json_each(?)) AND ${notebookSql("i")}`).bind(JSON.stringify([...new Set(ids)])).all<{ id: string }>();
+  return new Set(results.map((row) => row.id));
+}
+
 /** True when the item exists, is private or tainted, and this access may not know that. */
 export async function privateItemHidden(db: D1Database, access: OwnerAccess | null, id: string): Promise<boolean> {
   if (seesPrivate(access)) return false;

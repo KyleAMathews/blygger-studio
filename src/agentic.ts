@@ -9,6 +9,8 @@
  * per-entry scores the Studio lays out as one section, highest first.
  */
 import { OWN_SUBSCRIPTION } from "./own-subscription.ts";
+import { hiddenOwnIds } from "./private-access.ts";
+import type { OwnerAccess } from "./permissions.ts";
 import { enabledRules } from "./background.ts";
 import { getSettings } from "./model.ts";
 import { readingEntries, type Identity } from "./reading-data.ts";
@@ -74,6 +76,27 @@ async function writeThread(db: D1Database, feed: string): Promise<void> {
 const identityOf = (ref: Reference): Identity =>
   ref.sub === OWN_SUBSCRIPTION ? { source: "own", sub: "", id: ref.remoteId, at: null } : { source: "imported", sub: ref.sub, id: ref.remoteId, at: null };
 const keyOf = (ref: Reference) => ref.sub === OWN_SUBSCRIPTION ? `own:${ref.remoteId}` : `imported:${JSON.stringify([ref.sub, ref.remoteId])}`;
+
+/**
+ * An edition as `access` may read it (studio#178 R09): references to own items
+ * it may not know exist leave the stored edition and the layout, and a hidden
+ * draft is not named. The owner and tokens with owner:private read it whole.
+ */
+export async function readEditionAs(db: D1Database, feed: string, access: OwnerAccess | null) {
+  const read = await readEdition(db, feed);
+  if (!read?.edition) return read;
+  const refs = sectionsOf(read.edition).flatMap((s) => s.entries).concat(read.edition.scores ?? []);
+  const hidden = await hiddenOwnIds(db, access, [...refs.filter((r) => r.sub === OWN_SUBSCRIPTION).map((r) => r.remoteId), ...(read.draft ? [read.draft.id] : [])]);
+  if (!hidden.size) return read;
+  const shown = (ref: Reference) => !(ref.sub === OWN_SUBSCRIPTION && hidden.has(ref.remoteId));
+  const { sections, scores } = read.edition;
+  return {
+    ...read,
+    edition: { ...read.edition, ...(sections ? { sections: sections.map((s) => ({ ...s, entries: s.entries.filter(shown) })) } : {}), ...(scores ? { scores: scores.filter(shown) } : {}) },
+    layout: read.layout && { ...read.layout, sections: read.layout.sections.map((s) => ({ ...s, entries: s.entries.filter(shown) })).filter((s) => s.entries.length) },
+    draft: read.draft && hidden.has(read.draft.id) ? null : read.draft,
+  };
+}
 
 /** The sections an edition draws, in either mode, before resolving. */
 export function sectionsOf(edition: AgenticEditionInput): AgenticSection[] {

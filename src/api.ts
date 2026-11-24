@@ -1,9 +1,10 @@
-import { PRIVATE_SCOPE, seesPrivate } from './private-access.ts';
+import { PRIVATE_SCOPE, hiddenOwnIds, privateItemHidden, seesPrivate } from './private-access.ts';
 import { retainedMediaSql } from './media-retention.ts';
 import { httpsUrl, listSyndication, refuseSyndication, replaceSyndication, type SyndicationEntry } from './syndication.ts';
 import { assertCurrentRevision, assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
 import { consumeHandles, contactResource, createContact, deleteContact, getContact, handleTaken, HANDLE, listContacts, resolveContact, updateContact } from './contacts.ts';
-import { readShelf, replaceShelf, type ShelfEntry } from './shelf.ts';
+import { readShelf, replaceShelf, type Shelf, type ShelfEntry } from './shelf.ts';
+import { OWN_SUBSCRIPTION } from './own-subscription.ts';
 import { normalizeWords, readDictionary, replaceSource, SOURCE_PATTERN, SOURCES_MAX, TOTAL_WORDS_MAX, wordProblem } from './dictionary.ts';
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { versionState } from './version-state.ts';
@@ -22,7 +23,7 @@ import { ItemCreateSchema, ItemEditSchema } from "./contract/routes.ts";
 import { compiledExtensionNames } from "../build/extensions.names.ts";
 import { BACKGROUND_RULES, settleOwnBackground } from "./background.ts";
 import { READER_ORDERS } from "./feeds/reader-order.ts";
-import { listFeeds, readEdition, replaceEdition, type AgenticEditionInput } from "./agentic.ts";
+import { listFeeds, readEditionAs, replaceEdition, type AgenticEditionInput } from "./agentic.ts";
 // Owner API (cookie auth, JSON) — v0.1-plan §3.3.
 
 import { canBeFrontPage, MAX_LINKS, postsPathError } from "./front-page.ts";
@@ -713,7 +714,8 @@ const uploadMediaOperation = async (context: OperationContext, input: OperationI
   if (!ext) return failure('unsupported-media', { error: `unsupported type ${file.mime || "(none)"}; allowed: png/jpg/gif/webp/svg` });
   if (file.bytes.byteLength > MEDIA_MAX_BYTES) return failure('too-large', { error: "file exceeds 5 MB" });
   const itemId = media?.itemId;
-  const item = itemId ? await getItem(context.env.DB, itemId) : null;
+  // A private item is an unknown one to an access without owner:private (studio#178 R10).
+  const item = itemId && !(await privateItemHidden(context.env.DB, context.access, itemId)) ? await getItem(context.env.DB, itemId) : null;
   if (itemId && !item) return failure('not-found', { error: "itemId not found" });
   if (item) {
     if (media.expectedRevision === undefined) return failure('invalid-input', { error: 'expectedRevision required when attaching media' });
@@ -761,7 +763,7 @@ const uploadMediaOperation = async (context: OperationContext, input: OperationI
 const deleteMediaOperation = async (context: OperationContext, input: OperationInput) => {
   const db = context.env.DB;
   const row = await getMedia(db, input.path.id);
-  if (!row) return failure('not-found', { error: "not found" });
+  if (!row || (row.item_id && await privateItemHidden(db, context.access, row.item_id))) return failure('not-found', { error: "not found" });
   if ((await getSettings(db)).avatar_media_id === row.id) return failure('conflict', { error: "this is the avatar; change it in Settings" });
   const item = row.item_id ? await getItem(db, row.item_id) : null;
   const expectedRevision = (input.body as { expectedRevision?: number }).expectedRevision;
@@ -1003,26 +1005,45 @@ const deleteContactOperation = async (context: OperationContext, input: Operatio
   await deleteContact(context.env.DB, input.path.id) ? success({ ok: true }) : failure('not-found', { error: "not found" });
 
 // The shelf (#135): see src/shelf.ts for the rules both operations share.
-const getShelfOperation = async (context: OperationContext) => success(await readShelf(context.env.DB));
+// Without owner:private the notebook's entries are not there (studio#178 R10): reads leave
+// them out, a named one is dropped as an unknown one is, and a replace keeps them in place.
+const isOwn = (hidden: Set<string>) => (entry: ShelfEntry) => entry.sub === OWN_SUBSCRIPTION && hidden.has(entry.remoteId);
+async function shelfAs(context: OperationContext, shelf: Shelf): Promise<Shelf> {
+  const hidden = await hiddenOwnIds(context.env.DB, context.access, shelf.entries.filter((e) => e.sub === OWN_SUBSCRIPTION).map((e) => e.remoteId));
+  return hidden.size ? { ...shelf, entries: shelf.entries.filter((e) => !isOwn(hidden)(e)) } : shelf;
+}
+const getShelfOperation = async (context: OperationContext) => success(await shelfAs(context, await readShelf(context.env.DB)));
 const putShelfOperation = async (context: OperationContext, input: OperationInput) => {
   const body = input.body as { entries: ShelfEntry[]; expectedRevision: number };
-  const stored = await replaceShelf(context.env.DB, body.entries, body.expectedRevision);
-  if (stored) return success(stored);
+  let entries = body.entries;
+  if (!seesPrivate(context.access)) {
+    const current = await readShelf(context.env.DB);
+    const hidden = await hiddenOwnIds(context.env.DB, context.access, [...current.entries, ...entries].filter((e) => e.sub === OWN_SUBSCRIPTION).map((e) => e.remoteId));
+    if (hidden.size) {
+      const given = entries.filter((e) => !isOwn(hidden)(e));
+      // Each hidden entry keeps its position; the token's list fills the rest, in its order.
+      entries = [];
+      current.entries.forEach((e, i) => { while (entries.length < i && given.length) entries.push(given.shift()!); if (isOwn(hidden)(e)) entries.push(e); });
+      entries.push(...given);
+    }
+  }
+  const stored = await replaceShelf(context.env.DB, entries, body.expectedRevision);
+  if (stored) return success(await shelfAs(context, stored));
   // The current list rides in the error so a client can merge and retry.
-  return failure('conflict', { error: 'shelf revision conflict; reload and try again', code: 'revision-conflict', current: await readShelf(context.env.DB) });
+  return failure('conflict', { error: 'shelf revision conflict; reload and try again', code: 'revision-conflict', current: await shelfAs(context, await readShelf(context.env.DB)) });
 };
 
 // The Agentic feeds and their editions: see src/agentic.ts for the rules the operations share.
 const listAgenticFeedsOperation = async (context: OperationContext) => success({ feeds: await listFeeds(context.env.DB) });
 const getAgenticOperation = async (context: OperationContext, input: OperationInput) => {
-  const edition = await readEdition(context.env.DB, input.path.feed);
+  const edition = await readEditionAs(context.env.DB, input.path.feed, context.access);
   return edition ? success(edition) : failure('not-found', { error: "no such agentic feed" });
 };
 const putAgenticOperation = async (context: OperationContext, input: OperationInput) => {
   const feed = input.path.feed;
   const body = input.body as { edition: AgenticEditionInput; expectedRevision: number };
-  if (await replaceEdition(context.env.DB, feed, body.edition, body.expectedRevision, new Date().toISOString())) return success((await readEdition(context.env.DB, feed))!);
-  const current = await readEdition(context.env.DB, feed);
+  if (await replaceEdition(context.env.DB, feed, body.edition, body.expectedRevision, new Date().toISOString())) return success((await readEditionAs(context.env.DB, feed, context.access))!);
+  const current = await readEditionAs(context.env.DB, feed, context.access);
   if (!current) return failure('not-found', { error: "no such agentic feed" });
   // The current edition rides in the error so an assistant can rebase and retry.
   return failure('conflict', { error: 'agentic edition revision conflict; reload and try again', code: 'revision-conflict', current });

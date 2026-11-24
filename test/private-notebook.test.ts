@@ -152,6 +152,84 @@ describe("owner:private: one observation decides what a by-id read returns (R07)
   }
 });
 
+/** A multipart upload as a token holding exactly `scope` sends it. */
+async function tokenUpload(scope: string[], form: FormData) {
+  const app = new Hono().route("/api", createOwnerApi({ scope, clientId: "notebook-test", userId: "owner" }));
+  const ctx = createExecutionContext();
+  const response = await app.fetch(new Request("https://example.com/api/media", { method: "POST", body: form }), { ...env, API_READ_LIMIT: "10000", API_WRITE_LIMIT: "10000" }, ctx);
+  await waitOnExecutionContext(ctx);
+  return { status: response.status, json: await response.json<any>().catch(() => null) };
+}
+
+describe("notebook authority on the Agentic feed, the shelf and attachments (R09, R10)", () => {
+  it("leaves private items out of an edition's stored references, layout, write and conflict answers", async () => {
+    const cookie = await login();
+    const hidden = await privateItem(cookie), open = await createAndPublish(cookie, "an open agentic entry");
+    const edition = (remoteIds: string[]) => ({ agent: { name: "notebook test" }, sections: [{ title: "Today", entries: remoteIds.map((remoteId) => ({ sub: "~own", remoteId, headline: "h" })) }] });
+    const { revision } = (await apiJson(cookie, "GET", "/blyg/api/agentic/default")).json;
+    expect((await apiJson(cookie, "PUT", "/blyg/api/agentic/default", { edition: edition([hidden, open]), expectedRevision: revision })).status).toBe(200);
+    const without = tokenApi(WITHOUT), withScope = tokenApi(WITH);
+    const read = await without("GET", "/agentic/default");
+    expect(read.status).toBe(200);
+    expect(JSON.stringify(read.json)).not.toContain(hidden);
+    expect(JSON.stringify(read.json)).toContain(open);
+    expect(JSON.stringify((await withScope("GET", "/agentic/default")).json)).toContain(hidden);
+    const stale = await without("PUT", "/agentic/default", { edition: edition([open]), expectedRevision: read.json.revision - 1 });
+    expect(stale.status).toBe(409);
+    expect(JSON.stringify(stale.json)).not.toContain(hidden);
+    // A write naming the hidden item answers as if it were unknown.
+    const written = await without("PUT", "/agentic/default", { edition: edition([hidden, open]), expectedRevision: read.json.revision });
+    expect(written.status).toBe(200);
+    expect(JSON.stringify(written.json)).not.toContain(hidden);
+  });
+
+  it("hides private shelf entries from such a token, keeps them through its replace, and refuses to let it add one", async () => {
+    const cookie = await login();
+    const hidden = await privateItem(cookie), open = await createAndPublish(cookie, "an open shelf entry");
+    const shelf = (await apiJson(cookie, "GET", "/blyg/api/shelf")).json;
+    expect((await apiJson(cookie, "PUT", "/blyg/api/shelf", { entries: [{ sub: "~own", remoteId: hidden }, { sub: "~own", remoteId: open }], expectedRevision: shelf.revision })).status).toBe(200);
+    const without = tokenApi(WITHOUT);
+    const seen = await without("GET", "/shelf");
+    expect(JSON.stringify(seen.json)).not.toContain(hidden);
+    const stale = await without("PUT", "/shelf", { entries: seen.json.entries, expectedRevision: seen.json.revision - 1 });
+    expect(stale.status).toBe(409);
+    expect(JSON.stringify(stale.json)).not.toContain(hidden);
+    const replaced = await without("PUT", "/shelf", { entries: [...seen.json.entries].reverse(), expectedRevision: seen.json.revision });
+    expect(replaced.status).toBe(200);
+    expect(JSON.stringify(replaced.json)).not.toContain(hidden);
+    const kept = (await apiJson(cookie, "GET", "/blyg/api/shelf")).json.entries.map((e: any) => e.remoteId);
+    expect(kept).toContain(hidden);
+    // Naming a private item is naming an unknown one: it is dropped, as an unresolved entry is.
+    const other = await privateItem(cookie, "another private note");
+    const added = await without("PUT", "/shelf", { entries: [...replaced.json.entries, { sub: "~own", remoteId: other }], expectedRevision: replaced.json.revision });
+    expect(added.status).toBe(200);
+    expect((await apiJson(cookie, "GET", "/blyg/api/shelf")).json.entries.map((e: any) => e.remoteId)).not.toContain(other);
+  });
+
+  it("answers an attachment upload or removal on a private item as for an unknown one", async () => {
+    const cookie = await login();
+    const hidden = await privateItem(cookie);
+    const form = () => {
+      const f = new FormData();
+      f.set("itemId", hidden); f.set("expectedRevision", "1");
+      f.set("file", new File(["notebook bytes"], "n.png", { type: "image/png" }));
+      return f;
+    };
+    const unknown = new FormData();
+    unknown.set("itemId", "zzzzzzzzzzzzzzzzzzzzzzzzzz"); unknown.set("expectedRevision", "1");
+    unknown.set("file", new File(["notebook bytes"], "n.png", { type: "image/png" }));
+    const refused = await tokenUpload(WITHOUT, form());
+    expect(refused).toEqual(await tokenUpload(WITHOUT, unknown));
+    // The owner attaches one; the token cannot remove it, and hears "not found".
+    const item = await getItem(env.DB, hidden);
+    const ownerForm = form(); ownerForm.set("expectedRevision", String(item!.revision));
+    const attached = await tokenUpload(WITH, ownerForm);
+    expect(attached.status).toBeLessThan(300);
+    const removed = await tokenApi(WITHOUT)("DELETE", `/media/${attached.json.id}`, { expectedRevision: (await getItem(env.DB, hidden))!.revision });
+    expect(removed).toEqual(await tokenApi(WITHOUT)("DELETE", "/media/zzzzzzzzzzzzzzzzzzzzzzzzzz", { expectedRevision: 1 }));
+  });
+});
+
 describe("the owner's search lists private items, marked", () => {
   it("finds a private item's text in compose search for the owner, and marks it", async () => {
     const cookie = await login();
