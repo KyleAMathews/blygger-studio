@@ -16,10 +16,6 @@ def test_command(root, suite, shard, total):
     if suite == 'browser-oracles':
         script = 'test:oracles:browser' if shard == 1 else 'test:oracles:browser:search'
         return ['npm', 'run', script]
-    if suite == 'worker-oracles':
-        if shard == 1:
-            return ['npm', 'run', 'test:oracles:conditional:worker']
-        return ['bash', '-c', 'npm run test:oracles:contracts && npm run test:oracles:search && npm run test:oracles:runtime']
     return ['npm', 'run', 'test:auth:security:mutations', '--', f'--worker-shard={shard}-{total}']
 
 
@@ -27,10 +23,9 @@ def start_lane(workspace, scratch, temporary, suite, shard, cpus, command):
     unit = f'blygger-check-{suite}-{scratch.name}-{shard}.service'
     temp = temporary / f'tmp-{shard}'
     temp.mkdir()
-    executable = shutil.which(command[0])
-    if not executable:
-        raise RuntimeError(f'{command[0]} is missing')
-    command[0] = executable
+    command[0] = shutil.which('npm')
+    if not command[0]:
+        raise RuntimeError('npm is missing')
     environment = ['PATH', 'HOME', 'CI', 'GITHUB_ACTIONS', 'PLAYWRIGHT_BROWSERS_PATH',
                    'CLOUDFLARE_CF_FETCH_ENABLED', 'LANG', 'LC_ALL', 'TZ']
     args = ['sudo', '-n', 'systemd-run', '--wait', '--pipe', '--collect', f'--unit={unit}',
@@ -110,8 +105,8 @@ if __name__ == '__main__':
     signal.signal(signal.SIGTERM, terminate)
     suite, pair_index, pair_count = sys.argv[1:]
     pair, pairs = int(pair_index), int(pair_count)
-    if suite not in ('chromium', 'worker-auth', 'browser-oracles', 'worker-oracles') or not 1 <= pair <= pairs:
-        raise ValueError('Expected <chromium|worker-auth|browser-oracles|worker-oracles> <pair index> <number of pairs>')
-    if suite in ('browser-oracles', 'worker-oracles') and (pair, pairs) != (1, 1):
-        raise ValueError(f'{suite} forms one pair')
+    if suite not in ('chromium', 'worker-auth', 'browser-oracles') or not 1 <= pair <= pairs:
+        raise ValueError('Expected <chromium|worker-auth|browser-oracles> <pair index> <number of pairs>')
+    if suite == 'browser-oracles' and (pair, pairs) != (1, 1):
+        raise ValueError('The browser oracle commands form one pair')
     sys.exit(run(suite, pair, pairs))

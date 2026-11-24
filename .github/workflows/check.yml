@@ -143,8 +143,10 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - name: Run the focused Worker oracles on two CPU lanes
-        run: bash scripts/check-ram-tmp.sh python3 scripts/check-linux-shards.py worker-oracles 1 1
+      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:conditional:worker
+      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:contracts
+      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:search
+      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:runtime
   worker-oracle-baseline:
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -155,6 +157,8 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
+      - name: Dispatch baseline files to available Worker contexts
+        run: git apply --directory=node_modules/@tanstack/oracles scripts/worker-oracle-dispatch.patch
       - name: Run Worker oracles with RAM-backed temporary databases
         run: |
           if oracle_temp=$(mktemp -d /dev/shm/blygger-worker-oracles.XXXXXX); then
@@ -179,8 +183,8 @@ jobs:
         run: test "$FORMATTING_RESULT" = success
 
   e2e:
-    # Queue Chromium after the focused oracle jobs and formatting plan.
-    needs: [scope, release-package]
+    # Admit Chromium when the focused Worker job releases its runner.
+    needs: [scope, release-package, worker-oracles]
     if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -244,7 +248,8 @@ jobs:
           name: e2e-webkit-failure-evidence
           path: test-results/
   worker-auth:
-    needs: [scope, release-package]
+    # Admit the Worker controls when the browser oracles release their runner.
+    needs: [scope, release-package, browser-oracles]
     if: ${{ !cancelled() && needs.scope.outputs.worker-auth == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -276,9 +281,8 @@ jobs:
             build/oracle-control-evidence/
 
   mutations:
-    # Queue the shorter controls after the Worker and browser oracle jobs and
-    # Chromium shards have had a chance to take the available runners.
-    needs: [scope, release-package, oauth-interop]
+    # Queue the smaller controls after both early oracle jobs release runners.
+    needs: [scope, release-package, worker-oracles, browser-oracles]
     if: ${{ !cancelled() && needs.scope.result == 'success' && needs.scope.outputs.mutations != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25

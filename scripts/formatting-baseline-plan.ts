@@ -34,7 +34,7 @@ const timings: Record<string, { seconds: number; shards?: number }> = {
   list: { seconds: 215 },
   'valid-input': { seconds: 60 },
 };
-// Each row is one runner with two CPU lanes. Longer jobs queue first.
+// Each row is one runner with two CPU lanes. The longest groups appear first.
 // The layout uses nine earlier runs and the receipts from 45508862499.
 const compactLanes = [
   [['mixed-3', 'line-break'], ['held-newline-2', 'keyboard']],
