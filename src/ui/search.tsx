@@ -129,6 +129,7 @@ export function hitMeta(hit: Hit): ReactNode {
   return (
     <>
       {hit.source === 'mine' ? <span className="picker-mine">mine</span> : <span>{hit.sourceTitle}</span>}
+      {hit.private ? <> · <span className="search-private">private</span></> : null}
       {hit.draft ? <> · <span className="search-draft">{hit.version ? 'unpublished changes' : 'draft'}</span></> : null}
       {' '}· {hit.kind} · {ago(hit.updated)}{hit.version ? ` · v${hit.version}` : ''}
     </>

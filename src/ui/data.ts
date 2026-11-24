@@ -872,7 +872,7 @@ export async function changed(...keys: string[]) {
       case 'hopper':
       case 'hopper-preview':
       case 'hoppers':
-        return ['hoppers', 'hopper-stats', 'hopper-entries', 'hopper-memberships', 'reading', 'reading-summary'];
+        return ['hoppers', 'hopper-stats', 'hopper-entries', 'hopper-memberships', 'reading', 'reading-summary', 'item-history'];
       case 'reading': return ['reading', 'reading-summary', 'stale-threads'];
       case 'signals': return ['signals', 'thumbs', 'interactions', 'signal-summary'];
       default:

@@ -1,6 +1,6 @@
 import { fixtureJson } from './api-fixture';
 import { test, expect } from "./fixture";
-import { openCard } from "./editor.ts";
+import { expandRow, openCard } from "./editor.ts";
 
 // The history card's private versions (decision #94, Venkat 2026-11-23): p1,
 // p2, … with their notes, viewable, and still listed once the item is public.
@@ -78,5 +78,59 @@ test.describe("private history", () => {
     }
     expect(errors).toEqual([]);
   });
-});
 
+  // Raising a private item to public always asks, names the public hoppers it is in now, and
+  // sends the choice explicitly (Venkat on studio#175; studio#178 R02, R03, R04).
+  const privateItem = async (api: ReturnType<typeof apiFor>, label: string) => {
+    const id = (await api("POST", "/items", { contentMd: `${label} ${Date.now()}` })).id as string;
+    await api("POST", `/items/${id}/publish`, { visibility: "private" });
+    return id;
+  };
+  const publicHopper = async (api: ReturnType<typeof apiFor>, name: string) => {
+    const hopper = (await api("POST", "/hoppers", { name })).id as string;
+    await api("PATCH", `/hoppers/${hopper}`, { public: true });
+    return hopper;
+  };
+
+  for (const path of ["row", "quick edit"] as const) {
+    test(`Compose's ${path} asks before raising, and cancel leaves the item private (R02)`, async ({ page }) => {
+      const api = apiFor(page);
+      const id = await privateItem(api, `Raise from ${path}`);
+      await page.goto("/studio/");
+      const row = await expandRow(page, id);
+      if (path === "quick edit") await row.getByRole("button", { name: "quick edit", exact: true }).click();
+      // Quick Edit has its own button, beside save draft.
+      const scope = path === "quick edit" ? row.locator("div", { has: page.getByRole("button", { name: "save draft", exact: true }) }).last() : row;
+      const raise = scope.getByRole("button", { name: "publish publicly", exact: true }).first();
+      await raise.click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toContainText("Make this item public?");
+      await dialog.getByRole("button", { name: "cancel" }).click();
+      expect(await api("GET", `/items/${id}`)).toMatchObject({ status: "private", version: 0 });
+      await raise.click();
+      await page.getByRole("dialog").getByRole("button", { name: "make public" }).click();
+      await expect.poll(async () => (await api("GET", `/items/${id}`)).status).toBe("public");
+      expect((await api("GET", `/items/${id}`)).version).toBe(1);
+    });
+  }
+
+  test("the editor's dialog names a public hopper joined after the page loaded, and a default changed mid-dialog does not make it private (R03, R04)", async ({ page }) => {
+    const api = apiFor(page);
+    const id = await privateItem(api, "Raise from editor");
+    const name = `Joined later ${Date.now()}`;
+    try {
+      await page.goto(`/studio/edit/${id}`);
+      await expect(page.locator("#publish-btn")).toHaveText("publish publicly");
+      await api("PUT", `/hoppers/${await publicHopper(api, name)}/items/~own/${id}`);
+      await page.locator("#publish-btn").click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toContainText(name);
+      await api("PATCH", "/settings", { defaultVisibility: "private" });
+      await dialog.getByRole("button", { name: "make public" }).click();
+      await expect.poll(async () => (await api("GET", `/items/${id}`)).status).toBe("public");
+      expect((await api("GET", `/items/${id}`)).version).toBe(1);
+    } finally {
+      await api("PATCH", "/settings", { defaultVisibility: "public" });
+    }
+  });
+});

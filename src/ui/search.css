@@ -14,3 +14,4 @@
 .search-meta { display: block; font-size: .75rem; color: var(--ink-soft); margin-top: 3px; overflow-wrap: anywhere; }
 .search-meta .picker-mine { color: var(--pencil); font-weight: 600; }
 .search-draft { color: var(--warn); font-weight: 600; }
+.search-private { color: var(--pencil); font-weight: 600; }
