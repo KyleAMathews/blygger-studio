@@ -31,8 +31,9 @@ npm run release:verify
 
 ## In CI
 
-`check.yml` runs independent jobs in parallel. The `check` job builds the
-release and runs typecheck, the Worker and UI suites, and the upgrade tests.
+`check.yml` runs independent jobs in parallel. The `check` job runs
+typecheck, the Worker and UI suites, and the upgrade tests. A separate job
+builds and verifies the release packages.
 Studio, Worker, browser, and formatting oracles have separate jobs. Chromium
 E2E runs in two shards and the Worker auth-security controls run in three.
 On a pull request, `scripts/ci-scope.ts` decides which of the

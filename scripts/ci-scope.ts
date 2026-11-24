@@ -10,7 +10,7 @@
 // The backstop for indirect breakage (a shared helper no suite names): pushes
 // to main and manual runs get every job, and Release requires that green run.
 //
-// Usage: node --import tsx scripts/ci-scope.ts <event> [base-ref]
+// Usage: node scripts/ci-scope.ts <event> [base-ref]
 // Writes `e2e=true|false` and `mutations=<json list>` to $GITHUB_OUTPUT (or stdout).
 import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";

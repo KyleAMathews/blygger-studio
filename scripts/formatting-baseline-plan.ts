@@ -19,7 +19,7 @@ const timings: Record<string, { minutes: number; shards: number }> = {
   mixed: { minutes: 86, shards: 11 },
   receivers: { minutes: 23, shards: 3 },
   interactions: { minutes: 17, shards: 2 },
-  session: { minutes: 15, shards: 2 },
+  session: { minutes: 15, shards: 3 },
   workflows: { minutes: 15, shards: 2 },
   'held-newline': { minutes: 14, shards: 2 },
   'newline-history': { minutes: 14, shards: 2 },
