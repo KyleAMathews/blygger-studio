@@ -49,6 +49,10 @@ export type Capabilities = {
         media: string;
     };
     operations: Array<string>;
+    /**
+     * The scopes this access holds; the owner's own session holds every scope. Without owner:private, private items are left out of every list and answer 404 by id, so a client must not take their absence for deletion.
+     */
+    scopes: Array<string>;
     extensions: Array<{
         name: string;
         declared: boolean;

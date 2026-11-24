@@ -301,6 +301,15 @@ describe("hidden answers equal unknown ones, and MCP challenges a default-privat
   });
 });
 
+describe("a client can tell hidden from gone (A01, R16)", () => {
+  it("lists the token's granted scopes in /capabilities, so a missing owner:private explains absences", async () => {
+    const cookie = await login();
+    expect((await tokenApi(WITHOUT)("GET", "/capabilities")).json.scopes).toEqual(WITHOUT);
+    expect((await tokenApi(WITH)("GET", "/capabilities")).json.scopes).toEqual(expect.arrayContaining(["owner:private"]));
+    expect((await apiJson(cookie, "GET", "/blyg/api/capabilities")).json.scopes).toEqual(expect.arrayContaining([...WITH]));
+  });
+});
+
 describe("the owner's search lists private items, marked", () => {
   it("finds a private item's text in compose search for the owner, and marks it", async () => {
     const cookie = await login();

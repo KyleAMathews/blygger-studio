@@ -61,6 +61,7 @@ export const zCapabilities = z.object({
         media: z.string()
     }),
     operations: z.array(z.string()),
+    scopes: z.array(z.string()),
     extensions: z.array(z.object({
         name: z.string(),
         declared: z.boolean(),

@@ -1,3 +1,4 @@
+import { OWNER_SCOPES } from "./auth-scopes.ts";
 import { notebookSql, privateFilterSql, seesPrivate } from "./private-access.ts";
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { itemResource, versionResource, mediaResource, subscriptionResource, hopperResource, importedResource, mentionResource, membershipResource, signalResource, outboundMentionResource, interactionResource, thumbResource, browseResource } from "./contract/resources.ts";
@@ -48,6 +49,8 @@ import { canIndexSearchWord, searchWords } from './search-terms.ts';
 
 const getCapabilitiesOperation = async (context: OperationContext, input: OperationInput) => {
   return success({ contractVersion: API_CONTRACT_VERSION, endpoints: deploymentUrls(context.url, context.env),
+    // So a client can tell hidden from gone (studio#178, Aneesh): without owner:private, private items are absent.
+    scopes: context.access ? [...context.access.scope] : [...OWNER_SCOPES],
     ...await operationAvailability(context.env.DB, context.access, context.extensions) });
 };
 // Pin history retains the legacy nullness rule for unresolved version kinds.

@@ -224,6 +224,13 @@
               "type": "string"
             }
           },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The scopes this access holds; the owner's own session holds every scope. Without owner:private, private items are left out of every list and answer 404 by id, so a client must not take their absence for deletion."
+          },
           "extensions": {
             "type": "array",
             "items": {
@@ -259,6 +266,7 @@
           "contractVersion",
           "endpoints",
           "operations",
+          "scopes",
           "extensions"
         ]
       },

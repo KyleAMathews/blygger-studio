@@ -113,6 +113,7 @@ export const routes = {
     contractVersion: z.string(),
     endpoints: z.object({ publicBase: z.string(), studio: z.string(), api: z.string(), issuer: z.string(), mcp: z.string(), media: z.string() }),
     operations: z.array(z.string()),
+    scopes: z.array(z.string()).describe("The scopes this access holds; the owner's own session holds every scope. Without owner:private, private items are left out of every list and answer 404 by id, so a client must not take their absence for deletion."),
     extensions: z.array(z.object({ name: z.string(), declared: z.boolean(), compiled: z.boolean(), enabled: z.boolean(), granted: z.boolean() })),
   }).openapi('Capabilities')),
   createItem: route("createItem", draftOperation({"writes":["items"],"network":true}), "post", "/items", created, ItemCreateSchema, 201, undefined, true),
