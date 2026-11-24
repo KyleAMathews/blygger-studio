@@ -1,4 +1,4 @@
-import { privateFilterSql, seesPrivate } from "./private-access.ts";
+import { notebookSql, privateFilterSql, seesPrivate } from "./private-access.ts";
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { itemResource, versionResource, mediaResource, subscriptionResource, hopperResource, importedResource, mentionResource, membershipResource, signalResource, outboundMentionResource, interactionResource, thumbResource, browseResource } from "./contract/resources.ts";
 import { settingsResource } from "./settings-resource.ts";
@@ -137,8 +137,8 @@ const listHoppersOperation = async (context: OperationContext, input: OperationI
   name: 'hoppers', domains: ['hoppers'], sql: 'SELECT * FROM hoppers',
   order: [{ column: 'created', direction: 'asc' }, { column: 'id', direction: 'asc' }], project: rows => rows.map(hopperResource),
 }));
-/** A hopper's own private members, left out for an access without owner:private. */
-const HIDE_OWN_PRIVATE = " AND NOT (subscription_id = '~own' AND remote_id IN (SELECT id FROM items WHERE status = 'private'))";
+/** A hopper's own private or tainted members, left out for an access without owner:private. */
+const HIDE_OWN_PRIVATE = ` AND NOT (subscription_id = '~own' AND remote_id IN (SELECT id FROM items i WHERE ${notebookSql("i")}))`;
 const getHopperOperation = async (context: OperationContext, input: OperationInput) => {
   const hopper = await getHopper(context.env.DB, input.path.id);
   if (!hopper) return failure('not-found', { error: 'not found' });
@@ -148,7 +148,9 @@ const getHopperOperation = async (context: OperationContext, input: OperationInp
 const listHopperMembershipsOperation = async (context: OperationContext, input: OperationInput) => {
   if (!await getHopper(context.env.DB, input.path.id)) return failure('not-found', { error: 'not found' });
   return success(await cursorPage<HopperItemRow, ReturnType<typeof membershipResource> & { item: ReturnType<typeof importedResource> | null }>(context.env.DB, input.query, {
-    name: 'hopper-memberships', filters: [input.path.id, seesPrivate(context.access)], domains: ['hoppers', 'reading', 'subscriptions'],
+    // Left out by item status, a restricted list also depends on items (studio#178 R11): a member
+    // turning private between pages expires it. Own edits already move reading, so little else does.
+    name: 'hopper-memberships', filters: [input.path.id, seesPrivate(context.access)], domains: seesPrivate(context.access) ? ['hoppers', 'reading', 'subscriptions'] : ['hoppers', 'reading', 'subscriptions', 'items'],
     sql: `SELECT * FROM hopper_items WHERE hopper_id = ?${seesPrivate(context.access) ? '' : HIDE_OWN_PRIVATE}`, binds: [input.path.id],
     order: [{ column: 'added_at', direction: 'desc' }, { column: 'subscription_id', direction: 'asc' }, { column: 'remote_id', direction: 'asc' }],
     project: async rows => {

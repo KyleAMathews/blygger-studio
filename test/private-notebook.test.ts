@@ -230,6 +230,40 @@ describe("notebook authority on the Agentic feed, the shelf and attachments (R09
   });
 });
 
+describe("a restricted hopper cursor follows the notebook (R11)", () => {
+  const setup = async () => {
+    const cookie = await login();
+    const hopper = (await apiJson(cookie, "POST", "/blyg/api/hoppers", { name: `cursor ${Date.now()}` })).json.id as string;
+    const ids: string[] = [];
+    for (const text of ["first member", "second member", "third member"]) {
+      const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: text, kind: "fragment" })).json.id as string;
+      expect((await apiJson(cookie, "PUT", `/blyg/api/hoppers/${hopper}/items/~own/${id}`)).status).toBe(200);
+      ids.push(id);
+    }
+    const without = tokenApi(WITHOUT);
+    const first = await without("GET", `/hoppers/${hopper}/memberships?limit=1`);
+    expect(first.status).toBe(200);
+    return { cookie, hopper, ids, without, first };
+  };
+
+  it("expires when a member it would list turns private between pages", async () => {
+    const { cookie, hopper, ids, without, first } = await setup();
+    const listed = first.json.items[0].remoteId as string;
+    const later = ids.find((id) => id !== listed)!;
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${later}/publish`, { visibility: "private" })).status).toBe(200);
+    const next = await without("GET", `/hoppers/${hopper}/memberships?limit=1&cursor=${encodeURIComponent(first.json.page.nextCursor)}`);
+    expect(next.status).toBe(409);
+    expect(next.json.code).toBe("cursor-expired");
+  });
+
+  it("stays valid across an unrelated edit", async () => {
+    const { cookie, hopper, without, first } = await setup();
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { aiStylePrompt: `unrelated ${Date.now()}` })).status).toBe(200);
+    const next = await without("GET", `/hoppers/${hopper}/memberships?limit=1&cursor=${encodeURIComponent(first.json.page.nextCursor)}`);
+    expect(next.status).toBe(200);
+  });
+});
+
 describe("the owner's search lists private items, marked", () => {
   it("finds a private item's text in compose search for the owner, and marks it", async () => {
     const cookie = await login();
