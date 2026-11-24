@@ -79,6 +79,8 @@ jobs:
       - run: npm --ignore-scripts test -- --maxWorkers=2 --shard=1/2
       - run: npm run test:upgrade
   worker-tests:
+    needs: release-package
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
@@ -92,6 +94,8 @@ jobs:
       - run: npm ci --legacy-peer-deps
       - run: npm --ignore-scripts test -- --maxWorkers=2 --shard=2/2
   release-package:
+    # Short checks can use this as an admission barrier so the formatting
+    # matrix enters the runner queue before them.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -127,6 +131,8 @@ jobs:
       - run: npm ci --legacy-peer-deps
       - run: npm run test:oracles:studio -- --contexts 4
   worker-oracles:
+    needs: release-package
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -189,7 +195,7 @@ jobs:
       - name: Run Chromium with isolated fixture lanes
         env:
           E2E_SHARD: ${{ matrix.shard }}
-        run: python3 scripts/check-e2e-linux.py "$E2E_SHARD"
+        run: python3 scripts/check-linux-shards.py chromium "$E2E_SHARD" 3
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -197,8 +203,8 @@ jobs:
           path: test-results/
 
   browser-oracles:
-    needs: scope
-    if: needs.scope.outputs.e2e == 'true'
+    needs: [scope, release-package]
+    if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -213,8 +219,8 @@ jobs:
       - run: npm run test:oracles:browser:search
 
   e2e-webkit:
-    needs: scope
-    if: needs.scope.outputs.e2e == 'true'
+    needs: [scope, release-package]
+    if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     # Use Playwright's preinstalled WebKit system dependencies.
@@ -259,7 +265,7 @@ jobs:
           case "$MUTATION_SUITE" in
             oracle) npm run test:mutations ;;
             polling-cache) npm run test:polling-cache:mutations ;;
-            auth-security-worker-*) npm run test:auth:security:mutations -- "--worker-shard=${MUTATION_SUITE#auth-security-worker-}" ;;
+            auth-security-worker-*) python3 scripts/check-linux-shards.py worker-auth "${MUTATION_SUITE#auth-security-worker-}" 2 ;;
             auth-security-browser) npm run test:auth:security:mutations -- --browser ;;
             *) echo "unknown suite $MUTATION_SUITE" >&2; exit 1 ;;
           esac
@@ -272,3 +278,4 @@ jobs:
             build/mutation-*.log
             build/polling-mutation-*.log
             build/security-mutant-*.log
+            build/oracle-control-evidence/

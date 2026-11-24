@@ -15,7 +15,7 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 
-// Worker auth-security controls are sharded when Check expands the matrix.
+// Each Worker auth-security matrix job runs two disjoint control shards.
 const suites = {
   oracle: "scripts/verify-oracle-mutations.ts",
   "polling-cache": "scripts/verify-polling-cache-mutations.ts",
@@ -26,7 +26,7 @@ const suites = {
 const everything = [
   /^test\/(?:oracle-storage|oracle-property-registry|configure-oracles|oracle-cleanup)\.ts$/,
   /^scripts\/(?:oracles-cloudflare|oracle-mutation-control|oracle-replay-receipt|run-oracle-gaps)\.ts$/, /^test-browser\//,
-  /^package(-lock)?\.json$/, /^\.github\/(?:workflows|actions)\//, /^scripts\/ci-scope\.ts$/,
+  /^package(-lock)?\.json$/, /^\.github\/(?:workflows|actions)\//, /^scripts\/(?:ci-scope\.ts|check-linux-shards\.py)$/,
   /^vitest(?:\.[\w-]+)?\.config\.ts$/, /^tsconfig.*\.json$/, /^wrangler\.jsonc$/, /^migrations\//,
 ];
 const docsOnly = [/\.md$/, /^docs\//, /^LICENSE$/, /^\.github\/ISSUE_TEMPLATE\//];
@@ -57,9 +57,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     ? execFileSync("git", ["diff", "--name-only", `origin/${base}...HEAD`], { encoding: "utf8" }).split("\n").filter(Boolean)
     : "all";
   const result = scope(changed);
-  const workerShards = 4;
+  const workerPairs = 2;
   const mutations = result.mutations.flatMap(suite => suite === "auth-security-worker"
-    ? Array.from({ length: workerShards }, (_, index) => `${suite}-${index + 1}-${workerShards}`)
+    ? Array.from({ length: workerPairs }, (_, index) => `${suite}-${index + 1}`)
     : [suite]);
   const out = `e2e=${result.e2e}\nmutations=${JSON.stringify(mutations)}\n`;
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, out);
