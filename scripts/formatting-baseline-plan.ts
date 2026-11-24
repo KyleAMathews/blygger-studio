@@ -13,42 +13,58 @@ export const baselineSources = ['src/ui/format-shortcuts.ts', 'src/ui/links.ts',
 type Input = { path: string; sha256: string; link?: string; resolved?: { path: string; sha256: string } };
 type Inventory = { file: string; sha256: string; properties: string[] }[];
 type Partition = { id: string; files: string[]; tests?: string[] };
-// Rounded wall times per partition from Check runs 45328428655 and 45431603660.
-// Shard counts only affect assignment. Each registration keeps its name and seed.
-// Compact Check packing uses the normalized mean of runs 45431603660,
-// 45443078812 and 45453300660 for each individual partition.
-const timings: Record<string, { seconds: number; shards?: number; observed: readonly number[] }> = {
-  mixed: { seconds: 540, shards: 11, observed: [467.5, 470.9, 510.5, 509.4, 484.5, 485.7, 400.7, 407.2, 478.8, 477.4, 528.2] },
-  receivers: { seconds: 480, shards: 3, observed: [433.1, 395.5, 388.4] },
-  interactions: { seconds: 395, shards: 2, observed: [471.7, 383.1] },
-  session: { seconds: 310, shards: 3, observed: [272.5, 280.4, 256.6] },
-  workflows: { seconds: 490, shards: 2, observed: [385.2, 431.9] },
-  'held-newline': { seconds: 400, shards: 3, observed: [333.9, 351.5, 350.1] },
-  'newline-history': { seconds: 490, shards: 2, observed: [417.7, 377.5] },
-  navigation: { seconds: 335, shards: 2, observed: [263.8, 304] },
-  'bracket-receiver': { seconds: 235, observed: [186.7] },
-  'code-block': { seconds: 185, observed: [142.1] },
-  draft: { seconds: 35, observed: [29.8] },
-  'escape-layers': { seconds: 255, observed: [224.6] },
-  inline: { seconds: 135, observed: [121.3] },
-  keyboard: { seconds: 260, observed: [213.5] },
-  'line-break': { seconds: 105, observed: [83.9] },
-  links: { seconds: 135, observed: [96.1] },
-  list: { seconds: 215, observed: [162.4] },
-  'valid-input': { seconds: 60, observed: [61.4] },
+// Shard counts affect assignment. Each registration keeps its name and seed.
+const timings: Record<string, { seconds: number; shards?: number }> = {
+  mixed: { seconds: 540, shards: 11 },
+  receivers: { seconds: 325, shards: 4 },
+  interactions: { seconds: 320, shards: 3 },
+  session: { seconds: 310, shards: 3 },
+  workflows: { seconds: 310, shards: 3 },
+  'held-newline': { seconds: 400, shards: 3 },
+  'newline-history': { seconds: 490, shards: 2 },
+  navigation: { seconds: 210, shards: 3 },
+  'bracket-receiver': { seconds: 235 },
+  'code-block': { seconds: 185 },
+  draft: { seconds: 35 },
+  'escape-layers': { seconds: 255 },
+  inline: { seconds: 135 },
+  keyboard: { seconds: 260 },
+  'line-break': { seconds: 105 },
+  links: { seconds: 135 },
+  list: { seconds: 215 },
+  'valid-input': { seconds: 60 },
 };
+// Each row is one runner with two CPU lanes. Registration timings from Check
+// runs 45431603660, 45443078812, 45453300660 and 45479433335 inform this layout.
+const compactLanes = [
+  [['receivers-3', 'workflows-2'], ['session-2', 'session-1']],
+  [['receivers-4', 'workflows-1'], ['session-3', 'interactions-1']],
+  [['workflows-3', 'interactions-3'], ['mixed-8', 'code-block']],
+  [['mixed-6', 'line-break'], ['receivers-2', 'escape-layers']],
+  [['held-newline-1', 'navigation-2'], ['mixed-7', 'list']],
+  [['held-newline-3', 'navigation-3'], ['interactions-2', 'navigation-1']],
+  [['receivers-1', 'bracket-receiver'], ['held-newline-2', 'keyboard']],
+  [['mixed-10', 'valid-input'], ['newline-history-2', 'inline']],
+  [['newline-history-1', 'links'], ['mixed-1', 'draft']],
+  [['mixed-3'], ['mixed-4']],
+  [['mixed-5'], ['mixed-9']],
+  [['mixed-2'], ['mixed-11']],
+] as const;
 const fileId = (file: string) => file.replace(/^test-ui\/editor-/, '').replace(/\.oracle\.test\.ts$/, '');
 const shardCount = (file: string) => timings[fileId(file)]?.shards ?? 1;
+const partitionSeconds = (part: Partition) => timings[fileId(part.files[0]!)]?.seconds ?? 300;
+const matrixJob = (first: readonly string[], companion: readonly string[] = []) => ({
+  id: first[0]!, companion: companion[0] ?? '', followup: first[1] ?? '', companionFollowup: companion[1] ?? '',
+});
 
 export function groupBaselinePartitions(parts: readonly Partition[], compact = false) {
-  const partitionSeconds = (part: Partition) => {
-    const file = fileId(part.files[0]!);
-    const timing = timings[file];
-    const index = part.id === file ? 0 : Number(part.id.slice(file.length + 1)) - 1;
-    return (compact ? timing?.observed[index] : undefined) ?? timing?.seconds ?? 300;
-  };
-  // Check gives more lanes a follow-up to free runners for independent checks.
-  // A lane can take one follow-up while its companion is still running.
+  if (compact) {
+    const scheduled = new Set<string>(compactLanes.flat(2));
+    if (scheduled.size === parts.length && parts.every(part => scheduled.has(part.id))) {
+      return compactLanes.map(([first, companion]) => matrixJob(first, companion));
+    }
+  }
+  // Pack any new partition roster by estimated duration.
   const runners = Math.max(1, Math.round(parts.length * (compact ? 2 / 7 : 3 / 8)));
   const lanes = Array.from({ length: runners * 2 }, () => ({ parts: [] as string[], seconds: 0 }));
   for (const part of [...parts].sort((left, right) => partitionSeconds(right) - partitionSeconds(left))) {
@@ -61,8 +77,7 @@ export function groupBaselinePartitions(parts: readonly Partition[], compact = f
   const active = lanes.filter(lane => lane.parts.length).sort((left, right) => right.seconds - left.seconds);
   const groups = [];
   for (let index = 0; index < active.length; index += 2) {
-    const first = active[index]!.parts, companion = active[index + 1]?.parts ?? [];
-    groups.push({ id: first[0]!, companion: companion[0] ?? '', followup: first[1] ?? '', companionFollowup: companion[1] ?? '' });
+    groups.push(matrixJob(active[index]!.parts, active[index + 1]?.parts));
   }
   // In runs 45443078812 and 45453300660, interactions-1 and inline
   // together took about two minutes longer than their mixed-11 companion.
