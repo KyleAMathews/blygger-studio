@@ -34,23 +34,23 @@ const timings: Record<string, { seconds: number; shards?: number }> = {
   list: { seconds: 215 },
   'valid-input': { seconds: 60 },
 };
-// Each row is one runner with two CPU lanes. The layout uses partition
-// timings from hosted Check 45505920394 and earlier runs.
+// Each row is one runner with two CPU lanes. Longer jobs queue first.
+// The layout uses nine earlier runs and the receipts from 45508862499.
 const compactLanes = [
-  [['mixed-1', 'draft'], ['mixed-4']],
-  [['mixed-5'], ['mixed-9', 'inline']],
-  [['mixed-8', 'code-block'], ['mixed-3']],
-  [['session-1', 'workflows-2'], ['mixed-2']],
-  [['receivers-4', 'keyboard'], ['held-newline-2', 'list']],
-  [['mixed-6'], ['newline-history-1', 'line-break']],
-  [['session-3', 'escape-layers'], ['mixed-7', 'links']],
-  [['interactions-3', 'navigation-1'], ['workflows-1', 'navigation-3']],
-  [['workflows-3', 'navigation-2'], ['interactions-1', 'bracket-receiver']],
-  [['newline-history-2', 'valid-input'], ['mixed-10']],
-  [['mixed-11'], ['interactions-2']],
-  [['receivers-1'], ['held-newline-3']],
-  [['receivers-2'], ['held-newline-1']],
-  [['receivers-3'], ['session-2']],
+  [['mixed-3', 'line-break'], ['held-newline-2', 'keyboard']],
+  [['mixed-11', 'links'], ['newline-history-2', 'inline']],
+  [['mixed-1', 'valid-input'], ['session-1', 'session-3']],
+  [['held-newline-3', 'bracket-receiver'], ['session-2', 'escape-layers']],
+  [['receivers-4', 'navigation-2'], ['interactions-3', 'navigation-1']],
+  [['held-newline-1', 'navigation-3'], ['mixed-7', 'draft']],
+  [['workflows-1', 'list'], ['mixed-2']],
+  [['mixed-6'], ['mixed-9']],
+  [['mixed-5'], ['mixed-10']],
+  [['mixed-8'], ['workflows-2', 'code-block']],
+  [['mixed-4'], ['newline-history-1']],
+  [['receivers-1'], ['interactions-2']],
+  [['receivers-2'], ['interactions-1']],
+  [['receivers-3'], ['workflows-3']],
 ] as const;
 const fileId = (file: string) => file.replace(/^test-ui\/editor-/, '').replace(/\.oracle\.test\.ts$/, '');
 const shardCount = (file: string) => timings[fileId(file)]?.shards ?? 1;
@@ -94,14 +94,15 @@ export function groupBaselinePartitions(parts: readonly Partition[], compact = f
 
 function shardTasks(file: string, tests: string[], count: number): string[][] {
   // A generated unit runs a campaign. A determinism unit runs a history twice.
-  // The mixed file's recorded timings favor smaller weights for both.
-  const weights = fileId(file) === 'mixed'
-    ? { generated: 20, determinism: 1 }
-    : { generated: 25, determinism: 2 };
+  const mixed = fileId(file) === 'mixed';
+  const generated = mixed ? 26 : 25;
+  // The mixed suite registers similar examples next to each other. Spread
+  // those examples across shards with a stable tie-break that leaves seeds alone.
   const weighted = tests.map(name => ({
     name,
-    weight: name.endsWith(': generated') ? weights.generated : name.includes(' > determinism: ') ? weights.determinism : 1,
-  })).sort((left, right) => right.weight - left.weight);
+    weight: name.endsWith(': generated') ? generated : name.includes(' > determinism: ') ? 2 : 1,
+    order: mixed ? digest(name) : '',
+  })).sort((left, right) => right.weight - left.weight || left.order.localeCompare(right.order));
   const shards = Array.from({ length: count }, () => ({ tests: [] as string[], weight: 0 }));
   for (const task of weighted) {
     const shard = shards.reduce((least, current) => current.weight < least.weight ? current : least);
