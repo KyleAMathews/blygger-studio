@@ -42,6 +42,23 @@ private access moves to a new scope). **Migrations:** `0061_search_private.sql`.
   ones included and marked. `getItem` returns `hoppers: [{id, name, public}]`. Raising a
   private item to public confirms in both modes and names the public hoppers it will join.
   Public hopper pages and feeds still show public members only.
+- **Private taint.** [TK] output drawn from a private item marks its scope's provenance
+  `private: true`. A working copy carrying the mark reads like a private item (hidden from
+  tokens without `owner:private`) and publishes only privately, even after the source is
+  raised or discarded, and regenerating from tainted input keeps the mark.
+- **Hidden is not gone.** `GET /capabilities` lists the access's granted `scopes`, and
+  `docs/client-access.md` says a client must not take an item's absence for deletion
+  unless its token holds `owner:private` (Aneesh, Burrow).
+- **Review fixes (Kyle's oracle review of #178).** A delegated `getItem` batch is back to
+  seven D1 calls, with visibility decided in the statement that reads the item. Every path
+  that raises a private item asks first, names the public hoppers it is in now, and sends
+  `visibility: "public"` explicitly. Compose search marks private hits. The Agentic feed,
+  the shelf (hidden entries kept through a replace) and attachments respect the scope. A
+  restricted hopper cursor expires when a member turns private. A hidden item answers
+  exactly as an unknown one, in errors and diagnostics too. MCP challenges for
+  `owner:private` before a publish the default makes private. The [TK] preview shows
+  private sources to a caller that may see them, and the provider reads a private source
+  as the reader shows it, without comments to self.
 
 ## 0.72.0 — Private items and Notebook mode; setup covers the newer settings; what's new after an upgrade
 
