@@ -20,6 +20,29 @@ not have its own repo until session 26.
 
 ## Unreleased
 
+**Private items, the rest of Phase 0** (blygger-spec `docs/sealed-content-build-plan.md` §1,
+0c–0e) **and the hopper fix** (studio#175). Private contract **7.0.0** (breaking for tokens:
+private access moves to a new scope). **Migrations:** `0061_search_private.sql`.
+
+- **`owner:private`, a new scope.** Private items and their private versions need it;
+  `owner:read` does not imply it. **A token minted before this change loses private access
+  until it is re-granted with the scope**; the owner's own session sees everything, as
+  before. Without the scope a private item answers 404 on every `/items/{id}` route (the
+  same answer as an unknown id), its media answers 404, and item lists, `/items/summary`,
+  search, the reader's `own` and `private` sources, hopper memberships and hopper counts
+  leave it out. Private publishing needs the scope too, whether asked for or the blyg's
+  default.
+- **[TK] on private sources (0c).** An own private item (its latest private version) can be
+  a generation source for a caller that may see it. A public publish is refused while any
+  scope's provenance names a private item; a private publish goes through.
+- **Owner search (0d).** Compose search (`include=drafts`) finds private items' working
+  copies, marked `private: true`. Migration 0061 recreates `search_source` to cover them
+  and backfills. The `[[` picker does not offer private items yet.
+- **Hoppers (studio#175).** The owner's hopper view lists the owner's own members, private
+  ones included and marked. `getItem` returns `hoppers: [{id, name, public}]`. Raising a
+  private item to public confirms in both modes and names the public hoppers it will join.
+  Public hopper pages and feeds still show public members only.
+
 ## 0.72.0 — Private items and Notebook mode; setup covers the newer settings; what's new after an upgrade
 
 **Private items** (blygger-spec decision #94, `docs/sealed-content-build-plan.md` §1). An item
