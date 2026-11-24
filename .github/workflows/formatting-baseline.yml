@@ -69,6 +69,10 @@ jobs:
           FORMATTING_FOLLOWUP: ${{ matrix.followup }}
           FORMATTING_COMPANION_FOLLOWUP: ${{ matrix.companionFollowup }}
         run: |
+          if formatting_temp=$(mktemp -d /dev/shm/blygger-formatting.XXXXXX); then
+            export TMPDIR="$formatting_temp"
+            trap 'rm -rf -- "$formatting_temp"' EXIT
+          fi
           python3 scripts/formatting-baseline-host.py group build/formatting-baseline-plan.json build \
             "$FORMATTING_PART" "$FORMATTING_COMPANION" "$FORMATTING_FOLLOWUP" "$FORMATTING_COMPANION_FOLLOWUP"
       - uses: actions/upload-artifact@v4

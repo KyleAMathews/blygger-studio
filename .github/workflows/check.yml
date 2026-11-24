@@ -80,7 +80,7 @@ jobs:
       - run: npm --ignore-scripts test -- --maxWorkers=2 --shard=1/2
       - run: npm run test:upgrade
   worker-tests:
-    needs: release-package
+    needs: [release-package, check]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 75
@@ -95,8 +95,7 @@ jobs:
       - run: npm ci --legacy-peer-deps
       - run: npm --ignore-scripts test -- --maxWorkers=2 --shard=2/2
   release-package:
-    # Short checks can use this as an admission barrier so the formatting
-    # matrix enters the runner queue before them.
+    # Give the formatting matrix the first chance to claim runners.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -181,9 +180,9 @@ jobs:
         run: test "$FORMATTING_RESULT" = success
 
   e2e:
-    # Give the formatting matrix time to claim runners before Chromium queues.
-    # Package verification provides a short scheduling lead. Its verdict is independent.
-    needs: [scope, release-package]
+    # Let the Worker and browser oracle jobs enter the queue before Chromium.
+    # OAuth interop usually finishes just after package verification.
+    needs: [scope, release-package, oauth-interop]
     if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -226,7 +225,7 @@ jobs:
       - run: npm run test:oracles:browser:search
 
   e2e-webkit:
-    needs: [scope, release-package]
+    needs: [scope, release-package, check]
     if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -279,7 +278,9 @@ jobs:
             build/oracle-control-evidence/
 
   mutations:
-    needs: [scope, release-package]
+    # Queue the shorter controls after the Worker and browser oracle jobs and
+    # Chromium shards have had a chance to take the available runners.
+    needs: [scope, release-package, check]
     if: ${{ !cancelled() && needs.scope.result == 'success' && needs.scope.outputs.mutations != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25

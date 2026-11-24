@@ -98,7 +98,7 @@ def run_partition(plan_path, part, out, cpus):
         raise ValueError('Release baseline deadline expired')
     # Forward only non-secret runtime/identity settings. Replay controls and a
     # caller-supplied scope cannot be inherited into this complete baseline.
-    forwarded = ['PATH', 'HOME', 'CI', 'GITHUB_ACTIONS', 'TZ', 'LANG', 'LC_ALL', 'PLAYWRIGHT_BROWSERS_PATH', 'GITHUB_SHA',
+    forwarded = ['PATH', 'HOME', 'TMPDIR', 'CI', 'GITHUB_ACTIONS', 'TZ', 'LANG', 'LC_ALL', 'PLAYWRIGHT_BROWSERS_PATH', 'GITHUB_SHA',
                  'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'ImageOS', 'ImageVersion', 'CLOUDFLARE_CF_FETCH_ENABLED']
     command = ['sudo', 'systemd-run', '--wait', '--pipe', '--collect',
                '--unit=' + unit, '--property=Slice=system.slice',
