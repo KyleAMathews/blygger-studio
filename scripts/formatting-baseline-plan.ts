@@ -17,13 +17,13 @@ type Partition = { id: string; files: string[]; tests?: string[] };
 // each original test name, definition, and campaign seed.
 const timings: Record<string, { minutes: number; shards: number }> = {
   mixed: { minutes: 86, shards: 11 },
-  receivers: { minutes: 23, shards: 2 },
+  receivers: { minutes: 23, shards: 3 },
   interactions: { minutes: 17, shards: 2 },
   session: { minutes: 15, shards: 2 },
   workflows: { minutes: 15, shards: 2 },
   'held-newline': { minutes: 14, shards: 2 },
   'newline-history': { minutes: 14, shards: 2 },
-  navigation: { minutes: 9, shards: 1 },
+  navigation: { minutes: 9, shards: 2 },
 };
 const fileId = (file: string) => file.replace(/^test-ui\/editor-/, '').replace(/\.oracle\.test\.ts$/, '');
 const shardCount = (file: string) => timings[fileId(file)]?.shards ?? 1;
