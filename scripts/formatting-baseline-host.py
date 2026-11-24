@@ -164,6 +164,23 @@ def run_lane(plan, root, parts, cpus):
     return result
 
 
+def paired_cpus(cpus):
+    fallback = [cpus[:2], cpus[2:4]]
+    by_core = {}
+    try:
+        for cpu in cpus:
+            topology = Path(f'/sys/devices/system/cpu/cpu{cpu}/topology/thread_siblings_list')
+            siblings = topology.read_text().strip()
+            if not siblings:
+                return fallback
+            by_core.setdefault(siblings, []).append(cpu)
+    except OSError:
+        return fallback
+    # Give each service a different physical core when the VM exposes SMT.
+    complete = [members[:2] for members in by_core.values() if len(members) >= 2]
+    return complete[:2] if len(complete) >= 2 else fallback
+
+
 def main():
     cpus = sorted(os.sched_getaffinity(0))
     if len(cpus) < 2:
@@ -188,8 +205,8 @@ def main():
                     "await prepareFormattingBaselineRunner()"], check=True)
     jobs = []
     try:
-        for index, lane in zip((0, 2), lanes):
-            allowed = ','.join(map(str, cpus[index:index + 2]))
+        for pair, lane in zip(paired_cpus(cpus), lanes):
+            allowed = ','.join(map(str, pair))
             # The child sees exactly two CPUs and runs its lane in sequence.
             jobs.append(subprocess.Popen(
                 ['taskset', '-c', allowed, sys.executable, __file__, 'group', plan, root, *lane],

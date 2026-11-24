@@ -80,8 +80,8 @@ jobs:
       - run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --maxWorkers=2 --shard=1/2
       - run: npm run test:upgrade
   worker-tests:
-    # Wait until Chromium is eligible, then give the second shard a head start.
-    needs: [release-package, oauth-interop, browser-oracles]
+    # Queue the second Worker shard once the earlier jobs are eligible.
+    needs: [release-package, oauth-interop]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 75
@@ -132,7 +132,7 @@ jobs:
       - run: npm ci --legacy-peer-deps
       - run: npm run test:oracles:studio -- --contexts 4
   worker-oracles:
-    needs: release-package
+    needs: scope
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -162,7 +162,7 @@ jobs:
           if oracle_temp=$(mktemp -d /dev/shm/blygger-worker-oracles.XXXXXX); then
             export TMPDIR="$oracle_temp"
           fi
-          npm run test:oracles:worker -- --contexts 5
+          npm run test:oracles:worker -- --contexts 4
   formatting-baseline:
     uses: ./.github/workflows/formatting-baseline.yml
     with:
@@ -181,9 +181,8 @@ jobs:
         run: test "$FORMATTING_RESULT" = success
 
   e2e:
-    # Let the Worker and browser oracle jobs enter the queue before Chromium.
-    # OAuth interop usually finishes just after package verification.
-    needs: [scope, release-package, oauth-interop]
+    # Queue Chromium after the focused oracle jobs and formatting plan.
+    needs: [scope, release-package]
     if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -210,7 +209,7 @@ jobs:
           path: test-results/
 
   browser-oracles:
-    needs: [scope, release-package]
+    needs: scope
     if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -247,8 +246,8 @@ jobs:
           name: e2e-webkit-failure-evidence
           path: test-results/
   worker-auth:
-    needs: scope
-    if: needs.scope.outputs.worker-auth == 'true'
+    needs: [scope, release-package]
+    if: ${{ !cancelled() && needs.scope.outputs.worker-auth == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -281,7 +280,7 @@ jobs:
   mutations:
     # Queue the shorter controls after the Worker and browser oracle jobs and
     # Chromium shards have had a chance to take the available runners.
-    needs: [scope, release-package, check]
+    needs: [scope, release-package, oauth-interop]
     if: ${{ !cancelled() && needs.scope.result == 'success' && needs.scope.outputs.mutations != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25

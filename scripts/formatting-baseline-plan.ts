@@ -34,23 +34,23 @@ const timings: Record<string, { seconds: number; shards?: number }> = {
   list: { seconds: 215 },
   'valid-input': { seconds: 60 },
 };
-// Each row is one runner with two CPU lanes. The layout uses partition and
-// registration timings from hosted Check runs, including 45502255273.
+// Each row is one runner with two CPU lanes. The layout uses partition
+// timings from hosted Check 45505920394 and earlier runs.
 const compactLanes = [
-  [['mixed-6', 'valid-input'], ['mixed-2', 'links']],
-  [['held-newline-2', 'bracket-receiver'], ['newline-history-2', 'inline']],
-  [['workflows-1', 'session-3'], ['held-newline-1', 'keyboard']],
-  [['interactions-2', 'navigation-2'], ['receivers-1', 'navigation-1']],
-  [['held-newline-3', 'navigation-3'], ['workflows-2', 'escape-layers']],
-  [['mixed-9', 'draft'], ['receivers-2', 'list']],
-  [['newline-history-1', 'line-break'], ['mixed-5']],
-  [['mixed-4'], ['mixed-1']],
-  [['mixed-7'], ['mixed-8']],
-  [['mixed-10'], ['mixed-11']],
-  [['mixed-3'], ['receivers-3', 'code-block']],
-  [['workflows-3'], ['interactions-3']],
-  [['receivers-4'], ['interactions-1']],
-  [['session-2'], ['session-1']],
+  [['mixed-1', 'draft'], ['mixed-4']],
+  [['mixed-5'], ['mixed-9', 'inline']],
+  [['mixed-8', 'code-block'], ['mixed-3']],
+  [['session-1', 'workflows-2'], ['mixed-2']],
+  [['receivers-4', 'keyboard'], ['held-newline-2', 'list']],
+  [['mixed-6'], ['newline-history-1', 'line-break']],
+  [['session-3', 'escape-layers'], ['mixed-7', 'links']],
+  [['interactions-3', 'navigation-1'], ['workflows-1', 'navigation-3']],
+  [['workflows-3', 'navigation-2'], ['interactions-1', 'bracket-receiver']],
+  [['newline-history-2', 'valid-input'], ['mixed-10']],
+  [['mixed-11'], ['interactions-2']],
+  [['receivers-1'], ['held-newline-3']],
+  [['receivers-2'], ['held-newline-1']],
+  [['receivers-3'], ['session-2']],
 ] as const;
 const fileId = (file: string) => file.replace(/^test-ui\/editor-/, '').replace(/\.oracle\.test\.ts$/, '');
 const shardCount = (file: string) => timings[fileId(file)]?.shards ?? 1;
