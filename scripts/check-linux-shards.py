@@ -16,9 +16,9 @@ def test_command(root, suite, shard, total):
     return ['npm', 'run', 'test:auth:security:mutations', '--', f'--worker-shard={shard}-{total}']
 
 
-def start_lane(workspace, scratch, suite, shard, cpus, command):
+def start_lane(workspace, scratch, temporary, suite, shard, cpus, command):
     unit = f'blygger-check-{suite}-{scratch.name}-{shard}.service'
-    temp = scratch / f'tmp-{shard}'
+    temp = temporary / f'tmp-{shard}'
     temp.mkdir()
     command[0] = shutil.which('npm')
     if not command[0]:
@@ -59,8 +59,15 @@ def run(suite, pair, pairs):
         second_result = subprocess.run(second_command).returncode
         return first_result or second_result
 
-    with TemporaryDirectory(prefix='pair-', dir=os.environ['RUNNER_TEMP']) as directory:
+    with (
+        TemporaryDirectory(prefix='pair-', dir=os.environ['RUNNER_TEMP']) as directory,
+        TemporaryDirectory(
+            prefix='blygger-lanes-',
+            dir=os.environ.get('TMPDIR', directory) if suite == 'worker-auth' else directory,
+        ) as temp,
+    ):
         scratch = Path(directory)
+        temporary = Path(temp)
         checkout = scratch / 'studio'
         subprocess.run(['git', 'worktree', 'add', '--detach', checkout, 'HEAD'], check=True)
         lanes = []
@@ -71,8 +78,8 @@ def run(suite, pair, pairs):
             if suite == 'worker-auth':
                 subprocess.run(['cp', '-a', '--reflink=auto', root / 'build', checkout], check=True)
                 subprocess.run(['cp', '-a', '--reflink=auto', root / 'sdk' / 'dist', checkout / 'sdk'], check=True)
-            lanes.append(start_lane(root, scratch, suite, first, cpus[:2], first_command))
-            lanes.append(start_lane(checkout, scratch, suite, second, cpus[2:4], second_command))
+            lanes.append(start_lane(root, scratch, temporary, suite, first, cpus[:2], first_command))
+            lanes.append(start_lane(checkout, scratch, temporary, suite, second, cpus[2:4], second_command))
             results = [process.wait() for _, process in lanes]
             return next((result for result in results if result), 0)
         finally:

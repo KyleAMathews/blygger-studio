@@ -77,10 +77,11 @@ jobs:
       - run: npm run openapi && git diff --exit-code -- openapi.json
       - run: npm run test:ui -- --maxWorkers=2
       # npm ci already built the same inputs in postinstall.
-      - run: npm --ignore-scripts test -- --maxWorkers=2 --shard=1/2
+      - run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --maxWorkers=2 --shard=1/2
       - run: npm run test:upgrade
   worker-tests:
-    needs: [release-package, check]
+    # Wait until Chromium is eligible, then give the second shard a head start.
+    needs: [release-package, oauth-interop, browser-oracles]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 75
@@ -93,7 +94,7 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npm --ignore-scripts test -- --maxWorkers=2 --shard=2/2
+      - run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --maxWorkers=2 --shard=2/2
   release-package:
     # Give the formatting matrix the first chance to claim runners.
     runs-on: ubuntu-latest
@@ -142,10 +143,10 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npm run test:oracles:conditional:worker
-      - run: npm run test:oracles:contracts
-      - run: npm run test:oracles:search
-      - run: npm run test:oracles:runtime
+      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:conditional:worker
+      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:contracts
+      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:search
+      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:runtime
   worker-oracle-baseline:
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -161,7 +162,7 @@ jobs:
           if oracle_temp=$(mktemp -d /dev/shm/blygger-worker-oracles.XXXXXX); then
             export TMPDIR="$oracle_temp"
           fi
-          npm run test:oracles:worker -- --contexts 4
+          npm run test:oracles:worker -- --contexts 5
   formatting-baseline:
     uses: ./.github/workflows/formatting-baseline.yml
     with:
@@ -265,7 +266,7 @@ jobs:
       - name: Run the two Worker control shards
         env:
           WORKER_PAIR: ${{ matrix.pair }}
-        run: python3 scripts/check-linux-shards.py worker-auth "$WORKER_PAIR" 2
+        run: bash scripts/check-ram-tmp.sh python3 scripts/check-linux-shards.py worker-auth "$WORKER_PAIR" 2
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

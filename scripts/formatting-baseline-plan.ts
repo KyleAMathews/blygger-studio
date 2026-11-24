@@ -34,21 +34,23 @@ const timings: Record<string, { seconds: number; shards?: number }> = {
   list: { seconds: 215 },
   'valid-input': { seconds: 60 },
 };
-// Each row is one runner with two CPU lanes. Registration timings from Check
-// runs 45431603660, 45443078812, 45453300660 and 45479433335 inform this layout.
+// Each row is one runner with two CPU lanes. The layout uses partition and
+// registration timings from hosted Check runs, including 45502255273.
 const compactLanes = [
-  [['receivers-3', 'workflows-2'], ['session-2', 'session-1']],
-  [['receivers-4', 'workflows-1'], ['session-3', 'interactions-1']],
-  [['workflows-3', 'interactions-3'], ['mixed-8', 'code-block']],
-  [['mixed-6', 'line-break'], ['receivers-2', 'escape-layers']],
-  [['held-newline-1', 'navigation-2'], ['mixed-7', 'list']],
-  [['held-newline-3', 'navigation-3'], ['interactions-2', 'navigation-1']],
-  [['receivers-1', 'bracket-receiver'], ['held-newline-2', 'keyboard']],
-  [['mixed-10', 'valid-input'], ['newline-history-2', 'inline']],
-  [['newline-history-1', 'links'], ['mixed-1', 'draft']],
-  [['mixed-3'], ['mixed-4']],
-  [['mixed-5'], ['mixed-9']],
-  [['mixed-2'], ['mixed-11']],
+  [['mixed-6', 'valid-input'], ['mixed-2', 'links']],
+  [['held-newline-2', 'bracket-receiver'], ['newline-history-2', 'inline']],
+  [['workflows-1', 'session-3'], ['held-newline-1', 'keyboard']],
+  [['interactions-2', 'navigation-2'], ['receivers-1', 'navigation-1']],
+  [['held-newline-3', 'navigation-3'], ['workflows-2', 'escape-layers']],
+  [['mixed-9', 'draft'], ['receivers-2', 'list']],
+  [['newline-history-1', 'line-break'], ['mixed-5']],
+  [['mixed-4'], ['mixed-1']],
+  [['mixed-7'], ['mixed-8']],
+  [['mixed-10'], ['mixed-11']],
+  [['mixed-3'], ['receivers-3', 'code-block']],
+  [['workflows-3'], ['interactions-3']],
+  [['receivers-4'], ['interactions-1']],
+  [['session-2'], ['session-1']],
 ] as const;
 const fileId = (file: string) => file.replace(/^test-ui\/editor-/, '').replace(/\.oracle\.test\.ts$/, '');
 const shardCount = (file: string) => timings[fileId(file)]?.shards ?? 1;
@@ -90,11 +92,15 @@ export function groupBaselinePartitions(parts: readonly Partition[], compact = f
   return groups;
 }
 
-function shardTasks(tests: string[], count: number): string[][] {
+function shardTasks(file: string, tests: string[], count: number): string[][] {
   // A generated unit runs a campaign. A determinism unit runs a history twice.
+  // The mixed file's recorded timings favor smaller weights for both.
+  const weights = fileId(file) === 'mixed'
+    ? { generated: 20, determinism: 1 }
+    : { generated: 25, determinism: 2 };
   const weighted = tests.map(name => ({
     name,
-    weight: name.endsWith(': generated') ? 25 : name.includes(' > determinism: ') ? 2 : 1,
+    weight: name.endsWith(': generated') ? weights.generated : name.includes(' > determinism: ') ? weights.determinism : 1,
   })).sort((left, right) => right.weight - left.weight);
   const shards = Array.from({ length: count }, () => ({ tests: [] as string[], weight: 0 }));
   for (const task of weighted) {
@@ -441,7 +447,7 @@ export function makePlan(root: string, deadline = 0): BaselinePlan {
     const id = fileId(file);
     const tests = rosters[file];
     if (!tests) return [{ id, files: [file] }];
-    return shardTasks(tests, shardCount(file)).map((assigned, shard) => ({
+    return shardTasks(file, tests, shardCount(file)).map((assigned, shard) => ({
       id: `${id}-${shard + 1}`,
       files: [file],
       tests: assigned,
