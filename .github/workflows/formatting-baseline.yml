@@ -53,7 +53,7 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/install-chromium
       - uses: actions/download-artifact@v4
         with:
           name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}

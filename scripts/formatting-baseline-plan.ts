@@ -13,7 +13,7 @@ export const baselineSources = ['src/ui/format-shortcuts.ts', 'src/ui/links.ts',
 type Input = { path: string; sha256: string; link?: string; resolved?: { path: string; sha256: string } };
 type Inventory = { file: string; sha256: string; properties: string[] }[];
 type Partition = { id: string; files: string[]; tests?: string[] };
-// The longest files in Check run 45145892794. Shard registrations while keeping
+// Timings from Check runs 45145892794 and 45328428655. Shard registrations while keeping
 // each original test name, definition, and campaign seed.
 const timings: Record<string, { minutes: number; shards: number }> = {
   mixed: { minutes: 86, shards: 11 },
@@ -21,7 +21,7 @@ const timings: Record<string, { minutes: number; shards: number }> = {
   interactions: { minutes: 17, shards: 2 },
   session: { minutes: 15, shards: 3 },
   workflows: { minutes: 15, shards: 2 },
-  'held-newline': { minutes: 14, shards: 2 },
+  'held-newline': { minutes: 14, shards: 3 },
   'newline-history': { minutes: 14, shards: 2 },
   navigation: { minutes: 9, shards: 2 },
 };

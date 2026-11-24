@@ -26,7 +26,7 @@ jobs:
           cache: npm
       - run: npm ci --legacy-peer-deps
       - run: npm install --prefix build/oauth-inspector --no-audit --no-fund @modelcontextprotocol/inspector@2.10.1
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/install-chromium
       - run: docker compose -p oauth-conformance -f scripts/oauth-conformance.compose.yml up -d
       - run: npm run test:oauth:interop
       - run: npm run test:oauth:conformance
@@ -75,7 +75,8 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
       - run: npm run openapi && git diff --exit-code -- openapi.json
       - run: npm run test:ui -- --maxWorkers=2
-      - run: npm test -- --maxWorkers=2
+      # npm ci already built the same inputs in postinstall.
+      - run: npm --ignore-scripts test -- --maxWorkers=2
       - run: npm run test:upgrade
   release-package:
     runs-on: ubuntu-latest
@@ -88,11 +89,18 @@ jobs:
         with:
           node-version: 22.18.0
           cache: npm
-      - run: npm ci --legacy-peer-deps
+      - id: install
+        run: npm ci --legacy-peer-deps
       - run: npm run release:build
       # verify-sdk-consumer.ts, inside release:verify, drives Chromium.
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/install-chromium
       - run: npm run release:verify
+      # Generate last so release verification reads the checked-in SDK.
+      - name: Verify SDK generation
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          npm run sdk:generate
+          git diff --exit-code -- openapi.json sdk/generated sdk/generation.json
   studio-oracles:
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -146,18 +154,6 @@ jobs:
           FORMATTING_RESULT: ${{ needs.formatting-baseline.result }}
         run: test "$FORMATTING_RESULT" = success
 
-  sdk-generation:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22.18.0
-          cache: npm
-      - run: npm ci --legacy-peer-deps
-      - run: npm run sdk:generate
-      - run: git diff --exit-code -- openapi.json sdk/generated sdk/generation.json
   e2e:
     needs: scope
     if: needs.scope.outputs.e2e == 'true'
@@ -166,7 +162,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -174,8 +170,8 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e -- --project=desktop --project=mobile --shard=${{ matrix.shard }}/2
+      - uses: ./.github/actions/install-chromium
+      - run: npm run test:e2e -- --project=desktop --project=mobile --shard=${{ matrix.shard }}/3
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -194,7 +190,7 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/install-chromium
       - run: npm run test:oracles:browser
       - run: npm run test:oracles:browser:search
 
@@ -237,7 +233,7 @@ jobs:
           cache: npm
       - run: npm ci --legacy-peer-deps
       - if: matrix.suite == 'auth-security-browser'
-        run: npx playwright install --with-deps chromium
+        uses: ./.github/actions/install-chromium
       - name: Run ${{ matrix.suite }} mutants
         env:
           MUTATION_SUITE: ${{ matrix.suite }}
