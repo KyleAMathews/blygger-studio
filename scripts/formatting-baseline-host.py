@@ -120,6 +120,7 @@ def run_partition(plan_path, part, out, cpus):
                     '--baseline-part', part, '--out', str(out.resolve())])
     result = 1
     primary = None
+    interrupt = None
     started_at = time.time()
     started = time.monotonic()
     group = '/system.slice/' + unit + '.service'
@@ -131,6 +132,8 @@ def run_partition(plan_path, part, out, cpus):
         primary = 'absolute baseline deadline expired'
     except BaseException as error:
         primary = type(error).__name__ + ': ' + str(error)
+        if isinstance(error, KeyboardInterrupt):
+            interrupt = error
     finally:
         # Even stop/inspection exceptions become separate cleanup diagnostics.
         cleanup = cleanup_owned_service(unit, group_path)
@@ -146,6 +149,18 @@ def run_partition(plan_path, part, out, cpus):
                    elapsedSeconds=time.monotonic() - started)
     with (out / 'host-completion.json').open('x') as target:
         target.write(json.dumps(receipt, indent=2) + '\n')
+    if interrupt is not None:
+        raise interrupt
+    return result, cleanup['cleanup'] == 'empty-or-removed'
+
+
+def run_lane(plan, root, parts, cpus):
+    result = 0
+    for part in parts:
+        status, released = run_partition(plan, part, Path(root) / ('formatting-part-' + part), cpus)
+        result = result or status
+        if not released:
+            break
     return result
 
 
@@ -156,37 +171,37 @@ def main():
     args = sys.argv[1:]
     if len(args) == 3:
         plan, part, out = args
-        return run_partition(plan, part, Path(out), cpus[:2])
-    if len(args) not in (4, 5) or args[0] != 'group':
-        raise ValueError('Use formatting-baseline-host.py group <plan> <out-root> <part> [<part>]')
+        return run_partition(plan, part, Path(out), cpus[:2])[0]
+    if not 4 <= len(args) <= 7 or args[0] != 'group':
+        raise ValueError('Use formatting-baseline-host.py group <plan> <out-root> <first> [<companion> [<followup> [<companion-followup>]]]')
     _, plan, root, *parts = args
-    if len(set(parts)) != len(parts):
+    assigned = [part for part in parts if part]
+    if not parts[0] or len(set(assigned)) != len(assigned):
         raise ValueError('A partition can run only once in a group')
-    outputs = [Path(root) / ('formatting-part-' + part) for part in parts]
-    if len(parts) == 1 or len(cpus) < 4:
-        results = [run_partition(plan, part, out, cpus[:2])
-                   for part, out in zip(parts, outputs)]
-    else:
-        # Prepare the shared, verified runner copy before both services open it.
-        subprocess.run(['node', '--import', 'tsx', '--input-type=module', '-e',
-                        "import { prepareFormattingBaselineRunner } "
-                        "from './scripts/formatting-baseline-runner.ts'; "
-                        "await prepareFormattingBaselineRunner()"], check=True)
-        jobs = []
-        try:
-            for index, part, out in zip((0, 2), parts, outputs):
-                allowed = ','.join(map(str, cpus[index:index + 2]))
-                jobs.append(subprocess.Popen(
-                    ['taskset', '-c', allowed, sys.executable, __file__, plan, part, str(out)],
-                    start_new_session=True))
-            results = [job.wait() for job in jobs]
-        finally:
-            # Each supervisor stops its owned service and records the cleanup.
-            for job in jobs:
-                if job.poll() is None:
-                    job.terminate()
-            for job in jobs:
-                job.wait()
+    lanes = [[part for part in parts[index::2] if part] for index in (0, 1)]
+    if not lanes[1] or len(cpus) < 4:
+        return run_lane(plan, root, assigned, cpus[:2])
+    # Prepare the shared, verified runner copy before both lanes open it.
+    subprocess.run(['node', '--import', 'tsx', '--input-type=module', '-e',
+                    "import { prepareFormattingBaselineRunner } "
+                    "from './scripts/formatting-baseline-runner.ts'; "
+                    "await prepareFormattingBaselineRunner()"], check=True)
+    jobs = []
+    try:
+        for index, lane in zip((0, 2), lanes):
+            allowed = ','.join(map(str, cpus[index:index + 2]))
+            # The child sees exactly two CPUs and runs its lane in sequence.
+            jobs.append(subprocess.Popen(
+                ['taskset', '-c', allowed, sys.executable, __file__, 'group', plan, root, *lane],
+                start_new_session=True))
+        results = [job.wait() for job in jobs]
+    finally:
+        # Each supervisor stops its owned service and records the cleanup.
+        for job in jobs:
+            if job.poll() is None:
+                job.terminate()
+        for job in jobs:
+            job.wait()
     return next((result for result in results if result), 0)
 
 

@@ -62,10 +62,11 @@ jobs:
         env:
           FORMATTING_PART: ${{ matrix.id }}
           FORMATTING_COMPANION: ${{ matrix.companion }}
+          FORMATTING_FOLLOWUP: ${{ matrix.followup }}
+          FORMATTING_COMPANION_FOLLOWUP: ${{ matrix.companionFollowup }}
         run: |
-          parts=("$FORMATTING_PART")
-          if [[ -n "$FORMATTING_COMPANION" ]]; then parts+=("$FORMATTING_COMPANION"); fi
-          python3 scripts/formatting-baseline-host.py group build/formatting-baseline-plan.json build "${parts[@]}"
+          python3 scripts/formatting-baseline-host.py group build/formatting-baseline-plan.json build \
+            "$FORMATTING_PART" "$FORMATTING_COMPANION" "$FORMATTING_FOLLOWUP" "$FORMATTING_COMPANION_FOLLOWUP"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -77,6 +78,18 @@ jobs:
         with:
           name: formatting-part-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.companion }}
           path: build/formatting-part-${{ matrix.companion }}/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && matrix.followup != '' }}
+        with:
+          name: formatting-part-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.followup }}
+          path: build/formatting-part-${{ matrix.followup }}/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && matrix.companionFollowup != '' }}
+        with:
+          name: formatting-part-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.companionFollowup }}
+          path: build/formatting-part-${{ matrix.companionFollowup }}/
           if-no-files-found: error
   aggregate:
     if: always()

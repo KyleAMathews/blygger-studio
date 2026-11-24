@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { requireRawUnits } from '../scripts/formatting-baseline-plan.ts';
+import { groupBaselinePartitions, requireRawUnits } from '../scripts/formatting-baseline-plan.ts';
 
 const file = 'test-ui/editor-mixed.oracle.test.ts';
 const absolute = '/repo/' + file;
@@ -28,6 +28,14 @@ function evidence() {
   };
   return { units, report };
 }
+
+test('runner groups assign every partition once and queue the shortest partitions behind other work', () => {
+  const ids = ['mixed', 'newline-history', 'receivers', 'session', 'draft', 'valid-input'];
+  const groups = groupBaselinePartitions(ids.map(id => ({ id, files: [`test-ui/editor-${id}.oracle.test.ts`] })));
+  expect(groups).toHaveLength(2);
+  expect(groups.flatMap(group => Object.values(group).filter(Boolean)).sort()).toEqual([...ids].sort());
+  expect(groups.flatMap(group => [group.followup, group.companionFollowup]).filter(Boolean).sort()).toEqual(['draft', 'valid-input']);
+});
 
 test('a shard retains the full roster and captures its assigned test in both passes', () => {
   const { report, units } = evidence();

@@ -13,21 +13,53 @@ export const baselineSources = ['src/ui/format-shortcuts.ts', 'src/ui/links.ts',
 type Input = { path: string; sha256: string; link?: string; resolved?: { path: string; sha256: string } };
 type Inventory = { file: string; sha256: string; properties: string[] }[];
 type Partition = { id: string; files: string[]; tests?: string[] };
-// Timings from Check runs 45145892794 and 45328428655. Shard registrations while keeping
-// each original test name, definition, and campaign seed.
-const timings: Record<string, { minutes: number; shards: number }> = {
-  mixed: { minutes: 86, shards: 11 },
-  receivers: { minutes: 23, shards: 3 },
-  interactions: { minutes: 17, shards: 2 },
-  session: { minutes: 15, shards: 3 },
-  workflows: { minutes: 15, shards: 2 },
-  'held-newline': { minutes: 14, shards: 3 },
-  'newline-history': { minutes: 14, shards: 2 },
-  navigation: { minutes: 9, shards: 2 },
+// Rounded wall times per partition from Check runs 45328428655 and 45431603660.
+// Shard counts only affect assignment. Each registration keeps its name and seed.
+const timings: Record<string, { seconds: number; shards?: number }> = {
+  mixed: { seconds: 540, shards: 11 },
+  receivers: { seconds: 480, shards: 3 },
+  interactions: { seconds: 395, shards: 2 },
+  session: { seconds: 310, shards: 3 },
+  workflows: { seconds: 490, shards: 2 },
+  'held-newline': { seconds: 400, shards: 3 },
+  'newline-history': { seconds: 490, shards: 2 },
+  navigation: { seconds: 335, shards: 2 },
+  'bracket-receiver': { seconds: 235 },
+  'code-block': { seconds: 185 },
+  draft: { seconds: 35 },
+  'escape-layers': { seconds: 255 },
+  inline: { seconds: 135 },
+  keyboard: { seconds: 260 },
+  'line-break': { seconds: 105 },
+  links: { seconds: 135 },
+  list: { seconds: 215 },
+  'valid-input': { seconds: 60 },
 };
 const fileId = (file: string) => file.replace(/^test-ui\/editor-/, '').replace(/\.oracle\.test\.ts$/, '');
 const shardCount = (file: string) => timings[fileId(file)]?.shards ?? 1;
-const minutesPerShard = (file: string) => (timings[fileId(file)]?.minutes ?? 5) / shardCount(file);
+const partitionSeconds = (part: Partition) => timings[fileId(part.files[0]!)]?.seconds ?? 300;
+
+export function groupBaselinePartitions(parts: readonly Partition[]) {
+  // Give roughly three quarters of the partitions a dedicated two-CPU lane.
+  // A lane can take one follow-up while its companion is still running.
+  const runners = Math.max(1, Math.round(parts.length * 3 / 8));
+  const lanes = Array.from({ length: runners * 2 }, () => ({ parts: [] as string[], seconds: 0 }));
+  for (const part of [...parts].sort((left, right) => partitionSeconds(right) - partitionSeconds(left))) {
+    const lane = lanes.filter(current => current.parts.length < 2)
+      .reduce((least, current) => current.seconds < least.seconds ? current : least);
+    lane.parts.push(part.id);
+    lane.seconds += partitionSeconds(part);
+  }
+  // Pair lanes of similar length to minimize the time a runner sits half idle.
+  const active = lanes.filter(lane => lane.parts.length).sort((left, right) => right.seconds - left.seconds);
+  const groups = [];
+  for (let index = 0; index < active.length; index += 2) {
+    const first = active[index]!.parts, companion = active[index + 1]?.parts ?? [];
+    groups.push({ id: first[0]!, companion: companion[0] ?? '', followup: first[1] ?? '', companionFollowup: companion[1] ?? '' });
+  }
+  return groups;
+}
+
 function shardTasks(tests: string[], count: number): string[][] {
   // A generated unit runs a campaign. A determinism unit runs a history twice.
   const weighted = tests.map(name => ({
@@ -385,8 +417,6 @@ export function makePlan(root: string, deadline = 0): BaselinePlan {
       tests: assigned,
     }));
   });
-  // Start the longest jobs first so they can finish while short jobs use spare runners.
-  parts.sort((left, right) => minutesPerShard(right.files[0]!) - minutesPerShard(left.files[0]!));
   const plan: BaselinePlan = { schema: 'blygger-formatting-baseline-plan-v4', commit: process.env.GITHUB_SHA ?? '', runId: process.env.GITHUB_RUN_ID ?? '', attempt: process.env.GITHUB_RUN_ATTEMPT ?? '', root: realpathSync(root), deadline,
     hostPolicy: baselineHostPolicy, host, hostAfter: hostIdentity(), sources: [...baselineSources], receiver: 1, contexts: 2, seed: randomBytes(4).readInt32LE().toString(), seedSource: 'fresh', testTimeout: 60000, firstLimit: 60000, inventory, inputs, inputsSha256: digest(JSON.stringify(inputs)),
     parts, rosters };
@@ -450,11 +480,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     mkdirSync(dirname(resolve(args[0])), { recursive: true });
     writeFileSync(args[0], encode(plan), { flag: 'wx' });
     checked(process.env.GITHUB_OUTPUT, 'Plan command requires GitHub output ownership');
-    // Pair adjacent jobs in duration order so both CPU sets stay busy.
-    const include = [];
-    for (let index = 0; index < plan.parts.length; index += 2) {
-      include.push({ id: plan.parts[index].id, companion: plan.parts[index + 1]?.id ?? '' });
-    }
+    const include = groupBaselinePartitions(plan.parts);
     writeFileSync(process.env.GITHUB_OUTPUT, 'matrix=' + JSON.stringify({ include }) + '\n', { flag: 'a' });
   } else if (mode === 'aggregate' && args.length === 3) aggregateBaseline(resolve(args[0]), resolve(args[1]), resolve(args[2]));
   else throw new Error('Use formatting-baseline-plan.ts plan <out> <deadline-ms-or-0>, or aggregate <plan> <artifact-directory> <out>');
