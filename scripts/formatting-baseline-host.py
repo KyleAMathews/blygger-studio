@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -72,10 +73,7 @@ def cleanup_owned_service(unit, group_path):
                 cleanupErrors=errors, stopExitCode=stop_exit)
 
 
-def main():
-    if len(sys.argv) != 4:
-        raise ValueError('Use formatting-baseline-host.py <plan> <part> <out>')
-    plan_path, part, out_value = sys.argv[1:]
+def run_partition(plan_path, part, out, cpus):
     plan_bytes = Path(plan_path).read_bytes()
     plan_sha256 = hashlib.sha256(plan_bytes).hexdigest()
     plan = json.loads(plan_bytes)
@@ -94,9 +92,6 @@ def main():
     unit = 'formatting-baseline-' + plan['runId'] + '-' + plan['attempt'] + '-' + part
     if not re.fullmatch(r'formatting-baseline-[a-z0-9-]+', unit):
         raise ValueError('Invalid owned systemd unit')
-    cpus = sorted(os.sched_getaffinity(0))[:2]
-    if len(cpus) != 2:
-        raise ValueError('Baseline CI requires two available CPUs')
     deadline = plan['deadline']
     remaining = (deadline / 1000 - time.time()) if deadline else None
     if remaining is not None and remaining <= 0:
@@ -122,7 +117,7 @@ def main():
     command.extend([node, '--import', 'tsx', 'scripts/formatting-oracles.ts',
                     '--baseline-only', '--contexts', '2', '--browser', 'chromium',
                     '--browser-isolation', 'process', '--baseline-plan', str(Path(plan_path).resolve()),
-                    '--baseline-part', part, '--out', str(Path(out_value).resolve())])
+                    '--baseline-part', part, '--out', str(out.resolve())])
     result = 1
     primary = None
     started_at = time.time()
@@ -141,7 +136,6 @@ def main():
         cleanup = cleanup_owned_service(unit, group_path)
     if cleanup['cleanup'] != 'empty-or-removed':
         result = result or 1
-    out = Path(out_value)
     out.mkdir(parents=True, exist_ok=True)
     receipt = dict(schema='blygger-formatting-baseline-host-v2', commit=plan['commit'],
                    runId=plan['runId'], attempt=plan['attempt'], part=part, unit=unit, seed=seed, planSha256=plan_sha256,
@@ -155,5 +149,50 @@ def main():
     return result
 
 
+def main():
+    cpus = sorted(os.sched_getaffinity(0))
+    if len(cpus) < 2:
+        raise ValueError('Baseline CI requires two available CPUs')
+    args = sys.argv[1:]
+    if len(args) == 3:
+        plan, part, out = args
+        return run_partition(plan, part, Path(out), cpus[:2])
+    if len(args) not in (4, 5) or args[0] != 'group':
+        raise ValueError('Use formatting-baseline-host.py group <plan> <out-root> <part> [<part>]')
+    _, plan, root, *parts = args
+    if len(set(parts)) != len(parts):
+        raise ValueError('A partition can run only once in a group')
+    outputs = [Path(root) / ('formatting-part-' + part) for part in parts]
+    if len(parts) == 1 or len(cpus) < 4:
+        results = [run_partition(plan, part, out, cpus[:2])
+                   for part, out in zip(parts, outputs)]
+    else:
+        # Prepare the shared, verified runner copy before both services open it.
+        subprocess.run(['node', '--import', 'tsx', '--input-type=module', '-e',
+                        "import { prepareFormattingBaselineRunner } "
+                        "from './scripts/formatting-baseline-runner.ts'; "
+                        "await prepareFormattingBaselineRunner()"], check=True)
+        jobs = []
+        try:
+            for index, part, out in zip((0, 2), parts, outputs):
+                allowed = ','.join(map(str, cpus[index:index + 2]))
+                jobs.append(subprocess.Popen(
+                    ['taskset', '-c', allowed, sys.executable, __file__, plan, part, str(out)],
+                    start_new_session=True))
+            results = [job.wait() for job in jobs]
+        finally:
+            # Each supervisor stops its owned service and records the cleanup.
+            for job in jobs:
+                if job.poll() is None:
+                    job.terminate()
+            for job in jobs:
+                job.wait()
+    return next((result for result in results if result), 0)
+
+
 if __name__ == '__main__':
+    def terminate(_signum, _frame):
+        raise KeyboardInterrupt()
+
+    signal.signal(signal.SIGTERM, terminate)
     sys.exit(main())

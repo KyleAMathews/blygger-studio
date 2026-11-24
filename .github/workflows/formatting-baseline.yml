@@ -58,15 +58,25 @@ jobs:
         with:
           name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: build
-      - name: Both partition passes in a two-CPU service
+      - name: Run both passes in each partition's two-CPU service
         env:
           FORMATTING_PART: ${{ matrix.id }}
-        run: python3 scripts/formatting-baseline-host.py build/formatting-baseline-plan.json "$FORMATTING_PART" "build/formatting-part-$FORMATTING_PART"
+          FORMATTING_COMPANION: ${{ matrix.companion }}
+        run: |
+          parts=("$FORMATTING_PART")
+          if [[ -n "$FORMATTING_COMPANION" ]]; then parts+=("$FORMATTING_COMPANION"); fi
+          python3 scripts/formatting-baseline-host.py group build/formatting-baseline-plan.json build "${parts[@]}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: formatting-part-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.id }}
           path: build/formatting-part-${{ matrix.id }}/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && matrix.companion != '' }}
+        with:
+          name: formatting-part-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.companion }}
+          path: build/formatting-part-${{ matrix.companion }}/
           if-no-files-found: error
   aggregate:
     if: always()

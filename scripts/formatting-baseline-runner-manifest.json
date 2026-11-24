@@ -2,7 +2,7 @@
   "schema": "blygger-formatting-baseline-runner-v1",
   "pin": "https://pkg.pr.new/TanStack/oracles/@tanstack/oracles@97a4e7a",
   "integrity": "sha512-wlKVuUJDBwkGqbZPhQsgc9FUiL+ern0gNSd+1TkLOEi4RP69ZCRVpZAiz8nyCa7dcaysukHglAXqP5yEfex9Sg==",
-  "patchSha256": "69f048cf3c049f2c9f0f90c230be7f8330805e1bdbe0d31a90685241150ad797",
+  "patchSha256": "23a05cff306378167499c0adda5abbdfc850e8bd8b205a72e976475b92847d38",
   "files": [
     {
       "path": "oracle-gaps/args.mjs",
@@ -12,7 +12,7 @@
     {
       "path": "oracle-gaps/check.mjs",
       "beforeSha256": "d2fce1610ab8bf4c61f6bd7bb1a567428cab062e48694cf44d63885256e2a247",
-      "afterSha256": "9f758496e26544d78ad85f84054b9983b1bc3bf8d7692c611a74fce54203465b"
+      "afterSha256": "d9ed32a0e0e0dccd37a480022b8a297a45f47156b2030c3478b2ee0db7d91c34"
     },
     {
       "path": "oracle-gaps/index.mjs",

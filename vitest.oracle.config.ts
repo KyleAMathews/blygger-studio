@@ -16,7 +16,7 @@ const testNamePattern = baseline?.tests && new RegExp('^(?:' + baseline.tests.ma
   name.replaceAll(' > ', ' ').replace(/[.*+?^$${}()|[\]\\]/g, '\\$&')).join('|') + ')$');
 
 export default defineConfig({
-  cacheDir: 'build/formatting-oracle-cache',
+  cacheDir: baseline ? 'build/formatting-oracle-cache/' + baseline.part : 'build/formatting-oracle-cache',
   plugins: [formattingBrowserSource()],
   test: { include: files, testNamePattern, setupFiles: ['./test-ui/editor-oracles/configure-oracles.ts'], environment: 'node' },
 });

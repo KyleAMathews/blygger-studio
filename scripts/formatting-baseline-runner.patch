@@ -51,6 +51,41 @@ diff --git a/oracle-gaps/check.mjs b/oracle-gaps/check.mjs
    gapsOf,
    keyAndSelect,
    renderReport,
+@@ -465,9 +467,11 @@ export async function openSession(pkg, pause = async () => {}) {
+   // where a Vitest run started meanwhile would find them (maintainer
+   // disposition G4, 2026-11-11; the freeze's namespacing decision): the
+   // capture setup and one wrapper config per context. The session removes
+   // its directory when it closes; a killed run's is removed by the next.
+-  const home = join(pkg, `.oracle-gaps-${process.pid}`)
++  // Concurrent partitions share inputs, so keep transient wrappers in build/.
++  const scratch = join(pkg, `build`)
++  const home = join(scratch, `.oracle-gaps-${process.pid}`)
+   // A session directory that a stopped or killed run left behind, whose
+   // process is gone, is removed now (maintainer decision, 2026-11-11). Only
+   // one of this host's (its `host` file): a process id names a process only
+   // in its own pid namespace, so a container and its host sharing the
+@@ -474,9 +478,9 @@ export async function openSession(pkg, pause = async () => {}) {
+   // package keep each other's.
+-  for (const name of readdirSync(pkg))
++  for (const name of readdirSync(scratch))
+     if (
+       /^\.oracle-gaps-\d+$/.test(name) &&
+       !alive(Number(name.slice(13))) &&
+-      sessionHostOf(join(pkg, name)) === hostname()
++      sessionHostOf(join(scratch, name)) === hostname()
+     )
+-      rmSync(join(pkg, name), { recursive: true, force: true })
++      rmSync(join(scratch, name), { recursive: true, force: true })
+   mkdirSync(home, { recursive: true })
+@@ -742,6 +746,8 @@ export async function openSession(pkg, pause = async () => {}) {
+         {
+           root: pkg,
+           config: wrapperFor(index, settings.config),
++          // Avoid Vite's transient bundles in the shared node_modules tree.
++          configLoader: `native`,
+           watch: false,
+           maxWorkers: 1,
+           // Every test in a file runs, so a kill is attributed to each route
 @@ -801,6 +803,8 @@
          `Run the gap report on a package whose Vitest config has no test.projects.`,
        )

@@ -21,7 +21,7 @@ const timings: Record<string, { minutes: number; shards: number }> = {
   interactions: { minutes: 17, shards: 2 },
   session: { minutes: 15, shards: 2 },
   workflows: { minutes: 15, shards: 2 },
-  'held-newline': { minutes: 14, shards: 1 },
+  'held-newline': { minutes: 14, shards: 2 },
   'newline-history': { minutes: 14, shards: 2 },
   navigation: { minutes: 9, shards: 1 },
 };
@@ -370,7 +370,8 @@ export function makePlan(root: string, deadline = 0): BaselinePlan {
   const inventory = baselineInventory(root), inputs = baselineInputs(root);
   const sharded = inventory.map(row => row.file).filter(file => shardCount(file) > 1);
   const collected = JSON.parse(execFileSync(process.execPath, [
-    'node_modules/vitest/vitest.mjs', 'list', '--config', 'vitest.oracle.config.ts', '--maxWorkers=2',
+    '--import', 'tsx', 'node_modules/vitest/vitest.mjs', 'list',
+    '--config', 'vitest.oracle.config.ts', '--configLoader', 'native', '--maxWorkers=2',
     '--no-cache', ...sharded, '--json',
   ], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 })) as { file: string; name: string }[];
   const rosters = Object.fromEntries(sharded.map(file => [file, collected.filter(test => relative(root, test.file) === file).map(test => test.name)]));
@@ -449,7 +450,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     mkdirSync(dirname(resolve(args[0])), { recursive: true });
     writeFileSync(args[0], encode(plan), { flag: 'wx' });
     checked(process.env.GITHUB_OUTPUT, 'Plan command requires GitHub output ownership');
-    writeFileSync(process.env.GITHUB_OUTPUT, 'matrix=' + JSON.stringify({ include: plan.parts.map(part => ({ id: part.id })) }) + '\n', { flag: 'a' });
+    // Pair adjacent jobs in duration order so both CPU sets stay busy.
+    const include = [];
+    for (let index = 0; index < plan.parts.length; index += 2) {
+      include.push({ id: plan.parts[index].id, companion: plan.parts[index + 1]?.id ?? '' });
+    }
+    writeFileSync(process.env.GITHUB_OUTPUT, 'matrix=' + JSON.stringify({ include }) + '\n', { flag: 'a' });
   } else if (mode === 'aggregate' && args.length === 3) aggregateBaseline(resolve(args[0]), resolve(args[1]), resolve(args[2]));
   else throw new Error('Use formatting-baseline-plan.ts plan <out> <deadline-ms-or-0>, or aggregate <plan> <artifact-directory> <out>');
 }
