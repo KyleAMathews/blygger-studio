@@ -34,23 +34,22 @@ const timings: Record<string, { seconds: number; shards?: number }> = {
   list: { seconds: 215 },
   'valid-input': { seconds: 60 },
 };
-// Each row is one runner with two CPU lanes. The longest groups appear first.
-// The layout uses nine earlier runs and the receipts from 45508862499.
+// Each row is one runner with two CPU lanes. Three hosted timing profiles
+// balance the long groups and leave one short group to free a runner early.
 const compactLanes = [
-  [['mixed-3', 'line-break'], ['held-newline-2', 'keyboard']],
-  [['mixed-11', 'links'], ['newline-history-2', 'inline']],
-  [['mixed-1', 'valid-input'], ['session-1', 'session-3']],
-  [['held-newline-3', 'bracket-receiver'], ['session-2', 'escape-layers']],
-  [['receivers-4', 'navigation-2'], ['interactions-3', 'navigation-1']],
-  [['held-newline-1', 'navigation-3'], ['mixed-7', 'draft']],
-  [['workflows-1', 'list'], ['mixed-2']],
-  [['mixed-6'], ['mixed-9']],
-  [['mixed-5'], ['mixed-10']],
-  [['mixed-8'], ['workflows-2', 'code-block']],
-  [['mixed-4'], ['newline-history-1']],
-  [['receivers-1'], ['interactions-2']],
-  [['receivers-2'], ['interactions-1']],
-  [['receivers-3'], ['workflows-3']],
+  [['held-newline-2', 'workflows-2'], ['mixed-9', 'line-break']],
+  [['mixed-4', 'inline'], ['bracket-receiver', 'held-newline-1']],
+  [['receivers-3', 'escape-layers'], ['workflows-1', 'navigation-2']],
+  [['receivers-2', 'keyboard'], ['mixed-2', 'valid-input']],
+  [['list', 'interactions-2'], ['session-3', 'interactions-3']],
+  [['held-newline-3', 'navigation-1'], ['session-2', 'receivers-4']],
+  [['receivers-1', 'navigation-3'], ['mixed-6', 'draft']],
+  [['workflows-3', 'session-1'], ['mixed-3']],
+  [['mixed-11'], ['mixed-7']],
+  [['mixed-10'], ['mixed-5']],
+  [['mixed-1'], ['newline-history-2']],
+  [['mixed-8'], ['newline-history-1']],
+  [['code-block', 'links'], ['interactions-1']],
 ] as const;
 const fileId = (file: string) => file.replace(/^test-ui\/editor-/, '').replace(/\.oracle\.test\.ts$/, '');
 const shardCount = (file: string) => timings[fileId(file)]?.shards ?? 1;
