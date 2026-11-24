@@ -1285,7 +1285,7 @@ export type ListAuthorizationsResponse = ListAuthorizationsResponses[keyof ListA
 export type CreateAuthorizationData = {
     body: {
         name: string;
-        scope: Array<'owner:read' | 'owner:draft' | 'owner:publish' | 'owner:manage' | 'reading:state'>;
+        scope: Array<'owner:read' | 'owner:private' | 'owner:draft' | 'owner:publish' | 'owner:manage' | 'reading:state'>;
         resource: 'api' | 'mcp';
     };
     path?: never;
@@ -1922,6 +1922,14 @@ export type GetItemResponses = {
          */
         publishedMedia: Array<Media>;
         published: Version | null;
+        /**
+         * The hoppers this item is a member of. A public one shows the item on its page and feed once the item is public.
+         */
+        hoppers: Array<{
+            id: string;
+            name: string;
+            public: boolean;
+        }>;
     };
 };
 
@@ -7417,6 +7425,10 @@ export type SearchResponses = {
     200: {
         items: Array<{
             id: string;
+            /**
+             * Set on a private item (the notebook), listed only for the owner session and tokens holding owner:private.
+             */
+            private?: true;
             excerpt: string;
             /**
              * The text a `[[id]]` link to this item shows: its opening heading, else a short quoted excerpt. Written as the label by the picker (0.4 §10.1).

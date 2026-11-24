@@ -41,6 +41,7 @@ export const sourceSchemas = {
     media: true,
     publishedMedia: true,
     published: true,
+    hoppers: true,
   }),
   settings: zSettings.extend({ key: z.literal('settings') }),
   shelf: zShelf.extend({ key: z.literal('shelf') }),

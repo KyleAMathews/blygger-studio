@@ -41,6 +41,14 @@ export type GenerateScopeResult =
   /** With `checkpoint`, nothing was generated: links could not be read and the author has not said to proceed. */
   | { ok: false; status: number; body: Record<string, unknown>; checkpoint?: HydrationCheckpoint };
 
+/** An own private item's latest private version as a generation source, or null when the id names none. */
+async function privateSource(db: D1Database, id: string): Promise<ResolvedTarget | null> {
+  const row = await db.prepare(`SELECT i.kind, p.version, p.content_md, p.content_html FROM items i
+    JOIN private_versions p ON p.item_id = i.id AND p.version = (SELECT MAX(version) FROM private_versions WHERE item_id = i.id)
+    WHERE i.id = ? AND i.status = 'private' AND i.kind IN ('fragment', 'thread')`).bind(id).first<{ kind: string; version: number; content_md: string; content_html: string }>();
+  return row ? { id, version: row.version, contentMd: row.content_md, contentHtml: row.content_html, kind: row.kind } : null;
+}
+
 export async function runGenerateScope(
   env: Env,
   item: ItemRow,
@@ -53,6 +61,8 @@ export async function runGenerateScope(
     proceed?: boolean;
     /** The fetch for web pages; the importer's, under its outbound policy, by default. */
     pageFetch?: FetchLike;
+    /** The caller may see private items (private-access.ts), so one may be a source. */
+    privateSources?: boolean;
   } = {},
 ): Promise<GenerateScopeResult> {
   const { scopes, errors: parseErrors } = parseScopes(item.content_md);
@@ -83,6 +93,11 @@ export async function runGenerateScope(
     sources.push({ ...ref, text: sourceText(target) });
   };
   for (const id of scope.sourceIds) {
+    // An own private item may feed a generator (sealed-content-build-plan §1 0c):
+    // its latest private version, as the owner's reader shows it. Publishing the
+    // output publicly is refused while the provenance names it (model.ts).
+    const kept = opts.privateSources ? await privateSource(env.DB, id) : null;
+    if (kept) { await addItem(id, kept); continue; }
     const resolved = await resolveTarget(env.DB, id);
     if (!resolved.ok) return { ok: false, status: 400, body: { error: `unresolvable source: ${resolved.reason}`, id, reason: resolved.reason } };
     await addItem(id, resolved.target);

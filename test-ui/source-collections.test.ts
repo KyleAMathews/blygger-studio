@@ -47,7 +47,7 @@ const validations: string[] = [];
 const requests: { path: string; params: URLSearchParams }[] = [];
 const views: { cleanup(): Promise<void> | void }[] = [];
 const item = () => ({ id: 'a', revision: itemRevision, contentMd: text, kind: 'fragment' as const, status: 'draft' as const, created: '2026-10-06', updated: '2026-10-06', version: itemPins.length ? 1 : 0, dirty: false, responses: 'default' as const, highlight: 'default' as const, provenance: [], stubOf: null, forkedFrom: null, forkCite: null, pins: itemPins });
-const detail = (): Detail => ({ ...item(), kind: 'fragment', media: [], publishedMedia: [], published: null });
+const detail = (): Detail => ({ ...item(), kind: 'fragment', media: [], publishedMedia: [], published: null, hoppers: [] });
 const hopper = { id: 'h', name: 'Hopper', public: false, slug: null, created: '2026-10-06', slugFrozen: false, description: null };
 const contents = () => ({ hopper, items: Array.from({ length: memberCount }, (_, i) => ({ subscriptionId: 's', remoteId: String(i), contentHtml: `${text} ${i}`, contentMd: text, kind: 'fragment', state: 'current', version: 1, created: null, updated: null, observedAt: '2026-10-06', contentHash: null, author: null, media: null, transclusions: null, l0: false, pinnedVersionRetained: null, page: null, stubOf: null, forkedFrom: null, generated: null })), memberships: Array.from({ length: memberCount }, (_, i) => ({ hopperId: 'h', subscriptionId: 's', remoteId: String(i), addedAt: '2026-10-06' })), total: 4, sourceCount: 1 });
 const entry = (key: string, kind = 'fragment') => ({ key, source: 'own', kind, withdrawn: false, l0: false, contentHtml: text, displayAt: '2026-10-06', background: { reasons: [], placement: null, blyg: false } });

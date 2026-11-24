@@ -25,6 +25,7 @@
             "tokenUrl": "/studio/auth/oauth2/token",
             "scopes": {
               "owner:read": "Read private drafts, reading material, media, and settings",
+              "owner:private": "Read and change private items, the notebook: their working copies, private versions and media",
               "owner:draft": "Create and edit drafts, upload media, and use configured AI generation",
               "owner:publish": "Publish, withdraw, refresh, pin, and change public item responses or media",
               "owner:manage": "Change settings, subscriptions, signals, collections, and response moderation",
@@ -3950,6 +3951,7 @@
                       "type": "string",
                       "enum": [
                         "owner:read",
+                        "owner:private",
                         "owner:draft",
                         "owner:publish",
                         "owner:manage",
@@ -5955,6 +5957,29 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "hoppers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "public": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "public"
+                        ]
+                      },
+                      "description": "The hoppers this item is a member of. A public one shows the item on its page and feed once the item is public."
                     }
                   },
                   "required": [
@@ -5976,7 +6001,8 @@
                     "pins",
                     "media",
                     "publishedMedia",
-                    "published"
+                    "published",
+                    "hoppers"
                   ]
                 }
               }
@@ -6131,6 +6157,7 @@
             ]
           }
         ],
+        "description": "Publishing with visibility private also requires owner:private, because the item becomes one the token could otherwise not see.",
         "parameters": [
           {
             "schema": {
@@ -16772,7 +16799,7 @@
           },
           {
             "ownerOAuth": [
-              "owner:read"
+              "owner:private"
             ]
           }
         ],
@@ -19637,6 +19664,13 @@
                         "properties": {
                           "id": {
                             "type": "string"
+                          },
+                          "private": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ],
+                            "description": "Set on a private item (the notebook), listed only for the owner session and tokens holding owner:private."
                           },
                           "excerpt": {
                             "type": "string"

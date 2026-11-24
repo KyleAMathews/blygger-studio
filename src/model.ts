@@ -507,6 +507,15 @@ async function publishScoped(db: D1Database, item: ItemRow, note: string | null,
   if (origin) contentHtml = absolutizeHtml(contentHtml, normalizedOrigin(origin));
 
   const generated: ScopeProvenance[] = scopes.map((_, i) => provenanceCache[i]).filter((p): p is ScopeProvenance => p != null);
+  // A public version may not disclose, or carry words drawn from, a private item
+  // (sealed-content-build-plan §1 0c): a scope that drew on one publishes only privately.
+  const ownSourceIds = [...new Set(generated.flatMap((p) => p.sources.flatMap((source) => ("id" in source && !source.origin ? [source.id] : []))))];
+  if (ownSourceIds.length) {
+    const privateIds = new Set((await db.prepare(`SELECT id FROM items WHERE status = 'private' AND id IN (SELECT value FROM json_each(?))`).bind(JSON.stringify(ownSourceIds)).all<{ id: string }>()).results.map((row) => row.id));
+    const issues = scopes.flatMap((scope, i) => (provenanceCache[i]?.sources.some((source) => "id" in source && !source.origin && privateIds.has(source.id))
+      ? [{ at: scope.start, reason: "this scope drew on a private item; publish privately, or generate it again without that source" }] : []));
+    if (issues.length) throw new TkPublishError(issues);
+  }
   const generatedJson = generated.length ? JSON.stringify(generated) : null;
 
   // §2.2 version agreement: a stub's citation takes the version actually

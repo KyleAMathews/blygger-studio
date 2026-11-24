@@ -1,5 +1,6 @@
 export const SCOPE_DESCRIPTIONS = {
   'owner:read': 'Read private drafts, reading material, media, and settings',
+  'owner:private': 'Read and change private items, the notebook: their working copies, private versions and media',
   'owner:draft': 'Create and edit drafts, upload media, and use configured AI generation',
   'owner:publish': 'Publish, withdraw, refresh, pin, and change public item responses or media',
   'owner:manage': 'Change settings, subscriptions, signals, collections, and response moderation',

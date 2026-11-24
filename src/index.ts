@@ -1,3 +1,4 @@
+import { privateItemHidden } from './private-access.ts';
 import { publicRetainedMediaSql, avatarMediaSql } from './media-retention.ts';
 import { authoredVersionKind } from './version-state.ts';
 import { WorkerEntrypoint } from 'cloudflare:workers';
@@ -392,6 +393,8 @@ export function makeApp(mount: string) {
       const bearer = /^Bearer(?:\s|$)/i.test(c.req.header('authorization') ?? '');
       const access = bearer ? await verifyBearer(c.req.raw, c.env, 'api') : null;
       if (bearer ? !access?.scope.includes('owner:read') : !await verifySession(c.env, c.req.header('cookie'))) return c.notFound();
+      // Media attached to a private item is the notebook's, like the item (private-access.ts).
+      if (bearer && media.item_id && await privateItemHidden(c.env.DB, access, media.item_id)) return c.notFound();
     }
     const object = await c.env.MEDIA.get(media.r2_key);
     if (!object) return c.notFound();

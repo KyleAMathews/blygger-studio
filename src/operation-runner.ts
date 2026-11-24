@@ -6,6 +6,8 @@ import type { OperationDefinition } from './operations.ts';
 import { requiredScopes } from './operation-policy.ts';
 import { isExtensionEnabled } from './extensions/server.ts';
 import { admitApi, withWorkPrincipal } from './security-budgets.ts';
+import { privateItemHidden } from './private-access.ts';
+import { OWN_SUBSCRIPTION } from './own-subscription.ts';
 import { failure, OperationError, type OperationContext, type OperationInput, type OperationResult } from './operation-types.ts';
 
 function parse(schema: unknown, value: unknown): unknown {
@@ -42,6 +44,15 @@ async function executeOperation(definition: OperationDefinition, input: Operatio
       return failure('invalid-input', schemaError(error));
     }
     throw error;
+  }
+  // A private item is invisible, not forbidden, to an access without owner:private:
+  // every operation that names one answers as for an unknown id, so the 404 says nothing.
+  if (route.path.startsWith('/items/{id}') && input.path.id && await privateItemHidden(context.env.DB, context.access, input.path.id)) {
+    return failure('not-found', { error: 'not found' });
+  }
+  // Adding answers as for an unknown item; removing is idempotent, so its handler answers as for a non-member.
+  if (route.method !== 'delete' && input.path.sub === OWN_SUBSCRIPTION && input.path.remoteId && await privateItemHidden(context.env.DB, context.access, input.path.remoteId)) {
+    return failure('not-found', { error: 'item not found' });
   }
   return handler(context, input);
 }

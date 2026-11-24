@@ -28,11 +28,15 @@ function scoped(scope: OwnerScope, effects: OperationEffects, budget: WorkBudget
 export function readOperation(effects: OperationEffects = { writes: [] }, budget: WorkBudget = 'read'): OperationPolicy {
   return scoped('owner:read', effects, budget);
 }
+/** Private items and their private versions (the notebook): owner:private, which owner:read does not imply. */
+export function privateReadOperation(effects: OperationEffects = { writes: [] }): OperationPolicy {
+  return scoped('owner:private', effects, 'read');
+}
 export function draftOperation(effects: OperationEffects, budget: WorkBudget = 'write', conditionalScopes?: ScopeCondition): OperationPolicy {
   return scoped('owner:draft', effects, budget, conditionalScopes);
 }
-export function publishOperation(effects: OperationEffects): OperationPolicy {
-  return scoped('owner:publish', effects, 'write');
+export function publishOperation(effects: OperationEffects, conditionalScopes?: ScopeCondition): OperationPolicy {
+  return scoped('owner:publish', effects, 'write', conditionalScopes);
 }
 export function manageOperation(effects: OperationEffects, conditionalScopes?: ScopeCondition): OperationPolicy {
   return scoped('owner:manage', effects, 'write', conditionalScopes);
@@ -56,6 +60,13 @@ export const avatarScopes: ScopeCondition = {
   description: 'Choosing avatarMediaId also requires owner:publish because the avatar publishes those bytes.',
   resolve(input) {
     return bodyRecord(input).avatarMediaId !== undefined ? ['owner:publish'] : [];
+  },
+};
+
+export const privateVisibilityScopes: ScopeCondition = {
+  description: 'Publishing with visibility private also requires owner:private, because the item becomes one the token could otherwise not see.',
+  resolve(input) {
+    return bodyRecord(input).visibility === 'private' ? ['owner:private'] : [];
   },
 };
 

@@ -1,0 +1,175 @@
+// Private items 0c–0e and the hopper fix (sealed-content-build-plan §1; laws approved by
+// Venkat, session 83): owner:private, private generation sources, the owner's search, and
+// private hopper members. The public routes' half of "no leak" is private-surface.test.ts.
+import { env } from "cloudflare:test";
+import { Hono } from "hono";
+import { beforeEach, describe, expect, it } from "vitest";
+import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
+import type { ProviderFetchLike } from "../src/ai/provider.ts";
+import { createOwnerApi } from "../src/owner-api.ts";
+import { createDraft, getItem, putSettings } from "../src/model.ts";
+
+beforeEach(() => putSettings(env.DB, { ai_model: "claude-opus-5" }));
+import { runGenerateScope } from "../src/tk-generate.ts";
+import { apiJson, createAndPublish, getPublic, login, testRevisionBody } from "./helpers.ts";
+
+const MARK = "notebookmark";
+const WITHOUT = ["owner:read", "owner:draft", "owner:publish", "owner:manage", "reading:state"];
+const WITH = [...WITHOUT, "owner:private"];
+
+/** The owner API as a token holding exactly `scope` sees it. */
+function tokenApi(scope: string[]) {
+  const app = new Hono().route("/api", createOwnerApi({ scope, clientId: "notebook-test", userId: "owner" }));
+  return async (method: string, path: string, body?: unknown) => {
+    body = await testRevisionBody(method, `/api${path}`, body);
+    const ctx = createExecutionContext();
+    const response = await app.fetch(new Request(`https://example.com/api${path}`, {
+      method, ...(body === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    }), { ...env, API_READ_LIMIT: "10000", API_WRITE_LIMIT: "10000" }, ctx);
+    await waitOnExecutionContext(ctx);
+    return { status: response.status, json: await response.json<any>().catch(() => null) };
+  };
+}
+
+async function privateItem(cookie: string, text = `a private note ${MARK}`) {
+  const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: text, kind: "fragment" });
+  expect((await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/publish`, { visibility: "private" })).status).toBe(200);
+  return created.json.id as string;
+}
+
+async function hopper(cookie: string, name: string, isPublic: boolean) {
+  const created = await apiJson(cookie, "POST", "/blyg/api/hoppers", { name });
+  expect(created.status).toBe(201);
+  const id = created.json.id as string;
+  if (isPublic) expect((await apiJson(cookie, "PATCH", `/blyg/api/hoppers/${id}`, { public: true })).status).toBe(200);
+  return id;
+}
+
+describe("owner:private: a token without it does not see the notebook", () => {
+  it("answers 404 for a private item on every by-id route, as for an unknown id", async () => {
+    const cookie = await login();
+    const id = await privateItem(cookie);
+    const without = tokenApi(WITHOUT), withScope = tokenApi(WITH);
+    expect(await without("GET", `/items/${id}`)).toEqual({ status: 404, json: expect.objectContaining({}) });
+    const unknown = await without("GET", "/items/zzzzzzzzzzzzzzzzzzzzzzzzzz");
+    expect((await without("GET", `/items/${id}`)).json).toEqual(unknown.json);
+    expect((await without("PATCH", `/items/${id}`, { contentMd: "changed" })).status).toBe(404);
+    expect((await without("POST", `/items/${id}/publish`, {})).status).toBe(404);
+    expect((await without("GET", `/items/${id}/private-versions`)).status).toBe(403);
+    expect((await withScope("GET", `/items/${id}`)).status).toBe(200);
+    expect((await withScope("GET", `/items/${id}/private-versions`)).status).toBe(200);
+    // The text never changed through the refused write.
+    expect((await getItem(env.DB, id))!.content_md).toContain(MARK);
+  });
+
+  it("leaves private items out of lists, counts, search and reading", async () => {
+    const cookie = await login();
+    const id = await privateItem(cookie);
+    const without = tokenApi(WITHOUT), withScope = tokenApi(WITH);
+    const ids = (r: { json: any }) => (r.json.items as { id?: string; own?: { id: string } }[]).map((row) => row.id ?? row.own?.id);
+    expect(ids(await without("GET", "/items?limit=50"))).not.toContain(id);
+    expect(ids(await withScope("GET", "/items?limit=50"))).toContain(id);
+    const all = async (api: ReturnType<typeof tokenApi>) => (await api("GET", "/items/summary")).json.all as number;
+    expect(await all(withScope)).toBe((await all(without)) + (await env.DB.prepare("SELECT COUNT(*) AS n FROM items WHERE status = 'private'").first<{ n: number }>())!.n);
+    expect(ids(await without("GET", `/search?q=${MARK}&include=drafts`))).not.toContain(id);
+    expect(ids(await without("GET", "/reading?sub=own&limit=50"))).not.toContain(id);
+    expect((await without("GET", "/reading?sub=private")).json.items).toEqual([]);
+    expect((await without("GET", "/reading/summary")).json.counts.private).toBe(0);
+  });
+
+  it("refuses a private publish, named or by default, to a token that could not then see the item", async () => {
+    const cookie = await login();
+    const without = tokenApi(WITHOUT);
+    const named = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "named", kind: "fragment" });
+    expect((await without("POST", `/items/${named.json.id}/publish`, { visibility: "private" })).status).toBe(403);
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { defaultVisibility: "private" })).status).toBe(200);
+    try {
+      const byDefault = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "by default", kind: "fragment" });
+      const refused = await without("POST", `/items/${byDefault.json.id}/publish`, {});
+      expect(refused.status).toBe(403);
+      expect((await getItem(env.DB, byDefault.json.id))!.status).toBe("draft");
+    } finally {
+      await apiJson(cookie, "PATCH", "/blyg/api/settings", { defaultVisibility: "public" });
+    }
+  });
+});
+
+describe("the owner's search lists private items, marked", () => {
+  it("finds a private item's text in compose search for the owner, and marks it", async () => {
+    const cookie = await login();
+    const id = await privateItem(cookie, `searchable ${MARK}found`);
+    const { json } = await apiJson(cookie, "GET", `/blyg/api/search?q=${MARK}found&include=drafts`);
+    const hit = (json.items as { id: string; private?: true; draft?: boolean }[]).find((row) => row.id === id);
+    expect(hit).toMatchObject({ private: true, draft: false });
+  });
+});
+
+describe("hoppers: the owner sees private members; the public never does", () => {
+  it("lists own members in the owner's hopper view, keeps private ones off the public page, and names public hoppers on the item", async () => {
+    const cookie = await login();
+    const id = await privateItem(cookie, `hopper member ${MARK}`);
+    const publicHopper = await hopper(cookie, "Open shelf", true);
+    const quiet = await hopper(cookie, "Quiet shelf", false);
+    for (const h of [publicHopper, quiet]) expect((await apiJson(cookie, "PUT", `/blyg/api/hoppers/${h}/items/~own/${id}`)).status).toBe(200);
+
+    const view = await apiJson(cookie, "GET", `/blyg/api/reading?hopper=${publicHopper}`);
+    expect((view.json.items as { own?: { id: string } }[]).map((row) => row.own?.id)).toContain(id);
+
+    const item = await apiJson(cookie, "GET", `/blyg/api/items/${id}`);
+    expect(item.json.hoppers).toEqual(expect.arrayContaining([
+      { id: publicHopper, name: "Open shelf", public: true },
+      { id: quiet, name: "Quiet shelf", public: false },
+    ]));
+
+    const slug = (await apiJson(cookie, "GET", `/blyg/api/hoppers/${publicHopper}`)).json.hopper.slug as string;
+    for (const path of [`/blyg/h/${slug}`, `/blyg/h/${slug}/feed.xml`]) {
+      const res = await getPublic(path);
+      expect(await res.text()).not.toContain(id);
+    }
+
+    const without = tokenApi(WITHOUT);
+    expect((await without("GET", `/hoppers/${publicHopper}/memberships`)).json.items.map((m: { remoteId: string }) => m.remoteId)).not.toContain(id);
+    expect((await without("GET", `/hoppers/${publicHopper}`)).json.total).toBe(0);
+    expect((await without("PUT", `/hoppers/${publicHopper}/items/~own/${id}`)).status).toBe(404);
+    // Removing is idempotent: the answer is a non-member's, and the membership stays.
+    expect((await without("DELETE", `/hoppers/${publicHopper}/items/~own/${id}`)).status).toBe(200);
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.hoppers.map((h: { id: string }) => h.id)).toContain(publicHopper);
+  });
+});
+
+describe("a private item as a generation source", () => {
+  const fixture = (text: string): { fetchImpl: ProviderFetchLike; calls: any[] } => {
+    const calls: any[] = [];
+    return { calls, fetchImpl: async (_url, init) => {
+      calls.push(JSON.parse(init.body));
+      return { ok: true, status: 200, text: async () => JSON.stringify({ model: "claude-opus-5", content: [{ type: "text", text }] }) };
+    } };
+  };
+
+  it("feeds a private source only to a caller that may see it, and then publishes only privately", async () => {
+    const cookie = await login();
+    const source = await privateItem(cookie, `the private source text ${MARK}`);
+    const draft = await createDraft(env.DB, `[TK]summarize ![[${source}]][/TK]`);
+    const refused = await runGenerateScope({ ...env, AI_PROVIDER_KEY: "k" }, draft, 0, fixture("x").fetchImpl);
+    expect(refused).toMatchObject({ ok: false, status: 400 });
+
+    const { fetchImpl, calls } = fixture("a summary");
+    const result = await runGenerateScope({ ...env, AI_PROVIDER_KEY: "k" }, draft, 0, fetchImpl, undefined, { privateSources: true });
+    expect(result).toMatchObject({ ok: true, text: "a summary" });
+    expect(JSON.stringify(calls[0])).toContain("the private source text");
+
+    const publicPublish = await apiJson(cookie, "POST", `/blyg/api/items/${draft.id}/publish`, { visibility: "public" });
+    expect(publicPublish.status).toBe(400);
+    expect(JSON.stringify(publicPublish.json)).toContain("private item");
+    expect((await getItem(env.DB, draft.id))!.version).toBe(0);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${draft.id}/publish`, { visibility: "private" })).status).toBe(200);
+  });
+
+  it("still publishes publicly when the sources are public", async () => {
+    const cookie = await login();
+    const source = await createAndPublish(cookie, "a public source");
+    const draft = await createDraft(env.DB, `[TK]summarize ![[${source}]][/TK]`);
+    expect(await runGenerateScope({ ...env, AI_PROVIDER_KEY: "k" }, draft, 0, fixture("fine").fetchImpl, undefined, { privateSources: true })).toMatchObject({ ok: true });
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${draft.id}/publish`, { visibility: "public" })).status).toBe(200);
+  });
+});

@@ -2380,10 +2380,15 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
   // which kind of version. Going public asks first, since it can't be undone.
   const notebook = settings?.defaultVisibility === 'private' && item.version === 0;
   const [visibility, setVisibility] = useState<'public' | 'private'>('private');
+  // Raising a private item names the public hoppers it will appear in (Aneesh, studio#175).
+  const publicHoppers = item.hoppers.filter((h) => h.public).map((h) => h.name);
+  const goPublic = async () => confirm({
+    title: `Make this item public? Anyone can read it once published, and it can never be private again.${publicHoppers.length ? ` It will also appear in the public ${publicHoppers.length === 1 ? 'hopper' : 'hoppers'} ${publicHoppers.join(', ')}.` : ''}`,
+    ok: 'make public',
+  });
   const addVersion = async () => {
     if (visibility === 'private') return keepPrivately();
-    const ok = await confirm({ title: 'Make this item public? Anyone can read it once published, and it can never be private again.', ok: 'make public' });
-    if (ok) publish('public');
+    if (await goPublic()) publish('public');
   };
   const focus = useFocusView(input, held.box, pane, setPane);
   const bars = useBars({
@@ -3117,7 +3122,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             id="publish-btn"
             variant="primary"
             disabled={action.busy}
-            onClick={() => publish()}
+            onClick={() => void (item.status === 'private' ? goPublic().then((ok) => { if (ok) publish(); }) : publish())}
           >
             {item.status === 'withdrawn' ? 'republish' : item.status === 'private' ? 'publish publicly' : 'publish'}
           </DesignButton>

@@ -91,7 +91,7 @@ Logs and exact-source manifests are kept in the audit evidence. No local run est
 
 ## Complete REST permission inventory
 
-`test/rest-permissions.oracle.test.ts` names all 49 operations in four independent capability groups. It checks all 16 scope subsets, including an empty injected access set. The contract supplies receiving paths, not expected permissions. An inventory equality assertion requires a model update when a route changes. Authorized requests must return a listed handler or validation result. A server error does not count as authorization success.
+`test/rest-permissions.oracle.test.ts` names all 95 operations in independent capability groups, one per scope plus `getCapabilities` for any authenticated caller. It checks all 64 subsets of the six scopes, including an empty injected access set. `owner:private` (the notebook: private items and their private versions) is its own group, and `owner:read` does not imply it; which private *items* a token sees is enforced per resource by the operation runner (`src/private-access.ts`) and tested in `test/private-notebook.test.ts`. The contract supplies receiving paths, not expected permissions. An inventory equality assertion requires a model update when a route changes. Authorized requests must return a listed handler or validation result. A server error does not count as authorization success.
 
 Every subset also checks the draft-plus-publish rule for response visibility. An adversarial registered write without scope metadata must return403 before its handler runs. The guard uses Hono's matched route templates and denies unclassified writes. Mutations remove that default denial and misclassify draft operations as private reads. Both must fail their named assertions.
 

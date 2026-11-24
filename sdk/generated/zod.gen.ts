@@ -935,6 +935,7 @@ export const zCreateAuthorizationBody = z.object({
     name: z.string().min(1).max(100),
     scope: z.array(z.enum([
         'owner:read',
+        'owner:private',
         'owner:draft',
         'owner:publish',
         'owner:manage',
@@ -1132,7 +1133,12 @@ export const zGetItemResponse = z.object({
     })),
     media: z.array(zMedia),
     publishedMedia: z.array(zMedia),
-    published: zVersion.nullable()
+    published: zVersion.nullable(),
+    hoppers: z.array(z.object({
+        id: z.string(),
+        name: z.string(),
+        public: z.boolean()
+    }))
 });
 
 export const zUpdateItemBody = z.object({
@@ -2363,6 +2369,7 @@ export const zSearchQuery = z.object({
 export const zSearchResponse = z.object({
     items: z.array(z.object({
         id: z.string(),
+        private: z.literal(true).optional(),
         excerpt: z.string(),
         label: z.string(),
         version: z.number(),

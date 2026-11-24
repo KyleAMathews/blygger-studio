@@ -1,3 +1,4 @@
+import { PRIVATE_SCOPE, seesPrivate } from './private-access.ts';
 import { retainedMediaSql } from './media-retention.ts';
 import { httpsUrl, listSyndication, refuseSyndication, replaceSyndication, type SyndicationEntry } from './syndication.ts';
 import { assertCurrentRevision, assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
@@ -350,6 +351,9 @@ const publishItemOperation = async (context: OperationContext, input: OperationI
   const visibility = body.visibility ?? (item.version === 0 ? settings.default_visibility : "public");
   if (visibility === "private") {
     if (item.version > 0) return failure('conflict', { error: "a published item can't be made private; withdraw it instead" });
+    // The default can make a publish private without the body saying so; the
+    // token must still hold the scope that would let it see the result.
+    if (!seesPrivate(context.access)) return failure('forbidden', { error: 'insufficient scope' }, ['owner:publish', PRIVATE_SCOPE]);
     const privateVersion = await publishPrivately(context.env.DB, item, note, siteOrigin(settings, context.url, normalizeMount(context.env.MOUNT)));
     return success({ ok: true, version: 0, privateVersion, revision: item.revision + 1 });
   }
@@ -611,7 +615,7 @@ const generateItemOperation = async (context: OperationContext, input: Operation
   const body = (input.body as { scope: number; proceed?: boolean });
 
   const origin = siteOrigin(await getSettings(context.env.DB), context.url, normalizeMount(context.env.MOUNT));
-  const result = await runGenerateScope(context.env, item, body.scope, undefined, origin, { proceed: body.proceed === true });
+  const result = await runGenerateScope(context.env, item, body.scope, undefined, origin, { proceed: body.proceed === true, privateSources: seesPrivate(context.access) });
   // Links that could not be read are the author's call, not an error (decision #117): nothing was generated or saved.
   if (!result.ok && result.checkpoint) return success({ checkpoint: result.checkpoint });
   if (!result.ok) return modelFailure(result.body, result.status as 400 | 404 | 502);

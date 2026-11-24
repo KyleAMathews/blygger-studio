@@ -123,7 +123,9 @@ it('keeps all four maximum-size owner/delegated read batches below the Free bind
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error('Read batch failed');
     expect((result.value as { status: number }[]).map(row => row.status)).toEqual(Array(50).fill(200));
-    expect(meter.calls.length).toBeLessThanOrEqual(delegated ? 7 : 5);
+    // A delegated read spends one more packed call: the owner:private guard's status lookup
+    // (private-access.ts), which the packer batches across all 50 requests.
+    expect(meter.calls.length).toBeLessThanOrEqual(delegated ? 8 : 5);
     const budget = (await env.DB.prepare('SELECT used FROM security_budgets').all<{ used: number }>()).results;
     expect(budget.map(row => row.used)).toEqual(Array(delegated ? 2 : 1).fill(51));
     expect(meter.calls.flat().filter(sql => sql.startsWith('INSERT INTO security_budgets'))).toHaveLength(delegated ? 102 : 51);
