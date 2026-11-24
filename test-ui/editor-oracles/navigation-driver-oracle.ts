@@ -1,4 +1,6 @@
 /** Real formatted editor, controlled save delivery, and explicit unload choice. */
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { applicationDriver, deferred, hostEvent } from './application-driver-oracle.ts';
 import { openNavigationCard } from './navigation-acquisition-oracle.ts';
 import { captureBrowserCalls, captureBrowserPacket, type BrowserPacket } from './browser-driver-oracle.ts';
@@ -165,7 +167,8 @@ export async function navigationDriver(p: ReturnType<typeof navigationPlan>, obs
         if (rejectedDeparture) {
           // Completion is the actual departure save's settlement, not its
           // expected banner: a settled silent rejection must reach the check.
-          observe('departureSave', await hostEvent(departureSettled.promise, 'compose Draft.save settlement'));
+          const departureSave = await hostEvent(departureSettled.promise, 'compose Draft.save settlement');
+          observe('departureSave', { phase: departureSave.phase });
           const paneCommits: string[] = [];
           for (const pane of ['preview', 'draft']) {
             // Desktop hides this real control. Check the actual editor and
@@ -196,12 +199,22 @@ export async function navigationDriver(p: ReturnType<typeof navigationPlan>, obs
             paneCommits.push(receipt.pane);
           }
           observe('failurePaneCommits', paneCommits);
-          observe('saveReceipts', saveReceipts.map(receipt => ({ ...receipt })));
           const errorShown = await page.locator('#error-banner-slot [role=alert]').isVisible();
           const failedStored = await stored();
           const failed = await editorSnapshot();
           observe('failed', { ...failed, stored: failedStored, errorShown });
-          observe('failedRequests', rejectedRequests.map(request => ({ ...request })));
+          observe('failedRequests', {
+            received: rejectedRequests.length > 0,
+            methods: [...new Set(rejectedRequests.map(request => request.method))].sort(),
+            statuses: [...new Set(rejectedRequests.map(request => request.status))].sort((a, b) => a - b),
+          });
+          // An earlier autosave can reach the same rejection gate. Retain the
+          // complete receipts without treating their timing as a product result.
+          const evidence = process.env.FORMATTING_ORACLE_RECEIVING_EVIDENCE;
+          if (evidence) {
+            const directory = mkdtempSync(join(evidence, 'navigation-'));
+            writeFileSync(join(directory, 'save.json'), JSON.stringify({ history: p.h, departureSave, saveReceipts, rejectedRequests }) + '\n', { flag: 'wx' });
+          }
           if (failed.inEditor) {
             // The actual retry click ends the failed-attempt observation window.
             // No test-only save or replacement response supplies success.
