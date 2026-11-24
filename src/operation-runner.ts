@@ -52,7 +52,8 @@ async function executeOperation(definition: OperationDefinition, input: Operatio
     return failure('not-found', { error: 'not found' });
   }
   // Adding answers as for an unknown item; removing is idempotent, so its handler answers as for a non-member.
-  if (route.method !== 'delete' && input.path.sub === OWN_SUBSCRIPTION && input.path.remoteId && await privateItemHidden(context.env.DB, context.access, input.path.remoteId)) {
+  // addHopperItem decides in its handler, after the hopper check, so both answers match an unknown id's (R12).
+  if (route.method !== 'delete' && route.operationId !== 'addHopperItem' && input.path.sub === OWN_SUBSCRIPTION && input.path.remoteId && await privateItemHidden(context.env.DB, context.access, input.path.remoteId)) {
     return failure('not-found', { error: 'item not found' });
   }
   return handler(context, input);

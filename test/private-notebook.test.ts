@@ -1,7 +1,7 @@
 // Private items 0c–0e and the hopper fix (sealed-content-build-plan §1; laws approved by
 // Venkat, session 83): owner:private, private generation sources, the owner's search, and
 // private hopper members. The public routes' half of "no leak" is private-surface.test.ts.
-import { env } from "cloudflare:test";
+import { SELF, env } from "cloudflare:test";
 import { Hono } from "hono";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
@@ -14,7 +14,7 @@ import { runGenerateScope } from "../src/tk-generate.ts";
 import { operationDefinitions } from "../src/operations.ts";
 import { runOperation } from "../src/operation-runner.ts";
 import type { OperationContext } from "../src/operation-types.ts";
-import { apiJson, createAndPublish, getPublic, login, testRevisionBody } from "./helpers.ts";
+import { BASE, apiJson, createAndPublish, getPublic, login, testRevisionBody } from "./helpers.ts";
 
 const MARK = "notebookmark";
 const WITHOUT = ["owner:read", "owner:draft", "owner:publish", "owner:manage", "reading:state"];
@@ -261,6 +261,43 @@ describe("a restricted hopper cursor follows the notebook (R11)", () => {
     expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { aiStylePrompt: `unrelated ${Date.now()}` })).status).toBe(200);
     const next = await without("GET", `/hoppers/${hopper}/memberships?limit=1&cursor=${encodeURIComponent(first.json.page.nextCursor)}`);
     expect(next.status).toBe(200);
+  });
+});
+
+describe("hidden answers equal unknown ones, and MCP challenges a default-private publish (R12)", () => {
+  it("answers a hopper add for a private item as for an unknown one, also when the hopper is missing", async () => {
+    const cookie = await login();
+    const hidden = await privateItem(cookie);
+    const without = tokenApi(WITHOUT);
+    const unknownItem = "zzzzzzzzzzzzzzzzzzzzzzzzzz", missingHopper = "yyyyyyyyyyyyyyyyyyyyyyyyyy";
+    expect(await without("PUT", `/hoppers/${missingHopper}/items/~own/${hidden}`)).toEqual(await without("PUT", `/hoppers/${missingHopper}/items/~own/${unknownItem}`));
+    const hopper = (await apiJson(cookie, "POST", "/blyg/api/hoppers", { name: `equal ${Date.now()}` })).json.id as string;
+    expect(await without("PUT", `/hoppers/${hopper}/items/~own/${hidden}`)).toEqual(await without("PUT", `/hoppers/${hopper}/items/~own/${unknownItem}`));
+  });
+
+  it("challenges for owner:private before an MCP publish that the default makes private", async () => {
+    const cookie = await login();
+    const minted = await apiJson(cookie, "POST", "/blyg/api/authorizations", { name: "notebook mcp", scope: ["owner:read", "owner:draft", "owner:publish"], resource: "mcp" });
+    expect(minted.status).toBeLessThan(300);
+    const draft = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `mcp default ${MARK}`, kind: "fragment" })).json.id as string;
+    const call = async (body: Record<string, unknown>) => SELF.fetch(`${BASE}/blyg/studio/mcp`, { method: "POST", headers: {
+      Authorization: `Bearer ${minted.json.accessToken}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream",
+      "mcp-protocol-version": "2026-07-28", "mcp-method": "tools/call", "mcp-name": "publishItem",
+    }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "publishItem", arguments: { path: { id: draft }, body: await testRevisionBody("POST", `/blyg/api/items/${draft}/publish`, body) },
+      _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {} } } }) });
+    try {
+      await putSettings(env.DB, { default_visibility: "private" });
+      for (const body of [{}, { visibility: "private" }]) {
+        const response = await call(body);
+        await response.arrayBuffer();
+        expect(response.status, JSON.stringify(body)).toBe(403);
+        expect(response.headers.get("www-authenticate")).toContain('error="insufficient_scope"');
+        expect(response.headers.get("www-authenticate")).toContain("owner:private");
+      }
+      expect((await getItem(env.DB, draft))!.status).toBe("draft");
+    } finally {
+      await putSettings(env.DB, { default_visibility: "public" });
+    }
   });
 });
 
