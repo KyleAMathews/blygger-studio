@@ -45,10 +45,11 @@ if (studioShard !== undefined) {
   const loader = pathToFileURL(resolve('node_modules/@tanstack/oracles/oracle-gaps/authored.mjs'));
   const { loadAuthored } = await import(loader.href) as { loadAuthored(directory: string): Array<{ id: string; source: string }> };
   const controls = loadAuthored(resolve(studioMutants));
-  if (controls.some(control => !allSources.includes(control.source))) throw new Error('A Studio control is outside the source roster');
+  // Studio can judge authored controls whose sources have no operator campaign.
+  const selectedControls = controls.filter(control => pagination.has(control.source) === (studioShard === '1'));
   studioMutants = join(output, 'authored-controls');
   mkdirSync(studioMutants);
-  writeFileSync(join(studioMutants, 'shard.json'), JSON.stringify(controls.filter(control => assigned.has(control.source))));
+  writeFileSync(join(studioMutants, 'shard.json'), JSON.stringify(selectedControls));
 }
 const child = spawn(process.execPath, [resolve('node_modules/@tanstack/oracles/oracle-gaps/index.mjs'),
   '--package', '.', '--source', source, '--config', config,
