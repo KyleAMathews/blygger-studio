@@ -95,7 +95,7 @@ export interface DraftCounterContext extends StudioContext {
   item?: {
     id: string;
     kind: 'fragment' | 'thread';
-    status: 'draft' | 'public' | 'withdrawn';
+    status: 'draft' | 'public' | 'private' | 'withdrawn';
     version: number;
     /** Moves each time the working copy reaches the server, so autosave is what a slot re-reads on. */
     revision: number;

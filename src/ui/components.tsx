@@ -299,7 +299,11 @@ export function Layout({ children }: { children: ReactNode }) {
   useGeneratedHighlight(settings?.highlightGeneratedDefault);
   const update = useUpdateState();
   const path = relativePath(useLocation({ select: (l) => l.pathname }));
-  const active = tabFor(path);
+  // In Notebook mode, private (just above compose) is the reader on the private source.
+  const privateSource = useLocation({ select: (l) => (l.search as { sub?: string }).sub === 'private' });
+  const privateActive = path.replace(/\/+$/, '') === '/reading' && privateSource;
+  const notebook = settings?.defaultVisibility === 'private';
+  const active = privateActive ? null : tabFor(path);
   const [chrome, setChrome] = useState<ChromeOptions>({});
   const showTabs = chrome.tabs ?? true;
   const framed = chrome.framed ?? true;
@@ -429,6 +433,21 @@ export function Layout({ children }: { children: ReactNode }) {
           {tabs.flatMap((tab) => [
             // The Studio's spot for visible extension pages: just above compose.
             ...(tab.label === 'compose' ? menu.visible.map(extensionTab) : []),
+            ...(tab.label === 'compose' && notebook
+              ? [
+                  <Link
+                    key="private"
+                    to="/reading"
+                    search={{ sub: 'private' }}
+                    className={privateActive ? 'tab is-active' : 'tab'}
+                    aria-current={privateActive ? 'page' : undefined}
+                    data-tab="private"
+                  >
+                    <span className="ti" aria-hidden="true">◇</span>
+                    <span className="tl">private</span>
+                  </Link>,
+                ]
+              : []),
             <Link
               key={tab.label}
               to={tab.to}

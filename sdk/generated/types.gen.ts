@@ -62,7 +62,7 @@ export type Item = {
     id: string;
     revision: number;
     kind: 'fragment' | 'thread';
-    status: 'draft' | 'public' | 'withdrawn';
+    status: 'draft' | 'public' | 'private' | 'withdrawn';
     created: string;
     updated: string;
     version: number;
@@ -219,6 +219,10 @@ export type Settings = {
     autoChangeNotes: boolean;
     pickerTyping: 'auto' | 'editor' | 'panel';
     /**
+     * What a publish that names no visibility does to an item that was never public. private: a private notebook that shares deliberately; going public then needs visibility: "public".
+     */
+    defaultVisibility: 'public' | 'private';
+    /**
      * The public home page order: an id from feedOrders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>.
      */
     feedOrder: string;
@@ -297,6 +301,10 @@ export type Settings = {
     }>;
     updateFeedUrl: string;
     updateNoticeAck: boolean;
+    /**
+     * What's new: the newest studio release whose walk-through the owner has finished or dismissed, as 0.72.0; empty until setup first finishes. Settings and highlights from later releases are offered once after an upgrade.
+     */
+    setupSeenVersion: string;
     /**
      * Discover: the listing date of the newest blygger.com listing the owner has been shown, ISO; empty until Discover is first opened. Listings after it are new.
      */
@@ -501,6 +509,10 @@ export type ReadingEntry = {
         withdrawn: boolean;
         updated: string;
         contentHtml: string;
+        /**
+         * Published privately: this is the latest private version, which no public route serves.
+         */
+        private?: true;
     };
     imported?: {
         subscriptionId: string;
@@ -747,6 +759,21 @@ export type ChangeClass = {
     probability: number | null;
     classifiedAt: string;
     overridden: boolean;
+};
+
+export type PrivateVersion = {
+    itemId: string;
+    /**
+     * The private counter: shown as p1, p2, …; never a public version number.
+     */
+    version: number;
+    contentMd: string;
+    /**
+     * Rendered for the owner's reader: `[[id]]` links that resolve are anchors, anything else stays as typed.
+     */
+    contentHtml: string;
+    publishedAt: string;
+    note: string | null;
 };
 
 export type ImportedItem = {
@@ -1545,7 +1572,7 @@ export type ListItemsData = {
          */
         cursor?: string;
         limit?: number;
-        status?: 'draft' | 'public' | 'withdrawn';
+        status?: 'draft' | 'public' | 'private' | 'withdrawn';
         dirty?: 'true' | 'false';
         version?: number | null;
         id?: string;
@@ -1867,7 +1894,7 @@ export type GetItemResponses = {
         id: string;
         revision: number;
         kind: 'fragment' | 'thread';
-        status: 'draft' | 'public' | 'withdrawn';
+        status: 'draft' | 'public' | 'private' | 'withdrawn';
         created: string;
         updated: string;
         version: number;
@@ -1987,6 +2014,10 @@ export type PublishItemData = {
         expectedRevision: number;
         note?: string;
         /**
+         * `private` keeps a private version that no public route serves; the item's status becomes `private`. Only an item that has never gone public can do this. Omitted or `public`: an ordinary publish, which raises a private item to public as v1.
+         */
+        visibility?: 'public' | 'private';
+        /**
          * Confirms publishing the new items a thread's `![[+ text]]` spans make. Without it, a working copy with spans gets 409 tangle-confirmation-required, listing them in details.parts and their number in details.count, and nothing is written.
          */
         tangle?: boolean;
@@ -2064,6 +2095,10 @@ export type PublishItemResponses = {
         ok: boolean;
         revision: number;
         version: number;
+        /**
+         * A private publish's private version number. `version` stays the public counter, 0 until the item first goes public.
+         */
+        privateVersion?: number;
         warning?: string;
         /**
          * @words that name no contact. They stay literal text.
@@ -3160,6 +3195,10 @@ export type UpdateSettingsData = {
         autoChangeNotes?: boolean;
         pickerTyping?: 'auto' | 'editor' | 'panel';
         /**
+         * What a publish that names no visibility does to an item that was never public. private: a private notebook that shares deliberately; going public then needs visibility: "public".
+         */
+        defaultVisibility?: 'public' | 'private';
+        /**
          * The public home page order: an id from feedOrders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>.
          */
         feedOrder?: string;
@@ -3224,6 +3263,10 @@ export type UpdateSettingsData = {
         setup?: 'pending' | 'notice' | 'done';
         updateFeedUrl?: string;
         updateNoticeAck?: boolean;
+        /**
+         * What's new: the newest studio release whose walk-through the owner has finished or dismissed, as 0.72.0; empty until setup first finishes. Settings and highlights from later releases are offered once after an upgrade.
+         */
+        setupSeenVersion?: string;
         /**
          * Discover: the listing date of the newest blygger.com listing the owner has been shown, ISO; empty until Discover is first opened. Listings after it are new.
          */
@@ -6282,6 +6325,95 @@ export type ListItemVersionsResponses = {
 
 export type ListItemVersionsResponse = ListItemVersionsResponses[keyof ListItemVersionsResponses];
 
+export type ListPrivateVersionsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path: {
+        id: string;
+    };
+    query?: {
+        /**
+         * The opaque nextCursor from the preceding page of this collection, filters, and order.
+         */
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/items/{id}/private-versions';
+};
+
+export type ListPrivateVersionsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListPrivateVersionsError = ListPrivateVersionsErrors[keyof ListPrivateVersionsErrors];
+
+export type ListPrivateVersionsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        items: Array<PrivateVersion>;
+        page: {
+            limit: number;
+            nextCursor: string | null;
+        };
+    };
+};
+
+export type ListPrivateVersionsResponse = ListPrivateVersionsResponses[keyof ListPrivateVersionsResponses];
+
 export type ListHopperMembershipsData = {
     body?: never;
     headers?: {
@@ -7399,6 +7531,9 @@ export type GetReadingSummaryData = {
     };
     path?: never;
     query?: {
+        /**
+         * all, own (your blyg), private (your private items only), or a subscription id.
+         */
         sub?: string;
         /**
          * Imported Reading entries held in this hopper, ordered by membership time.
@@ -7483,6 +7618,10 @@ export type GetReadingSummaryResponses = {
         counts: {
             all: number;
             own: number;
+            /**
+             * Own items that are private, the `private` source.
+             */
+            private: number;
             subscriptions: {
                 [key: string]: number;
             };
@@ -7508,6 +7647,9 @@ export type ListReadingData = {
          */
         cursor?: string;
         limit?: number;
+        /**
+         * all, own (your blyg), private (your private items only), or a subscription id.
+         */
         sub?: string;
         /**
          * Imported Reading entries held in this hopper, ordered by membership time.

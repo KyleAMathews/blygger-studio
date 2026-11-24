@@ -112,7 +112,7 @@ async function driver(plan: Plan, observe: Observe) {
   });
 }
 oracleProperty({
-  id: 'draft-authority-security', owns: ['src/owner-api.ts#createOwnerApi'],
+  id: 'draft-authority-security', owns: ['src/owner-api.ts#createOwnerApi', 'src/model.ts#discardDraft'],
   law: { statement: 'For every bounded draft-only action history, published item bytes remain unchanged and deletion refuses published authority, including when owner publication occurs after its stale read.', authority: 'Decision #52; docs/auth-security-oracles.md Permission-class follow-up; OWASP authorization at point of use', limits: 'Original edit/restore/delete sequence and one controlled upload/delete/publication schedule with injected draft authority; not every publication race.' },
   histories, label: plan => plan.name, model, driver: (plan, observe) => completed(observe, () => driver(plan, observe)),
   check: (_plan, trace, expected) => exactTrace(trace, expected, 'draft publication boundary'),

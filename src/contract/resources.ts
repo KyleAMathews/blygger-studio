@@ -25,7 +25,7 @@ export const ItemSchema = z.object({
   id: z.string(),
   revision: ItemRevisionSchema,
   kind: z.enum(["fragment", "thread"]),
-  status: z.enum(["draft", "public", "withdrawn"]),
+  status: z.enum(["draft", "public", "private", "withdrawn"]),
   created: z.string(),
   updated: z.string(),
   version: z.number(),
@@ -57,6 +57,17 @@ export const VersionSchema = z.object({
   generated: z.array(ProvenanceSchema),
   changeClass: z.union([ChangeClassSchema, z.null()]).optional(),
 }).openapi("Version");
+
+// A private version (decision #94): studio history, numbered apart from the
+// public counter and read by the owner only. No public route serves one.
+export const PrivateVersionSchema = z.object({
+  itemId: z.string(),
+  version: z.number().describe("The private counter: shown as p1, p2, …; never a public version number."),
+  contentMd: z.string(),
+  contentHtml: z.string().describe("Rendered for the owner's reader: `[[id]]` links that resolve are anchors, anything else stays as typed."),
+  publishedAt: z.string(),
+  note: z.string().nullable(),
+}).openapi("PrivateVersion");
 
 export const MediaSchema = z.object({
   id: z.string(),

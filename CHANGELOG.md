@@ -20,6 +20,64 @@ not have its own repo until session 26.
 
 ## Unreleased
 
+- **Private items** (blygger-spec `docs/sealed-content-build-plan.md` §1, 0a and 0b;
+  decision #94). An item that has never gone public can be **published privately**:
+  `POST /items/{id}/publish` with `visibility: "private"` keeps a private version
+  (`privateVersion` in the response) and sets the status to `private`. No public route
+  serves or lists it: every public route now asks one question, *served publicly*
+  (status public or withdrawn), instead of refusing drafts. An ordinary publish raises it
+  to public as **v1**; private notes and private versions never reach the changelog. A
+  public item can't be made private (409); withdrawal stays its only exit. Publishing
+  anything that names a private item by `[[id]]` or `![[id]]` is refused ("item is
+  private"). Media that only private versions showed stays private. In the editor:
+  *publish privately* in the ⋯ menu, a private item's button reads *publish publicly*.
+  Private contract **6.4.0** (`status` gains `private`). New oracles
+  `private-items-public-surface`, `private-items-raise-to-public`,
+  `private-items-publish-block`; the media-visibility law now says media becomes public
+  when it is published publicly. Migration `0059_private_versions.sql`.
+- **A blyg can be a private notebook: Publish mode and Notebook mode.** Settings → *mode*:
+  **Publish mode** (public by default, unchanged) or **Notebook mode** (private by default).
+  In Notebook mode, a publish that names no `visibility` adds a
+  private version to any item that has never been public, so a tool or agent makes an item
+  public only by sending `visibility: "public"`; an item already public still publishes
+  publicly. The editor shows one **add version** button with a private/public choice, and
+  asks before making an item public. **Reading → my blyg** now lists private items too,
+  marked private, at their latest private version (rendered for the owner only; `[[id]]`
+  links that resolve are links, anything else stays as typed). Setting `defaultVisibility`;
+  reading entries' `own.private`. New oracles `private-items-default-visibility` and
+  `private-items-owner-reader`.
+- **Private history.** An item's history panel lists its private versions as **p1, p2, …**
+  with their notes, each viewable, apart from the public v1, v2, …; they stay listed after
+  the item goes public, as studio history. `GET /items/{id}/private-versions` (owner read,
+  newest first). Discarding an item that was never public removes its private versions with
+  it. A private publish that races an edit or a public publish is refused (409) and adds
+  nothing. Publishing a working copy that names a draft or withdrawn item is refused like
+  one naming a private item (unchanged behaviour, now an oracle). New oracles
+  `private-items-private-history` and `private-items-private-conflict`.
+- **Notebook mode gets its own place to read.** In Notebook mode a **private** tab sits just
+  above *compose*: the reader on the new `private` source, your private items only
+  (`GET /reading?sub=private`; the summary's `counts.private`). A private item's editor links to
+  its **reader view** where a public item links to its public page. Reader cards for private
+  items are marked *private* and offer no public link or stub, which they wrongly did in the
+  owner's reader before.
+- **Setup covers the newer settings, and ends with blygs to read.** The walk-through gains a
+  **Mode** step (Publish or Notebook mode) and a **Reading** step (reader order, when an
+  entry counts as read, the reader's changelog display, the Agentic feed's name); *Look*
+  gains the studio theme and the item pages' changelog display, *Writing and AI* the
+  text-helpers model and the change classifier, *Others* collection feeds. A text-helpers
+  model chosen in setup was not saved before; it is now. The links menu, front page and
+  Background rules stay in Settings. After *Review* saves, a last step, **Read**, opens
+  Discover. Discover now says **who writes each blyg** and which client publishes it, from
+  blygger.com's `blygs.json` (`author`, `generatorUrl`; listings without them show as
+  before).
+- **What's new after an upgrade.** The setup walk-through doubles as the post-upgrade cue.
+  Setting `setupSeenVersion` is the newest release whose setup you finished or dismissed;
+  after an upgrade, a banner lists the new release's highlights once, and *review the new
+  settings* walks only the steps with settings added since, each marked new
+  (`/setup?new=1`). Nodes already past setup start at 0.71.0, so this release's additions
+  are offered on upgrade. For release authors: `HIGHLIGHTS` and `SINCE` in
+  `src/ui/whats-new.ts`. Migration `0060_setup_seen_version.sql`.
+
 ## 0.71.0 — Quotes read lines as the spec defines them; Reading rebuilds less; editor formatting fixes; picker sources
 
 **Text content is defined** (blygger-spec decision #118, spec 0.4 §2, twenty-third revision).

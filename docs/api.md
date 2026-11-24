@@ -178,7 +178,7 @@ Consult `openapi.json` for every field and response.
 | Resource | Read | Write |
 | --- | --- | --- |
 | Items | `GET /items`, `GET /items/{id}` | `POST /items`, `PATCH /items/{id}`, `DELETE /items/{id}` |
-| Versions | `GET /items/{id}/versions`, `GET /items/{id}/versions/{v}` | `PUT /items/{id}/versions/{version}/pin` |
+| Versions | `GET /items/{id}/versions`, `GET /items/{id}/versions/{v}`, `GET /items/{id}/private-versions` (private versions, p1, p2, …, newest first) | `PUT /items/{id}/versions/{version}/pin` |
 | Subscriptions | `GET /subscriptions`, `GET /subscriptions/{id}` | `POST /subscriptions`, `PATCH /subscriptions/{id}`, `DELETE /subscriptions/{id}` |
 | Hoppers | `GET /hoppers`, `GET /hoppers/{id}` | `POST /hoppers`, `PATCH /hoppers/{id}`, `DELETE /hoppers/{id}` |
 | Hopper membership | `GET /hoppers/{id}/memberships` | `PUT` or `DELETE /hoppers/{id}/items/{sub}/{remoteId}` |
@@ -195,6 +195,7 @@ Consult `openapi.json` for every field and response.
 Publication, withdrawal, restoration, and generation remain explicit operations:
 
 - `POST /items/{id}/publish` and `POST /items/{id}/withdraw` accept an optional publication note.
+- `POST /items/{id}/publish` with `visibility: "private"` publishes privately: a private version (`privateVersion` counts them), status `private`, and nothing on any public route. Only an item that has never gone public can; a public one gets 409. The item's `version` stays 0 until an ordinary publish raises it to public as v1, and private versions and their notes never reach the changelog. Publishing a working copy that names a private item by `[[id]]` or `![[id]]` is refused like any unresolved reference ("item is private"). With the setting `defaultVisibility: "private"`, a publish that names no visibility is a private publish for an item that has never been public; send `visibility: "public"` to take it public. `GET /reading?sub=own` lists private items with `own.private: true`, showing the latest private version.
 - Empty publications, including media-only versions, retain their authored kind and support pinning, restoration, and forking. Withdrawal endcaps reject pinning and restoration. Ambiguous historical empty versions keep their legacy interpretation after upgrade.
 - `POST /items/{id}/restore` copies a stored version's text and attachment membership into the working copy. It does not publish. Restoring the current version discards attachment additions and restores detached attachments; historical version memberships and retained bytes stay intact.
 - `POST /items/{id}/generate` generates one TK scope.
@@ -552,6 +553,7 @@ first page retries once before returning cursor-expired.
 | --- | --- |
 | Items | updated DESC, id DESC |
 | Item versions | version DESC within the item |
+| Private versions | version DESC within the item |
 | Subscriptions and hoppers | created ASC, id ASC |
 | Hopper memberships | addedAt DESC, subscriptionId ASC, remoteId ASC |
 | Signals and thumbs | at DESC, subscriptionId ASC, remoteId ASC |

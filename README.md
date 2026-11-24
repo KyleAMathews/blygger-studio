@@ -426,6 +426,9 @@ and then publishes the downloads at that tag. Merges to `main` do not release.
 Before tagging, bump `package.json`, the root versions in `package-lock.json`,
 and `CLIENT.version` in `src/client.ts`. Add a matching changelog entry with a
 **Migrations:** line. Bump `sdk/package.json` when its public API changes.
+If the release brings something an owner should hear about, add its lines to
+`HIGHLIGHTS` in `src/ui/whats-new.ts`, and tag any setting it adds to the setup
+walk-through in `SINCE`: upgraded studios show them once, as a banner.
 Release CI rejects a tag that does not match `package.json`, or a version that
 is not newer than existing release tags.
 

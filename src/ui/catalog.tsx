@@ -416,7 +416,7 @@ export function HopperPage({ id }: { id: string }) {
                 <p className="byline">
                   {own ? <span className="badge">{own.kind}</span> : null}
                   <span className="src">
-                    {!own ? 'deleted' : own.status === 'public' ? 'yours' : own.status === 'draft' ? 'your draft, not shown publicly' : 'yours, withdrawn'}
+                    {!own ? 'deleted' : own.status === 'public' ? 'yours' : own.status === 'draft' ? 'your draft, not shown publicly' : own.status === 'private' ? 'yours, private' : 'yours, withdrawn'}
                   </span>
                   <span>· added {added(member.addedAt)}</span>
                 </p>

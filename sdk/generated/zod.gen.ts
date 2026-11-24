@@ -111,6 +111,7 @@ export const zItem = z.object({
     status: z.enum([
         'draft',
         'public',
+        'private',
         'withdrawn'
     ]),
     created: z.string(),
@@ -227,6 +228,7 @@ export const zSettings = z.object({
         'editor',
         'panel'
     ]),
+    defaultVisibility: z.enum(['public', 'private']),
     feedOrder: z.string(),
     frontPage: z.string(),
     postsPath: z.string(),
@@ -261,6 +263,7 @@ export const zSettings = z.object({
     })).optional(),
     updateFeedUrl: z.string(),
     updateNoticeAck: z.boolean(),
+    setupSeenVersion: z.string(),
     discoverSeenAt: z.string(),
     extensions: z.array(z.string())
 });
@@ -365,7 +368,8 @@ export const zReadingEntry = z.object({
         kind: z.enum(['fragment', 'thread']),
         withdrawn: z.boolean(),
         updated: z.string(),
-        contentHtml: z.string()
+        contentHtml: z.string(),
+        private: z.literal(true).optional()
     }).optional(),
     imported: z.object({
         subscriptionId: z.string(),
@@ -559,6 +563,15 @@ export const zVersion = z.object({
     noteGenerated: z.boolean(),
     generated: z.array(zGenerationProvenance),
     changeClass: zChangeClass.nullish()
+});
+
+export const zPrivateVersion = z.object({
+    itemId: z.string(),
+    version: z.number(),
+    contentMd: z.string(),
+    contentHtml: z.string(),
+    publishedAt: z.string(),
+    note: z.string().nullable()
 });
 
 export const zImportedItem = z.object({
@@ -993,6 +1006,7 @@ export const zListItemsQuery = z.object({
     status: z.enum([
         'draft',
         'public',
+        'private',
         'withdrawn'
     ]).optional(),
     dirty: z.enum(['true', 'false']).optional(),
@@ -1084,6 +1098,7 @@ export const zGetItemResponse = z.object({
     status: z.enum([
         'draft',
         'public',
+        'private',
         'withdrawn'
     ]),
     created: z.string(),
@@ -1156,6 +1171,7 @@ export const zUpdateItemResponse = zItem;
 export const zPublishItemBody = z.object({
     expectedRevision: z.int().gt(0).lte(9007199254740991),
     note: z.string().optional(),
+    visibility: z.enum(['public', 'private']).optional(),
     tangle: z.boolean().optional(),
     noteGenerated: z.boolean().optional(),
     changeCategory: z.enum([
@@ -1177,6 +1193,7 @@ export const zPublishItemResponse = z.object({
     ok: z.boolean(),
     revision: z.int().gt(0).lte(9007199254740991),
     version: z.number(),
+    privateVersion: z.int().gt(0).optional(),
     warning: z.string().optional(),
     unresolvedHandles: z.array(z.string()).optional(),
     parts: z.array(z.object({
@@ -1482,6 +1499,7 @@ export const zUpdateSettingsBody = z.object({
         'editor',
         'panel'
     ]).optional(),
+    defaultVisibility: z.enum(['public', 'private']).optional(),
     feedOrder: z.string().optional(),
     frontPage: z.string().optional(),
     postsPath: z.string().optional(),
@@ -1510,6 +1528,7 @@ export const zUpdateSettingsBody = z.object({
     ]).optional(),
     updateFeedUrl: z.string().optional(),
     updateNoticeAck: z.boolean().optional(),
+    setupSeenVersion: z.string().optional(),
     discoverSeenAt: z.string().optional(),
     extensions: z.array(z.string()).optional()
 }).strict();
@@ -2066,6 +2085,30 @@ export const zListItemVersionsResponse = z.object({
     })
 });
 
+export const zListPrivateVersionsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+export const zListPrivateVersionsPath = z.object({
+    id: z.string().min(1)
+});
+
+export const zListPrivateVersionsQuery = z.object({
+    cursor: z.string().min(1).max(8192).optional(),
+    limit: z.int().gte(1).lte(100).optional()
+});
+
+/**
+ * Success
+ */
+export const zListPrivateVersionsResponse = z.object({
+    items: z.array(zPrivateVersion),
+    page: z.object({
+        limit: z.int().gt(0),
+        nextCursor: z.string().nullable()
+    })
+});
+
 export const zListHopperMembershipsHeaders = z.object({
     'if-none-match': z.string().optional()
 });
@@ -2372,6 +2415,7 @@ export const zGetReadingSummaryResponse = z.object({
     counts: z.object({
         all: z.number(),
         own: z.number(),
+        private: z.number(),
         subscriptions: z.record(z.string(), z.number())
     }),
     selected: z.string()

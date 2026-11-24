@@ -48,6 +48,7 @@ const fields = [
   "siteUrl",
   'timezone',
   "pickerTyping",
+  "defaultVisibility",
   "feedOrder",
   "frontPage",
   "postsPath",
@@ -380,6 +381,27 @@ function SettingsForm({ initial }: { initial: Settings }) {
           ))}
         </div>
       </section>
+      <section className="card" id="mode">
+        <h3 className="card-h">mode</h3>
+        <div className="field" role="radiogroup" aria-labelledby="default_visibility-label">
+          <span id="default_visibility-label">When you add a version of an item that has never been public, it is</span>
+          {MODE_OPTIONS.map(([value, label, hint]) => (
+            <label className="check" key={value}>
+              <input
+                type="radio"
+                name="defaultVisibility"
+                value={value}
+                checked={form.defaultVisibility === value}
+                onChange={() => change("defaultVisibility", value)}
+              />
+              <span>
+                {label} <span className="hint">{hint}</span>
+              </span>
+            </label>
+          ))}
+          <p className="hint">Tools and agents follow this too: in Notebook mode they make an item public only by asking for it.</p>
+        </div>
+      </section>
       <section className="card" id="dictionary-card">
         <h3 className="card-h">dictionary</h3>
         <DictionaryCard />
@@ -459,13 +481,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
         ).map(([key, legend, id]) => (
           <div className="field" role="radiogroup" aria-labelledby={`${id}-label`} key={key}>
             <span id={`${id}-label`}>{legend}</span>
-            {(
-              [
-                ['latest', 'The latest note', 'the note for the current version, as before'],
-                ['history', 'The full history', 'every version\u2019s note, newest first'],
-                ['summary', 'An AI summary', 'written from the notes by the change-notes model; uses tokens'],
-              ] as const
-            ).map(([value, label, hint]) => (
+            {CHANGELOG_DISPLAY_OPTIONS.map(([value, label, hint]) => (
               <label className="check" key={value}>
                 <input
                   type="radio"
@@ -494,12 +510,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
         <h3 className="card-h">reader order</h3>
         <div className="field" role="radiogroup" aria-labelledby="reader-order-label">
           <span id="reader-order-label">Order what you read</span>
-          {(
-            [
-              ['newest', 'Newest first', 'by when each item or version arrived'],
-              ['pace-layered', 'Pace-layered', 'the home page’s order over everything you read: new items arrive on top and sink as others come, more slowly the more their blyg has pinned them, and a new version climbs one place'],
-            ] as const
-          ).map(([value, label, hint]) => (
+          {READER_ORDER_OPTIONS.map(([value, label, hint]) => (
             <label className="check" key={value}>
               <input type="radio" name="readerOrder" value={value} checked={(form.readerOrder ?? 'newest') === value} onChange={() => change('readerOrder', value)} />
               <span>
@@ -511,13 +522,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
         </div>
         <div className="field" role="radiogroup" aria-labelledby="reader-mark-read-label">
           <span id="reader-mark-read-label">Count an entry as read</span>
-          {(
-            [
-              ['seen', 'When I see it', 'once it has been on screen for about a second as you scroll, short entries included'],
-              ['opened', 'When I open it', 'its full view: “more”, its date, or its title'],
-              ['never', 'Only when I mark it', 'select mode and “mark all read” in the feed’s menu'],
-            ] as const
-          ).map(([value, label, hint]) => (
+          {READER_MARK_READ_OPTIONS.map(([value, label, hint]) => (
             <label className="check" key={value}>
               <input type="radio" name="readerMarkRead" value={value} checked={(form.readerMarkRead ?? 'seen') === value} onChange={() => change('readerMarkRead', value)} />
               <span>
@@ -1225,6 +1230,27 @@ function SettingsNav() {
   );
 }
 
+// Radio choices shared with the setup wizard: [value, label, hint].
+// The two modes (Venkat, 2026-11-23): Publish mode is a public blog, Notebook mode a private notebook.
+export const MODE_OPTIONS = [
+  ['public', 'Publish mode', 'public by default, a blog: publishing puts an item on your pages and feed'],
+  ['private', 'Notebook mode', 'private by default, a notebook: versions are yours until you choose to make one public'],
+] as const;
+export const CHANGELOG_DISPLAY_OPTIONS = [
+  ['latest', 'The latest note', 'the note for the current version, as before'],
+  ['history', 'The full history', 'every version\u2019s note, newest first'],
+  ['summary', 'An AI summary', 'written from the notes by the change-notes model; uses tokens'],
+] as const;
+export const READER_ORDER_OPTIONS = [
+  ['newest', 'Newest first', 'by when each item or version arrived'],
+  ['pace-layered', 'Pace-layered', 'the home page’s order over everything you read: new items arrive on top and sink as others come, more slowly the more their blyg has pinned them, and a new version climbs one place'],
+] as const;
+export const READER_MARK_READ_OPTIONS = [
+  ['seen', 'When I see it', 'once it has been on screen for about a second as you scroll, short entries included'],
+  ['opened', 'When I open it', 'its full view: “more”, its date, or its title'],
+  ['never', 'Only when I mark it', 'select mode and “mark all read” in the feed’s menu'],
+] as const;
+
 const FUNCTIONS = [
   { key: "aiModelTk", label: 'TK generation' },
   { key: "aiModelChangelog", label: 'changelog notes' },
@@ -1241,7 +1267,7 @@ function providerStatus(p: AiModels['providers'][number]): string {
 }
 
 /** The model manifest, once per page: providers with their key status, and listed models. */
-function useAiModels(): AiModels | undefined {
+export function useAiModels(): AiModels | undefined {
   const [manifest, setManifest] = useState<AiModels>();
   useEffect(() => {
     let live = true;
@@ -1296,7 +1322,7 @@ type ModelKey = (typeof FUNCTIONS)[number]['key'] | "aiModelClassify";
  * `decision` lists decision models only (the change classifier); without it,
  * decision models are left out, since they write no text.
  */
-function ModelField({
+export function ModelField({
   fkey,
   label,
   name = label,
@@ -1743,7 +1769,7 @@ function ThreadSearch({
  * public" (empty, the default) wears the public theme; any preset or the
  * custom palette may be chosen instead. Public pages are unaffected.
  */
-function StudioThemeField({ form, change }: { form: Settings; change: <K extends keyof Settings>(key: K, value: Settings[K]) => void }) {
+export function StudioThemeField({ form, change }: { form: Settings; change: <K extends keyof Settings>(key: K, value: Settings[K]) => void }) {
   const ids = ['', 'auto', ...Object.keys(THEMES), ...(form.customTheme ? [CUSTOM_THEME_ID] : [])];
   const label = (id: string) =>
     id === '' ? 'Same as public' : id === 'auto' ? 'Auto' : id === CUSTOM_THEME_ID ? form.customThemeName || 'Custom' : THEMES[id]!.label;

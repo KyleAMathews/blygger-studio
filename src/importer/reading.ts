@@ -21,6 +21,8 @@ export interface OwnEntryInput {
   withdrawn: boolean;
   updated: string;
   contentHtml: string;
+  /** A privately published item: the owner's reader shows its latest private version. */
+  private?: true;
 }
 
 export interface ImportedEntryInput {

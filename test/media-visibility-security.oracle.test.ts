@@ -1,9 +1,10 @@
-/** Media becomes public through publication and stays public after withdrawal.
- * This oracle checks real uploads, private reads, pins and avatar changes at the
+/** Media becomes public when it is published publicly, and stays public after
+ * withdrawal. Media used only by private versions stays private. This oracle checks real uploads, private reads, pins and avatar changes at the
  * mounted Worker. It owns retention and the owner API's media authority boundary.
  *
  * GET /blyg/media/private.png // → 404 anonymously, 200/no-store for owner reads
  * POST /blyg/api/items/id/publish // → referenced media becomes public
+ * POST /blyg/api/items/id/publish({visibility: 'private'}) // → its media stays private
  * POST /blyg/api/items/id/withdraw // → previously published bytes remain public
  * PATCH /blyg/api/settings({avatarMediaId}) // → requires manage and publish
  *
@@ -13,8 +14,10 @@
  * serving the same bytes; §9 says withdrawal does not cascade. docs/client-access
  * separates read, draft, manage and publish authority at every resource endpoint.
  *
- * For every enumerated lifecycle, anonymous reads reflect whether publication
- * used the bytes; authorized private reads are HTTPS-only and no-store; published
+ * For every enumerated lifecycle, anonymous reads reflect whether public
+ * publication used the bytes; a private publication never does (decision by
+ * Venkat Rao (GitHub vgururao), 2026-11-22), so bytes that only private
+ * versions showed stay private until a public version shows them; authorized private reads are HTTPS-only and no-store; published
  * bytes survive pins, later versions and all withdrawals. Avatar selection needs
  * publish beside manage, over REST and MCP. The independent model below tracks
  * only publication use, item references and live grant scopes. Driver IDs and
@@ -35,7 +38,7 @@ type MediaAction =
   | { op: 'create'; item: string; text: string; refs?: string[] }
   | { op: 'upload'; media: string; item?: string; inline?: boolean; bytes?: string; grant?: string }
   | { op: 'edit'; item: string; text: string; refs?: string[] }
-  | { op: 'publish' | 'pin' | 'withdraw'; item: string }
+  | { op: 'publish' | 'keep' | 'pin' | 'withdraw'; item: string }
   | { op: 'read'; media: string; principal?: string; cleartext?: boolean; bytes?: boolean; cache?: boolean }
   | { op: 'mint'; grant: string; scope: string[]; resource?: 'api' | 'mcp' }
   | { op: 'revoke'; grant: string }
@@ -60,6 +63,18 @@ const histories: History[] = [
     ...(inline ? [{ op: 'upload', media: 'later', item: 'a', inline: true, bytes: 'later fixture bytes' }, { op: 'read', media: 'later' }] : []),
   ] as Action[] })),
   { name: 'an inline upload not placed in published text remains private', actions: [{ op: 'create', item: 'a', text: 'No image' }, { op: 'upload', media: 'a', item: 'a', inline: true }, { op: 'publish', item: 'a' }, { op: 'read', media: 'a' }] },
+  ...[false, true].map(inline => ({ name: `bytes shown only by private versions stay private until raised (inline=${inline})`, actions: [
+    { op: 'create', item: 'a', text: 'Kept media' }, { op: 'upload', media: 'a', item: 'a', inline },
+    ...(inline ? [{ op: 'edit', item: 'a', text: '', refs: ['a'] }] : []),
+    { op: 'keep', item: 'a' }, { op: 'read', media: 'a', checkpoint: 'a private publication publishes no bytes' },
+    { op: 'upload', media: 'later', item: 'a', bytes: 'later kept fixture bytes' }, { op: 'read', media: 'later' }, { op: 'keep', item: 'a' }, { op: 'read', media: 'a' },
+    { op: 'publish', item: 'a' }, { op: 'read', media: 'a' }, { op: 'read', media: 'later' },
+  ] as Action[] })),
+  { name: 'an inline image dropped before raising stays private', actions: [
+    { op: 'create', item: 'a', text: 'Kept inline' }, { op: 'upload', media: 'a', item: 'a', inline: true },
+    { op: 'edit', item: 'a', text: '', refs: ['a'] }, { op: 'keep', item: 'a' }, { op: 'edit', item: 'a', text: 'Raised without it' },
+    { op: 'publish', item: 'a' }, { op: 'read', media: 'a', checkpoint: 'bytes only a private version showed stay private' },
+  ] },
   { name: 'private bytes require live read authority, not merely a draft token', actions: [
     { op: 'upload', media: 'a' }, { op: 'mint', grant: 'read', scope: ['owner:read'] }, { op: 'mint', grant: 'draft', scope: ['owner:draft'] },
     { op: 'read', media: 'a', principal: 'read', cache: true }, { op: 'read', media: 'a', principal: 'draft' },
@@ -99,7 +114,8 @@ function model(history: History) {
         for (const [key, file] of media) if ((file.item === action.item && !file.inline) || item.refs.includes(key)) file.public = true;
         value = 200; break;
       }
-      case 'pin': case 'withdraw': case 'clear-avatar': value = 200; break;
+      // A private publication is not a publication of bytes (owner ruling, 2026-11-22).
+      case 'keep': case 'pin': case 'withdraw': case 'clear-avatar': value = 200; break;
       case 'mint': grants.set(action.grant, { scope: action.scope, revoked: false }); value = 200; break;
       case 'revoke': grants.get(action.grant)!.revoked = true; value = 200; break;
       case 'avatar': {
@@ -156,6 +172,7 @@ async function driver(history: History, observe: (checkpoint: string, value: unk
         }
         case 'edit': value = (await owner('/blyg/api/items/' + itemIds.get(action.item), 'PATCH', { contentMd: content(action.text, action.refs) })).status; break;
         case 'publish': case 'withdraw': value = (await owner('/blyg/api/items/' + itemIds.get(action.item) + '/' + action.op, 'POST', action.op === 'withdraw' ? {} : undefined)).status; break;
+        case 'keep': value = (await owner('/blyg/api/items/' + itemIds.get(action.item) + '/publish', 'POST', { visibility: 'private' })).status; break;
         case 'pin': value = (await owner('/blyg/api/items/' + itemIds.get(action.item) + '/versions/1/pin', 'PUT')).status; break;
         case 'mint': { const response = await owner('/blyg/api/authorizations', 'POST', { name: 'Media ' + action.grant, scope: action.scope, resource: action.resource ?? 'api' }); value = response.status; const body = await response.json() as { authorization: { id: string }; accessToken: string }; grants.set(action.grant, { id: body.authorization.id, token: body.accessToken }); break; }
         case 'revoke': value = (await owner('/blyg/api/authorizations/' + grants.get(action.grant)!.id, 'DELETE')).status; break;
@@ -180,7 +197,7 @@ async function driver(history: History, observe: (checkpoint: string, value: unk
 }
 oracleProperty({
   id: 'media-visibility-security', owns: ['src/media-retention.ts', 'src/owner-api.ts#createOwnerApi', 'src/index.ts#serveMedia', 'src/operation-policy.ts#resolve'],
-  law: { statement: 'For every enumerated media lifecycle, publication makes used bytes public permanently; private reads require live HTTPS read authority and no-store; avatar selection requires manage plus publish across REST and MCP.', authority: 'Owner media-privacy ruling; protocol §§5.4 and 9; docs/client-access.md scope contract; docs/auth-security-oracles.md media receiving witnesses.', limits: 'All original named lifecycle, attachment/inline, private credential, transport and avatar histories in local D1/R2. No public-cache recall or production ingress claim.' },
+  law: { statement: 'For every enumerated media lifecycle, public publication makes used bytes public permanently and private publication never does; private reads require live HTTPS read authority and no-store; avatar selection requires manage plus publish across REST and MCP.', authority: 'Owner media-privacy ruling; decision by Venkat Rao (GitHub vgururao), 2026-11-22: media used only by private versions stays private; protocol §§5.4 and 9; docs/client-access.md scope contract; docs/auth-security-oracles.md media receiving witnesses.', limits: 'All original named lifecycle, private publication, attachment/inline, private credential, transport and avatar histories in local D1/R2. No public-cache recall or production ingress claim.' },
   histories, label: history => history.name, model, driver,
   check: (_history, trace, expected) => {
     const actual = trace.filter(entry => entry.checkpoint !== 'media lifecycle completed');

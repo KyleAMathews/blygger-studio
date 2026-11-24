@@ -29,7 +29,7 @@ import type { ChangelogDisplay, ForkedFrom, ItemRow, MediaRow, ScopeProvenance, 
 import { FRAGMENT_MAX_CHARS } from "./types.ts";
 import { parseEnabledExtensions } from "./extensions/names.ts";
 import { parseBackgroundRules } from "./background.ts";
-import { absolutizeHtml, authoredText, contentHash, isFollowableUrl, newId, nowIso, visibleMedia } from "./util.ts";
+import { absolutizeHtml, authoredText, contentHash, escapeHtml, isFollowableUrl, newId, nowIso, visibleMedia } from "./util.ts";
 
 export { MathPublishError, TkPublishError, TransclusionResolveError };
 
@@ -175,6 +175,8 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     highlight_generated_default: map.highlight_generated_default === "on",
     auto_change_notes: map.auto_change_notes === "on",
     picker_typing: map.picker_typing === "editor" || map.picker_typing === "panel" ? map.picker_typing : "auto",
+    // Public by default: an existing blyg's publishes must not change under it.
+    default_visibility: map.default_visibility === "private" ? "private" : "public",
     feed_order: map.feed_order || DEFAULT_FEED_ORDER,
     front_page: map.front_page ?? "",
     posts_path: map.posts_path || DEFAULT_POSTS_PATH,
@@ -204,6 +206,10 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     // notice on a node that had published before the wizard existed
     // (migration 0029), done once either is finished or dismissed.
     setup: map.setup === "done" || map.setup === "notice" ? map.setup : "pending",
+    // What's new (session 82): the newest release whose walk-through the owner
+    // has finished or dismissed; settings and highlights after it are offered
+    // once after an upgrade. Empty until setup first finishes.
+    setup_seen_version: map.setup_seen_version ?? "",
   };
 }
 
@@ -572,7 +578,35 @@ export async function withdraw(db: D1Database, item: ItemRow, note: string | nul
   return version;
 }
 
-/** Hard-delete a never-published draft. Published items are withdrawn, never deleted. */
+/**
+ * Publish privately (sealed-content-build-plan §1 0b, decision #94): a private
+ * version of the working copy in `private_versions`, which no public route
+ * reads, and status 'private'. Only an item that has never gone public can do
+ * this; a public item is never lowered, withdrawal is its only exit (#8). The
+ * public counter stays 0, so the first public publish is v1. Nothing is
+ * resolved or rendered, because nothing here reaches the wire.
+ */
+export async function publishPrivately(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string): Promise<number> {
+  const now = nowIso();
+  // Rendered for the owner's reader only: comments and TK markers go as at a
+  // public publish, a `[[id]]` that resolves becomes an anchor and any other
+  // reference stays literal, since a private version refuses nothing.
+  const working = parseComments(authoredText(item.content_md)).text;
+  const text = stripToOutput(working, parseScopes(working).scopes).text;
+  const links = await resolveInternalLinks(db, text, normalizedOrigin(ourOrigin ?? (await getSettings(db)).site_url), (err) => escapeHtml(err.directive));
+  const html = await withMathFailures(async () => applyInternalLinks(renderMarkdown(links.text), links));
+  const version = (await db.prepare("SELECT COALESCE(MAX(version), 0) + 1 AS next FROM private_versions WHERE item_id = ?").bind(item.id).first<{ next: number }>())!.next;
+  const committed = await db.batch([
+    db.prepare("INSERT INTO private_versions (item_id, version, content_md, content_html, published_at, note) SELECT id, ?, content_md, ?, ?, ? FROM items WHERE id = ? AND revision = ? AND version = 0")
+      .bind(version, html, now, note, item.id, item.revision),
+    db.prepare("UPDATE items SET status = 'private', dirty = 0, updated = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND version = 0")
+      .bind(now, item.id, item.revision),
+  ]);
+  if (!committed[1].meta.changes) throw new ItemRevisionConflict(item.id, item.revision);
+  return version;
+}
+
+/** Hard-delete a never-published draft or private item. Published items are withdrawn, never deleted. */
 export async function discardDraft(db: D1Database, item: ItemRow): Promise<boolean> {
   // Authorize at the atomic write boundary. A publication after the caller's
   // read must preserve both the public item and its media.
@@ -581,9 +615,10 @@ export async function discardDraft(db: D1Database, item: ItemRow): Promise<boole
   const results = await db.batch([
     db.prepare(`DELETE FROM media WHERE ${owner} AND NOT (${keep})`).bind(item.id, item.id, item.revision),
     db.prepare(`UPDATE media SET item_id = NULL WHERE ${owner} AND (${keep})`).bind(item.id, item.id, item.revision),
+    db.prepare(`DELETE FROM private_versions WHERE ${owner}`).bind(item.id, item.id, item.revision),
     db.prepare("DELETE FROM items WHERE id = ? AND version = 0 AND revision = ?").bind(item.id, item.revision),
   ]);
-  return results[2].meta.changes > 0;
+  return results[3].meta.changes > 0;
 }
 
 /** Thrown by restoreVersion() when the target version can't serve as a working copy. */

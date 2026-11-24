@@ -58,7 +58,8 @@ export interface ItemRow {
   /** Private concurrency identity, independent of the public version. */
   revision: number;
   kind: "fragment" | "thread" | "withdrawn";
-  status: "draft" | "public" | "withdrawn";
+  /** `private`: published for the owner alone, never on the wire (docs: sealed-content-build-plan §1). */
+  status: "draft" | "public" | "private" | "withdrawn";
   created: string;
   updated: string;
   version: number;
@@ -234,6 +235,16 @@ export interface ScopeProvenance {
   sources: GenerationSource[];
   model?: string;
   at?: string;
+}
+
+/** A private version (migration 0059): studio history, never on a public route. */
+export interface PrivateVersionRow {
+  item_id: string;
+  version: number;
+  content_md: string;
+  content_html: string;
+  published_at: string;
+  note: string | null;
 }
 
 export interface VersionRow {
@@ -557,6 +568,8 @@ export interface Settings {
   auto_change_notes: boolean;
   /** Where you type to search in the [[ / ![[ picker (0.29): auto = the editor with a mouse, the panel on touch. */
   picker_typing: "auto" | "editor" | "panel";
+  /** What a publish that names no visibility does to an item that was never public. */
+  default_visibility: "public" | "private";
   /** The home page order, an id from `src/feeds` (session 46). Absent = pace-layered; migration 0029 keeps published nodes newest-first. */
   feed_order: string;
   /** A published thread shown at the mount root instead of the latest items (session 47); empty = the latest items. */
@@ -604,6 +617,7 @@ export interface Settings {
   update_notice_ack: boolean;
   /** The newest blygger.com listing the owner has seen in Discover (ISO), or "" for never. */
   discover_seen_at: string;
+  setup_seen_version: string;
   /** Studio extensions enabled on this node (docs/extensions.md). Every extension starts disabled. */
   extensions: string[];
 }

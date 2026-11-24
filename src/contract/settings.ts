@@ -44,6 +44,7 @@ export const SettingsSchema = z.object({
   highlightGeneratedDefault: z.boolean(),
   autoChangeNotes: z.boolean(),
   pickerTyping: z.enum(["auto", "editor", "panel"]),
+  defaultVisibility: z.enum(["public", "private"]).describe("What a publish that names no visibility does to an item that was never public. private: a private notebook that shares deliberately; going public then needs visibility: \"public\"."),
   feedOrder: z.string().describe("The public home page order: an id from feedOrders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>."),
   frontPage: z.string().describe("A published thread's id shown at the mount root instead of the latest items; empty for the latest items. A front page later withdrawn or deleted falls back to the latest items."),
   postsPath: z.string().describe("Where the latest items live: {mount}/{postsPath}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused."),
@@ -63,6 +64,7 @@ export const SettingsSchema = z.object({
   feedOrders: z.array(z.object({ id: z.string(), title: z.string(), description: z.string() })).optional().describe("Read-only: the home page orders this node can use now (core, plus enabled extensions')."),
   updateFeedUrl: z.string(),
   updateNoticeAck: z.boolean(),
+  setupSeenVersion: z.string().describe("What's new: the newest studio release whose walk-through the owner has finished or dismissed, as 0.72.0; empty until setup first finishes. Settings and highlights from later releases are offered once after an upgrade."),
   discoverSeenAt: z.string().describe("Discover: the listing date of the newest blygger.com listing the owner has been shown, ISO; empty until Discover is first opened. Listings after it are new."),
   extensions: z.array(z.string()).describe("Studio extensions enabled on this node (docs/extensions.md). Only names compiled into this build are accepted; every extension starts disabled."),
 }).openapi("Settings");
@@ -105,6 +107,7 @@ export const settingsStorageKeys = {
   "highlightGeneratedDefault": "highlight_generated_default",
   "autoChangeNotes": "auto_change_notes",
   "pickerTyping": "picker_typing",
+  "defaultVisibility": "default_visibility",
   "feedOrder": "feed_order",
   "frontPage": "front_page",
   "postsPath": "posts_path",
@@ -123,6 +126,7 @@ export const settingsStorageKeys = {
   "updateFeedUrl": "update_feed_url",
   "updateNoticeAck": "update_notice_ack",
   "discoverSeenAt": "discover_seen_at",
+  "setupSeenVersion": "setup_seen_version",
   "extensions": "extensions"
 } as const;
 

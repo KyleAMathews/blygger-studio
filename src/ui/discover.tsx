@@ -188,6 +188,13 @@ export function DiscoverSheet({ open, onClose }: { open: boolean; onClose: () =>
                         {baseline && isNew(b, baseline) && !isFollowed ? <span className="badge badge-pencil discover-new">new</span> : null}
                       </span>
                       <span className="opml-url">{new URL(b.home).host + new URL(b.home).pathname.replace(/\/$/, '')}</span>
+                      {b.author || b.generator ? (
+                        <span className="discover-about">
+                          {b.author ? <>by {b.author.url ? <a href={b.author.url} target="_blank" rel="nofollow noreferrer">{b.author.name}</a> : b.author.name}</> : null}
+                          {b.author && b.generator ? ' · ' : null}
+                          {b.generator ? <>client {b.generator.url ? <a href={b.generator.url} target="_blank" rel="nofollow noreferrer">{b.generator.name}</a> : b.generator.name}</> : null}
+                        </span>
+                      ) : null}
                       <span className="discover-activity">
                         {b.activity.level ? <span className={`badge ${levelClass[b.activity.level]}`}>{b.activity.level}</span> : null}{' '}
                         {activityLine(b, Date.now())}

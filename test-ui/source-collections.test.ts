@@ -191,7 +191,7 @@ beforeAll(async () => {
     }
     if (url.pathname === '/api/reading/summary') {
       const requested = url.searchParams.get('sub') ?? 'all';
-      return json({ counts: { all: 30, own: 30, subscriptions: {} }, selected: requested === 'invalid' ? 'all' : requested });
+      return json({ counts: { all: 30, own: 30, private: 0, subscriptions: {} }, selected: requested === 'invalid' ? 'all' : requested });
     }
     if (url.pathname === '/api/reading') {
       if (failReading) return json({ code: 'internal', message: 'readback failed' }, 503);

@@ -12,6 +12,7 @@ import { absolutizeHtml, escapeHtml } from "./util.ts";
 import { DIRECTIVE_LINE, label, LINK_INLINE, RESERVED_LINE } from "./grammar.ts";
 import { linkLabel } from "./link-label.ts";
 import { renderGeneratedBlock } from "./tk.ts";
+import { servedPublicly } from "./served-publicly.ts";
 
 /**
  * `[[id]]` — a plain internal link (§10.1, decision #32). The same bracket
@@ -250,7 +251,7 @@ export async function resolveTarget(
 ): Promise<{ ok: true; target: ResolvedTarget } | { ok: false; reason: string }> {
   const item = await db.prepare("SELECT * FROM items WHERE id = ?").bind(id).first<ItemRow>();
   if (item) {
-    if (item.status === "draft") return { ok: false, reason: "item is a draft, not published" };
+    if (!servedPublicly(item)) return { ok: false, reason: item.status === "draft" ? "item is a draft, not published" : "item is private" };
     if (item.kind === "withdrawn") return { ok: false, reason: "item is withdrawn" };
     const version = await db
       .prepare("SELECT * FROM versions WHERE item_id = ? AND version = ?")

@@ -30,6 +30,7 @@ import {
   createDraft,
   createFork,
   discardDraft,
+  publishPrivately,
   FragmentTooLongError,
   getItem,
   getMedia,
@@ -334,13 +335,24 @@ const publishItemOperation = async (context: OperationContext, input: OperationI
   // TK-stripped (published) length, not the raw working copy — see FragmentTooLongError.
   const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
-  const body = (input.body as { note?: string; noteGenerated?: boolean; changeCategory?: ChangeCategory | null; tangle?: boolean });
+  const body = (input.body as { note?: string; noteGenerated?: boolean; changeCategory?: ChangeCategory | null; tangle?: boolean; visibility?: "public" | "private" });
   // note_generated is the studio's own assertion that the note is the drafted
   // text, unedited (#40) — self-asserted, like every provenance member.
   // change_category is studio-private (migration 0030): settled after the
   // version exists, and never part of what publish() writes to the wire.
   const requested = "changeCategory" in body ? body.changeCategory ?? null : undefined;
   const note = body.note?.trim() || null;
+  // A private version reaches no wire (decision #94), so none of a public
+  // publish's checks, mentions or tangled parts apply to it. A publish that
+  // names no visibility follows the blyg's default while the item was never
+  // public; a public item has no other way to go (Venkat, 2026-11-22).
+  const settings = await getSettings(context.env.DB);
+  const visibility = body.visibility ?? (item.version === 0 ? settings.default_visibility : "public");
+  if (visibility === "private") {
+    if (item.version > 0) return failure('conflict', { error: "a published item can't be made private; withdraw it instead" });
+    const privateVersion = await publishPrivately(context.env.DB, item, note, siteOrigin(settings, context.url, normalizeMount(context.env.MOUNT)));
+    return success({ ok: true, version: 0, privateVersion, revision: item.revision + 1 });
+  }
   const settle = (version: number) => settleChangeClass(context.env.DB, item.id, version, requested);
   const { spans, issues } = parseTangles(item.content_md);
   if (spans.length || issues.length) {
@@ -799,12 +811,14 @@ const SETTINGS_KEYS = [
   "agentic_title",
   "changelog_summary_prompt",
   "picker_typing",
+  "default_visibility",
   "feed_order",
   "front_page",
   "posts_path",
   "links_position",
   "setup",
   "discover_seen_at",
+  "setup_seen_version",
 ] as const;
 
 const updateSettingsOperation = async (context: OperationContext, input: OperationInput) => {
@@ -829,6 +843,7 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
     if (patch[key]?.trim() && isDecisionModel(patch[key].trim())) return failure('invalid-input', { error: `${field} cannot be a decision model ("${patch[key]}"): decision models write no text` });
   }
   if (typeof patch.picker_typing === "string" && !["auto", "editor", "panel"].includes(patch.picker_typing)) return failure('invalid-input', { error: "pickerTyping must be auto, editor or panel" });
+  if (typeof patch.default_visibility === "string" && !["public", "private"].includes(patch.default_visibility)) return failure('invalid-input', { error: "defaultVisibility must be public or private" });
   for (const [field, key] of [["changelogDisplay", "changelog_display"], ["readerChangelogDisplay", "reader_changelog_display"]] as const) {
     if (typeof patch[key] === "string" && !(CHANGELOG_DISPLAYS as readonly string[]).includes(patch[key])) return failure('invalid-input', { error: `${field} must be latest, history or summary` });
   }
@@ -852,6 +867,7 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
     patch.extensions = JSON.stringify([...new Set(names as string[])].sort());
   }
   if (patch.discover_seen_at && Number.isNaN(Date.parse(patch.discover_seen_at))) return failure('invalid-input', { error: "discoverSeenAt must be an ISO date, or empty" });
+  if (patch.setup_seen_version && !/^\d{1,4}\.\d{1,4}\.\d{1,4}$/.test(patch.setup_seen_version)) return failure('invalid-input', { error: "setupSeenVersion must be a version like 0.72.0, or empty" });
   if (body.bg_rules !== undefined) {
     // Merged into what is stored, so turning one rule off leaves the others.
     const rules = body.bg_rules as Record<string, unknown>;

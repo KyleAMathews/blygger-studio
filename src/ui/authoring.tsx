@@ -12,6 +12,7 @@ import type { ReactNode, RefObject } from 'react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery, useLiveInfiniteQuery, and, eq } from '@tanstack/react-db';
 import { Link, useNavigate, useBlocker } from '@tanstack/react-router';
+import { OWN } from './reader-links.tsx';
 import { formatDateIn } from '../dates.ts';
 import { renderMarkdown } from '../markdown.ts';
 import { linkInline } from '../grammar.ts';
@@ -24,7 +25,7 @@ import type { GenerationSource, ListItemsResponses, Version } from '../../sdk/di
 import { BlyggerApi, BlyggerApiError, unwrap } from '../../sdk/dist/browser.js';
 import type { DraftCounterContext, EditorBarContext } from './extension-api.ts';
 import type { Detail } from './data.ts';
-import { client, items, itemVersions, itemSummary, itemDetail, createDraftAction, settings as settingsCollection, listViews, preloadView } from './data.ts';
+import { client, items, itemVersions, itemPrivateVersions, itemSummary, itemDetail, createDraftAction, settings as settingsCollection, listViews, preloadView } from './data.ts';
 import {
   ActionBar,
   Button,
@@ -614,6 +615,14 @@ function PublishedBanner({
 }) {
   const sharing = useSharing();
   if (!published) return null;
+  // Version 0 is a private version: nothing went public, so nothing to link or share.
+  if (published.version === 0) return (
+    <div className="published" role="status" id="published-banner">
+      <span className="mark" aria-hidden="true">✓</span>
+      <span className="txt">added a private version; nothing was published</span>
+      <Button className="x" aria-label="dismiss" onClick={dismiss}>×</Button>
+    </div>
+  );
   return (
     <div className="published" role="status" id="published-banner">
       <span className="mark" aria-hidden="true">
@@ -795,7 +804,7 @@ type Classified = {
   probability: number | null;
   reason?: string;
 };
-type PublishCommand = { type: 'publish'; note: string; generated: boolean; category?: ChangeCategory | null };
+type PublishCommand = { type: 'publish'; note: string; generated: boolean; category?: ChangeCategory | null; visibility?: 'public' | 'private' };
 
 /**
  * Publish, and when the thread's `![[+ …]]` spans would make new items, say
@@ -1021,6 +1030,7 @@ type Filter = keyof typeof FILTERS;
 
 export function Compose({ q }: { q?: string } = {}) {
   useChrome({ framed: false });
+  const settings = useSettings();
   const navigate = useNavigate();
   // Search (docs/search.md): this blyg only by default, drafts included.
   const [scope, setScope] = useState<'mine' | 'all'>(() => stored('blyg.compose.searchScope', ['mine', 'all'] as const, 'mine'));
@@ -1215,7 +1225,7 @@ export function Compose({ q }: { q?: string } = {}) {
               disabled={action.busy}
               onClick={() => void action.run(publish)}
             >
-              publish
+              {settings?.defaultVisibility === 'private' ? 'add version' : 'publish'}
             </DesignButton>
           </div>
         </div>
@@ -1298,6 +1308,7 @@ export function Compose({ q }: { q?: string } = {}) {
 }
 function rowDot(item: Row) {
   if (item.status === 'withdrawn') return 'withdrawn';
+  if (item.status === 'private') return 'private';
   if (item.version === 0) return 'draft';
   return item.dirty ? 'dirty' : 'public';
 }
@@ -1515,7 +1526,7 @@ function ItemRow({
                   disabled={action.busy}
                   onClick={() => mutate(publishRow)}
                 >
-                  publish
+                  {settings?.defaultVisibility === 'private' && item.version === 0 ? 'add version' : 'publish'}
                 </Button>
               </div>
               <Help className="hint" />
@@ -1591,7 +1602,7 @@ function ItemRow({
                 disabled={action.busy}
                 onClick={() => mutate(publishRow)}
               >
-                {item.status === 'withdrawn' ? 'republish' : 'publish'}
+                {item.status === 'withdrawn' ? 'republish' : item.status === 'private' ? 'publish publicly' : 'publish'}
               </Button>
             ) : null}
             {item.version === 0 ? (
@@ -2147,7 +2158,8 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
   const confirmNote = useNoteConfirm(write);
   const [preview, setPreview] =
     useState<Awaited<ReturnType<typeof getPreview>>>();
-  const [version, setVersion] = useState<Version>();
+  // The version in the viewer: a public one (v3) or a private one (p2).
+  const [version, setVersion] = useState<{ label: string; contentHtml: string }>();
   const [saved, setSaved] = useState(false);
   const [replacing, setReplacingState] = useState(false);
   const replacementPending = useRef(false);
@@ -2341,11 +2353,11 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
       return;
     await write({ type: 'pin', version });
   };
-  const publish = () =>
+  const publish = (visibility?: 'public') =>
     operation(async () => {
       const choice = await confirmNote.request(item, note, drafted, historyNote);
       if (!choice) return;
-      const done = await publishTangle(write, { type: 'publish', note: choice.note, generated: choice.generated, category: choice.category }, () => item.id);
+      const done = await publishTangle(write, { type: 'publish', note: choice.note, generated: choice.generated, category: choice.category, ...(visibility ? { visibility } : {}) }, () => item.id);
       if (!done) return;
       if (done.source !== undefined) {
         draft.current!.accept(done.source);
@@ -2357,6 +2369,22 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
       setPublished({ id: item.id, kind: item.kind, md: draft.current!.text, version: done.result.version });
       return done.result;
     });
+  // A private version (decision #94): nothing public changes, so no note dialog.
+  const keepPrivately = () =>
+    operation(async () => {
+      const result = await write({ type: 'publish', note: '', generated: false, visibility: 'private' });
+      toast('Added a private version. Nothing was published.', { tone: 'ok' });
+      return result;
+    });
+  // A private-default blyg (Venkat, 2026-11-22): one button, the radio says
+  // which kind of version. Going public asks first, since it can't be undone.
+  const notebook = settings?.defaultVisibility === 'private' && item.version === 0;
+  const [visibility, setVisibility] = useState<'public' | 'private'>('private');
+  const addVersion = async () => {
+    if (visibility === 'private') return keepPrivately();
+    const ok = await confirm({ title: 'Make this item public? Anyone can read it once published, and it can never be private again.', ok: 'make public' });
+    if (ok) publish('public');
+  };
   const focus = useFocusView(input, held.box, pane, setPane);
   const bars = useBars({
     input,
@@ -2431,7 +2459,14 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
   const more = () =>
     void menu({
       rows: [
-        item.status === 'draft' && {
+        item.version === 0 && settings?.defaultVisibility !== 'private' && {
+          icon: '◌',
+          label: 'publish privately',
+          description: 'keep a version only you can see; publishing makes it public as v1',
+          disabled: action.busy,
+          onSelect: () => void keepPrivately(),
+        },
+        item.version === 0 && {
           icon: '⇄',
           label: `make this a ${isThread ? 'fragment' : 'thread'}`,
           onSelect: () => operation(switchKind),
@@ -2655,7 +2690,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           disabled={replacing}
           className="ed-tools"
         >
-          {item.status === 'draft' ? (
+          {item.version === 0 ? (
             <Tooltip label={`make this a ${isThread ? 'fragment' : 'thread'}`}>
               <Button
                 className="act icon-only tool"
@@ -2764,6 +2799,11 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
               <a href={publicPath(shareable)} target="_blank" rel="noreferrer">
                 public permalink ↗
               </a>
+            ) : item.status === 'private' ? (
+              // A private item has no public page; the owner's reader shows its latest private version.
+              <Link to="/reading/$sub/$id" params={{ sub: OWN, id: item.id }} data-action="reader-view">
+                reader view
+              </Link>
             ) : null}
           </div>
           <SyntaxHelp>
@@ -3016,10 +3056,13 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           setOpen={setHistoryOpen}
           summary="history"
           hint={
-            item.version ? `${item.version} version${item.version === 1 ? '' : 's'}` : ''
+            item.version ? `${item.version} version${item.version === 1 ? '' : 's'}` : item.status === 'private' ? 'private' : ''
           }
         >
-          {!item.version ? <p className="hint">Not yet published.</p> : historyOpen ? <VersionHistory item={item} select={setVersion} pinBusy={action.busy} restoreBusy={action.busy || upload.action.busy} pin={version => action.run(() => pin(version))} restore={version => action.run(() => restore(version))} /> : null}
+          {!item.version && item.status !== 'private' ? <p className="hint">Not yet published.</p> : historyOpen ? <>
+            {item.version ? <VersionHistory item={item} select={v => setVersion({ label: `v${v.version}`, contentHtml: v.contentHtml })} pinBusy={action.busy} restoreBusy={action.busy || upload.action.busy} pin={version => action.run(() => pin(version))} restore={version => action.run(() => restore(version))} /> : null}
+            <PrivateHistory item={item} select={v => setVersion({ label: `p${v.version}`, contentHtml: v.contentHtml })} />
+          </> : null}
         </Card>
       </div>
       {confirmNote.element}
@@ -3028,7 +3071,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
       <Modal
         open={!!version}
         close={() => setVersion(undefined)}
-        title={`version ${version?.version}`}
+        title={`version ${version?.label}`}
       >
         <Html id="h-viewer-body" html={version?.contentHtml ?? ''} />
       </Modal>
@@ -3054,15 +3097,31 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
         >
           save draft
         </DesignButton>
-        <DesignButton
-          size="small"
-          id="publish-btn"
-          variant="primary"
-          disabled={action.busy}
-          onClick={publish}
-        >
-          {item.status === 'withdrawn' ? 'republish' : 'publish'}
-        </DesignButton>
+        {notebook ? (
+          <>
+            <span className="visibility-choice" role="radiogroup" aria-label="kind of version">
+              {(['private', 'public'] as const).map((value) => (
+                <label className="check" key={value}>
+                  <input type="radio" name="visibility" value={value} checked={visibility === value} onChange={() => setVisibility(value)} />
+                  <span>{value}</span>
+                </label>
+              ))}
+            </span>
+            <DesignButton size="small" id="publish-btn" variant="primary" disabled={action.busy} onClick={() => void addVersion()}>
+              add version
+            </DesignButton>
+          </>
+        ) : (
+          <DesignButton
+            size="small"
+            id="publish-btn"
+            variant="primary"
+            disabled={action.busy}
+            onClick={() => publish()}
+          >
+            {item.status === 'withdrawn' ? 'republish' : item.status === 'private' ? 'publish publicly' : 'publish'}
+          </DesignButton>
+        )}
       </ActionBar>
     </div>
   );
@@ -3465,6 +3524,30 @@ const getPreview = (
       signal,
     }),
   );
+
+// Private versions (decision #94), numbered p1, p2, … apart from the public
+// counter. They stay listed after the item goes public: studio history.
+function PrivateHistory({ item, select }: { item: Detail; select: (version: { version: number; contentHtml: string }) => void }) {
+  const history = useLiveInfiniteQuery(q => q.from({ version: itemPrivateVersions })
+    .where(({ version }) => eq(version.itemId, item.id)).orderBy(({ version }) => version.version, { direction: 'desc', stringSort: 'lexical' }), { pageSize: 25 });
+  if (history.status === 'error') return <Failure error={new Error('Could not load private history.')} />;
+  if (!history.data.length) return history.isLoading ? <p className="hint">Loading private history…</p> : null;
+  return <section data-private-history>
+    <p className="hint">private versions: studio history, never published</p>
+    <ul className="h-list">
+      {history.data.map((v) => (
+        <li className="h-row" key={v.version}>
+          <strong className="vnum">p{v.version}</strong>{' '}
+          <span className="h-note">{v.note}</span>{' '}
+          <span className="h-actions">
+            <Button data-action="view-private-version" className="btn btn-ghost btn-mini" onClick={() => select(v)}>view</Button>
+          </span>
+        </li>
+      ))}
+    </ul>
+    {history.hasNextPage ? <Button disabled={history.isFetchingNextPage} onClick={() => void history.fetchNextPage()}>load older private versions</Button> : null}
+  </section>;
+}
 
 function VersionHistory({ item, select, pin, restore, pinBusy, restoreBusy }: {
   item: Detail; select: (version: Version) => void; pin: (version: number) => Promise<unknown>;
