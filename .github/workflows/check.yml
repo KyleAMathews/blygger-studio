@@ -168,8 +168,10 @@ jobs:
         run: test "$FORMATTING_RESULT" = success
 
   e2e:
-    needs: scope
-    if: needs.scope.outputs.e2e == 'true'
+    # Give the formatting matrix time to claim runners before Chromium queues.
+    # Package verification provides a short scheduling lead. Its verdict is independent.
+    needs: [scope, release-package]
+    if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
