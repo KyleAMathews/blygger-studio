@@ -47,7 +47,8 @@ async function executeOperation(definition: OperationDefinition, input: Operatio
   }
   // A private item is invisible, not forbidden, to an access without owner:private:
   // every operation that names one answers as for an unknown id, so the 404 says nothing.
-  if (route.path.startsWith('/items/{id}') && input.path.id && await privateItemHidden(context.env.DB, context.access, input.path.id)) {
+  // getItem decides visibility in the statement that reads the item (R01, R07).
+  if (route.path.startsWith('/items/{id}') && route.operationId !== 'getItem' && input.path.id && await privateItemHidden(context.env.DB, context.access, input.path.id)) {
     return failure('not-found', { error: 'not found' });
   }
   // Adding answers as for an unknown item; removing is idempotent, so its handler answers as for a non-member.

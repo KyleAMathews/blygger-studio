@@ -88,7 +88,7 @@ async function presentVersions(db: D1Database, rows: VersionRow[]) {
 }
 const getItemSummaryOperation = async (context: OperationContext) => success(await context.env.DB.prepare(`SELECT COUNT(*) AS 'all', COALESCE(SUM(version=0),0) AS drafts, COALESCE(SUM(dirty=1 AND status='public'),0) AS changes, COALESCE(SUM(status='public'),0) AS public, COALESCE(SUM(status='withdrawn'),0) AS withdrawn FROM items${seesPrivate(context.access) ? '' : " WHERE status <> 'private'"}`).first());
 const getItemOperation = async (context: OperationContext, input: OperationInput) => {
-  const detail = await itemDetail(context.env.DB, input.path.id);
+  const detail = await itemDetail(context.env.DB, input.path.id, !seesPrivate(context.access));
   if (!detail) return failure('not-found', { error: 'not found' });
   const publicBase = deploymentUrls(context.url, context.env).publicBase;
   // Pins and hopper memberships in one statement: a read batch of 50 items stays within its binding-call cap.

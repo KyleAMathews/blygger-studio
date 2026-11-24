@@ -11,6 +11,9 @@ import { createDraft, getItem, putSettings } from "../src/model.ts";
 
 beforeEach(() => putSettings(env.DB, { ai_model: "claude-opus-5" }));
 import { runGenerateScope } from "../src/tk-generate.ts";
+import { operationDefinitions } from "../src/operations.ts";
+import { runOperation } from "../src/operation-runner.ts";
+import type { OperationContext } from "../src/operation-types.ts";
 import { apiJson, createAndPublish, getPublic, login, testRevisionBody } from "./helpers.ts";
 
 const MARK = "notebookmark";
@@ -92,6 +95,61 @@ describe("owner:private: a token without it does not see the notebook", () => {
       await apiJson(cookie, "PATCH", "/blyg/api/settings", { defaultVisibility: "public" });
     }
   });
+});
+
+/** `db`, but the item turns private right after the first read that touches it: the owner publishing privately mid-request. */
+function turnsPrivate(db: D1Database, id: string) {
+  let fired = false;
+  const flip = async (sql: string[]) => {
+    if (fired || !sql.some((s) => /\bitems\b/.test(s))) return;
+    fired = true;
+    await db.prepare("UPDATE items SET status = 'private', revision = revision + 1 WHERE id = ?").bind(id).run();
+  };
+  const sqlOf = new WeakMap<D1PreparedStatement, string>();
+  const wrap = (sql: string, target: D1PreparedStatement): D1PreparedStatement => {
+    const wrapped = new Proxy(target, { get(value, key) {
+      if (key === "bind") return (...args: unknown[]) => wrap(sql, value.bind(...args));
+      const method = Reflect.get(value, key);
+      if (["all", "first", "raw", "run"].includes(String(key))) return async (...args: unknown[]) => {
+        const result = await Reflect.apply(method, value, args); await flip([sql]); return result;
+      };
+      return typeof method === "function" ? method.bind(value) : method;
+    } });
+    sqlOf.set(wrapped, sql);
+    return wrapped;
+  };
+  return new Proxy(db, { get(target, key) {
+    if (key === "prepare") return (sql: string) => wrap(sql, target.prepare(sql));
+    if (key === "batch") return async (statements: D1PreparedStatement[]) => {
+      const result = await target.batch(statements); await flip(statements.map((s) => sqlOf.get(s) ?? "")); return result;
+    };
+    const method = Reflect.get(target, key);
+    return typeof method === "function" ? method.bind(target) : method;
+  } });
+}
+
+describe("owner:private: one observation decides what a by-id read returns (R07)", () => {
+  for (const shape of ["single", "batch"] as const) {
+    it(`never returns a private item to a token without the scope when it turns private mid-read (${shape})`, async () => {
+      const cookie = await login();
+      const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `about to turn private ${MARK}`, kind: "fragment" })).json.id as string;
+      const context: OperationContext = {
+        env: { ...env, DB: turnsPrivate(env.DB, id), API_READ_LIMIT: "10000", API_DELEGATED_READ_LIMIT: "10000" },
+        access: { scope: WITHOUT, clientId: "race-test", userId: "owner" },
+        url: "https://example.com/blyg/api/items", extensions: [], defer() {},
+      };
+      const definitions = operationDefinitions([]);
+      const result = shape === "single"
+        ? await runOperation(definitions.get("getItem")!, { path: { id }, query: {}, body: undefined }, context)
+        : await runOperation(definitions.get("batchRead")!, { path: {}, query: {}, body: { operation: "getItem", requests: [{ path: { id } }] } }, context);
+      const body = shape === "single" ? (result.ok ? result.value : null) : result.ok ? (result.value as { status: number; body: any }[])[0]?.body : null;
+      // Either answer is consistent: the draft as it was, or not found. A private item is not.
+      expect(body?.status).not.toBe("private");
+      // A nearby legal history: the same read with no race returns the item as it is now (private, so not found).
+      const after = await runOperation(definitions.get("getItem")!, { path: { id }, query: {}, body: undefined }, { ...context, env: { ...context.env, DB: env.DB } });
+      expect(after.ok).toBe(false);
+    });
+  }
 });
 
 describe("the owner's search lists private items, marked", () => {
