@@ -57,6 +57,14 @@ export function groupBaselinePartitions(parts: readonly Partition[]) {
     const first = active[index]!.parts, companion = active[index + 1]?.parts ?? [];
     groups.push({ id: first[0]!, companion: companion[0] ?? '', followup: first[1] ?? '', companionFollowup: companion[1] ?? '' });
   }
+  // In runs 45443078812 and 45453300660, interactions-1 and inline
+  // together took about two minutes longer than their mixed-11 companion.
+  const mixed = groups.find(group => group.id === 'mixed-11' && group.companion === 'interactions-1');
+  const newline = groups.find(group => group.id === 'newline-history-2' && group.companion === 'workflows-1');
+  if (mixed?.companionFollowup === 'inline' && newline?.followup === '') {
+    newline.followup = mixed.companionFollowup;
+    mixed.companionFollowup = '';
+  }
   return groups;
 }
 
