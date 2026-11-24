@@ -76,8 +76,21 @@ jobs:
       - run: npm run openapi && git diff --exit-code -- openapi.json
       - run: npm run test:ui -- --maxWorkers=2
       # npm ci already built the same inputs in postinstall.
-      - run: npm --ignore-scripts test -- --maxWorkers=2
+      - run: npm --ignore-scripts test -- --maxWorkers=2 --shard=1/2
       - run: npm run test:upgrade
+  worker-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npm --ignore-scripts test -- --maxWorkers=2 --shard=2/2
   release-package:
     runs-on: ubuntu-latest
     timeout-minutes: 20
