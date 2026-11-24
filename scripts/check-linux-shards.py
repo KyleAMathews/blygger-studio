@@ -13,6 +13,13 @@ def test_command(root, suite, shard, total):
         output = root / 'test-results' / f'chromium-{shard}'
         return ['npm', 'run', 'test:e2e', '--', '--project=desktop', '--project=mobile',
                 f'--shard={shard}/{total}', f'--output={output}']
+    if suite == 'browser-oracles':
+        script = 'test:oracles:browser' if shard == 1 else 'test:oracles:browser:search'
+        return ['npm', 'run', script]
+    if suite == 'worker-oracles':
+        if shard == 1:
+            return ['npm', 'run', 'test:oracles:conditional:worker']
+        return ['bash', '-c', 'npm run test:oracles:contracts && npm run test:oracles:search && npm run test:oracles:runtime']
     return ['npm', 'run', 'test:auth:security:mutations', '--', f'--worker-shard={shard}-{total}']
 
 
@@ -20,9 +27,10 @@ def start_lane(workspace, scratch, temporary, suite, shard, cpus, command):
     unit = f'blygger-check-{suite}-{scratch.name}-{shard}.service'
     temp = temporary / f'tmp-{shard}'
     temp.mkdir()
-    command[0] = shutil.which('npm')
-    if not command[0]:
-        raise RuntimeError('npm is missing')
+    executable = shutil.which(command[0])
+    if not executable:
+        raise RuntimeError(f'{command[0]} is missing')
+    command[0] = executable
     environment = ['PATH', 'HOME', 'CI', 'GITHUB_ACTIONS', 'PLAYWRIGHT_BROWSERS_PATH',
                    'CLOUDFLARE_CF_FETCH_ENABLED', 'LANG', 'LC_ALL', 'TZ']
     args = ['sudo', '-n', 'systemd-run', '--wait', '--pipe', '--collect', f'--unit={unit}',
@@ -31,7 +39,7 @@ def start_lane(workspace, scratch, temporary, suite, shard, cpus, command):
             f'--property=AllowedCPUs={",".join(map(str, cpus))}',
             '--property=KillMode=control-group',
             '--property=TimeoutStopSec=15', f'--setenv=TMPDIR={temp}']
-    if suite == 'chromium':
+    if suite != 'worker-auth':
         args.append('--property=PrivateNetwork=yes')
     args.extend(f'--setenv={name}={os.environ[name]}' for name in environment if name in os.environ)
     print(f'Starting {suite} shard {shard} on CPUs {cpus}', flush=True)
@@ -63,7 +71,7 @@ def run(suite, pair, pairs):
         TemporaryDirectory(prefix='pair-', dir=os.environ['RUNNER_TEMP']) as directory,
         TemporaryDirectory(
             prefix='blygger-lanes-',
-            dir=os.environ.get('TMPDIR', directory) if suite == 'worker-auth' else directory,
+            dir=os.environ.get('TMPDIR', directory) if suite != 'chromium' else directory,
         ) as temp,
     ):
         scratch = Path(directory)
@@ -73,9 +81,9 @@ def run(suite, pair, pairs):
         lanes = []
         try:
             # The Chromium web server builds into its own checkout and listens on fixed ports.
-            # The Worker verifier snapshots its checkout before applying controls.
+            # The oracle evaluators each need their own generated build and SDK.
             subprocess.run(['cp', '-a', '--reflink=auto', root / 'node_modules', checkout], check=True)
-            if suite == 'worker-auth':
+            if suite != 'chromium':
                 subprocess.run(['cp', '-a', '--reflink=auto', root / 'build', checkout], check=True)
                 subprocess.run(['cp', '-a', '--reflink=auto', root / 'sdk' / 'dist', checkout / 'sdk'], check=True)
             lanes.append(start_lane(root, scratch, temporary, suite, first, cpus[:2], first_command))
@@ -102,6 +110,8 @@ if __name__ == '__main__':
     signal.signal(signal.SIGTERM, terminate)
     suite, pair_index, pair_count = sys.argv[1:]
     pair, pairs = int(pair_index), int(pair_count)
-    if suite not in ('chromium', 'worker-auth') or not 1 <= pair <= pairs:
-        raise ValueError('Expected <chromium|worker-auth> <pair index> <number of pairs>')
+    if suite not in ('chromium', 'worker-auth', 'browser-oracles', 'worker-oracles') or not 1 <= pair <= pairs:
+        raise ValueError('Expected <chromium|worker-auth|browser-oracles|worker-oracles> <pair index> <number of pairs>')
+    if suite in ('browser-oracles', 'worker-oracles') and (pair, pairs) != (1, 1):
+        raise ValueError(f'{suite} forms one pair')
     sys.exit(run(suite, pair, pairs))

@@ -80,8 +80,8 @@ jobs:
       - run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --maxWorkers=2 --shard=1/2
       - run: npm run test:upgrade
   worker-tests:
-    # Queue the second Worker shard once the earlier jobs are eligible.
-    needs: [release-package, oauth-interop]
+    # Queue both ordinary Worker shards ahead of the formatting matrix.
+    needs: scope
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 75
@@ -143,10 +143,8 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:conditional:worker
-      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:contracts
-      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:search
-      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:runtime
+      - name: Run the focused Worker oracles on two CPU lanes
+        run: bash scripts/check-ram-tmp.sh python3 scripts/check-linux-shards.py worker-oracles 1 1
   worker-oracle-baseline:
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -221,8 +219,8 @@ jobs:
           cache: npm
       - run: npm ci --legacy-peer-deps
       - uses: ./.github/actions/install-chromium
-      - run: npm run test:oracles:browser
-      - run: npm run test:oracles:browser:search
+      - name: Run the save and search browser oracles on separate CPU lanes
+        run: bash scripts/check-ram-tmp.sh python3 scripts/check-linux-shards.py browser-oracles 1 1
 
   e2e-webkit:
     needs: [scope, release-package, check]
@@ -303,8 +301,8 @@ jobs:
           MUTATION_SUITE: ${{ matrix.suite }}
         run: |
           case "$MUTATION_SUITE" in
-            oracle) npm run test:mutations ;;
-            polling-cache) npm run test:polling-cache:mutations ;;
+            oracle) bash scripts/check-ram-tmp.sh npm run test:mutations ;;
+            polling-cache) bash scripts/check-ram-tmp.sh npm run test:polling-cache:mutations ;;
             auth-security-browser) npm run test:auth:security:mutations -- --browser ;;
             *) echo "unknown suite $MUTATION_SUITE" >&2; exit 1 ;;
           esac
