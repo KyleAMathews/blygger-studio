@@ -20,6 +20,15 @@ not have its own repo until session 26.
 
 ## Unreleased
 
+## 0.72.0 — Private items and Notebook mode; setup covers the newer settings; what's new after an upgrade
+
+**Private items** (blygger-spec decision #94, `docs/sealed-content-build-plan.md` §1). An item
+that has never gone public can be published privately: real versions, numbered p1, p2, …,
+that appear on no public route. Raising it is an ordinary publish, and its first public
+version is v1. A blyg can run in **Notebook mode**, private by default, beside the familiar
+**Publish mode**. Owner-only: nothing private reaches the wire, and this is Phase 0 of the
+sealed-content build (RFC-6). Private contract **6.4.0**, SDK **0.26.0**.
+
 - **Private items** (blygger-spec `docs/sealed-content-build-plan.md` §1, 0a and 0b;
   decision #94). An item that has never gone public can be **published privately**:
   `POST /items/{id}/publish` with `visibility: "private"` keeps a private version
@@ -77,6 +86,8 @@ not have its own repo until session 26.
   (`/setup?new=1`). Nodes already past setup start at 0.71.0, so this release's additions
   are offered on upgrade. For release authors: `HIGHLIGHTS` and `SINCE` in
   `src/ui/whats-new.ts`. Migration `0060_setup_seen_version.sql`.
+
+**Migrations:** `0059_private_versions.sql`, `0060_setup_seen_version.sql`.
 
 ## 0.71.0 — Quotes read lines as the spec defines them; Reading rebuilds less; editor formatting fixes; picker sources
 
