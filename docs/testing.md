@@ -36,7 +36,7 @@ runs in two Vitest file shards with two workers each. The `check` job also
 runs typecheck, the UI suite, and the upgrade tests. A separate job builds and
 verifies the release packages.
 Studio, Worker, browser, and formatting oracles have separate jobs. Chromium
-E2E and the Worker auth-security controls each run in three shards.
+E2E runs in three shards. Worker auth-security controls run in four.
 On a pull request, `scripts/ci-scope.ts` decides which of the
 slow jobs to run: e2e runs unless every changed file is documentation, and a
 mutation suite runs only when the PR changes a file it mutates, a test it

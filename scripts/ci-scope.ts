@@ -57,7 +57,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     ? execFileSync("git", ["diff", "--name-only", `origin/${base}...HEAD`], { encoding: "utf8" }).split("\n").filter(Boolean)
     : "all";
   const result = scope(changed);
-  const workerShards = 3;
+  const workerShards = 4;
   const mutations = result.mutations.flatMap(suite => suite === "auth-security-worker"
     ? Array.from({ length: workerShards }, (_, index) => `${suite}-${index + 1}-${workerShards}`)
     : [suite]);
