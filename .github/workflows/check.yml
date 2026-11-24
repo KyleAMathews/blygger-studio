@@ -157,7 +157,12 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npm run test:oracles:worker -- --contexts 4
+      - name: Run Worker oracles with RAM-backed temporary databases
+        run: |
+          if oracle_temp=$(mktemp -d /dev/shm/blygger-worker-oracles.XXXXXX); then
+            export TMPDIR="$oracle_temp"
+          fi
+          npm run test:oracles:worker -- --contexts 4
   formatting-baseline:
     uses: ./.github/workflows/formatting-baseline.yml
     with:
