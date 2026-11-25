@@ -17,6 +17,7 @@ env:
   PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/formatting-browsers
 permissions:
   contents: read
+  actions: read
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -42,14 +43,42 @@ jobs:
           name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: build/formatting-baseline-plan.json
           if-no-files-found: error
+  schedule:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+      - id: matrix
+        env:
+          FORMATTING_COMPACT: ${{ inputs.compact }}
+        run: node scripts/formatting-baseline-schedule.ts
+      - name: Wait for the canonical planner to get a runner
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          endpoint="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs"
+          while true; do
+            planner=$(gh api --paginate "$endpoint?per_page=100" --jq '
+              .jobs[] | select(.name == "formatting-baseline / plan") | .conclusion // .status')
+            case "$planner" in
+              in_progress|success) break ;;
+              ''|queued|waiting|pending|requested) sleep 2 ;;
+              *) echo "Canonical formatting planner status: $planner" >&2; exit 1 ;;
+            esac
+          done
   partitions:
-    needs: plan
+    needs: schedule
     runs-on: ubuntu-latest
     timeout-minutes: ${{ inputs.timeout-minutes }}
     strategy:
       fail-fast: false
       max-parallel: 20
-      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.schedule.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -60,10 +89,33 @@ jobs:
       - uses: ./.github/actions/install-chromium
         with:
           headless-only: 'true'
+      - name: Wait for this run's formatting plan
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_ARTIFACT: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          run="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          while true; do
+            artifact=$(gh api "$run/artifacts?name=$PLAN_ARTIFACT" --jq '
+              .artifacts[] | select(.expired == false) | .id')
+            if [[ "$artifact" =~ ^[0-9]+$ ]]; then
+              echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
+              break
+            fi
+            test -z "$artifact"
+            planner=$(gh api --paginate "$run/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq '
+              .jobs[] | select(.name == "formatting-baseline / plan") | .conclusion // .status')
+            case "$planner" in
+              in_progress|success) sleep 2 ;;
+              *) echo "Canonical formatting plan unavailable: $planner" >&2; exit 1 ;;
+            esac
+          done
       - uses: actions/download-artifact@v4
         with:
-          name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-ids: ${{ steps.plan.outputs.artifact }}
           path: build
+          merge-multiple: true
       - name: Run both passes in each partition's two-CPU service
         env:
           FORMATTING_PART: ${{ matrix.id }}
@@ -103,7 +155,7 @@ jobs:
           if-no-files-found: error
   aggregate:
     if: always()
-    needs: [plan, partitions]
+    needs: [plan, schedule, partitions]
     runs-on: ubuntu-latest
     timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
@@ -111,7 +163,14 @@ jobs:
         env:
           PLAN_RESULT: ${{ needs.plan.result }}
           PARTITION_RESULT: ${{ needs.partitions.result }}
-        run: test "$PLAN_RESULT" = success && test "$PARTITION_RESULT" = success
+          SCHEDULE_RESULT: ${{ needs.schedule.result }}
+          EARLY_MATRIX: ${{ needs.schedule.outputs.matrix }}
+          PLAN_MATRIX: ${{ needs.plan.outputs.matrix }}
+        run: |
+          test "$PLAN_RESULT" = success
+          test "$PARTITION_RESULT" = success
+          test "$SCHEDULE_RESULT" = success
+          test -n "$PLAN_MATRIX" && test "$EARLY_MATRIX" = "$PLAN_MATRIX"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:

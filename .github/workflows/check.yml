@@ -217,6 +217,9 @@ jobs:
           fi
           npm run test:oracles:worker -- --contexts 4
   formatting-baseline:
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/formatting-baseline.yml
     with:
       # Preserve the existing Check ceiling pending complete measurement.
@@ -338,8 +341,8 @@ jobs:
             build/oracle-control-evidence/
 
   mutations-oracle:
-    # Queue the historical controls after browser and source work frees runners.
-    needs: [scope, source-check, browser-oracles]
+    # Queue the historical controls as the browser and Studio jobs free runners.
+    needs: [scope, browser-oracles, studio-oracle-rest]
     if: ${{ !cancelled() && needs.scope.result == 'success' && contains(fromJSON(needs.scope.outputs.mutations), 'oracle') }}
     name: mutations (oracle)
     runs-on: ubuntu-latest
@@ -379,7 +382,7 @@ jobs:
 
   mutations:
     # Let the longest mutation suite and Chromium claim the early runners.
-    needs: [scope, source-check, browser-oracles, studio-oracle-rest]
+    needs: [scope, browser-oracles, studio-oracle-rest]
     if: ${{ !cancelled() && needs.scope.result == 'success' && needs.scope.outputs.other-mutations != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25

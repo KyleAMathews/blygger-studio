@@ -67,6 +67,9 @@ jobs:
   formatting-baseline:
     needs: preflight
     if: needs.preflight.outputs.tested == 'false'
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/formatting-baseline.yml
     with:
       timeout-minutes: 75
