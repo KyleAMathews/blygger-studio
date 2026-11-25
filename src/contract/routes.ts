@@ -14,7 +14,7 @@ import { READ_BATCH_MAX, READ_ID_MAX, READ_VERSION_MAX } from '../importer/read-
 import { BROWSE_VIA } from "../browse-log.ts";
 import { CLASSIFY_MAX } from "../peek.ts";
 import { CURSOR_MAX } from '../cursor-page.ts';
-import { SHELF_MAX } from '../shelf.ts';
+import { SHELF_MAX } from '../shelf-limits.ts';
 import { SOURCE_WORDS_MAX, SOURCES_MAX, TOTAL_WORDS_MAX, WORD_MAX } from '../dictionary.ts';
 import { READ_BATCH_MAX as COLLECTION_READ_BATCH_MAX, READ_BATCH_OPERATIONS, READ_BATCH_PATHS } from '../read-batch-policy.ts';
 

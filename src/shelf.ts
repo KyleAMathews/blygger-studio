@@ -34,7 +34,8 @@
  */
 import { OWN_SUBSCRIPTION } from './own-subscription.ts';
 
-export const SHELF_MAX = 1000;
+import { SHELF_MAX } from './shelf-limits.ts';
+export { SHELF_MAX };
 
 export interface ShelfEntry { sub: string; remoteId: string }
 export interface Shelf { entries: ShelfEntry[]; revision: number }

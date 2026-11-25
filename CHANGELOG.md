@@ -78,6 +78,22 @@ private access moves to a new scope; client-written provenance removed). **Migra
   hopper's draft members too, marked *draft*, showing the working copy, with no public link
   (Venkat: the hopper lens is a hopper view; the reader's other lenses stay draft-free).
   Publishing a draft that is in a public hopper asks first and names the hopper.
+- **Publish confirmations (Kyle's row 5).** A browser oracle,
+  `test-browser/publish.oracle.test.ts`, presses every publish button for drafts and private
+  items, in both modes, through hopper changes and slow or failed reads. The buttons are
+  Compose's row, Quick Edit and the editor. It found five faults, all fixed:
+  - A draft's publish sends its visibility explicitly. A default changed while the dialog is
+    open can no longer turn it private.
+  - In Notebook mode, a draft's row and Quick Edit no longer name public hoppers before adding
+    a private version.
+  - The row's button says *add version*.
+  - The editor asks inside the publish action, so the button stays disabled while it reads the
+    hoppers. A second press no longer opens a second dialog or publishes twice.
+  - A failed read shows an error and publishes nothing (Venkat: refuse with an error).
+- **Shelf ceiling (Venkat, session 85).** The stored shelf holds up to 1,000 entries, a
+  technical ceiling rather than a product cap (it was 50). A replace drops repeats first,
+  keeping each entry's first position. For a token without `owner:private`, hidden entries
+  keep their places, and anything past the ceiling comes off the end of that token's own list.
 
 ## 0.72.0 — Private items and Notebook mode; setup covers the newer settings; what's new after an upgrade
 
