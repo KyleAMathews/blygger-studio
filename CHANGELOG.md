@@ -20,6 +20,18 @@ not have its own repo until session 26.
 
 ## Unreleased
 
+## 0.72.1 — Private items take their place in the reader
+
+**Fix** (Venkat, session 85). In the pace-layered reader, private items stayed on top and
+new items arrived below them. The order is ranked from each item's history, and the ranking
+read only public history, so a private item never had a position, and an entry without one
+sorts first. Private items are now ranked by their private versions, like any other own item,
+and a new private version moves its item as a public version does. Nothing changes on the
+public surface: the public feed's history does not read private versions.
+**Migrations:** `0061_reader_order_private.sql` (the ranking's rebuild triggers also watch
+private items and their versions; it marks the order for a rebuild, so it is right on the
+first reader load after the upgrade). Private contract unchanged (6.4.0), SDK unchanged.
+
 ## 0.72.0 — Private items and Notebook mode; setup covers the newer settings; what's new after an upgrade
 
 **Private items** (blygger-spec decision #94, `docs/sealed-content-build-plan.md` §1). An item
