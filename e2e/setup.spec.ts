@@ -1,4 +1,5 @@
 import { test, expect } from './fixture.ts';
+import { CLIENT } from '../src/client.ts';
 
 // The setup wizard (session 46): reachable from Settings, one step at a time,
 // each setting beside its default, nothing written until the last step.
@@ -91,48 +92,56 @@ test('the setup wizard walks every step and saves only what changed', async ({ p
 
 // What's new (session 82): after an upgrade, the banner names the release's
 // highlights once, and the walk covers only the steps with new settings.
-test('after an upgrade, what is new is offered once and walks only the new steps', async ({ page }) => {
-  const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto('/studio/login');
-  await page.locator('[name="password"]').fill('test-password');
-  await page.getByRole('button', { name: 'log in', exact: true }).click();
-  await expect(page.locator('#composer-text')).toBeVisible();
-  const patch = (body: unknown) => page.evaluate(async (body) => (await fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).status, body);
-  // A node that finished setup before 0.72.0, as migration 0060 leaves it.
-  expect(await patch({ setup: 'done', setupSeenVersion: '0.71.0', defaultVisibility: 'public' })).toBe(200);
-  await page.route('https://blygger.com/blygs.json', (route) => route.fulfill({ json: { version: 1, blygs: [] }, headers: { 'access-control-allow-origin': '*' } }));
+test.describe('what is new', () => {
+  // The suite shares one node: put back what this test changes even when it fails, or
+  // Notebook mode leaks into every later spec (0.72.1's e2e run: 46 failures after this one).
+  test.afterEach(async ({ page }) => {
+    await page.evaluate(async (version) => { await fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ setupSeenVersion: version, defaultVisibility: 'public' }) }); }, CLIENT.version);
+  });
 
-  await page.goto('/studio/settings');
-  const banner = page.locator('#whats-new-banner');
-  await expect(banner).toContainText('New in 0.72.0');
-  await expect(banner).toContainText('Notebook mode');
-  await page.locator('#whats-new-review').click();
-  await expect(page.locator('#setup h2')).toContainText('What’s new in 0.72.0');
-  // You and Home page have nothing new, so they are not walked.
-  const steps = page.locator('.setup-steps li');
-  await expect(steps).toHaveText(['1. Mode', '2. Look', '3. Reading', '4. Writing and AI', '5. Others', '6. Review', '7. Read']);
-  await expect(page.locator('[data-setting="defaultVisibility"] .setup-new')).toBeVisible();
-  await page.getByRole('radio', { name: /Notebook mode/ }).check();
-  for (let i = 0; i < 5; i++) await page.locator('#setup-next').click();
-  await expect(page.locator('#setup-review [data-setting="defaultVisibility"]')).toContainText('Notebook mode');
-  await page.locator('#setup-finish').click();
-  await expect(page.getByRole('dialog', { name: 'discover blygs' })).toBeVisible();
-  await page.keyboard.press('Escape');
-  // The saved marker does not turn the walk back into the whole one under Read.
-  await expect(page.locator('#setup-done .setup-steps li')).toHaveCount(7);
-  await expect(page.locator('#setup-done .setup-steps li[aria-current="step"]')).toHaveText('7. Read');
-  const saved = await page.evaluate(async () => (await fetch('/api/settings')).json() as Promise<Record<string, unknown>>);
-  expect(saved).toMatchObject({ defaultVisibility: 'private', setupSeenVersion: '0.72.0' });
-  // Shown once: the banner is gone now.
-  await page.goto('/studio/settings');
-  await expect(page.locator('#whats-new-banner')).toHaveCount(0);
+  test('after an upgrade, what is new is offered once and walks only the new steps', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto('/studio/login');
+    await page.locator('[name="password"]').fill('test-password');
+    await page.getByRole('button', { name: 'log in', exact: true }).click();
+    await expect(page.locator('#composer-text')).toBeVisible();
+    const patch = (body: unknown) => page.evaluate(async (body) => (await fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).status, body);
+    // A node that finished setup before 0.72.0, as migration 0060 leaves it.
+    expect(await patch({ setup: 'done', setupSeenVersion: '0.71.0', defaultVisibility: 'public' })).toBe(200);
+    await page.route('https://blygger.com/blygs.json', (route) => route.fulfill({ json: { version: 1, blygs: [] }, headers: { 'access-control-allow-origin': '*' } }));
 
-  // Dismissing marks it seen too.
-  expect(await patch({ setupSeenVersion: '0.71.0', defaultVisibility: 'public' })).toBe(200);
-  await page.reload();
-  await page.locator('#whats-new-dismiss').click();
-  await expect(page.locator('#whats-new-banner')).toHaveCount(0);
-  await expect.poll(async () => (await page.evaluate(async () => (await (await fetch('/api/settings')).json()).setupSeenVersion))).toBe('0.72.0');
-  expect(errors).toEqual([]);
+    await page.goto('/studio/settings');
+    const banner = page.locator('#whats-new-banner');
+    await expect(banner).toContainText('New in 0.72.0');
+    await expect(banner).toContainText('Notebook mode');
+    await page.locator('#whats-new-review').click();
+    await expect(page.locator('#setup h2')).toContainText('What’s new in 0.72.0');
+    // You and Home page have nothing new, so they are not walked.
+    const steps = page.locator('.setup-steps li');
+    await expect(steps).toHaveText(['1. Mode', '2. Look', '3. Reading', '4. Writing and AI', '5. Others', '6. Review', '7. Read']);
+    await expect(page.locator('[data-setting="defaultVisibility"] .setup-new')).toBeVisible();
+    await page.getByRole('radio', { name: /Notebook mode/ }).check();
+    for (let i = 0; i < 5; i++) await page.locator('#setup-next').click();
+    await expect(page.locator('#setup-review [data-setting="defaultVisibility"]')).toContainText('Notebook mode');
+    await page.locator('#setup-finish').click();
+    await expect(page.getByRole('dialog', { name: 'discover blygs' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    // The saved marker does not turn the walk back into the whole one under Read.
+    await expect(page.locator('#setup-done .setup-steps li')).toHaveCount(7);
+    await expect(page.locator('#setup-done .setup-steps li[aria-current="step"]')).toHaveText('7. Read');
+    const saved = await page.evaluate(async () => (await fetch('/api/settings')).json() as Promise<Record<string, unknown>>);
+    expect(saved).toMatchObject({ defaultVisibility: 'private', setupSeenVersion: CLIENT.version });
+    // Shown once: the banner is gone now.
+    await page.goto('/studio/settings');
+    await expect(page.locator('#whats-new-banner')).toHaveCount(0);
+
+    // Dismissing marks it seen too.
+    expect(await patch({ setupSeenVersion: '0.71.0', defaultVisibility: 'public' })).toBe(200);
+    await page.reload();
+    await page.locator('#whats-new-dismiss').click();
+    await expect(page.locator('#whats-new-banner')).toHaveCount(0);
+    await expect.poll(async () => (await page.evaluate(async () => (await (await fetch('/api/settings')).json()).setupSeenVersion))).toBe(CLIENT.version);
+    expect(errors).toEqual([]);
+  });
 });
