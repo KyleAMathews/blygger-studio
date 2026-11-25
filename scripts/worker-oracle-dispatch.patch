@@ -1,0 +1,22 @@
+--- a/oracle-gaps/check.mjs
++++ b/oracle-gaps/check.mjs
+@@ -2052,13 +2052,16 @@
+     }
+     // `after(index)` is more work for context `index` once its files ran.
+     const runAcross = async (files, pass, after = async () => {}) => {
+-      const parts = contexts.map(() => [])
+-      files.forEach((file, index) => parts[index % contexts.length].push(file))
++      // Start the costly files first once pass one supplies their timings.
++      const queue = [...files].sort((a, b) => (fileSeconds.get(b) ?? 0) - (fileSeconds.get(a) ?? 0))
++      let next = 0
+       const { units, rows, failed } = passOf(
+         await eachSlot(async (context, index) => {
+           const done = []
+-          for (const file of parts[index])
++          while (next < queue.length) {
++            const file = queue[next++]
+             done.push(await unit(context, file, `unmutated:${pass}`, true))
++          }
+           await after(index)
+           return done
+         }),

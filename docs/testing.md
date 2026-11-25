@@ -31,10 +31,13 @@ npm run release:verify
 
 ## In CI
 
-`check.yml` runs its jobs in parallel: `check` (build, typecheck, release
-build and verify, the Worker, UI and upgrade suites), `sdk-generation`, `e2e`,
-and one `mutations` job per suite, with auth-security split into its worker and
-browser halves. On a pull request, `scripts/ci-scope.ts` decides which of the
+`check.yml` runs independent jobs in parallel. The ordinary Worker suite
+runs in two Vitest file shards with two workers each. The `check` job also
+runs typecheck, the UI suite, and the upgrade tests. A separate job builds and
+verifies the release packages.
+Studio, Worker, browser, and formatting oracles have separate jobs. Chromium
+E2E runs in three shards. Worker auth-security controls run in four.
+On a pull request, `scripts/ci-scope.ts` decides which of the
 slow jobs to run: e2e runs unless every changed file is documentation, and a
 mutation suite runs only when the PR changes a file it mutates, a test it
 runs, its own script, or something every suite shares (`package.json`, the
