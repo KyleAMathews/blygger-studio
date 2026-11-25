@@ -847,6 +847,12 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
   if (typeof patch.reader_order === "string" && !(READER_ORDERS as readonly string[]).includes(patch.reader_order)) return failure('invalid-input', { error: `readerOrder must be ${READER_ORDERS.join(" or ")}` });
   if (typeof patch.reader_mark_read === "string" && !["seen", "opened", "never"].includes(patch.reader_mark_read)) return failure('invalid-input', { error: "readerMarkRead must be seen, opened or never" });
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return failure('invalid-input', { error: `unknown timezone: ${patch.timezone}` });
+  // The avatar publishes its bytes, so it must be a medium that exists and that the caller may see:
+  // a private item's medium is an unknown one to a restricted caller (plan §1 0f law 8; Venkat, session 85).
+  if (patch.avatar_media_id) {
+    const media = await context.env.DB.prepare("SELECT item_id FROM media WHERE id = ?").bind(patch.avatar_media_id).first<{ item_id: string | null }>();
+    if (!media || (media.item_id && await privateItemHidden(context.env.DB, context.access, media.item_id))) return failure('invalid-input', { error: "avatarMediaId names no such media" });
+  }
   if (patch.author_url && !(URL.canParse(patch.author_url) && ["http:", "https:"].includes(new URL(patch.author_url).protocol))) return failure('invalid-input', { error: "authorUrl must be an absolute http(s) URL" });
   if (patch.site_url && !(URL.canParse(patch.site_url) && ["http:", "https:"].includes(new URL(patch.site_url).protocol))) return failure('invalid-input', { error: "siteUrl must be an absolute http(s) URL" });
   if (Array.isArray(body.author_links)) {
@@ -1023,6 +1029,13 @@ const putShelfOperation = async (context: OperationContext, input: OperationInpu
 };
 
 // The Agentic feeds and their editions: see src/agentic.ts for the rules the operations share.
+async function withoutHiddenRefs(context: OperationContext, edition: AgenticEditionInput): Promise<AgenticEditionInput> {
+  const refs = [...(edition.sections ?? []).flatMap((s) => s.entries), ...(edition.scores ?? [])];
+  const hidden = await hiddenOwnIds(context.env.DB, context.access, refs.filter((r) => r.sub === OWN_SUBSCRIPTION).map((r) => r.remoteId));
+  if (!hidden.size) return edition;
+  const shown = (ref: { sub: string; remoteId: string }) => !(ref.sub === OWN_SUBSCRIPTION && hidden.has(ref.remoteId));
+  return { ...edition, ...(edition.sections ? { sections: edition.sections.map((s) => ({ ...s, entries: s.entries.filter(shown) })) } : {}), ...(edition.scores ? { scores: edition.scores.filter(shown) } : {}) };
+}
 const listAgenticFeedsOperation = async (context: OperationContext) => success({ feeds: await listFeeds(context.env.DB) });
 const getAgenticOperation = async (context: OperationContext, input: OperationInput) => {
   const edition = await readEditionAs(context.env.DB, input.path.feed, context.access);
@@ -1031,7 +1044,9 @@ const getAgenticOperation = async (context: OperationContext, input: OperationIn
 const putAgenticOperation = async (context: OperationContext, input: OperationInput) => {
   const feed = input.path.feed;
   const body = input.body as { edition: AgenticEditionInput; expectedRevision: number };
-  if (await replaceEdition(context.env.DB, feed, body.edition, body.expectedRevision, new Date().toISOString())) return success((await readEditionAs(context.env.DB, feed, context.access))!);
+  // A restricted write naming a hidden own item names an unknown one: it is not stored.
+  const edition = await withoutHiddenRefs(context, body.edition);
+  if (await replaceEdition(context.env.DB, feed, edition, body.expectedRevision, new Date().toISOString())) return success((await readEditionAs(context.env.DB, feed, context.access))!);
   const current = await readEditionAs(context.env.DB, feed, context.access);
   if (!current) return failure('not-found', { error: "no such agentic feed" });
   // The current edition rides in the error so an assistant can rebase and retry.

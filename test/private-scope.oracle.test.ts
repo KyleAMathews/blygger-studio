@@ -125,6 +125,8 @@ type History =
   | { kind: 'forge' }
   | { kind: 'refusal' }
   | { kind: 'cursor'; event: CursorEvent; reader: 'restricted memberships' | 'owner hopper lens' }
+  | { kind: 'agentic'; writer: 'owner' | 'restricted' }
+  | { kind: 'shelf' }
   | { kind: 'tk'; source: 'private' | 'public'; position: 'first' | 'second'; fate: 'kept' | 'raised' | 'discarded'; then: 'nothing' | 'regenerate from public' | 'edit the other scope' };
 // Law 7's cursor half: what happens between a restricted caller's first and second page of hopper members.
 type CursorEvent = 'unrelated draft edit' | 'unrelated public edit' | 'member made private' | 'member tainted' | 'hidden member raised' | 'private member keeps p2';
@@ -266,6 +268,14 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
       const path = new URL(attached.url).pathname;
       const bytes = await fetchMedia(path), missing = await fetchMedia(path.replace(/[^/]+$/, 'zzzzzzzz.png'));
       observe('private scope', { operation: 'media bytes', same: bytes.status === missing.status && bytes.status < 500, hidden: bytes.status, unknown: missing.status });
+      // The avatar (law 8): a hidden item's medium is an unknown medium to a restricted caller, the
+      // avatar does not move, and every choice must name a medium that exists. The owner may choose it.
+      const avatar = async () => (await env.DB.prepare("SELECT value FROM settings WHERE key = 'avatar_media_id'").first<{ value: string }>())?.value ?? '';
+      const avatarBefore = await avatar();
+      const chosenHidden = await restricted('PATCH', '/settings', { avatarMediaId: attached.id }), chosenMissing = await restricted('PATCH', '/settings', { avatarMediaId: 'zzzzzzzz' });
+      observe('private scope', { operation: 'avatar', same: chosenHidden.status === chosenMissing.status && chosenHidden.status >= 400 && chosenHidden.status < 500 && normalize(chosenHidden.text, [attached.id]) === normalize(chosenMissing.text, ['zzzzzzzz']) && (await avatar()) === avatarBefore, hidden: chosenHidden.status, unknown: chosenMissing.status, body: chosenHidden.text.slice(0, 160), unknownBody: chosenMissing.text.slice(0, 160) });
+      const ownerChoice = await apiJson(fixture.cookie, 'PATCH', '/blyg/api/settings', { avatarMediaId: attached.id });
+      observe('owner avatar', ownerChoice.status === 200 && (await avatar()) === attached.id);
       // Batched reads go through the same law.
       const batch = await restricted('POST', '/read-batch', { operation: 'getItem', requests: [{ path: { id } }, { path: { id: UNKNOWN } }] });
       const children = (batch.json ?? []) as { status: number; body: unknown }[];
@@ -516,6 +526,39 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
       observe('membership cursor', { expired, exact: expired || JSON.stringify(keys(page.json)) === JSON.stringify(keys(fresh?.json)), status: page.status });
       return;
     }
+    case 'agentic': {
+      // An edition naming hidden items (Kyle on #178: observe the saved draft, not only the answer).
+      const edition = (ids: string[]) => ({ agent: { name: 'private scope' }, sections: [{ title: 'Today', entries: ids.map(remoteId => ({ sub: '~own', remoteId, headline: 'h' })) }] });
+      const put = async (as: typeof restricted, ids: string[]) => as('PUT', '/agentic/default', { edition: edition(ids), expectedRevision: (await api('GET', '/agentic/default')).json.revision });
+      const writer = history.writer === 'owner' ? withPrivate : restricted;
+      const written = await put(writer, [fixture.P, fixture.TD, fixture.X]);
+      const row = await env.DB.prepare("SELECT edition_json, draft_id, draft_md FROM agentic_feeds WHERE id = 'default'").first<{ edition_json: string | null; draft_id: string | null; draft_md: string | null }>();
+      const read = await restricted('GET', '/agentic/default');
+      const draft = row?.draft_id ? await restricted('GET', `/items/${row.draft_id}`) : null;
+      observe('agentic', {
+        status: written.status,
+        responseLeaks: history.writer === 'restricted' ? leaks(written.text, fixture) : [],
+        storedNamesHidden: [fixture.P, fixture.TD].some(id => (row?.edition_json ?? '').includes(id)),
+        restrictedReadLeaks: leaks(read.text, fixture),
+        // The composed draft thread, as a restricted token can read it.
+        restrictedDraftLeaks: draft ? leaks(draft.text, fixture) : [],
+      });
+      return;
+    }
+    case 'shelf': {
+      // The owner shelves visible and hidden items; a restricted token replaces the list it can see.
+      const shelf = (await api('GET', '/shelf')).json;
+      const entry = (id: string) => ({ sub: '~own', remoteId: id });
+      await api('PUT', '/shelf', { entries: [fixture.P, fixture.D, fixture.X, fixture.TD].map(entry), expectedRevision: shelf.revision });
+      const seen = await restricted('GET', '/shelf');
+      const replaced = await restricted('PUT', '/shelf', { entries: [fixture.X, fixture.D, fixture.TP].map(entry), expectedRevision: seen.json.revision });
+      const owned = (await api('GET', '/shelf')).json;
+      const order = (entries: { remoteId: string }[]) => entries.map(e => (['P', 'TD', 'TP', 'X', 'D'] as const).find(r => fixture[r] === e.remoteId) ?? '?');
+      // The owner can always save back exactly what it reads.
+      const back = await api('PUT', '/shelf', { entries: owned.entries, expectedRevision: owned.revision });
+      observe('shelf', { seen: order(seen.json.entries), replaced: replaced.status, answer: order(replaced.json?.entries ?? []), owner: order(owned.entries), savedBack: back.status === 200 && JSON.stringify(order(back.json.entries)) === JSON.stringify(order(owned.entries)) });
+      return;
+    }
     case 'tk': {
       // TK through the real route (Kyle on #178): a two-scope draft, the source in one position and a
       // public item in the other; the source's fate and a later edit vary. Every generation is observed.
@@ -602,7 +645,7 @@ function model(history: History): Expected {
   const at = (checkpoint: string, value: unknown) => out.push({ checkpoint, value });
   switch (history.kind) {
     case 'inventory': at('item operation inventory', []); break;
-    case 'hidden': for (const operation of [...Object.keys(ITEM_OPERATIONS), 'uploadMedia itemId', 'deleteMedia', 'media bytes', 'batchRead getItem']) at('private scope', { operation, same: true }); at('no write took effect', true); break;
+    case 'hidden': for (const operation of [...Object.keys(ITEM_OPERATIONS), 'uploadMedia itemId', 'deleteMedia', 'media bytes', 'avatar']) at('private scope', { operation, same: true }); at('owner avatar', true); at('private scope', { operation: 'batchRead getItem', same: true }); at('no write took effect', true); break;
     case 'mcp': for (const [operation, route] of Object.entries(routes)) if (route.path.startsWith('/items/{id}')) at('private scope', { operation: `MCP ${operation}`, same: true }); break;
     case 'references': for (const operation of ['preview link', 'preview quote', 'preview TK source', 'publish link', 'preview quote in generated text', 'word counts', 'proofread', 'preview tangle', 'generate reading a link', 'publish quote', 'generate TK source']) at('private scope', { operation, same: true }); break;
     case 'working copy':
@@ -627,6 +670,8 @@ function model(history: History): Expected {
       break;
     case 'forge': for (const step of ['created', 'patched', 'published']) at('forge', { step, same: true }); at('forge', { step: 'wire', namesPrivate: false }); break;
     case 'refusal': at('refusal', { refused: true, oneAnswer: true, saysWhy: true }); at('refusal private', 200); break;
+    case 'agentic': at('agentic', { status: 200, responseLeaks: [], storedNamesHidden: history.writer === 'owner', restrictedReadLeaks: [], restrictedDraftLeaks: [] }); break;
+    case 'shelf': at('shelf', { seen: ['D', 'X'], replaced: 200, answer: ['X', 'D', 'TP'], owner: ['P', 'X', 'D', 'TD', 'TP'], savedBack: true }); break;
     case 'tk': {
       // The model: the output drew on a private snapshot exactly when the source was private at its
       // first generation; that mark is the server's and nothing in these histories clears it.
@@ -675,12 +720,14 @@ const describe = (history: History) => {
     case 'clear': return `${history.action} on ${history.target === 'TD' ? 'a tainted draft' : 'a public item\'s tainted changes'} ${history.action === 'discard changes' ? 'removes the mark' : 'keeps the mark'}`;
     case 'forge': return 'client provenance naming a private item is answered as one naming an unknown id';
     case 'refusal': return 'a tainted public publish is refused with one answer whatever became of the source';
+    case 'agentic': return `an Agentic edition written by ${history.writer === 'owner' ? 'a caller who sees private' : 'a restricted token'} naming hidden items leaks nothing, stored or composed`;
+    case 'shelf': return 'a restricted shelf replace keeps hidden entries in place, and the owner can save back what it reads';
     case 'tk': return `TK from a ${history.source} source in the ${history.position} scope, source ${history.fate}, then ${history.then}`;
     case 'cursor': return `${history.reader === 'owner hopper lens' ? 'the owner\'s hopper lens cursor' : 'a restricted hopper cursor'} ${cursorExpires(history.event) ? 'expires on' : 'survives, exactly,'} ${history.event}`;
   }
 };
 const scopeHistories: History[] = [{ kind: 'inventory' }, { kind: 'hidden', resource: 'P' }, { kind: 'hidden', resource: 'TD' }, { kind: 'references', resource: 'P' }, { kind: 'references', resource: 'TD' }, { kind: 'mcp', resource: 'P' }, { kind: 'mcp', resource: 'TD' }];
-const leakHistories: History[] = [{ kind: 'working copy' }, { kind: 'lists' }, { kind: 'owner lists', caller: 'session' }, { kind: 'owner lists', caller: 'token' }];
+const leakHistories: History[] = [{ kind: 'agentic', writer: 'owner' }, { kind: 'agentic', writer: 'restricted' }, { kind: 'shelf' }, { kind: 'working copy' }, { kind: 'lists' }, { kind: 'owner lists', caller: 'session' }, { kind: 'owner lists', caller: 'token' }];
 const taintHistories: History[] = [...CLEARS.map(clear => ({ kind: 'clear' as const, ...clear })), { kind: 'forge' }];
 const blockHistories: History[] = [{ kind: 'refusal' }];
 const tkHistories: History[] = [
@@ -705,7 +752,7 @@ oracleProperty({
   id: 'private-scope-no-leak', owns: ['src/operation-runner.ts#executeOperation', 'src/private-access.ts', 'src/transclusion.ts#resolveTarget', 'src/read-api.ts#getItemOperation', 'src/read-api.ts#listItemsOperation', 'src/read-api.ts#searchOperation', 'src/read-api.ts#listHopperMembershipsOperation', 'src/model.ts#publishScoped', 'src/api.ts#updateItemOperation', 'src/api.ts#createItemOperation', 'src/tk-generate.ts#runGenerateScope', 'src/read-api.ts#previewOperation', 'src/read-api.ts#threadPreview', 'src/read-api.ts#previewTangles', 'src/read-api.ts#getHopperOperation', 'src/read-api.ts#getItemSummaryOperation', 'src/read-api.ts#listReadingOperation', 'src/read-api.ts#getReadingSummaryOperation', 'src/authoring.ts#scopeSummariesWithSources', 'src/tk-generate.ts#privateSource', 'src/transclusion.ts#resolveInternalLinks', 'src/transclusion.ts#previewInternalLinks', 'src/transclusion.ts#previewTransclusions', 'src/mcp.ts'],
   law: { statement: 'For every response to a restricted caller, no hidden item\'s id or text and no hidden working copy\'s text appears, and no list or count includes a hidden item; a public item with a hidden working copy stays visible as its latest public version. A caller who sees private sees drafts, private and tainted items in every list.', authority: AUTHORITY, limits: LIMITS },
   histories: leakHistories, label: describe, model, driver, check,
-  calibrations: [{ name: 'a tainted draft listed for a restricted token', law: 'private scope laws', history: { enumerated: 1 }, corrupt: trace => trace.map((entry, index) => index === 0 ? { ...entry, value: { ...(entry.value as object), named: ['D', 'TD', 'TP', 'X'] } } : entry) }],
+  calibrations: [{ name: 'a tainted draft listed for a restricted token', law: 'private scope laws', history: { enumerated: 4 }, corrupt: trace => trace.map((entry, index) => index === 0 ? { ...entry, value: { ...(entry.value as object), named: ['D', 'TD', 'TP', 'X'] } } : entry) }],
 });
 oracleProperty({
   id: 'private-scope-taint', owns: ['src/operation-runner.ts#executeOperation', 'src/private-access.ts', 'src/transclusion.ts#resolveTarget', 'src/read-api.ts#getItemOperation', 'src/read-api.ts#listItemsOperation', 'src/read-api.ts#searchOperation', 'src/read-api.ts#listHopperMembershipsOperation', 'src/model.ts#publishScoped', 'src/api.ts#updateItemOperation', 'src/api.ts#createItemOperation', 'src/tk-generate.ts#runGenerateScope', 'src/read-api.ts#previewOperation', 'src/read-api.ts#threadPreview', 'src/read-api.ts#previewTangles', 'src/read-api.ts#getHopperOperation', 'src/read-api.ts#getItemSummaryOperation', 'src/read-api.ts#listReadingOperation', 'src/read-api.ts#getReadingSummaryOperation', 'src/authoring.ts#scopeSummariesWithSources', 'src/tk-generate.ts#privateSource', 'src/transclusion.ts#resolveInternalLinks', 'src/transclusion.ts#previewInternalLinks', 'src/transclusion.ts#previewTransclusions', 'src/mcp.ts'],
