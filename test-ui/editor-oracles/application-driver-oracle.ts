@@ -42,6 +42,11 @@ export async function applicationDriver(mobile: boolean, observe: Observe,
     throw error;
   }
   finally {
+    // Context routes can still be fetching a response after the last check.
+    // Drain them before close disposes the request context used by route.fetch.
+    const unrouted = await Promise.allSettled([
+      hostEvent(context.unrouteAll({ behavior: 'wait' }), 'application context routes settled'),
+    ]);
     // A dismissed WebKit beforeunload leaves goto waiting for a load that was
     // canceled. Closing its context ends that protocol operation; its promise
     // is explicitly drained, rather than timed out and counted as a law kill.
@@ -52,7 +57,7 @@ export async function applicationDriver(mobile: boolean, observe: Observe,
     const drained = await Promise.allSettled([hostEvent(Promise.allSettled(drain), 'application pending operation cleanup')]);
     formattingDiagnosticEnd(drainSpan);
     const settled = drained[0]!.status === 'fulfilled' ? drained[0]!.value : [];
-    const cleanupErrors = [...closed, ...drained, ...settled].filter((r): r is PromiseRejectedResult => r.status === 'rejected').map(r => r.reason);
+    const cleanupErrors = [...unrouted, ...closed, ...drained, ...settled].filter((r): r is PromiseRejectedResult => r.status === 'rejected').map(r => r.reason);
     observe('errors', errors);
     if (cleanupErrors.length) throw new AggregateError([...(failure ? [failure] : []), ...cleanupErrors], 'Application receiving cleanup failed', { cause: failure });
   }

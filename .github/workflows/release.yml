@@ -31,9 +31,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22.18.0
-          cache: npm
-      - run: npm ci --legacy-peer-deps
-      - run: npm run release:check
+      - run: node scripts/check-release.ts
         env:
           RELEASE_RETRY_COMMIT: ${{ github.sha }}
       - name: Read release version
@@ -69,6 +67,9 @@ jobs:
   formatting-baseline:
     needs: preflight
     if: needs.preflight.outputs.tested == 'false'
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/formatting-baseline.yml
     with:
       timeout-minutes: 75
@@ -143,7 +144,8 @@ jobs:
       - if: needs.preflight.outputs.tested != 'true'
         run: npm run test:mutations
       # release:verify drives Chromium; the touch toast regression uses WebKit.
-      - run: npx playwright install --with-deps webkit
+      - if: needs.preflight.outputs.tested != 'true'
+        run: npx playwright install --with-deps webkit
       - if: needs.preflight.outputs.tested != 'true'
         run: npm run test:e2e
       - if: needs.preflight.outputs.tested != 'true'

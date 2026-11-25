@@ -1,0 +1,38 @@
+name: Install Chromium and system dependencies
+description: Prefer the public Ubuntu archive over the runner's regional EC2 mirror.
+inputs:
+  headless-only:
+    description: Install only Chromium Headless Shell and its dependencies.
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        HEADLESS_ONLY: ${{ inputs.headless-only }}
+      run: |
+        mirrors=/etc/apt/apt-mirrors.txt
+        ec2_primary='^(https?://[[:alnum:]-]+\.ec2\.archive\.ubuntu\.com/ubuntu/?)[[:blank:]]+priority:1$'
+        if [[ -f "$mirrors" ]] && grep -Eq "$ec2_primary" "$mirrors"; then
+          original=$(mktemp)
+          cp "$mirrors" "$original"
+          restore_mirrors() {
+            sudo cp "$original" "$mirrors"
+            rm -f "$original"
+          }
+          trap restore_mirrors EXIT
+          # Keep the EC2 mirror as a fallback after the two public archives.
+          sudo sed -E -i "s|$ec2_primary|\\1\tpriority:4|" "$mirrors"
+        fi
+        if [[ "$HEADLESS_ONLY" == true ]]; then
+          npx playwright install-deps chromium &
+          dependencies=$!
+          download_status=0
+          PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 npx playwright install --only-shell chromium || download_status=$?
+          wait "$dependencies"
+          test "$download_status" -eq 0
+          # Validate the downloaded browser after the system dependencies are ready.
+          npx playwright install --only-shell chromium
+        else
+          npx playwright install --with-deps chromium
+        fi

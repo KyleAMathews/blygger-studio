@@ -28,7 +28,7 @@ export function requireExecutedFormattingOracles(report: unknown, selected?: str
 }
 
 /** Bind CI's complete two-pass receipt to its requested check purpose. */
-export function requireFormattingCheckPurpose(report: any, baselineOnly: boolean, expectedFiles?: string[], selected?: string, requestedOptions?: any) {
+export function requireFormattingCheckPurpose(report: any, baselineOnly: boolean, expectedFiles?: string[], selected?: string, requestedOptions?: any, shardTests?: string[]) {
   // The unmodified pinned runner remains the full-audit default.
   if (!baselineOnly && report?.schemaVersion === undefined && report?.purpose === undefined && report?.status === undefined) return;
   if (report?.schemaVersion !== 1 || report.purpose !== (baselineOnly ? 'baseline-only' : 'mutation-audit') || report.status !== (baselineOnly ? 'baseline-completed' : 'completed') || report.options?.baselineOnly !== baselineOnly) throw new Error('Formatting oracle report purpose/schema/options do not match this invocation');
@@ -56,11 +56,12 @@ export function requireFormattingCheckPurpose(report: any, baselineOnly: boolean
     const oracleCapture = pass.capture.filter((item: any) => report.oracleFiles.some((file: string) => item.key.startsWith(file + ' > ')));
     if (oracleCapture.length !== pass.capture.length) throw new Error('Formatting baseline capture contains an unexpected file');
     const sortedKeys = [...keys].sort();
+    if (shardTests && (files.length !== 1 || JSON.stringify(sortedKeys) !== JSON.stringify(shardTests.map(name => files[0] + ' > ' + name).sort()))) throw new Error('Formatting baseline does not match the selected test shard');
     if (firstKeys && JSON.stringify(sortedKeys) !== JSON.stringify(firstKeys)) throw new Error('Formatting baseline passes captured different registrations');
     firstKeys = sortedKeys;
     for (const row of pass.baseline.filter((row: any) => !row.ordinary)) {
       const captured = oracleCapture.filter((item: any) => item.key.startsWith(row.file + ' > '));
-      if (row.skipped !== 0 || captured.length !== row.passed + row.failed || captured.filter((item: any) => item.state === 'pass').length !== row.passed || captured.filter((item: any) => item.state === 'fail').length !== row.failed || captured.some((item: any) => !['fixed seed', 'fixed history', 'case', 'random seed', 'calibration'].includes(item.route))) throw new Error('Formatting baseline capture does not account for its executed oracle tests: ' + row.file);
+      if ((!shardTests && row.skipped !== 0) || captured.length !== row.passed + row.failed || captured.filter((item: any) => item.state === 'pass').length !== row.passed || captured.filter((item: any) => item.state === 'fail').length !== row.failed || captured.some((item: any) => !['fixed seed', 'fixed history', 'case', 'random seed', 'calibration'].includes(item.route))) throw new Error('Formatting baseline capture does not account for its executed oracle tests: ' + row.file);
       failed ||= !!row.failure || row.failed > 0;
     }
   }

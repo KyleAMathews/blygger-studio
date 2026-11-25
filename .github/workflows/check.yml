@@ -16,6 +16,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   oauth-interop:
+    needs: studio-oracle-rest
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -26,7 +28,7 @@ jobs:
           cache: npm
       - run: npm ci --legacy-peer-deps
       - run: npm install --prefix build/oauth-inspector --no-audit --no-fund @modelcontextprotocol/inspector@2.10.1
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/install-chromium
       - run: docker compose -p oauth-conformance -f scripts/oauth-conformance.compose.yml up -d
       - run: npm run test:oauth:interop
       - run: npm run test:oauth:conformance
@@ -45,6 +47,8 @@ jobs:
     outputs:
       e2e: ${{ steps.scope.outputs.e2e }}
       mutations: ${{ steps.scope.outputs.mutations }}
+      other-mutations: ${{ steps.scope.outputs.other-mutations }}
+      worker-auth: ${{ steps.scope.outputs.worker-auth }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,13 +56,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22.18.0
-          cache: npm
-      - run: npm ci --legacy-peer-deps
       - id: scope
-        run: node --import tsx scripts/ci-scope.ts "${{ github.event_name }}" "${{ github.base_ref }}"
-  check:
+        run: node scripts/ci-scope.ts "${{ github.event_name }}" "${{ github.base_ref }}"
+  source-check:
     runs-on: ubuntu-latest
-    # The full eight-source oracle campaign precedes Worker and release checks.
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
@@ -69,40 +70,161 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npm run build
       - run: npm run typecheck
       - run: npm run lint:oracles
       - run: npm run check:oracle-migration
-      # Node 22.18's node:sqlite truncates text at NUL; these fixtures need all bytes.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24.19.0
-      - run: npm run test:oracles:studio
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22.18.0
-      - run: npm run test:oracles:conditional:worker
-      - run: npm run test:oracles:contracts
-      - run: npm run test:oracles:search
-      - run: npm run test:oracles:runtime
-      - run: npm run test:oracles:worker
       - run: npm run check:template
       - run: npm run check:fixtures
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - run: npm run release:build
-      # verify-sdk-consumer.ts, inside release:verify, drives Chromium.
-      - run: npx playwright install --with-deps chromium
-      - run: npm run release:verify
       - run: npm run openapi && git diff --exit-code -- openapi.json
       - run: npm run test:ui -- --maxWorkers=2
-      - run: npm test -- --maxWorkers=2
-      - run: npm run test:upgrade
+      # npm ci already built the same inputs in postinstall.
+      # The early runner takes two shards to offset the later runner's queue.
+      - id: first-worker-shard
+        run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --config=vitest.ci-worker.config.ts --maxWorkers=2 --shard=1/3
+      - if: ${{ !cancelled() && steps.first-worker-shard.outcome != 'skipped' }}
+        run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --config=vitest.ci-worker.config.ts --maxWorkers=2 --shard=2/3
+  check:
+    needs: [source-check, release-package]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require source checks and the upgrade test
+        env:
+          SOURCE_RESULT: ${{ needs.source-check.result }}
+          UPGRADE_RESULT: ${{ needs.release-package.outputs.upgrade }}
+        run: test "$SOURCE_RESULT" = success && test "$UPGRADE_RESULT" = success
+  worker-tests:
+    # Start this shard after the browser job so formatting can use an early runner.
+    needs: browser-oracles
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --config=vitest.ci-worker.config.ts --maxWorkers=2 --shard=3/3
+  release-package:
+    # Leave the first runners available for the formatting matrix.
+    needs: studio-oracle-rest
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      upgrade: ${{ steps.upgrade.outcome }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - id: install
+        run: npm ci --legacy-peer-deps
+      - id: upgrade
+        # The check job gates on the raw outcome. Package verification still runs.
+        continue-on-error: true
+        run: npm run test:upgrade
+      - run: npm run release:build
+      # verify-sdk-consumer.ts, inside release:verify, drives Chromium.
+      - uses: ./.github/actions/install-chromium
+      - run: npm run release:verify
+      # Generate last so release verification reads the checked-in SDK.
+      - name: Verify SDK generation
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          npm run sdk:generate
+          git diff --exit-code -- openapi.json sdk/generated sdk/generation.json
+  studio-oracle-paging:
+    name: studio-oracle-shards (1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      STUDIO_SHARD: '1'
+    steps: &studio-oracle-steps
+      - uses: actions/checkout@v4
+      # Node 22.18's node:sqlite truncates text at NUL.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npm run test:oracles:studio -- --contexts 4 --studio-shard "${{ env.STUDIO_SHARD }}" --out build/studio-oracle-shard
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studio-oracle-shard-${{ github.run_attempt }}-${{ env.STUDIO_SHARD }}
+          path: build/studio-oracle-shard/results.json
+          if-no-files-found: error
+  studio-oracle-rest:
+    name: studio-oracle-shards (2)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      STUDIO_SHARD: '2'
+    steps: *studio-oracle-steps
+  studio-oracles:
+    needs: [studio-oracle-paging, studio-oracle-rest]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require both Studio source shards
+        env:
+          STUDIO_PAGING_RESULT: ${{ needs.studio-oracle-paging.result }}
+          STUDIO_REST_RESULT: ${{ needs.studio-oracle-rest.result }}
+        run: test "$STUDIO_PAGING_RESULT" = success && test "$STUDIO_REST_RESULT" = success
+  worker-oracles:
+    needs: scope
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:conditional:worker
+      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:contracts
+      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:search
+      - run: bash scripts/check-ram-tmp.sh npm run test:oracles:runtime
+  worker-oracle-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - name: Dispatch baseline files to available Worker contexts
+        run: git apply --directory=node_modules/@tanstack/oracles scripts/worker-oracle-dispatch.patch
+      - name: Run Worker oracles with RAM-backed temporary databases
+        run: |
+          if oracle_temp=$(mktemp -d /dev/shm/blygger-worker-oracles.XXXXXX); then
+            export TMPDIR="$oracle_temp"
+          fi
+          npm run test:oracles:worker -- --contexts 4
   formatting-baseline:
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/formatting-baseline.yml
     with:
       # Preserve the existing Check ceiling pending complete measurement.
       timeout-minutes: 360
+      compact: true
   formatting-oracles:
     if: always()
     needs: formatting-baseline
@@ -114,49 +236,56 @@ jobs:
           FORMATTING_RESULT: ${{ needs.formatting-baseline.result }}
         run: test "$FORMATTING_RESULT" = success
 
-  sdk-generation:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22.18.0
-          cache: npm
-      - run: npm ci --legacy-peer-deps
-      - run: npm run sdk:generate
-      - run: git diff --exit-code -- openapi.json sdk/generated sdk/generation.json
   e2e:
-    needs: scope
-    if: needs.scope.outputs.e2e == 'true'
+    # Pairs 1 and 3 have the longer Chromium lanes.
+    needs: [scope, browser-oracles]
+    if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
+    name: e2e (${{ matrix.shard }})
     runs-on: ubuntu-latest
-    # Passing runs took 16-22 minutes on 2026-11-19. WebKit has its own job below:
-    # its apt packages came off a slow Ubuntu mirror that day and three runs timed
-    # out before a test ran. The browser oracles (#151, #152) run here: they drive
-    # Chromium.
     timeout-minutes: 40
-    steps:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 3]
+    steps: &chromium-steps
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e -- --project=desktop --project=mobile
-      - run: npm run test:oracles:browser
-      - run: npm run test:oracles:browser:search
+      - uses: ./.github/actions/install-chromium
+        with:
+          headless-only: 'true'
+      - name: Run Chromium with isolated fixture lanes
+        env:
+          E2E_SHARD: ${{ matrix.shard }}
+          E2E_PAIRS: '4'
+        run: python3 scripts/check-linux-shards.py chromium "$E2E_SHARD" "$E2E_PAIRS"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: e2e-failure-evidence
+          name: e2e-failure-evidence-${{ matrix.shard }}
           path: test-results/
 
-  e2e-webkit:
-    needs: scope
-    if: needs.scope.outputs.e2e == 'true'
+  e2e-short:
+    # Queue the shorter pairs after the second Studio runner becomes available.
+    needs: [scope, browser-oracles, studio-oracle-rest]
+    if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
+    name: e2e (${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [2, 4]
+    steps: *chromium-steps
+
+  browser-oracles:
+    needs: scope
+    if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -164,24 +293,44 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npx playwright install --with-deps webkit
+      - uses: ./.github/actions/install-chromium
+        with:
+          headless-only: 'true'
+      - name: Run the save and search browser oracles on separate CPU lanes
+        run: bash scripts/check-ram-tmp.sh python3 scripts/check-linux-shards.py browser-oracles 1 1
+
+  e2e-webkit:
+    needs: [scope, source-check]
+    if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # Use Playwright's preinstalled WebKit system dependencies.
+    container: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npx playwright install webkit
       - run: npm run test:e2e -- --project=mobile-webkit
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: e2e-webkit-failure-evidence
           path: test-results/
-  mutations:
-    needs: scope
-    if: needs.scope.outputs.mutations != '[]'
+  worker-auth:
+    # Admit the Worker controls when the shorter Studio shard releases its runner.
+    needs: [scope, studio-oracle-paging]
+    if: ${{ !cancelled() && needs.scope.outputs.worker-auth == 'true' }}
     runs-on: ubuntu-latest
-    # Worker security controls were still passing when a slower run hit 25m.
-    timeout-minutes: ${{ matrix.suite == 'auth-security-worker' && 40 || 25 }}
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        suite: ${{ fromJSON(needs.scope.outputs.mutations) }}
-    name: mutations (${{ matrix.suite }})
+        pair: [1, 2, 3, 4]
+    name: mutations (auth-security-worker-${{ matrix.pair }})
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -189,24 +338,73 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npm run build
-      - if: matrix.suite == 'auth-security-browser'
-        run: npx playwright install --with-deps chromium
-      - name: Run ${{ matrix.suite }} mutants
-        run: |
-          case "${{ matrix.suite }}" in
-            oracle) npm run test:mutations ;;
-            polling-cache) npm run test:polling-cache:mutations ;;
-            auth-security-worker) npm run test:auth:security:mutations -- --exclude-browser ;;
-            auth-security-browser) npm run test:auth:security:mutations -- --browser ;;
-            *) echo "unknown suite ${{ matrix.suite }}" >&2; exit 1 ;;
-          esac
+      - name: Run the two Worker control shards
+        env:
+          WORKER_PAIR: ${{ matrix.pair }}
+          WORKER_PAIRS: ${{ strategy.job-total }}
+        run: bash scripts/check-ram-tmp.sh python3 scripts/check-linux-shards.py worker-auth "$WORKER_PAIR" "$WORKER_PAIRS"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: mutation-evidence-${{ matrix.suite }}
+          name: mutation-evidence-auth-security-worker-${{ matrix.pair }}
           path: |
             test-results/
             build/mutation-*.log
             build/polling-mutation-*.log
             build/security-mutant-*.log
+            build/oracle-control-evidence/
+
+  mutations-oracle:
+    # Queue the historical controls as the browser and Studio jobs free runners.
+    needs: [scope, browser-oracles, studio-oracle-rest]
+    if: ${{ !cancelled() && needs.scope.result == 'success' && contains(fromJSON(needs.scope.outputs.mutations), 'oracle') }}
+    name: mutations (oracle)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      MUTATION_SUITE: oracle
+    steps: &mutation-steps
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - if: env.MUTATION_SUITE == 'auth-security-browser'
+        uses: ./.github/actions/install-chromium
+        with:
+          headless-only: 'true'
+      - name: Run ${{ env.MUTATION_SUITE }} mutants
+        run: |
+          case "$MUTATION_SUITE" in
+            oracle) bash scripts/check-ram-tmp.sh python3 scripts/check-linux-shards.py oracle-controls 1 1 ;;
+            polling-cache) bash scripts/check-ram-tmp.sh npm run test:polling-cache:mutations ;;
+            auth-security-browser) npm run test:auth:security:mutations -- --browser ;;
+            *) echo "unknown suite $MUTATION_SUITE" >&2; exit 1 ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: mutation-evidence-${{ env.MUTATION_SUITE }}
+          path: |
+            test-results/
+            build/mutation-*.log
+            build/oracle-mutation-*-replay.json
+            build/polling-mutation-*.log
+            build/security-mutant-*.log
+            build/oracle-control-evidence/
+
+  mutations:
+    # Let the longest mutation suite and Chromium claim the early runners.
+    needs: [scope, browser-oracles, studio-oracle-rest]
+    if: ${{ !cancelled() && needs.scope.result == 'success' && needs.scope.outputs.other-mutations != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON(needs.scope.outputs.other-mutations) }}
+    name: mutations (${{ matrix.suite }})
+    env:
+      MUTATION_SUITE: ${{ matrix.suite }}
+    steps: *mutation-steps

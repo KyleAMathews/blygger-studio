@@ -56,11 +56,8 @@ function check(trace: readonly Observation[], expected: ReturnType<typeof naviga
   if (p.h.departure === 'spa' || p.h.departure === 'spa-reject') facts.push(['blocked', expected.blocked]);
   if (p.h.departure === 'spa-reject') {
     facts.push(['failed', expected.failed]);
-    const requests = traceValue(trace, 'failedRequests') as { method: string; body: unknown; status: number }[];
-    // Request bodies are raw submitted inputs, retained for the receiving
-    // receipt. The controlled provider must have actually delivered rejection.
-    const rejected = { received: requests.length > 0, statuses: [...new Set(requests.map(request => request.status))], methods: [...new Set(requests.map(request => request.method))] };
-    const failure = differs('failedRequests', law, rejected, { received: true, statuses: [500], methods: ['PATCH'] });
+    // The controlled provider must have actually delivered rejection.
+    const failure = differs('failedRequests', law, traceValue(trace, 'failedRequests'), { received: true, statuses: [500], methods: ['PATCH'] });
     if (failure) return failure;
   }
   facts.push(['departure', expected.departure]);
