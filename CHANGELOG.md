@@ -88,7 +88,8 @@ private access moves to a new scope; client-written provenance removed). **Migra
   The browsing log no longer shows such a token steps that name a hidden item.
 - **Agentic editions (Kyle's row 3).** An edition's composed draft thread is hidden like a
   tainted draft while it names a hidden own item (Venkat, session 85; a stopgap until
-  agentic-feed-plan §3.1). The mark follows each composition, and only the Studio's own
+  agentic-feed-plan §3.1). The mark follows each composition, and an item that turns hidden
+  later marks the drafts that name it (migration 0063's trigger). Only the Studio's own
   unedited draft is rewritten. An edition written by a token without `owner:private` drops the
   hidden items it names, as it drops unknown ones.
 - **Avatar.** The avatar must name an existing medium the caller may see. A token without
