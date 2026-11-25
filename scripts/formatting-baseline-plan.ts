@@ -34,22 +34,22 @@ const timings: Record<string, { seconds: number; shards?: number }> = {
   list: { seconds: 215 },
   'valid-input': { seconds: 60 },
 };
-// Each row is one runner with two CPU lanes. Three hosted timing profiles
+// Each row is one runner with two CPU lanes. Four hosted timing profiles
 // balance the long groups and leave one short group to free a runner early.
 const compactLanes = [
-  [['held-newline-2', 'workflows-2'], ['mixed-9', 'line-break']],
-  [['mixed-4', 'inline'], ['bracket-receiver', 'held-newline-1']],
-  [['receivers-3', 'escape-layers'], ['workflows-1', 'navigation-2']],
-  [['receivers-2', 'keyboard'], ['mixed-2', 'valid-input']],
-  [['list', 'interactions-2'], ['session-3', 'interactions-3']],
-  [['held-newline-3', 'navigation-1'], ['session-2', 'receivers-4']],
-  [['receivers-1', 'navigation-3'], ['mixed-6', 'draft']],
-  [['workflows-3', 'session-1'], ['mixed-3']],
+  [['navigation-3', 'held-newline-1'], ['receivers-1', 'navigation-2']],
+  [['session-2', 'held-newline-2'], ['session-3', 'workflows-3']],
+  [['newline-history-2', 'code-block'], ['mixed-8', 'line-break']],
+  [['escape-layers', 'receivers-3'], ['held-newline-3', 'navigation-1']],
+  [['interactions-1', 'interactions-3'], ['session-1', 'receivers-4']],
+  [['bracket-receiver', 'workflows-1'], ['workflows-2', 'receivers-2']],
+  [['mixed-6'], ['newline-history-1', 'valid-input']],
+  [['mixed-3'], ['mixed-4']],
+  [['interactions-2', 'inline'], ['mixed-1', 'draft']],
   [['mixed-11'], ['mixed-7']],
   [['mixed-10'], ['mixed-5']],
-  [['mixed-1'], ['newline-history-2']],
-  [['mixed-8'], ['newline-history-1']],
-  [['code-block', 'links'], ['interactions-1']],
+  [['mixed-2'], ['mixed-9']],
+  [['list', 'links'], ['keyboard']],
 ] as const;
 const fileId = (file: string) => file.replace(/^test-ui\/editor-/, '').replace(/\.oracle\.test\.ts$/, '');
 const shardCount = (file: string) => timings[fileId(file)]?.shards ?? 1;

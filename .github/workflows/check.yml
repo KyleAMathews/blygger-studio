@@ -16,6 +16,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   oauth-interop:
+    needs: studio-oracle-rest
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -97,7 +99,9 @@ jobs:
       - run: npm ci --legacy-peer-deps
       - run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --maxWorkers=2 --shard=2/2
   release-package:
-    # Give the formatting matrix the first chance to claim runners.
+    # Leave the first runners available for the formatting matrix.
+    needs: studio-oracle-rest
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -211,7 +215,7 @@ jobs:
 
   e2e:
     # Admit Chromium when the browser oracles release their runner.
-    needs: [scope, release-package, browser-oracles]
+    needs: [scope, browser-oracles]
     if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -254,7 +258,7 @@ jobs:
         run: bash scripts/check-ram-tmp.sh python3 scripts/check-linux-shards.py browser-oracles 1 1
 
   e2e-webkit:
-    needs: [scope, release-package, check]
+    needs: [scope, check]
     if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -276,7 +280,7 @@ jobs:
           path: test-results/
   worker-auth:
     # Admit the Worker controls when the shorter Studio shard releases its runner.
-    needs: [scope, release-package, studio-oracle-paging]
+    needs: [scope, studio-oracle-paging]
     if: ${{ !cancelled() && needs.scope.outputs.worker-auth == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -309,7 +313,7 @@ jobs:
 
   mutations-oracle:
     # Admit this suite after both early oracle jobs finish.
-    needs: [scope, release-package, worker-oracles, browser-oracles]
+    needs: [scope, worker-oracles, browser-oracles]
     if: ${{ !cancelled() && needs.scope.result == 'success' && contains(fromJSON(needs.scope.outputs.mutations), 'oracle') }}
     name: mutations (oracle)
     runs-on: ubuntu-latest
@@ -347,7 +351,7 @@ jobs:
   mutations:
     # Give Chromium first use of the early runners and start the smaller
     # controls after the remaining Studio work releases another runner.
-    needs: [scope, release-package, worker-oracles, browser-oracles, studio-oracle-rest]
+    needs: [scope, worker-oracles, browser-oracles, studio-oracle-rest]
     if: ${{ !cancelled() && needs.scope.result == 'success' && needs.scope.outputs.other-mutations != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
