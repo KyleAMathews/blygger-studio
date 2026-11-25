@@ -65,7 +65,8 @@ import { getItem, putSettings } from '../src/model.ts';
 import { createOwnerApi } from '../src/owner-api.ts';
 import { routes } from '../src/contract/routes.ts';
 import { runGenerateScope } from '../src/tk-generate.ts';
-import { apiJson, getPublic, login } from './helpers.ts';
+import { BASE, apiJson, getPublic, login } from './helpers.ts';
+import { SELF } from 'cloudflare:test';
 import { withOracleStorage } from './oracle-storage.ts';
 
 const RESTRICTED = ['owner:read', 'owner:draft', 'owner:publish', 'owner:manage', 'reading:state'];
@@ -116,9 +117,10 @@ type History =
   | { kind: 'inventory' }
   | { kind: 'hidden'; resource: 'P' | 'TD' }
   | { kind: 'references'; resource: 'P' | 'TD' }
+  | { kind: 'mcp'; resource: 'P' | 'TD' }
   | { kind: 'working copy' }
   | { kind: 'lists' }
-  | { kind: 'owner lists' }
+  | { kind: 'owner lists'; caller: 'session' | 'token' }
   | { kind: 'clear'; action: Clear; target: 'TD' | 'TP' }
   | { kind: 'forge' }
   | { kind: 'refusal' }
@@ -132,14 +134,14 @@ function tokenApi(scope: string[]) {
   return async (method: string, path: string, body?: unknown) => {
     const ctx = createExecutionContext();
     const response = await app.fetch(new Request(`https://example.com/api${path}`, {
-      method, ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+      method, ...(body === undefined ? {} : body instanceof FormData ? { body } : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
     }), { ...env, API_READ_LIMIT: '10000', API_WRITE_LIMIT: '10000', API_DELEGATED_READ_LIMIT: '10000', API_DELEGATED_WRITE_LIMIT: '10000' }, ctx);
     await waitOnExecutionContext(ctx);
     const text = await response.text();
     return { status: response.status, text, json: (() => { try { return JSON.parse(text); } catch { return null; } })() };
   };
 }
-const restricted = tokenApi(RESTRICTED);
+const restricted = tokenApi(RESTRICTED), withPrivate = tokenApi([...RESTRICTED, 'owner:private']);
 
 function provider(text: string): ProviderFetchLike {
   return async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ model: 'claude-opus-5', stop_reason: 'end_turn', content: [{ type: 'text', text }] }) });
@@ -180,6 +182,10 @@ async function seed(): Promise<Fixture> {
   return { P, TD, TP, X, D, hopper, cookie };
 }
 
+async function bothLenses(ask: (method: string, path: string) => Promise<{ status: number; text: string; json: any }>, path: string) {
+  const front = await ask('GET', path), back = await ask('GET', path + '&background=true');
+  return { status: Math.max(front.status, back.status), text: front.text + back.text, json: [front.json, back.json] };
+}
 const normalize = (text: string, ids: string[]) => ids.reduce((out, id) => out.replaceAll(id, '<id>'), text);
 const leaks = (text: string, fixture: Fixture) => [SOURCE, DERIVED, fixture.P, fixture.TD].filter(mark => text.includes(mark));
 async function revision(fixture: Fixture, id: string) {
@@ -188,7 +194,8 @@ async function revision(fixture: Fixture, id: string) {
 async function ownerState(fixture: Fixture, id: string) {
   const item = await getItem(env.DB, id);
   const members = await env.DB.prepare("SELECT COUNT(*) AS n FROM hopper_items WHERE hopper_id = ? AND subscription_id = '~own' AND remote_id = ?").bind(fixture.hopper, id).first<{ n: number }>();
-  return item && { status: item.status, version: item.version, contentMd: item.content_md, provenance: item.tk_provenance_json, member: members?.n ?? 0 };
+  const media = await env.DB.prepare('SELECT COUNT(*) AS n FROM media WHERE item_id = ?').bind(id).first<{ n: number }>();
+  return item && { status: item.status, version: item.version, contentMd: item.content_md, provenance: item.tk_provenance_json, member: members?.n ?? 0, media: media?.n ?? 0 };
 }
 const label = (resource: Resource, fixture: Fixture) => fixture[resource];
 // The fixture items a list returns as results: ids in `id`, `remoteId` or a reader `key`, not ids quoted inside text.
@@ -213,18 +220,60 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
   switch (history.kind) {
     case 'hidden': {
       const id = fixture[history.resource];
+      // A medium the owner attached to the hidden item, before anything is asked.
+      const upload = (itemId: string, expectedRevision: number, auth: Record<string, string>) => {
+        const form = new FormData(); form.set('file', new File(['hidden item bytes'], 'kept.png', { type: 'image/png' }));
+        form.set('itemId', itemId); form.set('expectedRevision', String(expectedRevision));
+        return { form, send: () => SELF.fetch(`${BASE}/blyg/api/media`, { method: 'POST', headers: auth, body: form }) };
+      };
+      const attached = await (await upload(id, await revision(fixture, id), { cookie: fixture.cookie }).send()).json() as { id: string; url: string };
       const before = await ownerState(fixture, id), number = await revision(fixture, id);
       for (const [operation, call] of Object.entries(ITEM_OPERATIONS)) {
         const ask = (target: string) => restricted(call.method, call.path(target, fixture.hopper), call.body?.(number));
         const hidden = await ask(id), unknown = await ask(UNKNOWN);
-        observe('private scope', { operation, same: hidden.status === unknown.status && normalize(hidden.text, [id]) === normalize(unknown.text, [UNKNOWN]), hidden: hidden.status, unknown: unknown.status, body: normalize(hidden.text, [id]).slice(0, 160), unknownBody: normalize(unknown.text, [UNKNOWN]).slice(0, 160) });
+        observe('private scope', { operation, same: hidden.status === unknown.status && hidden.status < 500 && normalize(hidden.text, [id]) === normalize(unknown.text, [UNKNOWN]), hidden: hidden.status, unknown: unknown.status, body: normalize(hidden.text, [id]).slice(0, 160), unknownBody: normalize(unknown.text, [UNKNOWN]).slice(0, 160) });
       }
+      // Operations that name the item in a body: an upload attached to it, the removal of its medium.
+      const askUpload = (target: string) => restricted('POST', '/media', upload(target, number, {}).form);
+      for (const [operation, ask] of [
+        ['uploadMedia itemId', askUpload],
+        ['deleteMedia', (target: string) => restricted('DELETE', `/media/${target === id ? attached.id : 'zzzzzzzz'}`, { expectedRevision: number })],
+      ] as const) {
+        const hidden = await ask(id), unknown = await ask(UNKNOWN);
+        observe('private scope', { operation, same: hidden.status === unknown.status && hidden.status < 500 && normalize(hidden.text, [id, attached.id]) === normalize(unknown.text, [UNKNOWN, 'zzzzzzzz']), hidden: hidden.status, unknown: unknown.status, body: normalize(hidden.text, [id, attached.id]).slice(0, 160), unknownBody: normalize(unknown.text, [UNKNOWN, 'zzzzzzzz']).slice(0, 160) });
+      }
+      // Its bytes, fetched with a restricted bearer token, answer as a medium that does not exist.
+      const minted = (await apiJson(fixture.cookie, 'POST', '/blyg/api/authorizations', { name: 'private scope oracle', scope: RESTRICTED, resource: 'api' })).json as { accessToken: string };
+      const fetchMedia = (path: string) => SELF.fetch(`${BASE}${path}`, { headers: { Authorization: 'Bearer ' + minted.accessToken } });
+      const path = new URL(attached.url).pathname;
+      const bytes = await fetchMedia(path), missing = await fetchMedia(path.replace(/[^/]+$/, 'zzzzzzzz.png'));
+      observe('private scope', { operation: 'media bytes', same: bytes.status === missing.status && bytes.status < 500, hidden: bytes.status, unknown: missing.status });
       // Batched reads go through the same law.
       const batch = await restricted('POST', '/read-batch', { operation: 'getItem', requests: [{ path: { id } }, { path: { id: UNKNOWN } }] });
       const children = (batch.json ?? []) as { status: number; body: unknown }[];
       observe('private scope', { operation: 'batchRead getItem', same: batch.status === 200 && children.length === 2 && children[0].status === children[1].status && normalize(JSON.stringify(children[0].body), [id]) === normalize(JSON.stringify(children[1].body), [UNKNOWN]), hidden: children[0]?.status, unknown: children[1]?.status, body: JSON.stringify(children[0]?.body ?? batch.text).slice(0, 160) });
       const after = await ownerState(fixture, id);
       observe('no write took effect', JSON.stringify(after) === JSON.stringify(before));
+      return;
+    }
+    case 'mcp': {
+      // The same law over MCP, in Notebook mode: a publish that names no visibility then
+      // follows the private default, the case mcp.ts challenges before dispatch.
+      const id = fixture[history.resource];
+      await api('PATCH', '/settings', { defaultVisibility: 'private' });
+      const minted = (await apiJson(fixture.cookie, 'POST', '/blyg/api/authorizations', { name: 'private scope MCP', scope: RESTRICTED, resource: 'mcp' })).json as { accessToken: string };
+      const call = async (name: string, args: Record<string, unknown>) => {
+        const response = await SELF.fetch(`${BASE}/blyg/studio/mcp`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: 'Bearer ' + minted.accessToken, 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/call', 'mcp-name': name },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) });
+        return { status: response.status, text: await response.text(), challenge: response.headers.get('www-authenticate') ?? '' };
+      };
+      const number = await revision(fixture, id);
+      for (const [operation, route] of Object.entries(routes).filter(([, route]) => route.path.startsWith('/items/{id}'))) {
+        const args = (target: string) => ({ path: { id: target, v: 1, version: 1 }, ...(route.method === 'get' ? {} : { body: { expectedRevision: number, ...(operation === 'generateItem' ? { scope: 0 } : {}), ...(operation === 'restoreItem' ? { version: 1 } : {}) } }) });
+        const hidden = await call(operation, args(id)), unknown = await call(operation, args(UNKNOWN));
+        const same = hidden.status === unknown.status && hidden.status < 500 && hidden.challenge === unknown.challenge && normalize(hidden.text, [id]) === normalize(unknown.text, [UNKNOWN]);
+        observe('private scope', { operation: `MCP ${operation}`, same, hidden: hidden.status, unknown: unknown.status, body: normalize(hidden.text, [id]).slice(0, 160), unknownBody: normalize(unknown.text, [UNKNOWN]).slice(0, 160) });
+      }
       return;
     }
     case 'references': {
@@ -255,7 +304,7 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
       };
       for (const [form, send] of Object.entries(forms)) {
         const hidden = await send(id), unknown = await send(UNKNOWN);
-        observe('private scope', { operation: form, same: hidden.status === unknown.status && normalize(hidden.text, [id]) === normalize(unknown.text, [UNKNOWN]), hidden: hidden.status, unknown: unknown.status, body: normalize(hidden.text, [id]).slice(0, 200), unknownBody: normalize(unknown.text, [UNKNOWN]).slice(0, 200) });
+        observe('private scope', { operation: form, same: hidden.status === unknown.status && hidden.status < 500 && normalize(hidden.text, [id]) === normalize(unknown.text, [UNKNOWN]), hidden: hidden.status, unknown: unknown.status, body: normalize(hidden.text, [id]).slice(0, 200), unknownBody: normalize(unknown.text, [UNKNOWN]).slice(0, 200) });
       }
       return;
     }
@@ -263,6 +312,9 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
       const published = (await apiJson(fixture.cookie, 'GET', `/blyg/api/items/${fixture.TP}/versions/1`)).json?.contentMd as string;
       const item = await restricted('GET', `/items/${fixture.TP}`);
       observe('hidden working copy', { operation: 'getItem', status: item.status, contentMd: item.json?.contentMd === published, leaks: leaks(item.text, fixture) });
+      // Q2: the item itself is visible, so a reference to it resolves for a restricted caller.
+      const linked = await restricted('POST', '/preview', { contentMd: `See [[${fixture.TP}]].` });
+      observe('hidden working copy', { operation: 'preview link', status: linked.status, resolved: Array.isArray(linked.json?.linkErrors) && linked.json.linkErrors.length === 0, leaks: leaks(linked.text, fixture) });
       for (const operation of ['listItemVersions', 'getVersion', 'getItemFreshness', 'getSyndication', 'getImportedItem', 'getImportedHistory'] as const) {
         const response = await restricted(ITEM_OPERATIONS[operation].method, ITEM_OPERATIONS[operation].path(fixture.TP, fixture.hopper));
         observe('hidden working copy', { operation, status: response.status < 500 ? 'answered' : response.status, leaks: leaks(response.text, fixture) });
@@ -271,7 +323,9 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
     }
     case 'lists':
     case 'owner lists': {
-      const ask = history.kind === 'lists' ? restricted : async (method: string, path: string, body?: unknown) => { const r = await api(method, path, body); return { status: r.status, text: JSON.stringify(r.json), json: r.json }; };
+      // A caller who sees private is the owner's session or a token holding owner:private.
+      const ask = history.kind === 'lists' ? restricted : history.caller === 'token' ? withPrivate
+        : async (method: string, path: string, body?: unknown) => { const r = await api(method, path, body); return { status: r.status, text: JSON.stringify(r.json), json: r.json }; };
       const lists: Record<string, string> = {
         'items': '/items?limit=100', 'items status=draft': '/items?status=draft&limit=100', 'items status=private': '/items?status=private&limit=100',
         'search words with drafts': '/search?q=words&include=drafts&limit=50', 'search derived with drafts': `/search?q=${DERIVED}&include=drafts&limit=50`,
@@ -280,12 +334,14 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
         'hopper lens': `/reading?hopper=${fixture.hopper}&limit=50`,
       };
       for (const [list, path] of Object.entries(lists).filter(([list]) => list in (history.kind === 'lists' ? VISIBLE_TO_RESTRICTED : VISIBLE_TO_OWNER))) {
-        const response = await ask('GET', path);
+        // The reader's own items, both lenses: Background placement settles after publish (settleOwnBackground).
+        const response = list === 'reading own' || list === 'hopper lens' ? await bothLenses(ask, path) : await ask('GET', path);
         observe('list', { list, status: response.status, named: named(response.json, fixture), leaks: history.kind === 'lists' ? leaks(response.text, fixture) : [] });
       }
       // Law 7 (V9): the hopper lens marks its draft members.
-      const lens = (await ask('GET', `/reading?hopper=${fixture.hopper}&limit=50`)).json as { items?: { own?: { id: string; draft?: boolean } }[] } | null;
-      observe('list', { list: 'hopper lens drafts', marked: (['P', 'TD', 'TP', 'X', 'D'] as const).filter(resource => lens?.items?.some(entry => entry.own?.id === fixture[resource] && entry.own.draft === true)).sort() });
+      const lenses = (await bothLenses(ask, `/reading?hopper=${fixture.hopper}&limit=50`)).json as ({ items?: { own?: { id: string; draft?: boolean } }[] } | null)[];
+      const entries = lenses.flatMap(lens => lens?.items ?? []);
+      observe('list', { list: 'hopper lens drafts', marked: (['P', 'TD', 'TP', 'X', 'D'] as const).filter(resource => entries.some(entry => entry.own?.id === fixture[resource] && entry.own.draft === true)).sort() });
       // Counts are law 2's: a restricted caller counts no hidden item. The owner's counts are not a law here.
       if (history.kind === 'lists') {
         const summary = (await ask('GET', '/items/summary')).json as { all: number; drafts: number; public: number } | null;
@@ -407,10 +463,12 @@ function model(history: History): Expected {
   const at = (checkpoint: string, value: unknown) => out.push({ checkpoint, value });
   switch (history.kind) {
     case 'inventory': at('item operation inventory', []); break;
-    case 'hidden': for (const operation of [...Object.keys(ITEM_OPERATIONS), 'batchRead getItem']) at('private scope', { operation, same: true }); at('no write took effect', true); break;
+    case 'hidden': for (const operation of [...Object.keys(ITEM_OPERATIONS), 'uploadMedia itemId', 'deleteMedia', 'media bytes', 'batchRead getItem']) at('private scope', { operation, same: true }); at('no write took effect', true); break;
+    case 'mcp': for (const [operation, route] of Object.entries(routes)) if (route.path.startsWith('/items/{id}')) at('private scope', { operation: `MCP ${operation}`, same: true }); break;
     case 'references': for (const operation of ['preview link', 'preview quote', 'preview TK source', 'publish link', 'publish quote', 'generate TK source']) at('private scope', { operation, same: true }); break;
     case 'working copy':
       at('hidden working copy', { operation: 'getItem', status: 200, contentMd: true, leaks: [] });
+      at('hidden working copy', { operation: 'preview link', status: 200, resolved: true, leaks: [] });
       for (const operation of ['listItemVersions', 'getVersion', 'getItemFreshness', 'getSyndication', 'getImportedItem', 'getImportedHistory']) at('hidden working copy', { operation, status: 'answered', leaks: [] });
       break;
     case 'lists': for (const [list, visible] of Object.entries(VISIBLE_TO_RESTRICTED)) at('list', { list, status: 200, named: visible, leaks: [] }); at('list', { list: 'hopper lens drafts', marked: ['D'] }); at('list', { list: 'summary', counts: { all: 3, drafts: 1, public: 2 } }); break;
@@ -448,18 +506,19 @@ const describe = (history: History) => {
   switch (history.kind) {
     case 'inventory': return 'every item-addressed contract operation is walked';
     case 'hidden': return `a restricted token learns nothing about ${history.resource === 'P' ? 'a private item' : 'a tainted draft'} on any item operation`;
+    case 'mcp': return `a restricted MCP token learns nothing about ${history.resource === 'P' ? 'a private item' : 'a tainted draft'} on any item tool, in Notebook mode`;
     case 'references': return `a restricted token's previews and publishes name ${history.resource === 'P' ? 'a private item' : 'a tainted draft'} as an unknown one`;
     case 'working copy': return 'a public item with a tainted working copy shows its public version to a restricted token';
     case 'lists': return 'no list, search, reader, hopper or count shows a restricted token a hidden item or working copy';
-    case 'owner lists': return 'the owner sees drafts, private and tainted items in every list and search';
+    case 'owner lists': return `${history.caller === 'session' ? 'the owner\'s session' : 'a token holding owner:private'} sees drafts, private and tainted items in every list and search`;
     case 'clear': return `${history.action} on ${history.target === 'TD' ? 'a tainted draft' : 'a public item\'s tainted changes'} ${history.action === 'discard changes' ? 'removes the mark' : 'keeps the mark'}`;
     case 'forge': return 'client provenance naming a private item is answered as one naming an unknown id';
     case 'refusal': return 'a tainted public publish is refused with one answer whatever became of the source';
     case 'cursor': return `a restricted hopper cursor ${history.event.startsWith('unrelated') ? 'survives' : 'expires on'} ${history.event}`;
   }
 };
-const scopeHistories: History[] = [{ kind: 'inventory' }, { kind: 'hidden', resource: 'P' }, { kind: 'hidden', resource: 'TD' }, { kind: 'references', resource: 'P' }, { kind: 'references', resource: 'TD' }];
-const leakHistories: History[] = [{ kind: 'working copy' }, { kind: 'lists' }, { kind: 'owner lists' }];
+const scopeHistories: History[] = [{ kind: 'inventory' }, { kind: 'hidden', resource: 'P' }, { kind: 'hidden', resource: 'TD' }, { kind: 'references', resource: 'P' }, { kind: 'references', resource: 'TD' }, { kind: 'mcp', resource: 'P' }, { kind: 'mcp', resource: 'TD' }];
+const leakHistories: History[] = [{ kind: 'working copy' }, { kind: 'lists' }, { kind: 'owner lists', caller: 'session' }, { kind: 'owner lists', caller: 'token' }];
 const taintHistories: History[] = [...CLEARS.map(clear => ({ kind: 'clear' as const, ...clear })), { kind: 'forge' }];
 const blockHistories: History[] = [{ kind: 'refusal' }];
 const cursorHistories: History[] = (['unrelated draft edit', 'unrelated public edit', 'member made private', 'member tainted', 'hidden member raised'] as const).map(event => ({ kind: 'cursor', event }));
@@ -468,7 +527,7 @@ const LIMITS = 'One owner, one hopper, fragments. Revisions, ETags, dirty flags 
 
 oracleProperty({
   id: 'private-scope-hidden-items', owns: ['src/operation-runner.ts#executeOperation', 'src/private-access.ts', 'src/transclusion.ts#resolveTarget', 'src/read-api.ts#getItemOperation', 'src/read-api.ts#listItemsOperation', 'src/read-api.ts#searchOperation', 'src/read-api.ts#listHopperMembershipsOperation', 'src/model.ts#publishScoped', 'src/api.ts#updateItemOperation', 'src/api.ts#createItemOperation', 'src/tk-generate.ts#runGenerateScope'],
-  law: { statement: 'For every restricted caller, every hidden item and every operation that names an own item, the answer equals the answer for an id that does not exist, ids aside, and no write takes effect.', authority: AUTHORITY, limits: LIMITS },
+  law: { statement: 'For every restricted caller, every hidden item and every operation that names an own item, the answer equals the answer for an id that does not exist, ids aside, is not a server error, and no write takes effect.', authority: AUTHORITY, limits: LIMITS },
   histories: scopeHistories, label: describe, model, driver, check,
   calibrations: [{ name: 'a private item answers 200 to getItem', law: 'private scope laws', history: { enumerated: 1 }, corrupt: trace => trace.map((entry, index) => index === 0 ? { ...entry, value: { ...(entry.value as object), same: false } } : entry) }],
 });

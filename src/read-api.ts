@@ -1,5 +1,5 @@
 import { OWNER_SCOPES } from "./auth-scopes.ts";
-import { hiddenItemSql, hiddenWorkingCopyFilterSql, hiddenWorkingCopySql, seesPrivate, visibleItemsSql } from "./private-access.ts";
+import { hiddenItemSql, hiddenWorkingCopySql, readableWorkingCopySql, seesPrivate, visibleItemsSql } from "./private-access.ts";
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { itemResource, versionResource, mediaResource, subscriptionResource, hopperResource, importedResource, mentionResource, membershipResource, signalResource, outboundMentionResource, interactionResource, thumbResource, browseResource } from "./contract/resources.ts";
 import { settingsResource } from "./settings-resource.ts";
@@ -423,7 +423,7 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
         NULL AS subscription_id, NULL AS source_title, NULL AS origin,
         CASE WHEN i.dirty = 1 OR i.version = 0 THEN i.content_md END AS draft_md, i.status = 'private' AS is_private
       FROM ${from} LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version
-      WHERE i.status IN ('public', 'draft'${withPrivate ? ", 'private'" : ''}) AND i.kind IN ('fragment', 'thread')${withPrivate ? '' : ` AND ${hiddenWorkingCopyFilterSql(context.access)}`}${where}` });
+      WHERE i.status IN ('public', 'draft'${withPrivate ? ", 'private'" : ''}) AND i.kind IN ('fragment', 'thread')${withPrivate ? '' : ` AND ${readableWorkingCopySql('i')}`}${where}` });
     if (!withPrivate) {
       // A hidden working copy is matched by its latest public version instead (Q2, session 85).
       const published = searchSource('published', 'items i', 'i.id = d.item_id');

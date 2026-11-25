@@ -16,7 +16,7 @@ import { operationScopes, type OwnerAccess } from './permissions.ts';
 import { responseHeaders } from './http-response.ts';
 import { operationHints, API_CONTRACT_VERSION } from './operation-policy.ts';
 import { operationAvailability } from './operation-availability.ts';
-import { PRIVATE_SCOPE, seesPrivate } from './private-access.ts';
+import { PRIVATE_SCOPE, isHiddenItem, seesPrivate } from './private-access.ts';
 import { getItem, getSettings } from './model.ts';
 import { compiledServerExtensions } from '../build/extensions.server.ts';
 import type { ServerExtension } from './extensions/server.ts';
@@ -74,9 +74,10 @@ export async function serveAuthorizedMcp(request: Request, env: Env, ctx: Contex
         const required = operationScopes(name, args);
         // A publish naming no visibility follows the blyg's default while the item was never
         // public; when that makes it private, the challenge names owner:private (studio#178 R12).
+        // Not for an item the token may not see: that one answers as an unknown id (law 1, V10).
         if (name === 'publishItem' && !seesPrivate(access) && !(args?.body && typeof args.body === 'object' && 'visibility' in args.body) && typeof args?.path?.id === 'string') {
           const item = await getItem(env.DB, args.path.id);
-          if (item?.version === 0 && (await getSettings(env.DB)).default_visibility === 'private') required.push(PRIVATE_SCOPE);
+          if (item && !isHiddenItem(item) && item.version === 0 && (await getSettings(env.DB)).default_visibility === 'private') required.push(PRIVATE_SCOPE);
         }
         return required.length ? requireScopes(...[...new Set(required)] as [string, ...string[]])(context) : undefined;
       } }, async input => {

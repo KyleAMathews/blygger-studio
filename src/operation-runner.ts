@@ -47,17 +47,16 @@ async function executeOperation(definition: OperationDefinition, input: Operatio
   }
   if (seesPrivate(context.access)) return handler(context, input);
   // A hidden item is an id that does not exist, to an access that may not see it (law 1,
-  // sealed-content-build-plan §1 0f). The handler runs on an id no item can have, and the
-  // answer names the caller's id again: every answer is an unknown id's by construction,
-  // and no write can reach the item. No handler decides this for itself.
+  // sealed-content-build-plan §1 0f). The handler runs on an id no item can have, so every
+  // answer is an unknown id's by construction and no write can reach the item. No handler
+  // decides this for itself. (No unknown-id answer echoes the id; private-scope's walk
+  // covers every item-addressed operation, so one that started to would fail it.)
   const keys = ownItemKeys(route.path, input.path);
   const hidden = keys.length && route.policy.itemVisibility !== 'in-statement'
     ? await hiddenOwnIds(context.env.DB, context.access, keys.map(key => input.path[key])) : new Set<string>();
   const unseen = keys.filter(key => hidden.has(input.path[key]));
-  const named = new Map(unseen.map(key => [UNSEEN, input.path[key]]));
   if (unseen.length) input = { ...input, path: { ...input.path, ...Object.fromEntries(unseen.map(key => [key, UNSEEN])) } };
-  const result = await handler(context, input);
-  return named.size ? { ...result, value: rename(result.value, named) } as OperationResult : result;
+  return handler(context, input);
 }
 
 /** An item id no item can have: newId draws 128 random bits, and this is the all-zero draw. */
@@ -66,15 +65,8 @@ const UNSEEN = '00000000000000000000000000';
 function ownItemKeys(path: string, params: Record<string, string>): string[] {
   if (path.startsWith('/items/{id}')) return ['id'];
   if (params.sub !== OWN_SUBSCRIPTION) return [];
-  if (path.includes('{sub}/{remoteId}')) return ['remoteId'];
-  if (path.startsWith('/imports/{sub}/{id}')) return ['id'];
-  return [];
-}
-function rename(value: unknown, names: Map<string, string>): unknown {
-  if (typeof value === 'string') return [...names].reduce((out, [from, to]) => out.replaceAll(from, to), value);
-  if (Array.isArray(value)) return value.map(entry => rename(entry, names));
-  if (!value || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) return value;
-  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, rename(entry, names)]));
+  // Imports never hold own items, so `/imports/~own/{id}` already answers as unknown.
+  return path.includes('{sub}/{remoteId}') ? ['remoteId'] : [];
 }
 
 export async function runOperation(definition: OperationDefinition, input: OperationInput, context: OperationContext): Promise<OperationResult> {

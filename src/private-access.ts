@@ -39,7 +39,6 @@ export function hiddenWorkingCopySql(alias = "i"): string {
 const MASKED: Record<string, (alias: string) => string> = {
   content_md: (a) => `COALESCE((SELECT v.content_md FROM versions v WHERE v.item_id = ${a}.id AND v.version = ${a}.version), '')`,
   tk_provenance_json: () => "NULL",
-  private_taint: () => "0",
 };
 
 /**
@@ -60,14 +59,9 @@ export function isHiddenItem(item: { status: string; private_taint: number }): b
   return item.status === "private" || (item.status === "draft" && item.private_taint === 1);
 }
 
-/** SQL that drops hidden items from a list for a restricted access; null for one that sees private. */
-export function privateFilterSql(access: OwnerAccess | null, alias = "i"): string | null {
-  return seesPrivate(access) ? null : `NOT ${hiddenItemSql(alias)}`;
-}
-
-/** SQL that drops working-copy search documents a restricted access may not read; null for one that sees private. */
-export function hiddenWorkingCopyFilterSql(access: OwnerAccess | null, alias = "i"): string | null {
-  return seesPrivate(access) ? null : `NOT ${hiddenItemSql(alias)} AND NOT ${hiddenWorkingCopySql(alias)}`;
+/** SQL true for an own item whose working copy a restricted access may read (search over working copies). */
+export function readableWorkingCopySql(alias = "i"): string {
+  return `NOT ${hiddenItemSql(alias)} AND NOT ${hiddenWorkingCopySql(alias)}`;
 }
 
 /** Of these own item ids, the hidden ones. Empty for an access that sees private. */
