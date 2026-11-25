@@ -128,7 +128,7 @@ type History =
   | { kind: 'refusal' }
   | { kind: 'cursor'; event: CursorEvent; reader: 'restricted memberships' | 'owner hopper lens' }
   | { kind: 'agentic'; writer: 'owner' | 'restricted'; turnsPrivate?: true }
-  | { kind: 'shelf'; full?: true }
+  | { kind: 'shelf'; full?: true; turnsPrivate?: true }
   | { kind: 'search lifecycle'; caller: 'session' | 'restricted' }
   | { kind: 'masked write'; op: MaskedOp }
   | { kind: 'tk'; source: 'private' | 'public'; position: 'first' | 'second'; fate: 'kept' | 'raised' | 'discarded'; then: 'nothing' | 'regenerate from public' | 'edit the other scope' };
@@ -614,6 +614,19 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
       return;
     }
     case 'shelf': {
+      if (history.turnsPrivate) {
+        // Kyle's row 3: visibility changes during a replacement. A restricted token reads a shelf of
+        // D and X; D is then kept privately; the token saves back the list it read, reordered. D
+        // keeps its place, the token's mention of it counts for nothing, and its answer omits D.
+        const entry = (id: string) => ({ sub: '~own', remoteId: id });
+        const label = (e: { remoteId: string }) => e.remoteId === fixture.D ? 'D' : e.remoteId === fixture.X ? 'X' : '?';
+        await api('PUT', '/shelf', { entries: [entry(fixture.D), entry(fixture.X)], expectedRevision: (await api('GET', '/shelf')).json.revision });
+        const seen = await restricted('GET', '/shelf');
+        await api('POST', `/items/${fixture.D}/publish`, { visibility: 'private' });
+        const saved = await restricted('PUT', '/shelf', { entries: [entry(fixture.X), entry(fixture.D)], expectedRevision: seen.json.revision });
+        observe('shelf turned private', { seen: seen.json.entries.map(label), saved: saved.status, answer: (saved.json?.entries ?? []).map(label), owner: (await api('GET', '/shelf')).json.entries.map(label) });
+        return;
+      }
       // The owner shelves visible and hidden items; a restricted token replaces the list it can see.
       // The full shelf adds visible drafts until the owner's list sits at the ceiling, so the
       // restricted list plus the hidden entries runs past it.
@@ -796,6 +809,7 @@ function model(history: History): Expected {
       break;
     }
     case 'shelf': {
+      if (history.turnsPrivate) { at('shelf turned private', { seen: ['D', 'X'], saved: 200, answer: ['X'], owner: ['D', 'X'] }); break; }
       const plan = shelfPlan(history), owner = shelfReplace(plan.stored, plan.given);
       const visible = (list: string[]) => list.filter(label => !SHELF_HIDDEN.has(label));
       at('shelf', { stored: 200, seen: visible(plan.stored), replaced: 200, answer: visible(owner), stale: { status: 409, current: visible(owner) }, owner, savedBack: true, overCeiling: 400 });
@@ -853,7 +867,8 @@ const describe = (history: History) => {
       return `an Agentic edition written by ${history.writer === 'owner' ? 'a caller who sees private' : 'a restricted token'} naming hidden items leaks nothing, stored or composed`;
     case 'masked write': return `a restricted ${history.op} of a public item with a hidden working copy acts on its public version and leaks nothing`;
     case 'search lifecycle': return `${history.caller === 'session' ? 'the owner' : 'a restricted token'} finds one item through its life, marked as private or draft exactly when it is`;
-    case 'shelf': return history.full ? 'a restricted replace of a full shelf keeps the hidden entries and loses its own tail past the ceiling' : 'a restricted shelf replace keeps hidden entries in place, and the owner can save back what it reads';
+    case 'shelf': if (history.turnsPrivate) return 'a restricted token saving back a shelf it read before an entry turned private keeps that entry in place, unnamed';
+      return history.full ? 'a restricted replace of a full shelf keeps the hidden entries and loses its own tail past the ceiling' : 'a restricted shelf replace keeps hidden entries in place, and the owner can save back what it reads';
     case 'tk': return `TK from a ${history.source} source in the ${history.position} scope, source ${history.fate}, then ${history.then}`;
     case 'cursor': return `${history.reader === 'owner hopper lens' ? 'the owner\'s hopper lens cursor' : 'a restricted hopper cursor'} ${cursorExpires(history.event) ? 'expires on' : 'survives, exactly,'} ${history.event}`;
   }
@@ -862,7 +877,7 @@ const scopeHistories: History[] = [{ kind: 'inventory' }, { kind: 'hidden', reso
 const leakHistories: History[] = [{ kind: 'agentic', writer: 'owner' }, { kind: 'agentic', writer: 'restricted' }, { kind: 'shelf' }, { kind: 'working copy' }, { kind: 'lists' }, { kind: 'owner lists', caller: 'session' }, { kind: 'owner lists', caller: 'token' }, { kind: 'search lifecycle', caller: 'session' }, { kind: 'search lifecycle', caller: 'restricted' }, ...MASKED_OPS.map(op => ({ kind: 'masked write' as const, op })), { kind: 'agentic', writer: 'owner', turnsPrivate: true }];
 const taintHistories: History[] = [...CLEARS.map(clear => ({ kind: 'clear' as const, ...clear })), { kind: 'forge' }];
 const blockHistories: History[] = [{ kind: 'refusal' }];
-const shelfHistories: History[] = [{ kind: 'shelf' }, { kind: 'shelf', full: true }];
+const shelfHistories: History[] = [{ kind: 'shelf' }, { kind: 'shelf', full: true }, { kind: 'shelf', turnsPrivate: true }];
 const tkHistories: History[] = [
   ...(['first', 'second'] as const).flatMap(position => (['kept', 'raised', 'discarded'] as const).map(fate => ({ kind: 'tk' as const, source: 'private' as const, position, fate, then: 'nothing' as const }))),
   ...(['regenerate from public', 'edit the other scope'] as const).map(then => ({ kind: 'tk' as const, source: 'private' as const, position: 'second' as const, fate: 'kept' as const, then })),
