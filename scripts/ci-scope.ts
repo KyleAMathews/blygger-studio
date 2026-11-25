@@ -59,7 +59,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const result = scope(changed);
   const workerAuth = result.mutations.includes("auth-security-worker");
   const mutations = result.mutations.filter(suite => suite !== "auth-security-worker");
-  const out = `e2e=${result.e2e}\nworker-auth=${workerAuth}\nmutations=${JSON.stringify(mutations)}\n`;
+  const otherMutations = mutations.filter(suite => suite !== "oracle");
+  const out = `e2e=${result.e2e}\nworker-auth=${workerAuth}\nmutations=${JSON.stringify(mutations)}\nother-mutations=${JSON.stringify(otherMutations)}\n`;
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, out);
   process.stdout.write((changed === "all" ? "all jobs (not a pull request)\n" : `${changed.length} changed file(s)\n`) + out);
 }

@@ -45,6 +45,7 @@ jobs:
     outputs:
       e2e: ${{ steps.scope.outputs.e2e }}
       mutations: ${{ steps.scope.outputs.mutations }}
+      other-mutations: ${{ steps.scope.outputs.other-mutations }}
       worker-auth: ${{ steps.scope.outputs.worker-auth }}
     steps:
       - uses: actions/checkout@v4
@@ -119,14 +120,13 @@ jobs:
         run: |
           npm run sdk:generate
           git diff --exit-code -- openapi.json sdk/generated sdk/generation.json
-  studio-oracle-shards:
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
+  studio-oracle-paging:
+    name: studio-oracle-shards (1)
     runs-on: ubuntu-latest
     timeout-minutes: 35
-    steps:
+    env:
+      STUDIO_SHARD: '1'
+    steps: &studio-oracle-steps
       - uses: actions/checkout@v4
       # Node 22.18's node:sqlite truncates text at NUL.
       - uses: actions/setup-node@v4
@@ -134,22 +134,30 @@ jobs:
           node-version: 24.19.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npm run test:oracles:studio -- --contexts 4 --studio-shard "${{ matrix.shard }}" --out build/studio-oracle-shard
+      - run: npm run test:oracles:studio -- --contexts 4 --studio-shard "${{ env.STUDIO_SHARD }}" --out build/studio-oracle-shard
       - uses: actions/upload-artifact@v4
         with:
-          name: studio-oracle-shard-${{ github.run_attempt }}-${{ matrix.shard }}
+          name: studio-oracle-shard-${{ github.run_attempt }}-${{ env.STUDIO_SHARD }}
           path: build/studio-oracle-shard/results.json
           if-no-files-found: error
+  studio-oracle-rest:
+    name: studio-oracle-shards (2)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      STUDIO_SHARD: '2'
+    steps: *studio-oracle-steps
   studio-oracles:
-    needs: studio-oracle-shards
+    needs: [studio-oracle-paging, studio-oracle-rest]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Require both Studio source shards
         env:
-          STUDIO_RESULT: ${{ needs.studio-oracle-shards.result }}
-        run: test "$STUDIO_RESULT" = success
+          STUDIO_PAGING_RESULT: ${{ needs.studio-oracle-paging.result }}
+          STUDIO_REST_RESULT: ${{ needs.studio-oracle-rest.result }}
+        run: test "$STUDIO_PAGING_RESULT" = success && test "$STUDIO_REST_RESULT" = success
   worker-oracles:
     needs: scope
     if: ${{ !cancelled() }}
@@ -202,8 +210,8 @@ jobs:
         run: test "$FORMATTING_RESULT" = success
 
   e2e:
-    # Admit Chromium when the focused Worker job releases its runner.
-    needs: [scope, release-package, worker-oracles]
+    # Admit Chromium when the browser oracles release their runner.
+    needs: [scope, release-package, browser-oracles]
     if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -267,8 +275,8 @@ jobs:
           name: e2e-webkit-failure-evidence
           path: test-results/
   worker-auth:
-    # Admit the Worker controls when the browser oracles release their runner.
-    needs: [scope, release-package, browser-oracles]
+    # Admit the Worker controls when the shorter Studio shard releases its runner.
+    needs: [scope, release-package, studio-oracle-paging]
     if: ${{ !cancelled() && needs.scope.outputs.worker-auth == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -299,29 +307,25 @@ jobs:
             build/security-mutant-*.log
             build/oracle-control-evidence/
 
-  mutations:
-    # Queue the smaller controls after both early oracle jobs release runners.
+  mutations-oracle:
+    # Admit this suite after both early oracle jobs finish.
     needs: [scope, release-package, worker-oracles, browser-oracles]
-    if: ${{ !cancelled() && needs.scope.result == 'success' && needs.scope.outputs.mutations != '[]' }}
+    if: ${{ !cancelled() && needs.scope.result == 'success' && contains(fromJSON(needs.scope.outputs.mutations), 'oracle') }}
+    name: mutations (oracle)
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        suite: ${{ fromJSON(needs.scope.outputs.mutations) }}
-    name: mutations (${{ matrix.suite }})
-    steps:
+    env:
+      MUTATION_SUITE: oracle
+    steps: &mutation-steps
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - if: matrix.suite == 'auth-security-browser'
+      - if: env.MUTATION_SUITE == 'auth-security-browser'
         uses: ./.github/actions/install-chromium
-      - name: Run ${{ matrix.suite }} mutants
-        env:
-          MUTATION_SUITE: ${{ matrix.suite }}
+      - name: Run ${{ env.MUTATION_SUITE }} mutants
         run: |
           case "$MUTATION_SUITE" in
             oracle) bash scripts/check-ram-tmp.sh npm run test:mutations ;;
@@ -332,10 +336,26 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: mutation-evidence-${{ matrix.suite }}
+          name: mutation-evidence-${{ env.MUTATION_SUITE }}
           path: |
             test-results/
             build/mutation-*.log
             build/polling-mutation-*.log
             build/security-mutant-*.log
             build/oracle-control-evidence/
+
+  mutations:
+    # Give Chromium first use of the early runners and start the smaller
+    # controls after the remaining Studio work releases another runner.
+    needs: [scope, release-package, worker-oracles, browser-oracles, studio-oracle-rest]
+    if: ${{ !cancelled() && needs.scope.result == 'success' && needs.scope.outputs.other-mutations != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON(needs.scope.outputs.other-mutations) }}
+    name: mutations (${{ matrix.suite }})
+    env:
+      MUTATION_SUITE: ${{ matrix.suite }}
+    steps: *mutation-steps
