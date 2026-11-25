@@ -147,6 +147,8 @@ function tokenApi(scope: string[], extraEnv: Record<string, string> = {}) {
 const restricted = tokenApi(RESTRICTED), withPrivate = tokenApi([...RESTRICTED, 'owner:private']);
 // The generate route as a caller who sees private, with a provider key: the real route, its scope wiring and its write.
 const generator = tokenApi([...RESTRICTED, 'owner:private'], { AI_PROVIDER_KEY: 'k' });
+// A restricted token with a provider key: what a proofread or generation would send is observable.
+const proofreader = tokenApi(RESTRICTED, { AI_PROVIDER_KEY: 'k' });
 /** Run `work` with provider requests answered by `text`; returns what each request sent. */
 async function withProvider<T>(text: string, work: () => Promise<T>): Promise<{ result: T; sent: string[] }> {
   const original = globalThis.fetch, sent: string[] = [];
@@ -304,6 +306,27 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
           const published = await restricted('POST', `/items/${made}/publish`, { visibility: 'public', expectedRevision: created.json?.revision });
           return { status: published.status, text: normalize(published.text, [made]) };
         },
+        // A quote on its own line inside generated text is walked again (transclusion.ts walk).
+        'preview quote in generated text': target => restricted('POST', '/preview', { contentMd: `[TK]quote it[=]\n\n![[${target}]]\n\n[/TK]`, kind: 'thread' }),
+        // The word-count extension counts own items named by key.
+        'word counts': async target => {
+          await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('extensions', '[\"word-count\"]') ON CONFLICT (key) DO UPDATE SET value = excluded.value").run();
+          return restricted('GET', `/ext/word-count/counts?keys=${encodeURIComponent(JSON.stringify([`own:${target}`]))}`);
+        },
+        // The spellcheck extension proofreads an item named by id, with a model the fixture answers.
+        'proofread': async target => {
+          await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('extensions', '[\"spellcheck\",\"word-count\"]') ON CONFLICT (key) DO UPDATE SET value = excluded.value").run();
+          const { result } = await withProvider('[]', () => proofreader('GET', `/ext/spellcheck/proofread?id=${target}`));
+          return result;
+        },
+        'preview tangle': target => restricted('POST', '/preview', { contentMd: `![[+ a passage that links [[${target}]] ]]`, kind: 'thread' }),
+        // Generation reads the links in a draft (hydration); a hidden one is an unknown one.
+        'generate reading a link': async target => {
+          const created = await restricted('POST', '/items', { contentMd: `see [[${target}]]\n\n[TK]summarize the linked note[/TK]`, kind: 'fragment' });
+          const made = created.json?.id as string;
+          const generated = await restricted('POST', `/items/${made}/generate`, { scope: 0, expectedRevision: created.json?.revision });
+          return { status: generated.status, text: normalize(generated.text, [made]) };
+        },
         'publish quote': async target => {
           const created = await restricted('POST', '/items', { contentMd: `![[${target}]]`, kind: 'thread' });
           const made = created.json?.id as string;
@@ -378,6 +401,11 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
           observe('list', { list: `owner ${kind} preview of the notebook`, source: source && { ok: source.ok, from: source.from }, blockReasons: block.map((error: { reason: string }) => error.reason) });
         }
         // The hopper's public flag, which the make-public confirmation names, on the item.
+        const reading = (await ask('GET', '/reading/summary?sub=all')).json as { counts?: { private: number } } | null;
+        const back = (await ask('GET', '/reading/summary?sub=all&background=true')).json as { counts?: { private: number } } | null;
+        observe('list', { list: 'owner reading counts', private: (reading?.counts?.private ?? 0) + (back?.counts?.private ?? 0) });
+        const thread = async (contentMd: string) => ((await ask('POST', '/preview', { contentMd, kind: 'thread' })).json?.errors ?? []).map((error: { reason: string }) => error.reason);
+        observe('list', { list: 'owner thread reasons', link: await thread(`See [[${fixture.P}]].`), quote: await thread(`![[${fixture.P}]]`), tangle: await thread(`![[+ a passage that links [[${fixture.P}]] ]]`) });
         observe('list', { list: 'item hoppers', hoppers: ((await ask('GET', `/items/${fixture.TP}`)).json?.hoppers ?? []).map((h: { public: boolean }) => h.public) });
       }
       // A cursor belongs to the access that minted it: the owner's continuation is refused to a restricted token.
@@ -395,6 +423,8 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
       if (history.kind === 'lists') {
         const summary = (await ask('GET', '/items/summary')).json as { all: number; drafts: number; public: number } | null;
         observe('list', { list: 'summary', counts: summary && { all: summary.all, drafts: summary.drafts, public: summary.public } });
+        // Hidden is not gone: the client can tell it lacks the scope.
+        observe('list', { list: 'capabilities', private: ((await ask('GET', '/capabilities')).json?.scopes ?? []).includes('owner:private') });
         const reading = (await ask('GET', '/reading/summary?sub=all')).json as { counts?: { own: number; private: number } } | null;
         const background = (await ask('GET', '/reading/summary?sub=all&background=true')).json as { counts?: { own: number; private: number } } | null;
         observe('list', { list: 'reading counts', own: (reading?.counts?.own ?? 0) + (background?.counts?.own ?? 0), private: (reading?.counts?.private ?? 0) + (background?.counts?.private ?? 0) });
@@ -499,7 +529,9 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
         const { result, sent } = await withProvider(text, async () => generator('POST', `/items/${draft}/generate`, { scope, expectedRevision: await revision(fixture, draft) }));
         return { status: result.status, sent: sent.join('') };
       };
-      const first = await generate(at, `${DERIVED} from the source`);
+      // Generated text may link what its instruction names: [[X]] resolves and stays a link; the
+      // source stays a link only while it is served publicly.
+      const first = await generate(at, `${DERIVED} from the source, see [[${fixture.X}]] and [[${source}]]`);
       observe('tk generation', { status: first.status, providerSawSource: first.sent.includes(SOURCE) });
       const other = await generate(1 - at, 'public words from x');
       observe('tk generation', { status: other.status, providerSawSource: other.sent.includes(SOURCE) });
@@ -521,6 +553,9 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
       const wire = document.status === 200 ? await document.text() : '';
       observe('tk outcome', {
         saved: saved.content_md.includes(DERIVED),
+        // A bare [[id]] link in the output, not the instruction's ![[id]] source reference.
+        keptLinks: { x: new RegExp(`(?<!!)\\[\\[${fixture.X}\\]\\]`).test(saved.content_md), source: new RegExp(`(?<!!)\\[\\[${source}\\]\\]`).test(saved.content_md) },
+        wireAt: /"at":"\d{4}-/.test(wire),
         hiddenFromRestricted: seen.status === unknown.status && seen.text === unknown.text.replaceAll(UNKNOWN, draft),
         published: published.status === 200,
         wireHasDerived: wire.includes(DERIVED), wireNamesSource: wire.includes(source), wireModel: wire.includes('"model":"claude-opus-5"'),
@@ -569,7 +604,7 @@ function model(history: History): Expected {
     case 'inventory': at('item operation inventory', []); break;
     case 'hidden': for (const operation of [...Object.keys(ITEM_OPERATIONS), 'uploadMedia itemId', 'deleteMedia', 'media bytes', 'batchRead getItem']) at('private scope', { operation, same: true }); at('no write took effect', true); break;
     case 'mcp': for (const [operation, route] of Object.entries(routes)) if (route.path.startsWith('/items/{id}')) at('private scope', { operation: `MCP ${operation}`, same: true }); break;
-    case 'references': for (const operation of ['preview link', 'preview quote', 'preview TK source', 'publish link', 'publish quote', 'generate TK source']) at('private scope', { operation, same: true }); break;
+    case 'references': for (const operation of ['preview link', 'preview quote', 'preview TK source', 'publish link', 'preview quote in generated text', 'word counts', 'proofread', 'preview tangle', 'generate reading a link', 'publish quote', 'generate TK source']) at('private scope', { operation, same: true }); break;
     case 'working copy':
       at('hidden working copy', { operation: 'getItem', status: 200, contentMd: true, leaks: [] });
       at('hidden working copy', { operation: 'preview link', status: 200, resolved: true, leaks: [] });
@@ -578,11 +613,13 @@ function model(history: History): Expected {
     case 'lists': for (const [list, visible] of Object.entries(VISIBLE_TO_RESTRICTED)) at('list', { list, status: 200, named: visible, leaks: [] }); at('list', { list: 'hopper lens drafts', marked: ['D'] });
       at('list', { list: 'search marks', private: [], draft: ['D'], once: true }); at('list', { list: 'hopper counts', total: 3 });
       at('list', { list: 'cross-access cursors refused', replays: { items: true, 'hopper members': true, search: true } });
-      at('list', { list: 'summary', counts: { all: 3, drafts: 1, public: 2 } }); at('list', { list: 'reading counts', own: 2, private: 0 }); break;
+      at('list', { list: 'summary', counts: { all: 3, drafts: 1, public: 2 } }); at('list', { list: 'capabilities', private: false }); at('list', { list: 'reading counts', own: 2, private: 0 }); break;
     case 'owner lists': for (const [list, visible] of Object.entries(VISIBLE_TO_OWNER)) at('list', { list, status: 200, named: visible, leaks: [] }); at('list', { list: 'hopper lens drafts', marked: ['D', 'TD'] });
       at('list', { list: 'search marks', private: ['P'], draft: ['D', 'TD', 'TP'], once: true }); at('list', { list: 'hopper counts', total: 5 });
       at('list', { list: 'owner reference reasons', P: ['item is private'], TD: ['item is a draft, not published'], D: ['item is a draft, not published'], TP: [] });
       for (const kind of ['fragment', 'thread']) at('list', { list: `owner ${kind} preview of the notebook`, source: { ok: true, from: 'you' }, blockReasons: ['item is private'] });
+      at('list', { list: 'owner reading counts', private: 1 });
+      at('list', { list: 'owner thread reasons', link: ['item is private'], quote: ['item is private'], tangle: ['item is private'] });
       at('list', { list: 'item hoppers', hoppers: [false] }); break;
     case 'clear':
       at('clear action', history.action !== 'provenance patch' ? true : undefined);
@@ -595,9 +632,12 @@ function model(history: History): Expected {
       // first generation; that mark is the server's and nothing in these histories clears it.
       const tainted = history.source === 'private';
       at('tk generation', { status: 200, providerSawSource: true });
-      at('tk generation', { status: 200, providerSawSource: false });
+      // The other scope's generation hydrates the draft's links: the first output's [[source]] link
+      // survives only for a public source, so only then is the source read again.
+      at('tk generation', { status: 200, providerSawSource: history.source === 'public' });
       if (history.then === 'regenerate from public') at('tk generation', { status: 200, providerSawSource: false });
-      at('tk outcome', { saved: history.then !== 'regenerate from public', hiddenFromRestricted: tainted, published: !tainted, wireHasDerived: !tainted && history.then !== 'regenerate from public', wireNamesSource: !tainted && history.then !== 'regenerate from public', wireModel: !tainted, ownerSeesMark: tainted });
+      const firstText = history.then !== 'regenerate from public';
+      at('tk outcome', { keptLinks: { x: firstText, source: firstText && history.source === 'public' }, wireAt: !tainted, saved: history.then !== 'regenerate from public', hiddenFromRestricted: tainted, published: !tainted, wireHasDerived: !tainted && history.then !== 'regenerate from public', wireNamesSource: !tainted && history.then !== 'regenerate from public', wireModel: !tainted, ownerSeesMark: tainted });
       break;
     }
     case 'cursor': at('membership cursor', { expired: cursorExpires(history.event), exact: true }); break;

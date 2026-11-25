@@ -252,9 +252,9 @@ export const UNKNOWN_REASON = "unknown item";
 export async function resolveTarget(
   db: D1Database,
   id: string,
-  selfId?: string,
-  /** The caller may not see private things: a hidden item is not one of ours, so it resolves as unknown (law 1). */
-  restricted = false,
+  selfId: string | undefined,
+  /** The caller may not see private things: a hidden item is not one of ours, so it resolves as unknown (law 1). Every caller states it. */
+  restricted: boolean,
 ): Promise<{ ok: true; target: ResolvedTarget } | { ok: false; reason: string }> {
   const item = await db.prepare("SELECT * FROM items WHERE id = ?").bind(id).first<ItemRow>();
   if (item && !(restricted && isHiddenItem(item))) {
@@ -323,9 +323,9 @@ async function walk(
   db: D1Database,
   contentMd: string,
   onError: (err: TransclusionRefError) => string | null,
-  selfId?: string,
-  blocks?: GeneratedBlocks,
-  restricted = false,
+  selfId: string | undefined,
+  blocks: GeneratedBlocks | undefined,
+  restricted: boolean,
 ): Promise<ResolveResult> {
   const errors: TransclusionRefError[] = [];
   const transclusions: Transclusion[] = [];
@@ -368,7 +368,8 @@ async function walk(
     // token line stays prose, so the wrapper splice still finds it.
     const blockMd = blocks?.blockSources.get(line.trim());
     if (blocks && blockMd !== undefined) {
-      const inner = await walk(db, blockMd, onError, selfId);
+      // The caller's visibility holds inside generated text too (a quote there was walked as the owner's).
+      const inner = await walk(db, blockMd, onError, selfId, undefined, restricted);
       if (inner.transclusions.length || inner.errors.length) {
         transclusions.push(...inner.transclusions);
         errors.push(...inner.errors);
@@ -481,7 +482,7 @@ async function walk(
  * anything — this runs only at publish time, called from model.publish().
  * `selfId` is the publishing thread's own id, for the local DAG check.
  */
-export async function resolveTransclusions(db: D1Database, contentMd: string, selfId?: string, blocks?: GeneratedBlocks, restricted = false): Promise<ResolveResult> {
+export async function resolveTransclusions(db: D1Database, contentMd: string, selfId: string | undefined, blocks: GeneratedBlocks | undefined, restricted: boolean): Promise<ResolveResult> {
   return walk(db, contentMd, () => null, selfId, blocks, restricted);
 }
 
@@ -491,7 +492,7 @@ export async function resolveTransclusions(db: D1Database, contentMd: string, se
  * publish will reject, before the author hits publish. Not used at publish
  * time (see resolveTransclusions above); not a protocol surface.
  */
-export async function previewTransclusions(db: D1Database, contentMd: string, selfId?: string, blocks?: GeneratedBlocks, restricted = false): Promise<ResolveResult> {
+export async function previewTransclusions(db: D1Database, contentMd: string, selfId: string | undefined, blocks: GeneratedBlocks | undefined, restricted: boolean): Promise<ResolveResult> {
   const result = await walk(
     db,
     contentMd,
@@ -570,8 +571,8 @@ export async function resolveInternalLinks(
   db: D1Database,
   contentMd: string,
   ourOrigin: string,
-  onError: (err: TransclusionRefError) => string | null = () => null,
-  restricted = false,
+  onError: (err: TransclusionRefError) => string | null,
+  restricted: boolean,
 ): Promise<InternalLinkDocument> {
   const errors: TransclusionRefError[] = [];
   const replacements = new Map<string, string>();
@@ -659,7 +660,8 @@ export async function linkEntries(db: D1Database, contentMd: string): Promise<Li
   const entries: LinkEntry[] = [];
   for (const m of contentMd.matchAll(LINK_INLINE)) {
     if (inRanges(code, m.index ?? 0)) continue;
-    const resolved = await resolveTarget(db, m[1]);
+    // The links of a version being published: any reference a caller may not see was refused before this.
+    const resolved = await resolveTarget(db, m[1], undefined, false);
     if (!resolved.ok) continue;
     entries.push(resolved.target.origin ? { id: resolved.target.id, origin: resolved.target.origin } : { id: resolved.target.id });
   }
@@ -767,7 +769,7 @@ export async function resolveBlockLinks(
  * the composer shows what publish will reject before the author hits publish —
  * the same contract as `previewTransclusions`.
  */
-export async function previewInternalLinks(db: D1Database, contentMd: string, ourOrigin: string, restricted = false): Promise<InternalLinkDocument> {
+export async function previewInternalLinks(db: D1Database, contentMd: string, ourOrigin: string, restricted: boolean): Promise<InternalLinkDocument> {
   return resolveInternalLinks(
     db,
     contentMd,

@@ -454,10 +454,10 @@ async function publishScoped(db: D1Database, item: ItemRow, note: string | null,
   // where a label has already been through markdown and escaping once.
   // Token sequence is global, so the maps merge.
   const linkErrors: TransclusionRefError[] = [];
-  const links = withMentionCards(await resolveInternalLinks(db, annotated.text, normalizedOrigin(origin), undefined, restricted), handles.cards);
+  const links = withMentionCards(await resolveInternalLinks(db, annotated.text, normalizedOrigin(origin), () => null, restricted), handles.cards);
   linkErrors.push(...links.errors);
   const { docs: blockLinks, errors: blockErrors } = await resolveBlockLinks(annotated, async (md) =>
-    withMentionCards(await resolveInternalLinks(db, md, normalizedOrigin(origin), undefined, restricted), handles.cards),
+    withMentionCards(await resolveInternalLinks(db, md, normalizedOrigin(origin), () => null, restricted), handles.cards),
   );
   linkErrors.push(...blockErrors);
   if (linkErrors.length) throw new TransclusionResolveError(linkErrors);
@@ -599,7 +599,8 @@ export async function publishPrivately(db: D1Database, item: ItemRow, note: stri
   // reference stays literal, since a private version refuses nothing.
   const working = parseComments(authoredText(item.content_md)).text;
   const text = stripToOutput(working, parseScopes(working).scopes).text;
-  const links = await resolveInternalLinks(db, text, normalizedOrigin(ourOrigin ?? (await getSettings(db)).site_url), (err) => escapeHtml(err.directive));
+  // A private publish needs owner:private, so its caller sees the notebook.
+  const links = await resolveInternalLinks(db, text, normalizedOrigin(ourOrigin ?? (await getSettings(db)).site_url), (err) => escapeHtml(err.directive), false);
   const html = await withMathFailures(async () => applyInternalLinks(renderMarkdown(links.text), links));
   const version = (await db.prepare("SELECT COALESCE(MAX(version), 0) + 1 AS next FROM private_versions WHERE item_id = ?").bind(item.id).first<{ next: number }>())!.next;
   const committed = await db.batch([

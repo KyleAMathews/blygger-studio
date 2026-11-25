@@ -161,7 +161,7 @@ describe("§12.2: a hopper subscription's identity", () => {
     expect(cite.source).toBe(new URL(f.origin).host);
     expect(cite.author).toBeUndefined();
     expect((await loadProvenance(env.DB, [[ref]])).remoteSources.size).toBe(0);
-    expect((await resolveTarget(env.DB, "shared-id")).ok).toBe(false);
+    expect((await resolveTarget(env.DB, "shared-id", undefined, false)).ok).toBe(false);
 
     const blyg = await createSubscription(env.DB, { kind: "blyg", origin: f.origin, feedUrl: `${f.origin}feed.xml`, title: "Fixture Blyg" });
     await importedBlygRow(blyg.id, "shared-id");
@@ -170,7 +170,7 @@ describe("§12.2: a hopper subscription's identity", () => {
     const sources = (await loadProvenance(env.DB, [[ref]])).remoteSources;
     expect([...sources.values()].map((v) => v.title)).toEqual(["Fixture Blyg"]);
     // One resolvable row, the blyg's: the hopper's copy does not make it ambiguous.
-    const resolved = await resolveTarget(env.DB, "shared-id");
+    const resolved = await resolveTarget(env.DB, "shared-id", undefined, false);
     expect(resolved.ok).toBe(true);
   });
 });
@@ -269,7 +269,7 @@ describe("§16.12 rule 6: polling a hopper subscription", () => {
     const rows = await listImportedItems(env.DB, sub.id);
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
-      const r = await resolveTarget(env.DB, row.remote_id);
+      const r = await resolveTarget(env.DB, row.remote_id, undefined, false);
       expect(r.ok).toBe(false);
     }
   });

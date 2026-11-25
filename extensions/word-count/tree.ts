@@ -24,6 +24,8 @@
 // Each side's tree follows that side's outline, so a contents thread being
 // reorganised in draft rolls up its draft outline.
 
+import type { OwnerAccess } from "../../src/permissions.ts";
+import { seesPrivate, visibleItemsSql } from "../../src/private-access.ts";
 import { codeRanges, inRanges } from "../../src/code-ranges.ts";
 import { annotateTkPreview } from "../../src/authoring.ts";
 import { withoutComments } from "../../src/comments.ts";
@@ -117,11 +119,11 @@ const UNRESOLVED = /<blockquote class="blyg-transclusion unresolved">[\s\S]*?<\/
  * as the Studio's thread preview (read-api.ts threadPreview), so a draft's
  * count is the count it would publish with.
  */
-export async function draftHtml(db: D1Database, ourOrigin: string, id: string, contentMd: string): Promise<string> {
+export async function draftHtml(db: D1Database, ourOrigin: string, id: string, contentMd: string, restricted: boolean): Promise<string> {
   const tk = annotateTkPreview(contentMd);
-  const links = await previewInternalLinks(db, tk.text, ourOrigin);
-  const blocks = await resolveBlockLinks(tk, (md) => previewInternalLinks(db, md, ourOrigin));
-  const resolved = await previewTransclusions(db, links.text, id, tk);
+  const links = await previewInternalLinks(db, tk.text, ourOrigin, restricted);
+  const blocks = await resolveBlockLinks(tk, (md) => previewInternalLinks(db, md, ourOrigin, restricted));
+  const resolved = await previewTransclusions(db, links.text, id, tk, restricted);
   return [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(resolved.html)).replace(UNRESOLVED, " ");
 }
 
@@ -134,21 +136,25 @@ export interface ItemSides {
 /** D1 binds at most 100 parameters per statement. */
 const CHUNK = 90;
 
-/** Our own items by id, published or draft, not withdrawn, with both sides counted and outlined. */
-export async function loadItems(db: D1Database, ourOrigin: string, ids: string[]): Promise<Map<string, ItemSides>> {
+/**
+ * Our own items by id, published or draft, not withdrawn, with both sides counted and outlined.
+ * `access` is the caller's: an item it may not see is not loaded, and a public item's tainted
+ * working copy counts as its public version (private-access.ts visibleItemsSql; studio#178).
+ */
+export async function loadItems(db: D1Database, ourOrigin: string, ids: string[], access: OwnerAccess | null): Promise<Map<string, ItemSides>> {
   const out = new Map<string, ItemSides>();
   for (let i = 0; i < ids.length; i += CHUNK) {
     const chunk = ids.slice(i, i + CHUNK);
     const { results } = await db
       .prepare(
-        `SELECT i.id, i.content_md AS working_md, v.content_md, v.content_html FROM items i LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version
+        `SELECT i.id, i.content_md AS working_md, v.content_md, v.content_html FROM ${visibleItemsSql(access)} i LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version
          WHERE i.id IN (${chunk.map(() => "?").join(",")}) AND i.kind != 'withdrawn' AND (v.kind IS NULL OR v.kind != 'withdrawn')`,
       )
       .bind(...chunk)
       .all<{ id: string; working_md: string; content_md: string | null; content_html: string | null }>();
     for (const row of results) {
       const published = row.content_md === null ? null : { count: countWords(row.content_html ?? ""), children: outlineLinks(row.content_md) };
-      const draft = published && row.working_md === row.content_md ? published : { count: countWords(await draftHtml(db, ourOrigin, row.id, row.working_md)), children: outlineLinks(withoutComments(row.working_md)) };
+      const draft = published && row.working_md === row.content_md ? published : { count: countWords(await draftHtml(db, ourOrigin, row.id, row.working_md, !seesPrivate(access))), children: outlineLinks(withoutComments(row.working_md)) };
       out.set(row.id, { published, draft });
     }
   }

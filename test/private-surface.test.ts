@@ -98,7 +98,7 @@ describe("an item the public surface does not serve", () => {
       for (const { id } of [fragment, thread]) expect(body, path).not.toContain(id);
     }
     expect((await SELF.fetch(`${BASE}${media}`)).status, "media to a stranger").toBe(404);
-    const quoted = await resolveTarget(env.DB, fragment.id);
+    const quoted = await resolveTarget(env.DB, fragment.id, undefined, false);
     expect(quoted.ok ? "resolved" : quoted.reason).toBe("item is private");
     const mention = await SELF.fetch(`${BASE}/blyg/webmention`, {
       method: "POST",
