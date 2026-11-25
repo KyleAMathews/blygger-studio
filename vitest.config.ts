@@ -6,7 +6,7 @@ import { cloudflareOracleCapture, cloudflareOracleTest, writeOracleCapture, work
 const retiredReplay = ['ORACLE_TARGET', 'ORACLE_SEED', 'ORACLE_PATH'].find(name => process.env[name] !== undefined);
 if (retiredReplay) throw new Error(`${retiredReplay}: Worker oracle replay moved to WORKER_ORACLE_PROPERTY, WORKER_ORACLE_SEED, WORKER_ORACLE_PATH and WORKER_ORACLE_UNIT`);
 
-export default defineConfig({
+export const workerTestConfig = (lazyEntrypoint = false) => defineConfig({
   // Every extension in the repository is compiled into the suite, whatever the
   // operator's extensions.local.json says (test/fixtures/extensions.*.ts).
   resolve: {
@@ -52,7 +52,7 @@ export default defineConfig({
           },
         },
       };
-    }),
+    }, lazyEntrypoint),
   ],
   test: {
     include: ["test/**/*.test.ts"],
@@ -60,3 +60,5 @@ export default defineConfig({
     setupFiles: ["./test/configure-oracles.ts", "./test/apply-migrations.ts"],
   },
 });
+
+export default workerTestConfig();

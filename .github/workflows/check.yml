@@ -82,9 +82,9 @@ jobs:
       # npm ci already built the same inputs in postinstall.
       # The early runner takes two shards to offset the later runner's queue.
       - id: first-worker-shard
-        run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --maxWorkers=2 --shard=1/3
+        run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --config=vitest.ci-worker.config.ts --maxWorkers=2 --shard=1/3
       - if: ${{ !cancelled() && steps.first-worker-shard.outcome != 'skipped' }}
-        run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --maxWorkers=2 --shard=2/3
+        run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --config=vitest.ci-worker.config.ts --maxWorkers=2 --shard=2/3
   check:
     needs: [source-check, release-package]
     if: ${{ !cancelled() }}
@@ -111,7 +111,7 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --maxWorkers=2 --shard=3/3
+      - run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --config=vitest.ci-worker.config.ts --maxWorkers=2 --shard=3/3
   release-package:
     # Leave the first runners available for the formatting matrix.
     needs: studio-oracle-rest

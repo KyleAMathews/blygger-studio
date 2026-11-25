@@ -35,8 +35,15 @@ export function detachCloudflareListenerOnStop(worker: PoolWorker): PoolWorker {
   return worker;
 }
 
-export function cloudflareOracleTest(options: Parameters<typeof cloudflareTest>[0]): Plugin {
+export function cloudflareOracleTest(options: Parameters<typeof cloudflareTest>[0], lazyEntrypoint = false): Plugin {
   const plugin = cloudflareTest(options);
+  if (lazyEntrypoint) {
+    // In Cloudflare's pinned plugin, setMain only adds a side-effect import
+    // to cloudflare:test. The pool still resolves SELF and named entrypoints
+    // against the real Worker when a test calls them.
+    if (typeof plugin.api?.setMain !== 'function') throw new Error('Revalidate the lazy Cloudflare test entrypoint with this plugin version.');
+    plugin.api.setMain = () => {};
+  }
   const configure = plugin.configureVitest;
   if (!process.env.ORACLE_GAPS_STATE || typeof configure !== 'function') return plugin;
 
