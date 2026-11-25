@@ -89,33 +89,32 @@ jobs:
       - uses: ./.github/actions/install-chromium
         with:
           headless-only: 'true'
-      - name: Wait for this run's formatting plan
-        id: plan
+      - name: Wait for this run's planner to finish
         env:
           GH_TOKEN: ${{ github.token }}
-          PLAN_ARTIFACT: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
-          run="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          endpoint="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs"
           while true; do
-            artifact=$(gh api "$run/artifacts?name=$PLAN_ARTIFACT" --jq '
-              .artifacts[] | select(.expired == false) | .id')
-            if [[ "$artifact" =~ ^[0-9]+$ ]]; then
-              echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
-              break
-            fi
-            test -z "$artifact"
-            planner=$(gh api --paginate "$run/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq '
+            planner=$(gh api --paginate "$endpoint?per_page=100" --jq '
               .jobs[] | select(.name == "formatting-baseline / plan") | .conclusion // .status')
             case "$planner" in
-              in_progress|success) sleep 2 ;;
+              success) break ;;
+              in_progress) sleep 2 ;;
               *) echo "Canonical formatting plan unavailable: $planner" >&2; exit 1 ;;
             esac
           done
       - uses: actions/download-artifact@v4
+        id: download-plan
+        continue-on-error: true
         with:
-          artifact-ids: ${{ steps.plan.outputs.artifact }}
+          name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: build
-          merge-multiple: true
+      # The download service can lag the planner's completion.
+      - if: steps.download-plan.outcome == 'failure'
+        uses: actions/download-artifact@v4
+        with:
+          name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build
       - name: Run both passes in each partition's two-CPU service
         env:
           FORMATTING_PART: ${{ matrix.id }}
