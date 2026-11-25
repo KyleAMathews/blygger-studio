@@ -19,6 +19,8 @@ import { verifyOracleMutation } from "./oracle-mutation-control.ts";
 // Mutate isolated copies, never the contributor's checkout. A nonzero exit
 // alone is insufficient: each mutant must reach its semantic checkpoint.
 const root = resolve(".");
+const shard = process.argv[2];
+if (shard !== undefined && shard !== '--shard=1' && shard !== '--shard=2') throw new Error('Expected --shard=1 or --shard=2');
 const temp = mkdtempSync(join(tmpdir(), "blygger-oracle-mutations-"));
 type Control = { name: string; file: string; from: string; to: string; test: string; pattern: string; checkpoint: string; law: string; replayTarget?: string };
 const controls: Control[] = [
@@ -41,7 +43,10 @@ try {
   mkdirSync(join(temp, "build"));
   for (const file of ["studio-spa.txt", "studio-spa-style.txt", "models.json", "extensions.names.ts", "extensions.server.ts", "extensions.ui.ts"]) cpSync(join(root, "build", file), join(temp, "build", file));
   symlinkSync(join(root, "node_modules"), join(temp, "node_modules"), "dir");
-  for (const control of controls) verifyOracleMutation(root, temp, {
+  // The first lane takes the indexed controls that balanced the hosted timings.
+  const firstLane = new Set([0, 1, 7, 8]);
+  const selected = shard === undefined ? controls : controls.filter((_, index) => firstLane.has(index) === (shard === '--shard=1'));
+  for (const control of selected) verifyOracleMutation(root, temp, {
     ...control, changes: [{ file: control.file, from: control.from, to: control.to }],
     ...(control.replayTarget ? { replay: { seed: 20261001, property: control.replayTarget } } : {}),
   }, `oracle-mutation-${controls.indexOf(control)}`);

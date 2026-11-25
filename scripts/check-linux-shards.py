@@ -16,6 +16,8 @@ def test_command(root, suite, shard, total):
     if suite == 'browser-oracles':
         script = 'test:oracles:browser' if shard == 1 else 'test:oracles:browser:search'
         return ['npm', 'run', script]
+    if suite == 'oracle-controls':
+        return ['npm', 'run', 'test:mutations', '--', f'--shard={shard}']
     return ['npm', 'run', 'test:auth:security:mutations', '--', f'--worker-shard={shard}-{total}']
 
 
@@ -43,8 +45,9 @@ def start_lane(workspace, scratch, temporary, suite, shard, cpus, command):
 
 def keep_worker_evidence(root, checkout):
     destination = root / 'build'
-    for log in (checkout / 'build').glob('security-mutant-*.log'):
-        shutil.copy2(log, destination)
+    for pattern in ('security-mutant-*.log', 'oracle-mutation-*-replay.json'):
+        for log in (checkout / 'build').glob(pattern):
+            shutil.copy2(log, destination)
     evidence = checkout / 'build' / 'oracle-control-evidence'
     if evidence.is_dir():
         shutil.copytree(evidence, destination / evidence.name, dirs_exist_ok=True)
@@ -91,7 +94,7 @@ def run(suite, pair, pairs):
                     subprocess.run(['sudo', '-n', 'systemctl', 'stop', unit], check=False, timeout=25)
                     process.wait(timeout=10)
             try:
-                if suite == 'worker-auth':
+                if suite in ('worker-auth', 'oracle-controls'):
                     keep_worker_evidence(root, checkout)
             finally:
                 subprocess.run(['git', 'worktree', 'remove', '--force', checkout], check=True)
@@ -105,8 +108,8 @@ if __name__ == '__main__':
     signal.signal(signal.SIGTERM, terminate)
     suite, pair_index, pair_count = sys.argv[1:]
     pair, pairs = int(pair_index), int(pair_count)
-    if suite not in ('chromium', 'worker-auth', 'browser-oracles') or not 1 <= pair <= pairs:
-        raise ValueError('Expected <chromium|worker-auth|browser-oracles> <pair index> <number of pairs>')
-    if suite == 'browser-oracles' and (pair, pairs) != (1, 1):
-        raise ValueError('The browser oracle commands form one pair')
+    if suite not in ('chromium', 'worker-auth', 'browser-oracles', 'oracle-controls') or not 1 <= pair <= pairs:
+        raise ValueError('Expected <chromium|worker-auth|browser-oracles|oracle-controls> <pair index> <number of pairs>')
+    if suite in ('browser-oracles', 'oracle-controls') and (pair, pairs) != (1, 1):
+        raise ValueError(f'{suite} uses one pair')
     sys.exit(run(suite, pair, pairs))

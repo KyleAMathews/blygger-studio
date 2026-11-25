@@ -83,8 +83,8 @@ jobs:
       - run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --maxWorkers=2 --shard=1/2
       - run: npm run test:upgrade
   worker-tests:
-    # Queue both ordinary Worker shards ahead of the formatting matrix.
-    needs: scope
+    # Start this shard after the browser job so formatting can use an early runner.
+    needs: browser-oracles
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 75
@@ -332,7 +332,7 @@ jobs:
       - name: Run ${{ env.MUTATION_SUITE }} mutants
         run: |
           case "$MUTATION_SUITE" in
-            oracle) bash scripts/check-ram-tmp.sh npm run test:mutations ;;
+            oracle) bash scripts/check-ram-tmp.sh python3 scripts/check-linux-shards.py oracle-controls 1 1 ;;
             polling-cache) bash scripts/check-ram-tmp.sh npm run test:polling-cache:mutations ;;
             auth-security-browser) npm run test:auth:security:mutations -- --browser ;;
             *) echo "unknown suite $MUTATION_SUITE" >&2; exit 1 ;;
@@ -344,14 +344,14 @@ jobs:
           path: |
             test-results/
             build/mutation-*.log
+            build/oracle-mutation-*-replay.json
             build/polling-mutation-*.log
             build/security-mutant-*.log
             build/oracle-control-evidence/
 
   mutations:
-    # Give Chromium first use of the early runners and start the smaller
-    # controls after the remaining Studio work releases another runner.
-    needs: [scope, worker-oracles, browser-oracles, studio-oracle-rest]
+    # Let the longest mutation suite and Chromium claim the early runners.
+    needs: [scope, check, worker-oracles, browser-oracles, studio-oracle-rest]
     if: ${{ !cancelled() && needs.scope.result == 'success' && needs.scope.outputs.other-mutations != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
