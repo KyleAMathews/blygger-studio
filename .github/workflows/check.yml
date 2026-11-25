@@ -80,7 +80,11 @@ jobs:
       - run: npm run openapi && git diff --exit-code -- openapi.json
       - run: npm run test:ui -- --maxWorkers=2
       # npm ci already built the same inputs in postinstall.
-      - run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --maxWorkers=2 --shard=1/2
+      # The early runner takes two shards to offset the later runner's queue.
+      - id: first-worker-shard
+        run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --maxWorkers=2 --shard=1/3
+      - if: ${{ !cancelled() && steps.first-worker-shard.outcome != 'skipped' }}
+        run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --maxWorkers=2 --shard=2/3
   check:
     needs: [source-check, release-package]
     if: ${{ !cancelled() }}
@@ -107,7 +111,7 @@ jobs:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --maxWorkers=2 --shard=2/2
+      - run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --maxWorkers=2 --shard=3/3
   release-package:
     # Leave the first runners available for the formatting matrix.
     needs: studio-oracle-rest
@@ -247,6 +251,8 @@ jobs:
           cache: npm
       - run: npm ci --legacy-peer-deps
       - uses: ./.github/actions/install-chromium
+        with:
+          headless-only: 'true'
       - name: Run Chromium with isolated fixture lanes
         env:
           E2E_SHARD: ${{ matrix.shard }}
@@ -271,6 +277,8 @@ jobs:
           cache: npm
       - run: npm ci --legacy-peer-deps
       - uses: ./.github/actions/install-chromium
+        with:
+          headless-only: 'true'
       - name: Run the save and search browser oracles on separate CPU lanes
         run: bash scripts/check-ram-tmp.sh python3 scripts/check-linux-shards.py browser-oracles 1 1
 
@@ -330,8 +338,8 @@ jobs:
             build/oracle-control-evidence/
 
   mutations-oracle:
-    # Admit this suite after both early oracle jobs finish.
-    needs: [scope, worker-oracles, browser-oracles]
+    # Queue the historical controls after browser and source work frees runners.
+    needs: [scope, source-check, browser-oracles]
     if: ${{ !cancelled() && needs.scope.result == 'success' && contains(fromJSON(needs.scope.outputs.mutations), 'oracle') }}
     name: mutations (oracle)
     runs-on: ubuntu-latest
@@ -347,6 +355,8 @@ jobs:
       - run: npm ci --legacy-peer-deps
       - if: env.MUTATION_SUITE == 'auth-security-browser'
         uses: ./.github/actions/install-chromium
+        with:
+          headless-only: 'true'
       - name: Run ${{ env.MUTATION_SUITE }} mutants
         run: |
           case "$MUTATION_SUITE" in
@@ -369,7 +379,7 @@ jobs:
 
   mutations:
     # Let the longest mutation suite and Chromium claim the early runners.
-    needs: [scope, source-check, worker-oracles, browser-oracles, studio-oracle-rest]
+    needs: [scope, source-check, browser-oracles, studio-oracle-rest]
     if: ${{ !cancelled() && needs.scope.result == 'success' && needs.scope.outputs.other-mutations != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
