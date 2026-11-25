@@ -811,7 +811,8 @@
       },
       "implementation": "test/rest-permissions.oracle.test.ts",
       "properties": [
-        "rest-permissions"
+        "rest-permissions",
+        "rest-permissions-notebook"
       ],
       "validation": [
         "test:oracles:worker",

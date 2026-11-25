@@ -67,6 +67,8 @@ export const workerOracleProperties = [
   "private-scope-taint",
   "private-scope-publish-block",
   "private-scope-hopper-cursor",
+  "rest-permissions-notebook",
+  "private-scope-tk-lifecycle",
   "mention-delivery",
   "mention-order",
   "oauth-flow",
