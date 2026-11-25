@@ -127,7 +127,7 @@ type History =
   | { kind: 'forge' }
   | { kind: 'refusal' }
   | { kind: 'cursor'; event: CursorEvent; reader: 'restricted memberships' | 'owner hopper lens' }
-  | { kind: 'agentic'; writer: 'owner' | 'restricted' }
+  | { kind: 'agentic'; writer: 'owner' | 'restricted'; turnsPrivate?: true }
   | { kind: 'shelf'; full?: true }
   | { kind: 'search lifecycle'; caller: 'session' | 'restricted' }
   | { kind: 'masked write'; op: MaskedOp }
@@ -541,6 +541,18 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
       const edition = (ids: string[]) => ({ agent: { name: 'private scope' }, sections: [{ title: 'Today', entries: ids.map(remoteId => ({ sub: '~own', remoteId, headline: 'h' })) }] });
       const put = async (as: typeof restricted, ids: string[]) => as('PUT', '/agentic/default', { edition: edition(ids), expectedRevision: (await api('GET', '/agentic/default')).json.revision });
       const writer = history.writer === 'owner' ? withPrivate : restricted;
+      if (history.turnsPrivate) {
+        // Kyle's row 3: visibility changes after the draft was composed. The edition names D and X
+        // while both are visible; then D is kept privately. Neither the edition nor its draft may
+        // name D to a restricted token from then on.
+        await put(writer, [fixture.D, fixture.X]);
+        await api('POST', `/items/${fixture.D}/publish`, { visibility: 'private' });
+        const feed = await env.DB.prepare("SELECT draft_id FROM agentic_feeds WHERE id = 'default'").first<{ draft_id: string | null }>();
+        const read = await restricted('GET', '/agentic/default');
+        const draft = feed?.draft_id ? await restricted('GET', `/items/${feed.draft_id}`) : null;
+        observe('agentic turned private', { readNamesD: read.text.includes(fixture.D), draftNamesD: !!draft && draft.text.includes(fixture.D), draftStatus: draft?.status ?? null });
+        return;
+      }
       const written = await put(writer, [fixture.P, fixture.TD, fixture.X]);
       const row = await env.DB.prepare("SELECT edition_json, draft_id, draft_md FROM agentic_feeds WHERE id = 'default'").first<{ edition_json: string | null; draft_id: string | null; draft_md: string | null }>();
       const read = await restricted('GET', '/agentic/default');
@@ -763,7 +775,10 @@ function model(history: History): Expected {
       break;
     case 'forge': for (const step of ['created', 'patched', 'published']) at('forge', { step, same: true }); at('forge', { step: 'wire', namesPrivate: false }); break;
     case 'refusal': at('refusal', { refused: true, oneAnswer: true, saysWhy: true }); at('refusal private', 200); at('refusal private link', 200); break;
-    case 'agentic': at('agentic', { status: 200, responseLeaks: [], storedNamesHidden: history.writer === 'owner', restrictedReadLeaks: [], restrictedDraftLeaks: [] }); break;
+    case 'agentic':
+      if (history.turnsPrivate) at('agentic turned private', { readNamesD: false, draftNamesD: false });
+      else at('agentic', { status: 200, responseLeaks: [], storedNamesHidden: history.writer === 'owner', restrictedReadLeaks: [], restrictedDraftLeaks: [] });
+      break;
     case 'masked write': {
       // Refresh is a thread's, so on this fragment it refuses whatever the view; the copy stays.
       const replaced = history.op === 'text edit', discarded = history.op === 'publish';
@@ -834,7 +849,8 @@ const describe = (history: History) => {
     case 'clear': return `${history.action} on ${history.target === 'TD' ? 'a tainted draft' : 'a public item\'s tainted changes'} ${history.action === 'discard changes' ? 'removes the mark' : 'keeps the mark'}`;
     case 'forge': return 'client provenance naming a private item is answered as one naming an unknown id';
     case 'refusal': return 'a tainted public publish is refused with one answer whatever became of the source';
-    case 'agentic': return `an Agentic edition written by ${history.writer === 'owner' ? 'a caller who sees private' : 'a restricted token'} naming hidden items leaks nothing, stored or composed`;
+    case 'agentic': if (history.turnsPrivate) return 'an Agentic edition naming an item that is then kept privately stops naming it to a restricted token, edition and draft';
+      return `an Agentic edition written by ${history.writer === 'owner' ? 'a caller who sees private' : 'a restricted token'} naming hidden items leaks nothing, stored or composed`;
     case 'masked write': return `a restricted ${history.op} of a public item with a hidden working copy acts on its public version and leaks nothing`;
     case 'search lifecycle': return `${history.caller === 'session' ? 'the owner' : 'a restricted token'} finds one item through its life, marked as private or draft exactly when it is`;
     case 'shelf': return history.full ? 'a restricted replace of a full shelf keeps the hidden entries and loses its own tail past the ceiling' : 'a restricted shelf replace keeps hidden entries in place, and the owner can save back what it reads';
@@ -843,7 +859,7 @@ const describe = (history: History) => {
   }
 };
 const scopeHistories: History[] = [{ kind: 'inventory' }, { kind: 'hidden', resource: 'P' }, { kind: 'hidden', resource: 'TD' }, { kind: 'references', resource: 'P' }, { kind: 'references', resource: 'TD' }, { kind: 'mcp', resource: 'P' }, { kind: 'mcp', resource: 'TD' }];
-const leakHistories: History[] = [{ kind: 'agentic', writer: 'owner' }, { kind: 'agentic', writer: 'restricted' }, { kind: 'shelf' }, { kind: 'working copy' }, { kind: 'lists' }, { kind: 'owner lists', caller: 'session' }, { kind: 'owner lists', caller: 'token' }, { kind: 'search lifecycle', caller: 'session' }, { kind: 'search lifecycle', caller: 'restricted' }, ...MASKED_OPS.map(op => ({ kind: 'masked write' as const, op }))];
+const leakHistories: History[] = [{ kind: 'agentic', writer: 'owner' }, { kind: 'agentic', writer: 'restricted' }, { kind: 'shelf' }, { kind: 'working copy' }, { kind: 'lists' }, { kind: 'owner lists', caller: 'session' }, { kind: 'owner lists', caller: 'token' }, { kind: 'search lifecycle', caller: 'session' }, { kind: 'search lifecycle', caller: 'restricted' }, ...MASKED_OPS.map(op => ({ kind: 'masked write' as const, op })), { kind: 'agentic', writer: 'owner', turnsPrivate: true }];
 const taintHistories: History[] = [...CLEARS.map(clear => ({ kind: 'clear' as const, ...clear })), { kind: 'forge' }];
 const blockHistories: History[] = [{ kind: 'refusal' }];
 const shelfHistories: History[] = [{ kind: 'shelf' }, { kind: 'shelf', full: true }];

@@ -3,7 +3,10 @@
 -- JSON, which a client could rewrite and which a hand edit of the TK markers
 -- dropped with its scope. It is now a column only the server writes: set when TK
 -- generation draws on a private snapshot or on input already marked, cleared only
--- when the working copy is discarded (restore) or the item is deleted.
+-- when the working copy is discarded (restore), replaced by a caller who could not
+-- see it, or the item is deleted. An Agentic edition's composed draft carries the
+-- same mark while it names a hidden item; the Studio recomputes it at each
+-- composition, and the trigger at the end sets it when a named item turns hidden.
 ALTER TABLE items ADD COLUMN private_taint INTEGER NOT NULL DEFAULT 0;
 
 -- Working copies marked before this migration keep their mark.
@@ -28,4 +31,19 @@ BEGIN
     hoppers=hoppers+(CASE WHEN (OLD.status IS NOT NEW.status OR OLD."private_taint" IS NOT NEW."private_taint") AND EXISTS(SELECT 1 FROM hopper_items WHERE subscription_id = '~own' AND remote_id = NEW.id) THEN 1 ELSE 0 END),
     feed=feed+(CASE WHEN ((OLD.status IN ('public','withdrawn') OR NEW.status IN ('public','withdrawn')) AND (OLD."created" IS NOT NEW."created" OR OLD."fork_cite" IS NOT NEW."fork_cite" OR OLD."forked_from" IS NOT NEW."forked_from" OR OLD."id" IS NOT NEW."id" OR OLD."kind" IS NOT NEW."kind" OR OLD."status" IS NOT NEW."status" OR OLD."updated" IS NOT NEW."updated" OR OLD."version" IS NOT NEW."version")) OR OLD."id" IS NOT NEW."id" OR OLD."kind" IS NOT NEW."kind" THEN 1 ELSE 0 END)
   WHERE id=1;
+END;
+
+-- An item that turns hidden (kept privately, or a draft newly tainted) hides every
+-- Agentic edition draft the Studio composed that still names it, as composing it now
+-- would (studio#178 row 3: visibility changing after composition). Only the Studio's
+-- own unedited drafts: draft_md is what it last wrote, and an edited draft is the
+-- owner's. A WHEN clause and a plain UPDATE: no CASE in a trigger body (D1's remote
+-- executor splits at END;).
+CREATE TRIGGER agentic_draft_follows_hidden
+AFTER UPDATE OF status, private_taint ON items
+WHEN NEW.status = 'private' OR (NEW.status = 'draft' AND NEW.private_taint = 1)
+BEGIN
+  UPDATE items SET private_taint = 1
+  WHERE status = 'draft' AND private_taint = 0 AND id <> NEW.id
+    AND id IN (SELECT draft_id FROM agentic_feeds WHERE draft_id IS NOT NULL AND draft_md IS NOT NULL AND instr(draft_md, NEW.id) > 0);
 END;
