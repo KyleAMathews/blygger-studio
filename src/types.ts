@@ -72,7 +72,7 @@ export interface ItemRow {
    * wire artifact; see model.ts getTkProvenance and item-revision.ts installWorkingCopy.
    */
   tk_provenance_json: string | null;
-  /** Server-written private taint (migration 0062): 1 while the working copy holds text drawn from a private snapshot. */
+  /** Server-written private taint (migration 0063): 1 while the working copy holds text drawn from a private snapshot. */
   private_taint: number;
   /**
    * Opt-in public display of verified responses to this item (migration 0009,

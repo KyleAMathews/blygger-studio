@@ -10,13 +10,12 @@
 // The backstop for indirect breakage (a shared helper no suite names): pushes
 // to main and manual runs get every job, and Release requires that green run.
 //
-// Usage: node --import tsx scripts/ci-scope.ts <event> [base-ref]
-// Writes `e2e=true|false` and `mutations=<json list>` to $GITHUB_OUTPUT (or stdout).
+// Usage: node scripts/ci-scope.ts <event> [base-ref]
+// Writes e2e, Worker auth and the other mutation suites to $GITHUB_OUTPUT (or stdout).
 import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 
-// Matrix entries in check.yml. auth-security is split along the script's own
-// --browser / --exclude-browser selectors so its two halves run side by side.
+// Each Worker auth-security matrix job runs two disjoint control shards.
 const suites = {
   oracle: "scripts/verify-oracle-mutations.ts",
   "polling-cache": "scripts/verify-polling-cache-mutations.ts",
@@ -27,7 +26,7 @@ const suites = {
 const everything = [
   /^test\/(?:oracle-storage|oracle-property-registry|configure-oracles|oracle-cleanup)\.ts$/,
   /^scripts\/(?:oracles-cloudflare|oracle-mutation-control|oracle-replay-receipt|run-oracle-gaps)\.ts$/, /^test-browser\//,
-  /^package(-lock)?\.json$/, /^\.github\/workflows\//, /^scripts\/ci-scope\.ts$/,
+  /^package(-lock)?\.json$/, /^\.github\/(?:workflows|actions)\//, /^scripts\/(?:ci-scope\.ts|check-linux-shards\.py)$/,
   /^vitest(?:\.[\w-]+)?\.config\.ts$/, /^tsconfig.*\.json$/, /^wrangler\.jsonc$/, /^migrations\//,
 ];
 const docsOnly = [/\.md$/, /^docs\//, /^LICENSE$/, /^\.github\/ISSUE_TEMPLATE\//];
@@ -58,7 +57,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     ? execFileSync("git", ["diff", "--name-only", `origin/${base}...HEAD`], { encoding: "utf8" }).split("\n").filter(Boolean)
     : "all";
   const result = scope(changed);
-  const out = `e2e=${result.e2e}\nmutations=${JSON.stringify(result.mutations)}\n`;
+  const workerAuth = result.mutations.includes("auth-security-worker");
+  const mutations = result.mutations.filter(suite => suite !== "auth-security-worker");
+  const otherMutations = mutations.filter(suite => suite !== "oracle");
+  const out = `e2e=${result.e2e}\nworker-auth=${workerAuth}\nmutations=${JSON.stringify(mutations)}\nother-mutations=${JSON.stringify(otherMutations)}\n`;
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, out);
   process.stdout.write((changed === "all" ? "all jobs (not a pull request)\n" : `${changed.length} changed file(s)\n`) + out);
 }

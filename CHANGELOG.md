@@ -22,7 +22,7 @@ not have its own repo until session 26.
 
 **Private items, the rest of Phase 0** (blygger-spec `docs/sealed-content-build-plan.md` §1,
 0c–0e) **and the hopper fix** (studio#175). Private contract **7.0.0** (breaking for tokens:
-private access moves to a new scope; client-written provenance removed). **Migrations:** `0061_search_private.sql`, `0062_private_taint.sql`.
+private access moves to a new scope; client-written provenance removed). **Migrations:** `0062_search_private.sql`, `0063_private_taint.sql`.
 
 - **`owner:private`, a new scope.** Private items and their private versions need it;
   `owner:read` does not imply it. **A token minted before this change loses private access
@@ -36,14 +36,14 @@ private access moves to a new scope; client-written provenance removed). **Migra
   a generation source for a caller that may see it. A public publish is refused while any
   scope's provenance names a private item; a private publish goes through.
 - **Owner search (0d).** Compose search (`include=drafts`) finds private items' working
-  copies, marked `private: true`. Migration 0061 recreates `search_source` to cover them
+  copies, marked `private: true`. Migration 0062 recreates `search_source` to cover them
   and backfills. The `[[` picker does not offer private items yet.
 - **Hoppers (studio#175).** The owner's hopper view lists the owner's own members, private
   ones included and marked. `getItem` returns `hoppers: [{id, name, public}]`. Raising a
   private item to public confirms in both modes and names the public hoppers it will join.
   Public hopper pages and feeds still show public members only.
 - **Private taint.** [TK] output drawn from a private item sets a mark on the item that only
-  the server writes (`items.private_taint`, migration 0062, which carries existing marks
+  the server writes (`items.private_taint`, migration 0063, which carries existing marks
   over). Hand-editing the [TK] markers away, raising or discarding the source, or
   regenerating from tainted input does not clear it; discarding the changes does. While it
   is set a public publish is refused with one answer, whatever became of the source. To a
@@ -94,6 +94,18 @@ private access moves to a new scope; client-written provenance removed). **Migra
   technical ceiling rather than a product cap (it was 50). A replace drops repeats first,
   keeping each entry's first position. For a token without `owner:private`, hidden entries
   keep their places, and anything past the ceiling comes off the end of that token's own list.
+
+## 0.72.1 — Private items take their place in the reader
+
+**Fix** (Venkat, session 85). In the pace-layered reader, private items stayed on top and
+new items arrived below them. The order is ranked from each item's history, and the ranking
+read only public history, so a private item never had a position, and an entry without one
+sorts first. Private items are now ranked by their private versions, like any other own item,
+and a new private version moves its item as a public version does. Nothing changes on the
+public surface: the public feed's history does not read private versions.
+**Migrations:** `0061_reader_order_private.sql` (the ranking's rebuild triggers also watch
+private items and their versions; it marks the order for a rebuild, so it is right on the
+first reader load after the upgrade). Private contract unchanged (6.4.0), SDK unchanged.
 
 ## 0.72.0 — Private items and Notebook mode; setup covers the newer settings; what's new after an upgrade
 

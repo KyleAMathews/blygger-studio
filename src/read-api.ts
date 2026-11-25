@@ -152,7 +152,7 @@ const listHopperMembershipsOperation = async (context: OperationContext, input: 
   if (!await getHopper(context.env.DB, input.path.id)) return failure('not-found', { error: 'not found' });
   return success(await cursorPage<HopperItemRow, ReturnType<typeof membershipResource> & { item: ReturnType<typeof importedResource> | null }>(context.env.DB, input.query, {
     // A restricted list leaves hidden members out, so it depends on their visibility: a member's
-    // status or taint change moves `hoppers` (migration 0062), and an unrelated edit expires nothing (law 7).
+    // status or taint change moves `hoppers` (migration 0063), and an unrelated edit expires nothing (law 7).
     name: 'hopper-memberships', filters: [input.path.id, seesPrivate(context.access)], domains: ['hoppers', 'reading', 'subscriptions'],
     sql: `SELECT * FROM hopper_items WHERE hopper_id = ?${seesPrivate(context.access) ? '' : HIDE_OWN_PRIVATE}`, binds: [input.path.id],
     order: [{ column: 'added_at', direction: 'desc' }, { column: 'subscription_id', direction: 'asc' }, { column: 'remote_id', direction: 'asc' }],

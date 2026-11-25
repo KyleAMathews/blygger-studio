@@ -14,7 +14,7 @@ export function assertItemRevision(item: Pick<ItemRow, 'id' | 'revision'>, expec
 
 /**
  * Install text and its positional provenance as one conditional transition.
- * `tainted` sets the private-taint mark (migration 0062); nothing here clears it.
+ * `tainted` sets the private-taint mark (migration 0063); nothing here clears it.
  */
 export async function installWorkingCopy(db: D1Database, item: ItemRow, text: string, provenance: string | null, tainted = false) {
   const result = await db.prepare(`UPDATE items SET content_md = ?, tk_provenance_json = ?, dirty = ?,
