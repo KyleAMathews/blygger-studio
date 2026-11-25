@@ -31,7 +31,7 @@ jobs:
           cache: npm
       - run: npm ci --legacy-peer-deps
       # Planning hashes the browser files and collects test names.
-      - run: npx playwright install chromium
+      - run: npx playwright install --only-shell chromium
       - id: plan
         env:
           FORMATTING_DEADLINE: ${{ inputs.deadline }}
@@ -58,6 +58,8 @@ jobs:
           cache: npm
       - run: npm ci --legacy-peer-deps
       - uses: ./.github/actions/install-chromium
+        with:
+          headless-only: 'true'
       - uses: actions/download-artifact@v4
         with:
           name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -117,7 +119,7 @@ jobs:
           cache: npm
       - run: npm ci --legacy-peer-deps
       # Aggregation hashes the browser files without starting Chromium.
-      - run: npx playwright install chromium
+      - run: npx playwright install --only-shell chromium
       - uses: actions/download-artifact@v4
         with:
           name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
