@@ -325,7 +325,7 @@ export const shelf = createCollection(
     },
   }),
 );
-export const SHELF_MAX = 50;
+export { SHELF_MAX } from '../shelf.ts';
 export type ShelfEntry = { sub: string; remoteId: string };
 /** Replace the shelf's order; resolves once the server has it. */
 export async function setShelf(entries: ShelfEntry[]) {

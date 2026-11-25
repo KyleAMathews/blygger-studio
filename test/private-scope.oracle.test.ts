@@ -126,7 +126,7 @@ type History =
   | { kind: 'refusal' }
   | { kind: 'cursor'; event: CursorEvent; reader: 'restricted memberships' | 'owner hopper lens' }
   | { kind: 'agentic'; writer: 'owner' | 'restricted' }
-  | { kind: 'shelf' }
+  | { kind: 'shelf'; full?: true }
   | { kind: 'tk'; source: 'private' | 'public'; position: 'first' | 'second'; fate: 'kept' | 'raised' | 'discarded'; then: 'nothing' | 'regenerate from public' | 'edit the other scope' };
 // Law 7's cursor half: what happens between a restricted caller's first and second page of hopper members.
 type CursorEvent = 'unrelated draft edit' | 'unrelated public edit' | 'member made private' | 'member tainted' | 'hidden member raised' | 'private member keeps p2';
@@ -547,16 +547,25 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
     }
     case 'shelf': {
       // The owner shelves visible and hidden items; a restricted token replaces the list it can see.
+      // The full shelf adds visible drafts until the owner's list sits at the ceiling, so the
+      // restricted list plus the hidden entries runs past it.
+      const filler = history.full ? Array.from({ length: SHELF_CEILING - 2 }, (_, i) => `shelf-filler-${i}`) : [];
+      if (filler.length) await env.DB.batch(filler.map(id => env.DB.prepare("INSERT INTO items(id,kind,status,created,updated,version,content_md) VALUES(?,'fragment','draft','2026-01-01','2026-01-01',0,'filler')").bind(id)));
+      const plan = shelfPlan(history);
+      const ids = new Map<string, string>([...(['P', 'TD', 'TP', 'X', 'D'] as const).map(r => [r, fixture[r]] as [string, string]), ...filler.map((id, i) => [`F${i}`, id] as [string, string])]);
+      const labels = new Map([...ids].map(([label, id]) => [id, label]));
+      const entry = (label: string) => ({ sub: '~own', remoteId: ids.get(label)! });
+      const order = (entries: { remoteId: string }[]) => entries.map(e => labels.get(e.remoteId) ?? '?');
       const shelf = (await api('GET', '/shelf')).json;
-      const entry = (id: string) => ({ sub: '~own', remoteId: id });
-      await api('PUT', '/shelf', { entries: [fixture.P, fixture.D, fixture.X, fixture.TD].map(entry), expectedRevision: shelf.revision });
+      const stored = await api('PUT', '/shelf', { entries: plan.stored.map(entry), expectedRevision: shelf.revision });
       const seen = await restricted('GET', '/shelf');
-      const replaced = await restricted('PUT', '/shelf', { entries: [fixture.X, fixture.D, fixture.TP].map(entry), expectedRevision: seen.json.revision });
+      const replaced = await restricted('PUT', '/shelf', { entries: plan.given.map(entry), expectedRevision: seen.json.revision });
+      const stale = await restricted('PUT', '/shelf', { entries: [], expectedRevision: seen.json.revision });
       const owned = (await api('GET', '/shelf')).json;
-      const order = (entries: { remoteId: string }[]) => entries.map(e => (['P', 'TD', 'TP', 'X', 'D'] as const).find(r => fixture[r] === e.remoteId) ?? '?');
-      // The owner can always save back exactly what it reads.
+      // The owner can always save back exactly what it reads, and the ceiling is the list's own.
       const back = await api('PUT', '/shelf', { entries: owned.entries, expectedRevision: owned.revision });
-      observe('shelf', { seen: order(seen.json.entries), replaced: replaced.status, answer: order(replaced.json?.entries ?? []), owner: order(owned.entries), savedBack: back.status === 200 && JSON.stringify(order(back.json.entries)) === JSON.stringify(order(owned.entries)) });
+      const over = await api('PUT', '/shelf', { entries: [...owned.entries, ...Array.from({ length: SHELF_CEILING + 1 - owned.entries.length }, (_, i) => entry(i % 2 ? 'X' : 'D'))], expectedRevision: back.json?.revision ?? owned.revision });
+      observe('shelf', { stored: stored.status, seen: order(seen.json.entries), replaced: replaced.status, answer: order(replaced.json?.entries ?? []), stale: { status: stale.status, current: order(stale.json?.details?.current?.entries ?? []) }, owner: order(owned.entries), savedBack: back.status === 200 && JSON.stringify(order(back.json.entries)) === JSON.stringify(order(owned.entries)), overCeiling: over.status });
       return;
     }
     case 'tk': {
@@ -625,7 +634,9 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
     }
   }
 }
-const driver = (history: History, observe: (checkpoint: string, value: unknown) => void) => withOracleStorage(() => drive(history, observe));
+// A production error is an observation, so a mutant that crashes a history is judged, not lost.
+const driver = (history: History, observe: (checkpoint: string, value: unknown) => void) =>
+  withOracleStorage(() => drive(history, observe).catch((error: unknown) => observe('production error', error instanceof Error ? error.message : String(error))));
 
 const VISIBLE_TO_RESTRICTED: Record<string, Resource[]> = {
   'items': ['D', 'TP', 'X'], 'items status=draft': ['D'], 'items status=private': [],
@@ -640,6 +651,29 @@ const VISIBLE_TO_OWNER: Record<string, Resource[]> = {
 };
 
 type Expected = Observation[];
+// Law 8's shelf half. The ceiling belongs to the stored list (Venkat Rao, 2026-11-24, session 85),
+// so the owner's own list may be that long and no longer. A restricted replace leaves every
+// hidden entry where it was: walking the stored list, a hidden entry keeps its index and every
+// other index takes the caller's next entry; once the caller's list runs out the hidden entries
+// close up in order, and whatever the caller sent beyond the stored length follows. Past the
+// ceiling, the caller's own tail comes off. A repeated entry keeps its first position (the
+// contract's words), so a repeat takes no place from a hidden entry.
+const SHELF_CEILING = 1000;
+const SHELF_HIDDEN = new Set(['P', 'TD']);
+function shelfPlan(history: History & { kind: 'shelf' }) {
+  if (!history.full) return { stored: ['P', 'D', 'X', 'TD'], given: ['X', 'X', 'D', 'TP'] };
+  const filler = Array.from({ length: SHELF_CEILING - 2 }, (_, i) => `F${i}`);
+  return { stored: ['P', 'TD', ...filler], given: ['X', 'D', ...[...filler].reverse()] };
+}
+function shelfReplace(stored: string[], given: string[]): string[] {
+  const rest = [...new Set(given)].filter(label => !SHELF_HIDDEN.has(label)), out: string[] = [];
+  for (const label of stored) {
+    if (SHELF_HIDDEN.has(label)) out.push(label);
+    else if (rest.length) out.push(rest.shift()!);
+  }
+  return [...out, ...rest].slice(0, SHELF_CEILING);
+}
+
 function model(history: History): Expected {
   const out: Expected = [];
   const at = (checkpoint: string, value: unknown) => out.push({ checkpoint, value });
@@ -671,7 +705,12 @@ function model(history: History): Expected {
     case 'forge': for (const step of ['created', 'patched', 'published']) at('forge', { step, same: true }); at('forge', { step: 'wire', namesPrivate: false }); break;
     case 'refusal': at('refusal', { refused: true, oneAnswer: true, saysWhy: true }); at('refusal private', 200); break;
     case 'agentic': at('agentic', { status: 200, responseLeaks: [], storedNamesHidden: history.writer === 'owner', restrictedReadLeaks: [], restrictedDraftLeaks: [] }); break;
-    case 'shelf': at('shelf', { seen: ['D', 'X'], replaced: 200, answer: ['X', 'D', 'TP'], owner: ['P', 'X', 'D', 'TD', 'TP'], savedBack: true }); break;
+    case 'shelf': {
+      const plan = shelfPlan(history), owner = shelfReplace(plan.stored, plan.given);
+      const visible = (list: string[]) => list.filter(label => !SHELF_HIDDEN.has(label));
+      at('shelf', { stored: 200, seen: visible(plan.stored), replaced: 200, answer: visible(owner), stale: { status: 409, current: visible(owner) }, owner, savedBack: true, overCeiling: 400 });
+      break;
+    }
     case 'tk': {
       // The model: the output drew on a private snapshot exactly when the source was private at its
       // first generation; that mark is the server's and nothing in these histories clears it.
@@ -721,7 +760,7 @@ const describe = (history: History) => {
     case 'forge': return 'client provenance naming a private item is answered as one naming an unknown id';
     case 'refusal': return 'a tainted public publish is refused with one answer whatever became of the source';
     case 'agentic': return `an Agentic edition written by ${history.writer === 'owner' ? 'a caller who sees private' : 'a restricted token'} naming hidden items leaks nothing, stored or composed`;
-    case 'shelf': return 'a restricted shelf replace keeps hidden entries in place, and the owner can save back what it reads';
+    case 'shelf': return history.full ? 'a restricted replace of a full shelf keeps the hidden entries and loses its own tail past the ceiling' : 'a restricted shelf replace keeps hidden entries in place, and the owner can save back what it reads';
     case 'tk': return `TK from a ${history.source} source in the ${history.position} scope, source ${history.fate}, then ${history.then}`;
     case 'cursor': return `${history.reader === 'owner hopper lens' ? 'the owner\'s hopper lens cursor' : 'a restricted hopper cursor'} ${cursorExpires(history.event) ? 'expires on' : 'survives, exactly,'} ${history.event}`;
   }
@@ -730,6 +769,7 @@ const scopeHistories: History[] = [{ kind: 'inventory' }, { kind: 'hidden', reso
 const leakHistories: History[] = [{ kind: 'agentic', writer: 'owner' }, { kind: 'agentic', writer: 'restricted' }, { kind: 'shelf' }, { kind: 'working copy' }, { kind: 'lists' }, { kind: 'owner lists', caller: 'session' }, { kind: 'owner lists', caller: 'token' }];
 const taintHistories: History[] = [...CLEARS.map(clear => ({ kind: 'clear' as const, ...clear })), { kind: 'forge' }];
 const blockHistories: History[] = [{ kind: 'refusal' }];
+const shelfHistories: History[] = [{ kind: 'shelf' }, { kind: 'shelf', full: true }];
 const tkHistories: History[] = [
   ...(['first', 'second'] as const).flatMap(position => (['kept', 'raised', 'discarded'] as const).map(fate => ({ kind: 'tk' as const, source: 'private' as const, position, fate, then: 'nothing' as const }))),
   ...(['regenerate from public', 'edit the other scope'] as const).map(then => ({ kind: 'tk' as const, source: 'private' as const, position: 'second' as const, fate: 'kept' as const, then })),
@@ -765,6 +805,12 @@ oracleProperty({
   law: { statement: 'For every tainted working copy, a public publish is refused with one answer whatever became of the source, and a tainted draft may still be published privately.', authority: AUTHORITY, limits: LIMITS },
   histories: blockHistories, label: describe, model, driver, check,
   calibrations: [{ name: 'a raised source lets the output go public', law: 'private scope laws', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'refusal' ? { ...entry, value: { ...(entry.value as object), refused: false } } : entry) }],
+});
+oracleProperty({
+  id: 'private-scope-shelf', owns: ['src/shelf.ts', 'src/api.ts#putShelfOperation', 'src/api.ts#getShelfOperation'],
+  law: { statement: 'For every replace of the shelf by a restricted caller, the hidden entries it cannot see keep their places and any overflow past the 1,000-entry ceiling comes off the end of its own list; the owner can always save back the list it reads, and no stored list is longer than the ceiling.', authority: 'blygger-spec docs/sealed-content-build-plan.md §1 0f law 8; decision by Venkat Rao (GitHub vgururao), 2026-11-24 (session 85): the shelf has no product cap, only a technical ceiling of 1,000 entries on the stored list.', limits: 'One restricted scope, own entries only (imported entries are never hidden).' },
+  histories: shelfHistories, label: describe, model, driver, check,
+  calibrations: [{ name: 'the full shelf keeps the restricted tail past the ceiling', law: 'private scope laws', history: { enumerated: 1 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'shelf' ? { ...entry, value: { ...(entry.value as { owner: string[] }), owner: [...(entry.value as { owner: string[] }).owner, 'F0'] } } : entry) }],
 });
 oracleProperty({
   id: 'private-scope-hopper-cursor', owns: ['src/operation-runner.ts#executeOperation', 'src/private-access.ts', 'src/transclusion.ts#resolveTarget', 'src/read-api.ts#getItemOperation', 'src/read-api.ts#listItemsOperation', 'src/read-api.ts#searchOperation', 'src/read-api.ts#listHopperMembershipsOperation', 'src/model.ts#publishScoped', 'src/api.ts#updateItemOperation', 'src/api.ts#createItemOperation', 'src/tk-generate.ts#runGenerateScope', 'src/read-api.ts#previewOperation', 'src/read-api.ts#threadPreview', 'src/read-api.ts#previewTangles', 'src/read-api.ts#getHopperOperation', 'src/read-api.ts#getItemSummaryOperation', 'src/read-api.ts#listReadingOperation', 'src/read-api.ts#getReadingSummaryOperation', 'src/authoring.ts#scopeSummariesWithSources', 'src/tk-generate.ts#privateSource', 'src/transclusion.ts#resolveInternalLinks', 'src/transclusion.ts#previewInternalLinks', 'src/transclusion.ts#previewTransclusions', 'src/mcp.ts'],

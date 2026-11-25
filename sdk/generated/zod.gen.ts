@@ -1690,7 +1690,7 @@ export const zGetShelfHeaders = z.object({
 export const zGetShelfResponse = zShelf;
 
 export const zPutShelfBody = z.object({
-    entries: z.array(zShelfEntry).max(50),
+    entries: z.array(zShelfEntry).max(1000),
     expectedRevision: z.int().gte(0)
 }).strict();
 

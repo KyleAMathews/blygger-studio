@@ -4165,7 +4165,7 @@ export type GetShelfResponse = GetShelfResponses[keyof GetShelfResponses];
 export type PutShelfData = {
     body: {
         /**
-         * The whole list, in order (at most 50). Replaces the stored list. An entry that does not resolve (an unknown subscription, an item not held under it, a withdrawn own item, an imported tombstone with no retained pin) is dropped quietly, never refused, and a repeated entry keeps its first position; the response is what was stored.
+         * The whole list, in order (at most 1000). Replaces the stored list. An entry that does not resolve (an unknown subscription, an item not held under it, a withdrawn own item, an imported tombstone with no retained pin) is dropped quietly, never refused, and a repeated entry keeps its first position; the response is what was stored. For a token without owner:private, entries it cannot see keep their places, and anything past the ceiling comes off the end of its own list.
          */
         entries: Array<ShelfEntry>;
         /**

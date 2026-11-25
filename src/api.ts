@@ -3,7 +3,7 @@ import { retainedMediaSql } from './media-retention.ts';
 import { httpsUrl, listSyndication, refuseSyndication, replaceSyndication, type SyndicationEntry } from './syndication.ts';
 import { assertCurrentRevision, assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
 import { consumeHandles, contactResource, createContact, deleteContact, getContact, handleTaken, HANDLE, listContacts, resolveContact, updateContact } from './contacts.ts';
-import { readShelf, replaceShelf, type Shelf, type ShelfEntry } from './shelf.ts';
+import { readShelf, replaceShelf, unique, type Shelf, type ShelfEntry } from './shelf.ts';
 import { OWN_SUBSCRIPTION } from './own-subscription.ts';
 import { normalizeWords, readDictionary, replaceSource, SOURCE_PATTERN, SOURCES_MAX, TOTAL_WORDS_MAX, wordProblem } from './dictionary.ts';
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
@@ -1015,7 +1015,8 @@ const putShelfOperation = async (context: OperationContext, input: OperationInpu
     const current = await readShelf(context.env.DB);
     const hidden = await hiddenOwnIds(context.env.DB, context.access, [...current.entries, ...entries].filter((e) => e.sub === OWN_SUBSCRIPTION).map((e) => e.remoteId));
     if (hidden.size) {
-      const given = entries.filter((e) => !isOwn(hidden)(e));
+      // Repeats go first, so one takes no place from a hidden entry.
+      const given = unique(entries).filter((e) => !isOwn(hidden)(e));
       // Each hidden entry keeps its position; the token's list fills the rest, in its order.
       entries = [];
       current.entries.forEach((e, i) => { while (entries.length < i && given.length) entries.push(given.shift()!); if (isOwn(hidden)(e)) entries.push(e); });
