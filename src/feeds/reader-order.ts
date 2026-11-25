@@ -97,11 +97,17 @@ export function importedVersions(row: ImportedRow): FeedVersion[] {
 
 /** Everything the reader shows, as one history keyed by reading identity, with each key's latest activity. */
 export async function loadReaderHistory(db: D1Database): Promise<{ items: FeedHistoryItem[]; identities: Map<string, Identity> }> {
-  const [own, imported] = await Promise.all([
+  const [own, imported, kept] = await Promise.all([
     loadFeedHistory(db),
     db.prepare(`SELECT ii.subscription_id, ii.remote_id, ii.kind, ii.state, ii.version, ii.created, ii.updated, ii.observed_at, ii.l0,
         ii.changelog_json, ii.maintenance_json, ii.transclusions_json, s.origin
       FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id`).all<ImportedRow>(),
+    // Private items are the owner's reader too (Venkat, 2026-11-22), ranked by their private
+    // versions; without a position one sorted above everything (0.72.1). Studio-only: the
+    // public feed's history, loadFeedHistory, never reads private_versions.
+    db.prepare(`SELECT i.id, i.kind, p.version, p.published_at, p.note FROM items i
+      JOIN private_versions p ON p.item_id = i.id WHERE i.status = 'private' ORDER BY i.id, p.version`)
+      .all<{ id: string; kind: string; version: number; published_at: string; note: string | null }>(),
   ]);
   const identities = new Map<string, Identity>();
   const items: FeedHistoryItem[] = [];
@@ -111,6 +117,18 @@ export async function loadReaderHistory(db: D1Database): Promise<{ items: FeedHi
     identities.set(key, identity);
     // One time format across both kinds, since the replay compares them as strings.
     items.push({ ...item, id: key, versions: item.versions.map((v) => ({ ...v, at: iso(Date.parse(v.at)), quotes: v.quotes.map((q) => keyOf({ source: "own", sub: "", id: q })) })) });
+  }
+  const privateItems = new Map<string, FeedHistoryItem>();
+  for (const row of kept.results) {
+    const item = privateItems.get(row.id) ?? { id: row.id, kind: row.kind === "thread" ? "thread" as const : "fragment" as const, withdrawn: false, versions: [] };
+    item.versions.push({ version: row.version, at: iso(Date.parse(row.published_at)), note: row.note, pinned: false, quotes: [] });
+    privateItems.set(row.id, item);
+  }
+  for (const item of privateItems.values()) {
+    const identity: Identity = { source: "own", sub: "", id: item.id };
+    const key = keyOf(identity);
+    identities.set(key, identity);
+    items.push({ ...item, id: key });
   }
   for (const row of imported.results) {
     const identity: Identity = { source: "imported", sub: row.subscription_id, id: row.remote_id };

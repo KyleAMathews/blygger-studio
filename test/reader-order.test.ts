@@ -178,6 +178,30 @@ describe("the reading API", () => {
     expect(await sentinel()).toBeNull();
   });
 
+  // Venkat, session 85: private items stayed on top of the pace-layered reader and new items
+  // arrived below them. The ranking read only public history, so a private item had no
+  // position, and an unpositioned entry sorts first. It is ranked by its private versions now.
+  it("ranks a private item by its private versions, so newer items arrive above it (0.72.1)", async () => {
+    const cookie = await login();
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `a private note ${newId()}`, kind: "fragment" });
+    const kept = created.json.id as string;
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${kept}/publish`, { visibility: "private" })).status).toBe(200);
+    const sub = await subscription("https://after-private.example/");
+    const later = newId();
+    await arrive(sub, { id: later, created: new Date(Date.now() + 60_000).toISOString() }, "https://after-private.example/");
+    const order = async () => (await page(cookie, "limit=50&sub=all&order=pace-layered")).items.map((e) => e.key).filter((k) => k === `own:${kept}` || k === key(sub, later));
+    expect(await order()).toEqual([key(sub, later), `own:${kept}`]);
+
+    // A new private version is an input: the order is rebuilt and the item climbs.
+    const built = async () => (await db().prepare("SELECT generation FROM reading_order_state WHERE id = 1").first<{ generation: string }>())!.generation;
+    const stamp = await built();
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${kept}`, { contentMd: "a second private version, rewritten from the ground up" })).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${kept}/publish`, { visibility: "private" })).status).toBe(200);
+    await ensureReaderOrder(db());
+    expect(await built()).not.toBe(stamp);
+    expect(await db().prepare("SELECT 1 AS ok FROM reading_order WHERE source = 'own' AND id = ?").bind(kept).first()).toBeTruthy();
+  });
+
   it("leaves out imports whose subscription is gone: no empty pages, no count (session 79)", async () => {
     const cookie = await login();
     const sub = await subscription("https://held.example/");
