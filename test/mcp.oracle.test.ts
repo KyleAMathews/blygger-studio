@@ -35,9 +35,11 @@ import { env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:
 import { Client, StreamableHTTPClientTransport, type OAuthClientProvider, type OAuthTokens, type OAuthClientInformation, type OAuthDiscoveryState } from '@modelcontextprotocol/client';
 import { vi } from 'vitest';
 import { makeApp } from '../src/index.ts';
+import { getItem, putSettings } from '../src/model.ts';
+import { runGenerateScope } from '../src/tk-generate.ts';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { equals, iterableEquality } from '@vitest/expect';
-import { differs, oracleProperty, pass } from '@tanstack/oracles';
+import { differs, oracleProperty, pass, type Observation } from '@tanstack/oracles';
 import { withOracleStorage } from './oracle-storage.ts';
 import { mcpReference, type McpPlan, checkMcpObservation } from './mcp-receiving-reference.ts';
 import { toolOutcome } from './mcp-tool-outcome.ts';
@@ -471,4 +473,75 @@ oracleProperty({
    return differs('MCP receiving completeness', 'MCP receiving laws', Object.fromEntries(counts), expected.counts) ?? pass;
  },
  calibrations: [{ name: 'resource bound API token reaches MCP', law: 'MCP receiving laws', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'API audience refusal' ? { ...entry, value: 200 } : entry) }],
+});
+
+// Notebook access over MCP (plan §1 0f law 1; Kyle Mathews' coverage follow-up on studio#178:
+// "add the private-resource dimension to the REST and MCP permission histories"). Every nonempty
+// scope subset, in Notebook mode (the default makes a publish private, so MCP may challenge for
+// owner:private), calls every item-addressed tool on a missing id, a private item and a draft
+// whose working copy drew on one. Without owner:private the hidden answers must equal the
+// missing one exactly: HTTP status, challenge and JSON-RPC body, compared raw, with no id in any.
+const NOTEBOOK_MISSING = 'zzzzzzzzzzzzzzzzzzzzzzzzzz';
+const NOTEBOOK_RESOURCES = ['missing', 'private', 'tainted draft'] as const;
+type NotebookResource = typeof NOTEBOOK_RESOURCES[number];
+const notebookScopes: string[][] = Array.from({ length: (1 << all.length) - 1 }, (_, i) => all.filter((_, index) => (i + 1) & 1 << index));
+async function notebookFixture(d: Awaited<ReturnType<typeof createDriver>>) {
+  const call = async (method: string, path: string, body?: unknown) => (await d.owner(d.mount + '/api' + path, method, body)).json() as Promise<any>;
+  const kept = (await call('POST', '/items', { contentMd: 'notebook words', kind: 'fragment' })).id as string;
+  await call('POST', `/items/${kept}/publish`, { visibility: 'private', expectedRevision: (await call('GET', `/items/${kept}`)).revision });
+  const tainted = (await call('POST', '/items', { contentMd: `[TK]summarize ![[${kept}]][/TK]`, kind: 'fragment' })).id as string;
+  await putSettings(env.DB, { ai_model: 'claude-opus-5', default_visibility: 'private' });
+  const provider = async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ model: 'claude-opus-5', stop_reason: 'end_turn', content: [{ type: 'text', text: 'derived words' }] }) });
+  const generated = await runGenerateScope({ ...env, AI_PROVIDER_KEY: 'k' }, (await getItem(env.DB, tainted))!, 0, provider, undefined, { privateSources: true });
+  if (!generated.ok) throw new Error('MCP notebook fixture could not taint its draft');
+  return { missing: NOTEBOOK_MISSING, private: kept, 'tainted draft': tainted } as Record<NotebookResource, string>;
+}
+let notebookTools: string[] | undefined;
+async function notebookDriver(scope: string[], observe: (checkpoint: string, value: unknown) => void) {
+  await withOracleStorage(() => active.run(() => {}, async () => {
+    const d = await createDriver(), ids = await notebookFixture(d);
+    // The item-addressed tools, from a grant holding every scope: those whose input names a path id.
+    if (!notebookTools) {
+      const full = await d.connect((await d.manual(all)).accessToken);
+      notebookTools = (await full.listTools()).tools.filter(tool => (tool.inputSchema as any)?.properties?.path?.properties?.id).map(tool => tool.name).sort();
+      await full.close();
+    }
+    const token = (await d.manual(scope)).accessToken;
+    for (const name of notebookTools) {
+      const answers = {} as Record<NotebookResource, { status: number; text: string; challenge: string | null }>;
+      for (const resource of NOTEBOOK_RESOURCES) {
+        const id = ids[resource], revision = (await getItem(env.DB, id))?.revision ?? 1;
+        const response = await rawMcp(d, token, 'tools/call', { name, arguments: { path: { id, v: 1, version: 1 }, body: { expectedRevision: revision, ...(name === 'generateItem' ? { scope: 0 } : {}), ...(name === 'restoreItem' ? { version: 1 } : {}) } } });
+        answers[resource] = { status: response.status, text: await response.text(), challenge: response.headers.get('www-authenticate') };
+      }
+      const asMissing = (resource: NotebookResource) => JSON.stringify(answers[resource]) === JSON.stringify(answers.missing);
+      observe('MCP notebook receiving', {
+        tool: name,
+        hiddenAsMissing: asMissing('private') && asMissing('tainted draft') && answers.missing.status < 500,
+        echoes: answers.private.text.includes(ids.private) || answers['tainted draft'].text.includes(ids['tainted draft']),
+        statuses: Object.fromEntries(NOTEBOOK_RESOURCES.map(resource => [resource, answers[resource].status])),
+      });
+    }
+  }));
+  observe('MCP notebook complete', true);
+}
+function notebookCheck(scope: string[], trace: readonly Observation[]) {
+  // A grant holding owner:private may see private items, so no equality is owed to it.
+  if (scope.includes('owner:private')) return pass;
+  const received = trace.filter(entry => entry.checkpoint === 'MCP notebook receiving');
+  for (const entry of received) {
+    const value = entry.value as { tool: string; hiddenAsMissing: boolean; echoes: boolean };
+    const result = differs('MCP notebook receiving', 'MCP notebook as missing', { tool: value.tool, hiddenAsMissing: value.hiddenAsMissing, echoes: value.echoes }, { tool: value.tool, hiddenAsMissing: true, echoes: false });
+    if (result) return result;
+  }
+  if (trace.some(entry => entry.checkpoint === 'MCP notebook complete') && !received.length) return differs('MCP notebook walk', 'MCP notebook as missing', 0, 'at least one item tool') ?? pass;
+  return pass;
+}
+oracleProperty({
+  id: 'mcp-notebook', owns: ['src/mcp.ts', 'src/operation-runner.ts#executeOperation', 'src/private-access.ts'],
+  law: { statement: 'For every MCP scope subset and every item-addressed tool, in Notebook mode, a grant without owner:private receives for a private item, or a draft whose working copy drew on one, exactly the answer it receives for an id that does not exist, without the id, and never a server error.', authority: 'blygger-spec docs/sealed-content-build-plan.md §1 0f law 1; decisions by Venkat Rao (GitHub vgururao), 2026-11-23 (private scope) and 2026-11-24 (private taint); Kyle Mathews\' coverage follow-up on studio#178.', limits: 'All 63 nonempty subsets of the six MCP scopes, one fixture per subset, Notebook mode. HTTP status, WWW-Authenticate and the JSON-RPC body compared raw. Body-addressed ids are private-scope\'s.' },
+  histories: notebookScopes, label: scope => `an MCP grant of ${scope.join(' ')} learns nothing about hidden items`,
+  model: scope => scope,
+  driver: notebookDriver, check: notebookCheck,
+  calibrations: [{ name: 'a private item answers an MCP tool differently from a missing one', law: 'MCP notebook as missing', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'MCP notebook receiving' ? { ...entry, value: { ...(entry.value as object), hiddenAsMissing: false } } : entry) }],
 });

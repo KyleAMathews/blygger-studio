@@ -33,8 +33,8 @@ private access moves to a new scope; client-written provenance removed). **Migra
   leave it out. Private publishing needs the scope too, whether asked for or the blyg's
   default.
 - **[TK] on private sources (0c).** An own private item (its latest private version) can be
-  a generation source for a caller that may see it. A public publish is refused while any
-  scope's provenance names a private item; a private publish goes through.
+  a generation source for a caller that may see it. Output drawn from one is tainted (below):
+  a public publish is refused while the mark is set; a private publish goes through.
 - **Owner search (0d).** Compose search (`include=drafts`) finds private items' working
   copies, marked `private: true`. Migration 0062 recreates `search_source` to cover them
   and backfills. The `[[` picker does not offer private items yet.
@@ -64,7 +64,8 @@ private access moves to a new scope; client-written provenance removed). **Migra
   the shelf (hidden entries kept through a replace) and attachments respect the scope. A
   restricted hopper cursor expires when a member turns private. A hidden item answers
   exactly as an unknown one, in errors and diagnostics too. MCP challenges for
-  `owner:private` before a publish the default makes private. The [TK] preview shows
+  `owner:private` before a publish the default makes private, for an item the token may see;
+  a hidden one gets the unknown item's answer. The [TK] preview shows
   private sources to a caller that may see them, and the provider reads a private source
   as the reader shows it, without comments to self.
 - **After the independent review (session 85).** The laws are now "For every" statements
@@ -74,6 +75,28 @@ private access moves to a new scope; client-written provenance removed). **Migra
   id no item has rather than writing its own 404. Preview and publish say "unknown item"
   for a hidden item in the HTML as well as the diagnostics. A restricted hopper cursor
   expires only when a member's visibility changes, not on unrelated edits.
+- **A hidden working copy stays hidden through writes (independent review, session 86).** A
+  token without `owner:private` now acts on a public item with tainted pending changes as it
+  sees it, its latest public version (Venkat):
+  - an edit, generate, change-note draft or classification never returns or sends the hidden
+    text;
+  - a text edit replaces the hidden copy, and its mark and provenance with it;
+  - a public publish discards the hidden copy first and publishes the public text, instead of
+    answering that the item holds text from a private item;
+  - edits that leave the text alone keep the owner's hidden copy.
+
+  The browsing log no longer shows such a token steps that name a hidden item.
+- **Agentic editions (Kyle's row 3).** An edition's composed draft thread is hidden like a
+  tainted draft while it names a hidden own item (Venkat, session 85; a stopgap until
+  agentic-feed-plan §3.1). The mark follows each composition, and only the Studio's own
+  unedited draft is rewritten. An edition written by a token without `owner:private` drops the
+  hidden items it names, as it drops unknown ones.
+- **Avatar.** The avatar must name an existing medium the caller may see. A token without
+  `owner:private` naming a private item's medium gets the unknown medium's answer, and a
+  nonexistent id is now refused (400) for every caller, the owner included.
+- **Extensions.** word-count's counts and spellcheck's proofread read items as the caller may
+  see them: a hidden item is unknown, and a public item with tainted changes is counted and
+  proofread as published.
 - **Drafts in hoppers (Aneesh on studio#175, V9).** The reader's hopper lens lists the
   hopper's draft members too, marked *draft*, showing the working copy, with no public link
   (Venkat: the hopper lens is a hopper view; the reader's other lenses stay draft-free).
@@ -90,7 +113,7 @@ private access moves to a new scope; client-written provenance removed). **Migra
   - The editor asks inside the publish action, so the button stays disabled while it reads the
     hoppers. A second press no longer opens a second dialog or publishes twice.
   - A failed read shows an error and publishes nothing (Venkat: refuse with an error).
-- **Shelf ceiling (Venkat, session 85).** The stored shelf holds up to 1,000 entries, a
+- **Shelf ceiling (Venkat, session 85; contract).** `PUT /shelf` takes up to 1,000 entries (it was 50), and the stored shelf holds up to 1,000, a
   technical ceiling rather than a product cap (it was 50). A replace drops repeats first,
   keeping each entry's first position. For a token without `owner:private`, hidden entries
   keep their places, and anything past the ceiling comes off the end of that token's own list.

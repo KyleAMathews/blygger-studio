@@ -1,4 +1,4 @@
-import { PRIVATE_SCOPE, hiddenOwnIds, privateItemHidden, seesPrivate } from './private-access.ts';
+import { PRIVATE_SCOPE, getItemAs, hiddenOwnIds, privateItemHidden, seesPrivate, workingCopyHidden } from './private-access.ts';
 import { retainedMediaSql } from './media-retention.ts';
 import { httpsUrl, listSyndication, refuseSyndication, replaceSyndication, type SyndicationEntry } from './syndication.ts';
 import { assertCurrentRevision, assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
@@ -93,7 +93,7 @@ const MEDIA_MAX_BYTES = 5 * 1024 * 1024;
 type ItemBody = z.infer<typeof ItemEditSchema>;
 
 async function observedItem(context: OperationContext, input: OperationInput) {
-  const item = await getItem(context.env.DB, input.path.id);
+  const item = await getItemAs(context.env.DB, input.path.id, context.access);
   if (item) assertItemRevision(item, (input.body as { expectedRevision: number }).expectedRevision);
   return item;
 }
@@ -181,6 +181,9 @@ const updateItemOperation = async (context: OperationContext, input: OperationIn
   const changesDraft = body.contentMd !== undefined || body.kind !== undefined || "stubOf" in body;
   const assignments: string[] = [], values: (string | number | null)[] = [];
   if (body.contentMd !== undefined) { assignments.push("content_md = ?"); values.push(body.contentMd); }
+  // A caller who could not see a hidden working copy wrote this text from the public version, so
+  // the copy it replaces takes its mark and provenance with it (Venkat, session 86).
+  if (body.contentMd !== undefined && !seesPrivate(context.access)) assignments.push("tk_provenance_json = CASE WHEN private_taint = 1 THEN NULL ELSE tk_provenance_json END", "private_taint = 0");
   if (body.kind !== undefined) { assignments.push("kind = ?"); values.push(body.kind); }
   if ("stubOf" in body) { assignments.push("stub_of = ?"); values.push(stubJson); }
   if (body.responses !== undefined) { assignments.push("responses_override = ?"); values.push(body.responses === "default" ? null : Number(body.responses === "show")); }
@@ -194,7 +197,8 @@ const updateItemOperation = async (context: OperationContext, input: OperationIn
   const fresh = await context.env.DB.prepare(`UPDATE items SET ${assignments.join(", ")} WHERE id = ? AND revision = ? RETURNING *`)
     .bind(...values, item.id, item.revision).first<ItemRow>();
   if (!fresh) throw new ItemRevisionConflict(item.id, item.revision);
-  return success(itemResource(fresh, await authoredKind(context.env.DB, fresh)));
+  const shown = seesPrivate(context.access) ? fresh : (await getItemAs(context.env.DB, item.id, context.access))!;
+  return success(itemResource(shown, await authoredKind(context.env.DB, shown)));
 };
 
 /**
@@ -324,8 +328,14 @@ const publishItemOperation = async (context: OperationContext, input: OperationI
   // Also the republish path for withdrawn items: vN+1 restores 'public'/authored kind.
   // Studio-side fragment cap (§2.7) is enforced inside publish() against the
   // TK-stripped (published) length, not the raw working copy — see FragmentTooLongError.
-  const item = await observedItem(context, input);
+  let item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
+  // A caller who cannot see a hidden working copy publishes the version it sees: the hidden copy
+  // is discarded first, as restore would discard it, and its mark with it (Venkat, session 86).
+  if (await workingCopyHidden(context.env.DB, context.access, item.id)) {
+    await restoreVersion(context.env.DB, (await getItem(context.env.DB, item.id))!, item.version);
+    item = (await getItem(context.env.DB, item.id))!;
+  }
   const body = (input.body as { note?: string; noteGenerated?: boolean; changeCategory?: ChangeCategory | null; tangle?: boolean; visibility?: "public" | "private" });
   // note_generated is the studio's own assertion that the note is the drafted
   // text, unedited (#40) — self-asserted, like every provenance member.

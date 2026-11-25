@@ -105,3 +105,27 @@ export function checkPublish(plan: PublishPlan, trace: readonly Observation[], e
   const want = { publications: expected.publications, status: expected.status, version: expected.version };
   return isDeepStrictEqual(stored, want) ? { kind: 'pass' } : violation('publication settled', stored, want);
 }
+
+/** Owner search marks (plan §1 0f law 6; Kyle's row 5): Compose's search shows an
+ * item by its working copy, marks a private hit "private" and a working-copy hit
+ * "draft" or "unpublished changes", and drops the private mark once raised. */
+export type SearchState = 'draft' | 'private' | 'private edited' | 'public' | 'public changed';
+export const searchStates: readonly SearchState[] = ['draft', 'private', 'private edited', 'public', 'public changed'];
+export type SearchSeen = { hits: number; private: boolean; draft: string | null; excerpt: string };
+export function searchModel(state: SearchState): SearchSeen {
+  const last = state === 'private edited' || state === 'public' ? 'second' : state === 'public changed' ? 'third' : 'first';
+  return {
+    hits: 1,
+    private: state.startsWith('private'),
+    draft: state === 'draft' ? 'draft' : state === 'public changed' ? 'unpublished changes' : null,
+    excerpt: `${last} words`,
+  };
+}
+export const searchLaw = 'owner search shows and marks the working copy';
+export function checkSearch(state: SearchState, trace: readonly Observation[]): Verdict {
+  const seen = trace.find(entry => entry.checkpoint === 'search settled')?.value as SearchSeen | undefined;
+  const want = searchModel(state);
+  if (!seen) return { kind: 'violation', checkpoint: 'complete browser receiving history', law: searchLaw, difference: 'no search observation', values: { actual: trace.map(entry => entry.checkpoint), expected: ['search settled'] } };
+  const got = { hits: seen.hits, private: seen.private, draft: seen.draft, excerpt: seen.excerpt.includes(want.excerpt) ? want.excerpt : seen.excerpt };
+  return isDeepStrictEqual(got, want) ? { kind: 'pass' } : { kind: 'violation', checkpoint: 'search settled', law: searchLaw, difference: 'the rendered hit differs from the search model', values: { actual: seen, expected: want } };
+}

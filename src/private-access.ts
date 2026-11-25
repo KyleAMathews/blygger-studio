@@ -15,6 +15,7 @@
 // through `visibleItemsSql`, `hiddenItemSql` or the helpers below.
 import { ItemRowSchema } from "./contract/schemas.ts";
 import type { OwnerAccess } from "./permissions.ts";
+import type { ItemRow } from "./types.ts";
 
 export const PRIVATE_SCOPE = "owner:private";
 
@@ -39,6 +40,8 @@ export function hiddenWorkingCopySql(alias = "i"): string {
 const MASKED: Record<string, (alias: string) => string> = {
   content_md: (a) => `COALESCE((SELECT v.content_md FROM versions v WHERE v.item_id = ${a}.id AND v.version = ${a}.version), '')`,
   tk_provenance_json: () => "NULL",
+  // The mark is itself a signal that a hidden working copy exists.
+  private_taint: () => "0",
 };
 
 /**
@@ -52,6 +55,22 @@ export function visibleItemsSql(access: OwnerAccess | null): string {
     ? `CASE WHEN ${hiddenWorkingCopySql("x")} THEN ${MASKED[name]("x")} ELSE x.${name} END AS ${name}`
     : `x.${name}`);
   return `(SELECT ${columns.join(", ")} FROM items x WHERE NOT ${hiddenItemSql("x")})`;
+}
+
+/**
+ * An own item as this access may read it, the row form of visibleItemsSql: null when it does not
+ * exist or is hidden, and a hidden working copy read as the latest public version. Every
+ * `/items/{id}` handler acts on this row, so a restricted caller writes, generates and publishes
+ * against what it can see (Venkat, session 86) and no answer is built from text it cannot.
+ */
+export async function getItemAs(db: D1Database, id: string, access: OwnerAccess | null): Promise<ItemRow | null> {
+  return (await db.prepare(`SELECT * FROM ${visibleItemsSql(access)} i WHERE i.id = ?`).bind(id).first<ItemRow>()) ?? null;
+}
+
+/** True when this access reads the item's working copy as its latest public version. */
+export async function workingCopyHidden(db: D1Database, access: OwnerAccess | null, id: string): Promise<boolean> {
+  if (seesPrivate(access)) return false;
+  return !!(await db.prepare(`SELECT 1 AS hit FROM items i WHERE i.id = ? AND ${hiddenWorkingCopySql("i")}`).bind(id).first());
 }
 
 /** The row form of hiddenItemSql, for code that already holds the item. */

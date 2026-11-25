@@ -152,7 +152,7 @@ export async function runGenerateScope(
   const supplied = new Set([scope.instruction, context.text].flatMap((t) => [...t.matchAll(new RegExp(ID, "g"))].map((m) => m[0])).concat(sources.flatMap((s) => ("id" in s ? [s.id] : []))));
   const kept = new Set<string>();
   for (const [, id] of result.text.matchAll(LINK_INLINE)) {
-    if (id && supplied.has(id) && !kept.has(id) && (await resolveTarget(env.DB, id, undefined, !opts.privateSources)).ok) kept.add(id);
+    if (id && supplied.has(id) && (await resolveTarget(env.DB, id, undefined, !opts.privateSources)).ok) kept.add(id);
   }
   result = { ...result, text: stripGeneratedGrammar(result.text, (id) => kept.has(id)) };
   const updatedMd = setScopeOutput(item.content_md, scope, result.text);

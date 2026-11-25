@@ -299,8 +299,12 @@ const listBrowseOperation = async (context: OperationContext, input: OperationIn
   const where: string[] = [], binds: (string | number)[] = [];
   if (input.query.trail) { where.push('trail = ?'); binds.push(input.query.trail); }
   if (input.query.id) { where.push('id = ?'); binds.push(Number(input.query.id)); }
+  // The owner's reader logs every entry it opens, a private one with its title (F4, session 86):
+  // a caller who cannot see an item does not see the steps that name it.
+  const withPrivate = seesPrivate(context.access);
+  if (!withPrivate) where.push(`remote_id NOT IN (SELECT i.id FROM items i WHERE ${hiddenItemSql('i')})`);
   return success(await cursorPage<BrowseRow, ReturnType<typeof browseResource>>(context.env.DB, input.query, {
-    name: 'browse', filters: [input.query.trail ?? null, input.query.id ?? null], domains: ['browse'],
+    name: 'browse', filters: [input.query.trail ?? null, input.query.id ?? null, withPrivate], domains: ['browse', 'items'],
     sql: `SELECT * FROM browse_log${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`, binds,
     order: [{ column: 'id', direction: 'desc' }], project: rows => rows.map(browseResource),
   }));

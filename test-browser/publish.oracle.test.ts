@@ -27,10 +27,10 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
 import { withOracleCleanup } from '../test/oracle-cleanup.ts';
-import { login, runPublishPlan } from '../e2e/publish-oracle-scenarios.ts';
-import { publishPlans, publishPlanName, publishModel, checkPublish, publishLaw } from './publish-model.ts';
+import { login, runPublishPlan, runSearchPlan } from '../e2e/publish-oracle-scenarios.ts';
+import { publishPlans, publishPlanName, publishModel, checkPublish, publishLaw, searchStates, searchModel, checkSearch, searchLaw } from './publish-model.ts';
 import { buildBrowserOracleSpa } from './browser-build.ts';
-configureOracles({ envPrefix: 'BROWSER_ORACLE', registry: ['browser-publish-confirm'] });
+configureOracles({ envPrefix: 'BROWSER_ORACLE', registry: ['browser-publish-confirm', 'browser-search-marks'] });
 let browser: Browser, server: ChildProcess | undefined, signedIn: BrowserContextOptions['storageState'];
 // A parallel session's suite may hold 8787: these move this oracle's own server elsewhere.
 const baseURL = process.env.BROWSER_ORACLE_BASE_URL ?? 'http://127.0.0.1:8787';
@@ -90,4 +90,18 @@ oracleProperty({
     { name: 'a second publication after a repeated press', law: publishLaw, history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'publication settled' ? { ...entry, value: { ...(entry.value as object), publications: 2 } } : entry) },
     { name: 'a dialog that omits a hopper joined after load', law: publishLaw, history: { enumerated: 2 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'confirmation settled' ? { ...entry, value: { ...(entry.value as { dialogs: string[] }), dialogs: (entry.value as { dialogs: string[] }).dialogs.map(text => text.replace('Joined ·', '')) } } : entry) },
   ],
+});
+oracleProperty({
+  id: 'browser-search-marks',
+  owns: ['src/ui/search.tsx#hitMeta', 'src/ui/search.tsx#SearchResults', 'src/read-api.ts#searchOperation'],
+  law: { statement: 'For every own item found by Compose\'s search, the hit shows its working copy, is marked private exactly while the item is private, and is marked draft or unpublished changes exactly while its working copy is unpublished.', authority: 'sealed-content-build-plan §1 0f law 6 (owner search, Venkat, 2026-11-23) and Kyle Mathews\' row 5 on studio#178', limits: 'Desktop Chromium against local D1; the owner\'s session; one fragment per state.' },
+  histories: searchStates,
+  label: state => `an item ${state} is found and marked as such`,
+  model: searchModel,
+  driver: async (state, observe) => {
+    const context = await browser.newContext({ ...options(), storageState: signedIn });
+    await withOracleCleanup(async () => { await runSearchPlan(await context.newPage(), state, observe); }, [() => context.close()]);
+  },
+  check: checkSearch,
+  calibrations: [{ name: 'a private hit shown unmarked', law: searchLaw, history: { enumerated: 1 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'search settled' ? { ...entry, value: { ...(entry.value as object), private: false } } : entry) }],
 });

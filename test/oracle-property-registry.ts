@@ -54,6 +54,7 @@ export const workerOracleProperties = [
   "markdown-work-security",
   "mcp",
   "mcp-media",
+  "mcp-notebook",
   "media-visibility-security",
   "private-items-public-surface",
   "private-items-raise-to-public",

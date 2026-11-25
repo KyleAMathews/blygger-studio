@@ -5,7 +5,7 @@
  * publish-model.ts predicts their meanings independently.
  */
 import type { Page, Request, Route } from '@playwright/test';
-import { hopperNames, type PublishPlan } from '../test-browser/publish-model.ts';
+import { hopperNames, type PublishPlan, type SearchState } from '../test-browser/publish-model.ts';
 
 type RecordObservation = (phase: string, value: Record<string, unknown>) => void;
 async function api(page: Page, method: string, path: string, body?: unknown) {
@@ -110,4 +110,31 @@ export async function runPublishPlan(page: Page, plan: PublishPlan, record: Reco
   record('confirmation settled', { dialogs, error });
   const stored = await api(page, 'GET', `/items/${id}`) as { status: string; version: number };
   record('publication settled', { publications, status: stored.status, version: stored.version });
+}
+
+/** One own item brought to a search state through the API, then found through
+ * Compose's search box; records the rendered hit's excerpt and marks. */
+export async function runSearchPlan(page: Page, state: SearchState, record: RecordObservation) {
+  const word = `marks${crypto.randomUUID().replaceAll('-', '').slice(0, 10)}`;
+  await page.goto('/studio/');
+  await api(page, 'PATCH', '/settings', { defaultVisibility: 'public' });
+  let item = await api(page, 'POST', '/items', { contentMd: `${word} first words` }) as { id: string; revision: number };
+  const id = item.id;
+  const publish = async (visibility: 'public' | 'private') => { item = { ...item, ...(await api(page, 'POST', `/items/${id}/publish`, { visibility, expectedRevision: item.revision })) }; };
+  const edit = async (text: string) => { item = { ...item, ...(await api(page, 'PATCH', `/items/${id}`, { contentMd: `${word} ${text}`, expectedRevision: item.revision })) }; };
+  if (state !== 'draft' && state !== 'public' && state !== 'public changed') await publish('private');
+  if (state === 'private edited') await edit('second words');
+  if (state === 'public' || state === 'public changed') { await publish('private'); await edit('second words'); await publish('public'); }
+  if (state === 'public changed') await edit('third words');
+  await page.goto('/studio/');
+  await page.getByRole('searchbox', { name: 'search your items' }).or(page.getByLabel('search your items')).first().fill(word);
+  const hit = page.locator(`.search-list li:has(a[href$="/edit/${id}"])`);
+  await hit.first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+  const count = await hit.count();
+  record('search settled', count ? {
+    hits: count,
+    private: await hit.first().locator('.search-private').count() > 0,
+    draft: await hit.first().locator('.search-draft').count() ? ((await hit.first().locator('.search-draft').textContent()) ?? '').trim() : null,
+    excerpt: ((await hit.first().locator('.search-excerpt').textContent()) ?? '').trim().replaceAll(word, '·'),
+  } : { hits: 0, private: false, draft: null, excerpt: '' });
 }
