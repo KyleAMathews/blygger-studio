@@ -58,7 +58,7 @@ jobs:
           node-version: 22.18.0
       - id: scope
         run: node scripts/ci-scope.ts "${{ github.event_name }}" "${{ github.base_ref }}"
-  check:
+  source-check:
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
@@ -81,7 +81,17 @@ jobs:
       - run: npm run test:ui -- --maxWorkers=2
       # npm ci already built the same inputs in postinstall.
       - run: bash scripts/check-ram-tmp.sh npm --ignore-scripts test -- --maxWorkers=2 --shard=1/2
-      - run: npm run test:upgrade
+  check:
+    needs: [source-check, release-package]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require source checks and the upgrade test
+        env:
+          SOURCE_RESULT: ${{ needs.source-check.result }}
+          UPGRADE_RESULT: ${{ needs.release-package.outputs.upgrade }}
+        run: test "$SOURCE_RESULT" = success && test "$UPGRADE_RESULT" = success
   worker-tests:
     # Start this shard after the browser job so formatting can use an early runner.
     needs: browser-oracles
@@ -104,6 +114,8 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      upgrade: ${{ steps.upgrade.outcome }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -114,6 +126,10 @@ jobs:
           cache: npm
       - id: install
         run: npm ci --legacy-peer-deps
+      - id: upgrade
+        # The check job gates on the raw outcome. Package verification still runs.
+        continue-on-error: true
+        run: npm run test:upgrade
       - run: npm run release:build
       # verify-sdk-consumer.ts, inside release:verify, drives Chromium.
       - uses: ./.github/actions/install-chromium
@@ -222,7 +238,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -234,7 +250,8 @@ jobs:
       - name: Run Chromium with isolated fixture lanes
         env:
           E2E_SHARD: ${{ matrix.shard }}
-        run: python3 scripts/check-linux-shards.py chromium "$E2E_SHARD" 3
+          E2E_PAIRS: ${{ strategy.job-total }}
+        run: python3 scripts/check-linux-shards.py chromium "$E2E_SHARD" "$E2E_PAIRS"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -258,7 +275,7 @@ jobs:
         run: bash scripts/check-ram-tmp.sh python3 scripts/check-linux-shards.py browser-oracles 1 1
 
   e2e-webkit:
-    needs: [scope, check]
+    needs: [scope, source-check]
     if: ${{ !cancelled() && needs.scope.outputs.e2e == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -287,7 +304,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pair: [1, 2]
+        pair: [1, 2, 3, 4]
     name: mutations (auth-security-worker-${{ matrix.pair }})
     steps:
       - uses: actions/checkout@v4
@@ -299,7 +316,8 @@ jobs:
       - name: Run the two Worker control shards
         env:
           WORKER_PAIR: ${{ matrix.pair }}
-        run: bash scripts/check-ram-tmp.sh python3 scripts/check-linux-shards.py worker-auth "$WORKER_PAIR" 2
+          WORKER_PAIRS: ${{ strategy.job-total }}
+        run: bash scripts/check-ram-tmp.sh python3 scripts/check-linux-shards.py worker-auth "$WORKER_PAIR" "$WORKER_PAIRS"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -351,7 +369,7 @@ jobs:
 
   mutations:
     # Let the longest mutation suite and Chromium claim the early runners.
-    needs: [scope, check, worker-oracles, browser-oracles, studio-oracle-rest]
+    needs: [scope, source-check, worker-oracles, browser-oracles, studio-oracle-rest]
     if: ${{ !cancelled() && needs.scope.result == 'success' && needs.scope.outputs.other-mutations != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
