@@ -178,6 +178,31 @@ test("stale quotes are listed, explained, and refreshed as one republish", async
   expect(errors).toEqual([]);
 });
 
+test("studio#184: marking a selection that holds a TK scope asks first, and wraps only the text around it", async ({ page }) => {
+  await page.goto("/studio/login");
+  await page.locator('[name="password"]').fill("test-password");
+  await page.getByRole("button", { name: "log in", exact: true }).click();
+  const inner = "[TK]impyrt=Already disclosed.[/TK]";
+  const text = `Pasted one ${Date.now()}.\n\n${inner}\n\nPasted two.`;
+  await page.locator("#composer-text").fill(text);
+  await page.locator("#composer-full").click();
+  const input = page.locator("#md-input");
+  await expect(input).toHaveValue(text);
+  const selectAll = () => input.evaluate((el: HTMLTextAreaElement) => { el.focus(); el.setSelectionRange(0, el.value.length); });
+  await selectAll();
+  await page.locator("#tk-impyrt-btn").click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("scopes don't nest");
+  // Declining changes nothing: the split is offered, never applied unasked.
+  await dialog.getByRole("button", { name: "cancel", exact: true }).click();
+  await expect(input).toHaveValue(text);
+  await selectAll();
+  await page.locator("#tk-impyrt-btn").click();
+  await page.getByRole("dialog").getByRole("button", { name: "mark the text around it", exact: true }).click();
+  const [one, two] = text.split(`\n\n${inner}\n\n`);
+  await expect(input).toHaveValue(`[TK]impyrt=${one}[/TK]\n\n${inner}\n\n[TK]impyrt=${two}[/TK]`);
+});
+
 test("pasted generated text is marked from a selection and published disclosed", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));

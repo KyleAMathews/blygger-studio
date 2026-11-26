@@ -1278,8 +1278,16 @@ function Article({ entry, actions, origin }: { entry: Reading; actions: Actions;
   const content = useMemo(() => splitTitle(entry.contentHtml, entry.l0), [entry.contentHtml, entry.l0]);
   return (
     <article className="entry reading-article" data-key={entry.key}>
-      <div className="entry-in">
+      <div className="entry-in article-byline">
         <Byline entry={entry} a={a} />
+      </div>
+      {/* The actions lead a full view (Venkat, session 87): below a long body
+          they were a scroll away. The history they open sits with them. */}
+      <EntryBar entry={entry} a={a} />
+      {a.imported && !entry.l0 && a.historyOpen ? (
+        <History sub={a.imported.subscriptionId} id={a.id} />
+      ) : null}
+      <div className="entry-in article-main">
         <Tomb entry={entry} />
         <ChangeLead entry={entry} opened />
         <EntryTitle title={content.title} url={a.url} as="h2" className="entry-title article-title" />
@@ -1288,10 +1296,6 @@ function Article({ entry, actions, origin }: { entry: Reading; actions: Actions;
         <CopiesElsewhere entries={entry.imported?.syndication} />
         <BurstParts entry={entry} open />
       </div>
-      {a.imported && !entry.l0 && a.historyOpen ? (
-        <History sub={a.imported.subscriptionId} id={a.id} />
-      ) : null}
-      <EntryBar entry={entry} a={a} />
       <EntrySheetSlot sheet={a.extensionSheet} close={a.closeExtensionSheet} />
     </article>
   );

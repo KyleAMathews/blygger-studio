@@ -10,7 +10,7 @@
 // - a **hidden working copy** is the tainted working copy of a public or withdrawn
 //   item. The item stays visible as its latest public version (Q2, session 85).
 //
-// The taint is `items.private_taint` (migration 0063), written only by the server.
+// The taint is `items.private_taint` (migration 0065), written only by the server.
 // Everything that names, lists or reads an own item for an owner API caller goes
 // through `visibleItemsSql`, `hiddenItemSql` or the helpers below.
 import { ItemRowSchema } from "./contract/schemas.ts";

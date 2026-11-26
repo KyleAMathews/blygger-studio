@@ -22,7 +22,7 @@ not have its own repo until session 26.
 
 **Private items, the rest of Phase 0** (blygger-spec `docs/sealed-content-build-plan.md` §1,
 0c–0e) **and the hopper fix** (studio#175). Private contract **7.0.0** (breaking for tokens:
-private access moves to a new scope; client-written provenance removed). **Migrations:** `0062_search_private.sql`, `0063_private_taint.sql`.
+private access moves to a new scope; client-written provenance removed). **Migrations:** `0064_search_private.sql`, `0065_private_taint.sql`.
 
 - **`owner:private`, a new scope.** Private items and their private versions need it;
   `owner:read` does not imply it. **A token minted before this change loses private access
@@ -36,14 +36,14 @@ private access moves to a new scope; client-written provenance removed). **Migra
   a generation source for a caller that may see it. Output drawn from one is tainted (below):
   a public publish is refused while the mark is set; a private publish goes through.
 - **Owner search (0d).** Compose search (`include=drafts`) finds private items' working
-  copies, marked `private: true`. Migration 0062 recreates `search_source` to cover them
+  copies, marked `private: true`. Migration 0064 recreates `search_source` to cover them
   and backfills. The `[[` picker does not offer private items yet.
 - **Hoppers (studio#175).** The owner's hopper view lists the owner's own members, private
   ones included and marked. `getItem` returns `hoppers: [{id, name, public}]`. Raising a
   private item to public confirms in both modes and names the public hoppers it will join.
   Public hopper pages and feeds still show public members only.
 - **Private taint.** [TK] output drawn from a private item sets a mark on the item that only
-  the server writes (`items.private_taint`, migration 0063, which carries existing marks
+  the server writes (`items.private_taint`, migration 0065, which carries existing marks
   over). Hand-editing the [TK] markers away, raising or discarding the source, or
   regenerating from tainted input does not clear it; discarding the changes does. While it
   is set a public publish is refused with one answer, whatever became of the source. To a
@@ -89,7 +89,7 @@ private access moves to a new scope; client-written provenance removed). **Migra
 - **Agentic editions (Kyle's row 3).** An edition's composed draft thread is hidden like a
   tainted draft while it names a hidden own item (Venkat, session 85; a stopgap until
   agentic-feed-plan §3.1). The mark follows each composition, and an item that turns hidden
-  later marks the drafts that name it (migration 0063's trigger). Only the Studio's own
+  later marks the drafts that name it (migration 0065's trigger). Only the Studio's own
   unedited draft is rewritten.
 - **The Agentic feed needs `owner:private` (breaking for tokens).** An edition may name any
   own item, so `GET /agentic` and `GET /agentic/{feed}` need `owner:private` (as
@@ -122,6 +122,16 @@ private access moves to a new scope; client-written provenance removed). **Migra
   technical ceiling rather than a product cap (it was 50). A replace drops repeats first,
   keeping each entry's first position. For a token without `owner:private`, hidden entries
   keep their places, and anything past the ceiling comes off the end of that token's own list.
+
+## 0.72.3 — Discard gives back what you published from; the full view leads with its actions; `superseded` at 3 minutes
+
+**Discard changes gives back what you published from** (studio#184, Venkat). Publication strips each `[TK]` scope to its bare output, and discard copied that stripped text back. It lost the scopes and their instructions, and for any version with generated text it left "unpublished changes" showing for good. Each version now keeps the working copy it was published from, with its provenance (**migration** `0063_version_source.sql`), and discard restores both, clean. The source is stored only where it differs from the published text (scopes, comments to self), so an ordinary version costs nothing extra. A version published before 0063 gives back its published text: clean, unless that version disclosed generated text, because republishing the stripped text would drop the disclosure. Marking a selection that holds a TK scope as generated now asks, and offers to mark the text around it instead. Scopes don't nest, and whole-item marking is a separate construct still to be designed.
+
+**The full view leads with its actions** (Venkat, session 87). Opening an entry with *more* put edit, stub, hopper, save and ⋯ below the whole body, a long scroll away. The bar, and the history it opens, now sit under the byline.
+
+**`superseded` looks back 3 minutes, not 15** (Venkat, session 87, studio#183). At 15 it put unrelated posts a few minutes apart into Background, where, unlike a tangle's parts, they fold under nothing. **Migration** `0062_superseded_window.sql` recomputes the stored facts for the new window, so items the old one caught come back. Better cluster detection is a research item on #183.
+
+**Migrations:** `0062_superseded_window.sql`, `0063_version_source.sql`. Private contract unchanged (6.4.0), SDK unchanged.
 
 ## 0.72.2 — The Studio stays inside D1's free tier; unquoted links verify
 

@@ -85,7 +85,7 @@ export async function runGenerateScope(
   const sources: (GenerationSource & { text: string })[] = [];
   // Private taint: the output is private-derived when it reads a private snapshot, or when
   // the input it is fed (this scope's text, the rest of the working copy) is already marked.
-  // The mark is the item's server-written column (migration 0063), never the provenance JSON.
+  // The mark is the item's server-written column (migration 0065), never the provenance JSON.
   let tainted = item.private_taint === 1;
   const addItem = async (id: string, target: ResolvedTarget) => {
     const ref: ItemGenerationSource = { id, version: target.version };
