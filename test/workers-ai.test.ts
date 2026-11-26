@@ -11,6 +11,11 @@ import type { Env } from "../src/types.ts";
 import { baseUrlProblem, mergeManifest, type Manifest as RawManifest } from "../scripts/models-manifest.ts";
 import shipped from "../models.json";
 
+// This file's one HTTP test imports ./helpers.ts lazily, so it pays the Worker
+// entrypoint's cold load (deferred in CI since #177) inside its own budget: about
+// 4.5 s on CI runners, against vitest's 5 s default (0.72.2's Check, session 87).
+const ENTRYPOINT_TIMEOUT_MS = 30_000;
+
 const GEMMA = "@cf/google/gemma-4-26b-a4b-it";
 const PURPOSES = ["ai_model_tk", "ai_model_changelog", "ai_model_feed"];
 
@@ -284,7 +289,7 @@ describe("GET /api/ai/models with Workers AI", () => {
     expect(wai).toEqual({ id: "workers-ai", label: "Cloudflare Workers AI", binding: "AI", configured: false });
     expect(models.models.find((m: { id: string }) => m.id === GEMMA)).toEqual({ id: GEMMA, provider: "workers-ai", label: "Gemma 4 26B", note: "billed to your Cloudflare account" });
     expect(JSON.stringify(models)).not.toMatch(/params|chat_template_kwargs|base_url/);
-  });
+  }, ENTRYPOINT_TIMEOUT_MS);
 
   it("reports Workers AI configured exactly when the binding is bound", () => {
     expect(configuredProviders({ ...env, AI: undefined })["workers-ai"]).toBe(false);
