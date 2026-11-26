@@ -126,6 +126,7 @@ type History =
   | { kind: 'clear'; action: Clear; target: 'TD' | 'TP' }
   | { kind: 'forge' }
   | { kind: 'refusal' }
+  | { kind: 'default private' }
   | { kind: 'cursor'; event: CursorEvent; reader: 'restricted memberships' | 'owner hopper lens' }
   | { kind: 'agentic'; writer: 'owner' | 'restricted'; turnsPrivate?: true }
   | { kind: 'shelf'; full?: true; turnsPrivate?: true }
@@ -287,6 +288,23 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
       observe('private scope', { operation: 'batchRead getItem', same: batch.status === 200 && children.length === 2 && children[0].status === children[1].status && normalize(JSON.stringify(children[0].body), [id]) === normalize(JSON.stringify(children[1].body), [UNKNOWN]), hidden: children[0]?.status, unknown: children[1]?.status, body: JSON.stringify(children[0]?.body ?? batch.text).slice(0, 160) });
       const after = await ownerState(fixture, id);
       observe('no write took effect', JSON.stringify(after) === JSON.stringify(before));
+      return;
+    }
+    case 'default private': {
+      // Over REST, in Notebook mode: a publish naming no visibility follows the private default,
+      // which would make an item the token cannot see, so a restricted token is refused (403)
+      // and nothing changes; naming public is an ordinary publish (gap run, session 88).
+      await api('PATCH', '/settings', { defaultVisibility: 'private' });
+      const state = async (id: string) => { const item = (await api('GET', `/items/${id}`)).json; return { status: item?.status, version: item?.version }; };
+      const draft = async (by: typeof restricted) => (await by('POST', '/items', { contentMd: 'a draft in Notebook mode', kind: 'fragment' })).json.id as string;
+      const plain = await draft(restricted);
+      const refused = await restricted('POST', `/items/${plain}/publish`, { expectedRevision: await revision(fixture, plain) });
+      observe('default private', { caller: 'restricted, no visibility', status: refused.status, code: refused.json?.code ?? null, message: refused.json?.message ?? null, item: await state(plain) });
+      const named = await restricted('POST', `/items/${plain}/publish`, { visibility: 'public', expectedRevision: await revision(fixture, plain) });
+      observe('default private', { caller: 'restricted, public named', status: named.status, item: await state(plain) });
+      const kept = await draft(withPrivate);
+      const allowed = await withPrivate('POST', `/items/${kept}/publish`, { expectedRevision: await revision(fixture, kept) });
+      observe('default private', { caller: 'owner:private, no visibility', status: allowed.status, item: await state(kept) });
       return;
     }
     case 'mcp': {
@@ -774,6 +792,11 @@ function model(history: History): Expected {
   switch (history.kind) {
     case 'inventory': at('item operation inventory', []); break;
     case 'hidden': for (const operation of [...Object.keys(ITEM_OPERATIONS), 'uploadMedia itemId', 'deleteMedia', 'media bytes', 'avatar']) at('private scope', { operation, same: true }); at('owner avatar', true); at('private scope', { operation: 'batchRead getItem', same: true }); at('no write took effect', true); break;
+    case 'default private':
+      at('default private', { caller: 'restricted, no visibility', status: 403, code: 'forbidden', message: 'insufficient scope', item: { status: 'draft', version: 0 } });
+      at('default private', { caller: 'restricted, public named', status: 200, item: { status: 'public', version: 1 } });
+      at('default private', { caller: 'owner:private, no visibility', status: 200, item: { status: 'private', version: 0 } });
+      break;
     case 'mcp': for (const [operation, route] of Object.entries(routes)) if (route.path.startsWith('/items/{id}')) at('private scope', { operation: `MCP ${operation}`, same: true }); break;
     case 'references': for (const operation of ['preview link', 'preview quote', 'preview TK source', 'publish link', 'preview quote in generated text', 'word counts', 'proofread', 'preview tangle', 'generate reading a link', 'publish quote', 'generate TK source']) at('private scope', { operation, same: true }); break;
     case 'working copy':
@@ -865,6 +888,7 @@ const describe = (history: History) => {
   switch (history.kind) {
     case 'inventory': return 'every item-addressed contract operation is walked';
     case 'hidden': return `a restricted token learns nothing about ${history.resource === 'P' ? 'a private item' : 'a tainted draft'} on any item operation`;
+    case 'default private': return 'in Notebook mode, a restricted token publishing with no visibility is refused and the draft stays a draft; naming public publishes; a token with owner:private keeps it privately';
     case 'mcp': return `a restricted MCP token learns nothing about ${history.resource === 'P' ? 'a private item' : 'a tainted draft'} on any item tool, in Notebook mode`;
     case 'references': return `a restricted token's previews and publishes name ${history.resource === 'P' ? 'a private item' : 'a tainted draft'} as an unknown one`;
     case 'working copy': return 'a public item with a tainted working copy shows its public version to a restricted token';
@@ -883,7 +907,7 @@ const describe = (history: History) => {
     case 'cursor': return `${history.reader === 'owner hopper lens' ? 'the owner\'s hopper lens cursor' : 'a restricted hopper cursor'} ${cursorExpires(history.event) ? 'expires on' : 'survives, exactly,'} ${history.event}`;
   }
 };
-const scopeHistories: History[] = [{ kind: 'inventory' }, { kind: 'hidden', resource: 'P' }, { kind: 'hidden', resource: 'TD' }, { kind: 'references', resource: 'P' }, { kind: 'references', resource: 'TD' }, { kind: 'mcp', resource: 'P' }, { kind: 'mcp', resource: 'TD' }];
+const scopeHistories: History[] = [{ kind: 'inventory' }, { kind: 'hidden', resource: 'P' }, { kind: 'hidden', resource: 'TD' }, { kind: 'references', resource: 'P' }, { kind: 'references', resource: 'TD' }, { kind: 'mcp', resource: 'P' }, { kind: 'mcp', resource: 'TD' }, { kind: 'default private' }];
 const leakHistories: History[] = [{ kind: 'agentic', writer: 'owner' }, { kind: 'agentic', writer: 'restricted' }, { kind: 'shelf' }, { kind: 'working copy' }, { kind: 'lists' }, { kind: 'owner lists', caller: 'session' }, { kind: 'owner lists', caller: 'token' }, { kind: 'search lifecycle', caller: 'session' }, { kind: 'search lifecycle', caller: 'restricted' }, ...MASKED_OPS.map(op => ({ kind: 'masked write' as const, op })), { kind: 'agentic', writer: 'owner', turnsPrivate: true }];
 const taintHistories: History[] = [...CLEARS.map(clear => ({ kind: 'clear' as const, ...clear })), { kind: 'forge' }];
 const blockHistories: History[] = [{ kind: 'refusal' }];
