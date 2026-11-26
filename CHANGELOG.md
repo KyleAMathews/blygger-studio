@@ -20,6 +20,8 @@ not have its own repo until session 26.
 
 ## Unreleased
 
+**`superseded` looks back 3 minutes, not 15** (Venkat, session 87, studio#183). At 15 it put unrelated posts a few minutes apart into Background, where, unlike a tangle's parts, they fold under nothing. **Migration** `0062_superseded_window.sql` recomputes the stored facts for the new window, so items the old one caught come back. Better cluster detection is a research item on #183.
+
 ## 0.72.1 — Private items take their place in the reader
 
 **Fix** (Venkat, session 85). In the pace-layered reader, private items stayed on top and
