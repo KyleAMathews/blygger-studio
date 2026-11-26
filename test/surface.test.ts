@@ -158,6 +158,9 @@ describe("M3 — receivers", () => {
 
   it("picks the item document's alternate, not WordPress's oEmbed one listed first", () => {
     expect(alternateJsonHref(pageHtml, page)).toBe(`${API}items/${ID}`);
+    // studio#181: an unquoted href, as Hugo's minifier writes it, is read like a quoted one.
+    expect(alternateJsonHref("<link rel=alternate type=application/json href=https://example.net/blyg/items/abc.json>", "https://example.net/p/")).toBe("https://example.net/blyg/items/abc.json");
+    expect(alternateJsonHref("<link rel=alternate type=application/json data-href=/no href=/blyg/items/abc.json?x=1&amp;y=2>", "https://example.net/p/")).toBe("https://example.net/blyg/items/abc.json?x=1&y=2");
     expect(alternateJsonHref(`<link rel="alternate" type="application/json; charset=utf-8" href="/d">`, page)).toBe("https://soapbox.example/d");
   });
 

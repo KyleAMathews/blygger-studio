@@ -28,7 +28,7 @@ import {
   createBlyggerClient,
   unwrap,
 } from '../../sdk/dist/browser.js';
-import { queryClient, collectionPollingOptions, collectionRefreshOptions } from './query-client.ts';
+import { queryClient, collectionPollingOptions, collectionRefreshOptions, readingPollingOptions } from './query-client.ts';
 export { queryClient } from './query-client.ts';
 import { scoped } from './scoped.ts';
 import { createPacedDraftAction } from './paced-write.ts';
@@ -668,7 +668,7 @@ function readingSubset(context: Pick<QueryFunctionContext, 'meta'>): { view: str
 // Rank belongs to a feed/lens position, not to the underlying item. A row can
 // occupy different ranks in "all" and a subscription without either overwriting it.
 export const reading = createCollection(queryCollectionOptions({
-  ...collectionPollingOptions, schema: sourceSchemas.reading, id: 'reading', syncMode: 'on-demand',
+  ...readingPollingOptions, schema: sourceSchemas.reading, id: 'reading', syncMode: 'on-demand',
   queryKey: ['reading', 'rows'], queryClient,
   getKey: row => JSON.stringify([row.view, row.key]),
   queryFn: context => cachedQuery(context, sourceSchemas.reading.array(), async (_context) => {
@@ -684,7 +684,7 @@ export function readingQuery(view: string) {
   return { ...(sub.startsWith('hopper:') ? { hopper: sub.slice('hopper:'.length) } : { sub }), ...(filter === 'background' ? { background: 'true' as const } : filter === 'mentions' ? { mentions: 'true' as const } : filter === 'shelf' ? { shelf: 'true' as const } : filter === 'raw' ? { raw: 'true' as const } : filter ? { kind: filter } : {}) };
 }
 export const readingSummaries = createCollection(queryCollectionOptions({
-  ...collectionPollingOptions, schema: sourceSchemas.readingSummaries, id: 'reading-summary', syncMode: 'on-demand',
+  ...readingPollingOptions, schema: sourceSchemas.readingSummaries, id: 'reading-summary', syncMode: 'on-demand',
   queryKey: ['reading-summary', 'rows'], queryClient, getKey: row => row.view,
   queryFn: context => cachedQuery(context, sourceSchemas.readingSummaries.array(), async ({ signal }) => {
     const views = subsetIds(context, 'view');

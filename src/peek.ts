@@ -12,6 +12,7 @@ import { sanitizeHtml } from "./importer/sanitize.ts";
 import { mapLimit } from "./importer/util.ts";
 import { normalizeOrigin } from "./stub.ts";
 import { fetchOnSurface, itemUrl } from "./surface.ts";
+import { tagAttribute, tagTokens } from "./html-attr.ts";
 
 export interface PeekItem {
   origin: string;
@@ -93,19 +94,14 @@ const PROBE_TTL_MS = 7 * 24 * 3600 * 1000;
 const PAGE_BYTES = 256 * 1024;
 const ALTERNATE = /<link\b[^>]*>/gi;
 
-function attr(tag: string, name: string): string | null {
-  const m = new RegExp(`\\b${name}\\s*=\\s*("([^"]*)"|'([^']*)')`, "i").exec(tag);
-  return m ? (m[2] ?? m[3]) : null;
-}
-
 /** §5.8: a permalink page SHOULD carry `<link rel="alternate" type="application/json" href=item-document>`. */
 export function alternateJsonHref(html: string, base: string): string | null {
   for (const tag of html.slice(0, PAGE_BYTES).match(ALTERNATE) ?? []) {
-    if (attr(tag, "rel")?.toLowerCase().split(/\s+/).includes("alternate") && attr(tag, "type")?.toLowerCase().startsWith("application/json")) {
-      const href = attr(tag, "href");
+    if (tagTokens(tag, "rel").includes("alternate") && (tagAttribute(tag, "type") ?? "").split(";")[0].trim().toLowerCase() === "application/json") {
+      const href = tagAttribute(tag, "href");
       if (!href) continue;
       try {
-        return new URL(href.replace(/&amp;/g, "&"), base).toString();
+        return new URL(href, base).toString();
       } catch {
         return null;
       }

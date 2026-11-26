@@ -108,6 +108,12 @@ describe("endpoint discovery (§2.3.4)", () => {
     expect(endpointFromHtml('<link rel="webmention" href="/wm">', "https://a.example/p/")).toBe("https://a.example/wm");
     expect(endpointFromHtml('<a rel="webmention" href="wm">x</a>', "https://a.example/p/")).toBe("https://a.example/p/wm");
     expect(endpointFromHtml("<p>nothing here</p>", "https://a.example/")).toBeNull();
+    // studio#181: unquoted values are HTML too (Hugo's minifier writes them).
+    expect(endpointFromHtml("<link rel=webmention href=https://a.example/wm>", "https://a.example/p/")).toBe("https://a.example/wm");
+    expect(endpointFromHtml("<link rel='webmention' href='/wm'>", "https://a.example/p/")).toBe("https://a.example/wm");
+    // An attribute named only as a suffix is not the attribute.
+    expect(endpointFromHtml('<link rel="webmention" data-href="/wrong" href="/wm">', "https://a.example/p/")).toBe("https://a.example/wm");
+    expect(endpointFromHtml('<link data-rel="webmention" href="/wm">', "https://a.example/p/")).toBeNull();
   });
 
   it("prefers a blyg target's manifest key over W3C discovery", async () => {

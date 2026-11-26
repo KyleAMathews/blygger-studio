@@ -54,6 +54,7 @@ The rulings and their build consequences are in `../blygger-spec/docs/v0.3-plan.
   the Playwright suite (`npm run test:e2e`, desktop + mobile Chromium, 118 tests at 0.10.0) and
   `npm run test:ui`; the Worker suite keeps API, public-output and lifecycle tests. The same blind spot produced a second session-19 bug: the shared action handler ends in `location.reload()`, correct for every action that leaves the item in place and wrong for `discard`, which deletes it (reloading an editor URL 404s). Assert on what a handler *does* — where it navigates, what it calls — not only that the button rendered.
 - Secrets: wrangler secrets only; register every key in `Code/.env.keys` per `warnings-keys.md`. Never commit secrets.
+- **The Studio stays inside D1's free tier for a median blyg** (design principle, Venkat, session 87, after studio#180). Today the free tier allows 5M rows read and 100k rows written per UTC day. Over the limit, D1 refuses reads, and the blyg's public pages return 500 until midnight UTC. A median blyg is small: about a dozen items, a few dozen subscriptions, one owner. Its budget must cover a day with the Studio open in a browser and used for hours, plus every cron. Polling, preloads and background work count against that budget, whether or not anyone is watching. A change that adds reads per poll, per page load or per cron tick states its row cost, measured with `wrangler d1 insights --sort-by=reads`. #180 is the failure this rule exists for: 0.65.0 ended the cheap preflight, and Reading's two full scans then ran every 15 s in an idle tab, about 16,000 rows each time. That used up fred's node's daily limit in two hours.
 
 ## Identity and versioning
 
@@ -157,6 +158,8 @@ Fable. Do not harden it in a way that breaks the tools now depending on it witho
 saying so.
 
 ## Status
+
+**0.72.2** (session 87, 2026-11-25): an open Studio no longer spends a free plan's D1 reads (#180). `watchAttention` in `src/ui/query-client.ts` drives Query Core's focus state: polling stops when the tab is hidden, the window is unfocused, or there has been no input for `IDLE_AFTER_MS`. Reading's page and summary use `readingPollingOptions` (`READING_POLL_MS`, 5 min). Unquoted `href`s verify (#181): `src/html-attr.ts` (`tagAttribute`, `tagTokens`) is shared by `alternateJsonHref` in `src/mentions/receive.ts`, `endpointFromHtml` and `src/peek.ts`. Contract and SDK unchanged. No migration.
 
 **0.72.1** (session 85, 2026-11-24): private items are ranked in the pace-layered reader by their private versions (`src/feeds/reader-order.ts` `loadReaderHistory`); they had no position and sorted above everything. Migration **0061** adds private items and `private_versions` to the ranking's rebuild triggers. Contract and SDK unchanged.
 
