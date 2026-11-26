@@ -161,6 +161,8 @@ saying so.
 
 ## Status
 
+**0.72.3** (session 87, 2026-11-26): **discard gives back the working copy as published** (#184): `versions.source_md` (only where it differs from the published text) and `source_provenance_json` (always written; NULL marks a pre-0063 version), read by `restoreVersion`; a pre-0063 version that disclosed generated text stays dirty. The nested-scope refusal offers `markImportedAround` (`src/tk.ts`). The full view's actions bar leads (`reading-article`). `SUPERSEDED_WINDOW_MS` is 3 minutes (#183). Contract and SDK unchanged. **Migrations 0062, 0063.**
+
 **0.72.2** (session 87, 2026-11-25): an open Studio no longer spends a free plan's D1 reads (#180). `watchAttention` in `src/ui/query-client.ts` drives Query Core's focus state: polling stops when the tab is hidden, the window is unfocused, or there has been no input for `IDLE_AFTER_MS`. Reading's page and summary use `readingPollingOptions` (`READING_POLL_MS`, 5 min). Unquoted `href`s verify (#181): `src/html-attr.ts` (`tagAttribute`, `tagTokens`) is shared by `alternateJsonHref` in `src/mentions/receive.ts`, `endpointFromHtml` and `src/peek.ts`. Contract and SDK unchanged. No migration.
 
 **0.72.1** (session 85, 2026-11-24): private items are ranked in the pace-layered reader by their private versions (`src/feeds/reader-order.ts` `loadReaderHistory`); they had no position and sorted above everything. Migration **0061** adds private items and `private_versions` to the ranking's rebuild triggers. Contract and SDK unchanged.
