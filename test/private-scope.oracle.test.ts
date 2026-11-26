@@ -339,6 +339,20 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
           const published = await restricted('POST', `/items/${made}/publish`, { visibility: 'public', expectedRevision: created.json?.revision });
           return { status: published.status, text: normalize(published.text, [made]) };
         },
+        // A thread's `![[+ text]]` spans dry-run as their own items, then the thread without them
+        // (api.ts publishTangled): a target named in a span or outside it answers as an unknown one.
+        'publish tangle part': async target => {
+          const created = await restricted('POST', '/items', { contentMd: `Before.\n\n![[+ a passage that links [[${target}]] ]]\n\nAfter.`, kind: 'thread' });
+          const made = created.json?.id as string;
+          const published = await restricted('POST', `/items/${made}/publish`, { visibility: 'public', tangle: true, expectedRevision: created.json?.revision });
+          return { status: published.status, text: normalize(published.text, [made]) };
+        },
+        'publish tangle thread': async target => {
+          const created = await restricted('POST', '/items', { contentMd: `See [[${target}]].\n\n![[+ a plain passage ]]`, kind: 'thread' });
+          const made = created.json?.id as string;
+          const published = await restricted('POST', `/items/${made}/publish`, { visibility: 'public', tangle: true, expectedRevision: created.json?.revision });
+          return { status: published.status, text: normalize(published.text, [made]) };
+        },
         // A quote on its own line inside generated text is walked again (transclusion.ts walk).
         'preview quote in generated text': target => restricted('POST', '/preview', { contentMd: `[TK]quote it[=]\n\n![[${target}]]\n\n[/TK]`, kind: 'thread' }),
         // The word-count extension counts own items named by key.
@@ -378,6 +392,25 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
         const hidden = await send(id), unknown = await send(UNKNOWN);
         observe('private scope', { operation: form, same: hidden.status === unknown.status && hidden.status < 500 && normalize(hidden.text, [id]) === normalize(unknown.text, [UNKNOWN]), hidden: hidden.status, unknown: unknown.status, body: normalize(hidden.text, [id]).slice(0, 200), unknownBody: normalize(unknown.text, [UNKNOWN]).slice(0, 200) });
       }
+      // The tangle pre-flight (api.ts publishTangled §2.1): a refused thread publishes none of its
+      // parts, whoever asks. A caller that sees private is told the item is private, not unknown.
+      const ownCount = async () => (await env.DB.prepare("SELECT COUNT(*) AS n FROM items WHERE status <> 'draft'").first<{ n: number }>())!.n;
+      for (const [caller, by] of [['restricted', restricted], ['owner:private', withPrivate]] as const) {
+        for (const placement of ['part', 'second part', 'thread'] as const) {
+          const before = await ownCount();
+          const body = placement === 'part' ? `Before.\n\n![[+ a passage that links [[${id}]] ]]\n\nAfter.` : placement === 'second part' ? `![[+ a plain first passage ]]\n\n![[+ a passage that links [[${id}]] ]]` : `See [[${id}]].\n\n![[+ a plain passage ]]`;
+          const created = await by('POST', '/items', { contentMd: body, kind: 'thread' });
+          const published = await by('POST', `/items/${created.json?.id}/publish`, { visibility: 'public', tangle: true, expectedRevision: created.json?.revision });
+          // The reason sits in the per-reference details; the message is generic.
+          const message = JSON.stringify(published.json?.details ?? published.json ?? '');
+          observe('tangle pre-flight', { caller, placement, refused: published.status >= 400 && published.status < 500, minted: (await ownCount()) - before, says: /unknown/i.test(message) ? 'unknown' : /private|draft/i.test(message) ? 'private' : message.slice(0, 80) });
+        }
+      }
+      // A clean tangle: its part, then the thread once, at v1 (the pre-flight publishes nothing).
+      const clean = await restricted('POST', '/items', { contentMd: 'Before.\n\n![[+ a plain passage ]]\n\nAfter.', kind: 'thread' });
+      const before = await ownCount();
+      const done = await restricted('POST', `/items/${clean.json?.id}/publish`, { visibility: 'public', tangle: true, expectedRevision: clean.json?.revision });
+      observe('tangle pre-flight', { caller: 'restricted', placement: 'clean', status: done.status, version: done.json?.version ?? null, minted: (await ownCount()) - before });
       return;
     }
     case 'working copy': {
@@ -798,7 +831,10 @@ function model(history: History): Expected {
       at('default private', { caller: 'owner:private, no visibility', status: 200, item: { status: 'private', version: 0 } });
       break;
     case 'mcp': for (const [operation, route] of Object.entries(routes)) if (route.path.startsWith('/items/{id}')) at('private scope', { operation: `MCP ${operation}`, same: true }); break;
-    case 'references': for (const operation of ['preview link', 'preview quote', 'preview TK source', 'publish link', 'preview quote in generated text', 'word counts', 'proofread', 'preview tangle', 'generate reading a link', 'publish quote', 'generate TK source']) at('private scope', { operation, same: true }); break;
+    case 'references': for (const operation of ['preview link', 'preview quote', 'preview TK source', 'publish link', 'publish tangle part', 'publish tangle thread', 'preview quote in generated text', 'word counts', 'proofread', 'preview tangle', 'generate reading a link', 'publish quote', 'generate TK source']) at('private scope', { operation, same: true });
+      for (const caller of ['restricted', 'owner:private']) for (const placement of ['part', 'second part', 'thread']) at('tangle pre-flight', { caller, placement, refused: true, minted: 0, says: caller === 'restricted' ? 'unknown' : 'private' });
+      at('tangle pre-flight', { caller: 'restricted', placement: 'clean', status: 200, version: 1, minted: 2 });
+      break;
     case 'working copy':
       at('hidden working copy', { operation: 'getItem', status: 200, contentMd: true, leaks: [] });
       at('hidden working copy', { operation: 'preview link', status: 200, resolved: true, leaks: [] });
