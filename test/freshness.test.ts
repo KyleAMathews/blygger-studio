@@ -227,9 +227,10 @@ describe("what counts as the published words", () => {
     const md = `![[${frag}]]\n\nMy point.`;
     const thread = await publishThread(cookie, md);
     await editAndPublish(cookie, frag, "After.");
-    // As if v1 disclosed generated text, and the working copy was then restored
-    // from it — the restore drops the provenance cache a republish would need.
-    await env.DB.prepare("UPDATE versions SET generated_json = ? WHERE item_id = ? AND version = 1")
+    // As if v1, published before migration 0063 kept a version's source, disclosed
+    // generated text: a restore can give back only the stripped text, so a
+    // republish would drop the disclosure (studio#184).
+    await env.DB.prepare("UPDATE versions SET generated_json = ?, source_md = NULL, source_provenance_json = NULL WHERE item_id = ? AND version = 1")
       .bind(JSON.stringify([{ sources: [], model: "m" }]), thread).run();
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/restore`, { version: 1 })).status).toBe(200);
     const res = await apiJson(cookie, "POST", `/blyg/api/items/${thread}/refresh`, {});

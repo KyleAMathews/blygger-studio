@@ -100,7 +100,7 @@ function isBlockPosition(contentMd: string, start: number, end: number): boolean
  * different construct (a document-level pass, on the Fable agenda); here the way
  * out is to disclose the text around the inner scope, which the editor offers.
  */
-export const NESTED_SCOPE_REASON = "a TK scope inside another: scopes don't nest. Mark the text around the inner scope instead";
+export const NESTED_SCOPE_REASON = "nested TK scopes are not supported: mark the text around the inner scope instead";
 
 /**
  * Linear token scan for `[TK]<instruction>[=]<output>[/TK]` — no bracket

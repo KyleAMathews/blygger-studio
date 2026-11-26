@@ -54,7 +54,7 @@ describe("the grammar", () => {
 
   it("a real nested scope is still refused, with the way out named", () => {
     expect(parseScopes("[TK]a [TK]b[/TK] c[/TK]").errors[0].reason).toBe(NESTED_SCOPE_REASON);
-    expect(NESTED_SCOPE_REASON).toMatch(/around/);
+    expect(NESTED_SCOPE_REASON).toMatch(/nested.*around/);
   });
 
   it("the editor's wrap puts exactly the selection inside, and invents no model", () => {

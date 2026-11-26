@@ -644,8 +644,9 @@ export class RestoreVersionError extends Error {}
  * migration 0063), its attachments and its stub citation (publish
  * version-agrees the citation, §2.2, so the published one can be ahead of the
  * working copy's). Before 0063 a version kept only its stripped text, so
- * discard lost the scopes and left `dirty` set for good on any version with
- * generated text (studio#184); such a version still gives back that text.
+ * discard lost the scopes (studio#184). Such a version still gives back that
+ * text, and stays dirty if it disclosed generated text: republishing the
+ * stripped text would drop the disclosure (`holdsPublishedWords`).
  */
 export async function restoreVersion(db: D1Database, item: ItemRow, version: number): Promise<void> {
   const row = await getVersion(db, item.id, version);
@@ -666,9 +667,10 @@ export async function restoreVersion(db: D1Database, item: ItemRow, version: num
       .bind(item.id, item.id, version, ...expected),
     // Discard gives back the working copy as published, scopes and provenance and all,
     // clean (studio#184). A version from before 0063 kept no source: its published text
-    // comes back, and is clean too, since it equals what was published.
+    // comes back, clean unless that version disclosed generated text, which a republish
+    // of the stripped text would silently drop.
     db.prepare(`UPDATE items SET content_md = ?, tk_provenance_json = ?, stub_of = CASE WHEN ? THEN ? ELSE stub_of END, dirty = ?, revision = revision + 1 WHERE ${guard}`)
-      .bind(discard ? row.source_md ?? row.content_md : row.content_md, discard ? row.source_provenance_json : null, discard ? 1 : 0, row.stub_of, discard ? 0 : 1, ...expected),
+      .bind(discard ? row.source_md ?? row.content_md : row.content_md, discard ? row.source_provenance_json : null, discard ? 1 : 0, row.stub_of, discard && (row.source_md != null || !row.generated_json) ? 0 : 1, ...expected),
   ]);
   if (!results[2].meta.changes) throw new ItemRevisionConflict(item.id, item.revision);
 }

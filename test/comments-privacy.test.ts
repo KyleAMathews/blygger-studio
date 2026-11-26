@@ -66,7 +66,12 @@ describe("no public surface carries a comment", () => {
     const item = await createDraft(env.DB, `Words. /* ${SECRET} */ More.`);
     await publish(env.DB, item, null);
     const row = await env.DB.prepare("SELECT * FROM versions WHERE item_id = ?").bind(item.id).first<Record<string, unknown>>();
-    expect(JSON.stringify(row)).not.toContain(SECRET);
+    // `source_md` (migration 0063, studio#184) is the working copy as published, kept so
+    // discard can give it back whole: Studio-private like the working copy itself.
+    // Every published column holds none of the comment.
+    const { source_md: source, ...published } = row!;
+    expect(JSON.stringify(published)).not.toContain(SECRET);
+    expect(source).toContain(SECRET);
     expect(row!.content_md).toBe("Words. More.");
     const after = await getItem(env.DB, item.id);
     expect(after!.content_md).toContain(SECRET);
