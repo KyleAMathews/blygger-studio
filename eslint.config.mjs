@@ -13,7 +13,7 @@ export default [
   oracles.configs.recommended,
   oracles.configs.production,
   {
-    files: ['scripts/run-browser-oracle-gaps.ts', 'scripts/run-search-oracle-gaps.ts', 'test-browser/**/*.ts'],
+    files: ['scripts/run-browser-oracle-gaps.ts', 'scripts/run-search-oracle-gaps.ts', 'scripts/run-publish-oracle-gaps.ts', 'test-browser/**/*.ts'],
     settings: { oracles: { envPrefix: 'BROWSER_ORACLE' } },
   },
 ];
