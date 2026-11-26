@@ -7,7 +7,7 @@
 // rule 1), and `model` appears only when the author wrote one. Nothing invents
 // an `at`.
 import { describe, expect, it } from "vitest";
-import { markImported, parseScopes } from "../src/tk.ts";
+import { NESTED_SCOPE_REASON, markImported, markImportedAround, scopesWithin, parseScopes } from "../src/tk.ts";
 import { apiJson, getPublic, login } from "./helpers.ts";
 
 async function publishDraft(cookie: string, md: string, kind: "fragment" | "thread" = "fragment") {
@@ -52,12 +52,29 @@ describe("the grammar", () => {
     expect(scopes[0].imported).toEqual({ model: "claude-x" });
   });
 
-  it("a real nested scope is still refused", () => {
-    expect(parseScopes("[TK]a [TK]b[/TK] c[/TK]").errors[0].reason).toBe("nested TK scopes are not supported");
+  it("a real nested scope is still refused, with the way out named", () => {
+    expect(parseScopes("[TK]a [TK]b[/TK] c[/TK]").errors[0].reason).toBe(NESTED_SCOPE_REASON);
+    expect(NESTED_SCOPE_REASON).toMatch(/around/);
   });
 
   it("the editor's wrap puts exactly the selection inside, and invents no model", () => {
     expect(markImported("before PASTED after", 7, 13)).toBe("before [TK]impyrt=PASTED[/TK] after");
+  });
+
+  it("studio#184: a selection holding a scope wraps the parts around it, never the scope", () => {
+    const inner = "[TK]Summarize ![[abc]][=]Naur's point.[/TK]";
+    const text = `Pasted one.\n\n${inner}\n\nPasted two.`;
+    expect(scopesWithin(text, 0, text.length).map((s) => s.instruction)).toEqual(["Summarize ![[abc]]"]);
+    expect(scopesWithin("plain words", 0, 5)).toEqual([]);
+    const wrapped = markImportedAround(text, 0, text.length);
+    expect(wrapped).toBe(`[TK]impyrt=Pasted one.[/TK]\n\n${inner}\n\n[TK]impyrt=Pasted two.[/TK]`);
+    expect(parseScopes(wrapped).errors).toEqual([]);
+    expect(parseScopes(wrapped).scopes).toHaveLength(3);
+    // A selection that cuts into a scope takes the whole scope out, and wraps only what is outside it.
+    const cut = text.indexOf("Naur");
+    expect(markImportedAround(text, 0, cut)).toBe(`[TK]impyrt=Pasted one.[/TK]\n\n${inner}\n\nPasted two.`);
+    // And one that starts inside a scope keeps the whole scope too.
+    expect(markImportedAround(text, cut, text.length)).toBe(`Pasted one.\n\n${inner}\n\n[TK]impyrt=Pasted two.[/TK]`);
   });
 });
 

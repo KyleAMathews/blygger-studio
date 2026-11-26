@@ -20,6 +20,8 @@ not have its own repo until session 26.
 
 ## Unreleased
 
+**Discard changes gives back what you published from** (studio#184, Venkat). Publication strips each `[TK]` scope to its bare output, and discard copied that stripped text back. It lost the scopes and their instructions, and for any version with generated text it left "unpublished changes" showing for good. Each version now keeps the working copy it was published from, with its provenance (**migration** `0063_version_source.sql`), and discard restores both, clean. A version published before 0063 gives back its published text, also clean. Marking a selection that holds a TK scope as generated now asks, and offers to mark the text around it instead. Scopes don't nest, and whole-item marking is a separate construct still to be designed.
+
 **The full view leads with its actions** (Venkat, session 87). Opening an entry with *more* put edit, stub, hopper, save and ⋯ below the whole body, a long scroll away. The bar, and the history it opens, now sit under the byline.
 
 **`superseded` looks back 3 minutes, not 15** (Venkat, session 87, studio#183). At 15 it put unrelated posts a few minutes apart into Background, where, unlike a tangle's parts, they fold under nothing. **Migration** `0062_superseded_window.sql` recomputes the stored facts for the new window, so items the old one caught come back. Better cluster detection is a research item on #183.

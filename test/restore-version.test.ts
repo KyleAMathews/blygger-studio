@@ -99,12 +99,25 @@ describe("discard changes (restoring the current version)", () => {
     expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json).toMatchObject({ dirty: false, contentMd: "as published" });
   });
 
-  it("keeps a version with generated text dirty: its provenance does not come back", async () => {
+  it("studio#184: a version from before 0063 (no source) gives back its published text, clean, even with generated text", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "plain");
-    await env.DB.prepare("UPDATE versions SET generated_json = '[{}]' WHERE item_id = ?").bind(id).run();
+    await env.DB.prepare("UPDATE versions SET generated_json = '[{}]', source_md = NULL, source_provenance_json = NULL WHERE item_id = ?").bind(id).run();
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "an edit" });
     await apiJson(cookie, "POST", `/blyg/api/items/${id}/restore`, { version: 1 });
-    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.dirty).toBe(true);
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json).toMatchObject({ dirty: false, contentMd: "plain" });
+  });
+
+  it("studio#184: discard gives back the working copy as published, comments to self and all, and the source never reaches the public document", async () => {
+    const cookie = await login();
+    const working = "Kept words /* a note to self */ and [TK]impyrt=pasted model text[/TK] after.";
+    const id = await createAndPublish(cookie, working);
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "rewritten entirely" });
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/restore`, { version: 1 });
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json).toMatchObject({ dirty: false, contentMd: working });
+    const doc = await (await getPublic(`/blyg/items/${id}.json`)).text();
+    expect(doc).not.toContain("[TK]");
+    expect(doc).not.toContain("note to self");
   });
 });
 

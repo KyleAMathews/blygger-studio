@@ -96,6 +96,13 @@ function isBlockPosition(contentMd: string, start: number, end: number): boolean
 }
 
 /**
+ * TK scopes do not nest (studio#184). A whole item marked as generated is a
+ * different construct (a document-level pass, on the Fable agenda); here the way
+ * out is to disclose the text around the inner scope, which the editor offers.
+ */
+export const NESTED_SCOPE_REASON = "a TK scope inside another: scopes don't nest. Mark the text around the inner scope instead";
+
+/**
  * Linear token scan for `[TK]<instruction>[=]<output>[/TK]` — no bracket
  * balancing, matching tk-core-plan.md §2.1: the scanner only looks for the
  * three literal tokens, so `![[id]]` refs are safe to write inside an
@@ -129,7 +136,7 @@ export function parseScopes(contentMd: string): { scopes: TkScope[]; errors: TkP
     }
     const nestedIdx = find("[TK]", tkIdx + 4);
     if (nestedIdx !== -1 && nestedIdx < closeIdx) {
-      errors.push({ at: nestedIdx, reason: "nested TK scopes are not supported" });
+      errors.push({ at: nestedIdx, reason: NESTED_SCOPE_REASON });
       i = closeIdx + 5;
       continue;
     }
@@ -179,6 +186,35 @@ export function parseScopes(contentMd: string): { scopes: TkScope[]; errors: TkP
  */
 export function markImported(text: string, start: number, end: number) {
   return `${text.slice(0, start)}[TK]impyrt=${text.slice(start, end)}[/TK]${text.slice(end)}`;
+}
+
+/** The scopes a selection touches, whole: one it cuts into counts. */
+export function scopesWithin(text: string, start: number, end: number): TkScope[] {
+  return parseScopes(text).scopes.filter((s) => s.start < end && s.end > start);
+}
+
+/**
+ * `markImported` for a selection that holds scopes (studio#184): each stretch of
+ * the selection outside them is wrapped on its own, and the scopes stay as they
+ * are. Whitespace between them stays outside any wrapper. Offered, never applied
+ * unasked: the editor asks first.
+ */
+export function markImportedAround(text: string, start: number, end: number): string {
+  const inside = scopesWithin(text, start, end);
+  // A selection that starts inside a scope starts at that scope: it is kept whole.
+  const from = Math.min(start, inside[0]?.start ?? start);
+  let out = "", at = from;
+  const wrap = (from: number, to: number) => {
+    const part = text.slice(from, to), lead = part.length - part.trimStart().length, body = part.trim();
+    return body ? `${part.slice(0, lead)}[TK]impyrt=${body}[/TK]${part.slice(lead + body.length)}` : part;
+  };
+  for (const scope of inside) {
+    if (scope.start > at) out += wrap(at, scope.start);
+    out += text.slice(scope.start, scope.end);
+    at = scope.end;
+  }
+  if (end > at) out += wrap(at, end);
+  return text.slice(0, from) + out + text.slice(Math.max(end, at));
 }
 
 /** Scopes with no output yet — publishing with any of these present is a publish error (§2.4). */
