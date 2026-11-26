@@ -26,6 +26,36 @@ not have its own repo until session 26.
 
 **`superseded` looks back 3 minutes, not 15** (Venkat, session 87, studio#183). At 15 it put unrelated posts a few minutes apart into Background, where, unlike a tangle's parts, they fold under nothing. **Migration** `0062_superseded_window.sql` recomputes the stored facts for the new window, so items the old one caught come back. Better cluster detection is a research item on #183.
 
+## 0.72.2 — The Studio stays inside D1's free tier; unquoted links verify
+
+**Fix: an open Studio spent a free plan's D1 reads** (studio#180, fredcy). Since 0.65.0 the
+Studio has refreshed with conditional reads, not the old `/changes` preflight. Reading's page
+and its summary always run in full before the ETag check, because they can depend on the
+mention index, which moves no counter. Each run read about 16,000 rows on a small node, and the
+Studio polled every 15 seconds whenever its tab was visible. So a tab left open in front of an
+awake screen used up the free tier's 5M rows a day in about two hours, and the public pages
+returned 500 until midnight UTC. Two changes:
+- Polling runs only while someone is using the Studio: the tab visible, its window focused,
+  and some input in the last five minutes. Coming back (focus, a key, the pointer) reloads at
+  once.
+- Reading's page and summary poll every five minutes instead of every 15 seconds. New entries
+  arrive only on the import cron, and your own actions still refresh Reading at once.
+
+An idle Studio now costs nothing, and an hour of active reading costs about 190,000 rows
+instead of 3.8M. Making Reading's reads cheap in their own right (the revision shortcut for
+non-mention views, and the identity scan) is follow-up work on #180.
+**New design rule** (Venkat): the Studio stays inside D1's free tier for a median blyg.
+
+**Fix: an unquoted `href` failed Webmention verification** (studio#181, arubis).
+`alternateJsonHref` read `href` only when it was quoted, so pages from Hugo's minifier
+(`href=https://…`) failed §15.4 step 1, and the sender saw only the 202. One attribute reader
+(`src/html-attr.ts`) now serves verification, endpoint discovery and peek. It reads double-quoted,
+single-quoted and unquoted values, never matches `href` inside `data-href`, and decodes
+`&amp;`. Peek also stops taking an oEmbed alternate (`application/json+oembed`) for the
+item document.
+
+**Migrations:** none. Private contract unchanged (6.4.0), SDK unchanged.
+
 ## 0.72.1 — Private items take their place in the reader
 
 **Fix** (Venkat, session 85). In the pace-layered reader, private items stayed on top and

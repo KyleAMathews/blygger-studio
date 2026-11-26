@@ -5,6 +5,11 @@ import { describe, expect, it } from "vitest";
 import { renderMarkdown, selectionLines, selectionText } from "../src/markdown.ts";
 import { locateSelection, partialBakeBody, selectionFromQuote } from "../src/transclusion.ts";
 
+// This file's one HTTP test imports ./helpers.ts lazily, so it pays the Worker
+// entrypoint's cold load (deferred in CI since #177) inside its own budget: about
+// 4.5 s on CI runners, against vitest's 5 s default (0.72.2's Check, session 87).
+const ENTRYPOINT_TIMEOUT_MS = 30_000;
+
 const SOURCES: Record<string, string> = {
   tight: "Intro line.\n\n- first bullet\n- second bullet\n  - nested bullet\n- third bullet\n\nAfter.",
   loose: "- first, loose\n\n  with a second paragraph\n\n- second, loose\n\n  - nested, loose\n\n- third",
@@ -111,5 +116,5 @@ describe("publishing a partial quote of a list", () => {
     expect(doc.content_html).toContain('<blockquote class="blyg-transclusion blyg-partial"');
     expect(doc.content_html).toContain('<ol start="3">\n<li>three</li>\n<li>four</li>\n</ol>');
     expect(doc.transclusions[0]!.selector!.exact).toBe("three\nfour");
-  });
+  }, ENTRYPOINT_TIMEOUT_MS);
 });

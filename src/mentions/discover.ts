@@ -5,6 +5,7 @@
 
 import type { FetchLike } from "../importer/http.ts";
 import { boundedText } from "./http.ts";
+import { tagAttribute, tagTokens } from "../html-attr.ts";
 
 export type DiscoveryResult = { endpoint: string; reason?: undefined } | { endpoint: null; reason: string };
 
@@ -33,12 +34,11 @@ export function endpointFromHtml(html: string, base: string): string | null {
   const tag = /<(link|a)\b[^>]*>/gi;
   let m: RegExpExecArray | null;
   while ((m = tag.exec(html))) {
-    const rel = /\brel\s*=\s*["']?([^"'>]+)["']?/i.exec(m[0]);
-    if (!rel || !rel[1].toLowerCase().split(/\s+/).includes("webmention")) continue;
-    const href = /\bhref\s*=\s*["']([^"']*)["']/i.exec(m[0]);
-    if (!href) continue;
+    if (!tagTokens(m[0], "rel").includes("webmention")) continue;
+    const href = tagAttribute(m[0], "href");
+    if (href === null) continue;
     try {
-      return new URL(href[1], base).toString();
+      return new URL(href, base).toString();
     } catch {
       return null;
     }

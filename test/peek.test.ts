@@ -46,6 +46,9 @@ describe("which links name blyg items", () => {
   it("finds the item document a page points at (§5.8)", () => {
     expect(alternateJsonHref(page, `${O}t/${ID}/`)).toBe(`${O}items/${ID}.json`);
     expect(alternateJsonHref('<link rel="alternate" type="application/rss+xml" href="/f.xml">', O)).toBeNull();
+    expect(alternateJsonHref(`<link rel=alternate type=application/json href=${O}items/u.json>`, O)).toBe(`${O}items/u.json`);
+    // An oEmbed alternate first (WordPress) is not the item document.
+    expect(alternateJsonHref(`<link rel="alternate" type="application/json+oembed" href="/oembed"><link rel="alternate" type="application/json" href="${O}items/a.json">`, O)).toBe(`${O}items/a.json`);
     expect(alternateJsonHref('<link rel="alternate" type="application/json" href="items/a.json">', `${O}t/a/`)).toBe(`${O}t/a/items/a.json`);
   });
 
