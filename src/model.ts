@@ -533,8 +533,8 @@ async function publishScoped(db: D1Database, item: ItemRow, note: string | null,
   const shown = JSON.stringify(visibleMedia(await listMediaForItem(db, item.id), contentHtml).map((m) => m.id));
   const committed = await db.batch([
     db.prepare(
-      "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated, kind, links_json, source_md, source_provenance_json) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, content_md, tk_provenance_json FROM items WHERE id = ? AND revision = ?",
-    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0, kind, linksJson, item.id, item.revision),
+      "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated, kind, links_json, source_md, source_provenance_json) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(content_md, ?), COALESCE(tk_provenance_json, '[]') FROM items WHERE id = ? AND revision = ?",
+    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0, kind, linksJson, strippedMd, item.id, item.revision),
     // Rows still attached at the write, so a removal racing the publish wins.
     db.prepare("INSERT INTO version_media (item_id, version, media_id) SELECT ?, ?, m.id FROM json_each(?) s JOIN media m ON m.id = s.value WHERE m.item_id = ? AND EXISTS (SELECT 1 FROM items WHERE id = ? AND revision = ?)")
       .bind(item.id, version, shown, item.id, item.id, item.revision),
@@ -655,6 +655,8 @@ export async function restoreVersion(db: D1Database, item: ItemRow, version: num
     throw new RestoreVersionError(`v${version} is a withdrawal endcap and has no content to restore`);
   }
   const discard = version === item.version;
+  // Since 0063 every version records its provenance cache (see the discard below).
+  const sourced = row.source_provenance_json != null;
   // All three statements see the same source state in one transaction. Do not
   // detach attachments if an edit or publication invalidated the caller's read.
   const guard = "id = ? AND revision = ?";
@@ -666,11 +668,12 @@ export async function restoreVersion(db: D1Database, item: ItemRow, version: num
     db.prepare(`UPDATE media SET item_id = ? WHERE id IN (SELECT media_id FROM version_media WHERE item_id = ? AND version = ?) AND EXISTS (SELECT 1 FROM items WHERE ${guard})`)
       .bind(item.id, item.id, version, ...expected),
     // Discard gives back the working copy as published, scopes and provenance and all,
-    // clean (studio#184). A version from before 0063 kept no source: its published text
-    // comes back, clean unless that version disclosed generated text, which a republish
-    // of the stripped text would silently drop.
+    // clean (studio#184). Since 0063 every version records its provenance cache, and its
+    // source only where that differs from the published text. A version from before
+    // 0063 recorded neither: its published text comes back, clean unless that version
+    // disclosed generated text, which a republish of the stripped text would drop.
     db.prepare(`UPDATE items SET content_md = ?, tk_provenance_json = ?, stub_of = CASE WHEN ? THEN ? ELSE stub_of END, dirty = ?, revision = revision + 1 WHERE ${guard}`)
-      .bind(discard ? row.source_md ?? row.content_md : row.content_md, discard ? row.source_provenance_json : null, discard ? 1 : 0, row.stub_of, discard && (row.source_md != null || !row.generated_json) ? 0 : 1, ...expected),
+      .bind(discard ? row.source_md ?? row.content_md : row.content_md, discard && sourced ? row.source_provenance_json : null, discard ? 1 : 0, row.stub_of, discard && (sourced || !row.generated_json) ? 0 : 1, ...expected),
   ]);
   if (!results[2].meta.changes) throw new ItemRevisionConflict(item.id, item.revision);
 }

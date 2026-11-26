@@ -17,7 +17,7 @@
   },
   {
     "source": "src/model.ts",
-    "find": "discard && (row.source_md != null || !row.generated_json) ? 0 : 1",
+    "find": "discard && (sourced || !row.generated_json) ? 0 : 1",
     "author": "Claude Opus 5.5, from the approved discard law (studio#184)",
     "id": "discard-dirty-with-generated-text",
     "replace": "discard && !row.generated_json ? 0 : 1",
@@ -25,15 +25,15 @@
   },
   {
     "source": "src/model.ts",
-    "find": "content_md, tk_provenance_json FROM items WHERE id = ? AND revision = ?",
+    "find": "NULLIF(content_md, ?), COALESCE(tk_provenance_json, '[]') FROM items",
     "author": "Claude Opus 5.5, from the approved discard law (studio#184)",
     "id": "publish-records-no-source",
-    "replace": "NULL, tk_provenance_json FROM items WHERE id = ? AND revision = ?",
+    "replace": "NULL, COALESCE(tk_provenance_json, '[]') FROM items",
     "intent": "Publish keeps no source, so discard falls back to the stripped text."
   },
   {
     "source": "src/model.ts",
-    "find": "discard ? row.source_provenance_json : null",
+    "find": "discard && sourced ? row.source_provenance_json : null",
     "author": "Claude Opus 5.5, from the approved discard law (studio#184)",
     "id": "discard-drops-provenance",
     "replace": "null",
@@ -41,10 +41,18 @@
   },
   {
     "source": "src/model.ts",
-    "find": "discard && (row.source_md != null || !row.generated_json) ? 0 : 1",
+    "find": "discard && (sourced || !row.generated_json) ? 0 : 1",
     "author": "Claude Opus 5.5, from the approved discard law's limit (studio#184)",
     "id": "legacy-generated-discard-clean",
     "replace": "discard ? 0 : 1",
     "intent": "A version from before 0063 that disclosed generated text comes back clean, so a republish would drop the disclosure."
+  },
+  {
+    "source": "src/model.ts",
+    "find": "NULLIF(content_md, ?), COALESCE(tk_provenance_json, '[]') FROM items",
+    "author": "Claude Opus 5.5, from the approved discard law (studio#184)",
+    "id": "source-stored-always-null-marker",
+    "replace": "NULLIF(content_md, ?), tk_provenance_json FROM items",
+    "intent": "Without the '[]' marker a scopeless version reads as pre-0063, so a version with generated text would discard dirty."
   }
 ]

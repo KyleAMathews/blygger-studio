@@ -116,6 +116,18 @@ describe("discard changes (restoring the current version)", () => {
     expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json).toMatchObject({ dirty: true, contentMd: "plain" });
   });
 
+  it("studio#184: a version stores its source only where it differs from what was published", async () => {
+    const cookie = await login();
+    const plain = await createAndPublish(cookie, "nothing hidden here");
+    const noted = await createAndPublish(cookie, "words /* a note */ more");
+    const row = (id: string) => env.DB.prepare("SELECT source_md, source_provenance_json FROM versions WHERE item_id = ?").bind(id).first();
+    expect(await row(plain)).toEqual({ source_md: null, source_provenance_json: "[]" });
+    expect(await row(noted)).toEqual({ source_md: "words /* a note */ more", source_provenance_json: "[]" });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${plain}`, { contentMd: "an edit" });
+    await apiJson(cookie, "POST", `/blyg/api/items/${plain}/restore`, { version: 1 });
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${plain}`)).json).toMatchObject({ dirty: false, contentMd: "nothing hidden here" });
+  });
+
   it("studio#184: discard gives back the working copy as published, comments to self and all, and the source never reaches the public document", async () => {
     const cookie = await login();
     const working = "Kept words /* a note to self */ and [TK]impyrt=pasted model text[/TK] after.";
