@@ -282,6 +282,12 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
       observe('private scope', { operation: 'avatar', same: chosenHidden.status === chosenMissing.status && chosenHidden.status >= 400 && chosenHidden.status < 500 && normalize(chosenHidden.text, [attached.id]) === normalize(chosenMissing.text, ['zzzzzzzz']) && (await avatar()) === avatarBefore, hidden: chosenHidden.status, unknown: chosenMissing.status, body: chosenHidden.text.slice(0, 160), unknownBody: chosenMissing.text.slice(0, 160) });
       const ownerChoice = await apiJson(fixture.cookie, 'PATCH', '/blyg/api/settings', { avatarMediaId: attached.id });
       observe('owner avatar', ownerChoice.status === 200 && (await avatar()) === attached.id);
+      // The answers themselves, not only their equality: an unknown medium and a missing avatar say
+      // what they are, and a restricted token can still remove a visible item's medium.
+      const answer = (r: { status: number; json: any }) => ({ status: r.status, code: r.json?.code ?? null, message: r.json?.message ?? null });
+      const visible = await (await upload(fixture.D, await revision(fixture, fixture.D), { cookie: fixture.cookie }).send()).json() as { id: string };
+      const removed = await restricted('DELETE', `/media/${visible.id}`, { expectedRevision: await revision(fixture, fixture.D) });
+      observe('media answers', { unknownMedium: answer(await restricted('DELETE', '/media/zzzzzzzz', { expectedRevision: number })), missingAvatar: answer(chosenMissing), visibleRemoved: removed.status });
       // Batched reads go through the same law.
       const batch = await restricted('POST', '/read-batch', { operation: 'getItem', requests: [{ path: { id } }, { path: { id: UNKNOWN } }] });
       const children = (batch.json ?? []) as { status: number; body: unknown }[];
@@ -476,6 +482,10 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
         // A caller who sees private sees the steps that name a private item (the browse log's owner half).
         await api('POST', '/browse', { trail: 'private-scope-owner-trail', origin: 'https://owner.example.test/blyg/', remoteId: fixture.P, via: 'start', title: 'an owner step' });
         observe('list', { list: 'owner browse', namesPrivate: (await ask('GET', '/browse?trail=private-scope-owner-trail')).text.includes(fixture.P) });
+        // Its own public publish naming a private item is refused, and told why: the item is private.
+        const linking = await ask('POST', '/items', { contentMd: `See [[${fixture.P}]].`, kind: 'thread' });
+        const refusal = await ask('POST', `/items/${linking.json?.id}/publish`, { visibility: 'public', expectedRevision: linking.json?.revision });
+        observe('list', { list: 'owner publish reason', status: refusal.status, private: JSON.stringify(refusal.json ?? '').includes('item is private') });
         const thread = async (contentMd: string) => ((await ask('POST', '/preview', { contentMd, kind: 'thread' })).json?.errors ?? []).map((error: { reason: string }) => error.reason);
         observe('list', { list: 'owner thread reasons', link: await thread(`See [[${fixture.P}]].`), quote: await thread(`![[${fixture.P}]]`), tangle: await thread(`![[+ a passage that links [[${fixture.P}]] ]]`) });
         observe('list', { list: 'item hoppers', hoppers: ((await ask('GET', `/items/${fixture.TP}`)).json?.hoppers ?? []).map((h: { public: boolean }) => h.public) });
@@ -626,8 +636,10 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
         // The Agentic feed is notebook access (Venkat, session 88): refused whole without owner:private.
         restrictedRead: [read.status, list.status],
         restrictedReadLeaks: leaks(read.text, fixture),
-        // The composed draft thread, as a restricted token can read it.
+        // The composed draft thread, as a restricted token can read it: it exists, and naming hidden
+        // items it is hidden like a tainted draft (else the leak check above would pass vacuously).
         restrictedDraftLeaks: draft ? leaks(draft.text, fixture) : [],
+        draft: { composed: Boolean(row?.draft_id), restricted: draft?.status ?? null },
       });
       return;
     }
@@ -831,7 +843,7 @@ function model(history: History): Expected {
   const at = (checkpoint: string, value: unknown) => out.push({ checkpoint, value });
   switch (history.kind) {
     case 'inventory': at('item operation inventory', []); break;
-    case 'hidden': for (const operation of [...Object.keys(ITEM_OPERATIONS), 'uploadMedia itemId', 'deleteMedia', 'media bytes', 'avatar']) at('private scope', { operation, same: true }); at('owner avatar', true); at('private scope', { operation: 'batchRead getItem', same: true }); at('no write took effect', true); break;
+    case 'hidden': for (const operation of [...Object.keys(ITEM_OPERATIONS), 'uploadMedia itemId', 'deleteMedia', 'media bytes', 'avatar']) at('private scope', { operation, same: true }); at('owner avatar', true); at('media answers', { unknownMedium: { status: 404, code: 'not-found', message: 'not found' }, missingAvatar: { status: 400, code: 'invalid-input', message: 'avatarMediaId names no such media' }, visibleRemoved: 200 }); at('private scope', { operation: 'batchRead getItem', same: true }); at('no write took effect', true); break;
     case 'default private':
       at('default private', { caller: 'restricted, no visibility', status: 403, code: 'forbidden', message: 'insufficient scope', item: { status: 'draft', version: 0 } });
       at('default private', { caller: 'restricted, public named', status: 200, item: { status: 'public', version: 1 } });
@@ -855,7 +867,7 @@ function model(history: History): Expected {
       at('list', { list: 'search marks', private: ['P'], draft: ['D', 'TD', 'TP'], once: true }); at('list', { list: 'hopper counts', total: 5 });
       at('list', { list: 'owner reference reasons', P: ['item is private'], TD: ['item is a draft, not published'], D: ['item is a draft, not published'], TP: [] });
       for (const kind of ['fragment', 'thread']) at('list', { list: `owner ${kind} preview of the notebook`, source: { ok: true, from: 'you' }, blockReasons: ['item is private'] });
-      at('list', { list: 'owner reading counts', private: 1 }); at('list', { list: 'owner capabilities', private: true }); at('list', { list: 'owner browse', namesPrivate: true });
+      at('list', { list: 'owner reading counts', private: 1 }); at('list', { list: 'owner capabilities', private: true }); at('list', { list: 'owner browse', namesPrivate: true }); at('list', { list: 'owner publish reason', status: 400, private: true });
       at('list', { list: 'owner thread reasons', link: ['item is private'], quote: ['item is private'], tangle: ['item is private'] });
       at('list', { list: 'item hoppers', hoppers: [false] }); break;
     case 'clear':
@@ -866,7 +878,7 @@ function model(history: History): Expected {
     case 'refusal': at('refusal', { refused: true, oneAnswer: true, saysWhy: true }); at('refusal private', 200); at('refusal private link', 200); break;
     case 'agentic':
       if (history.turnsPrivate) at('agentic turned private', { readNamesD: false, draftNamesD: false });
-      else at('agentic', { status: history.writer === 'owner' ? 200 : 403, responseLeaks: [], storedNamesHidden: history.writer === 'owner', restrictedRead: [403, 403], restrictedReadLeaks: [], restrictedDraftLeaks: [] });
+      else at('agentic', { status: history.writer === 'owner' ? 200 : 403, responseLeaks: [], storedNamesHidden: history.writer === 'owner', restrictedRead: [403, 403], restrictedReadLeaks: [], restrictedDraftLeaks: [], draft: history.writer === 'owner' ? { composed: true, restricted: 404 } : { composed: false, restricted: null } });
       break;
     case 'masked write': {
       // Refresh is a thread's, so on this fragment it refuses whatever the view; the copy stays.
