@@ -23,7 +23,7 @@ import { ItemCreateSchema, ItemEditSchema } from "./contract/routes.ts";
 import { compiledExtensionNames } from "../build/extensions.names.ts";
 import { BACKGROUND_RULES, settleOwnBackground } from "./background.ts";
 import { READER_ORDERS } from "./feeds/reader-order.ts";
-import { listFeeds, readEditionAs, replaceEdition, type AgenticEditionInput } from "./agentic.ts";
+import { listFeeds, readEdition, replaceEdition, type AgenticEditionInput } from "./agentic.ts";
 // Owner API (cookie auth, JSON) — v0.1-plan §3.3.
 
 import { canBeFrontPage, MAX_LINKS, postsPathError } from "./front-page.ts";
@@ -1040,25 +1040,21 @@ const putShelfOperation = async (context: OperationContext, input: OperationInpu
 };
 
 // The Agentic feeds and their editions: see src/agentic.ts for the rules the operations share.
-async function withoutHiddenRefs(context: OperationContext, edition: AgenticEditionInput): Promise<AgenticEditionInput> {
-  const refs = [...(edition.sections ?? []).flatMap((s) => s.entries), ...(edition.scores ?? [])];
-  const hidden = await hiddenOwnIds(context.env.DB, context.access, refs.filter((r) => r.sub === OWN_SUBSCRIPTION).map((r) => r.remoteId));
-  if (!hidden.size) return edition;
-  const shown = (ref: { sub: string; remoteId: string }) => !(ref.sub === OWN_SUBSCRIPTION && hidden.has(ref.remoteId));
-  return { ...edition, ...(edition.sections ? { sections: edition.sections.map((s) => ({ ...s, entries: s.entries.filter(shown) })) } : {}), ...(edition.scores ? { scores: edition.scores.filter(shown) } : {}) };
-}
-const listAgenticFeedsOperation = async (context: OperationContext) => success({ feeds: await listFeeds(context.env.DB) });
+// An edition may name any own item, so the feed is notebook access: a token without
+// owner:private is refused it whole (Venkat, session 88), never served it filtered.
+const notebookRefusal = (scope = 'owner:read') => failure('forbidden', { error: 'insufficient scope' }, [scope, PRIVATE_SCOPE]);
+const listAgenticFeedsOperation = async (context: OperationContext) => seesPrivate(context.access) ? success({ feeds: await listFeeds(context.env.DB) }) : notebookRefusal();
 const getAgenticOperation = async (context: OperationContext, input: OperationInput) => {
-  const edition = await readEditionAs(context.env.DB, input.path.feed, context.access);
+  if (!seesPrivate(context.access)) return notebookRefusal();
+  const edition = await readEdition(context.env.DB, input.path.feed);
   return edition ? success(edition) : failure('not-found', { error: "no such agentic feed" });
 };
 const putAgenticOperation = async (context: OperationContext, input: OperationInput) => {
+  if (!seesPrivate(context.access)) return notebookRefusal('owner:manage');
   const feed = input.path.feed;
   const body = input.body as { edition: AgenticEditionInput; expectedRevision: number };
-  // A restricted write naming a hidden own item names an unknown one: it is not stored.
-  const edition = await withoutHiddenRefs(context, body.edition);
-  if (await replaceEdition(context.env.DB, feed, edition, body.expectedRevision, new Date().toISOString())) return success((await readEditionAs(context.env.DB, feed, context.access))!);
-  const current = await readEditionAs(context.env.DB, feed, context.access);
+  if (await replaceEdition(context.env.DB, feed, body.edition, body.expectedRevision, new Date().toISOString())) return success((await readEdition(context.env.DB, feed))!);
+  const current = await readEdition(context.env.DB, feed);
   if (!current) return failure('not-found', { error: "no such agentic feed" });
   // The current edition rides in the error so an assistant can rebase and retry.
   return failure('conflict', { error: 'agentic edition revision conflict; reload and try again', code: 'revision-conflict', current });

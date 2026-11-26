@@ -162,25 +162,22 @@ async function tokenUpload(scope: string[], form: FormData) {
 }
 
 describe("notebook authority on the Agentic feed, the shelf and attachments (R09, R10)", () => {
-  it("leaves private items out of an edition's stored references, layout, write and conflict answers", async () => {
+  it("refuses the Agentic feed whole to a token without owner:private, and serves it whole to one with it", async () => {
     const cookie = await login();
     const hidden = await privateItem(cookie), open = await createAndPublish(cookie, "an open agentic entry");
     const edition = (remoteIds: string[]) => ({ agent: { name: "notebook test" }, sections: [{ title: "Today", entries: remoteIds.map((remoteId) => ({ sub: "~own", remoteId, headline: "h" })) }] });
     const { revision } = (await apiJson(cookie, "GET", "/blyg/api/agentic/default")).json;
     expect((await apiJson(cookie, "PUT", "/blyg/api/agentic/default", { edition: edition([hidden, open]), expectedRevision: revision })).status).toBe(200);
     const without = tokenApi(WITHOUT), withScope = tokenApi(WITH);
-    const read = await without("GET", "/agentic/default");
-    expect(read.status).toBe(200);
-    expect(JSON.stringify(read.json)).not.toContain(hidden);
-    expect(JSON.stringify(read.json)).toContain(open);
-    expect(JSON.stringify((await withScope("GET", "/agentic/default")).json)).toContain(hidden);
-    const stale = await without("PUT", "/agentic/default", { edition: edition([open]), expectedRevision: read.json.revision - 1 });
-    expect(stale.status).toBe(409);
-    expect(JSON.stringify(stale.json)).not.toContain(hidden);
-    // A write naming the hidden item answers as if it were unknown.
-    const written = await without("PUT", "/agentic/default", { edition: edition([hidden, open]), expectedRevision: read.json.revision });
-    expect(written.status).toBe(200);
-    expect(JSON.stringify(written.json)).not.toContain(hidden);
+    // An edition may name any own item, so the feed is notebook access (Venkat, session 88).
+    for (const [method, path, body] of [["GET", "/agentic"], ["GET", "/agentic/default"], ["PUT", "/agentic/default", { edition: edition([open]), expectedRevision: revision + 1 }]] as const) {
+      const refused = await without(method, path, body);
+      expect(refused.status).toBe(403);
+      expect(JSON.stringify(refused.json)).not.toContain(hidden);
+    }
+    const read = await withScope("GET", "/agentic/default");
+    expect(JSON.stringify(read.json)).toContain(hidden);
+    expect((await apiJson(cookie, "GET", "/blyg/api/agentic/default")).json.revision).toBe(revision + 1);
   });
 
   it("hides private shelf entries from such a token, keeps them through its replace, and refuses to let it add one", async () => {

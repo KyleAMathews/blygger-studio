@@ -1745,7 +1745,7 @@ export const zListAgenticFeedsHeaders = z.object({
 });
 
 /**
- * The agentic feeds in the owner's order. One, `default`, until the Studio offers more (blygger-spec docs/agentic-feed-plan.md §3.3).
+ * The agentic feeds in the owner's order. One, `default`, until the Studio offers more (blygger-spec docs/agentic-feed-plan.md §3.3). Every Agentic route needs owner:private as well: an edition may name any own item, so a token without it gets 403.
  */
 export const zListAgenticFeedsResponse = z.object({
     feeds: z.array(z.object({

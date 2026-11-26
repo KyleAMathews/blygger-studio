@@ -90,8 +90,12 @@ private access moves to a new scope; client-written provenance removed). **Migra
   tainted draft while it names a hidden own item (Venkat, session 85; a stopgap until
   agentic-feed-plan §3.1). The mark follows each composition, and an item that turns hidden
   later marks the drafts that name it (migration 0063's trigger). Only the Studio's own
-  unedited draft is rewritten. An edition written by a token without `owner:private` drops the
-  hidden items it names, as it drops unknown ones.
+  unedited draft is rewritten.
+- **The Agentic feed needs `owner:private` (breaking for tokens).** An edition may name any
+  own item, so `GET /agentic`, `GET /agentic/{feed}` and `PUT /agentic/{feed}` now answer 403
+  to a token without `owner:private` instead of serving or storing a filtered edition
+  (Venkat, session 88). An assistant that writes editions needs a token with the scope. The
+  owner's session is unchanged.
 - **Avatar.** The avatar must name an existing medium the caller may see. A token without
   `owner:private` naming a private item's medium gets the unknown medium's answer, and a
   nonexistent id is now refused (400) for every caller, the owner included.
