@@ -730,6 +730,9 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
       // source stays a link only while it is served publicly.
       const first = await generate(at, `${DERIVED} from the source, see [[${fixture.X}]] and [[${source}]]`);
       observe('tk generation', { status: first.status, providerSawSource: first.sent.includes(SOURCE) });
+      // Its provenance names the snapshot it drew on, private or public, as the owner reads it (0c).
+      const named = ((await api('GET', `/items/${draft}`)).json?.provenance?.[at]?.sources ?? []) as { id?: string; version?: number }[];
+      observe('tk provenance', { namesSource: named.some(ref => ref.id === source), version: named.find(ref => ref.id === source)?.version ?? null });
       const other = await generate(1 - at, 'public words from x');
       observe('tk generation', { status: other.status, providerSawSource: other.sent.includes(SOURCE) });
       if (history.fate === 'raised') await api('POST', `/items/${source}/publish`, { visibility: 'public' });
@@ -893,6 +896,8 @@ function model(history: History): Expected {
       // first generation; that mark is the server's and nothing in these histories clears it.
       const tainted = history.source === 'private';
       at('tk generation', { status: 200, providerSawSource: true });
+      // A private source is named by its latest private version (p1), a public one by v1.
+      at('tk provenance', { namesSource: true, version: 1 });
       // The other scope's generation hydrates the draft's links: the first output's [[source]] link
       // survives only for a public source, so only then is the source read again.
       at('tk generation', { status: 200, providerSawSource: history.source === 'public' });
