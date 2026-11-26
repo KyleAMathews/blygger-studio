@@ -32,15 +32,18 @@ import { withOracleStorage } from './oracle-storage.ts';
 // No route classifier, verb rule, or production permission helper supplies them.
 const permissionGroups = {
   authenticated: ['getCapabilities'],
-  'owner:read': ['getDictionary','getSyndication','listHelpers','catchUp','listAgenticFeeds','getAgentic','getShelf','listContacts','batchRead','getItemSummary','listItemVersions','listHopperMemberships','getReadingSummary','getSignalSummary','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','listMentionGroups','getMentionSummary','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse','extLineageGlyphGetLineage','extLineageGlyphListSummaries','extSpellcheckGetWords','extSpellcheckProofread','extWordCountListCounts'],
+  'owner:read': ['getDictionary','getSyndication','listHelpers','catchUp','getShelf','listContacts','batchRead','getItemSummary','listItemVersions','listHopperMemberships','getReadingSummary','getSignalSummary','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','listMentionGroups','getMentionSummary','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse','extLineageGlyphGetLineage','extLineageGlyphListSummaries','extSpellcheckGetWords','extSpellcheckProofread','extWordCountListCounts'],
   // The notebook (sealed-content-build-plan §1 0d): owner:read does not imply it.
-  'owner:private': ['listPrivateVersions'],
+  'owner:private': ['listPrivateVersions','listAgenticFeeds','getAgentic'],
+  // A conjunction: the Agentic feed may name any own item, so writing it is notebook access too
+  // (Venkat, session 88). Denied unless the subset holds every scope named in the key.
+  'owner:manage+owner:private': ['putAgentic'],
   'owner:draft': ['createItem','updateItem','deleteItem','restoreItem','uploadMedia','generateItem','draftNote','summarizeChangelog','summarizeCatchUp','classifyChange','preview'],
   'owner:publish': ['publishItem','withdrawItem','pinItem','putSyndication','refreshItem','deleteMedia'],
-  'owner:manage': ['setReadingPlacement','putDictionarySource','putAgentic','putShelf','createContact','updateContact','resolveContact','deleteContact','updateSettings','createSubscription','updateSubscription','resyncSubscription','pollAllSubscriptions','deleteSubscription','createHopper','updateHopper','deleteHopper','addHopperItem','removeHopperItem','setSignal','deleteSignal','updateMention'],
+  'owner:manage': ['setReadingPlacement','putDictionarySource','putShelf','createContact','updateContact','resolveContact','deleteContact','updateSettings','createSubscription','updateSubscription','resyncSubscription','pollAllSubscriptions','deleteSubscription','createHopper','updateHopper','deleteHopper','addHopperItem','removeHopperItem','setSignal','deleteSignal','updateMention'],
   'reading:state': ['markRead','markReadBatch','markUnread','markUnreadBatch','logBrowse','clearBrowse'],
 };
-const capabilities = Object.keys(permissionGroups).filter(scope => scope !== 'authenticated');
+const capabilities = Object.keys(permissionGroups).filter(scope => scope !== 'authenticated' && !scope.includes('+'));
 const subsets = Array.from({ length: 1 << capabilities.length }, (_, mask) => capabilities.filter((_, bit) => mask & 1 << bit));
 const publicEdits = [
   { what: 'response visibility', resource: 'item', path: '/items/missing-oracle-resource', body: { responses: 'hide' } },
@@ -56,7 +59,7 @@ function model(history: History) {
   const names = Object.values(permissionGroups).flat();
   if (history.kind === 'inventory') return { kind: history.kind, names: [...names].sort(), unique: names.length };
   if (history.kind === 'public-edit') return { kind: history.kind, denied: !history.scope.includes(history.edit.resource === 'settings' ? 'owner:manage' : 'owner:draft') || !history.scope.includes('owner:publish') };
-  return { kind: history.kind, operations: Object.entries(permissionGroups).flatMap(([required, operations]) => operations.map(operation => ({ operation, denied: required !== 'authenticated' && !history.scope.includes(required) }))) };
+  return { kind: history.kind, operations: Object.entries(permissionGroups).flatMap(([required, operations]) => operations.map(operation => ({ operation, denied: required !== 'authenticated' && !required.split('+').every(scope => history.scope.includes(scope)) }))) };
 }
 async function receive(app: Hono<any>, method: string, path: string, body?: unknown) {
   const ctx = createExecutionContext();

@@ -4546,7 +4546,7 @@ export type ListAgenticFeedsError = ListAgenticFeedsErrors[keyof ListAgenticFeed
 
 export type ListAgenticFeedsResponses = {
     /**
-     * The agentic feeds in the owner's order. One, `default`, until the Studio offers more (blygger-spec docs/agentic-feed-plan.md §3.3). Every Agentic route needs owner:private as well: an edition may name any own item, so a token without it gets 403.
+     * The agentic feeds in the owner's order. One, `default`, until the Studio offers more (blygger-spec docs/agentic-feed-plan.md §3.3). Every Agentic route needs owner:private (and the write owner:manage too): an edition may name any own item, so the feed is notebook access.
      */
     200: {
         feeds: Array<{

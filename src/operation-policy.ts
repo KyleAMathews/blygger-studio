@@ -38,6 +38,13 @@ export function readOperation(effects: OperationEffects = { writes: [] }, budget
 export function privateReadOperation(effects: OperationEffects = { writes: [] }): OperationPolicy {
   return scoped('owner:private', effects, 'read');
 }
+/**
+ * A write that is notebook access as well as management: the Agentic feed, whose editions
+ * may name any own item (Venkat, studio#178 session 88). Needs both scopes.
+ */
+export function notebookManageOperation(effects: OperationEffects): OperationPolicy {
+  return { scopes: ['owner:manage', 'owner:private'], effects, budget: 'write' };
+}
 export function draftOperation(effects: OperationEffects, budget: WorkBudget = 'write', conditionalScopes?: ScopeCondition): OperationPolicy {
   return scoped('owner:draft', effects, budget, conditionalScopes);
 }

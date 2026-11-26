@@ -1040,17 +1040,14 @@ const putShelfOperation = async (context: OperationContext, input: OperationInpu
 };
 
 // The Agentic feeds and their editions: see src/agentic.ts for the rules the operations share.
-// An edition may name any own item, so the feed is notebook access: a token without
-// owner:private is refused it whole (Venkat, session 88), never served it filtered.
-const notebookRefusal = (scope = 'owner:read') => failure('forbidden', { error: 'insufficient scope' }, [scope, PRIVATE_SCOPE]);
-const listAgenticFeedsOperation = async (context: OperationContext) => seesPrivate(context.access) ? success({ feeds: await listFeeds(context.env.DB) }) : notebookRefusal();
+// The routes need owner:private (src/contract/routes.ts): an edition may name any own item,
+// so the runner refuses a restricted token the feed whole (Venkat, session 88).
+const listAgenticFeedsOperation = async (context: OperationContext) => success({ feeds: await listFeeds(context.env.DB) });
 const getAgenticOperation = async (context: OperationContext, input: OperationInput) => {
-  if (!seesPrivate(context.access)) return notebookRefusal();
   const edition = await readEdition(context.env.DB, input.path.feed);
   return edition ? success(edition) : failure('not-found', { error: "no such agentic feed" });
 };
 const putAgenticOperation = async (context: OperationContext, input: OperationInput) => {
-  if (!seesPrivate(context.access)) return notebookRefusal('owner:manage');
   const feed = input.path.feed;
   const body = input.body as { edition: AgenticEditionInput; expectedRevision: number };
   if (await replaceEdition(context.env.DB, feed, body.edition, body.expectedRevision, new Date().toISOString())) return success((await readEdition(context.env.DB, feed))!);
