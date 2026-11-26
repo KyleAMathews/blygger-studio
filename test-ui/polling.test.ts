@@ -4,7 +4,7 @@ vi.hoisted(() => vi.stubGlobal('window', {}));
 import { focusManager, onlineManager, QueryObserver, type QueryFunction } from '@tanstack/query-core';
 import { createCollection, createLiveQueryCollection, eq } from '@tanstack/react-db';
 import { queryCollectionOptions } from '@tanstack/query-db-collection';
-import { queryClient, collectionPollingOptions, collectionRefreshOptions } from '../src/ui/query-client.ts';
+import { queryClient, collectionPollingOptions, collectionRefreshOptions, readingPollingOptions, READING_POLL_MS, IDLE_AFTER_MS, watchAttention } from '../src/ui/query-client.ts';
 
 const cleanups: (() => void | Promise<void>)[] = [];
 beforeEach(() => {
@@ -143,4 +143,83 @@ it('collections and ordinary queries without polling opt-in do not acquire timer
   await vi.advanceTimersByTimeAsync(0);
   expect(settingsLoad).toHaveBeenCalledTimes(2);
   expect(auxiliaryLoad).toHaveBeenCalledTimes(1);
+});
+
+// A window stand-in: listeners by event name, a document with visibility and focus.
+function fakeWindow() {
+  const listeners = new Map<string, Set<() => void>>();
+  const on = (name: string, fn: () => void) => { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name)!.add(fn); };
+  const off = (name: string, fn: () => void) => listeners.get(name)?.delete(fn);
+  const state = { visibility: 'visible', focused: true };
+  const target = {
+    addEventListener: on, removeEventListener: off,
+    document: { get visibilityState() { return state.visibility; }, hasFocus: () => state.focused, addEventListener: on, removeEventListener: off },
+  };
+  const fire = (name: string) => { for (const fn of [...(listeners.get(name) ?? [])]) fn(); };
+  return { target: target as unknown as Window & typeof globalThis, state, fire, count: () => [...listeners.values()].reduce((n, set) => n + set.size, 0) };
+}
+
+it('studio#180: an idle Studio stops polling and reloads on the next input', async () => {
+  const win = fakeWindow();
+  focusManager.setEventListener(watchAttention(win.target));
+  cleanups.push(() => focusManager.setEventListener(() => undefined));
+  const load = vi.fn(async () => [{ id: 'a', value: 1 }]);
+  const { collection } = rows('items', load);
+  await collection.preload();
+  win.fire('pointermove');
+
+  await vi.advanceTimersByTimeAsync(IDLE_AFTER_MS);
+  const atIdle = load.mock.calls.length;
+  expect(atIdle).toBeGreaterThan(1);
+  // A whole idle day costs nothing.
+  await vi.advanceTimersByTimeAsync(24 * 60 * 60_000);
+  expect(load).toHaveBeenCalledTimes(atIdle);
+
+  win.fire('keydown');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(load).toHaveBeenCalledTimes(atIdle + 1);
+  await vi.advanceTimersByTimeAsync(15_000);
+  expect(load).toHaveBeenCalledTimes(atIdle + 2);
+});
+
+it('studio#180: a visible window without focus does not poll, and regaining focus reloads', async () => {
+  const win = fakeWindow();
+  focusManager.setEventListener(watchAttention(win.target));
+  cleanups.push(() => focusManager.setEventListener(() => undefined));
+  const load = vi.fn(async () => [{ id: 'a', value: 1 }]);
+  const { collection } = rows('items', load);
+  await collection.preload();
+
+  win.state.focused = false; win.fire('blur');
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(load).toHaveBeenCalledTimes(1);
+  win.state.focused = true; win.fire('focus');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(load).toHaveBeenCalledTimes(2);
+
+  win.state.visibility = 'hidden'; win.fire('visibilitychange');
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(load).toHaveBeenCalledTimes(2);
+});
+
+it('studio#180: the attention watcher removes every listener it added', () => {
+  const win = fakeWindow();
+  const cleanup = watchAttention(win.target)(() => {});
+  expect(win.count()).toBeGreaterThan(0);
+  cleanup?.();
+  expect(win.count()).toBe(0);
+});
+
+it('studio#180: Reading polls once per READING_POLL_MS, not every 15 seconds', async () => {
+  const load = vi.fn(async () => [{ id: 'a', value: 1 }]);
+  const collection = createCollection(queryCollectionOptions({
+    ...readingPollingOptions, queryKey: ['reading-slow'], queryClient, queryFn: load, getKey: row => row.id,
+  }));
+  const subscription = collection.subscribeChanges(() => {});
+  cleanups.push(() => collection.cleanup(), () => subscription.unsubscribe());
+  await collection.preload();
+  await vi.advanceTimersByTimeAsync(READING_POLL_MS - 1);
+  expect(load).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(load).toHaveBeenCalledTimes(2);
 });

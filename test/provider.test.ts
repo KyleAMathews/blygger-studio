@@ -134,6 +134,11 @@ import { afterEach } from "vitest";
 import { complete } from "../src/ai/provider.ts";
 import { providerFor } from "../src/ai/models.ts";
 
+// This file's one HTTP test imports ./helpers.ts lazily, so it pays the Worker
+// entrypoint's cold load (deferred in CI since #177) inside its own budget: about
+// 4.5 s on CI runners, against vitest's 5 s default (0.72.2's Check, session 87).
+const ENTRYPOINT_TIMEOUT_MS = 30_000;
+
 const PER_FUNCTION = ["ai_model_tk", "ai_model_changelog", "ai_model_feed"];
 describe("complete() across providers and functions (0.26.0)", () => {
   afterEach(() => env.DB.prepare(`DELETE FROM settings WHERE key IN (${PER_FUNCTION.map(() => "?").join(",")})`).bind(...PER_FUNCTION).run());
@@ -211,5 +216,5 @@ describe("settings: the pre-0.26 ai_model alias", () => {
     expect(models.models.map((m: { id: string }) => m.id)).toContain("claude-sonnet-5-5");
     expect(models.providers.map((p: { id: string }) => p.id)).toEqual(["anthropic", "openai", "google", "workers-ai", "typesafe"]);
     expect(JSON.stringify(models)).not.toMatch(/sk-|test-key/);
-  });
+  }, ENTRYPOINT_TIMEOUT_MS);
 });

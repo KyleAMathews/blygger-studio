@@ -12,6 +12,7 @@ import { authoredVersionKind } from '../version-state.ts';
 import { fetchSurface, itemUrl } from "../surface.ts";
 import type { FetchLike } from "../importer/http.ts";
 import { normalizeOrigin } from "../stub.ts";
+import { tagAttribute, tagTokens } from "../html-attr.ts";
 import type { MentionRelation, Transclusion } from "../types.ts";
 import { boundedText } from "./http.ts";
 import {
@@ -186,17 +187,15 @@ export function alternateJsonHref(html: string, base: string): string | null {
   const tag = /<link\b[^>]*>/gi;
   let m: RegExpExecArray | null;
   while ((m = tag.exec(html))) {
-    const rel = /\brel\s*=\s*["']?([^"'>]+)["']?/i.exec(m[0]);
-    if (!rel || !rel[1].toLowerCase().split(/\s+/).includes("alternate")) continue;
+    if (!tagTokens(m[0], "rel").includes("alternate")) continue;
     // The media type exactly, parameters aside: WordPress pages also carry an
     // oEmbed alternate typed `application/json+oembed`, often first.
-    const type = /\btype\s*=\s*["']([^"']*)["']|\btype\s*=\s*([^\s>]+)/i.exec(m[0]);
-    const media = (type?.[1] ?? type?.[2] ?? "").split(";")[0].trim().toLowerCase();
+    const media = (tagAttribute(m[0], "type") ?? "").split(";")[0].trim().toLowerCase();
     if (media !== "application/json") continue;
-    const href = /\bhref\s*=\s*["']([^"']*)["']/i.exec(m[0]);
-    if (!href) continue;
+    const href = tagAttribute(m[0], "href");
+    if (href === null) continue;
     try {
-      return new URL(href[1], base).toString();
+      return new URL(href, base).toString();
     } catch {
       return null;
     }
