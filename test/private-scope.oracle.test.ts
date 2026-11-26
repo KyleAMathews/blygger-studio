@@ -710,7 +710,7 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
       // The owner can always save back exactly what it reads, and the ceiling is the list's own.
       const back = await api('PUT', '/shelf', { entries: owned.entries, expectedRevision: owned.revision });
       const over = await api('PUT', '/shelf', { entries: [...owned.entries, ...Array.from({ length: SHELF_CEILING + 1 - owned.entries.length }, (_, i) => entry(i % 2 ? 'X' : 'D'))], expectedRevision: back.json?.revision ?? owned.revision });
-      observe('shelf', { stored: stored.status, seen: order(seen.json.entries), replaced: replaced.status, answer: order(replaced.json?.entries ?? []), stale: { status: stale.status, current: order(stale.json?.details?.current?.entries ?? []) }, owner: order(owned.entries), savedBack: back.status === 200 && JSON.stringify(order(back.json.entries)) === JSON.stringify(order(owned.entries)), overCeiling: over.status });
+      observe('shelf', { stored: stored.status, seen: order(seen.json.entries), replaced: replaced.status, answer: order(replaced.json?.entries ?? []), stale: { status: stale.status, code: stale.json?.code ?? null, message: stale.json?.message ?? null, current: order(stale.json?.details?.current?.entries ?? []) }, owner: order(owned.entries), savedBack: back.status === 200 && JSON.stringify(order(back.json.entries)) === JSON.stringify(order(owned.entries)), overCeiling: over.status });
       return;
     }
     case 'tk': {
@@ -809,7 +809,8 @@ type Expected = Observation[];
 const SHELF_CEILING = 1000;
 const SHELF_HIDDEN = new Set(['P', 'TD']);
 function shelfPlan(history: History & { kind: 'shelf' }) {
-  if (!history.full) return { stored: ['P', 'D', 'X', 'TD'], given: ['X', 'X', 'D', 'TP'] };
+  // The token names hidden TD first: naming a hidden entry counts for nothing (law 8), so it keeps its place.
+  if (!history.full) return { stored: ['P', 'D', 'X', 'TD'], given: ['TD', 'X', 'X', 'D', 'TP'] };
   const filler = Array.from({ length: SHELF_CEILING - 2 }, (_, i) => `F${i}`);
   return { stored: ['P', 'TD', ...filler], given: ['X', 'D', ...[...filler].reverse()] };
 }
@@ -884,7 +885,7 @@ function model(history: History): Expected {
       if (history.turnsPrivate) { at('shelf turned private', { seen: ['D', 'X'], saved: 200, answer: ['X'], owner: ['D', 'X'] }); break; }
       const plan = shelfPlan(history), owner = shelfReplace(plan.stored, plan.given);
       const visible = (list: string[]) => list.filter(label => !SHELF_HIDDEN.has(label));
-      at('shelf', { stored: 200, seen: visible(plan.stored), replaced: 200, answer: visible(owner), stale: { status: 409, current: visible(owner) }, owner, savedBack: true, overCeiling: 400 });
+      at('shelf', { stored: 200, seen: visible(plan.stored), replaced: 200, answer: visible(owner), stale: { status: 409, code: 'revision-conflict', message: 'shelf revision conflict; reload and try again', current: visible(owner) }, owner, savedBack: true, overCeiling: 400 });
       break;
     }
     case 'tk': {
