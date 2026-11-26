@@ -473,6 +473,9 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
         observe('list', { list: 'owner reading counts', private: (reading?.counts?.private ?? 0) + (back?.counts?.private ?? 0) });
         // Hidden is not gone: a caller who sees private is told so by its granted scopes.
         observe('list', { list: 'owner capabilities', private: ((await ask('GET', '/capabilities')).json?.scopes ?? []).includes('owner:private') });
+        // A caller who sees private sees the steps that name a private item (the browse log's owner half).
+        await api('POST', '/browse', { trail: 'private-scope-owner-trail', origin: 'https://owner.example.test/blyg/', remoteId: fixture.P, via: 'start', title: 'an owner step' });
+        observe('list', { list: 'owner browse', namesPrivate: (await ask('GET', '/browse?trail=private-scope-owner-trail')).text.includes(fixture.P) });
         const thread = async (contentMd: string) => ((await ask('POST', '/preview', { contentMd, kind: 'thread' })).json?.errors ?? []).map((error: { reason: string }) => error.reason);
         observe('list', { list: 'owner thread reasons', link: await thread(`See [[${fixture.P}]].`), quote: await thread(`![[${fixture.P}]]`), tangle: await thread(`![[+ a passage that links [[${fixture.P}]] ]]`) });
         observe('list', { list: 'item hoppers', hoppers: ((await ask('GET', `/items/${fixture.TP}`)).json?.hoppers ?? []).map((h: { public: boolean }) => h.public) });
@@ -848,7 +851,7 @@ function model(history: History): Expected {
       at('list', { list: 'search marks', private: ['P'], draft: ['D', 'TD', 'TP'], once: true }); at('list', { list: 'hopper counts', total: 5 });
       at('list', { list: 'owner reference reasons', P: ['item is private'], TD: ['item is a draft, not published'], D: ['item is a draft, not published'], TP: [] });
       for (const kind of ['fragment', 'thread']) at('list', { list: `owner ${kind} preview of the notebook`, source: { ok: true, from: 'you' }, blockReasons: ['item is private'] });
-      at('list', { list: 'owner reading counts', private: 1 }); at('list', { list: 'owner capabilities', private: true });
+      at('list', { list: 'owner reading counts', private: 1 }); at('list', { list: 'owner capabilities', private: true }); at('list', { list: 'owner browse', namesPrivate: true });
       at('list', { list: 'owner thread reasons', link: ['item is private'], quote: ['item is private'], tangle: ['item is private'] });
       at('list', { list: 'item hoppers', hoppers: [false] }); break;
     case 'clear':
