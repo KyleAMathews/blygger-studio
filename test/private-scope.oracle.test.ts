@@ -513,8 +513,14 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
       const owner = async (method: string, path: string) => { const r = await api(method, path); return { status: r.status, text: JSON.stringify(r.json), json: r.json }; };
       const [read, base] = history.reader === 'owner hopper lens' ? [owner, `/reading?hopper=${fixture.hopper}&limit=1`] : [restricted, `/hoppers/${fixture.hopper}/memberships?limit=1`];
       const keys = (json: any) => ((json?.items ?? []) as { key?: string; remoteId?: string }[]).map(entry => entry.key ?? entry.remoteId);
+      // Background classification is asynchronous and would move members out of the lens between
+      // runs (session 88: page 1 sometimes held one member and no cursor), so the owner pins them
+      // in the foreground first. Placement is orthogonal to the cursor law.
+      if (history.reader === 'owner hopper lens') for (const id of [fixture.D, fixture.P, fixture.TD, fixture.TP, fixture.X]) await api('PUT', '/reading/placement', { source: 'own', sub: '', id, placement: 'foreground' });
       const first = await read('GET', base);
       const cursor = first.json?.page?.nextCursor as string;
+      // Without a first-page cursor the history tests nothing.
+      observe('membership first page', { cursor: typeof cursor === 'string' });
       const second = async () => read('GET', `${base}&cursor=${encodeURIComponent(cursor)}`);
       switch (history.event) {
         case 'unrelated draft edit': await api('PATCH', `/items/${outsider}`, { contentMd: 'edited outside the hopper' }); break;
@@ -832,7 +838,7 @@ function model(history: History): Expected {
       at('tk outcome', { keptLinks: { x: firstText, source: firstText && history.source === 'public' }, wireAt: !tainted, saved: history.then !== 'regenerate from public', hiddenFromRestricted: tainted, published: !tainted, wireHasDerived: !tainted && history.then !== 'regenerate from public', wireNamesSource: !tainted && history.then !== 'regenerate from public', wireModel: !tainted, ownerSeesMark: tainted });
       break;
     }
-    case 'cursor': at('membership cursor', { expired: cursorExpires(history.event), exact: true }); break;
+    case 'cursor': at('membership first page', { cursor: true }); at('membership cursor', { expired: cursorExpires(history.event), exact: true }); break;
   }
   return out;
 }
