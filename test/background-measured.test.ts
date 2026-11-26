@@ -13,6 +13,7 @@ import { bakedQuoteTexts, enabledRules, parseBackgroundRules, supersedes, SUPERS
 import { newId } from "../src/util.ts";
 import { itemDocBody } from "./importer/fixtures.ts";
 import { apiJson, createAndPublish, login } from "./helpers.ts";
+import migration0062 from "../migrations/0062_superseded_window.sql?raw";
 
 const db = () => env.DB;
 afterEach(() => putSettings(db(), { bg_rules: "{}" }));
@@ -70,7 +71,9 @@ describe("the measures", () => {
 
   it("supersedes within the window, newer only", () => {
     const t = Date.parse("2026-11-21T12:00:00Z");
-    expect(supersedes(t, t - 10 * 60_000)).toBe(true);
+    expect(supersedes(t, t - 2 * 60_000)).toBe(true);
+    // studio#183: fifteen minutes was the old window; four minutes is outside the new one.
+    expect(supersedes(t, t - 4 * 60_000)).toBe(false);
     expect(supersedes(t, t - SUPERSEDED_WINDOW_MS)).toBe(true);
     expect(supersedes(t, t - SUPERSEDED_WINDOW_MS - 1)).toBe(false);
     expect(supersedes(t, t)).toBe(false);
@@ -123,16 +126,16 @@ describe("imported versions", () => {
     expect(keys(await reading(cookie, `sub=${sub}`))).toEqual([key(sub, thread)]);
   });
 
-  it("puts an item its blyg followed within 15 minutes in Background, in either arrival order, until it changes", async () => {
+  it("puts an item its blyg followed within 3 minutes in Background, in either arrival order, until it changes", async () => {
     const cookie = await login();
     const sub = await subscription();
     const [first, second, later, early, gap] = [newId(), newId(), newId(), newId(), newId()];
-    await arrive(sub, { id: gap, created: at(60) });
-    await arrive(sub, { id: first, created: at(30) });
-    await arrive(sub, { id: second, created: at(20) });
+    await arrive(sub, { id: gap, created: at(12) });
+    await arrive(sub, { id: first, created: at(6) });
+    await arrive(sub, { id: second, created: at(4) });
     // Out of order: the newer arrives before the older.
-    await arrive(sub, { id: later, created: at(5) });
-    await arrive(sub, { id: early, created: at(12) });
+    await arrive(sub, { id: later, created: at(1) });
+    await arrive(sub, { id: early, created: at(2.4) });
 
     const background = await reading(cookie, `sub=${sub}&background=true`);
     expect(Object.fromEntries(background.map((e) => [e.key, e.background]))).toEqual({
@@ -148,6 +151,16 @@ describe("imported versions", () => {
 
     expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { backgroundRules: { superseded: false } })).status).toBe(200);
     expect(await reading(cookie, `sub=${sub}&background=true`)).toEqual([]);
+  });
+
+  it("studio#183: leaves alone an unrelated post its blyg followed four minutes later", async () => {
+    const cookie = await login();
+    const sub = await subscription();
+    const [one, two] = [newId(), newId()];
+    await arrive(sub, { id: one, created: at(5) });
+    await arrive(sub, { id: two, created: at(1) });
+    expect(await reading(cookie, `sub=${sub}&background=true`)).toEqual([]);
+    expect(keys(await reading(cookie, `sub=${sub}`)).sort()).toEqual([key(sub, one), key(sub, two)].sort());
   });
 
   it("places a future-dated item at the time it was first seen", async () => {
@@ -174,8 +187,8 @@ describe("own items", () => {
   it("a new item supersedes the own item published just before it, and a small edit is near-same", async () => {
     const cookie = await login();
     const first = await createAndPublish(cookie, LONG);
-    // published_at has second precision: put the first five minutes back.
-    await db().prepare("UPDATE versions SET published_at = ? WHERE item_id = ?").bind(at(5).replace(/\.\d+Z$/, "Z"), first).run();
+    // published_at has second precision: put the first two minutes back.
+    await db().prepare("UPDATE versions SET published_at = ? WHERE item_id = ?").bind(at(2).replace(/\.\d+Z$/, "Z"), first).run();
     const second = await createAndPublish(cookie, "A second thought, minutes later.");
     const background = await reading(cookie, "sub=own&background=true");
     expect(background.find((e) => e.key === `own:${first}`)?.background).toMatchObject({ reasons: ["superseded"], detail: { by: second } });
@@ -189,5 +202,43 @@ describe("own items", () => {
     await apiJson(cookie, "PATCH", `/blyg/api/items/${first}`, { contentMd: LONG.replace("whole", "heart") });
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${first}/publish`, {})).status).toBe(200);
     expect((await reading(cookie, "sub=own&background=true")).find((e) => e.key === `own:${first}`)?.background.reasons).toEqual(["near-same"]);
+  });
+});
+
+describe("migration 0062: superseded facts recomputed for the 3-minute window (studio#183)", () => {
+  const statements = migration0062.split("\n").filter((line) => !line.trim().startsWith("--")).join("\n").split(";").map((s) => s.trim()).filter(Boolean);
+  const reasonsOf = async (sub: string, id: string) => db().prepare("SELECT bg_reasons, bg_detail FROM imported_items WHERE subscription_id = ? AND remote_id = ?").bind(sub, id).first<{ bg_reasons: string | null; bg_detail: string | null }>();
+
+  it("drops a fact the old window wrote and keeps one inside the new window, with the item's other reasons", async () => {
+    const cookie = await login();
+    const sub = await subscription();
+    const [far, farBy, near, nearBy] = [newId(), newId(), newId(), newId()];
+    // As 0.68–0.72 stored them: ten minutes apart and two minutes apart.
+    await arrive(sub, { id: far, created: at(30) });
+    await arrive(sub, { id: farBy, created: at(20) });
+    await arrive(sub, { id: near, created: at(8) });
+    await arrive(sub, { id: nearBy, created: at(6) });
+    await db().prepare("UPDATE imported_items SET bg_reasons = ?, bg_detail = ? WHERE subscription_id = ? AND remote_id = ?").bind(JSON.stringify(["wordless", "superseded"]), JSON.stringify({ by: farBy, thread: "t" }), sub, far).run();
+    await db().prepare("UPDATE imported_items SET bg_reasons = ?, bg_detail = ? WHERE subscription_id = ? AND remote_id = ?").bind(JSON.stringify(["superseded"]), JSON.stringify({ by: nearBy }), sub, near).run();
+
+    for (const statement of statements) await db().prepare(statement).run();
+
+    expect(await reasonsOf(sub, far)).toEqual({ bg_reasons: JSON.stringify(["wordless"]), bg_detail: JSON.stringify({ thread: "t" }) });
+    expect(await reasonsOf(sub, near)).toEqual({ bg_reasons: JSON.stringify(["superseded"]), bg_detail: JSON.stringify({ by: nearBy }) });
+    expect(keys(await reading(cookie, `sub=${sub}`))).not.toContain(key(sub, near));
+  });
+
+  it("clears an own item's old-window fact entirely", async () => {
+    await login();
+    const cookie = await login();
+    const first = await createAndPublish(cookie, LONG);
+    const second = await createAndPublish(cookie, "A second thought, ten minutes later.");
+    await db().prepare("UPDATE versions SET published_at = ? WHERE item_id = ?").bind(at(10).replace(/\.\d+Z$/, "Z"), first).run();
+    await db().prepare("UPDATE items SET bg_reasons = ?, bg_detail = ? WHERE id = ?").bind(JSON.stringify(["superseded"]), JSON.stringify({ by: second }), first).run();
+
+    for (const statement of statements) await db().prepare(statement).run();
+
+    expect(await db().prepare("SELECT bg_reasons, bg_detail FROM items WHERE id = ?").bind(first).first()).toEqual({ bg_reasons: null, bg_detail: null });
+    expect(keys(await reading(cookie, "sub=own"))).toContain(`own:${first}`);
   });
 });

@@ -16,7 +16,7 @@ import { OWN } from './reader-links.tsx';
 import { formatDateIn } from '../dates.ts';
 import { renderMarkdown } from '../markdown.ts';
 import { linkInline } from '../grammar.ts';
-import { markImported, parseScopes, previewStrip } from '../tk.ts';
+import { markImported, markImportedAround, parseScopes, previewStrip, scopesWithin } from '../tk.ts';
 import { parseComments, withoutComments } from '../comments.ts';
 import { extractDirectives } from '../directives.ts';
 import { previewFromHtml } from '../preview.ts';
@@ -2716,7 +2716,20 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
                   toast('Select the pasted generated text first, then mark it.');
                   return;
                 }
-                held.change(markImported(value, from, to));
+                // Scopes don't nest (studio#184): offer to wrap around any the
+                // selection holds, and change nothing unless the author agrees.
+                const inner = scopesWithin(value, from, to);
+                if (!inner.length) {
+                  held.change(markImported(value, from, to));
+                  return;
+                }
+                void confirm({
+                  title: `The selection holds ${inner.length === 1 ? 'a TK scope' : `${inner.length} TK scopes`}, and scopes don't nest`,
+                  body: `Mark the text around ${inner.length === 1 ? 'it' : 'them'} as generated instead? ${inner.length === 1 ? 'The scope stays' : 'The scopes stay'} as ${inner.length === 1 ? 'it is' : 'they are'}.`,
+                  ok: 'mark the text around it',
+                }).then((ok) => {
+                  if (ok && input.current?.value === value) held.change(markImportedAround(value, from, to));
+                });
               }}
             >
               <Sparkle />

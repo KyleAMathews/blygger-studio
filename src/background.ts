@@ -52,8 +52,12 @@ export const enabledRules = (rules: Record<BackgroundRule, boolean>): Background
  * `superseded`'s window (plan §2): an item its blyg followed with a newer item
  * within this long. Reader-local like the burst window (#83), and a constant
  * like it for now; the plan's setting waits on a numeric settings field.
+ * Three minutes since session 87 (Venkat, studio#183): at fifteen it caught
+ * unrelated posts made a few minutes apart, and unlike a tangle's parts they
+ * fold under nothing, so they only vanished. Better cluster detection (n
+ * items in m minutes) is the research item on #183.
  */
-export const SUPERSEDED_WINDOW_MS = 15 * 60 * 1000;
+export const SUPERSEDED_WINDOW_MS = 3 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Whether an item last active at `olderMs` is superseded by a newer item first seen at `newerMs`. */

@@ -1,0 +1,58 @@
+[
+  {
+    "source": "src/model.ts",
+    "find": "discard ? row.source_md ?? row.content_md : row.content_md",
+    "author": "Claude Opus 5.5, from the approved discard law (studio#184)",
+    "id": "discard-gives-published-text",
+    "replace": "row.content_md",
+    "intent": "Discard gives back the stripped published text, the reported defect's text half."
+  },
+  {
+    "source": "src/model.ts",
+    "find": "discard ? row.source_md ?? row.content_md : row.content_md",
+    "author": "Claude Opus 5.5, from the approved discard law (studio#184)",
+    "id": "older-restore-gives-source",
+    "replace": "row.source_md ?? row.content_md",
+    "intent": "Restoring an older version gives back its scoped source rather than its published text."
+  },
+  {
+    "source": "src/model.ts",
+    "find": "discard && (sourced || !row.generated_json) ? 0 : 1",
+    "author": "Claude Opus 5.5, from the approved discard law (studio#184)",
+    "id": "discard-dirty-with-generated-text",
+    "replace": "discard && !row.generated_json ? 0 : 1",
+    "intent": "The old rule: a version with generated text stays dirty after discard."
+  },
+  {
+    "source": "src/model.ts",
+    "find": "NULLIF(content_md, ?), COALESCE(tk_provenance_json, '[]') FROM items",
+    "author": "Claude Opus 5.5, from the approved discard law (studio#184)",
+    "id": "publish-records-no-source",
+    "replace": "NULL, COALESCE(tk_provenance_json, '[]') FROM items",
+    "intent": "Publish keeps no source, so discard falls back to the stripped text."
+  },
+  {
+    "source": "src/model.ts",
+    "find": "discard && sourced ? row.source_provenance_json : null",
+    "author": "Claude Opus 5.5, from the approved discard law (studio#184)",
+    "id": "discard-drops-provenance",
+    "replace": "null",
+    "intent": "Discard gives back the scoped text but clears its provenance cache."
+  },
+  {
+    "source": "src/model.ts",
+    "find": "discard && (sourced || !row.generated_json) ? 0 : 1",
+    "author": "Claude Opus 5.5, from the approved discard law's limit (studio#184)",
+    "id": "legacy-generated-discard-clean",
+    "replace": "discard ? 0 : 1",
+    "intent": "A version from before 0063 that disclosed generated text comes back clean, so a republish would drop the disclosure."
+  },
+  {
+    "source": "src/model.ts",
+    "find": "NULLIF(content_md, ?), COALESCE(tk_provenance_json, '[]') FROM items",
+    "author": "Claude Opus 5.5, from the approved discard law (studio#184)",
+    "id": "source-stored-always-null-marker",
+    "replace": "NULLIF(content_md, ?), tk_provenance_json FROM items",
+    "intent": "Without the '[]' marker a scopeless version reads as pre-0063, so a version with generated text would discard dirty."
+  }
+]

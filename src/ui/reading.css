@@ -128,6 +128,11 @@
 .reading-article .article-body p { margin: 0 0 var(--s3); }
 .reading-article .entry-src { white-space: normal; overflow-wrap: anywhere; margin: var(--s3) 0 var(--s2); }
 @media (min-width: 900px) { .reading-article .entry-in { padding: var(--s5) 28px var(--s2); } }
+/* The full view leads with its actions (session 87): byline, then the bar on a rule, then the body. */
+.reading-article .article-byline { padding-bottom: 0; }
+.reading-article > .entry-bar { margin: 0 12px; padding-top: 2px; border-bottom: 1px solid var(--rule); }
+.reading-article .article-main { padding-top: var(--s3); }
+@media (min-width: 900px) { .reading-article > .entry-bar { margin: 0 22px; } .reading-article .article-byline { padding-bottom: 0; } .reading-article .article-main { padding-top: var(--s3); } }
 .tomb { font-size: .78rem; color: var(--alert); margin: 0 0 8px; }
 
 /* Read state (0026): a dot on unread imported entries, a ring on ones

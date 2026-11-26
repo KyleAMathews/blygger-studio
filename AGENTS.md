@@ -56,6 +56,8 @@ The rulings and their build consequences are in `../blygger-spec/docs/v0.3-plan.
 - Secrets: wrangler secrets only; register every key in `Code/.env.keys` per `warnings-keys.md`. Never commit secrets.
 - **The Studio stays inside D1's free tier for a median blyg** (design principle, Venkat, session 87, after studio#180). Today the free tier allows 5M rows read and 100k rows written per UTC day. Over the limit, D1 refuses reads, and the blyg's public pages return 500 until midnight UTC. A median blyg is small: about a dozen items, a few dozen subscriptions, one owner. Its budget must cover a day with the Studio open in a browser and used for hours, plus every cron. Polling, preloads and background work count against that budget, whether or not anyone is watching. A change that adds reads per poll, per page load or per cron tick states its row cost, measured with `wrangler d1 insights --sort-by=reads`. #180 is the failure this rule exists for: 0.65.0 ended the cheap preflight, and Reading's two full scans then ran every 15 s in an idle tab, about 16,000 rows each time. That used up fred's node's daily limit in two hours.
 
+- **Design for CI** (design principle, Venkat, session 87, after studio#178's four review rounds). Design so that verifying is cheap, as design for manufacturability makes building cheap. Give each cross-cutting property, such as visibility, permission, payment or taint, one choke point that every decision goes through, a small closed set of states, and laws written as "For every" sentences with their oracle before the code. Features consume the choke point and never re-implement it: no per-feature filtering. A rule that needs a second enforcement site is a design finding, not a build task. It applies first to the multi-author permissions and the RFC-6/7 builds (blygger-spec `sealed-content-build-plan.md` §0).
+
 ## Identity and versioning
 
 `CLIENT` in `src/types.ts` is the single source of truth for this client's name and
@@ -158,6 +160,8 @@ Fable. Do not harden it in a way that breaks the tools now depending on it witho
 saying so.
 
 ## Status
+
+**0.72.3** (session 87, 2026-11-26): **discard gives back the working copy as published** (#184): `versions.source_md` (only where it differs from the published text) and `source_provenance_json` (always written; NULL marks a pre-0063 version), read by `restoreVersion`; a pre-0063 version that disclosed generated text stays dirty. The nested-scope refusal offers `markImportedAround` (`src/tk.ts`). The full view's actions bar leads (`reading-article`). `SUPERSEDED_WINDOW_MS` is 3 minutes (#183). Contract and SDK unchanged. **Migrations 0062, 0063.**
 
 **0.72.2** (session 87, 2026-11-25): an open Studio no longer spends a free plan's D1 reads (#180). `watchAttention` in `src/ui/query-client.ts` drives Query Core's focus state: polling stops when the tab is hidden, the window is unfocused, or there has been no input for `IDLE_AFTER_MS`. Reading's page and summary use `readingPollingOptions` (`READING_POLL_MS`, 5 min). Unquoted `href`s verify (#181): `src/html-attr.ts` (`tagAttribute`, `tagTokens`) is shared by `alternateJsonHref` in `src/mentions/receive.ts`, `endpointFromHtml` and `src/peek.ts`. Contract and SDK unchanged. No migration.
 

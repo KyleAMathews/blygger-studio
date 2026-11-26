@@ -244,12 +244,12 @@ describe("the reading API", () => {
     const cookie = await login();
     const sub = await subscription("https://raw.example/");
     const [first, second, gone] = [newId(), newId(), newId()];
-    await arrive(sub, { id: first, created: at(20) }, "https://raw.example/");
-    await arrive(sub, { id: second, created: at(10) }, "https://raw.example/");
-    await arrive(sub, { id: gone, created: at(5) }, "https://raw.example/");
+    await arrive(sub, { id: first, created: at(4) }, "https://raw.example/");
+    await arrive(sub, { id: second, created: at(2) }, "https://raw.example/");
+    await arrive(sub, { id: gone, created: at(1) }, "https://raw.example/");
     // `superseded` sends the first to Background; moving one there by hand and withdrawing one change nothing in Raw.
     expect((await apiJson(cookie, "PUT", `/blyg/api/reading/placement`, { source: "imported", sub, id: second, placement: "background" })).status).toBe(200);
-    const doc = JSON.parse(await itemDocBody({ id: gone, kind: "withdrawn", version: 2, created: at(5), updated: at(1), origin: "https://raw.example/" }));
+    const doc = JSON.parse(await itemDocBody({ id: gone, kind: "withdrawn", version: 2, created: at(1), updated: at(0.5), origin: "https://raw.example/" }));
     await applyEffect(db(), sub, gone, transition({ local: { status: "current", version: 1 }, doc }).effect, new Date().toISOString());
     expect((await page(cookie, `limit=50&sub=${sub}`)).items).toEqual([]);
     expect((await page(cookie, `limit=50&sub=${sub}&raw=true`)).items.map((e) => e.key)).toEqual([key(sub, gone), key(sub, second), key(sub, first)]);
