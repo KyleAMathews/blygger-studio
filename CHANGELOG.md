@@ -102,10 +102,9 @@ private access moves to a new scope; client-written provenance removed). **Migra
 - **Extensions.** word-count's counts and spellcheck's proofread read items as the caller may
   see them: a hidden item is unknown, and a public item with tainted changes is counted and
   proofread as published.
-- **Drafts in hoppers (Aneesh on studio#175, V9).** The reader's hopper lens lists the
-  hopper's draft members too, marked *draft*, showing the working copy, with no public link
-  (Venkat: the hopper lens is a hopper view; the reader's other lenses stay draft-free).
-  Publishing a draft that is in a public hopper asks first and names the hopper.
+- **Drafts in public hoppers.** Publishing a draft that is in a public hopper asks first and
+  names the hopper. The reader's hopper lens still lists no drafts; showing them (Aneesh on
+  studio#175) follows in a separate pull request.
 - **Publish confirmations (Kyle's row 5).** A browser oracle,
   `test-browser/publish.oracle.test.ts`, presses every publish button for drafts and private
   items, in both modes, through hopper changes and slow or failed reads. The buttons are

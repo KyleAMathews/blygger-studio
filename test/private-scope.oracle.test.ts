@@ -392,7 +392,8 @@ async function drive(history: History, observe: (checkpoint: string, value: unkn
         const response = list === 'reading own' || list === 'hopper lens' ? await bothLenses(ask, path) : await ask('GET', path);
         observe('list', { list, status: response.status, named: named(response.json, fixture), leaks: history.kind === 'lists' ? leaks(response.text, fixture) : [] });
       }
-      // Law 7 (V9): the hopper lens marks its draft members.
+      // Law 7: the hopper lens is draft-free, like the reader's other lenses (drafts in the
+      // hopper lens are the follow-up to #178; Venkat, session 87).
       const lenses = (await bothLenses(ask, `/reading?hopper=${fixture.hopper}&limit=50`)).json as ({ items?: { own?: { id: string; draft?: boolean } }[] } | null)[];
       const entries = lenses.flatMap(lens => lens?.items ?? []);
       observe('list', { list: 'hopper lens drafts', marked: (['P', 'TD', 'TP', 'X', 'D'] as const).filter(resource => entries.some(entry => entry.own?.id === fixture[resource] && entry.own.draft === true)).sort() });
@@ -728,13 +729,13 @@ const driver = (history: History, observe: (checkpoint: string, value: unknown) 
 const VISIBLE_TO_RESTRICTED: Record<string, Resource[]> = {
   'items': ['D', 'TP', 'X'], 'items status=draft': ['D'], 'items status=private': [],
   'search words with drafts': ['D', 'TP', 'X'], 'search derived with drafts': [], 'search source with drafts': [], 'search words': ['TP', 'X'],
-  'reading own': ['TP', 'X'], 'hopper members': ['D', 'TP', 'X'], 'hopper lens': ['D', 'TP', 'X'],
+  'reading own': ['TP', 'X'], 'hopper members': ['D', 'TP', 'X'], 'hopper lens': ['TP', 'X'],
 };
 // Law 6 and 7 for a caller who sees private: drafts, private and public, all of them.
 const VISIBLE_TO_OWNER: Record<string, Resource[]> = {
   'items': ['D', 'P', 'TD', 'TP', 'X'], 'items status=private': ['P'],
   'search words with drafts': ['D', 'P', 'TD', 'TP', 'X'], 'search derived with drafts': ['TD', 'TP'], 'search source with drafts': ['P'], 'search words': ['TP', 'X'],
-  'reading own': ['P', 'TP', 'X'], 'hopper members': ['D', 'P', 'TD', 'TP', 'X'], 'hopper lens': ['D', 'P', 'TD', 'TP', 'X'],
+  'reading own': ['P', 'TP', 'X'], 'hopper members': ['D', 'P', 'TD', 'TP', 'X'], 'hopper lens': ['P', 'TP', 'X'],
 };
 
 type Expected = Observation[];
@@ -774,11 +775,11 @@ function model(history: History): Expected {
       at('hidden working copy', { operation: 'preview link', status: 200, resolved: true, leaks: [] });
       for (const operation of ['listItemVersions', 'getVersion', 'getItemFreshness', 'getSyndication', 'getImportedItem', 'getImportedHistory']) at('hidden working copy', { operation, status: 'answered', leaks: [] });
       break;
-    case 'lists': for (const [list, visible] of Object.entries(VISIBLE_TO_RESTRICTED)) at('list', { list, status: 200, named: visible, leaks: [] }); at('list', { list: 'hopper lens drafts', marked: ['D'] });
+    case 'lists': for (const [list, visible] of Object.entries(VISIBLE_TO_RESTRICTED)) at('list', { list, status: 200, named: visible, leaks: [] }); at('list', { list: 'hopper lens drafts', marked: [] });
       at('list', { list: 'search marks', private: [], draft: ['D'], once: true }); at('list', { list: 'hopper counts', total: 3 });
       at('list', { list: 'cross-access cursors refused', replays: { items: true, 'hopper members': true, search: true } });
       at('list', { list: 'summary', counts: { all: 3, drafts: 1, public: 2 } }); at('list', { list: 'capabilities', private: false }); at('list', { list: 'browse', leaks: [] }); at('list', { list: 'reading counts', own: 2, private: 0 }); break;
-    case 'owner lists': for (const [list, visible] of Object.entries(VISIBLE_TO_OWNER)) at('list', { list, status: 200, named: visible, leaks: [] }); at('list', { list: 'hopper lens drafts', marked: ['D', 'TD'] });
+    case 'owner lists': for (const [list, visible] of Object.entries(VISIBLE_TO_OWNER)) at('list', { list, status: 200, named: visible, leaks: [] }); at('list', { list: 'hopper lens drafts', marked: [] });
       at('list', { list: 'search marks', private: ['P'], draft: ['D', 'TD', 'TP'], once: true }); at('list', { list: 'hopper counts', total: 5 });
       at('list', { list: 'owner reference reasons', P: ['item is private'], TD: ['item is a draft, not published'], D: ['item is a draft, not published'], TP: [] });
       for (const kind of ['fragment', 'thread']) at('list', { list: `owner ${kind} preview of the notebook`, source: { ok: true, from: 'you' }, blockReasons: ['item is private'] });

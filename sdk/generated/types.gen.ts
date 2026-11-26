@@ -521,10 +521,6 @@ export type ReadingEntry = {
          * Published privately: this is the latest private version, which no public route serves.
          */
         private?: true;
-        /**
-         * A draft in a hopper, listed only under the hopper lens: this is its working copy.
-         */
-        draft?: true;
     };
     imported?: {
         subscriptionId: string;

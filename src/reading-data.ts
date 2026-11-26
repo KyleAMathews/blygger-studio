@@ -1,7 +1,4 @@
 import { readSyndication } from "./syndication.ts";
-import { withoutComments } from "./comments.ts";
-import { renderMarkdown } from "./markdown.ts";
-import { parseScopes, stripToOutput } from "./tk.ts";
 import { hiddenItemSql } from "./private-access.ts";
 import { authoredItemKindSql, authoredVersionKind } from './version-state.ts';
 import { cursorPage, type CursorQuery } from "./cursor-page.ts";
@@ -48,13 +45,12 @@ function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolea
   const enabled = JSON.stringify(rules);
   const binds = [...(hopper ? [hopper] : []), enabled, ...(kind ? [kind] : []), ...(hopper ? [hopper] : []), enabled, ...(kind ? [kind] : []), ...(mentioning ? [JSON.stringify(mentioning)] : [])];
   const updated = dateOrderSql('ii.updated'), observed = dateOrderSql('ii.observed_at');
-  // A hopper lists the owner's own members too, private ones included (Aneesh, studio#175), and
-  // drafts, marked: the hopper lens is a hopper view (Venkat, studio#178 V9). Other lenses stay draft-free.
+  // A hopper lists the owner's own members too, private ones included (Aneesh, studio#175).
   const sql = `SELECT 'own' AS source, i.id, '' AS sub, ${hopper ? 'oh.added_at' : pace ? paceAtSql('ro') : dateOrderSql('i.updated')} AS at
     FROM items i ${hopper ? "JOIN hopper_items oh ON oh.subscription_id = '~own' AND oh.remote_id = i.id AND oh.hopper_id = ?" : ''}
     LEFT JOIN versions p ON i.kind = 'withdrawn' AND p.item_id = i.id AND p.version = i.version - 1
     ${pace ? "LEFT JOIN reading_order ro ON ro.source = 'own' AND ro.sub = '' AND ro.id = i.id" : ''}
-    WHERE i.status IN ('public','withdrawn','private'${hopper ? ",'draft'" : ''}) AND (${ownBackgroundSql()}) = ${background ? 1 : 0}${mentioning ? ' AND 0' : ''}${kind ? ` AND ${authoredItemKindSql('p')} = ?` : ''}
+    WHERE i.status IN ('public','withdrawn','private') AND (${ownBackgroundSql()}) = ${background ? 1 : 0}${mentioning ? ' AND 0' : ''}${kind ? ` AND ${authoredItemKindSql('p')} = ?` : ''}
     UNION ALL SELECT 'imported', ii.remote_id, ii.subscription_id,
       ${hopper ? 'hi.added_at' : pace ? paceAtSql('ro') : `CASE WHEN ${updated} < ${observed} THEN ${updated} ELSE ${observed} END`}
     FROM imported_items ii ${hopper ? 'JOIN hopper_items hi ON hi.subscription_id = ii.subscription_id AND hi.remote_id = ii.remote_id AND hi.hopper_id = ?' : ''}
@@ -131,11 +127,6 @@ export async function readingData(db: D1Database, query: CursorQuery, source: st
     project: (selectedRows: Identity[]) => readingEntries(db, selectedRows, raw ? [] : rules),
   });
 }
-/** A draft's working copy as the reader shows it: no comments to self, [TK] scopes as their output. */
-function draftHtml(md: string): string {
-  const text = withoutComments(md);
-  return renderMarkdown(stripToOutput(text, parseScopes(text).scopes).text);
-}
 /** Reading entries for the given identities, in their order; one that is no longer held is left out. */
 export async function readingEntries(db: D1Database, selectedRows: Identity[], rules: readonly BackgroundRule[]) {
   const ownIds = selectedRows.filter((r) => r.source === "own").map((r) => r.id);
@@ -143,11 +134,11 @@ export async function readingEntries(db: D1Database, selectedRows: Identity[], r
   // Public pages hold at most50 identities. JSON pairs also keep internal calls within D1 bind limits.
   const [ownBodies, importedBodies, placementRows] = await Promise.all([
     // A private item has no public version; its latest private version stands in (Venkat, 2026-11-22).
-    ownIds.length ? db.prepare(`SELECT i.id, i.kind, i.status, i.updated, i.bg_reasons, i.bg_detail, COALESCE(v.content_html, kept.content_html) AS content_html, CASE WHEN i.status = 'draft' THEN i.content_md END AS draft_md, previous.transclusions AS previous_transclusions, previous.kind AS previous_kind
+    ownIds.length ? db.prepare(`SELECT i.id, i.kind, i.status, i.updated, i.bg_reasons, i.bg_detail, COALESCE(v.content_html, kept.content_html) AS content_html, previous.transclusions AS previous_transclusions, previous.kind AS previous_kind
       FROM items i LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version
       LEFT JOIN private_versions kept ON i.status = 'private' AND kept.item_id = i.id AND kept.version = (SELECT MAX(version) FROM private_versions WHERE item_id = i.id)
       LEFT JOIN versions previous ON previous.item_id = i.id AND previous.version = i.version - 1
-      WHERE i.id IN (${ownIds.map(() => "?").join(",")})`).bind(...ownIds).all<{ id: string; kind: string; status: string; updated: string; bg_reasons: string | null; bg_detail: string | null; content_html: string | null; draft_md: string | null; previous_transclusions: string | null; previous_kind: 'fragment' | 'thread' | 'withdrawn' | null }>() : { results: [] },
+      WHERE i.id IN (${ownIds.map(() => "?").join(",")})`).bind(...ownIds).all<{ id: string; kind: string; status: string; updated: string; bg_reasons: string | null; bg_detail: string | null; content_html: string | null; previous_transclusions: string | null; previous_kind: 'fragment' | 'thread' | 'withdrawn' | null }>() : { results: [] },
     // read_state is the owner's own (migration 0026); null means unread.
     importedIds.length ? db.prepare(`SELECT i.*, rs.read_version, s.title AS subscription_title, s.origin, s.background AS sub_background FROM imported_items i JOIN subscriptions s ON s.id = i.subscription_id
       LEFT JOIN read_state rs ON rs.subscription_id = i.subscription_id AND rs.remote_id = i.remote_id
@@ -167,9 +158,7 @@ export async function readingEntries(db: D1Database, selectedRows: Identity[], r
       if (!item) return null;
       const withdrawn = item.kind === "withdrawn";
       const kind = withdrawn ? authoredVersionKind({ kind: item.previous_kind, transclusions: item.previous_transclusions }, Boolean(item.previous_transclusions)) : item.kind === 'thread' ? 'thread' : 'fragment';
-      // A draft (only the hopper lens lists one) shows its working copy as the editor previews it.
-      const html = item.draft_md != null ? draftHtml(item.draft_md) : item.content_html ?? "";
-      const input: OwnEntryInput = { id: item.id, kind, withdrawn, updated: item.updated, contentHtml: withdrawn ? "" : await sanitizeHtml(html), ...(item.status === 'private' ? { private: true as const } : {}), ...(item.status === 'draft' ? { draft: true as const } : {}) };
+      const input: OwnEntryInput = { id: item.id, kind, withdrawn, updated: item.updated, contentHtml: withdrawn ? "" : await sanitizeHtml(item.content_html ?? ""), ...(item.status === 'private' ? { private: true as const } : {}) };
       const background = entryBackground({ withdrawn, reasons: item.bg_reasons, detail: item.bg_detail, placement: placementOf('own', '', item.id), blyg: false }, rules);
       return { ...buildReadingFeed([input], [])[0], key: `own:${item.id}`, background };
     }

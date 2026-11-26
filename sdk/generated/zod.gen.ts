@@ -371,8 +371,7 @@ export const zReadingEntry = z.object({
         withdrawn: z.boolean(),
         updated: z.string(),
         contentHtml: z.string(),
-        private: z.literal(true).optional(),
-        draft: z.literal(true).optional()
+        private: z.literal(true).optional()
     }).optional(),
     imported: z.object({
         subscriptionId: z.string(),
