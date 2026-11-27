@@ -84,8 +84,9 @@ describe("interaction log", () => {
 
 describe("reading lens (kind filter on /api/reading)", () => {
   it("narrows every source and its counts to one kind", async () => {
-  // A fragment quoted by a thread published just after it is a burst, and a quote-only thread is wordless (session 72): both would sit in Background. This test is about something else.
-  await putSettings(env.DB, { bg_rules: JSON.stringify({ burst: false, wordless: false }) });
+  // A fragment quoted by a thread published just after it is a burst, and a quote-only thread is wordless (session 72): both would sit in Background.
+  // So would the fragment as superseded, whenever the two publishes fall in different clock ticks (an intermittent failure, session 89). This test is about something else.
+  await putSettings(env.DB, { bg_rules: JSON.stringify({ burst: false, wordless: false, superseded: false }) });
     const cookie = await login();
     const frag = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "lens fragment" })).json.id as string;
     await apiJson(cookie, "POST", `/blyg/api/items/${frag}/publish`, {});

@@ -324,11 +324,12 @@ function Body({ html, url, l0, onMore }: { html: string; url?: string; l0: boole
     </>
   );
 }
+// A draft (only the hopper lens lists one) has no version yet: a link, quote or fork of it fails at publish.
 function canLink(entry: Reading) {
   return (
     !entry.l0 &&
     (entry.own
-      ? !entry.withdrawn
+      ? !entry.withdrawn && !entry.own.draft
       : !entry.withdrawn || entry.imported?.pinnedVersionRetained != null)
   );
 }
@@ -339,9 +340,9 @@ function canQuote(entry: Reading) {
 function entryParts(entry: Reading) {
   const imported = entry.imported;
   const id = entry.own?.id || imported!.remoteId;
-  // A private item has no public page (decision #94), so no link to one.
+  // A private item has no public page (decision #94), and a draft none yet, so no link to one.
   const url = entry.own
-    ? !entry.withdrawn && !entry.own.private
+    ? !entry.withdrawn && !entry.own.private && !entry.own.draft
       ? `${location.origin}${mount}/${entry.kind === 'thread' ? 't' : 'f'}/${id}/`
       : undefined
     : imported?.sourceUrl || undefined;
@@ -611,7 +612,8 @@ function useEntryActions({
           label: 'add author to address book',
           onSelect: () => void authorSeed(imported).then(addAuthorContact),
         },
-        (imported || entry.own) && {
+        // Only a published item can be placed (setReadingPlacement), so not a draft.
+        (imported || (entry.own && !entry.own.draft)) && {
           key: 'placement',
           icon: inBackground ? '↑' : '↓',
           label: inBackground ? 'move to Foreground' : 'move to Background',
@@ -723,6 +725,7 @@ function Byline({ entry, a, onOpen, children }: { entry: Reading; a: EntryAction
       {children}
       <span className="badge">{entry.kind}</span>
       {entry.own?.private ? <span className="badge badge-line" title="only you can see this">private</span> : null}
+      {entry.own?.draft ? <span className="badge badge-line" title="not published yet">draft</span> : null}
       {entry.l0 ? <span className="badge badge-line">legacy rss</span> : null}
       {why ? <span className="badge badge-line badge-why" title={inBackground ? 'why this is in Background' : 'kept in view: the note claims a smaller change than was made'}>{why}</span> : null}
       <SourceName entry={entry} lens={lensSearch} />
@@ -820,7 +823,7 @@ function EntryBar({ entry, a }: { entry: Reading; a: EntryActions }) {
       ) : null}
       {imported || entry.own ? (
         <>
-          {entry.own?.private ? null : <Button
+          {entry.own?.private || entry.own?.draft ? null : <Button
             className="act"
             data-action="stub"
             data-sub={imported?.subscriptionId ?? OWN_SUB}

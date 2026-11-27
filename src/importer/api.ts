@@ -32,6 +32,7 @@ import {
 } from "./store.ts";
 import { getItem } from "../model.ts";
 import { setPlacement, type Placement } from "../background.ts";
+import { seesPrivate } from "../private-access.ts";
 
 
 function titleFromUrl(url: string): string {
@@ -274,12 +275,14 @@ const markReadOperation = async (context: OperationContext, input: OperationInpu
 
 // The owner's choice of Background or Foreground for one reading entry
 // (src/background.ts). Only an entry the reader can show may be placed: an own
-// published or withdrawn item, or an item held under that subscription.
+// published, withdrawn or (to a caller who sees private) private item, or an
+// item held under that subscription. A private item the caller cannot see is
+// unknown (law 1).
 const setReadingPlacementOperation = async (context: OperationContext, input: OperationInput) => {
   const { source, sub, id, placement } = input.body as { source: "own" | "imported"; sub?: string; id: string; placement: Placement | null };
   const db = context.env.DB;
   const held = source === "own"
-    ? await db.prepare("SELECT 1 FROM items WHERE id = ? AND status IN ('public', 'withdrawn')").bind(id).first()
+    ? await db.prepare(`SELECT 1 FROM items WHERE id = ? AND status IN ('public', 'withdrawn'${seesPrivate(context.access) ? ", 'private'" : ''})`).bind(id).first()
     : sub ? await db.prepare("SELECT 1 FROM imported_items WHERE subscription_id = ? AND remote_id = ?").bind(sub, id).first() : null;
   if (!held) return failure('not-found', { error: source === "imported" && !sub ? "an imported entry needs its sub" : "no reading entry with that id" });
   const key = source === "own" ? "" : sub!;

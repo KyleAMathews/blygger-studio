@@ -20,6 +20,21 @@ not have its own repo until session 26.
 
 ## Unreleased
 
+**The hopper lens lists drafts** (Aneesh, studio#175; Venkat, studio#178 V9). A hopper is a
+hopper view, so the reader's hopper lens now lists the owner's draft members, marked *draft*,
+with their working copy as the editor previews it: comments to self left out, an ungenerated
+`[TK]` scope shown as a placeholder. A draft has no page or version yet, so it has no link,
+no stub, *copy link*, fork or Background action. The reader's other lenses, and the Agentic edition, stay draft-free: drafts take a
+path of their own (`hopperEntries` in `src/reading-data.ts`), so the first build's two faults,
+a 500 on an ungenerated scope and drafts reaching the Agentic lens, cannot come back through
+the shared entry path. A token without `owner:private` still sees no tainted draft there.
+**Fix: a private item can be moved to Background.** The reader shows the owner their private
+items, but *Background* and *Foreground* on one answered 404: placement accepted only published
+and withdrawn items. A caller who sees private may now place one; to a token without
+`owner:private` it is still an unknown id.
+
+Private contract 7.1.0 (`draft` on an own reading entry). **Migrations:** none.
+
 ## 0.73.0 — Private items need their own scope; [TK] can draw on the notebook; private taint
 
 **Private items, the rest of Phase 0** (blygger-spec `docs/sealed-content-build-plan.md` §1,
