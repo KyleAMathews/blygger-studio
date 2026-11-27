@@ -20,6 +20,109 @@ not have its own repo until session 26.
 
 ## Unreleased
 
+**Private items, the rest of Phase 0** (blygger-spec `docs/sealed-content-build-plan.md` §1,
+0c–0e) **and the hopper fix** (studio#175). Private contract **7.0.0** (breaking for tokens:
+private access moves to a new scope; client-written provenance removed). **Migrations:** `0064_search_private.sql`, `0065_private_taint.sql`.
+
+- **`owner:private`, a new scope.** Private items and their private versions need it;
+  `owner:read` does not imply it. **A token minted before this change loses private access
+  until it is re-granted with the scope**; the owner's own session sees everything, as
+  before. Without the scope a private item answers 404 on every `/items/{id}` route (the
+  same answer as an unknown id), its media answers 404, and item lists, `/items/summary`,
+  search, the reader's `own` and `private` sources, hopper memberships and hopper counts
+  leave it out. Private publishing needs the scope too, whether asked for or the blyg's
+  default.
+- **[TK] on private sources (0c).** An own private item (its latest private version) can be
+  a generation source for a caller that may see it. Output drawn from one is tainted (below):
+  a public publish is refused while the mark is set; a private publish goes through.
+- **Owner search (0d).** Compose search (`include=drafts`) finds private items' working
+  copies, marked `private: true`. Migration 0064 recreates `search_source` to cover them
+  and backfills. The `[[` picker does not offer private items yet.
+- **Hoppers (studio#175).** The owner's hopper view lists the owner's own members, private
+  ones included and marked. `getItem` returns `hoppers: [{id, name, public}]`. Raising a
+  private item to public confirms in both modes and names the public hoppers it will join.
+  Public hopper pages and feeds still show public members only.
+- **Private taint.** [TK] output drawn from a private item sets a mark on the item that only
+  the server writes (`items.private_taint`, migration 0065, which carries existing marks
+  over). Hand-editing the [TK] markers away, raising or discarding the source, or
+  regenerating from tainted input does not clear it; discarding the changes does. While it
+  is set a public publish is refused with one answer, whatever became of the source. To a
+  token without `owner:private`, a tainted draft is hidden like a private item, and a public
+  item with tainted pending changes stays visible as its latest public version, with the
+  working copy hidden (Venkat, 2026-11-24).
+- **Provenance is the server's (breaking).** `provenance` is no longer accepted by item
+  create or edit, over REST or MCP: a client could clear the private mark with it, or use a
+  source list to probe whether an id was private. Mark text generated elsewhere with
+  `[TK]impyrt=…[/TK]`.
+- **Hidden is not gone.** `GET /capabilities` lists the access's granted `scopes`, and
+  `docs/client-access.md` says a client must not take an item's absence for deletion
+  unless its token holds `owner:private` (Aneesh, Burrow).
+- **Review fixes (Kyle's oracle review of #178).** A delegated `getItem` batch is back to
+  seven D1 calls, with visibility decided in the statement that reads the item. Every path
+  that raises a private item asks first, names the public hoppers it is in now, and sends
+  `visibility: "public"` explicitly. Compose search marks private hits. The Agentic feed,
+  the shelf (hidden entries kept through a replace) and attachments respect the scope. A
+  restricted hopper cursor expires when a member turns private. A hidden item answers
+  exactly as an unknown one, in errors and diagnostics too. MCP challenges for
+  `owner:private` before a publish the default makes private, for an item the token may see;
+  a hidden one gets the unknown item's answer. The [TK] preview shows
+  private sources to a caller that may see them, and the provider reads a private source
+  as the reader shows it, without comments to self.
+- **After the independent review (session 85).** The laws are now "For every" statements
+  (blygger-spec plan §1 0f) with their own oracle, `test/private-scope.oracle.test.ts`,
+  written before these fixes. A hidden item now answers exactly as an unknown id on every
+  item operation (signals and read marks too), because the runner runs the handler on an
+  id no item has rather than writing its own 404. Preview and publish say "unknown item"
+  for a hidden item in the HTML as well as the diagnostics. A restricted hopper cursor
+  expires only when a member's visibility changes, not on unrelated edits.
+- **A hidden working copy stays hidden through writes (independent review, session 86).** A
+  token without `owner:private` now acts on a public item with tainted pending changes as it
+  sees it, its latest public version (Venkat):
+  - an edit, generate, change-note draft or classification never returns or sends the hidden
+    text;
+  - a text edit replaces the hidden copy, and its mark and provenance with it;
+  - a public publish discards the hidden copy first and publishes the public text, instead of
+    answering that the item holds text from a private item;
+  - edits that leave the text alone keep the owner's hidden copy.
+
+  The browsing log no longer shows such a token steps that name a hidden item.
+- **Agentic editions (Kyle's row 3).** An edition's composed draft thread is hidden like a
+  tainted draft while it names a hidden own item (Venkat, session 85; a stopgap until
+  agentic-feed-plan §3.1). The mark follows each composition, and an item that turns hidden
+  later marks the drafts that name it (migration 0065's trigger). Only the Studio's own
+  unedited draft is rewritten.
+- **The Agentic feed needs `owner:private` (breaking for tokens).** An edition may name any
+  own item, so `GET /agentic` and `GET /agentic/{feed}` need `owner:private` (as
+  `listPrivateVersions` does) and `PUT /agentic/{feed}` needs `owner:manage` and
+  `owner:private`. A token without the scope gets 403 and no longer sees the Agentic tools
+  over MCP, instead of a filtered edition (Venkat, session 88). The owner's session is
+  unchanged.
+- **Avatar.** The avatar must name an existing medium the caller may see. A token without
+  `owner:private` naming a private item's medium gets the unknown medium's answer, and a
+  nonexistent id is now refused (400) for every caller, the owner included.
+- **Extensions.** word-count's counts and spellcheck's proofread read items as the caller may
+  see them: a hidden item is unknown, and a public item with tainted changes is counted and
+  proofread as published.
+- **Drafts in public hoppers.** Publishing a draft that is in a public hopper asks first and
+  names the hopper. The reader's hopper lens still lists no drafts; showing them (Aneesh on
+  studio#175) follows in a separate pull request.
+- **Publish confirmations (Kyle's row 5).** A browser oracle,
+  `test-browser/publish.oracle.test.ts`, presses every publish button for drafts and private
+  items, in both modes, through hopper changes and slow or failed reads. The buttons are
+  Compose's row, Quick Edit and the editor. It found five faults, all fixed:
+  - A draft's publish sends its visibility explicitly. A default changed while the dialog is
+    open can no longer turn it private.
+  - In Notebook mode, a draft's row and Quick Edit no longer name public hoppers before adding
+    a private version.
+  - The row's button says *add version*.
+  - The editor asks inside the publish action, so the button stays disabled while it reads the
+    hoppers. A second press no longer opens a second dialog or publishes twice.
+  - A failed read shows an error and publishes nothing (Venkat: refuse with an error).
+- **Shelf ceiling (Venkat, session 85; contract).** `PUT /shelf` takes up to 1,000 entries (it was 50), and the stored shelf holds up to 1,000, a
+  technical ceiling rather than a product cap (it was 50). A replace drops repeats first,
+  keeping each entry's first position. For a token without `owner:private`, hidden entries
+  keep their places, and anything past the ceiling comes off the end of that token's own list.
+
 ## 0.72.3 — Discard gives back what you published from; the full view leads with its actions; `superseded` at 3 minutes
 
 **Discard changes gives back what you published from** (studio#184, Venkat). Publication strips each `[TK]` scope to its bare output, and discard copied that stripped text back. It lost the scopes and their instructions, and for any version with generated text it left "unpublished changes" showing for good. Each version now keeps the working copy it was published from, with its provenance (**migration** `0063_version_source.sql`), and discard restores both, clean. The source is stored only where it differs from the published text (scopes, comments to self), so an ordinary version costs nothing extra. A version published before 0063 gives back its published text: clean, unless that version disclosed generated text, because republishing the stripped text would drop the disclosure. Marking a selection that holds a TK scope as generated now asks, and offers to mark the text around it instead. Scopes don't nest, and whole-item marking is a separate construct still to be designed.

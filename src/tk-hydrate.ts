@@ -104,10 +104,10 @@ export function pageText(html: string): { title: string; siteName: string | null
 }
 
 /** A URL that names an item this blyg holds: ours on our host, or one imported from that host. */
-async function heldItem(db: D1Database, url: URL, ourOrigin: string): Promise<HydratedItem | null> {
+async function heldItem(db: D1Database, url: URL, ourOrigin: string, restricted: boolean): Promise<HydratedItem | null> {
   const ids = url.pathname.match(new RegExp(ID, "g")) ?? [];
   for (const id of ids) {
-    const resolved = await resolveTarget(db, id);
+    const resolved = await resolveTarget(db, id, undefined, restricted);
     if (!resolved.ok) continue;
     const home = resolved.target.origin ?? ourOrigin;
     if (home && new URL(home).host === url.host) return { id, target: resolved.target };
@@ -150,7 +150,7 @@ async function fetchPage(fetchImpl: FetchLike, url: string, at: string): Promise
 export async function hydrate(
   env: Env,
   texts: string[],
-  opts: { exclude: Set<string>; ourOrigin: string; at: string; fetchImpl?: FetchLike },
+  opts: { exclude: Set<string>; ourOrigin: string; at: string; fetchImpl?: FetchLike; /** A hidden item is unknown to this caller (private-access.ts). */ restricted?: boolean },
 ): Promise<Hydration> {
   const fetchImpl = opts.fetchImpl ?? platformFetchFor(env);
   const all = texts.join("\n\n");
@@ -166,7 +166,7 @@ export async function hydrate(
       failed.push({ link: `[[${id}]]`, reason: `not read: over the limit of ${HYDRATE_MAX_ITEMS} linked items` });
       continue;
     }
-    const resolved = await resolveTarget(env.DB, id);
+    const resolved = await resolveTarget(env.DB, id, undefined, opts.restricted === true);
     if (resolved.ok) items.push({ id, target: resolved.target });
     else failed.push({ link: `[[${id}]]`, reason: resolved.reason });
   }
@@ -174,7 +174,7 @@ export async function hydrate(
   const urls = extractUrls(all);
   const toFetch: string[] = [];
   for (const url of urls) {
-    const held = await heldItem(env.DB, new URL(url), opts.ourOrigin);
+    const held = await heldItem(env.DB, new URL(url), opts.ourOrigin, opts.restricted === true);
     if (held) {
       if (!seenIds.has(held.id)) {
         seenIds.add(held.id);

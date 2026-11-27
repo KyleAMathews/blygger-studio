@@ -30,7 +30,7 @@ export const server: ServerExtension = {
       const load = async (ids: string[]) => {
         const missing = ids.filter((id) => !items.has(id));
         if (missing.length) {
-          const got = await loadItems(context.env.DB, ourOrigin, missing);
+          const got = await loadItems(context.env.DB, ourOrigin, missing, context.access);
           for (const id of missing) items.set(id, got.get(id) ?? null);
         }
       };

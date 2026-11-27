@@ -807,6 +807,35 @@ type Classified = {
 type PublishCommand = { type: 'publish'; note: string; generated: boolean; category?: ChangeCategory | null; visibility?: 'public' | 'private' };
 
 /**
+ * Raising a private item to public asks first and names the public hoppers it
+ * will appear in (Venkat on studio#175). Every path that can raise calls this
+ * (studio#178 R02), and reads the memberships when it asks, so one changed a
+ * moment ago is named (R03). The caller then sends `visibility: 'public'`
+ * explicitly, so a default changed while the dialog was open cannot turn the
+ * answer into a private version (R04).
+ */
+async function confirmRaise(id: string): Promise<boolean> {
+  const { hoppers } = await unwrap(BlyggerApi.getItem({ client, path: { id } }));
+  const names = hoppers.filter((h) => h.public).map((h) => h.name);
+  return confirm({
+    title: `Make this item public? Anyone can read it once published, and it can never be private again.${names.length ? ` ${joinsHoppers(names)}` : ''}`,
+    ok: 'make public',
+  });
+}
+
+/**
+ * Publishing a draft that sits in a public hopper names those hoppers first
+ * (sealed-content-build-plan §1 0f law 7; Aneesh on studio#175, studio#178 V9).
+ * A draft in no public hopper publishes as before, without a dialog.
+ */
+async function confirmDraftHoppers(id: string): Promise<boolean> {
+  const { hoppers } = await unwrap(BlyggerApi.getItem({ client, path: { id } }));
+  const names = hoppers.filter((h) => h.public).map((h) => h.name);
+  return names.length ? confirm({ title: `Publish this item? ${joinsHoppers(names)}`, ok: 'publish' }) : true;
+}
+const joinsHoppers = (names: string[]) => `It will also appear in the public ${names.length === 1 ? 'hopper' : 'hoppers'} ${names.join(', ')}.`;
+
+/**
  * Publish, and when the thread's `![[+ …]]` spans would make new items, say
  * how many and ask first (tangling-plan §2.2): the server refuses without
  * `tangle: true`, so the count is shown to every caller. Resolves undefined if
@@ -1370,10 +1399,17 @@ function ItemRow({
     setText(item.contentMd);
   };
   const kind: Kind = item.kind === 'thread' ? 'thread' : 'fragment';
-  const publishRow = async () => {
+  // `raise` is a private item going public; any other publish of a private item adds a private version.
+  // A draft follows the blyg's default, so in Notebook mode it asks nothing: no hopper sees a private
+  // version. The answer is sent explicitly, so a default changed mid-dialog cannot turn it (R04).
+  const publishRow = async (raise = item.status === 'private') => {
+    const going: 'public' | 'private' = item.status === 'private' ? (raise ? 'public' : 'private') : settings?.defaultVisibility === 'private' ? 'private' : 'public';
+    if (raise && !(await confirmRaise(item.id))) return;
+    if (item.status === 'draft' && going === 'public' && !(await confirmDraftHoppers(item.id))) return;
     const choice = await confirmNote.request(item, '');
     if (!choice) return;
-    const done = await publishTangle(write, { type: 'publish', note: choice.note, generated: choice.generated, category: choice.category }, () => item.id);
+    const visibility = item.version === 0 ? { visibility: going } : {};
+    const done = await publishTangle(write, { type: 'publish', note: choice.note, generated: choice.generated, category: choice.category, ...visibility }, () => item.id);
     if (!done) return;
     if (done.source !== undefined) {
       draft.current!.accept(done.source);
@@ -1524,9 +1560,9 @@ function ItemRow({
                 <Button
                   className="btn btn-primary btn-mini"
                   disabled={action.busy}
-                  onClick={() => mutate(publishRow)}
+                  onClick={() => mutate(() => publishRow(item.status === 'private' && settings?.defaultVisibility !== 'private'))}
                 >
-                  {settings?.defaultVisibility === 'private' && item.version === 0 ? 'add version' : 'publish'}
+                  {settings?.defaultVisibility === 'private' && item.version === 0 ? 'add version' : item.status === 'private' ? 'publish publicly' : 'publish'}
                 </Button>
               </div>
               <Help className="hint" />
@@ -1600,9 +1636,9 @@ function ItemRow({
               <Button
                 className="btn btn-primary btn-mini"
                 disabled={action.busy}
-                onClick={() => mutate(publishRow)}
+                onClick={() => mutate(() => publishRow())}
               >
-                {item.status === 'withdrawn' ? 'republish' : item.status === 'private' ? 'publish publicly' : 'publish'}
+                {item.status === 'withdrawn' ? 'republish' : item.status === 'private' ? 'publish publicly' : item.status === 'draft' && settings?.defaultVisibility === 'private' ? 'add version' : 'publish'}
               </Button>
             ) : null}
             {item.version === 0 ? (
@@ -2353,8 +2389,11 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
       return;
     await write({ type: 'pin', version });
   };
-  const publish = (visibility?: 'public') =>
+  // `ask` runs inside the operation, so the button stays disabled while it reads the item's hoppers
+  // and a failed read shows as an error (Venkat, session 86: refuse with an error).
+  const publish = (visibility?: 'public', ask?: () => Promise<boolean>) =>
     operation(async () => {
+      if (ask && !(await ask())) return;
       const choice = await confirmNote.request(item, note, drafted, historyNote);
       if (!choice) return;
       const done = await publishTangle(write, { type: 'publish', note: choice.note, generated: choice.generated, category: choice.category, ...(visibility ? { visibility } : {}) }, () => item.id);
@@ -2382,8 +2421,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
   const [visibility, setVisibility] = useState<'public' | 'private'>('private');
   const addVersion = async () => {
     if (visibility === 'private') return keepPrivately();
-    const ok = await confirm({ title: 'Make this item public? Anyone can read it once published, and it can never be private again.', ok: 'make public' });
-    if (ok) publish('public');
+    publish('public', () => confirmRaise(item.id));
   };
   const focus = useFocusView(input, held.box, pane, setPane);
   const bars = useBars({
@@ -3130,7 +3168,8 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             id="publish-btn"
             variant="primary"
             disabled={action.busy}
-            onClick={() => publish()}
+            onClick={() => item.status === 'private' ? publish('public', () => confirmRaise(item.id))
+              : item.status === 'draft' ? publish('public', () => confirmDraftHoppers(item.id)) : publish()}
           >
             {item.status === 'withdrawn' ? 'republish' : item.status === 'private' ? 'publish publicly' : 'publish'}
           </DesignButton>

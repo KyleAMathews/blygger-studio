@@ -6,6 +6,8 @@ import type { OperationDefinition } from './operations.ts';
 import { requiredScopes } from './operation-policy.ts';
 import { isExtensionEnabled } from './extensions/server.ts';
 import { admitApi, withWorkPrincipal } from './security-budgets.ts';
+import { hiddenOwnIds, seesPrivate } from './private-access.ts';
+import { OWN_SUBSCRIPTION } from './own-subscription.ts';
 import { failure, OperationError, type OperationContext, type OperationInput, type OperationResult } from './operation-types.ts';
 
 function parse(schema: unknown, value: unknown): unknown {
@@ -43,7 +45,28 @@ async function executeOperation(definition: OperationDefinition, input: Operatio
     }
     throw error;
   }
+  if (seesPrivate(context.access)) return handler(context, input);
+  // A hidden item is an id that does not exist, to an access that may not see it (law 1,
+  // sealed-content-build-plan §1 0f). The handler runs on an id no item can have, so every
+  // answer is an unknown id's by construction and no write can reach the item. No handler
+  // decides this for itself. (No unknown-id answer echoes the id; private-scope's walk
+  // covers every item-addressed operation, so one that started to would fail it.)
+  const keys = ownItemKeys(route.path, input.path);
+  const hidden = keys.length && route.policy.itemVisibility !== 'in-statement'
+    ? await hiddenOwnIds(context.env.DB, context.access, keys.map(key => input.path[key])) : new Set<string>();
+  const unseen = keys.filter(key => hidden.has(input.path[key]));
+  if (unseen.length) input = { ...input, path: { ...input.path, ...Object.fromEntries(unseen.map(key => [key, UNSEEN])) } };
   return handler(context, input);
+}
+
+/** An item id no item can have: newId draws 128 random bits, and this is the all-zero draw. */
+const UNSEEN = '00000000000000000000000000';
+/** The path parameters that name one of the owner's own items. */
+function ownItemKeys(path: string, params: Record<string, string>): string[] {
+  if (path.startsWith('/items/{id}')) return ['id'];
+  if (params.sub !== OWN_SUBSCRIPTION) return [];
+  // Imports never hold own items, so `/imports/~own/{id}` already answers as unknown.
+  return path.includes('{sub}/{remoteId}') ? ['remoteId'] : [];
 }
 
 export async function runOperation(definition: OperationDefinition, input: OperationInput, context: OperationContext): Promise<OperationResult> {

@@ -1,3 +1,5 @@
+import { OWNER_SCOPES } from "./auth-scopes.ts";
+import { hiddenItemSql, hiddenWorkingCopySql, readableWorkingCopySql, seesPrivate, visibleItemsSql } from "./private-access.ts";
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { itemResource, versionResource, mediaResource, subscriptionResource, hopperResource, importedResource, mentionResource, membershipResource, signalResource, outboundMentionResource, interactionResource, thumbResource, browseResource } from "./contract/resources.ts";
 import { settingsResource } from "./settings-resource.ts";
@@ -47,21 +49,26 @@ import { canIndexSearchWord, searchWords } from './search-terms.ts';
 
 const getCapabilitiesOperation = async (context: OperationContext, input: OperationInput) => {
   return success({ contractVersion: API_CONTRACT_VERSION, endpoints: deploymentUrls(context.url, context.env),
+    // So a client can tell hidden from gone (studio#178, Aneesh): without owner:private, private items are absent.
+    scopes: context.access ? [...context.access.scope] : [...OWNER_SCOPES],
     ...await operationAvailability(context.env.DB, context.access, context.extensions) });
 };
 // Pin history retains the legacy nullness rule for unresolved version kinds.
 const pinKindSql = `CASE WHEN kind IN ('fragment','thread') THEN kind WHEN transclusions IS NULL THEN 'fragment' ELSE 'thread' END`;
 const listItemsOperation = async (context: OperationContext, input: OperationInput) => {
-  const filters = [input.query.status ?? null, input.query.dirty ?? null, input.query.version ?? null, input.query.id ?? null, input.query.updated ?? null];
+  const filters: (string | null)[] = [input.query.status ?? null, input.query.dirty ?? null, input.query.version ?? null, input.query.id ?? null, input.query.updated ?? null];
   const where: string[] = [], binds: (string | number)[] = [];
   if (input.query.status) { where.push('i.status = ?'); binds.push(input.query.status); }
   if (input.query.dirty) { where.push('i.dirty = ?'); binds.push(input.query.dirty === 'true' ? 1 : 0); }
   if (input.query.id) { where.push('i.id = ?'); binds.push(input.query.id); }
   if (input.query.updated) { where.push('i.updated = ?'); binds.push(input.query.updated); }
   if (input.query.version) { where.push('i.version = ?'); binds.push(Number(input.query.version)); }
+  // Hidden items are absent and hidden working copies read as their public version (private-access.ts).
+  const items = visibleItemsSql(context.access);
+  filters.push(items === 'items' ? null : 'restricted');
   return success(await cursorPage<ItemRow & { authored_kind: 'fragment' | 'thread' }, ReturnType<typeof itemResource> & { pins: { version: number; kind: 'fragment' | 'thread' }[] }>(context.env.DB, input.query, {
     name: 'items', filters, domains: ['items'], binds,
-    sql: `SELECT i.*, ${authoredItemKindSql('p')} AS authored_kind FROM items i LEFT JOIN versions p ON p.item_id=i.id AND p.version=i.version-1${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`,
+    sql: `SELECT i.*, ${authoredItemKindSql('p')} AS authored_kind FROM ${items} i LEFT JOIN versions p ON p.item_id=i.id AND p.version=i.version-1${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`,
     order: [{ column: 'updated', direction: 'desc' }, { column: 'id', direction: 'desc' }],
     project: async rows => {
       // Frozen links, without history bodies. The projection is inside the generation guard.
@@ -82,17 +89,23 @@ async function presentVersions(db: D1Database, rows: VersionRow[]) {
     return { ...await presentVersion(row), changeClass: cls ? { category: cls.category, model: cls.model, probability: cls.probability, classifiedAt: cls.classified_at, overridden: cls.overridden === 1 } : null };
   }));
 }
-const getItemSummaryOperation = async (context: OperationContext) => success(await context.env.DB.prepare(`SELECT COUNT(*) AS 'all', COALESCE(SUM(version=0),0) AS drafts, COALESCE(SUM(dirty=1 AND status='public'),0) AS changes, COALESCE(SUM(status='public'),0) AS public, COALESCE(SUM(status='withdrawn'),0) AS withdrawn FROM items`).first());
+const getItemSummaryOperation = async (context: OperationContext) => success(await context.env.DB.prepare(`SELECT COUNT(*) AS 'all', COALESCE(SUM(version=0),0) AS drafts, COALESCE(SUM(dirty=1 AND status='public'),0) AS changes, COALESCE(SUM(status='public'),0) AS public, COALESCE(SUM(status='withdrawn'),0) AS withdrawn FROM ${visibleItemsSql(context.access)} i`).first());
 const getItemOperation = async (context: OperationContext, input: OperationInput) => {
-  const detail = await itemDetail(context.env.DB, input.path.id);
+  const detail = await itemDetail(context.env.DB, input.path.id, visibleItemsSql(context.access));
   if (!detail) return failure('not-found', { error: 'not found' });
   const publicBase = deploymentUrls(context.url, context.env).publicBase;
-  const pins = (await context.env.DB.prepare(`SELECT version, ${pinKindSql} AS kind FROM versions WHERE item_id = ? AND pinned = 1 ORDER BY version`).bind(detail.item.id).all<{ version: number; kind: 'fragment' | 'thread' }>()).results;
+  // Pins and hopper memberships in one statement: a read batch of 50 items stays within its binding-call cap.
+  const rows = (await context.env.DB.prepare(`SELECT 'pin' AS row, version, ${pinKindSql} AS kind, NULL AS hopper_id, NULL AS name, NULL AS public FROM versions WHERE item_id = ? AND pinned = 1
+    UNION ALL SELECT 'hopper', NULL, NULL, h.id, h.name, h.public FROM hopper_items hi JOIN hoppers h ON h.id = hi.hopper_id WHERE hi.subscription_id = '~own' AND hi.remote_id = ?
+    ORDER BY row DESC, version, name`).bind(detail.item.id, detail.item.id).all<{ row: 'pin' | 'hopper'; version: number; kind: 'fragment' | 'thread'; hopper_id: string; name: string; public: number }>()).results;
+  const pins = rows.filter(row => row.row === 'pin').map(({ version, kind }) => ({ version, kind }));
   return success({
     ...itemResource(detail.item, detail.kind), pins,
     media: detail.media.map(row => mediaResource(row, publicBase)),
     publishedMedia: detail.publishedMedia.map(row => mediaResource(row, publicBase)),
     published: detail.published ? (await presentVersions(context.env.DB, [detail.published]))[0] : null,
+    // The hoppers this item is a member of, so making it public can say where it will appear.
+    hoppers: rows.filter(row => row.row === 'hopper').map(row => ({ id: row.hopper_id, name: row.name, public: row.public === 1 })),
   });
 };
 const listItemVersionsOperation = async (context: OperationContext, input: OperationInput) => {
@@ -127,17 +140,21 @@ const listHoppersOperation = async (context: OperationContext, input: OperationI
   name: 'hoppers', domains: ['hoppers'], sql: 'SELECT * FROM hoppers',
   order: [{ column: 'created', direction: 'asc' }, { column: 'id', direction: 'asc' }], project: rows => rows.map(hopperResource),
 }));
+/** A hopper's own private or tainted members, left out for an access without owner:private. */
+const HIDE_OWN_PRIVATE = ` AND NOT (subscription_id = '~own' AND remote_id IN (SELECT id FROM items i WHERE ${hiddenItemSql("i")}))`;
 const getHopperOperation = async (context: OperationContext, input: OperationInput) => {
   const hopper = await getHopper(context.env.DB, input.path.id);
   if (!hopper) return failure('not-found', { error: 'not found' });
-  const counts = await context.env.DB.prepare("SELECT COUNT(*) AS total, COUNT(DISTINCT CASE WHEN subscription_id <> '~own' THEN subscription_id END) AS source_count FROM hopper_items WHERE hopper_id = ?").bind(hopper.id).first<{ total: number; source_count: number }>();
+  const counts = await context.env.DB.prepare(`SELECT COUNT(*) AS total, COUNT(DISTINCT CASE WHEN subscription_id <> '~own' THEN subscription_id END) AS source_count FROM hopper_items WHERE hopper_id = ?${seesPrivate(context.access) ? '' : HIDE_OWN_PRIVATE}`).bind(hopper.id).first<{ total: number; source_count: number }>();
   return success({ hopper: hopperResource(hopper), total: counts?.total ?? 0, sourceCount: counts?.source_count ?? 0 });
 };
 const listHopperMembershipsOperation = async (context: OperationContext, input: OperationInput) => {
   if (!await getHopper(context.env.DB, input.path.id)) return failure('not-found', { error: 'not found' });
   return success(await cursorPage<HopperItemRow, ReturnType<typeof membershipResource> & { item: ReturnType<typeof importedResource> | null }>(context.env.DB, input.query, {
-    name: 'hopper-memberships', filters: [input.path.id], domains: ['hoppers', 'reading', 'subscriptions'],
-    sql: 'SELECT * FROM hopper_items WHERE hopper_id = ?', binds: [input.path.id],
+    // A restricted list leaves hidden members out, so it depends on their visibility: a member's
+    // status or taint change moves `hoppers` (migration 0065), and an unrelated edit expires nothing (law 7).
+    name: 'hopper-memberships', filters: [input.path.id, seesPrivate(context.access)], domains: ['hoppers', 'reading', 'subscriptions'],
+    sql: `SELECT * FROM hopper_items WHERE hopper_id = ?${seesPrivate(context.access) ? '' : HIDE_OWN_PRIVATE}`, binds: [input.path.id],
     order: [{ column: 'added_at', direction: 'desc' }, { column: 'subscription_id', direction: 'asc' }, { column: 'remote_id', direction: 'asc' }],
     project: async rows => {
       const bodies = rows.length ? (await context.env.DB.prepare(`SELECT * FROM imported_items WHERE (subscription_id, remote_id) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`).bind(JSON.stringify(rows.map(row => [row.subscription_id, row.remote_id]))).all<ImportedItemRow>()).results : [];
@@ -234,9 +251,9 @@ const backgroundRules = async (context: OperationContext) => enabledRules((await
 const listReadingOperation = async (context: OperationContext, input: OperationInput) => {
   const settings = await getSettings(context.env.DB);
   const order = input.query.order === 'newest' || input.query.order === 'pace-layered' ? input.query.order : settings.reader_order;
-  return success({ ...await readingData(context.env.DB, { ...input.query, limit: input.query.limit ?? 25 }, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), enabledRules(settings.bg_rules), input.query.shelf === 'true', order, input.query.raw === 'true'), readState: true as const, readStateClear: true as const });
+  return success({ ...await readingData(context.env.DB, { ...input.query, limit: input.query.limit ?? 25 }, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), enabledRules(settings.bg_rules), input.query.shelf === 'true', order, input.query.raw === 'true', !seesPrivate(context.access)), readState: true as const, readStateClear: true as const });
 };
-const getReadingSummaryOperation = async (context: OperationContext, input: OperationInput) => success(await readingSummary(context.env.DB, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), await backgroundRules(context), input.query.shelf === 'true', input.query.raw === 'true'));
+const getReadingSummaryOperation = async (context: OperationContext, input: OperationInput) => success(await readingSummary(context.env.DB, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input), await backgroundRules(context), input.query.shelf === 'true', input.query.raw === 'true', !seesPrivate(context.access)));
 // Imported items only, keyset-paged, for clients that author from what they read (studio#11).
 const listImportedReadingOperation = async (context: OperationContext, input: OperationInput) => {
   return success(await importedReading(context.env.DB, input.query.cursor, Number(input.query.limit ?? IMPORTED_READING_DEFAULT)));
@@ -282,8 +299,12 @@ const listBrowseOperation = async (context: OperationContext, input: OperationIn
   const where: string[] = [], binds: (string | number)[] = [];
   if (input.query.trail) { where.push('trail = ?'); binds.push(input.query.trail); }
   if (input.query.id) { where.push('id = ?'); binds.push(Number(input.query.id)); }
+  // The owner's reader logs every entry it opens, a private one with its title (F4, session 86):
+  // a caller who cannot see an item does not see the steps that name it.
+  const withPrivate = seesPrivate(context.access);
+  if (!withPrivate) where.push(`remote_id NOT IN (SELECT i.id FROM items i WHERE ${hiddenItemSql('i')})`);
   return success(await cursorPage<BrowseRow, ReturnType<typeof browseResource>>(context.env.DB, input.query, {
-    name: 'browse', filters: [input.query.trail ?? null, input.query.id ?? null], domains: ['browse'],
+    name: 'browse', filters: [input.query.trail ?? null, input.query.id ?? null, withPrivate], domains: ['browse', 'items'],
     sql: `SELECT * FROM browse_log${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`, binds,
     order: [{ column: 'id', direction: 'desc' }], project: rows => rows.map(browseResource),
   }));
@@ -328,11 +349,11 @@ const previewOperation = async (context: OperationContext, input: OperationInput
   // `[[id]]` resolves in the preview too, so an unresolvable link is visible
   // before publish rejects it — same contract as an unresolvable directive.
   const origin = siteOrigin(await getSettings(context.env.DB), context.url, mount);
-  const links = withMentionCards(await previewInternalLinks(context.env.DB, tk.text, origin), handles.cards);
+  const links = withMentionCards(await previewInternalLinks(context.env.DB, tk.text, origin, !seesPrivate(context.access)), handles.cards);
   // Links inside generated blocks resolve here too, as at publish (studio#14).
-  const blocks = await resolveBlockLinks(tk, async (md) => withMentionCards(await previewInternalLinks(context.env.DB, md, origin), handles.cards));
+  const blocks = await resolveBlockLinks(tk, async (md) => withMentionCards(await previewInternalLinks(context.env.DB, md, origin, !seesPrivate(context.access)), handles.cards));
   const html = [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(renderMarkdown(links.text)));
-  return success({ html, scopes: await scopeSummariesWithSources(context.env.DB, parseScopes(body.contentMd ?? "").scopes), linkErrors: [...links.errors, ...blocks.errors], ...(handles.unresolved.length ? { unresolvedHandles: handles.unresolved } : {}) });
+  return success({ html, scopes: await scopeSummariesWithSources(context.env.DB, parseScopes(body.contentMd ?? "").scopes, seesPrivate(context.access)), linkErrors: [...links.errors, ...blocks.errors], ...(handles.unresolved.length ? { unresolvedHandles: handles.unresolved } : {}) });
 };
 
 /**
@@ -370,6 +391,7 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
   // Opt-in, for the compose page: own drafts and unpublished changes match by
   // their working copy. The default stays exactly what resolveTarget accepts.
   const drafts = input.query.include === "drafts";
+  const withPrivate = seesPrivate(context.access);
   const order = input.query.sort === "oldest" ? "ASC" : "DESC";
   const words = searchWords(input.query.q ?? "");
   const indexedWords = words.filter(canIndexSearchWord);
@@ -403,13 +425,21 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
     parts.push({ binds, sql: `SELECT 'mine' AS source, i.id AS id, CASE WHEN i.dirty = 1 OR i.version = 0 THEN NULL ELSE v.content_html END AS html,
         i.version AS version, i.updated AS updated, i.kind AS kind,
         NULL AS subscription_id, NULL AS source_title, NULL AS origin,
-        CASE WHEN i.dirty = 1 OR i.version = 0 THEN i.content_md END AS draft_md
+        CASE WHEN i.dirty = 1 OR i.version = 0 THEN i.content_md END AS draft_md, i.status = 'private' AS is_private
       FROM ${from} LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version
-      WHERE i.status IN ('public', 'draft') AND i.kind IN ('fragment', 'thread')${where}` });
+      WHERE i.status IN ('public', 'draft'${withPrivate ? ", 'private'" : ''}) AND i.kind IN ('fragment', 'thread')${withPrivate ? '' : ` AND ${readableWorkingCopySql('i')}`}${where}` });
+    if (!withPrivate) {
+      // A hidden working copy is matched by its latest public version instead (Q2, session 85).
+      const published = searchSource('published', 'items i', 'i.id = d.item_id');
+      parts.push({ binds: published.binds, sql: `SELECT 'mine' AS source, i.id AS id, v.content_html AS html, i.version AS version, i.updated AS updated, i.kind AS kind,
+          NULL AS subscription_id, NULL AS source_title, NULL AS origin, NULL AS draft_md, 0 AS is_private
+        FROM ${published.from} CROSS JOIN versions v ON v.item_id = i.id AND v.version = i.version
+        WHERE i.status = 'public' AND ${hiddenWorkingCopySql('i')} AND i.kind IN ('fragment', 'thread')${published.where}` });
+    }
   } else if (searchable && source !== "imported" && !sub) {
     const { from, where, binds } = searchSource('published', 'items i', 'i.id = d.item_id');
     parts.push({ binds, sql: `SELECT 'mine' AS source, i.id AS id, v.content_html AS html, i.version AS version, i.updated AS updated, i.kind AS kind,
-        NULL AS subscription_id, NULL AS source_title, NULL AS origin, NULL AS draft_md
+        NULL AS subscription_id, NULL AS source_title, NULL AS origin, NULL AS draft_md, 0 AS is_private
       FROM ${from} CROSS JOIN versions v ON v.item_id = i.id AND v.version = i.version
       WHERE i.status = 'public' AND i.kind IN ('fragment', 'thread')${where}` });
   }
@@ -419,16 +449,16 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
     const { from, where, binds } = searchSource('imported', 'imported_items ii', 'ii.subscription_id = d.subscription_id AND ii.remote_id = d.item_id');
     parts.push({ binds, sql: `SELECT 'imported' AS source, ii.remote_id AS id, ii.content_html AS html,
         CASE WHEN ii.state = 'current' THEN ii.version ELSE ii.pinned_version_retained END AS version,
-        ii.observed_at AS updated, ii.kind AS kind, s.id AS subscription_id, s.title AS source_title, s.origin AS origin, NULL AS draft_md
+        ii.observed_at AS updated, ii.kind AS kind, s.id AS subscription_id, s.title AS source_title, s.origin AS origin, NULL AS draft_md, 0 AS is_private
       FROM ${from} CROSS JOIN subscriptions s ON s.id = ii.subscription_id
       WHERE ii.l0 = 0 AND (ii.state = 'current' OR ii.pinned_version_retained IS NOT NULL)${where}` });
   }
-  type Row = { source: 'mine' | 'imported'; id: string; html: string | null; version: number; updated: string; kind: string; subscription_id: string | null; source_title: string | null; origin: string | null; draft_md: string | null };
+  type Row = { source: 'mine' | 'imported'; id: string; html: string | null; version: number; updated: string; kind: string; subscription_id: string | null; source_title: string | null; origin: string | null; is_private: number | null; draft_md: string | null };
   return success(await cursorPage(context.env.DB, { ...input.query, limit: input.query.limit ?? SEARCH_PAGE }, {
-    name: 'search', filters: [words, source, sub ?? null, order, drafts], domains: ['items', 'reading', 'subscriptions'],
+    name: 'search', filters: [words, source, sub ?? null, order, drafts, withPrivate], domains: ['items', 'reading', 'subscriptions'],
     // FTS drives the source, so separate cursor ranges would repeat the same MATCH.
     combineRanges: Boolean(match),
-    sql: parts.length ? parts.map(part => part.sql).join(' UNION ALL ') : 'SELECT NULL AS source, NULL AS id, NULL AS updated, NULL AS subscription_id WHERE 0',
+    sql: parts.length ? parts.map(part => part.sql).join(' UNION ALL ') : 'SELECT NULL AS source, NULL AS id, NULL AS updated, NULL AS subscription_id, 0 AS is_private WHERE 0',
     binds: parts.flatMap(part => part.binds),
     order: ['updated', 'id', 'source', 'subscription_id'].map(column => ({ column, direction: order === 'ASC' ? 'asc' as const : 'desc' as const })),
     project: (rows: Row[]) => rows.map((r) => {
@@ -451,7 +481,8 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
       kind: r.kind === "thread" ? ("thread" as const) : ("fragment" as const),
       subscriptionId: r.subscription_id,
       sourceTitle: sourceTitle,
-      ...(drafts && r.source === "mine" ? { draft: r.draft_md !== null } : {}),
+      ...(drafts && r.source === "mine" ? { draft: r.draft_md !== null && !r.is_private } : {}),
+      ...(r.is_private ? { private: true as const } : {}),
     };
     }),
   }));
@@ -468,7 +499,7 @@ const TANGLE_TOKEN = /\uE010tangle(\d+)\uE010/g;
  * each rendered on its own, as the new item it will be, in a quote marked
  * "new item". The rest of the thread renders with a token in each span's place.
  */
-async function previewTangles(db: D1Database, md: string, origin: string) {
+async function previewTangles(db: D1Database, md: string, origin: string, restricted: boolean) {
   const { spans } = parseTangles(md);
   if (!spans.length) return { md, finish: (html: string) => html, errors: [] as unknown[] };
   let text = "";
@@ -482,8 +513,8 @@ async function previewTangles(db: D1Database, md: string, origin: string) {
   const errors: unknown[] = [];
   const rendered = await Promise.all(spans.map(async (span) => {
     if (span.kind === "link") return "";
-    const links = await previewInternalLinks(db, span.text, origin);
-    const resolved = await previewTransclusions(db, links.text);
+    const links = await previewInternalLinks(db, span.text, origin, restricted);
+    const resolved = await previewTransclusions(db, links.text, undefined, undefined, restricted);
     errors.push(...links.errors, ...resolved.errors);
     return applyInternalLinks(resolved.html, links);
   }));
@@ -496,16 +527,17 @@ async function previewTangles(db: D1Database, md: string, origin: string) {
 
 async function threadPreview(context: OperationContext, input: OperationInput) {
   const body = (input.body as { contentMd?: string; itemId?: string });
-  const tangles = await previewTangles(context.env.DB, body.contentMd ?? "", siteOrigin(await getSettings(context.env.DB), context.url, normalizeMount(context.env.MOUNT)));
+  const restricted = !seesPrivate(context.access);
+  const tangles = await previewTangles(context.env.DB, body.contentMd ?? "", siteOrigin(await getSettings(context.env.DB), context.url, normalizeMount(context.env.MOUNT)), restricted);
   const handles = await consumeHandles(context.env.DB, previewComments(tangles.md));
   const tk = annotateTkPreview(handles.text);
   // item_id is the thread being edited — the DAG check needs it, so the
   // preview rejects a circular quote at exactly the point publish would.
   const mount = normalizeMount(context.env.MOUNT);
   const origin = siteOrigin(await getSettings(context.env.DB), context.url, mount);
-  const links = withMentionCards(await previewInternalLinks(context.env.DB, tk.text, origin), handles.cards);
-  const blocks = await resolveBlockLinks(tk, async (md) => withMentionCards(await previewInternalLinks(context.env.DB, md, origin), handles.cards));
-  const resolved = await previewTransclusions(context.env.DB, links.text, body.itemId, tk);
+  const links = withMentionCards(await previewInternalLinks(context.env.DB, tk.text, origin, !seesPrivate(context.access)), handles.cards);
+  const blocks = await resolveBlockLinks(tk, async (md) => withMentionCards(await previewInternalLinks(context.env.DB, md, origin, !seesPrivate(context.access)), handles.cards));
+  const resolved = await previewTransclusions(context.env.DB, links.text, body.itemId, tk, restricted);
   const html = [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(resolved.html));
   return success({
     // The lines the public page puts under its quotes. Placeholders for quotes
@@ -518,7 +550,7 @@ async function threadPreview(context: OperationContext, input: OperationInput) {
     transclusions: resolved.transclusions,
     // Every scope in the working copy, comments included: generate addresses
     // them by that order, and a scope in a note can be generated like any other.
-    scopes: await scopeSummariesWithSources(context.env.DB, parseScopes(body.contentMd ?? "").scopes),
+    scopes: await scopeSummariesWithSources(context.env.DB, parseScopes(body.contentMd ?? "").scopes, seesPrivate(context.access)),
     ...(handles.unresolved.length ? { unresolvedHandles: handles.unresolved } : {}),
   });
 }

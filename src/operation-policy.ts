@@ -1,6 +1,6 @@
 import type { OwnerScope } from './auth-scopes.ts';
 
-export const API_CONTRACT_VERSION = '6.4.0';
+export const API_CONTRACT_VERSION = '7.0.0';
 export type WorkBudget = 'read' | 'write';
 export interface ScopeInput { body?: unknown }
 export interface OperationEffects {
@@ -20,6 +20,12 @@ export interface OperationPolicy {
   conditionalScopes?: ScopeCondition;
   scopeNotes?: string;
   extension?: string;
+  /**
+   * 'in-statement': the handler reads the item through visibleItemsSql in the statement
+   * that decides its answer (private-access.ts), so the runner does not look the id up
+   * first. Keeps a delegated getItem batch within its read budget (studio#178 R01).
+   */
+  itemVisibility?: 'in-statement';
 }
 
 function scoped(scope: OwnerScope, effects: OperationEffects, budget: WorkBudget, conditionalScopes?: ScopeCondition): OperationPolicy {
@@ -28,11 +34,22 @@ function scoped(scope: OwnerScope, effects: OperationEffects, budget: WorkBudget
 export function readOperation(effects: OperationEffects = { writes: [] }, budget: WorkBudget = 'read'): OperationPolicy {
   return scoped('owner:read', effects, budget);
 }
+/** Private items and their private versions (the notebook): owner:private, which owner:read does not imply. */
+export function privateReadOperation(effects: OperationEffects = { writes: [] }): OperationPolicy {
+  return scoped('owner:private', effects, 'read');
+}
+/**
+ * A write that is notebook access as well as management: the Agentic feed, whose editions
+ * may name any own item (Venkat, studio#178 session 88). Needs both scopes.
+ */
+export function notebookManageOperation(effects: OperationEffects): OperationPolicy {
+  return { scopes: ['owner:manage', 'owner:private'], effects, budget: 'write' };
+}
 export function draftOperation(effects: OperationEffects, budget: WorkBudget = 'write', conditionalScopes?: ScopeCondition): OperationPolicy {
   return scoped('owner:draft', effects, budget, conditionalScopes);
 }
-export function publishOperation(effects: OperationEffects): OperationPolicy {
-  return scoped('owner:publish', effects, 'write');
+export function publishOperation(effects: OperationEffects, conditionalScopes?: ScopeCondition): OperationPolicy {
+  return scoped('owner:publish', effects, 'write', conditionalScopes);
 }
 export function manageOperation(effects: OperationEffects, conditionalScopes?: ScopeCondition): OperationPolicy {
   return scoped('owner:manage', effects, 'write', conditionalScopes);
@@ -56,6 +73,13 @@ export const avatarScopes: ScopeCondition = {
   description: 'Choosing avatarMediaId also requires owner:publish because the avatar publishes those bytes.',
   resolve(input) {
     return bodyRecord(input).avatarMediaId !== undefined ? ['owner:publish'] : [];
+  },
+};
+
+export const privateVisibilityScopes: ScopeCondition = {
+  description: 'Publishing with visibility private also requires owner:private, because the item becomes one the token could otherwise not see.',
+  resolve(input) {
+    return bodyRecord(input).visibility === 'private' ? ['owner:private'] : [];
   },
 };
 

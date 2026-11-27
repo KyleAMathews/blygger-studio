@@ -77,7 +77,7 @@ function itemDetail(id: string, value: number) {
   return { id, revision: value + 1, contentMd: String(value), kind: 'fragment', status: 'draft', created: '2026-10-06', updated: '2026-10-06', version: 0,
     dirty: false, responses: 'default', highlight: 'default', provenance: [], stubOf: null, forkedFrom: null, forkCite: null, pins: [],
     media: [{ id: 'media', itemId: id, mime: 'image/png', alt: String(value), created: '2026-10-06', inline: false, url: 'https://oracle.test/media/value.png' }],
-    publishedMedia: [], published: null };
+    publishedMedia: [], published: null, hoppers: [] };
 }
 function hopperDetail(id: string, value: number) {
   return { hopper: { id, name: String(value), public: false, slug: null, created: '2026-10-06', slugFrozen: false, description: null }, total: value, sourceCount: value };

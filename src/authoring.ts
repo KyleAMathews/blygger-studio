@@ -1,3 +1,4 @@
+import { privateSource } from "./tk-generate.ts";
 import { excerptFromHtml, plainTextFromHtml, renderMarkdown } from "./markdown.ts";
 import { clampText } from "./preview.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, previewStrip, type TkScope } from "./tk.ts";
@@ -21,7 +22,7 @@ export interface ScopeSourceSummary {
  * uses, so the editor can say "draws on Friend's Blyg: …" or name a failure
  * before the author spends a generation on it.
  */
-export async function scopeSummariesWithSources(db: D1Database, scopes: TkScope[]) {
+export async function scopeSummariesWithSources(db: D1Database, scopes: TkScope[], privateSources = false) {
   const titles = new Map<string, string>();
   const title = async (origin: string) => {
     if (!titles.has(origin)) {
@@ -35,7 +36,13 @@ export async function scopeSummariesWithSources(db: D1Database, scopes: TkScope[
     summaries.map(async (summary, i) => {
       const sources: ScopeSourceSummary[] = [];
       for (const id of scopes[i].sourceIds) {
-        const resolved = await resolveTarget(db, id);
+        // As generation resolves it: an own private item first, for a caller that may see it (studio#178 R13).
+        const kept = privateSources ? await privateSource(db, id) : null;
+        if (kept) {
+          sources.push({ id, ok: true, from: "you", excerpt: excerptFromHtml(kept.contentHtml, 60) });
+          continue;
+        }
+        const resolved = await resolveTarget(db, id, undefined, !privateSources);
         if (!resolved.ok) {
           sources.push({ id, ok: false, reason: resolved.reason });
           continue;

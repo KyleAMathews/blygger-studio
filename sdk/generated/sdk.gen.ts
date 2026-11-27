@@ -151,6 +151,9 @@ export const updateItem = <ThrowOnError extends boolean = false>(options: Option
     }
 });
 
+/**
+ * Publishing with visibility private also requires owner:private, because the item becomes one the token could otherwise not see.
+ */
 export const publishItem = <ThrowOnError extends boolean = false>(options: Options<PublishItemData, ThrowOnError>): RequestResult<PublishItemResponses, PublishItemErrors, ThrowOnError> => (options.client ?? client).post<PublishItemResponses, PublishItemErrors, ThrowOnError>({
     security: [{
             in: 'cookie',

@@ -230,6 +230,7 @@ const addHopperItemOperation = async (context: OperationContext, input: Operatio
   if (!hopper) return failure('not-found', { error: "hopper not found" });
   // One of the owner's own items: any that exists; the public page shows only published ones.
   if (input.path.sub === OWN_SUBSCRIPTION) {
+    // A hidden item reaches here as an id no item has (operation-runner.ts), so it answers as an unknown one.
     if (!(await getItem(context.env.DB, input.path.remoteId))) return failure('not-found', { error: "item not found" });
     await addHopperItem(context.env.DB, hopper.id, OWN_SUBSCRIPTION, input.path.remoteId);
     return success({ ok: true });

@@ -49,6 +49,10 @@ export type Capabilities = {
         media: string;
     };
     operations: Array<string>;
+    /**
+     * The scopes this access holds; the owner's own session holds every scope. Without owner:private, private items are left out of every list and answer 404 by id, so a client must not take their absence for deletion.
+     */
+    scopes: Array<string>;
     extensions: Array<{
         name: string;
         declared: boolean;
@@ -98,6 +102,10 @@ export type GenerationProvenance = {
     sources: Array<GenerationSource>;
     model?: string;
     at?: string;
+    /**
+     * The output drew on a private item: the working copy reads like a private item and publishes only privately.
+     */
+    private?: true;
     [key: string]: unknown;
 };
 
@@ -1285,7 +1293,7 @@ export type ListAuthorizationsResponse = ListAuthorizationsResponses[keyof ListA
 export type CreateAuthorizationData = {
     body: {
         name: string;
-        scope: Array<'owner:read' | 'owner:draft' | 'owner:publish' | 'owner:manage' | 'reading:state'>;
+        scope: Array<'owner:read' | 'owner:private' | 'owner:draft' | 'owner:publish' | 'owner:manage' | 'reading:state'>;
         resource: 'api' | 'mcp';
     };
     path?: never;
@@ -1656,7 +1664,6 @@ export type ListItemsResponse = ListItemsResponses[keyof ListItemsResponses];
 
 export type CreateItemData = {
     body?: {
-        provenance?: Array<GenerationProvenance | null>;
         contentMd?: string;
         kind?: 'fragment' | 'thread';
         stubOf?: VersionReference | {
@@ -1922,6 +1929,14 @@ export type GetItemResponses = {
          */
         publishedMedia: Array<Media>;
         published: Version | null;
+        /**
+         * The hoppers this item is a member of. A public one shows the item on its page and feed once the item is public.
+         */
+        hoppers: Array<{
+            id: string;
+            name: string;
+            public: boolean;
+        }>;
     };
 };
 
@@ -1929,7 +1944,6 @@ export type GetItemResponse = GetItemResponses[keyof GetItemResponses];
 
 export type UpdateItemData = {
     body: {
-        provenance?: Array<GenerationProvenance | null>;
         contentMd?: string;
         kind?: 'fragment' | 'thread';
         stubOf?: VersionReference | {
@@ -4147,7 +4161,7 @@ export type GetShelfResponse = GetShelfResponses[keyof GetShelfResponses];
 export type PutShelfData = {
     body: {
         /**
-         * The whole list, in order (at most 50). Replaces the stored list. An entry that does not resolve (an unknown subscription, an item not held under it, a withdrawn own item, an imported tombstone with no retained pin) is dropped quietly, never refused, and a repeated entry keeps its first position; the response is what was stored.
+         * The whole list, in order (at most 1000). Replaces the stored list. An entry that does not resolve (an unknown subscription, an item not held under it, a withdrawn own item, an imported tombstone with no retained pin) is dropped quietly, never refused, and a repeated entry keeps its first position; the response is what was stored. For a token without owner:private, entries it cannot see keep their places, and anything past the ceiling comes off the end of its own list.
          */
         entries: Array<ShelfEntry>;
         /**
@@ -4532,7 +4546,7 @@ export type ListAgenticFeedsError = ListAgenticFeedsErrors[keyof ListAgenticFeed
 
 export type ListAgenticFeedsResponses = {
     /**
-     * The agentic feeds in the owner's order. One, `default`, until the Studio offers more (blygger-spec docs/agentic-feed-plan.md §3.3).
+     * The agentic feeds in the owner's order. One, `default`, until the Studio offers more (blygger-spec docs/agentic-feed-plan.md §3.3). Every Agentic route needs owner:private (and the write owner:manage too): an edition may name any own item, so the feed is notebook access.
      */
     200: {
         feeds: Array<{
@@ -7417,6 +7431,10 @@ export type SearchResponses = {
     200: {
         items: Array<{
             id: string;
+            /**
+             * Set on a private item (the notebook), listed only for the owner session and tokens holding owner:private.
+             */
+            private?: true;
             excerpt: string;
             /**
              * The text a `[[id]]` link to this item shows: its opening heading, else a short quoted excerpt. Written as the label by the picker (0.4 §10.1).

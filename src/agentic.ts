@@ -9,6 +9,7 @@
  * per-entry scores the Studio lays out as one section, highest first.
  */
 import { OWN_SUBSCRIPTION } from "./own-subscription.ts";
+import { hiddenItemSql } from "./private-access.ts";
 import { enabledRules } from "./background.ts";
 import { getSettings } from "./model.ts";
 import { readingEntries, type Identity } from "./reading-data.ts";
@@ -68,7 +69,15 @@ async function writeThread(db: D1Database, feed: string): Promise<void> {
   const date = formatDateIn(read.layout.generatedAt ?? row.updated_at ?? new Date().toISOString(), settings.timezone);
   const markdown = editionMarkdown(read.layout, feeds.find((f) => f.id === feed)?.title ?? feed, date);
   const id = await writeEditionDraft(db, { id: row.draft_id, md: row.draft_md }, markdown);
-  await db.prepare("UPDATE agentic_feeds SET draft_id = ?, draft_md = ? WHERE id = ?").bind(id, markdown, feed).run();
+  // While the composed draft names a hidden own item it is hidden too, like a tainted draft
+  // (Venkat, session 85; a stopgap until agentic-feed-plan §3.1 makes edition drafts private
+  // items). The mark follows each composition: it clears when one names none.
+  const own = read.layout.sections.flatMap((s) => s.entries).filter((e) => e.sub === OWN_SUBSCRIPTION).map((e) => e.remoteId);
+  const names = own.length ? await db.prepare(`SELECT 1 AS hit FROM items i WHERE id IN (SELECT value FROM json_each(?)) AND ${hiddenItemSql("i")} LIMIT 1`).bind(JSON.stringify(own)).first() : null;
+  await db.batch([
+    db.prepare("UPDATE agentic_feeds SET draft_id = ?, draft_md = ? WHERE id = ?").bind(id, markdown, feed),
+    db.prepare("UPDATE items SET private_taint = ? WHERE id = ? AND status = 'draft' AND private_taint IS NOT ?").bind(names ? 1 : 0, id, names ? 1 : 0),
+  ]);
 }
 
 const identityOf = (ref: Reference): Identity =>

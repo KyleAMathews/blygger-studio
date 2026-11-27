@@ -1,4 +1,5 @@
 import { readSyndication } from "./syndication.ts";
+import { hiddenItemSql } from "./private-access.ts";
 import { authoredItemKindSql, authoredVersionKind } from './version-state.ts';
 import { cursorPage, type CursorQuery } from "./cursor-page.ts";
 import type { ReaderOrder } from "./feeds/reader-order.ts";
@@ -42,12 +43,14 @@ function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolea
   // A hopper keeps the order things were added to it.
   const pace = order === 'pace-layered' && !hopper;
   const enabled = JSON.stringify(rules);
-  const binds = [enabled, ...(kind ? [kind] : []), ...(hopper ? [hopper] : []), enabled, ...(kind ? [kind] : []), ...(mentioning ? [JSON.stringify(mentioning)] : [])];
+  const binds = [...(hopper ? [hopper] : []), enabled, ...(kind ? [kind] : []), ...(hopper ? [hopper] : []), enabled, ...(kind ? [kind] : []), ...(mentioning ? [JSON.stringify(mentioning)] : [])];
   const updated = dateOrderSql('ii.updated'), observed = dateOrderSql('ii.observed_at');
-  const sql = `SELECT 'own' AS source, i.id, '' AS sub, ${pace ? paceAtSql('ro') : dateOrderSql('i.updated')} AS at
-    FROM items i LEFT JOIN versions p ON i.kind = 'withdrawn' AND p.item_id = i.id AND p.version = i.version - 1
+  // A hopper lists the owner's own members too, private ones included (Aneesh, studio#175).
+  const sql = `SELECT 'own' AS source, i.id, '' AS sub, ${hopper ? 'oh.added_at' : pace ? paceAtSql('ro') : dateOrderSql('i.updated')} AS at
+    FROM items i ${hopper ? "JOIN hopper_items oh ON oh.subscription_id = '~own' AND oh.remote_id = i.id AND oh.hopper_id = ?" : ''}
+    LEFT JOIN versions p ON i.kind = 'withdrawn' AND p.item_id = i.id AND p.version = i.version - 1
     ${pace ? "LEFT JOIN reading_order ro ON ro.source = 'own' AND ro.sub = '' AND ro.id = i.id" : ''}
-    WHERE i.status IN ('public','withdrawn','private') AND (${ownBackgroundSql()}) = ${background ? 1 : 0}${hopper || mentioning ? ' AND 0' : ''}${kind ? ` AND ${authoredItemKindSql('p')} = ?` : ''}
+    WHERE i.status IN ('public','withdrawn','private') AND (${ownBackgroundSql()}) = ${background ? 1 : 0}${mentioning ? ' AND 0' : ''}${kind ? ` AND ${authoredItemKindSql('p')} = ?` : ''}
     UNION ALL SELECT 'imported', ii.remote_id, ii.subscription_id,
       ${hopper ? 'hi.added_at' : pace ? paceAtSql('ro') : `CASE WHEN ${updated} < ${observed} THEN ${updated} ELSE ${observed} END`}
     FROM imported_items ii ${hopper ? 'JOIN hopper_items hi ON hi.subscription_id = ii.subscription_id AND hi.remote_id = ii.remote_id AND hi.hopper_id = ?' : ''}
@@ -85,11 +88,15 @@ function shelfIdentitySql(hopper?: string) {
     WHERE (ii.state = 'current' OR ii.pinned_version_retained IS NOT NULL)`;
   return { sql, binds: hopper ? [hopper] : [] };
 }
+/** Hidden own items leave every reading list for an access without owner:private (private-access.ts). */
+function withoutPrivate<T extends { sql: string }>(identities: T, hide: boolean): T {
+  return hide ? { ...identities, sql: `SELECT * FROM (${identities.sql}) WHERE NOT (source = 'own' AND id IN (SELECT id FROM items i WHERE ${hiddenItemSql("i")}))` } : identities;
+}
 /** The `private` pseudo-source (Venkat, 2026-11-23): the owner's private items only, the reader view of a notebook. */
 const PRIVATE_SQL = " WHERE source = 'own' AND id IN (SELECT id FROM items WHERE status = 'private')";
 /** Counts are a named summary. Page construction never materializes the full identity set. */
-export async function readingSummary(db: D1Database, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES, shelf = false, raw = false) {
-  const { sql, binds } = identitySql(kind, background, rules, hopper, mentioning, shelf, 'newest', raw);
+export async function readingSummary(db: D1Database, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES, shelf = false, raw = false, hidePrivate = false) {
+  const { sql, binds } = withoutPrivate(identitySql(kind, background, rules, hopper, mentioning, shelf, 'newest', raw), hidePrivate);
   // One scan: own rows are grouped by whether their item is private, for the `private` source's count.
   const [counts, subs] = await Promise.all([
     db.prepare(`SELECT source, sub, (source = 'own' AND id IN (SELECT id FROM items WHERE status = 'private')) AS kept, COUNT(*) AS total FROM (${sql}) GROUP BY source, sub, kept`).bind(...binds).all<{ source: string; sub: string; kept: number; total: number }>(),
@@ -106,12 +113,12 @@ export async function readingSummary(db: D1Database, source: string | undefined,
   return { counts: result, selected };
 }
 /** Select one bounded keyset of identities before loading or sanitizing bodies. */
-export async function readingData(db: D1Database, query: CursorQuery, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES, shelf = false, order: ReaderOrder = 'newest', raw = false) {
+export async function readingData(db: D1Database, query: CursorQuery, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[], rules: readonly BackgroundRule[] = BACKGROUND_RULES, shelf = false, order: ReaderOrder = 'newest', raw = false, hidePrivate = false) {
   const selected = source ?? 'all';
   if (raw) order = 'newest';
-  const identities = identitySql(kind, background, rules, hopper, mentioning, shelf, order, raw);
+  const identities = withoutPrivate(identitySql(kind, background, rules, hopper, mentioning, shelf, order, raw), hidePrivate);
   return cursorPage(db, { ...query, limit: query.limit ?? 25 }, {
-    name: 'reading', filters: [selected, kind ?? null, background, hopper ?? null, mentioning?.join(' ') ?? null, rules.join(' '), shelf, order, raw], domains: ['reading', 'subscriptions', ...(hopper ? ['hoppers' as const] : []), ...(shelf ? ['shelf' as const] : [])],
+    name: 'reading', filters: [selected, kind ?? null, background, hopper ?? null, mentioning?.join(' ') ?? null, rules.join(' '), shelf, order, raw, hidePrivate], domains: ['reading', 'subscriptions', ...(hopper ? ['hoppers' as const] : []), ...(shelf ? ['shelf' as const] : [])],
     sql: `SELECT * FROM (${identities.sql})${selected === 'all' ? '' : selected === 'own' ? " WHERE source = 'own'" : selected === 'private' ? PRIVATE_SQL : ' WHERE sub = ? OR NOT EXISTS (SELECT 1 FROM subscriptions WHERE id = ?)'}`,
     binds: [...identities.binds, ...(selected !== 'all' && selected !== 'own' && selected !== 'private' ? [selected, selected] : [])],
     order: [{ column: 'at', direction: 'desc' }, { column: 'source', direction: 'asc' }, { column: 'sub', direction: 'asc' }, { column: 'id', direction: 'asc' }],

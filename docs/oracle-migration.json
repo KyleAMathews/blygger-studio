@@ -385,7 +385,8 @@
       },
       "implementation": "test/mcp.oracle.test.ts",
       "properties": [
-        "mcp"
+        "mcp",
+        "mcp-notebook"
       ],
       "validation": [
         "test:oracles:worker",
@@ -811,7 +812,8 @@
       },
       "implementation": "test/rest-permissions.oracle.test.ts",
       "properties": [
-        "rest-permissions"
+        "rest-permissions",
+        "rest-permissions-notebook"
       ],
       "validation": [
         "test:oracles:worker",

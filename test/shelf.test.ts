@@ -1,4 +1,5 @@
 import { readChanges } from '../src/changes.ts';
+import { SHELF_MAX } from '../src/shelf.ts';
 // #135: the shelf, an owner-ordered list of { sub, remoteId } entries (own
 // items under "~own", imported items under their subscription), synced across clients.
 // Studio-private: nothing about it reaches the wire. Scopes for getShelf and
@@ -95,9 +96,9 @@ describe("GET/PUT /shelf", () => {
       expect(res.status, JSON.stringify(body)).toBe(400);
       expect(res.json.code).toBe("invalid-input");
     }
-    const over = await put({ entries: own(Array.from({ length: 51 }, (_, i) => `id-${i}`)) });
+    const over = await put({ entries: own(Array.from({ length: SHELF_MAX + 1 }, (_, i) => `id-${i}`)) });
     expect(over.status).toBe(400);
-    expect((await put({ entries: own(Array.from({ length: 50 }, () => a)) })).status).toBe(200);
+    expect((await put({ entries: own(Array.from({ length: SHELF_MAX }, () => a)) })).status).toBe(200);
   });
 
   it("replaces conditionally on expectedRevision and returns the current list on conflict", async () => {

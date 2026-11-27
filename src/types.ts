@@ -72,6 +72,8 @@ export interface ItemRow {
    * wire artifact; see model.ts getTkProvenance and item-revision.ts installWorkingCopy.
    */
   tk_provenance_json: string | null;
+  /** Server-written private taint (migration 0065): 1 while the working copy holds text drawn from a private snapshot. */
+  private_taint: number;
   /**
    * Opt-in public display of verified responses to this item (migration 0009,
    * §3.4). Off by default: other people's names appearing on your page is an
@@ -235,6 +237,12 @@ export interface ScopeProvenance {
   sources: GenerationSource[];
   model?: string;
   at?: string;
+  /**
+   * The output drew on the notebook: a private snapshot among the sources, or
+   * input already marked (private taint, Venkat, session 84). The working copy
+   * then reads like a private item and publishes only privately.
+   */
+  private?: true;
 }
 
 /** A private version (migration 0059): studio history, never on a public route. */
@@ -270,7 +278,7 @@ export interface VersionRow {
   stub_cite: string | null;
   /** 1 when the studio drafted this version's note and the author published it unedited (migration 0015, #40). */
   note_generated: number;
-  /** The working copy this version was published from, `[TK]` scopes included, where it differs from `content_md` (else NULL), and its provenance cache, always set since migration 0063 (studio#184; NULL marks an older version). Studio-private. */
+  /** The working copy this version was published from, `[TK]` scopes included, where it differs from `content_md` (else NULL), and its provenance cache, always set since migration 0065 (studio#184; NULL marks an older version). Studio-private. */
   source_md?: string | null;
   source_provenance_json?: string | null;
   /** JSON `LinkEntry[]` (migration 0048, §10.3a): the plain internal links this version resolved; null for none. */

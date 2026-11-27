@@ -179,7 +179,7 @@ export const items = createCollection(
         const ids = subsetIds(context);
         if (ids) {
           return existing(ids, async (id) => {
-            const { media: _media, publishedMedia: _publishedMedia, published: _published, ...item } = await readItem(id, context.signal);
+            const { media: _media, publishedMedia: _publishedMedia, published: _published, hoppers: _hoppers, ...item } = await readItem(id, context.signal);
             return item;
           });
         }
@@ -325,7 +325,7 @@ export const shelf = createCollection(
     },
   }),
 );
-export const SHELF_MAX = 50;
+export { SHELF_MAX } from '../shelf-limits.ts';
 export type ShelfEntry = { sub: string; remoteId: string };
 /** Replace the shelf's order; resolves once the server has it. */
 export async function setShelf(entries: ShelfEntry[]) {
@@ -543,9 +543,9 @@ export const itemHistory = createCollection(
         const ids = subsetIds(context);
         if (!ids) throw new Error('Item history requires an id predicate');
         return existing(ids, async (id) => {
-          const { media, publishedMedia, published } =
+          const { media, publishedMedia, published, hoppers } =
             await readItem(id, context.signal);
-          return { id, media, publishedMedia, published };
+          return { id, media, publishedMedia, published, hoppers };
         });
       }),
     select: (response) => response.data,
@@ -872,7 +872,7 @@ export async function changed(...keys: string[]) {
       case 'hopper':
       case 'hopper-preview':
       case 'hoppers':
-        return ['hoppers', 'hopper-stats', 'hopper-entries', 'hopper-memberships', 'reading', 'reading-summary'];
+        return ['hoppers', 'hopper-stats', 'hopper-entries', 'hopper-memberships', 'reading', 'reading-summary', 'item-history'];
       case 'reading': return ['reading', 'reading-summary', 'stale-threads'];
       case 'signals': return ['signals', 'thumbs', 'interactions', 'signal-summary'];
       default:

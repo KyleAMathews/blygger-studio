@@ -1,8 +1,10 @@
+import { PRIVATE_SCOPE, getItemAs, hiddenOwnIds, privateItemHidden, seesPrivate, workingCopyHidden } from './private-access.ts';
 import { retainedMediaSql } from './media-retention.ts';
 import { httpsUrl, listSyndication, refuseSyndication, replaceSyndication, type SyndicationEntry } from './syndication.ts';
 import { assertCurrentRevision, assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
 import { consumeHandles, contactResource, createContact, deleteContact, getContact, handleTaken, HANDLE, listContacts, resolveContact, updateContact } from './contacts.ts';
-import { readShelf, replaceShelf, type ShelfEntry } from './shelf.ts';
+import { readShelf, replaceShelf, unique, type Shelf, type ShelfEntry } from './shelf.ts';
+import { OWN_SUBSCRIPTION } from './own-subscription.ts';
 import { normalizeWords, readDictionary, replaceSource, SOURCE_PATTERN, SOURCES_MAX, TOTAL_WORDS_MAX, wordProblem } from './dictionary.ts';
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { versionState } from './version-state.ts';
@@ -56,7 +58,7 @@ import { flattenFork } from "./fork-flatten.ts";
 import { blygItemUrl } from "./importer/util.ts";
 import { siteOrigin } from "./protocol.ts";
 import { parseForkedFrom, parseStoredFork, parseStoredStub, parseStubOf } from "./stub.ts";
-import { parseScopes, unrequestedOutputDirectives } from './tk.ts';
+import { unrequestedOutputDirectives } from './tk.ts';
 import { parseTangles, partBody, rewriteTangles, tangleLabel, type TangleSpan } from './tangle.ts';
 import { directiveOwnLine, linkInline } from './grammar.ts';
 import { CommentPublishError, withoutComments } from './comments.ts';
@@ -91,7 +93,7 @@ const MEDIA_MAX_BYTES = 5 * 1024 * 1024;
 type ItemBody = z.infer<typeof ItemEditSchema>;
 
 async function observedItem(context: OperationContext, input: OperationInput) {
-  const item = await getItem(context.env.DB, input.path.id);
+  const item = await getItemAs(context.env.DB, input.path.id, context.access);
   if (item) assertItemRevision(item, (input.body as { expectedRevision: number }).expectedRevision);
   return item;
 }
@@ -114,11 +116,7 @@ const createItemOperation = async (context: OperationContext, input: OperationIn
     if (!parsed.ok) return failure('invalid-input', { error: parsed.reason });
     stub = parsed.stub;
   }
-  if (body.provenance !== undefined) {
-    const parsed = parseScopes(body.contentMd ?? '');
-    if (parsed.errors.length || parsed.scopes.length !== body.provenance.length) return failure('invalid-input', { error: 'provenance must have one entry per TK scope' });
-  }
-  const item = await createDraft(context.env.DB, body.contentMd ?? "", kind, stub, body.provenance);
+  const item = await createDraft(context.env.DB, body.contentMd ?? "", kind, stub);
   return created(itemResource(item, await authoredKind(context.env.DB, item)), `${deploymentPaths(context.env.MOUNT).api}/items/${item.id}`);
 };
 
@@ -180,30 +178,27 @@ const updateItemOperation = async (context: OperationContext, input: OperationIn
       stubJson = JSON.stringify(parsed.stub);
     }
   }
-  if (body.provenance !== undefined) {
-    const parsed = parseScopes(body.contentMd ?? item.content_md);
-    if (parsed.errors.length || parsed.scopes.length !== body.provenance.length) return failure('invalid-input', { error: 'provenance must have one entry per TK scope' });
-  }
-  const changesDraft = body.provenance !== undefined || body.contentMd !== undefined || body.kind !== undefined || "stubOf" in body;
+  const changesDraft = body.contentMd !== undefined || body.kind !== undefined || "stubOf" in body;
   const assignments: string[] = [], values: (string | number | null)[] = [];
-  if (body.provenance !== undefined) { assignments.push("tk_provenance_json = ?"); values.push(JSON.stringify(body.provenance)); }
   if (body.contentMd !== undefined) { assignments.push("content_md = ?"); values.push(body.contentMd); }
+  // A caller who could not see a hidden working copy wrote this text from the public version, so
+  // the copy it replaces takes its mark and provenance with it (Venkat, session 86).
+  if (body.contentMd !== undefined && !seesPrivate(context.access)) assignments.push("tk_provenance_json = CASE WHEN private_taint = 1 THEN NULL ELSE tk_provenance_json END", "private_taint = 0");
   if (body.kind !== undefined) { assignments.push("kind = ?"); values.push(body.kind); }
   if ("stubOf" in body) { assignments.push("stub_of = ?"); values.push(stubJson); }
   if (body.responses !== undefined) { assignments.push("responses_override = ?"); values.push(body.responses === "default" ? null : Number(body.responses === "show")); }
   if (body.highlight !== undefined) { assignments.push("highlight_override = ?"); values.push(body.highlight === "default" ? null : Number(body.highlight === "show")); }
-  const onlyComments = body.contentMd !== undefined && body.provenance === undefined && body.kind === undefined && !("stubOf" in body) && await keepsPublishedWords(context.env.DB, item, body.contentMd);
+  const onlyComments = body.contentMd !== undefined && body.kind === undefined && !("stubOf" in body) && await keepsPublishedWords(context.env.DB, item, body.contentMd);
   if (changesDraft) { assignments.push(onlyComments ? "dirty = 0" : "dirty = 1", "updated = CASE WHEN version = 0 THEN ? ELSE updated END"); values.push(nowIso()); }
   if (!assignments.length) return success(itemResource(item, await authoredKind(context.env.DB, item)));
   // Write only requested fields. Guard the state used for validation, so a
   // concurrent publication or citation edit cannot invalidate that check.
-  // A provenance-only patch also validated the stored text. When text is
-  // supplied, the provenance check used that replacement instead.
   assignments.push("revision = revision + 1");
   const fresh = await context.env.DB.prepare(`UPDATE items SET ${assignments.join(", ")} WHERE id = ? AND revision = ? RETURNING *`)
     .bind(...values, item.id, item.revision).first<ItemRow>();
   if (!fresh) throw new ItemRevisionConflict(item.id, item.revision);
-  return success(itemResource(fresh, await authoredKind(context.env.DB, fresh)));
+  const shown = seesPrivate(context.access) ? fresh : (await getItemAs(context.env.DB, item.id, context.access))!;
+  return success(itemResource(shown, await authoredKind(context.env.DB, shown)));
 };
 
 /**
@@ -291,7 +286,7 @@ async function publishAndNotify(context: OperationContext, item: ItemRow, note: 
   // Literal prose on the wire, never an error; every client hears (tn-6 section 5.2).
   const { unresolved: unresolvedHandles } = await consumeHandles(context.env.DB, withoutComments(item.content_md));
   try {
-    const version = await publish(context.env.DB, item, note, origin, noteGenerated);
+    const version = await publish(context.env.DB, item, note, origin, noteGenerated, { restricted: !seesPrivate(context.access) });
     // Studio-private bookkeeping must never fail a publish that has happened.
     if (settle) await settle(version).catch((e) => console.error("change class not settled", e));
     // After the category settles: an own version's Background reasons (4a).
@@ -333,8 +328,14 @@ const publishItemOperation = async (context: OperationContext, input: OperationI
   // Also the republish path for withdrawn items: vN+1 restores 'public'/authored kind.
   // Studio-side fragment cap (§2.7) is enforced inside publish() against the
   // TK-stripped (published) length, not the raw working copy — see FragmentTooLongError.
-  const item = await observedItem(context, input);
+  let item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
+  // A caller who cannot see a hidden working copy publishes the version it sees: the hidden copy
+  // is discarded first, as restore would discard it, and its mark with it (Venkat, session 86).
+  if (await workingCopyHidden(context.env.DB, context.access, item.id)) {
+    await restoreVersion(context.env.DB, (await getItem(context.env.DB, item.id))!, item.version);
+    item = (await getItem(context.env.DB, item.id))!;
+  }
   const body = (input.body as { note?: string; noteGenerated?: boolean; changeCategory?: ChangeCategory | null; tangle?: boolean; visibility?: "public" | "private" });
   // note_generated is the studio's own assertion that the note is the drafted
   // text, unedited (#40) — self-asserted, like every provenance member.
@@ -350,6 +351,9 @@ const publishItemOperation = async (context: OperationContext, input: OperationI
   const visibility = body.visibility ?? (item.version === 0 ? settings.default_visibility : "public");
   if (visibility === "private") {
     if (item.version > 0) return failure('conflict', { error: "a published item can't be made private; withdraw it instead" });
+    // The default can make a publish private without the body saying so; the
+    // token must still hold the scope that would let it see the result.
+    if (!seesPrivate(context.access)) return failure('forbidden', { error: 'insufficient scope' }, ['owner:publish', PRIVATE_SCOPE]);
     const privateVersion = await publishPrivately(context.env.DB, item, note, siteOrigin(settings, context.url, normalizeMount(context.env.MOUNT)));
     return success({ ok: true, version: 0, privateVersion, revision: item.revision + 1 });
   }
@@ -422,7 +426,7 @@ async function publishTangled(
   // links that replace them name items published first, which always resolve.
   for (const [i, span] of spans.entries()) {
     try {
-      await publish(db, draftPart(item, partBody(span, item.id)), null, origin, false, { dryRun: true });
+      await publish(db, draftPart(item, partBody(span, item.id)), null, origin, false, { dryRun: true, restricted: !seesPrivate(context.access) });
     } catch (e) {
       return publishFailure(e, `new item ${i + 1} (${tangleLabel(span)}): `);
     }
@@ -436,7 +440,7 @@ async function publishTangled(
   }
   withoutSpans += item.content_md.slice(last);
   try {
-    await publish(db, { ...item, content_md: withoutSpans }, note, origin, noteGenerated, { dryRun: true });
+    await publish(db, { ...item, content_md: withoutSpans }, note, origin, noteGenerated, { dryRun: true, restricted: !seesPrivate(context.access) });
   } catch (e) {
     return publishFailure(e);
   }
@@ -611,7 +615,7 @@ const generateItemOperation = async (context: OperationContext, input: Operation
   const body = (input.body as { scope: number; proceed?: boolean });
 
   const origin = siteOrigin(await getSettings(context.env.DB), context.url, normalizeMount(context.env.MOUNT));
-  const result = await runGenerateScope(context.env, item, body.scope, undefined, origin, { proceed: body.proceed === true });
+  const result = await runGenerateScope(context.env, item, body.scope, undefined, origin, { proceed: body.proceed === true, privateSources: seesPrivate(context.access) });
   // Links that could not be read are the author's call, not an error (decision #117): nothing was generated or saved.
   if (!result.ok && result.checkpoint) return success({ checkpoint: result.checkpoint });
   if (!result.ok) return modelFailure(result.body, result.status as 400 | 404 | 502);
@@ -709,7 +713,8 @@ const uploadMediaOperation = async (context: OperationContext, input: OperationI
   if (!ext) return failure('unsupported-media', { error: `unsupported type ${file.mime || "(none)"}; allowed: png/jpg/gif/webp/svg` });
   if (file.bytes.byteLength > MEDIA_MAX_BYTES) return failure('too-large', { error: "file exceeds 5 MB" });
   const itemId = media?.itemId;
-  const item = itemId ? await getItem(context.env.DB, itemId) : null;
+  // A private item is an unknown one to an access without owner:private (studio#178 R10).
+  const item = itemId && !(await privateItemHidden(context.env.DB, context.access, itemId)) ? await getItem(context.env.DB, itemId) : null;
   if (itemId && !item) return failure('not-found', { error: "itemId not found" });
   if (item) {
     if (media.expectedRevision === undefined) return failure('invalid-input', { error: 'expectedRevision required when attaching media' });
@@ -757,7 +762,7 @@ const uploadMediaOperation = async (context: OperationContext, input: OperationI
 const deleteMediaOperation = async (context: OperationContext, input: OperationInput) => {
   const db = context.env.DB;
   const row = await getMedia(db, input.path.id);
-  if (!row) return failure('not-found', { error: "not found" });
+  if (!row || (row.item_id && await privateItemHidden(db, context.access, row.item_id))) return failure('not-found', { error: "not found" });
   if ((await getSettings(db)).avatar_media_id === row.id) return failure('conflict', { error: "this is the avatar; change it in Settings" });
   const item = row.item_id ? await getItem(db, row.item_id) : null;
   const expectedRevision = (input.body as { expectedRevision?: number }).expectedRevision;
@@ -852,6 +857,12 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
   if (typeof patch.reader_order === "string" && !(READER_ORDERS as readonly string[]).includes(patch.reader_order)) return failure('invalid-input', { error: `readerOrder must be ${READER_ORDERS.join(" or ")}` });
   if (typeof patch.reader_mark_read === "string" && !["seen", "opened", "never"].includes(patch.reader_mark_read)) return failure('invalid-input', { error: "readerMarkRead must be seen, opened or never" });
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return failure('invalid-input', { error: `unknown timezone: ${patch.timezone}` });
+  // The avatar publishes its bytes, so it must be a medium that exists and that the caller may see:
+  // a private item's medium is an unknown one to a restricted caller (plan §1 0f law 8; Venkat, session 85).
+  if (patch.avatar_media_id) {
+    const media = await context.env.DB.prepare("SELECT item_id FROM media WHERE id = ?").bind(patch.avatar_media_id).first<{ item_id: string | null }>();
+    if (!media || (media.item_id && await privateItemHidden(context.env.DB, context.access, media.item_id))) return failure('invalid-input', { error: "avatarMediaId names no such media" });
+  }
   if (patch.author_url && !(URL.canParse(patch.author_url) && ["http:", "https:"].includes(new URL(patch.author_url).protocol))) return failure('invalid-input', { error: "authorUrl must be an absolute http(s) URL" });
   if (patch.site_url && !(URL.canParse(patch.site_url) && ["http:", "https:"].includes(new URL(patch.site_url).protocol))) return failure('invalid-input', { error: "siteUrl must be an absolute http(s) URL" });
   if (Array.isArray(body.author_links)) {
@@ -999,16 +1010,38 @@ const deleteContactOperation = async (context: OperationContext, input: Operatio
   await deleteContact(context.env.DB, input.path.id) ? success({ ok: true }) : failure('not-found', { error: "not found" });
 
 // The shelf (#135): see src/shelf.ts for the rules both operations share.
-const getShelfOperation = async (context: OperationContext) => success(await readShelf(context.env.DB));
+// Without owner:private the notebook's entries are not there (studio#178 R10): reads leave
+// them out, a named one is dropped as an unknown one is, and a replace keeps them in place.
+const isOwn = (hidden: Set<string>) => (entry: ShelfEntry) => entry.sub === OWN_SUBSCRIPTION && hidden.has(entry.remoteId);
+async function shelfAs(context: OperationContext, shelf: Shelf): Promise<Shelf> {
+  const hidden = await hiddenOwnIds(context.env.DB, context.access, shelf.entries.filter((e) => e.sub === OWN_SUBSCRIPTION).map((e) => e.remoteId));
+  return hidden.size ? { ...shelf, entries: shelf.entries.filter((e) => !isOwn(hidden)(e)) } : shelf;
+}
+const getShelfOperation = async (context: OperationContext) => success(await shelfAs(context, await readShelf(context.env.DB)));
 const putShelfOperation = async (context: OperationContext, input: OperationInput) => {
   const body = input.body as { entries: ShelfEntry[]; expectedRevision: number };
-  const stored = await replaceShelf(context.env.DB, body.entries, body.expectedRevision);
-  if (stored) return success(stored);
+  let entries = body.entries;
+  if (!seesPrivate(context.access)) {
+    const current = await readShelf(context.env.DB);
+    const hidden = await hiddenOwnIds(context.env.DB, context.access, [...current.entries, ...entries].filter((e) => e.sub === OWN_SUBSCRIPTION).map((e) => e.remoteId));
+    if (hidden.size) {
+      // Repeats go first, so one takes no place from a hidden entry.
+      const given = unique(entries).filter((e) => !isOwn(hidden)(e));
+      // Each hidden entry keeps its position; the token's list fills the rest, in its order.
+      entries = [];
+      current.entries.forEach((e, i) => { while (entries.length < i && given.length) entries.push(given.shift()!); if (isOwn(hidden)(e)) entries.push(e); });
+      entries.push(...given);
+    }
+  }
+  const stored = await replaceShelf(context.env.DB, entries, body.expectedRevision);
+  if (stored) return success(await shelfAs(context, stored));
   // The current list rides in the error so a client can merge and retry.
-  return failure('conflict', { error: 'shelf revision conflict; reload and try again', code: 'revision-conflict', current: await readShelf(context.env.DB) });
+  return failure('conflict', { error: 'shelf revision conflict; reload and try again', code: 'revision-conflict', current: await shelfAs(context, await readShelf(context.env.DB)) });
 };
 
 // The Agentic feeds and their editions: see src/agentic.ts for the rules the operations share.
+// The routes need owner:private (src/contract/routes.ts): an edition may name any own item,
+// so the runner refuses a restricted token the feed whole (Venkat, session 88).
 const listAgenticFeedsOperation = async (context: OperationContext) => success({ feeds: await listFeeds(context.env.DB) });
 const getAgenticOperation = async (context: OperationContext, input: OperationInput) => {
   const edition = await readEdition(context.env.DB, input.path.feed);

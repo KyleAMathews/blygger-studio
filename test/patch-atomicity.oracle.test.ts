@@ -13,7 +13,8 @@ import { testItemRevision } from './helpers.ts';
  * complete projection, not the stale projection read before that writer ran.
  * History grammar: subsets of text/kind/response/stub-clear fields, plus one invalid
  * response enum, malformed citation, immutable field or fragment-stub combination.
- * Fixed races change kind, stub, withdrawal or provenance-validation text before the write.
+ * Fixed races change kind, stub or withdrawal before the write. (Provenance-validation
+ * races left with client provenance, contract 7.0.0: only the server writes it.)
  * Driver: generated SDK through SELF for ordinary patches. Race probes call ownerApi
  * with a D1 proxy that runs a real competing update at the guarded SQL boundary.
  * Refinement: exact status and subsequent owner GET; the race seam must run once.
@@ -66,39 +67,6 @@ async function patch(input: Input, observe: (checkpoint: string, value: unknown)
     keys: Object.keys(projection).sort(), expectedKeys: Object.keys(reference).sort(),
     fields: Object.fromEntries(Object.keys(reference).map(key => [key, JSON.stringify(projection[key as keyof typeof projection]) === JSON.stringify(reference[key as keyof typeof reference])])),
   });
-}
-async function provenanceRace(replacement: boolean, observe: (checkpoint: string, value: unknown) => void) {
-    const cookie = await login();
-    const draft = await unwrap(BlyggerApi.createItem({ client: clientFor(cookie), body: { contentMd: "[TK]instruction[=]output[/TK]" } }));
-    let reached = 0;
-    let concurrent: unknown;
-    const db = new Proxy(env.DB, { get(target, key) {
-      if (key === "prepare") return (sql: string) => {
-        const statement = target.prepare(sql);
-        if (!sql.startsWith("UPDATE items SET")) return statement;
-        return { bind: (...values: Parameters<D1PreparedStatement["bind"]>) => {
-          const bound = statement.bind(...values);
-          return { first: async () => {
-            reached++;
-            await unwrap(BlyggerApi.updateItem({ client: clientFor(cookie), path: { id: draft.id }, body: { ...({ contentMd: "no scopes remain" }), expectedRevision: await testItemRevision(draft.id) } }));
-            concurrent = await unwrap(BlyggerApi.getItem({ client: clientFor(cookie), path: { id: draft.id } }));
-            return bound.first();
-          } };
-        } } as D1PreparedStatement;
-      };
-      const value = Reflect.get(target, key);
-      return typeof value === "function" ? value.bind(target) : value;
-    } });
-    const context = createExecutionContext();
-    const body = { expectedRevision: draft.revision, provenance: [{ sources: [], model: "client-model" }], ...(replacement ? { contentMd: "[TK]replacement[=]new output[/TK]" } : {}) };
-    const response = await ownerApi.fetch(new Request(`${BASE}/items/${draft.id}`, {
-      method: "PATCH", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify(body),
-    }), { ...env, DB: db } as Env, context);
-    await waitOnExecutionContext(context);
-
-    observe("stale patch admission", { reached, status: response.status });
-    const after = await unwrap(BlyggerApi.getItem({ client: clientFor(cookie), path: { id: draft.id } }));
-    observe("concurrent projection", JSON.stringify(after) === JSON.stringify(concurrent));
 }
   // The race starts after request validation and before the guarded write executes.
   // A real competing request changes a premise. The stale patch must return409 and
@@ -159,15 +127,15 @@ oracleProperty({
   check: (_history, trace, status) => differs('PATCH acceptance', 'PATCH acceptance', trace.filter(value => value.checkpoint === 'PATCH acceptance').map(value => value.value), [status]) ?? differs(trace.find(entry => entry.checkpoint.startsWith('PATCH ') && entry.checkpoint !== 'PATCH acceptance')?.checkpoint ?? 'complete owner projection', 'PATCH atomicity', matchingProjection(trace), true) ?? pass,
   calibrations: [{ name: 'partly applied rejected patch', law: 'PATCH atomicity', history: { constructed: 'all fields with responses' }, corrupt: trace => trace.map(entry => entry.checkpoint === 'PATCH rejection preserves all fields' ? { ...entry, value: { ...(entry.value as object), fields: { contentMd: false } } } : entry) }],
 });
-type Race = { boundary: 'provenance-text'; replacement: boolean } | { boundary: 'kind' | 'stub' | 'withdraw' };
+type Race = { boundary: 'kind' | 'stub' | 'withdraw' };
 oracleProperty({
   id: 'patch-atomicity-races', owns: ['src/api.ts#updateItemOperation'],
-  law: { statement: 'A stale patch rejects once at its guarded write and leaves the complete concurrent owner projection unchanged.', authority: 'docs/api.md guarded409; original controlled race witnesses', limits: 'Five original guarded UPDATE schedules; direct ownerApi boundary.' },
-  histories: { enumerated: [{ boundary: 'provenance-text', replacement: false }, { boundary: 'provenance-text', replacement: true }, { boundary: 'kind' }, { boundary: 'stub' }, { boundary: 'withdraw' }] as Race[], states: ['provenance premise', 'replacement provenance premise', 'kind premise', 'stub premise', 'withdraw premise'] },
-  label: history => history.boundary + ('replacement' in history ? ': replacement ' + history.replacement : ''),
+  law: { statement: 'A stale patch rejects once at its guarded write and leaves the complete concurrent owner projection unchanged.', authority: 'docs/api.md guarded409; original controlled race witnesses', limits: 'Three guarded UPDATE schedules (kind, stub, withdrawal); direct ownerApi boundary.' },
+  histories: { enumerated: [{ boundary: 'kind' }, { boundary: 'stub' }, { boundary: 'withdraw' }] as Race[], states: ['kind premise', 'stub premise', 'withdraw premise'] },
+  label: history => history.boundary,
   model: () => ({ admission: { reached: 1, status: 409 }, unchanged: true }),
-  driver: (history, observe) => history.boundary === 'provenance-text' ? provenanceRace(history.replacement, observe) : premiseRace(history.boundary, observe),
-  reached: (history, trace) => trace.some(entry => entry.checkpoint === 'stale patch admission' && (entry.value as { reached: number }).reached === 1) ? [history.boundary === 'provenance-text' ? history.replacement ? 'replacement provenance premise' : 'provenance premise' : history.boundary + ' premise'] : [],
+  driver: (history, observe) => premiseRace(history.boundary, observe),
+  reached: (history, trace) => trace.some(entry => entry.checkpoint === 'stale patch admission' && (entry.value as { reached: number }).reached === 1) ? [history.boundary + ' premise'] : [],
   check: (_history, trace, expected) => differs(trace.find(entry => entry.checkpoint === 'stale patch admission')?.checkpoint ?? 'guarded write', 'stale patch admission', trace.filter(entry => entry.checkpoint === 'stale patch admission').map(entry => entry.value), [expected.admission]) ?? differs(trace.find(entry => entry.checkpoint === 'concurrent projection')?.checkpoint ?? 'concurrent writer preserved', 'concurrent projection', trace.filter(entry => entry.checkpoint === 'concurrent projection').map(entry => entry.value), [expected.unchanged]) ?? pass,
   calibrations: [{ name: 'stale patch overwrites concurrent writer', law: 'concurrent projection', history: { enumerated: 0 }, corrupt: trace => trace.map(entry => entry.checkpoint === 'concurrent projection' ? { ...entry, value: false } : entry) }],
 });

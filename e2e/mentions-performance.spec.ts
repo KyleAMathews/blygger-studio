@@ -36,7 +36,7 @@ async function installMentions(page: Page, options: {
       if (options.responses?.[group] === null) return { status: 404, body: { code: 'not-found', message: 'not found' }, headers: {} };
       return { status: 200, headers: {}, body: { id, revision: 1, contentMd: `Paged target ${group}`, kind: 'fragment', status: 'public',
         created: at, updated: at, version: 1, dirty: false, responses: options.responses?.[group] ?? 'default', highlight: 'default', provenance: [], stubOf: null, forkedFrom: null,
-        forkCite: null, pins: [], media: [], publishedMedia: [], published: null } };
+        forkCite: null, pins: [], media: [], publishedMedia: [], published: null, hoppers: [] } };
     }
     if (path !== '/api/mentions') return null;
     stats.receiptReads.push(params);

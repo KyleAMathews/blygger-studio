@@ -1,10 +1,11 @@
 // The spellcheck extension's server half: the word list, and the AI proofread of an item's working
 // copy through the blyg's TK model. Mounted under /api/ext/spellcheck/ behind the owner API's
 // middleware, and only answering when enabled.
+import { visibleItemsSql } from "../../src/private-access.ts";
+import type { ItemRow } from "../../src/types.ts";
 import { failure, success } from "../../src/operation-types.ts";
 import type { ServerExtension } from "../../src/extensions/server.ts";
 import { complete } from "../../src/ai/provider.ts";
-import { getItem } from "../../src/model.ts";
 import { routes } from "./contract.ts";
 import { MAX_PROOFREAD_CHARS, PROOFREAD_SYSTEM, readIssues } from "./proofread.ts";
 import { NOTICE, WORDS, WORDS_GZ } from "./words-en-us.ts";
@@ -14,7 +15,9 @@ export const server: ServerExtension = {
   routes(router) {
     router.get(routes.extSpellcheckGetWords, async () => success({ lang: "en-US" as const, words: WORDS, gz: WORDS_GZ, notice: NOTICE }));
     router.get(routes.extSpellcheckProofread, async (context, input) => {
-      const item = await getItem(context.env.DB, String(input.query.id));
+      // Read as the caller may (private-access.ts): a hidden item is an unknown one, and a public
+      // item's tainted working copy is proofread as its public version (studio#178).
+      const item = await context.env.DB.prepare(`SELECT * FROM ${visibleItemsSql(context.access)} i WHERE id = ?`).bind(String(input.query.id)).first<ItemRow>();
       if (!item || item.status === "withdrawn") return failure("not-found", { error: "no such item" });
       const text = item.content_md.slice(0, MAX_PROOFREAD_CHARS);
       try {

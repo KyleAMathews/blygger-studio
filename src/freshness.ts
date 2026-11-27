@@ -106,7 +106,8 @@ export async function probeVersion(fetchFn: FetchLike, origin: string, id: strin
 
 async function quoteFreshness(db: D1Database, entry: Transclusion, threadId: string, fetchFn?: FetchLike): Promise<QuoteFreshness> {
   const base = { id: entry.id, ...(entry.origin ? { origin: entry.origin } : {}), baked: entry.version, partial: !!entry.selector };
-  const resolved = await resolveTarget(db, entry.id, threadId);
+  // A published quote's target was public when quoted and is never lowered to private, so nothing here is hidden.
+  const resolved = await resolveTarget(db, entry.id, threadId, false);
   if (!resolved.ok) return { ...base, held: null, live: null, status: "unresolvable", reason: resolved.reason };
   const target = resolved.target;
   // The target may now resolve to a different origin than the one baked —

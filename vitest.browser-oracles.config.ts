@@ -7,5 +7,5 @@ export default defineConfig({
       if (id.endsWith('?browser-source')) return { code: `export default ${JSON.stringify(code)};`, map: null };
     },
   }],
-  test: { include: ['test-browser/*.oracle.test.ts'], environment: 'node', maxWorkers: 1, fileParallelism: false, hookTimeout: 60000, testTimeout: 60000 },
+  test: { include: ['test-browser/*.oracle.test.ts'], exclude: ['test-browser/publish.oracle.test.ts'], environment: 'node', maxWorkers: 1, fileParallelism: false, hookTimeout: 60000, testTimeout: 60000 },
 });

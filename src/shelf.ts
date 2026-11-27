@@ -24,12 +24,18 @@
  * - The list has a revision. A PUT must send expectedRevision and applies only
  *   when it matches; every successful PUT bumps it. There is no unconditional
  *   replace: the shelf exists for several clients, where one would undo another.
+ * - The stored list holds at most SHELF_MAX entries, a technical ceiling rather
+ *   than a product cap (Venkat, session 85). A replace keeps the first
+ *   SHELF_MAX of its list once repeats are dropped, so when a token without
+ *   owner:private replaces a full shelf, the hidden entries it cannot see keep
+ *   their places and the overflow comes off the end of its own list.
  * - Private for good: the shelf never gains a public mode. A featured list on
  *   public pages would be its own presentation setting, not a flag here.
  */
 import { OWN_SUBSCRIPTION } from './own-subscription.ts';
 
-export const SHELF_MAX = 50;
+import { SHELF_MAX } from './shelf-limits.ts';
+export { SHELF_MAX };
 
 export interface ShelfEntry { sub: string; remoteId: string }
 export interface Shelf { entries: ShelfEntry[]; revision: number }
@@ -58,29 +64,22 @@ export async function readShelf(db: D1Database): Promise<Shelf> {
   return shelfFrom(rows, revision);
 }
 
-/** First position wins for a repeated entry. */
-function unique(entries: readonly ShelfEntry[]): ShelfEntry[] {
-  const seen = new Set<string>();
-  return entries.filter(({ sub, remoteId }) => {
-    const key = JSON.stringify([sub, remoteId]);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+/** First position wins for a repeated entry: a Map keeps a key where it was first set. */
+export function unique(entries: readonly ShelfEntry[]): ShelfEntry[] {
+  return [...new Map(entries.map(entry => [JSON.stringify([entry.sub, entry.remoteId]), entry])).values()];
 }
 
-/** Replace the list in one transaction. Null when expectedRevision is stale. */
-export async function replaceShelf(db: D1Database, entries: readonly ShelfEntry[], expectedRevision: number): Promise<Shelf | null> {
+/** Replace the list in one transaction. Undefined when expectedRevision is stale. */
+export async function replaceShelf(db: D1Database, entries: readonly ShelfEntry[], expectedRevision: number): Promise<Shelf | undefined> {
   const guard = ` AND ${REVISION} = ?3`;
   const statements = [
     db.prepare(`DELETE FROM shelf WHERE 1 AND ${REVISION} = ?`).bind(expectedRevision),
-    ...unique(entries).map(({ sub, remoteId }, position) => db.prepare(`INSERT INTO shelf(subscription_id, remote_id, position)
+    ...unique(entries).slice(0, SHELF_MAX).map(({ sub, remoteId }, position) => db.prepare(`INSERT INTO shelf(subscription_id, remote_id, position)
       SELECT ?1, ?2, ?4 WHERE ${RESOLVES}${guard}`).bind(sub, remoteId, expectedRevision, position)),
     db.prepare(`INSERT INTO shelf_revision(id, revision) SELECT 1, ${REVISION} + 1 WHERE 1 AND ${REVISION} = ?
       ON CONFLICT(id) DO UPDATE SET revision = excluded.revision`).bind(expectedRevision),
   ];
   // The read rides in the same transaction, so it is exactly what was stored.
   const results = await db.batch([...statements, ...readStatements(db)]);
-  if (!results[statements.length - 1].meta.changes) return null;
-  return shelfFrom(results[statements.length], results[statements.length + 1]);
+  if (results[statements.length - 1].meta.changes) return shelfFrom(results[statements.length], results[statements.length + 1]);
 }
