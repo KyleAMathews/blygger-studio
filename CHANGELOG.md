@@ -20,6 +20,8 @@ not have its own repo until session 26.
 
 ## Unreleased
 
+## 0.73.0 — Private items need their own scope; [TK] can draw on the notebook; private taint
+
 **Private items, the rest of Phase 0** (blygger-spec `docs/sealed-content-build-plan.md` §1,
 0c–0e) **and the hopper fix** (studio#175). Private contract **7.0.0** (breaking for tokens:
 private access moves to a new scope; client-written provenance removed). **Migrations:** `0064_search_private.sql`, `0065_private_taint.sql`.
@@ -122,6 +124,8 @@ private access moves to a new scope; client-written provenance removed). **Migra
   technical ceiling rather than a product cap (it was 50). A replace drops repeats first,
   keeping each entry's first position. For a token without `owner:private`, hidden entries
   keep their places, and anything past the ceiling comes off the end of that token's own list.
+
+**Migrations:** `0064_search_private.sql`, `0065_private_taint.sql`. Private contract 7.0.0, SDK 0.27.0.
 
 ## 0.72.3 — Discard gives back what you published from; the full view leads with its actions; `superseded` at 3 minutes
 
