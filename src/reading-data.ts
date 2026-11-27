@@ -1,4 +1,7 @@
 import { readSyndication } from "./syndication.ts";
+import { withoutComments } from "./comments.ts";
+import { renderMarkdown } from "./markdown.ts";
+import { parseScopes, previewStrip } from "./tk.ts";
 import { hiddenItemSql } from "./private-access.ts";
 import { authoredItemKindSql, authoredVersionKind } from './version-state.ts';
 import { cursorPage, type CursorQuery } from "./cursor-page.ts";
@@ -45,12 +48,13 @@ function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolea
   const enabled = JSON.stringify(rules);
   const binds = [...(hopper ? [hopper] : []), enabled, ...(kind ? [kind] : []), ...(hopper ? [hopper] : []), enabled, ...(kind ? [kind] : []), ...(mentioning ? [JSON.stringify(mentioning)] : [])];
   const updated = dateOrderSql('ii.updated'), observed = dateOrderSql('ii.observed_at');
-  // A hopper lists the owner's own members too, private ones included (Aneesh, studio#175).
+  // A hopper lists the owner's own members too, private ones included (Aneesh, studio#175), and
+  // drafts, marked: the hopper lens is a hopper view (Venkat, studio#178 V9). Other lenses stay draft-free.
   const sql = `SELECT 'own' AS source, i.id, '' AS sub, ${hopper ? 'oh.added_at' : pace ? paceAtSql('ro') : dateOrderSql('i.updated')} AS at
     FROM items i ${hopper ? "JOIN hopper_items oh ON oh.subscription_id = '~own' AND oh.remote_id = i.id AND oh.hopper_id = ?" : ''}
     LEFT JOIN versions p ON i.kind = 'withdrawn' AND p.item_id = i.id AND p.version = i.version - 1
     ${pace ? "LEFT JOIN reading_order ro ON ro.source = 'own' AND ro.sub = '' AND ro.id = i.id" : ''}
-    WHERE i.status IN ('public','withdrawn','private') AND (${ownBackgroundSql()}) = ${background ? 1 : 0}${mentioning ? ' AND 0' : ''}${kind ? ` AND ${authoredItemKindSql('p')} = ?` : ''}
+    WHERE i.status IN ('public','withdrawn','private'${hopper ? ",'draft'" : ''}) AND (${ownBackgroundSql()}) = ${background ? 1 : 0}${mentioning ? ' AND 0' : ''}${kind ? ` AND ${authoredItemKindSql('p')} = ?` : ''}
     UNION ALL SELECT 'imported', ii.remote_id, ii.subscription_id,
       ${hopper ? 'hi.added_at' : pace ? paceAtSql('ro') : `CASE WHEN ${updated} < ${observed} THEN ${updated} ELSE ${observed} END`}
     FROM imported_items ii ${hopper ? 'JOIN hopper_items hi ON hi.subscription_id = ii.subscription_id AND hi.remote_id = ii.remote_id AND hi.hopper_id = ?' : ''}
@@ -124,7 +128,37 @@ export async function readingData(db: D1Database, query: CursorQuery, source: st
     order: [{ column: 'at', direction: 'desc' }, { column: 'source', direction: 'asc' }, { column: 'sub', direction: 'asc' }, { column: 'id', direction: 'asc' }],
     prepare: order === 'pace-layered' && !hopper && !shelf ? () => ensureReaderOrder(db) : undefined,
     // Raw shows no fold: with no rules, no thread lists its parts.
-    project: (selectedRows: Identity[]) => readingEntries(db, selectedRows, raw ? [] : rules),
+    project: (selectedRows: Identity[]) => hopper && !shelf ? hopperEntries(db, selectedRows, rules) : readingEntries(db, selectedRows, raw ? [] : rules),
+  });
+}
+/** A draft's working copy as the editor previews it: no comments to self, an ungenerated [TK] scope as a placeholder. */
+function draftHtml(md: string): string {
+  const text = withoutComments(md);
+  return renderMarkdown(previewStrip(text, parseScopes(text).scopes).text);
+}
+/**
+ * The hopper lens's entries: its draft members on a path of their own (studio#178 V9), the
+ * rest through readingEntries. readingEntries, which the Agentic edition shares, never
+ * renders a working copy, so no other lens can show one.
+ */
+async function hopperEntries(db: D1Database, selectedRows: Identity[], rules: readonly BackgroundRule[]) {
+  const ownIds = selectedRows.filter((r) => r.source === "own").map((r) => r.id);
+  const drafts = ownIds.length ? (await db.prepare(`SELECT i.id, i.kind, i.updated, i.content_md, i.bg_reasons, i.bg_detail, rp.placement FROM items i
+    LEFT JOIN reading_placement rp ON rp.source = 'own' AND rp.sub = '' AND rp.id = i.id
+    WHERE i.status = 'draft' AND i.id IN (${ownIds.map(() => "?").join(",")})`).bind(...ownIds)
+    .all<{ id: string; kind: string; updated: string; content_md: string; bg_reasons: string | null; bg_detail: string | null; placement: string | null }>()).results : [];
+  if (!drafts.length) return readingEntries(db, selectedRows, rules);
+  const draftIds = new Set(drafts.map((d) => d.id));
+  const published = new Map((await readingEntries(db, selectedRows.filter((r) => !(r.source === "own" && draftIds.has(r.id))), rules)).map((e) => [e.key, e]));
+  const drafted = new Map(await Promise.all(drafts.map(async (d) => {
+    const input: OwnEntryInput = { id: d.id, kind: d.kind === 'thread' ? 'thread' : 'fragment', withdrawn: false, updated: d.updated, contentHtml: await sanitizeHtml(draftHtml(d.content_md)), draft: true };
+    const background = entryBackground({ withdrawn: false, reasons: d.bg_reasons, detail: d.bg_detail, placement: d.placement, blyg: false }, rules);
+    return [`own:${d.id}` as string, { ...buildReadingFeed([input], [])[0], key: `own:${d.id}`, background }] as const;
+  })));
+  return selectedRows.flatMap((r) => {
+    const key = r.source === "own" ? `own:${r.id}` : `imported:${JSON.stringify([r.sub, r.id])}`;
+    const entry = drafted.get(key) ?? published.get(key);
+    return entry ? [entry] : [];
   });
 }
 /** Reading entries for the given identities, in their order; one that is no longer held is left out. */
