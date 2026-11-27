@@ -3,19 +3,20 @@
 Reviewed 2026-11-27 against upstream `main` at `956dee3` (0.73.1).
 This follows [#153](https://github.com/blygger/blygger-studio/issues/153) and
 [#73](https://github.com/blygger/blygger-studio/issues/73).
-Recommendations below are pending maintainer decisions. This change does not
-alter version ranges, update grouping, OCR, or which checks gate Release.
+Recommendations below are pending maintainer decisions. The user also requested
+all available minor/patch dependency upgrades within the existing major versions.
+This change preserves range styles, update grouping, OCR, and Release gates.
 
-## Renovate: activation is missing
+## Renovate: activation verified
 
-The organization installation API returned `total_count: 0`:
+Before setup, the organization installation API returned `total_count: 0`:
 
 ```sh
 gh api orgs/blygger/installations --jq .total_count
 ```
 
-The current user's organization membership returned `role: admin`. Renovate is
-not installed on `blygger`; this is an installation problem, rather than an
+The current user's organization membership returned `role: admin`. Renovate was
+not installed on `blygger`; this was an installation problem, rather than an
 installed app missing access to this one repository. The absence of bot PRs alone
 would not have proved that. No self-hosted Renovate workflow exists here.
 
@@ -36,18 +37,16 @@ An extraction-only run also found a coverage defect: the default Compose matcher
 does not match `scripts/oauth-conformance.compose.yml`. The config now names that
 exact file for the Compose manager. It changes no image or release gate. See the
 [default filename rule](https://docs.renovatebot.com/modules/manager/docker-compose/).
-The current image refs have digests but no release tags. Review any proposed
-image update against the runner's explicit 5.3.2 suite assertion; extraction
+The image upgrades add explicit release tags beside the digests, and an OpenID
+version parser for its `release-v` prefix, which Docker's default parser rejects.
+Review image updates against the runner's explicit suite assertion; extraction
 does not establish that a replacement image is compatible or available.
 
-An organization owner must finish [installing the official Renovate app](https://github.com/apps/renovate/installations/new),
-choose **Only select repositories**, and select **blygger/blygger-studio**.
-Review the permissions GitHub displays before granting access. Installing it on
-the KyleAMathews fork would not enable updates on the upstream repository.
-After installation, verify that it is not suspended and that this repository is
-selected. Then check the first bot run and Dependency Dashboard for extraction
-and lockfile errors. A config file cannot grant the app access or start its
-hosted service. Do not report activation complete until a bot run is observed.
+The user installed the official app. The API now reports an active, unsuspended
+Renovate installation on the organization. It has reached this repository:
+the bot opened [Dependency Dashboard #193](https://github.com/blygger/blygger-studio/issues/193)
+and update PRs #191 and #192. A config file alone could not have granted that
+access. Check the dashboard for lookup and lockfile errors as upgrades arrive.
 
 Validate the config with the official tool (Node must meet that tool's engines):
 
@@ -65,20 +64,21 @@ versions synchronized with their runtime assertions when upgrading them.
 
 | Proposal | Current state | Treatment in this change |
 | --- | --- | --- |
-| Dependency updates | Config exists; organization app is absent | Complete npm setup and Compose file matching; app installation still required |
+| Dependency updates | App now active; dashboard and update PRs observed | Complete npm/Compose setup and apply the requested minor upgrades |
 | Release action hashes | Floating `@v4` refs | Pin the same refs to verified full commit hashes |
 | Reviewed Wrangler upgrades | Grouped with Cloudflare test tooling; automerge already off | Separate-PR proposal below; no policy adopted |
 | Tesseract worker/core/model | Still fetched remotely without integrity checks | Product choice below; no OCR behavior changed |
 | Exact Base UI version | Manifest `^1.9.0`, lockfile `1.9.0` | Exact-pin proposal below; no version changed |
 | Separate WebKit job | Already implemented in `049b5a7`; current job uses a digest-pinned Playwright container | No repeat implementation |
 
-The Hono and fast-xml-parser fixes are already present: manifest floors and
+Before this upgrade, the Hono and fast-xml-parser fixes were already present: manifest floors and
 locked versions are 4.13.18 and 5.12.1. Authentication/MCP and temml still have
 exact direct pins. Of the TanStack packages, only db/react-db use exact pins;
 query-db-collection, query-core and Router have ranges. `npm ci` still installs
 the versions and integrity hashes in the lockfile for all of them.
 
-The inventory has grown from 302 to 400 package entries, excluding the root.
+Before these upgrades, the inventory had grown from 302 to 400 package entries,
+excluding the root.
 It now includes `@tanstack/oracles` and `@tanstack/eslint-plugin-oracles` from
 commit-addressed `pkg.pr.new` tarballs, with lockfile integrity. They run in CI
 and development; they are not production runtime packages. The root postinstall
@@ -276,8 +276,41 @@ the suite under an unchanged application commit. Building the suite from pinned
 source would exchange registry retention for Java/build dependencies and more
 maintenance; it is not a smaller fix.
 
-Check redesign belongs to the CI lane. This branch changes only action refs in
-Release and its shared fallback, plus Renovate's npm/file setup and this review.
+Check redesign belongs to the CI lane. This branch changes its Inspector version
+and Playwright container only; Release and its shared fallback get action pins.
+
+## Requested minor upgrades
+
+The user requested these upgrades together in this PR. This batch does not adopt
+the proposed future Wrangler grouping or exact Base UI policy. Existing exact
+versions remain exact; caret ranges retain their style. The SDK's Zod range has
+no newer minor, and the two commit-addressed oracle builds remain at `97a4e7a`:
+they expose no release version from which to select a minor update.
+
+The registry plan updates 16 manifest entries, including Better Auth/provider
+1.7.14 → 1.7.28, TanStack DB/react-db rc.1.2 → rc.1.6, Wrangler 4.156 → 4.169,
+Workers Vitest plugin 1.4.11 → 1.10, and Playwright 1.64.1 → 1.65.1. A lockfile
+refresh also updates packages covered by broad existing ranges, such as Workers
+types. The isolated Inspector pin moves 2.10.1 → 2.17.0. Tesseract 5.1.1 and the
+js-yaml 4.3.2 override have no later release in their current majors.
+
+The official OpenID server/nginx images move 5.3.2 → 5.3.5; Mongo moves from its
+inspected 6.0.13 baseline to 6.0.28. All use verified multi-platform digests. The
+Playwright WebKit container moves to the matching 1.65.1 image. The same four
+official modules and eight interop cases remain required; this is a fixture
+upgrade, not a gate change.
+
+Reviewed Wrangler's official changelog from 4.157 through 4.169. Relevant changes
+include corrected D1 account selection and upload metadata, sanitized diagnostic
+headers and bundled security fixes. New OAuth logins request `billing:write`
+(4.168); existing sessions need a new login to gain it. No login or deployment
+is part of this PR. See the [Wrangler changelog](https://github.com/cloudflare/workers-sdk/blob/main/packages/wrangler/CHANGELOG.md).
+
+Reviewed Better Auth's [1.7 release notes](https://github.com/better-auth/better-auth/releases/tag/v1.7.28),
+including refresh/revocation, session and key-selection fixes. Studio sets its
+RS256 primary algorithm, does not enable CIMD or DPoP, and uses the native D1
+adapter. Its existing receiving/security tests remain the compatibility gate;
+this PR changes no auth configuration or security law.
 
 ## Validation and limits
 
@@ -292,6 +325,6 @@ Release and its shared fallback, plus Renovate's npm/file setup and this review.
 - Both edited workflows parse as YAML. Replacing the 24 pins with their original
   refs reproduces the original files byte for byte; other workflow behavior is
   unchanged. `git diff --check` passes.
-- No application dependency version changed, so the application suites were not
-  rerun. No live Renovate update/lockfile generation, container pull, OAuth
-  conformance run or production deployment is claimed by these setup checks.
+- Dependency upgrade validation is recorded in the PR body. The extraction and
+  config checks above establish setup behavior, not application compatibility.
+  No production deployment is part of this work.
