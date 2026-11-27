@@ -79,7 +79,7 @@ npx playwright install chromium
 npm run test:oauth:interop
 ```
 
-Use Node 24.5.0, OpenSSL and a terminal on macOS. Inspector's interactive flow
+Use Node 24.22.3, OpenSSL and a terminal on macOS. Inspector's interactive flow
 uses a PTY without opening the host browser. The runner supplies its own browser
 and temporary callback port. Linux CI supplies the PTY with `script`.
 

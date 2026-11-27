@@ -294,6 +294,10 @@ refresh also updates packages covered by broad existing ranges, such as Workers
 types. The isolated Inspector pin moves 2.10.1 → 2.17.0. Tesseract 5.1.1 and the
 js-yaml 4.3.2 override have no later release in their current majors.
 
+Inspector 2.17 requires `^22.23.4 || ^24.22.1 || >=26.12.1`. Its OAuth CI job
+and local instructions therefore use Node 24.22.3. The other CI runtimes retain
+their existing client-minimum and SQLite test roles.
+
 The official OpenID server/nginx images move 5.3.2 → 5.3.5; Mongo moves from its
 inspected 6.0.13 baseline to 6.0.28. All use verified multi-platform digests. The
 Playwright WebKit container moves to the matching 1.65.1 image. The same four
