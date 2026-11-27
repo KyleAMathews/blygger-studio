@@ -3,6 +3,10 @@
   "extends": ["config:recommended"],
   "rangeStrategy": "bump",
   "automerge": false,
+  "npmrc": "legacy-peer-deps=true\n",
+  "docker-compose": {
+    "managerFilePatterns": ["/^scripts\\/oauth-conformance\\.compose\\.yml$/"]
+  },
   "lockFileMaintenance": {
     "enabled": true
   },
