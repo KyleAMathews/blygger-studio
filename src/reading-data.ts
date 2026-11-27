@@ -13,7 +13,7 @@ import { sanitizeHtml } from "./importer/sanitize.ts";
 import type { ImportedItemRow } from "./types.ts";
 import { OWN_SUBSCRIPTION } from "./own-subscription.ts";
 import { linkLabel } from "./link-label.ts";
-import { BACKGROUND_RULES, entryBackground, importedBackgroundSql, ownBackgroundSql, type BackgroundRule } from "./background.ts";
+import { BACKGROUND_RULES, entryBackground, importedBackgroundSql, ownBackgroundSql, type BackgroundRule, type EntryBackground } from "./background.ts";
 
 export type Identity = { source: 'own' | 'imported'; id: string; sub: string; at: number | string | null };
 /** Foreign dates are normalized before storage. Prefixes extend UTC lexical
@@ -128,7 +128,7 @@ export async function readingData(db: D1Database, query: CursorQuery, source: st
     order: [{ column: 'at', direction: 'desc' }, { column: 'source', direction: 'asc' }, { column: 'sub', direction: 'asc' }, { column: 'id', direction: 'asc' }],
     prepare: order === 'pace-layered' && !hopper && !shelf ? () => ensureReaderOrder(db) : undefined,
     // Raw shows no fold: with no rules, no thread lists its parts.
-    project: (selectedRows: Identity[]) => hopper && !shelf ? hopperEntries(db, selectedRows, rules) : readingEntries(db, selectedRows, raw ? [] : rules),
+    project: (selectedRows: Identity[]) => hopper && !shelf && !raw ? hopperEntries(db, selectedRows, rules) : readingEntries(db, selectedRows, raw ? [] : rules),
   });
 }
 /** A draft's working copy as the editor previews it: no comments to self, an ungenerated [TK] scope as a placeholder. */
@@ -143,23 +143,17 @@ function draftHtml(md: string): string {
  */
 async function hopperEntries(db: D1Database, selectedRows: Identity[], rules: readonly BackgroundRule[]) {
   const ownIds = selectedRows.filter((r) => r.source === "own").map((r) => r.id);
-  const drafts = ownIds.length ? (await db.prepare(`SELECT i.id, i.kind, i.updated, i.content_md, i.bg_reasons, i.bg_detail, rp.placement FROM items i
-    LEFT JOIN reading_placement rp ON rp.source = 'own' AND rp.sub = '' AND rp.id = i.id
+  const drafts = ownIds.length ? (await db.prepare(`SELECT i.id, i.kind, i.updated, i.content_md FROM items i
     WHERE i.status = 'draft' AND i.id IN (${ownIds.map(() => "?").join(",")})`).bind(...ownIds)
-    .all<{ id: string; kind: string; updated: string; content_md: string; bg_reasons: string | null; bg_detail: string | null; placement: string | null }>()).results : [];
-  if (!drafts.length) return readingEntries(db, selectedRows, rules);
-  const draftIds = new Set(drafts.map((d) => d.id));
-  const published = new Map((await readingEntries(db, selectedRows.filter((r) => !(r.source === "own" && draftIds.has(r.id))), rules)).map((e) => [e.key, e]));
+    .all<{ id: string; kind: string; updated: string; content_md: string }>()).results : [];
   const drafted = new Map(await Promise.all(drafts.map(async (d) => {
     const input: OwnEntryInput = { id: d.id, kind: d.kind === 'thread' ? 'thread' : 'fragment', withdrawn: false, updated: d.updated, contentHtml: await sanitizeHtml(draftHtml(d.content_md)), draft: true };
-    const background = entryBackground({ withdrawn: false, reasons: d.bg_reasons, detail: d.bg_detail, placement: d.placement, blyg: false }, rules);
+    // A draft has no Background state: reasons are set at publish, and only a published item can be placed.
+    const background: EntryBackground = { reasons: [], placement: null, blyg: false };
     return [`own:${d.id}` as string, { ...buildReadingFeed([input], [])[0], key: `own:${d.id}`, background }] as const;
   })));
-  return selectedRows.flatMap((r) => {
-    const key = r.source === "own" ? `own:${r.id}` : `imported:${JSON.stringify([r.sub, r.id])}`;
-    const entry = drafted.get(key) ?? published.get(key);
-    return entry ? [entry] : [];
-  });
+  // readingEntries keeps the page's order and lists a draft with no body; its own entry replaces that one.
+  return (await readingEntries(db, selectedRows, rules)).map((e) => drafted.get(e.key) ?? e);
 }
 /** Reading entries for the given identities, in their order; one that is no longer held is left out. */
 export async function readingEntries(db: D1Database, selectedRows: Identity[], rules: readonly BackgroundRule[]) {

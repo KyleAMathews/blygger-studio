@@ -324,11 +324,12 @@ function Body({ html, url, l0, onMore }: { html: string; url?: string; l0: boole
     </>
   );
 }
+// A draft (only the hopper lens lists one) has no version yet: a link, quote or fork of it fails at publish.
 function canLink(entry: Reading) {
   return (
     !entry.l0 &&
     (entry.own
-      ? !entry.withdrawn
+      ? !entry.withdrawn && !entry.own.draft
       : !entry.withdrawn || entry.imported?.pinnedVersionRetained != null)
   );
 }
@@ -611,7 +612,8 @@ function useEntryActions({
           label: 'add author to address book',
           onSelect: () => void authorSeed(imported).then(addAuthorContact),
         },
-        (imported || entry.own) && {
+        // Only a published item can be placed (setReadingPlacement), so not a draft.
+        (imported || (entry.own && !entry.own.draft)) && {
           key: 'placement',
           icon: inBackground ? '↑' : '↓',
           label: inBackground ? 'move to Foreground' : 'move to Background',
